@@ -1,0 +1,31 @@
+[project]
+name = "conlang-generator"
+version = "0.1.0"
+description = "Generate constructed languages and translate to/from English."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.9",
+    "pyyaml>=6.0",
+    "anthropic>=0.40",
+    "typer>=0.13",
+]
+
+[project.scripts]
+conlang = "conlang_generator.cli.main:main"
+
+[build-system]
+requires = ["uv_build>=0.12.6,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The default OS temp dir is locked down in some sandboxed environments this
+# project is developed in; keep pytest's tmp_path fixture inside the repo.
+addopts = "--basetemp=.pytest_tmp"
