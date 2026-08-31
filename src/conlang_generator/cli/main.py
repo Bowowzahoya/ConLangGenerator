@@ -7,6 +7,7 @@ import typer
 
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation.generator import generate_language
+from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.speech import reader
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
@@ -36,21 +37,23 @@ def generate(
     name: str = typer.Option(..., "--name", help="Name to save the language under."),
     seed: int = typer.Option(0, "--seed", help="Random seed for reproducibility."),
     llm: str = typer.Option("fake", "--llm", help="LLM backend: fake or anthropic."),
-    isolated: bool = typer.Option(False, "--isolated", help="Nudge toward isolated-community typology."),
-    high_altitude: bool = typer.Option(False, "--high-altitude", help="Nudge toward ejective consonants."),
-    tonal: bool = typer.Option(False, "--tonal", help="Give the language phonemic tone."),
+    isolated: bool = typer.Option(False, "--isolated", help="Force isolated-community typology (guaranteed, not just likely)."),
+    high_altitude: bool = typer.Option(False, "--high-altitude", help="Force ejective consonants (guaranteed, not just likely)."),
+    tonal: bool = typer.Option(False, "--tonal", help="Force phonemic tone (guaranteed, not just likely)."),
     fantasy: bool = typer.Option(False, "--fantasy", help="Record as a fantasy-setting language (metadata only)."),
 ) -> None:
     """Generate a new language and save it."""
+    client = _client(llm)
+    traits = classify_prompt(prompt, fantasy, client)
     spec = GenerationSpec(
         prompt=prompt,
         seed=seed,
-        isolated=isolated,
-        high_altitude=high_altitude,
-        tonal=tonal,
+        traits=traits,
+        force_isolated=isolated,
+        force_high_altitude=high_altitude,
+        force_tonal=tonal,
         fantasy=fantasy,
     )
-    client = _client(llm)
     language = generate_language(name, spec, client)
     _repository().save(language)
 
@@ -61,6 +64,19 @@ def generate(
         f"alignment: {language.grammar.alignment.value}, "
         f"tonal: {language.tone_system.enabled}"
     )
+
+    nonzero_traits = {
+        trait_name: value
+        for trait_name, value in traits.model_dump().items()
+        if isinstance(value, float) and value > 0.0
+    }
+    if nonzero_traits:
+        rendered = ", ".join(f"{k}={v:.2f}" for k, v in nonzero_traits.items())
+        typer.echo(f"Traits from prompt: {rendered}")
+    forced = [f for f, on in (("isolated", isolated), ("high_altitude", high_altitude), ("tonal", tonal)) if on]
+    if forced:
+        typer.echo(f"Forced (guaranteed): {', '.join(forced)}")
+
     typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
 
 

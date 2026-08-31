@@ -84,8 +84,14 @@ def propose_word(
     llm_client: LLMClient,
     language_name: str,
     num_candidates: int = 5,
+    context: str = "",
 ) -> LexicalEntry:
-    """Build candidate forms deterministically, then ask the LLM to pick one."""
+    """Build candidate forms deterministically, then ask the LLM to pick one.
+
+    ``context`` is free-text flavor (e.g. ``TraitProfile.salient_context``)
+    appended to the LLM prompt when non-empty -- the "unknown unknowns"
+    channel getting an actual, if modest, effect on word choice.
+    """
     num_syllables = rng.choice([1, 1, 2, 2, 3])
 
     tones: tuple = ()
@@ -105,9 +111,10 @@ def propose_word(
     if len(candidates) == 1:
         chosen = candidates[0]
     else:
+        context_line = f" Context: {context}." if context else ""
         prompt = (
-            f"Language: {language_name}. Choose the best-sounding word for the "
-            f"meaning '{gloss}' ({pos.value}) from these candidates:\n"
+            f"Language: {language_name}.{context_line} Choose the best-sounding "
+            f"word for the meaning '{gloss}' ({pos.value}) from these candidates:\n"
             + "\n".join(f"{i + 1}. {c}" for i, c in enumerate(candidates))
             + "\nReply with only the number."
         )

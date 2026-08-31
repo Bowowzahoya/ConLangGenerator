@@ -14,7 +14,6 @@ class LLMRequest:
     prompt: str
     model: str
     max_tokens: int = 512
-    temperature: float = 1.0
     purpose: str = "generic"
     """Cost-tracking tag, e.g. 'lexicon.propose_word' or 'translate.gloss'."""
     metadata: dict[str, str] = field(default_factory=dict)

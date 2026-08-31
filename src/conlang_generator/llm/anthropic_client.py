@@ -14,10 +14,12 @@ class AnthropicClient:
         self._client = anthropic.Anthropic(api_key=api_key)
 
     def complete(self, request: LLMRequest) -> LLMResponse:
+        # Sampling params (temperature/top_p/top_k) were removed from the
+        # Messages API request shape entirely -- not just model-gated, see
+        # anthropic.resources.messages.messages.Messages.create's signature.
         response = self._client.messages.create(
             model=request.model,
             max_tokens=request.max_tokens,
-            temperature=request.temperature,
             system=request.system,
             messages=[{"role": "user", "content": request.prompt}],
         )

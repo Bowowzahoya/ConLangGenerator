@@ -35,6 +35,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             pos,
             llm_client,
             name,
+            context=spec.traits.salient_context,
         )
         for gloss, pos in lexicon_gen.CORE_MEANINGS
     )

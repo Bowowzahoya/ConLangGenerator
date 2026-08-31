@@ -1,15 +1,25 @@
 """Seeded phoneme-inventory generation, nudged by a small set of real,
-illustrative typological tendencies:
+illustrative typological tendencies -- all probabilistic (see
+``trait_bias.biased_probability``: a trait strength directly scales toward
+certainty, it isn't capped short of it -- the classifier is calibrated to
+rarely report values near 1.0, see ``prompt_classifier.py``):
 
 - an (almost) universal implicational rule: a voiced stop is only added once
   its voiceless counterpart is present -- guaranteed here by construction
   rather than modeled probabilistically.
-- ``spec.high_altitude`` boosts the odds of ejective consonants, per
+- ``traits.altitude`` boosts the odds of ejective consonants, per
   Everett (2013)'s cross-linguistic correlation between ejectives and
   high-altitude regions.
-- ``spec.isolated`` gives a small boost to rarer places of articulation
+- ``traits.isolation`` gives a boost to rarer places of articulation
   (uvulars), loosely reflecting that isolated speech communities can retain
   more idiosyncratic inventories.
+- ``traits.aesthetic_harshness`` re-weights which fricatives, the optional
+  velar nasal, and affricates get included -- a "vibe" knob independent of
+  the tendencies above.
+
+``spec.force_high_altitude`` bypasses the probability entirely and
+guarantees ejectives (the deterministic testing/override channel -- see
+``core.spec.GenerationSpec``).
 
 This is an illustrative starting set, not a typological database -- easy to
 extend as more tendencies are wanted.
@@ -32,6 +42,7 @@ from conlang_generator.core.phonology import (
     VowelHeight,
 )
 from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.generation.trait_bias import biased_probability
 
 _BASE_VOICELESS_STOPS = [
     Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False),
@@ -67,6 +78,10 @@ _FRICATIVE_POOL = [
     Consonant(ipa="z", place=Place.ALVEOLAR, manner=Manner.FRICATIVE, voiced=True),
     Consonant(ipa="v", place=Place.LABIODENTAL, manner=Manner.FRICATIVE, voiced=True),
 ]
+# "Vibe" tagging for aesthetic_harshness -- illustrative sound symbolism, not
+# a linguistic universal.
+_HARSH_LEANING_FRICATIVES = {"ʃ", "x", "s"}
+_SOFT_LEANING_FRICATIVES = {"f", "h", "z", "v"}
 _APPROXIMANT_POOL = [
     Consonant(ipa="l", place=Place.ALVEOLAR, manner=Manner.LATERAL_APPROXIMANT, voiced=True),
     Consonant(ipa="ɾ", place=Place.ALVEOLAR, manner=Manner.TAP, voiced=True),
@@ -105,9 +120,18 @@ _TONE_LEVEL_SETS = [
 ]
 
 
+def _fricative_inclusion_probability(symbol: str, harshness: float) -> float:
+    if symbol in _HARSH_LEANING_FRICATIVES:
+        return biased_probability(0.45, harshness)
+    if symbol in _SOFT_LEANING_FRICATIVES:
+        return biased_probability(0.45, 1.0 - harshness)
+    return 0.45
+
+
 def generate_phonology(
     rng: random.Random, spec: GenerationSpec
 ) -> tuple[PhonemeInventory, SyllableStructure, ToneSystem]:
+    traits = spec.traits
     consonants: list[Consonant] = list(_BASE_VOICELESS_STOPS)
 
     for stop in _BASE_VOICELESS_STOPS:
@@ -117,21 +141,34 @@ def generate_phonology(
     if rng.random() < 0.85:
         consonants.append(_GLOTTAL_STOP)
 
-    ejective_probability = 0.6 if spec.high_altitude else 0.08
+    ejective_probability = (
+        1.0 if spec.force_high_altitude else biased_probability(0.08, traits.altitude)
+    )
     if rng.random() < ejective_probability:
         consonants.extend(_EJECTIVES)
 
-    uvular_probability = 0.5 if spec.isolated else 0.12
+    uvular_probability = (
+        1.0 if spec.force_isolated else biased_probability(0.12, traits.isolation)
+    )
     if rng.random() < uvular_probability:
         consonants.extend(_UVULARS)
 
     consonants.extend(_NASALS)
-    if rng.random() < 0.6:
+    nasal_probability = biased_probability(0.6, 1.0 - traits.aesthetic_harshness)
+    if rng.random() < nasal_probability:
         consonants.append(_OPTIONAL_NASAL)
 
-    consonants.extend(rng.sample(_FRICATIVE_POOL, k=rng.randint(2, len(_FRICATIVE_POOL))))
+    fricatives = [
+        c for c in _FRICATIVE_POOL if rng.random() < _fricative_inclusion_probability(c.ipa, traits.aesthetic_harshness)
+    ]
+    if not fricatives:
+        fricatives = [rng.choice(_FRICATIVE_POOL)]
+    consonants.extend(fricatives)
+
     consonants.extend(rng.sample(_APPROXIMANT_POOL, k=rng.randint(2, len(_APPROXIMANT_POOL))))
-    if rng.random() < 0.5:
+
+    affricate_probability = biased_probability(0.35, traits.aesthetic_harshness)
+    if rng.random() < affricate_probability:
         consonants.extend(rng.sample(_AFFRICATE_POOL, k=1))
 
     vowel_count = rng.choices([5, 6, 7, 8], weights=[5, 3, 2, 1])[0]
@@ -153,7 +190,10 @@ def generate_phonology(
         allowed_coda_consonants=None,
     )
 
-    if spec.tonal:
+    tonal_probability = (
+        1.0 if spec.force_tonal else biased_probability(0.35, traits.tonal_friendliness)
+    )
+    if rng.random() < tonal_probability:
         levels = rng.choice(_TONE_LEVEL_SETS)
         tone_system = ToneSystem(enabled=True, levels=levels)
     else:

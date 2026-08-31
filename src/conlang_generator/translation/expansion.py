@@ -39,6 +39,7 @@ def coin_word(
             pos,
             llm_client,
             language.name,
+            context=language.spec.traits.salient_context,
         )
         if language.lexicon.by_form(entry.romanization) is None:
             return entry

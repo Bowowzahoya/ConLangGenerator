@@ -41,7 +41,6 @@ class CachingLLMClient:
                 request.system,
                 request.prompt,
                 str(request.max_tokens),
-                str(request.temperature),
             ]
         )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()

@@ -1,29 +1,34 @@
-"""The resolved generation request: a free-text prompt plus typological hints.
+"""The resolved generation request: a free-text prompt, an LLM-classified
+graded reading of it (``traits``), and explicit hard overrides.
 
-``GenerationSpec`` is what ``generation/generator.py`` actually consumes. In v0
-the hints are supplied directly (CLI flags or defaults); a future pass can add
-an LLM step that reads ``prompt`` and fills in the hints automatically.
+Two structurally separate channels feed generation, and they must not be
+confused:
+
+- ``traits`` comes from ``generation/prompt_classifier.py`` reading
+  ``prompt``. Its values scale directly to probability (see ``TraitProfile``
+  and ``generation/trait_bias.py``) -- a confident reading behaves close to
+  a guarantee, but the classifier is calibrated to rarely be that confident.
+  It's inference, not a command.
+- ``force_isolated``/``force_high_altitude``/``force_tonal`` come only from
+  explicit CLI flags (default ``False``) and guarantee their outcome
+  outright regardless of the prompt or the classifier's assessment. This is
+  the unconditional channel testing should use.
 """
 
 from __future__ import annotations
 
 from pydantic import BaseModel
 
+from conlang_generator.core.traits import TraitProfile
+
 
 class GenerationSpec(BaseModel, frozen=True):
     prompt: str
     seed: int
-    isolated: bool = False
-    """Geographically/socially isolated -- nudges toward less common, more
-    internally-elaborated typology (small illustrative effect, see
-    generation/grammar_gen.py)."""
-    high_altitude: bool = False
-    """Nudges toward ejective consonants, per Everett (2013)."""
-    tonal: bool = False
-    contact_languages: tuple[str, ...] = ()
-    """Named languages this conlang is meant to evoke or mix; currently only
-    recorded as metadata -- not yet used to bias generation (v0 limitation)."""
-    time_depth_years: int | None = None
-    """"How would this sound in N years" -- accepted but not yet applied;
-    diachronic sound change is future work (v0 limitation)."""
+    traits: TraitProfile = TraitProfile()
+    force_isolated: bool = False
+    force_high_altitude: bool = False
+    force_tonal: bool = False
     fantasy: bool = False
+    """Simple explicit metadata (not a graded trait) -- passed as context to
+    the classifier and to word-coinage prompts."""

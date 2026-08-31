@@ -24,10 +24,29 @@ All mutation-shaped operations return a new instance (`model_copy` /
 - **`lexicon.py`**: `LexicalEntry` (form + glosses + POS + tones),
   `Lexicon` (entries + idioms, with case-insensitive `by_gloss`/`by_form`
   lookup, both NFC-normalized on the form side).
-- **`spec.py`**: `GenerationSpec` -- the resolved generation request
-  (prompt text + typological hint flags + seed). `contact_languages` and
-  `time_depth_years` are accepted but not yet used by generation (see
-  Known limitations).
+- **`traits.py`**: `TraitProfile` -- an LLM-classified, graded (`0.0-1.0`)
+  reading of a free-text prompt against a broad set of factors that shape
+  real languages (terrain, community structure, contact history, culture,
+  aesthetics; non-human/anatomy factors excluded by design). `0.0` means
+  "no textual evidence -> use the world-typical base rate," never a
+  separate randomization step. A field's value *is* the probability of the
+  matching outcome (see `generation/trait_bias.py`) -- it scales all the way
+  to near-certainty at `1.0`, it isn't capped short of it. The safety valve
+  is the classifier's calibration (rarely reporting values near `1.0`), not
+  a mathematical ceiling -- see `generation/prompt_classifier.py`.
+  `GRADED_TRAIT_FIELDS` lists the float fields; a handful are consumed by
+  generation today (see `generation/` below), the rest are extracted and
+  stored for future use. `salient_context` is a free-text catch-all for
+  anything the classifier notices that doesn't map to a named field --
+  consumed today only as extra flavor context in word-coinage prompts.
+- **`spec.py`**: `GenerationSpec` -- the resolved generation request:
+  `prompt`, `seed`, `traits: TraitProfile` (LLM-inferred; a confident
+  reading behaves close to a guarantee, but it's still inference from
+  prose), and `force_isolated`/`force_high_altitude`/`force_tonal`
+  (explicit CLI flags only, default `False`) -- a structurally separate,
+  unconditional channel that bypasses the probabilistic path entirely
+  regardless of the prompt or the classifier's assessment. These two
+  channels are deliberately kept apart in code and naming.
 - **`language.py`**: `Language` -- the aggregate root (phonology + syllable
   structure + tone system + romanization + grammar + lexicon + spec +
   history log). `with_new_words()` / `with_new_idiom()` are the only
@@ -72,17 +91,41 @@ Everything here is a pure function of a `random.Random` seeded from
 - **`word_builder.py`**: `build_syllable()`/`build_word()` -- the only code
   that assembles IPA strings, always obeying `SyllableStructure` by
   construction (never generates then validates).
+- **`trait_bias.py`**: `biased_probability(base_rate, strength) -> float` --
+  the single place "graded trait -> probability" logic lives.
+  `strength=0` returns `base_rate` unchanged; `strength=1` reaches
+  certainty (`1.0`). The strength *is* the intended probability -- there is
+  no mathematical ceiling below `1.0`; the classifier is what's expected to
+  keep reported strengths near `1.0` rare (see `prompt_classifier.py`). A
+  `force_*` flag guarantees an outcome unconditionally, independent of this
+  function entirely.
+- **`prompt_classifier.py`**: `classify_prompt()` -- one LLM call that reads
+  the free-text prompt and returns a `TraitProfile`. The system prompt is
+  calibrated specifically against over-eager/cascading inference: rate each
+  dimension independently from direct evidence only, default to 0.0, and
+  two worked examples anchor "incidental mention" vs. "explicit and
+  central" magnitudes. Parsing is lenient (malformed/missing fields degrade
+  to "no evidence," never a crash) since LLM JSON isn't a reliable typed
+  API.
 - **`phonology_gen.py`**: `generate_phonology()`. Illustrative typological
-  nudges: ejectives boosted under `spec.high_altitude` (Everett 2013);
-  uvulars boosted under `spec.isolated`; voiced stops only added alongside
-  their voiceless counterpart (near-universal implicational rule, guaranteed
-  by construction).
+  nudges, all via `biased_probability` (or `1.0` when the matching
+  `force_*` flag is set): ejectives from `traits.altitude` (Everett 2013);
+  uvulars from `traits.isolation`; tone-system-enabled from
+  `traits.tonal_friendliness`; fricative-pool/nasal/affricate selection
+  re-weighted by `traits.aesthetic_harshness` (harsh vs. soft "vibe").
+  Voiced stops are only added alongside their voiceless counterpart
+  (near-universal implicational rule, guaranteed by construction, not
+  probabilistic).
 - **`romanization_gen.py`**: `generate_romanization()` -- picks one of two
   whole-language styles (digraphs vs. diacritics) and applies it
   consistently.
 - **`grammar_gen.py`**: `generate_grammar()` -- weighted picks reflecting
   rough cross-linguistic frequency (SOV/SVO dominate; nominative-accusative
-  dominates), nudged toward rarer/more-marked options by `spec.isolated`.
+  dominates), nudged via `biased_probability`/weight shifts by
+  `traits.isolation` and `traits.community_scale` (toward
+  polysynthetic/agglutinative and ergative alignment -- Trudgill) and
+  opposed by `traits.contact_intensity` (toward isolating/analytic --
+  creolization tendency).
 - **`lexicon_gen.py`**: `CORE_MEANINGS` (the ~47-word core vocabulary) and
   `propose_word()` -- builds candidate forms deterministically, asks the LLM
   to pick one. Shared by both initial generation and later expansion.
@@ -113,12 +156,20 @@ per AGENTS.md's CLI discipline. See `docs/CLI.md` for verified examples.
 
 ## Known v0 limitations (intentional, not oversights)
 
-- `GenerationSpec.contact_languages` and `time_depth_years` are recorded but
-  don't yet influence generation -- diachronic sound change (the "how would
-  this sound in N years" feature) needs a separate derivation pipeline from
-  an existing language, not the fresh-generation path.
+- Several `TraitProfile` fields are extracted and stored but not yet
+  consumed by generation: `social_hierarchy`, `orality_literacy`,
+  `evidentiality_culture`, `spatial_reference`, `ritual_register`,
+  `taboo_register`, `terrain_communication_distance`,
+  `salient_vocabulary_domains`, `contact_languages`, `time_depth_years`.
+  `time_depth_years` in particular needs a separate diachronic
+  sound-change derivation pipeline from an existing language, not the
+  fresh-generation path.
 - The typological tendency nudges in `phonology_gen.py`/`grammar_gen.py` are
   a small illustrative set, not a typological database.
+- The classifier's calibration (avoiding over-eager or cascading inference
+  from incidental prompt details) is prompt-engineered, not testable by a
+  unit test -- only checked manually against real prompts through
+  `--llm anthropic`.
 - Translation recognizes three sentence shapes only; no real syntactic
   parser.
 - No idiom generation/matching yet, though `Lexicon.idioms` and
