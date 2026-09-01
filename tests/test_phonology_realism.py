@@ -1,0 +1,145 @@
+"""Distributional checks for milestones 1-4 (inventory realism, in-word
+frequency realism, real phonotactics, word-length realism). These call
+``phonology_gen``/``word_builder`` directly (no LLM involved) except the
+one word-length test, which needs ``lexicon_gen.propose_word``."""
+
+import random
+
+import pytest
+
+from conlang_generator.core.lexicon import PartOfSpeech
+from conlang_generator.core.phonology import VowelBackness
+from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.generation import lexicon_gen, phonology_gen, romanization_gen, sonority, word_builder
+from conlang_generator.llm.fake_client import FakeLLMClient
+
+_SEEDS = range(200)
+
+
+def test_high_prevalence_consonants_are_more_common_in_inventories():
+    common_hits = sum(
+        "p" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        for s in _SEEDS
+    )
+    rare_hits = sum(
+        "ǀ" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        for s in _SEEDS
+    )
+    assert common_hits > rare_hits
+    assert common_hits > len(_SEEDS) * 0.5
+    assert rare_hits < len(_SEEDS) * 0.1
+
+
+def test_token_frequency_within_words_follows_prevalence():
+    spec = GenerationSpec(prompt="p", seed=7)
+    rng = random.Random(spec.seed)
+    inventory, structure, _ = phonology_gen.generate_phonology(rng, spec)
+    by_prevalence = sorted(inventory.consonants, key=lambda c: c.prevalence, reverse=True)
+    common, rare = by_prevalence[0], by_prevalence[-1]
+    assert common.prevalence > rare.prevalence  # sanity: pool actually varies
+
+    common_count = rare_count = 0
+    for _ in range(500):
+        word = word_builder.build_word(rng, inventory, structure, num_syllables=2)
+        common_count += word.count(common.ipa)
+        rare_count += word.count(rare.ipa)
+    assert common_count > rare_count
+
+
+def test_onset_clusters_are_sonority_legal_or_the_s_stop_exception():
+    checked_any_cluster = False
+    for seed in range(50):
+        inventory, structure, _ = phonology_gen.generate_phonology(random.Random(seed), GenerationSpec(prompt="p", seed=seed))
+        by_ipa = {c.ipa: c for c in inventory.consonants}
+        for c1_ipa, c2_ipa in structure.allowed_onset_clusters:
+            checked_any_cluster = True
+            assert sonority.is_legal_onset_cluster(by_ipa[c1_ipa], by_ipa[c2_ipa])
+    assert checked_any_cluster
+
+
+def test_sonorant_only_coda_profile_only_allows_sonorants_or_glottal_stop():
+    checked_any = False
+    for seed in range(100):
+        rng = random.Random(seed)
+        spec = GenerationSpec(prompt="p", seed=seed)
+        inventory, structure, _ = phonology_gen.generate_phonology(rng, spec)
+        if structure.allowed_coda_consonants is not None:
+            checked_any = True
+            by_ipa = {c.ipa: c for c in inventory.consonants}
+            for symbol in structure.allowed_coda_consonants:
+                assert symbol == "ʔ" or sonority.sonority(by_ipa[symbol]) >= 3
+    assert checked_any
+
+
+def test_vowel_harmony_words_mostly_share_backness():
+    for seed in range(300):
+        rng = random.Random(seed)
+        spec = GenerationSpec(prompt="p", seed=seed)
+        inventory, structure, _ = phonology_gen.generate_phonology(rng, spec)
+        if not structure.vowel_harmony:
+            continue
+
+        backness_by_ipa = {v.ipa: v.backness for v in inventory.vowels}
+        matches = total = 0
+        for _ in range(40):
+            word = word_builder.build_word(rng, inventory, structure, num_syllables=3)
+            classes = [backness_by_ipa[ch] for ch in word if ch in backness_by_ipa]
+            non_central = [c for c in classes if c != VowelBackness.CENTRAL]
+            if len(non_central) >= 2:
+                total += 1
+                if len(set(non_central)) == 1:
+                    matches += 1
+        if total >= 5:
+            assert matches / total > 0.6
+            return
+    pytest.fail("no seed produced a vowel-harmony language with enough multi-vowel words to test")
+
+
+def test_favor_short_false_produces_longer_words_on_average():
+    client = FakeLLMClient()
+    spec = GenerationSpec(prompt="p", seed=3)
+    rng = random.Random(spec.seed)
+    inventory, structure, tone_system = phonology_gen.generate_phonology(rng, spec)
+    romanization = romanization_gen.generate_romanization(rng, inventory)
+    vowel_symbols = set(inventory.vowel_symbols())
+
+    def avg_syllable_count(favor_short: bool, seed: int) -> float:
+        local_rng = random.Random(seed)
+        total = 0
+        n = 150
+        for _ in range(n):
+            entry = lexicon_gen.propose_word(
+                local_rng, inventory, structure, tone_system, romanization,
+                "thing", PartOfSpeech.NOUN, client, "Test", favor_short=favor_short,
+            )
+            total += sum(1 for ch in entry.ipa if ch in vowel_symbols)
+        return total / n
+
+    short_avg = avg_syllable_count(True, 100)
+    long_avg = avg_syllable_count(False, 200)
+    assert long_avg > short_avg
+
+
+def test_function_words_skew_shorter_than_content_words():
+    client = FakeLLMClient()
+    spec = GenerationSpec(prompt="p", seed=9)
+    rng = random.Random(spec.seed)
+    inventory, structure, tone_system = phonology_gen.generate_phonology(rng, spec)
+    romanization = romanization_gen.generate_romanization(rng, inventory)
+    vowel_symbols = set(inventory.vowel_symbols())
+
+    def avg_syllable_count(pos: PartOfSpeech, seed: int) -> float:
+        local_rng = random.Random(seed)
+        total = 0
+        n = 150
+        for _ in range(n):
+            entry = lexicon_gen.propose_word(
+                local_rng, inventory, structure, tone_system, romanization,
+                "x", pos, client, "Test",
+            )
+            total += sum(1 for ch in entry.ipa if ch in vowel_symbols)
+        return total / n
+
+    function_avg = avg_syllable_count(PartOfSpeech.PARTICLE, 300)
+    content_avg = avg_syllable_count(PartOfSpeech.NOUN, 400)
+    assert function_avg < content_avg

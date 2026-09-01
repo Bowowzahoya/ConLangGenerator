@@ -3,14 +3,15 @@ known to shape real languages (terrain, community structure, contact
 history, culture, aesthetics -- see ``generation/prompt_classifier.py`` for
 where this gets filled in).
 
-Every float field is ``0.0`` by default, meaning "no textual evidence" --
-generation consumers treat that as "use the world-typical base rate," not as
-a separate randomization step. A field's value *is* the probability of the
-matching outcome (see ``generation/trait_bias.py``): it scales linearly from
-the base rate at ``0.0`` up to near-certainty at ``1.0``, it isn't capped
-short of certainty. The classifier is calibrated to rarely report values
-near ``1.0`` (see ``generation/prompt_classifier.py``) -- that calibration is
-the safety valve, not a mathematical ceiling. A user who wants a guaranteed
+Every float field is ``0.0`` by default, meaning "no textual evidence
+either way" -- generation consumers treat that as "use the world-typical
+base rate," not as a separate randomization step. Fields are bipolar,
+``[-1.0, 1.0]``: a positive value is evidence *for* the named pole (scaling
+up toward certainty at ``1.0``), a negative value is evidence for its
+*opposite* (scaling down toward impossibility at ``-1.0``) -- see
+``generation/trait_bias.py`` for the interpolation. The classifier is
+calibrated to rarely report values near +-1.0 -- that calibration is the
+safety valve, not a mathematical ceiling. A user who wants a guaranteed
 outcome regardless of the prompt's wording should use the CLI's separate
 ``force_*`` fields on ``GenerationSpec`` instead.
 
@@ -43,32 +44,37 @@ GRADED_TRAIT_FIELDS: tuple[str, ...] = (
 
 class TraitProfile(BaseModel, frozen=True):
     # -- Consumed by generation today (see phonology_gen.py / grammar_gen.py) --
-    isolation: float = Field(default=0.0, ge=0.0, le=1.0)
-    """Geographic/social isolation. Nudges uvular presence, ergative
-    alignment, and morphology toward polysynthetic/agglutinative."""
-    altitude: float = Field(default=0.0, ge=0.0, le=1.0)
-    """High-altitude terrain. Nudges ejective consonants (Everett 2013)."""
-    community_scale: float = Field(default=0.0, ge=0.0, le=1.0)
-    """Small, tight-knit community (vs. large/diffuse). Nudges morphology
-    toward polysynthetic/agglutinative (Trudgill)."""
-    contact_intensity: float = Field(default=0.0, ge=0.0, le=1.0)
-    """Heavy contact/trade/creolization history. Nudges morphology toward
-    isolating/analytic, opposing ``isolation``/``community_scale``."""
-    aesthetic_harshness: float = Field(default=0.0, ge=0.0, le=1.0)
-    """0 = soft/melodic, 1 = harsh/guttural. Re-weights consonant pool
-    selection."""
-    tonal_friendliness: float = Field(default=0.0, ge=0.0, le=1.0)
-    """Cultural/practical affinity for lexical tone. Nudges the tone system
-    on."""
+    isolation: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: geographic/social isolation -- nudges uvular presence,
+    ergative alignment, and morphology toward polysynthetic/agglutinative.
+    Negative: well-connected/cosmopolitan -- suppresses the same."""
+    altitude: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: high-altitude terrain -- nudges ejective consonants
+    (Everett 2013). Negative: lowland/coastal -- suppresses them."""
+    community_scale: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: small, tight-knit community -- nudges morphology toward
+    polysynthetic/agglutinative (Trudgill). Negative: large, diffuse
+    community -- suppresses that nudge."""
+    contact_intensity: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: heavy contact/trade/creolization history -- nudges
+    morphology toward isolating/analytic, opposing ``isolation``/
+    ``community_scale``. Negative: little outside contact."""
+    aesthetic_harshness: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: harsh/guttural. Negative: soft/melodic. Re-weights
+    consonant pool selection either way."""
+    tonal_friendliness: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: cultural/practical affinity for lexical tone -- nudges the
+    tone system on. Negative: evidence the language explicitly is not
+    tonal -- suppresses it below the world-typical base rate."""
 
     # -- Extracted and stored, not yet consumed by generation --
-    social_hierarchy: float = Field(default=0.0, ge=0.0, le=1.0)
-    orality_literacy: float = Field(default=0.0, ge=0.0, le=1.0)
-    evidentiality_culture: float = Field(default=0.0, ge=0.0, le=1.0)
-    spatial_reference: float = Field(default=0.0, ge=0.0, le=1.0)
-    ritual_register: float = Field(default=0.0, ge=0.0, le=1.0)
-    taboo_register: float = Field(default=0.0, ge=0.0, le=1.0)
-    terrain_communication_distance: float = Field(default=0.0, ge=0.0, le=1.0)
+    social_hierarchy: float = Field(default=0.0, ge=-1.0, le=1.0)
+    orality_literacy: float = Field(default=0.0, ge=-1.0, le=1.0)
+    evidentiality_culture: float = Field(default=0.0, ge=-1.0, le=1.0)
+    spatial_reference: float = Field(default=0.0, ge=-1.0, le=1.0)
+    ritual_register: float = Field(default=0.0, ge=-1.0, le=1.0)
+    taboo_register: float = Field(default=0.0, ge=-1.0, le=1.0)
+    terrain_communication_distance: float = Field(default=0.0, ge=-1.0, le=1.0)
 
     contact_languages: tuple[str, ...] = ()
     """Named languages this conlang is meant to evoke or mix; recorded only,

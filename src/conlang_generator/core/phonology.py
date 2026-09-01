@@ -42,6 +42,14 @@ class Consonant(BaseModel, frozen=True):
     manner: Manner
     voiced: bool
     ejective: bool = False
+    prevalence: float = 0.5
+    """Rough cross-linguistic commonness, ~0-1. Reused two ways: as this
+    symbol's inclusion probability when a language's inventory is built
+    (generation/phonology_gen.py), and as its sampling weight among
+    whichever symbols made it into a given inventory when words are built
+    (generation/word_builder.py). Illustrative approximation (informed by
+    general typological consensus, e.g. Maddieson's surveys), not a
+    precise statistic."""
 
 
 class VowelHeight(str, Enum):
@@ -66,6 +74,9 @@ class Vowel(BaseModel, frozen=True):
     backness: VowelBackness
     rounded: bool
     long: bool = False
+    prevalence: float = 0.5
+    """See ``Consonant.prevalence`` -- same meaning, same illustrative-
+    approximation caveat."""
 
 
 class PhonemeInventory(BaseModel, frozen=True):
@@ -117,13 +128,21 @@ class SyllableStructure(BaseModel, frozen=True):
 
     ``max_onset``/``max_coda`` of 0 forbid consonants in that position; 1 allows a
     single consonant; >=2 allows consonant clusters, but only the pairs listed in
-    ``allowed_onset_clusters`` (checked when ``max_onset`` >= 2).
+    ``allowed_onset_clusters``/``allowed_coda_clusters`` (checked when
+    ``max_onset``/``max_coda`` >= 2). ``allowed_coda_consonants=None`` means
+    any consonant is allowed as a single coda; a coda profile that restricts
+    codas to sonorants (or forbids them, via ``max_coda=0``) is expressed
+    with these same fields -- see ``generation/phonology_gen.py``.
     """
 
     max_onset: int = 1
     max_coda: int = 1
     allowed_onset_clusters: tuple[tuple[str, str], ...] = ()
+    allowed_coda_clusters: tuple[tuple[str, str], ...] = ()
     allowed_coda_consonants: tuple[str, ...] | None = None  # None = any consonant
+    vowel_harmony: bool = False
+    """Backness (front/back) vowel harmony -- see
+    ``generation/word_builder.py``'s ``build_word``."""
 
     def is_valid_syllable(
         self, onset: tuple[str, ...], coda: tuple[str, ...]
@@ -135,6 +154,10 @@ class SyllableStructure(BaseModel, frozen=True):
         if len(onset) > 2:
             return False
         if len(coda) > self.max_coda:
+            return False
+        if len(coda) == 2 and coda not in self.allowed_coda_clusters:
+            return False
+        if len(coda) > 2:
             return False
         if (
             self.allowed_coda_consonants is not None

@@ -13,6 +13,11 @@ confused:
   explicit CLI flags (default ``False``) and guarantee their outcome
   outright regardless of the prompt or the classifier's assessment. This is
   the unconditional channel testing should use.
+
+``seed_examples`` is a third, similarly explicit channel: literal words a
+user supplies (not inferred, not probabilistic) that must appear verbatim
+in the generated lexicon -- see ``generation/seed_examples.py`` for how
+``ipa`` gets filled in when not given directly.
 """
 
 from __future__ import annotations
@@ -20,6 +25,16 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from conlang_generator.core.traits import TraitProfile
+
+
+class SeedExample(BaseModel, frozen=True):
+    gloss: str
+    form: str
+    """The user's own spelling of the word -- orthography, not IPA."""
+    ipa: str | None = None
+    """Explicit pronunciation if the user gave one; ``None`` means
+    ``generation/seed_examples.resolve_seed_examples`` should guess one
+    from ``form`` before generation runs."""
 
 
 class GenerationSpec(BaseModel, frozen=True):
@@ -32,3 +47,7 @@ class GenerationSpec(BaseModel, frozen=True):
     fantasy: bool = False
     """Simple explicit metadata (not a graded trait) -- passed as context to
     the classifier and to word-coinage prompts."""
+    seed_examples: tuple[SeedExample, ...] = ()
+    """Literal words the user supplied; always fully resolved (``ipa`` set)
+    by the time this reaches ``generate_language`` -- see
+    ``cli/main.py``'s ``generate`` command."""

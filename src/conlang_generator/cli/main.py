@@ -5,9 +5,10 @@ from pathlib import Path
 
 import typer
 
-from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.generation.prompt_classifier import classify_prompt
+from conlang_generator.generation.seed_examples import resolve_seed_examples
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.speech import reader
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
@@ -31,6 +32,15 @@ def _client(llm: str):
         raise typer.Exit(code=1) from exc
 
 
+def _parse_seed_example(raw: str) -> SeedExample:
+    if "=" not in raw:
+        typer.echo(f"error: --example must be 'gloss=form' or 'gloss=form|ipa', got {raw!r}", err=True)
+        raise typer.Exit(code=1)
+    gloss, rest = raw.split("=", 1)
+    form, _, ipa = rest.partition("|")
+    return SeedExample(gloss=gloss.strip(), form=form.strip(), ipa=(ipa.strip() or None))
+
+
 @app.command()
 def generate(
     prompt: str = typer.Option(..., "--prompt", help="Free-text description of the language."),
@@ -41,10 +51,23 @@ def generate(
     high_altitude: bool = typer.Option(False, "--high-altitude", help="Force ejective consonants (guaranteed, not just likely)."),
     tonal: bool = typer.Option(False, "--tonal", help="Force phonemic tone (guaranteed, not just likely)."),
     fantasy: bool = typer.Option(False, "--fantasy", help="Record as a fantasy-setting language (metadata only)."),
+    contact_language: list[str] = typer.Option(
+        [], "--contact-language", help="Bias generation toward a known real language's palette (repeatable); merged with any the prompt implies."
+    ),
+    example: list[str] = typer.Option(
+        [], "--example", help="Literal seed word: 'gloss=form' or 'gloss=form|ipa' (repeatable). Always appears verbatim in the lexicon."
+    ),
 ) -> None:
     """Generate a new language and save it."""
     client = _client(llm)
     traits = classify_prompt(prompt, fantasy, client)
+    if contact_language:
+        merged = tuple(dict.fromkeys((*traits.contact_languages, *contact_language)))
+        traits = traits.model_copy(update={"contact_languages": merged})
+
+    raw_examples = tuple(_parse_seed_example(e) for e in example)
+    seed_examples = resolve_seed_examples(raw_examples, client)
+
     spec = GenerationSpec(
         prompt=prompt,
         seed=seed,
@@ -53,6 +76,7 @@ def generate(
         force_high_altitude=high_altitude,
         force_tonal=tonal,
         fantasy=fantasy,
+        seed_examples=seed_examples,
     )
     language = generate_language(name, spec, client)
     _repository().save(language)
@@ -68,14 +92,19 @@ def generate(
     nonzero_traits = {
         trait_name: value
         for trait_name, value in traits.model_dump().items()
-        if isinstance(value, float) and value > 0.0
+        if isinstance(value, float) and value != 0.0
     }
     if nonzero_traits:
-        rendered = ", ".join(f"{k}={v:.2f}" for k, v in nonzero_traits.items())
+        rendered = ", ".join(f"{k}={v:+.2f}" for k, v in nonzero_traits.items())
         typer.echo(f"Traits from prompt: {rendered}")
+    if traits.contact_languages:
+        typer.echo(f"Contact languages: {', '.join(traits.contact_languages)}")
     forced = [f for f, on in (("isolated", isolated), ("high_altitude", high_altitude), ("tonal", tonal)) if on]
     if forced:
         typer.echo(f"Forced (guaranteed): {', '.join(forced)}")
+    if seed_examples:
+        rendered_examples = ", ".join(f"{e.gloss}={e.form} (/{e.ipa}/)" for e in seed_examples)
+        typer.echo(f"Seed examples: {rendered_examples}")
 
     typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
 

@@ -44,6 +44,13 @@ def test_maximal_trait_strength_reaches_certainty():
     assert _ejective_rate(1.0) == 1.0
 
 
+def test_maximal_negative_trait_strength_suppresses_to_zero():
+    # Bipolar traits: -1.0 is evidence for the *opposite* pole (definitely
+    # lowland), suppressing the outcome below its base rate entirely --
+    # not just "no push," which is what 0.0 already means.
+    assert _ejective_rate(-1.0) == 0.0
+
+
 def test_force_high_altitude_guarantees_ejectives_independent_of_traits():
     client = FakeLLMClient()
     for seed in range(50):

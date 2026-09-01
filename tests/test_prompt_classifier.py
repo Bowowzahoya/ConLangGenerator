@@ -25,11 +25,21 @@ def test_same_prompt_is_deterministic():
     assert a == b
 
 
-def test_fake_profile_floats_are_within_unit_interval():
+def test_fake_profile_floats_are_within_bipolar_interval():
     client = FakeLLMClient()
     profile = classify_prompt("anything", False, client)
     for field in ("isolation", "altitude", "aesthetic_harshness", "tonal_friendliness"):
-        assert 0.0 <= getattr(profile, field) <= 1.0
+        assert -1.0 <= getattr(profile, field) <= 1.0
+
+
+def test_fake_profiles_span_both_positive_and_negative():
+    client = FakeLLMClient()
+    values = [
+        getattr(classify_prompt(f"prompt {i}", False, client), "aesthetic_harshness")
+        for i in range(30)
+    ]
+    assert any(v > 0 for v in values)
+    assert any(v < 0 for v in values)
 
 
 def test_unparseable_response_degrades_to_neutral_profile():
