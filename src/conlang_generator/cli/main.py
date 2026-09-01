@@ -9,6 +9,7 @@ from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.generation.seed_examples import resolve_seed_examples
+from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.speech import reader
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
@@ -57,6 +58,10 @@ def generate(
     example: list[str] = typer.Option(
         [], "--example", help="Literal seed word: 'gloss=form' or 'gloss=form|ipa' (repeatable). Always appears verbatim in the lexicon."
     ),
+    evolve_from: str = typer.Option(
+        None, "--evolve-from", help="Evolve an existing saved language via sound change instead of generating fresh (requires --years)."
+    ),
+    years: int = typer.Option(None, "--years", help="Time depth in years, for --evolve-from."),
 ) -> None:
     """Generate a new language and save it."""
     client = _client(llm)
@@ -64,6 +69,34 @@ def generate(
     if contact_language:
         merged = tuple(dict.fromkeys((*traits.contact_languages, *contact_language)))
         traits = traits.model_copy(update={"contact_languages": merged})
+
+    if evolve_from is not None:
+        if years is None:
+            typer.echo("error: --evolve-from requires --years", err=True)
+            raise typer.Exit(code=1)
+        repository = _repository()
+        try:
+            base = repository.load(evolve_from)
+        except FileNotFoundError as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+
+        language = evolve_language(name, base, years, traits, seed)
+        repository.save(language)
+
+        typer.echo(f"Evolved '{evolve_from}' -> '{language.name}' ({language.slug}) over {years} years.")
+        typer.echo(
+            f"consonants: {len(base.phonology.consonants)} -> {len(language.phonology.consonants)}, "
+            f"vowels: {len(base.phonology.vowels)} -> {len(language.phonology.vowels)}"
+        )
+        nonzero_traits = {k: v for k, v in traits.model_dump().items() if isinstance(v, float) and v != 0.0}
+        if nonzero_traits:
+            typer.echo(f"Evolution traits: {', '.join(f'{k}={v:+.2f}' for k, v in nonzero_traits.items())}")
+        for old_entry, new_entry in list(zip(base.lexicon.entries, language.lexicon.entries))[:6]:
+            arrow = "=" if old_entry.romanization == new_entry.romanization else "->"
+            typer.echo(f"  {old_entry.glosses[0]}: {old_entry.romanization} {arrow} {new_entry.romanization}")
+        typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
+        return
 
     raw_examples = tuple(_parse_seed_example(e) for e in example)
     seed_examples = resolve_seed_examples(raw_examples, client)

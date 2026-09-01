@@ -56,7 +56,7 @@ from conlang_generator.core.phonology import (
     VowelHeight,
 )
 from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation import sonority
+from conlang_generator.generation import ipa_tokenizer, sonority
 from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles
 from conlang_generator.generation.trait_bias import biased_probability
 
@@ -187,12 +187,16 @@ _VOWEL_HARMONY_BASE_RATE = 0.22
 _CODA_PROFILES = ("none", "sonorant", "unrestricted")
 _CODA_PROFILE_WEIGHTS = (15, 35, 50)
 
-_ALL_CONSONANTS: tuple[Consonant, ...] = (
+ALL_CONSONANTS: tuple[Consonant, ...] = (
     tuple(x for pair in _STOP_AND_AFFRICATE_PAIRS for x in pair)
     + (_GLOTTAL_STOP,) + _EJECTIVES + _UVULAR_GROUP + _NASAL_POOL
     + _FRICATIVE_POOL + _APPROXIMANT_POOL + _EXOTIC_POOL
 )
-_ALL_VOWELS: tuple[Vowel, ...] = _VOWEL_ANCHORS + _VOWEL_EXTRAS
+"""Every consonant this package models, regardless of a given language's
+inventory -- shared with ``sound_change.py``, which needs to look up any
+symbol evolution might produce."""
+ALL_VOWELS: tuple[Vowel, ...] = _VOWEL_ANCHORS + _VOWEL_EXTRAS
+"""See ``ALL_CONSONANTS``."""
 
 
 def _fricative_inclusion_probability(fricative: Consonant, harshness: float) -> float:
@@ -266,25 +270,6 @@ def _force_include(selected: list, pool: tuple, must_include: frozenset[str]) ->
     return selected
 
 
-def _tokenize_known_symbols(text: str, known_symbols: tuple[str, ...]) -> tuple[str, ...]:
-    """Greedy longest-match tokenization of an IPA string against a known
-    symbol set -- same approach as ``RomanizationScheme.apply``. Characters
-    that don't match any known symbol (tone diacritics, typos, symbols
-    outside our modeled set) are silently skipped."""
-    ordered = sorted(set(known_symbols), key=len, reverse=True)
-    tokens: list[str] = []
-    i = 0
-    while i < len(text):
-        for symbol in ordered:
-            if text.startswith(symbol, i):
-                tokens.append(symbol)
-                i += len(symbol)
-                break
-        else:
-            i += 1
-    return tuple(tokens)
-
-
 def _select_consonants(
     rng: random.Random,
     spec: GenerationSpec,
@@ -351,8 +336,8 @@ def _select_consonants(
         if rng.random() < rate:
             consonants.append(exotic)
 
-    consonants = _force_include(consonants, _ALL_CONSONANTS, must_include)
-    return _ensure_floor(rng, consonants, _ALL_CONSONANTS, _MIN_CONSONANTS)
+    consonants = _force_include(consonants, ALL_CONSONANTS, must_include)
+    return _ensure_floor(rng, consonants, ALL_CONSONANTS, _MIN_CONSONANTS)
 
 
 def _select_vowels(
@@ -363,8 +348,8 @@ def _select_vowels(
         rate = _reference_biased_rate(extra.prevalence, extra.ipa, reference_symbols)
         if rng.random() < rate:
             vowels.append(extra)
-    vowels = _force_include(vowels, _ALL_VOWELS, must_include)
-    return _ensure_floor(rng, vowels, _ALL_VOWELS, _MIN_VOWELS)
+    vowels = _force_include(vowels, ALL_VOWELS, must_include)
+    return _ensure_floor(rng, vowels, ALL_VOWELS, _MIN_VOWELS)
 
 
 def _legal_onset_clusters(consonants: tuple[Consonant, ...]) -> tuple[tuple[str, str], ...]:
@@ -397,9 +382,9 @@ def generate_phonology(
     reference_symbols: frozenset[str] = frozenset().union(*(p.symbols() for p in reference_profiles)) if reference_profiles else frozenset()
 
     seed_ipa_text = "".join(example.ipa or "" for example in spec.seed_examples)
-    consonant_symbol_pool = tuple(c.ipa for c in _ALL_CONSONANTS)
-    vowel_symbol_pool = tuple(v.ipa for v in _ALL_VOWELS)
-    seed_tokens = _tokenize_known_symbols(seed_ipa_text, consonant_symbol_pool + vowel_symbol_pool)
+    consonant_symbol_pool = tuple(c.ipa for c in ALL_CONSONANTS)
+    vowel_symbol_pool = tuple(v.ipa for v in ALL_VOWELS)
+    seed_tokens = ipa_tokenizer.symbols_only(seed_ipa_text, consonant_symbol_pool + vowel_symbol_pool)
     must_include_consonants = frozenset(t for t in seed_tokens if t in consonant_symbol_pool)
     must_include_vowels = frozenset(t for t in seed_tokens if t in vowel_symbol_pool)
 

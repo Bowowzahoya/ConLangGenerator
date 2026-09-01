@@ -22,9 +22,9 @@ def test_match_profiles_ignores_unknown_names():
 def test_every_reference_symbol_is_in_our_own_phoneme_pool():
     # Reference profiles are meant to be subsets of what phonology_gen.py
     # already models -- otherwise reference bias could never surface them.
-    from conlang_generator.generation.phonology_gen import _ALL_CONSONANTS, _ALL_VOWELS
+    from conlang_generator.generation.phonology_gen import ALL_CONSONANTS, ALL_VOWELS
 
-    known = {c.ipa for c in _ALL_CONSONANTS} | {v.ipa for v in _ALL_VOWELS}
+    known = {c.ipa for c in ALL_CONSONANTS} | {v.ipa for v in ALL_VOWELS}
     for profile in REFERENCE_LANGUAGES:
         assert profile.symbols() <= known, profile.name
 

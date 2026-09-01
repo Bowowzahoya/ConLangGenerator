@@ -118,9 +118,17 @@ Everything here is a pure function of a `random.Random` seeded from
   `is_legal_coda_cluster()` implement the sonority sequencing principle
   (rising toward the nucleus, falling away from it), plus the documented
   cross-linguistic exception for word-initial /s/ + voiceless stop. Used by
-  `phonology_gen.py` to *derive* cluster legality from whatever's in a
-  generated inventory, instead of a hardcoded pair list tied to one fixed
-  symbol set.
+  both `phonology_gen.py` (derive cluster legality from a generated
+  inventory) and `sound_change.py` (which member of a cluster survives
+  simplification).
+- **`ipa_tokenizer.py`**: `tokenize(text, known_symbols) -> list[(symbol,
+  decoration)]` -- greedy longest-match against a known symbol set (like
+  `RomanizationScheme.apply`), decoration-aware: trailing combining marks
+  (tone diacritics) stay attached to the symbol they modify instead of
+  being dropped, so a word can be pulled apart and reassembled without
+  losing information. `symbols_only()` is the simpler "which phonemes
+  appear" variant. Shared between `phonology_gen.py` (seed-example
+  phoneme floor) and `sound_change.py` (full word rewriting).
 - **`trait_bias.py`**: `biased_probability(base_rate, strength) -> float` --
   the single place "graded trait -> probability" logic lives. Bipolar:
   `strength=0` returns `base_rate` unchanged; `strength=1` reaches
@@ -214,6 +222,21 @@ Everything here is a pure function of a `random.Random` seeded from
   gloss a seed example already covers) before generating the rest, so
   seeded words land in the lexicon like any other entry and translation
   picks them up with no special-casing.
+- **`sound_change.py`** (milestone 6): `evolve_language(name, base, years,
+  traits, seed) -> Language` -- takes an *existing* saved language and
+  evolves its lexicon via six rule-based sound changes (cluster
+  simplification, lenition, final devoicing, palatalization, vowel
+  reduction, ejective drift), instead of generating fresh. Pure rule-based,
+  no LLM. Each rule's rate follows a saturating curve, `1 -
+  exp(-years/effective_half_life)`, so small `years` changes little and
+  large `years` approaches but never reaches total replacement; only
+  `contact_intensity` (simplification-leaning rules) and `altitude`
+  (ejective drift, same Everett 2013 link as fresh generation) scale the
+  half-life, shortening it at positive trait strength. `grammar` and
+  `tone_system` are copied from the base unchanged (word-level feature
+  only); `PhonemeInventory`/`SyllableStructure`/`RomanizationScheme` are
+  recomputed from what the evolved lexicon actually uses. Reproducible:
+  the whole pass is one seeded `random.Random`, consumed in lexicon order.
 
 ## `translation/` -- bidirectional translation
 
@@ -237,7 +260,12 @@ Everything here is a pure function of a `random.Random` seeded from
 Typer app with exactly three commands (`generate`, `translate`, `pronounce`),
 per AGENTS.md's CLI discipline. `generate`'s `--contact-language` (repeatable)
 and `--example` (repeatable, `gloss=form` or `gloss=form|ipa`) are milestone-5
-inputs, not new commands. See `docs/CLI.md` for verified examples.
+inputs; `--evolve-from <name>` + `--years N` (milestone 6) switch `generate`
+into evolving an existing saved language instead of generating fresh --
+`--prompt`/`--contact-language` are reinterpreted as the evolution period's
+own characteristics in that mode (classified the same way, just describing
+something different). None of these add new commands. See `docs/CLI.md`
+for verified examples.
 
 ## `experiments/showcase.py`
 
@@ -256,9 +284,16 @@ code or one-off ad hoc scripts.
   consumed by generation: `social_hierarchy`, `orality_literacy`,
   `evidentiality_culture`, `spatial_reference`, `ritual_register`,
   `taboo_register`, `terrain_communication_distance`,
-  `salient_vocabulary_domains`, `time_depth_years`. `time_depth_years` in
-  particular needs a separate diachronic sound-change derivation pipeline
-  from an existing language (milestone 6), not the fresh-generation path.
+  `salient_vocabulary_domains`. `time_depth_years` itself is still
+  unconsumed too (`--evolve-from`/`--years` on the CLI is the actual years
+  input; the classifier-extracted field isn't wired to it yet).
+- `sound_change.py`'s six rules are illustrative, not exhaustive (no
+  diphthongs since none are modeled; lenition is single-step voiceless->
+  voiced, not a fuller stop->fricative->zero chain; no borrowing-driven new
+  phonemes from the contact language itself, only faster simplification).
+  `force_isolated`/`force_high_altitude`/`force_tonal` aren't read during
+  evolution (fresh-generation-specific concepts) -- only graded trait
+  strength affects evolution rates.
 - The typological tendency nudges and phoneme-pool prevalence values in
   `phonology_gen.py`/`grammar_gen.py`, and the reference-language sketches
   in `reference_languages.py`, are illustrative approximations, not a

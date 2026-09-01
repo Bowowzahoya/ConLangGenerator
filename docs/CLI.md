@@ -60,8 +60,8 @@ Saved to conlangs\island-tongue
 `--contact-language` matches (case-insensitively, by name or alias) against
 a small hand-curated set of real languages in `generation/reference_languages.py`
 (Japanese, Finnish, Mandarin, Arabic, Hawaiian, Georgian, a click-language
-stand-in, a Romance stand-in) and softly biases the phoneme palette, coda
-typology, cluster tolerance, and tonality toward it -- a bias, not an
+stand-in, a Romance stand-in, Dutch) and softly biases the phoneme palette,
+coda typology, cluster tolerance, and tonality toward it -- a bias, not an
 override; unmatched names are silently ignored. It's merged with whatever
 `--prompt` itself implies (the classifier also extracts named languages from
 free text, though `--llm fake` never does -- that part needs `--llm anthropic`
@@ -72,6 +72,49 @@ to see for real).
 word under that gloss, replacing whatever core-vocabulary generation would
 have produced -- its phonemes are also guaranteed to be in the generated
 inventory. Word-level only; sentence-level examples aren't supported yet.
+
+### Evolving an existing language (`--evolve-from` / `--years`)
+
+Instead of generating fresh, evolve an *existing saved language* via
+rule-based sound change -- this is how a real starting vocabulary (seeded
+with `--example`, see above) becomes "Dutch after 200 years of English
+contact":
+
+```bash
+conlang generate --name dutch-en200 --evolve-from dutch-base --years 200 \
+  --prompt "two hundred years of heavy English contact" --llm fake
+```
+
+```
+Evolved 'dutch-base' -> 'dutch-en200' (dutch-en200) over 200 years.
+consonants: 18 -> 21, vowels: 13 -> 10
+Evolution traits: isolation=+0.26, altitude=+0.01, community_scale=-0.94, aesthetic_harshness=+0.78, ...
+  I: ɪk = ɪk
+  you: yë = yë
+  water: vatěr = vatěr
+  mountain: bërḥ -> bër
+  he: feḥi -> feḥě
+  we: motramṅul -> morěmṅěl
+Saved to conlangs\dutch-en200
+```
+
+`--prompt`/`--contact-language` are reinterpreted in this mode: they
+describe the evolution period's own character (steering *how* the base
+language changes), not a fresh language's. `--llm fake`'s prompt hashing
+means the trait line above isn't actually reacting to "English contact" --
+same caveat as always, worse here since two different prompt strings (base
+vs. evolved) get unrelated hash noise; use `--llm anthropic`, or construct
+a `TraitProfile` directly in Python, for a real side-by-side comparison at
+a fixed trait profile across several `--years` values. Six sound-change
+rules run (cluster simplification, lenition, final devoicing,
+palatalization, vowel reduction, ejective drift), each scaling from the
+world-typical base rate toward -- never reaching -- certainty as `years`
+grows, so small `--years` stays close to the original and large `--years`
+drifts further, never becoming unrecognizable instantly. Only
+`contact_intensity` (simplification-leaning rules) and `altitude` (ejective
+drift) currently scale the rate. Grammar and tone system are carried over
+from the base language unchanged. See `generation/sound_change.py` for the
+full rule list and rationale.
 
 ## `conlang translate`
 
