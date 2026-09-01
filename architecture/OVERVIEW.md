@@ -172,11 +172,12 @@ Everything here is a pure function of a `random.Random` seeded from
   the inventory (`_force_include`), since a seed word's sounds must actually
   be available for the word to make sense as part of the language.
 - **`reference_languages.py`**: `ReferenceLanguageProfile` and
-  `REFERENCE_LANGUAGES` -- ~8 hand-curated, typologically-spread real
+  `REFERENCE_LANGUAGES` -- 9 hand-curated, typologically-spread real
   languages (Japanese, Finnish, Mandarin, Arabic, Hawaiian, Georgian, a
-  click-language stand-in, a Romance stand-in), symbol sets restricted to
-  what `phonology_gen.py` already models. `match_profiles()` case-
-  insensitively matches names/aliases; unknown names are silently ignored.
+  click-language stand-in, a Romance stand-in, Dutch), symbol sets
+  restricted to what `phonology_gen.py` already models. `match_profiles()`
+  case-insensitively matches names/aliases; unknown names are silently
+  ignored.
   Illustrative sketches for flavor, not authoritative descriptions.
 - **`seed_examples.py`**: `resolve_seed_examples()` -- fills in
   `SeedExample.ipa` from `.form` via one LLM call per unresolved example
@@ -238,6 +239,17 @@ per AGENTS.md's CLI discipline. `generate`'s `--contact-language` (repeatable)
 and `--example` (repeatable, `gloss=form` or `gloss=form|ipa`) are milestone-5
 inputs, not new commands. See `docs/CLI.md` for verified examples.
 
+## `experiments/showcase.py`
+
+Dev/evaluation tooling, not part of the CLI or the installed package --
+`uv run python experiments/showcase.py` regenerates a local, standalone
+`experiments/output/showcase.html` (gitignored) with phonology + full
+lexicon tables for a fixed set of scenarios (defined at the top of the
+file -- add more there, nothing else needs to change). Word-level only,
+matching the current focus; no grammar/translation shown. The way to
+actually look at what a generation-pipeline change did, instead of reading
+code or one-off ad hoc scripts.
+
 ## Known v0 limitations (intentional, not oversights)
 
 - Several `TraitProfile` fields are extracted and stored but not yet
@@ -251,9 +263,13 @@ inputs, not new commands. See `docs/CLI.md` for verified examples.
   `phonology_gen.py`/`grammar_gen.py`, and the reference-language sketches
   in `reference_languages.py`, are illustrative approximations, not a
   typological database (e.g. PHOIBLE) or authoritative descriptions.
-- `reference_languages.py` covers ~8 languages, chosen for typological
+- `reference_languages.py` covers 9 languages, chosen for typological
   spread, not a general "any named language" capability -- an unmatched
   name is silently ignored.
+- Grammar generation (`grammar_gen.py`) is intentionally not being iterated
+  on right now -- current focus is word-level (phonology/lexicon) quality.
+  Notably, word order isn't linked to any trait yet (only morphological
+  type/alignment are).
 - A seed example's *phonemes* are guaranteed to be in the inventory; its
   *syllable shape* is not validated against the generated
   `SyllableStructure` (would need real syllabification of arbitrary input).

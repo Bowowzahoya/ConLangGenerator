@@ -10,10 +10,11 @@ richer than what our own symbol pool and phonotactic model can represent
 (no aspiration, length, or pharyngealization contrasts; no noun-class or
 root-and-pattern morphology, etc.).
 
-Eight languages, chosen for typological spread rather than exhaustiveness:
+Nine languages, chosen for typological spread rather than exhaustiveness:
 CV-only/no-clusters (Japanese, Hawaiian), strong vowel harmony (Finnish),
 tonal (Mandarin), pharyngeal/uvular (Arabic), ejective/cluster-heavy
-(Georgian), clicks (a Nguni-family stand-in), and a Romance stand-in.
+(Georgian), clicks (a Nguni-family stand-in), a Romance stand-in, and Dutch
+(a rich-vowel, complex-coda/cluster Germanic language).
 """
 
 from __future__ import annotations
@@ -101,6 +102,15 @@ REFERENCE_LANGUAGES: tuple[ReferenceLanguageProfile, ...] = (
         aliases=("italian", "romance", "romance language"),
         consonants=("p", "b", "t", "d", "k", "g", "tʃ", "m", "n", "s", "f", "h", "l", "ɾ", "r", "j", "w"),
         vowels=("i", "a", "u", "e", "o"),
+        coda_profile="unrestricted",
+        max_onset=2,
+        tonal=False,
+    ),
+    ReferenceLanguageProfile(
+        name="Dutch",
+        aliases=("nederlands",),
+        consonants=("p", "b", "t", "d", "k", "f", "v", "s", "z", "x", "h", "m", "n", "ŋ", "l", "r", "w", "j"),
+        vowels=("i", "ɪ", "e", "ɛ", "a", "ɑ", "ɔ", "o", "u", "y", "ø", "œ", "ə"),
         coda_profile="unrestricted",
         max_onset=2,
         tonal=False,

@@ -5,5 +5,6 @@ __pycache__/
 .pytest_tmp/
 .cache/
 conlangs/
+experiments/output/
 *.egg-info/
 dist/
