@@ -267,16 +267,26 @@ own characteristics in that mode (classified the same way, just describing
 something different). None of these add new commands. See `docs/CLI.md`
 for verified examples.
 
-## `experiments/showcase.py`
+## `experiments/`
 
-Dev/evaluation tooling, not part of the CLI or the installed package --
-`uv run python experiments/showcase.py` regenerates a local, standalone
-`experiments/output/showcase.html` (gitignored) with phonology + full
-lexicon tables for a fixed set of scenarios (defined at the top of the
-file -- add more there, nothing else needs to change). Word-level only,
-matching the current focus; no grammar/translation shown. The way to
-actually look at what a generation-pipeline change did, instead of reading
-code or one-off ad hoc scripts.
+Dev/evaluation tooling, not part of the CLI or the installed package -- the
+way to actually look at what a generation-pipeline change did, instead of
+reading code or one-off ad hoc scripts.
+
+- **`showcase.py`**: `uv run python experiments/showcase.py` regenerates a
+  local, standalone `experiments/output/showcase.html` (gitignored) with
+  phonology + full lexicon tables for a fixed set of fresh-generation
+  scenarios (defined at the top of the file -- add more there, nothing
+  else needs to change). Word-level only; no grammar/translation shown.
+- **`evolution.py`**: same idea for `sound_change.py` -- regenerates
+  `experiments/output/evolution.html`, a real language's core vocabulary
+  (`lexicons.py`; currently Dutch, hand-transcribed, covering every
+  `CORE_MEANINGS` gloss) shown next to its evolved form across a range of
+  `years`/direction scenarios, changed words highlighted. The calibration
+  check for "close in time stays recognizable, far in time drifts a lot."
+- **`lexicons.py`**: real seed vocabularies for `evolution.py`, one tuple
+  of `(gloss, spelling, ipa)` per language -- add more languages here to
+  extend the report.
 
 ## Known v0 limitations (intentional, not oversights)
 
