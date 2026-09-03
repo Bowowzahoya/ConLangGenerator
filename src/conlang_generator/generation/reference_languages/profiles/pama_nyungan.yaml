@@ -1,0 +1,26 @@
+name: Pama-Nyungan
+# A family, not a single language -- this sketch leans loosely on
+# well-documented Western Desert languages (e.g. Pitjantjatjara), same
+# "illustrative typological sketch" caveat as every other profile, but a
+# real notch looser here given how much thinner attested-vocabulary
+# knowledge is available for this family specifically. The consonant
+# inventory deliberately has *no fricatives at all* and the vowel system
+# is just three vowels -- both genuinely typical, well-documented facts
+# about this family, not a simplification of convenience.
+aliases: [pitjantjatjara, western desert, aboriginal]
+consonants: [p, t, "ʈ", c, k, m, n, "ɳ", "ɲ", "ŋ", l, r, "ɾ", w, j]
+vowels: [a, i, u]
+coda_profile: sonorant
+max_onset: 1
+tonal: false
+orthography_category: monoletter-style
+orthography:
+  # Real conventions common to practical orthographies for this
+  # language family, restricted to symbols this profile actually
+  # models -- illustrative, not a full account.
+  - {ipa: "ʈ", latin: rt}
+  - {ipa: "ɳ", latin: rn}
+  - {ipa: c, latin: tj}
+  - {ipa: "ɲ", latin: ny}
+  - {ipa: "ŋ", latin: ng}
+  - {ipa: "ɾ", latin: rr}

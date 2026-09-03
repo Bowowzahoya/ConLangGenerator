@@ -1,0 +1,20 @@
+name: Persian
+aliases: [farsi]
+consonants: [p, b, t, d, k, g, q, "tʃ", "dʒ", f, v, s, z, "ʃ", "ʒ", x, "ɣ", h, m, n, l, r, j]
+vowels: [i, e, a, o, u, "aː"]
+coda_profile: unrestricted
+max_onset: 1
+tonal: false
+orthography_category: diacritic-style
+orthography:
+  # Real Persian transliteration conventions, restricted to symbols this
+  # profile actually models -- illustrative, not a full account.
+  - {ipa: "tʃ", latin: ch}
+  - {ipa: "dʒ", latin: j}
+  - {ipa: "ʃ", latin: sh}
+  - {ipa: "ʒ", latin: zh}
+  - {ipa: x, latin: kh}
+  - {ipa: "ɣ", latin: gh}
+  - {ipa: q, latin: gh}      # real modern Persian pronunciation
+                              # genuinely merges ق and غ
+  - {ipa: "aː", latin: a}

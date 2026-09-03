@@ -1,0 +1,16 @@
+name: Arawakan
+# A family, not a single language -- this sketch leans loosely on
+# well-documented Arawakan languages (Garifuna, Lokono), same spirit as
+# every other profile's own "illustrative typological sketch, not an
+# authoritative description" caveat, but a real notch looser here given
+# how much thinner attested-vocabulary knowledge is available for this
+# family specifically.
+aliases: [garifuna, lokono]
+consonants: [p, b, t, d, k, "tʃ", f, s, h, m, n, l, r, w, j]
+vowels: [a, e, i, o, u, "ə"]
+coda_profile: sonorant
+max_onset: 1
+tonal: false
+orthography_category: monoletter-style
+orthography:
+  - {ipa: "tʃ", latin: ch}

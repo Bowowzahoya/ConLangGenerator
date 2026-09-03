@@ -1,0 +1,22 @@
+name: Mongolian
+consonants: [p, b, t, d, k, g, q, "ɢ", "tʃ", "dʒ", s, "ʃ", x, "ɣ", m, n, "ŋ", l, r, j, w]
+vowels: [a, e, i, o, u, "ɔ", "ʊ", "ə"]
+coda_profile: unrestricted
+max_onset: 1
+tonal: false
+vowel_harmony: true
+orthography_category: digraph-style
+orthography:
+  # Real (scientific, Cyrillic-derived) Mongolian transliteration
+  # conventions, restricted to symbols this profile actually models --
+  # illustrative, not a full account.
+  - {ipa: "tʃ", latin: ch}
+  - {ipa: "dʒ", latin: j}
+  - {ipa: "ʃ", latin: sh}
+  - {ipa: x, latin: kh}
+  - {ipa: "ɣ", latin: g}     # real Mongolian spells both the fricative
+                              # and stop g the same way
+  - {ipa: q, latin: kh}      # real Mongolian merges its back/front k
+                              # sounds in most romanizations
+  - {ipa: "ɢ", latin: g}
+  - {ipa: "ə", latin: e}

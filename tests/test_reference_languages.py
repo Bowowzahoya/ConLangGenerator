@@ -154,6 +154,47 @@ def test_turkish_declares_vowel_harmony():
     assert turkish.vowel_harmony is True
 
 
+def test_orthography_category_round_trips_from_yaml_for_the_phase_c_languages():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["English"].orthography_category == "silent-e-style"
+    assert by_name["Italian"].orthography_category == "gemination-style"
+    assert by_name["Bengali"].orthography_category == "scholarly-macron-style"
+    assert by_name["Tamil"].orthography_category == "scholarly-macron-style"
+    assert by_name["Indonesian"].orthography_category == "digraph-style"
+    assert by_name["Persian"].orthography_category == "diacritic-style"
+    assert by_name["Tibetan"].orthography_category == "diacritic-style"
+    assert by_name["Mongolian"].orthography_category == "digraph-style"
+    assert by_name["Arawakan"].orthography_category == "monoletter-style"
+    assert by_name["Pama-Nyungan"].orthography_category == "monoletter-style"
+    assert by_name["Quechua"].orthography_category == "diacritic-style"
+    assert by_name["Hebrew"].orthography_category == "scholarly-macron-style"
+
+
+def test_hebrew_declares_root_and_pattern():
+    hebrew = next(p for p in REFERENCE_LANGUAGES if p.name == "Hebrew")
+    assert hebrew.root_and_pattern is True
+
+
+def test_tibetan_declares_tonal():
+    tibetan = next(p for p in REFERENCE_LANGUAGES if p.name == "Tibetan")
+    assert tibetan.tonal is True
+
+
+def test_mongolian_declares_vowel_harmony():
+    mongolian = next(p for p in REFERENCE_LANGUAGES if p.name == "Mongolian")
+    assert mongolian.vowel_harmony is True
+
+
+def test_pama_nyungan_matches_by_its_western_desert_alias():
+    matched = match_profiles(("Western Desert",))
+    assert {p.name for p in matched} == {"Pama-Nyungan"}
+
+
+def test_arawakan_matches_by_its_garifuna_alias():
+    matched = match_profiles(("Garifuna",))
+    assert {p.name for p in matched} == {"Arawakan"}
+
+
 def test_icelandic_matches_by_its_old_norse_and_viking_aliases():
     matched = match_profiles(("old norse", "VIKING"))
     names = {p.name for p in matched}

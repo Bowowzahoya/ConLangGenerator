@@ -1,0 +1,25 @@
+name: Bengali
+aliases: [bangla]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", s, "ʃ", h, m, n, "ŋ", l, r, j]
+vowels: [i, e, "ɛ", a, "ɔ", o, u, "ã", "ẽ", "õ"]
+coda_profile: unrestricted
+max_onset: 1
+tonal: false
+orthography_category: scholarly-macron-style
+orthography:
+  # Real scholarly Bengali transliteration conventions, restricted to
+  # symbols this profile actually models -- illustrative, not a full
+  # account.
+  - {ipa: "tʃ", latin: ch}
+  - {ipa: "dʒ", latin: j}
+  - {ipa: "ʃ", latin: sh}
+  - {ipa: "pʰ", latin: ph}
+  - {ipa: "tʰ", latin: th}
+  - {ipa: "kʰ", latin: kh}
+  - {ipa: "bʱ", latin: bh}
+  - {ipa: "dʱ", latin: dh}
+  - {ipa: "ɡʱ", latin: gh}
+  - {ipa: "ɔ", latin: o}
+  - {ipa: "ã", latin: an}
+  - {ipa: "ẽ", latin: en}
+  - {ipa: "õ", latin: "on"}

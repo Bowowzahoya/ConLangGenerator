@@ -1,0 +1,27 @@
+name: Hebrew
+aliases: ["ivrit"]
+consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", x, h, m, n, l, r, j, w, "ʔ", "ʕ", q, "tˤ", "sˤ"]
+vowels: [a, e, i, o, u, "aː", "eː", "iː", "oː", "uː"]
+coda_profile: unrestricted
+max_onset: 1
+tonal: false
+root_and_pattern: true
+orthography_category: scholarly-macron-style
+orthography:
+  # Real scholarly Hebrew transliteration conventions, restricted to
+  # symbols this profile actually models -- illustrative, not a full
+  # account. Phonemic vowel length (real in Biblical/Classical Hebrew,
+  # largely lost in Modern Hebrew) is genuine same-quality duration
+  # here, spelled with the standard macron convention (same as Arabic's
+  # and Hindi's own).
+  - {ipa: "aː", latin: "ā"}
+  - {ipa: "eː", latin: "ē"}
+  - {ipa: "iː", latin: "ī"}
+  - {ipa: "oː", latin: "ō"}
+  - {ipa: "uː", latin: "ū"}
+  - {ipa: x, latin: ch}
+  - {ipa: "ʃ", latin: sh}
+  - {ipa: "ʔ", latin: "'"}   # aleph
+  - {ipa: "ʕ", latin: "‘"}   # ayin -- real scholarly reversed-comma mark
+  - {ipa: "tˤ", latin: "ṭ"}  # tet
+  - {ipa: "sˤ", latin: "ṣ"}  # tsadi

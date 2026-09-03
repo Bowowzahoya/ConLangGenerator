@@ -1,0 +1,25 @@
+name: Italian
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", "ɲ", "lʲ", m, n, l, r, j, w, "kː", "tː", "pː", "sː", "nː", "lː"]
+vowels: [i, e, "ɛ", a, "ɔ", o, u]
+coda_profile: sonorant
+max_onset: 2
+tonal: false
+orthography_category: gemination-style
+orthography:
+  # Real Italian spelling conventions, restricted to symbols this
+  # profile actually models -- illustrative, not a full account.
+  # Geminate consonants aren't curated explicitly here -- this
+  # profile's own gemination-style category already generates the
+  # real doubled-letter spelling structurally
+  # (`_generate_gemination_rules`) for every long/short pair, same
+  # reasoning Finnish's own profile already uses for "kː".
+  - {ipa: "ʃ", latin: sc}    # "scena" -- real Italian spells /ʃ/ this
+                              # way before a front vowel
+  - {ipa: "tʃ", latin: c}    # "cena" -- real, before a front vowel
+  - {ipa: "dʒ", latin: g}    # "gente" -- real, before a front vowel
+  - {ipa: "ɲ", latin: gn}    # "gnocchi"
+  - {ipa: "lʲ", latin: gli}  # real Italian lateral palatal /ʎ/,
+                              # approximated by this project's secondary-
+                              # palatalization symbol
+  - {ipa: "ɔ", latin: o}
+  - {ipa: "ɛ", latin: e}

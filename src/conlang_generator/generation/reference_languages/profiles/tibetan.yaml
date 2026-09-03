@@ -1,0 +1,22 @@
+name: Tibetan
+consonants: [p, "pʰ", b, t, "tʰ", d, k, "kʰ", g, "tʃ", "dʒ", s, "ʃ", h, m, n, "ŋ", "ɲ", l, r, w, j]
+vowels: [a, e, i, o, u, "ə", "ã", "ĩ", "ũ"]
+coda_profile: sonorant
+max_onset: 1
+tonal: true
+orthography_category: diacritic-style
+orthography:
+  # Real (simplified, phonetic-transcription-style) Tibetan spelling
+  # conventions, restricted to symbols this profile actually models --
+  # illustrative, not a full account (this project's phonotactic model
+  # can't represent traditional Tibetan orthography's own silent-letter-
+  # heavy written clusters at all -- modeling the simplified spoken
+  # pattern instead).
+  - {ipa: "tʃ", latin: ch}
+  - {ipa: "dʒ", latin: j}
+  - {ipa: "ʃ", latin: sh}
+  - {ipa: "ɲ", latin: ny}
+  - {ipa: "ŋ", latin: ng}
+  - {ipa: "ã", latin: an}
+  - {ipa: "ĩ", latin: in}
+  - {ipa: "ũ", latin: un}

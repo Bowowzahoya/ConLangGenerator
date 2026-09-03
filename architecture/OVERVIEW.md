@@ -704,13 +704,18 @@ reading code or one-off ad hoc scripts.
   `phonology_gen.py`/`grammar_gen.py`, and the reference-language sketches
   in `reference_languages/profiles/`, are illustrative approximations, not
   a typological database (e.g. PHOIBLE) or authoritative descriptions.
-- `reference_languages/profiles/` covers 18 languages (Arabic, Dutch,
-  Finnish, French, Georgian, Hawaiian, German, Hindi, Icelandic,
-  Japanese, Korean, Mandarin, Nahuatl, Portuguese, Russian, Spanish,
-  Turkish, Xhosa), chosen for typological/cultural spread (several --
-  Icelandic, Nahuatl -- picked as much for real-world "vibe" association
-  with popular fantasy settings as typological interest), not a general
-  "any named language" capability -- an
+- `reference_languages/profiles/` covers 30 languages (Arabic, Arawakan,
+  Bengali, Dutch, English, Finnish, French, Georgian, German, Hawaiian,
+  Hebrew, Hindi, Icelandic, Indonesian, Italian, Japanese, Korean,
+  Mandarin, Mongolian, Nahuatl, Pama-Nyungan, Persian, Portuguese,
+  Quechua, Russian, Spanish, Tamil, Tibetan, Turkish, Xhosa), chosen for
+  typological/cultural spread (several -- Icelandic, Nahuatl, Tibetan,
+  Mongolian, Arawakan, Pama-Nyungan, Quechua, Hebrew -- picked as much
+  for real-world "vibe" association with popular fantasy settings as
+  typological interest; Arawakan and Pama-Nyungan are families rather
+  than single languages, and lean on looser illustrative sketches given
+  thinner available attested-vocabulary knowledge), not a general "any
+  named language" capability -- an
   unmatched name is silently ignored. External-file storage makes adding
   one mechanical, but the actual linguistic curation (what a real
   language's phonology and orthography look like) is still entirely

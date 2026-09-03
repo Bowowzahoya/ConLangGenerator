@@ -1,0 +1,23 @@
+name: Quechua
+aliases: [runasimi]
+consonants: [p, "pʰ", "pʼ", t, "tʰ", "tʼ", k, "kʰ", "kʼ", q, "tʃ", s, "ʃ", h, m, n, "ɲ", l, "lʲ", r, w, j]
+vowels: [a, i, u]
+coda_profile: unrestricted
+max_onset: 1
+tonal: false
+orthography_category: diacritic-style
+orthography:
+  # Real modern Quechua orthography already uses exactly these
+  # conventions natively.
+  - {ipa: "pʼ", latin: "p'"}
+  - {ipa: "tʼ", latin: "t'"}
+  - {ipa: "kʼ", latin: "k'"}
+  - {ipa: "pʰ", latin: ph}
+  - {ipa: "tʰ", latin: th}
+  - {ipa: "kʰ", latin: kh}
+  - {ipa: "tʃ", latin: ch}
+  - {ipa: "ʃ", latin: sh}
+  - {ipa: "ɲ", latin: "ñ"}
+  - {ipa: "lʲ", latin: ll}   # real Quechua lateral palatal /ʎ/,
+                              # approximated by this project's secondary-
+                              # palatalization symbol

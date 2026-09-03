@@ -1,0 +1,24 @@
+name: Tamil
+consonants: [p, t, "ʈ", k, "tʃ", m, n, "ɳ", "ɲ", "ŋ", l, r, "ɾ", v, j]
+vowels: [a, "aː", i, "iː", u, "uː", e, "eː", o, "oː"]
+coda_profile: unrestricted
+max_onset: 1
+tonal: false
+orthography_category: scholarly-macron-style
+orthography:
+  # Real scholarly Tamil transliteration conventions, restricted to
+  # symbols this profile actually models -- illustrative, not a full
+  # account. Tamil has no phonemic voicing contrast on stops (they
+  # surface voiced between vowels but are written with the same letter),
+  # hence this profile's own consonant list is voiceless-only.
+  - {ipa: "aː", latin: "ā"}
+  - {ipa: "iː", latin: "ī"}
+  - {ipa: "uː", latin: "ū"}
+  - {ipa: "eː", latin: "ē"}
+  - {ipa: "oː", latin: "ō"}
+  - {ipa: "ʈ", latin: "ṭ"}
+  - {ipa: "ɳ", latin: "ṇ"}
+  - {ipa: "ɲ", latin: "ñ"}
+  - {ipa: "ŋ", latin: "ṅ"}
+  - {ipa: "tʃ", latin: c}    # real Tamil transliteration uses plain "c",
+                              # not "ch"
