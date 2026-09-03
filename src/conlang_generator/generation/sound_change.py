@@ -85,7 +85,7 @@ from dataclasses import dataclass
 
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon
-from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure, VowelBackness
+from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, VowelBackness
 from conlang_generator.core.romanization import OrthographyForce
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
@@ -346,19 +346,32 @@ def _evolve_ipa(
 
 
 def _recompute_syllable_structure(
-    base: SyllableStructure, consonants: tuple, rng: random.Random, traits: TraitProfile
+    base: SyllableStructure,
+    consonants: tuple,
+    rng: random.Random,
+    traits: TraitProfile,
+    lineage_profiles: tuple[reference_languages.ReferenceLanguageProfile, ...],
 ) -> SyllableStructure:
     onset_pairs = sonority.legal_onset_pairs(consonants)
     allowed_onset_clusters = (
         sonority.thin_cluster_pairs(rng, onset_pairs, traits.contact_intensity) if base.max_onset >= 2 else ()
     )
     if base.max_coda == 0:
-        max_coda, allowed_coda_consonants, allowed_coda_clusters = 0, None, ()
+        max_coda, allowed_coda_consonants, allowed_coda_clusters, excluded_coda_consonants = 0, None, (), ()
     elif base.allowed_coda_consonants is not None:
         sonorants = tuple(c.ipa for c in consonants if c.ipa == "ʔ" or sonority.sonority(c) >= 3)
-        max_coda, allowed_coda_consonants, allowed_coda_clusters = (1, sonorants, ()) if sonorants else (0, None, ())
+        max_coda, allowed_coda_consonants, allowed_coda_clusters, excluded_coda_consonants = (
+            (1, sonorants, (), ()) if sonorants else (0, None, (), ())
+        )
     else:
-        coda_pairs = sonority.legal_coda_pairs(consonants)
+        excluded_coda_consonants = ()
+        if any(p.coda_devoicing for p in lineage_profiles):
+            excluded_coda_consonants = tuple(
+                c.ipa
+                for c in consonants
+                if c.voiced and c.manner in (Manner.STOP, Manner.AFFRICATE, Manner.FRICATIVE, Manner.LATERAL_FRICATIVE)
+            )
+        coda_pairs = sonority.exclude_final(sonority.legal_coda_pairs(consonants), excluded_coda_consonants)
         max_coda = base.max_coda
         allowed_coda_consonants = None
         allowed_coda_clusters = (
@@ -371,6 +384,7 @@ def _recompute_syllable_structure(
         allowed_onset_clusters=allowed_onset_clusters,
         allowed_coda_clusters=allowed_coda_clusters,
         allowed_coda_consonants=allowed_coda_consonants,
+        excluded_coda_consonants=excluded_coda_consonants,
         vowel_harmony=base.vowel_harmony,
     )
 
@@ -381,6 +395,7 @@ def _inventory_and_structure(
     known_symbols: tuple[str, ...],
     rng: random.Random,
     traits: TraitProfile,
+    lineage_profiles: tuple[reference_languages.ReferenceLanguageProfile, ...],
 ) -> tuple[PhonemeInventory, SyllableStructure]:
     used_symbols: set[str] = set()
     for ipa in ipas:
@@ -388,7 +403,7 @@ def _inventory_and_structure(
     consonants = tuple(sorted((c for c in phonology_gen.ALL_CONSONANTS if c.ipa in used_symbols), key=lambda c: -c.prevalence))
     vowels = tuple(sorted((v for v in phonology_gen.ALL_VOWELS if v.ipa in used_symbols), key=lambda v: -v.prevalence))
     inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
-    return inventory, _recompute_syllable_structure(base_structure, consonants, rng, traits)
+    return inventory, _recompute_syllable_structure(base_structure, consonants, rng, traits, lineage_profiles)
 
 
 def _coin_native_word(
@@ -467,6 +482,12 @@ def evolve_language(
     # too, and persisted onto the returned language's own spec (below) so
     # a second evolution generation inherits the same lineage in turn.
     lineage_languages = tuple(dict.fromkeys((*base.spec.traits.contact_languages, *traits.contact_languages)))
+    # Same lineage, used for phonotactic constraints (e.g. Dutch's coda-
+    # devoicing) rather than orthography this time -- a separate variable
+    # from `reference_profiles` below (which is deliberately current-run-
+    # only, for lexical borrowing) for the same reason lineage and active
+    # contact stay distinct concepts for orthography.
+    lineage_profiles = reference_languages.match_profiles(lineage_languages)
 
     consonant_by_ipa = {c.ipa: c for c in phonology_gen.ALL_CONSONANTS}
     vowel_by_ipa = {v.ipa: v for v in phonology_gen.ALL_VOWELS}
@@ -482,7 +503,7 @@ def evolve_language(
     # coinage target for any native (non-borrowed) lexical replacements
     # below, before borrowed/replaced words can widen it further.
     provisional_inventory, provisional_structure = _inventory_and_structure(
-        base.syllable_structure, evolved_ipas, known_symbols, rng, traits
+        base.syllable_structure, evolved_ipas, known_symbols, rng, traits, lineage_profiles
     )
     reference_profiles = reference_languages.match_profiles(traits.contact_languages)
 
@@ -516,7 +537,7 @@ def evolve_language(
             final_ipas.append(evolved_ipa)
 
     inventory, syllable_structure = _inventory_and_structure(
-        base.syllable_structure, final_ipas, known_symbols, rng, traits
+        base.syllable_structure, final_ipas, known_symbols, rng, traits, lineage_profiles
     )
     romanization = romanization_gen.evolve_romanization(
         base.romanization, inventory, rng, lineage_languages,

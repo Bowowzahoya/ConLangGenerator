@@ -151,6 +151,9 @@ class SyllableStructure(BaseModel, frozen=True):
     any consonant is allowed as a single coda; a coda profile that restricts
     codas to sonorants (or forbids them, via ``max_coda=0``) is expressed
     with these same fields -- see ``generation/phonology_gen.py``.
+    ``excluded_coda_consonants`` layers a further, independent negative
+    constraint on the coda's final segment (e.g. devoicing) on top of
+    whichever of those coda profiles is otherwise in effect.
     """
 
     max_onset: int = 1
@@ -158,6 +161,14 @@ class SyllableStructure(BaseModel, frozen=True):
     allowed_onset_clusters: tuple[tuple[str, str], ...] = ()
     allowed_coda_clusters: tuple[tuple[str, str], ...] = ()
     allowed_coda_consonants: tuple[str, ...] | None = None  # None = any consonant
+    excluded_coda_consonants: tuple[str, ...] = ()
+    """Symbols that can never be the *final* segment of a coda (single or
+    cluster) -- e.g. voiced obstruents for a language with final-obstruent-
+    devoicing phonotactics (real Dutch/German/Russian). Orthogonal to
+    ``allowed_coda_consonants``: that's a positive whitelist (``None`` =
+    unrestricted, or the sonorant-only coda profile's set); this is a
+    negative constraint layered on top, checked independently -- see
+    ``generation/phonology_gen.py``."""
     vowel_harmony: bool = False
     """Backness (front/back) vowel harmony -- see
     ``generation/word_builder.py``'s ``build_word``."""
@@ -182,5 +193,7 @@ class SyllableStructure(BaseModel, frozen=True):
             and len(coda) == 1
             and coda[0] not in self.allowed_coda_consonants
         ):
+            return False
+        if coda and coda[-1] in self.excluded_coda_consonants:
             return False
         return True

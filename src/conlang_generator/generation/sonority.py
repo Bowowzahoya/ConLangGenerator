@@ -101,6 +101,20 @@ def legal_coda_pairs(consonants: tuple[Consonant, ...]) -> tuple[tuple[str, str]
     )
 
 
+def exclude_final(
+    pairs: tuple[tuple[str, str], ...], excluded_symbols: tuple[str, ...]
+) -> tuple[tuple[str, str], ...]:
+    """Every pair whose *second* (final) member isn't in
+    ``excluded_symbols`` -- keeps a coda-cluster pool consistent with a
+    final-position exclusion like devoicing (see
+    ``core.phonology.SyllableStructure.excluded_coda_consonants``), so a
+    thinned cluster can never end in a symbol that's actually illegal
+    there."""
+    if not excluded_symbols:
+        return pairs
+    return tuple(p for p in pairs if p[1] not in excluded_symbols)
+
+
 _CLUSTER_SURVIVAL_BASE_RATE = 0.55
 
 

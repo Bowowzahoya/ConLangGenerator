@@ -16,7 +16,13 @@ All mutation-shaped operations return a new instance (`model_copy` /
   height/backness/roundedness, the same pattern already used for
   affricates/long vowels/geminate consonants) -> `PhonemeInventory`.
   `ToneSystem` (enabled levels + combining diacritics). `SyllableStructure`:
-  onset/coda size limits, an onset-cluster allowlist, and
+  onset/coda size limits, onset/coda-cluster allowlists, a coda-consonant
+  allowlist (`allowed_coda_consonants`, `None` = unrestricted), an
+  *independent* coda-consonant blocklist on the final position only
+  (`excluded_coda_consonants` -- e.g. voiced obstruents for a
+  final-devoicing language; orthogonal to the allowlist rather than
+  reusing it, so a "sonorant-only coda" language and an "unrestricted but
+  devoicing-constrained" one stay distinguishable), and
   `is_valid_syllable()` -- the one phonotactics check used everywhere a
   word is validated.
 - **`romanization.py`**: `RomanizationRule` (IPA fragment -> Latin) can be
@@ -363,7 +369,21 @@ Everything here is a pure function of a `random.Random` seeded from
   profile sets `root_and_pattern: true` (see `grammar_gen.py` below) and
   includes the emphatic consonants/long vowels, with real scholarly
   transliteration `orthography` rules for them (dot-under ṭ/ṣ/ḍ/ẓ, macron
-  ā/ī/ū). A profile can optionally set `orthography_category` (a name into
+  ā/ī/ū). Dutch's profile sets `coda_devoicing: true` -- real Dutch/German-
+  style final-obstruent devoicing modeled as a *static* phonotactic
+  constraint on fresh generation (not just `sound_change.py`'s diachronic
+  `final_devoicing` rule): when a matched profile declares it and the
+  generated `coda_profile` resolves to `"unrestricted"`,
+  `generate_phonology()` populates `SyllableStructure.excluded_coda_consonants`
+  with every voiced obstruent in that language's own inventory, and
+  filters the coda-cluster pool to match (`sonority.exclude_final()`) so
+  a cluster can never end in one either; `sound_change.py`'s
+  `_recompute_syllable_structure` reapplies the same logic post-evolution
+  (using the same lineage-merged contact-language set the orthography fix
+  already threads through) so the constraint doesn't silently reset on a
+  run that adds no new contact language. Currently the only profile that
+  sets it -- none of the other nine are real final-devoicing languages. A
+  profile can optionally set `orthography_category` (a name into
   `romanization_gen.py`'s `_CATEGORIES` registry) as a coarse "which
   family" signal, separate from and layered under its own specific
   `orthography` deviations. All ten profiles now set one (six had no

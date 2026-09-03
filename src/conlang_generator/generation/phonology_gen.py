@@ -483,6 +483,7 @@ def generate_phonology(
         reference_coda_profiles = {p.coda_profile for p in reference_profiles}
         coda_weights = [w * 4 if profile in reference_coda_profiles else w for profile, w in zip(_CODA_PROFILES, coda_weights)]
     coda_profile = rng.choices(_CODA_PROFILES, weights=coda_weights)[0]
+    excluded_coda_consonants: tuple[str, ...] = ()
     if coda_profile == "none":
         max_coda, allowed_coda_consonants, allowed_coda_clusters = 0, None, ()
     elif coda_profile == "sonorant":
@@ -492,7 +493,13 @@ def generate_phonology(
         else:
             max_coda, allowed_coda_consonants, allowed_coda_clusters = 0, None, ()
     else:  # unrestricted
-        coda_pairs = sonority.legal_coda_pairs(consonants)
+        if any(p.coda_devoicing for p in reference_profiles):
+            excluded_coda_consonants = tuple(
+                c.ipa
+                for c in consonants
+                if c.voiced and c.manner in (Manner.STOP, Manner.AFFRICATE, Manner.FRICATIVE, Manner.LATERAL_FRICATIVE)
+            )
+        coda_pairs = sonority.exclude_final(sonority.legal_coda_pairs(consonants), excluded_coda_consonants)
         if coda_pairs and rng.random() < 0.3:
             max_coda, allowed_coda_consonants, allowed_coda_clusters = (
                 2, None, sonority.thin_cluster_pairs(rng, coda_pairs, traits.contact_intensity),
@@ -510,6 +517,7 @@ def generate_phonology(
         allowed_onset_clusters=allowed_onset_clusters,
         allowed_coda_clusters=allowed_coda_clusters,
         allowed_coda_consonants=allowed_coda_consonants,
+        excluded_coda_consonants=excluded_coda_consonants,
         vowel_harmony=vowel_harmony,
     )
 

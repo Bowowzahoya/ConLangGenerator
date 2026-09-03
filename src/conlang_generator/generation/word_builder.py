@@ -59,6 +59,13 @@ def _build_coda(
         weights = [_cluster_weight(c, by_symbol) for c in structure.allowed_coda_clusters]
         return rng.choices(structure.allowed_coda_clusters, weights=weights)[0]
     candidates = structure.allowed_coda_consonants or inventory.consonant_symbols()
+    if structure.excluded_coda_consonants:
+        # `or candidates` is defensive, not expected to fire in practice --
+        # devoicing only excludes voiced obstruents, and the implicational
+        # voiced-only-if-voiceless-present selection rule guarantees
+        # plenty of non-excluded consonants (every voiceless obstruent,
+        # every sonorant) always remain.
+        candidates = tuple(c for c in candidates if c not in structure.excluded_coda_consonants) or candidates
     weights = [by_symbol.get(c, 0.001) for c in candidates]
     return (rng.choices(candidates, weights=weights)[0],)
 

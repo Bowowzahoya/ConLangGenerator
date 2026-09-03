@@ -179,6 +179,27 @@ def test_evolved_onset_clusters_stay_a_thinned_subset_of_the_sonority_legal_clos
     assert any_max_onset_2
 
 
+def test_evolved_dutch_lineage_keeps_coda_devoicing_with_no_new_contact():
+    # Same consistency risk as cluster thinning, for the newer phonotactic
+    # constraint: without threading lineage_profiles through
+    # _recompute_syllable_structure, a Dutch-lineage language's
+    # excluded_coda_consonants would silently reset to empty the moment
+    # evolve_language recomputes SyllableStructure -- even on a run that
+    # adds no *new* contact language, same failure mode as the romanization
+    # lineage bug this mirrors.
+    base = generate_language(
+        "Dutch", GenerationSpec(prompt="Dutch", seed=0, traits=TraitProfile(contact_languages=("Dutch",))), FakeLLMClient()
+    )
+    assert base.syllable_structure.excluded_coda_consonants  # sanity: the base actually has the constraint
+    evolved = evolve_language("Evolved", base, 100, TraitProfile(), seed=1)
+    assert evolved.syllable_structure.excluded_coda_consonants
+    by_ipa = {c.ipa: c for c in evolved.phonology.consonants}
+    for symbol in evolved.syllable_structure.excluded_coda_consonants:
+        consonant = by_ipa[symbol]
+        assert consonant.voiced
+        assert consonant.manner.value in ("stop", "affricate", "fricative", "lateral_fricative")
+
+
 def test_glosses_and_pos_preserved():
     base = _base_language()
     evolved = evolve_language("Evolved", base, 500, TraitProfile(), seed=3)

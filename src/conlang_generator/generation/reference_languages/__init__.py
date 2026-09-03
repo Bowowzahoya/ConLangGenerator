@@ -34,6 +34,7 @@ max_onset: 2
 tonal: false
 vowel_harmony: false            # optional, defaults false
 root_and_pattern: false         # optional, defaults false -- see the field's own docstring
+coda_devoicing: false           # optional, defaults false -- see the field's own docstring
 orthography_category: ""        # optional, defaults "" -- see the field's own docstring
 orthography:                    # optional, defaults empty
   - {ipa: a, latin: aa, syllable: [syllable_closed]}    # "kaas"
@@ -77,6 +78,14 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     Arabic is fusional *and* root-and-pattern simultaneously; this field
     is how `grammar_gen.py` biases toward the latter independently of the
     former. See `generation/root_pattern.py`."""
+    coda_devoicing: bool = False
+    """Whether this language categorically excludes voiced obstruents
+    from coda-final position (real Dutch/German/Russian/Turkish-style
+    final-obstruent devoicing as a *static* phonotactic fact, not just
+    `sound_change.py`'s diachronic `final_devoicing` rule). Only matters
+    when `coda_profile` is `"unrestricted"` -- moot for `"none"`/
+    `"sonorant"`, which never allow obstruents in coda position at all.
+    See `generation/phonology_gen.py`'s own `generate_phonology()`."""
     orthography: tuple[RomanizationRule, ...] = ()
     """A handful of that language's own real spelling conventions,
     restricted to symbols this module's own ``consonants``/``vowels``
@@ -91,9 +100,7 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     (and layered under) the specific per-symbol deviations in
     ``orthography`` above: ``generate_romanization`` probabilistically
     biases the *whole scheme's* category toward this one when this
-    profile matches, same spirit as ``orthography`` itself. Empty (the
-    default) for languages we haven't tagged with one yet -- most
-    profiles, for now."""
+    profile matches, same spirit as ``orthography`` itself."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

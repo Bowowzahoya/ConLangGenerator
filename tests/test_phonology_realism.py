@@ -11,7 +11,7 @@ from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import VowelBackness
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
-from conlang_generator.generation import lexicon_gen, phonology_gen, romanization_gen, sonority, word_builder
+from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, romanization_gen, sonority, word_builder
 from conlang_generator.llm.fake_client import FakeLLMClient
 
 _SEEDS = range(200)
@@ -193,6 +193,48 @@ def test_sonorant_only_coda_profile_only_allows_sonorants_or_glottal_stop():
             for symbol in structure.allowed_coda_consonants:
                 assert symbol == "ʔ" or sonority.sonority(by_ipa[symbol]) >= 3
     assert checked_any
+
+
+def test_dutch_biased_unrestricted_coda_excludes_voiced_obstruents():
+    # Real Dutch/German-style final-obstruent devoicing as a static
+    # phonotactic constraint, not just sound_change.py's diachronic rule.
+    checked_any = False
+    for seed in _SEEDS:
+        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=("Dutch",)))
+        inventory, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        if structure.max_coda >= 1 and structure.allowed_coda_consonants is None:  # "unrestricted" coda profile
+            checked_any = True
+            by_ipa = {c.ipa: c for c in inventory.consonants}
+            for symbol in structure.excluded_coda_consonants:
+                consonant = by_ipa[symbol]
+                assert consonant.voiced
+                assert consonant.manner.value in ("stop", "affricate", "fricative", "lateral_fricative")
+    assert checked_any
+
+
+def test_dutch_biased_words_never_end_in_an_excluded_coda_consonant():
+    for seed in range(100):
+        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=("Dutch",)))
+        inventory, structure, tone_system = phonology_gen.generate_phonology(random.Random(seed), spec)
+        if not structure.excluded_coda_consonants:
+            continue
+        rng = random.Random(seed)
+        known_symbols = inventory.consonant_symbols() + inventory.vowel_symbols()
+        consonants = set(inventory.consonant_symbols())
+        for _ in range(50):
+            word = word_builder.build_word(rng, inventory, structure, num_syllables=2)
+            tokens = ipa_tokenizer.symbols_only(word, known_symbols)
+            if tokens and tokens[-1] in consonants:  # word actually ends in a coda consonant
+                assert tokens[-1] not in structure.excluded_coda_consonants
+
+
+def test_no_contact_language_never_sets_excluded_coda_consonants():
+    # coda_devoicing is opt-in per matched reference profile -- an
+    # unbiased generation should never populate it.
+    for seed in range(100):
+        spec = GenerationSpec(prompt="p", seed=seed)
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        assert structure.excluded_coda_consonants == ()
 
 
 def test_vowel_harmony_words_mostly_share_backness():

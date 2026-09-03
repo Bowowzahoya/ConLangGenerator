@@ -120,6 +120,13 @@ def test_orthography_category_round_trips_from_yaml_for_dutch_and_mandarin():
     assert mandarin.orthography_category == "wade-giles-style"
 
 
+def test_only_dutch_declares_coda_devoicing():
+    # Real final-obstruent devoicing (Dutch/German/Russian/Turkish-style)
+    # -- among the current ten profiles, only Dutch actually qualifies.
+    for profile in REFERENCE_LANGUAGES:
+        assert profile.coda_devoicing == (profile.name == "Dutch")
+
+
 def test_orthography_category_round_trips_from_yaml_for_japanese_and_hawaiian():
     japanese = next(p for p in REFERENCE_LANGUAGES if p.name == "Japanese")
     hawaiian = next(p for p in REFERENCE_LANGUAGES if p.name == "Hawaiian")
