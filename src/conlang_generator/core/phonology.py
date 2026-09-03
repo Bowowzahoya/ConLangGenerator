@@ -42,6 +42,10 @@ class Consonant(BaseModel, frozen=True):
     manner: Manner
     voiced: bool
     ejective: bool = False
+    aspirated: bool = False
+    pharyngealized: bool = False
+    long: bool = False
+    palatalized: bool = False
     prevalence: float = 0.5
     """Rough cross-linguistic commonness, ~0-1. Reused two ways: as this
     symbol's inclusion probability when a language's inventory is built
@@ -74,6 +78,16 @@ class Vowel(BaseModel, frozen=True):
     backness: VowelBackness
     rounded: bool
     long: bool = False
+    diphthong: bool = False
+    """Whether this ``ipa`` symbol is a diphthong (e.g. ``"ɛi"``) rather
+    than a monophthong -- stored as its own atomic, multi-character
+    symbol (same pattern as affricates/long vowels/geminate consonants),
+    so ``height``/``backness``/``rounded`` reflect its *onset* quality,
+    the standard way a diphthong gets classified when a model needs one
+    value per axis. Consulted only where "simple, unmarked" vowels
+    matter (``generation/word_builder.py``'s kinship-reduplication
+    filter) -- phonotactics and romanization matching don't care whether
+    a vowel symbol happens to be one or two characters."""
     prevalence: float = 0.5
     """See ``Consonant.prevalence`` -- same meaning, same illustrative-
     approximation caveat."""
@@ -103,13 +117,17 @@ class ToneLevel(str, Enum):
     FALLING = "falling"
 
 
-_TONE_DIACRITICS: dict[ToneLevel, str] = {
+TONE_DIACRITICS: dict[ToneLevel, str] = {
     ToneLevel.LOW: "̀",  # combining grave
     ToneLevel.MID: "̄",  # combining macron
     ToneLevel.HIGH: "́",  # combining acute
     ToneLevel.RISING: "̌",  # combining caron
     ToneLevel.FALLING: "̂",  # combining circumflex
 }
+"""Public (not just an implementation detail of `ToneSystem.mark`) because
+`generation.romanization_gen` also needs these exact mark characters to
+build a postposed-tone `core.romanization.OrthographyCategory`'s
+`tone_markers` table -- see that module."""
 
 
 class ToneSystem(BaseModel, frozen=True):
@@ -120,7 +138,7 @@ class ToneSystem(BaseModel, frozen=True):
         """Apply a tone's combining diacritic to a vowel symbol."""
         if not self.enabled:
             return vowel_ipa
-        return vowel_ipa + _TONE_DIACRITICS[tone]
+        return vowel_ipa + TONE_DIACRITICS[tone]
 
 
 class SyllableStructure(BaseModel, frozen=True):

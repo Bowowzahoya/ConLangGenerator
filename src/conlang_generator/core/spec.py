@@ -9,10 +9,11 @@ confused:
   and ``generation/trait_bias.py``) -- a confident reading behaves close to
   a guarantee, but the classifier is calibrated to rarely be that confident.
   It's inference, not a command.
-- ``force_isolated``/``force_high_altitude``/``force_tonal`` come only from
-  explicit CLI flags (default ``False``) and guarantee their outcome
-  outright regardless of the prompt or the classifier's assessment. This is
-  the unconditional channel testing should use.
+- ``force_isolated``/``force_high_altitude``/``force_tonal``/
+  ``forced_orthography`` come only from explicit CLI flags (default
+  ``False``/all-``None``) and guarantee their outcome outright regardless
+  of the prompt or the classifier's assessment. This is the unconditional
+  channel testing should use.
 
 ``seed_examples`` is a third, similarly explicit channel: literal words a
 user supplies (not inferred, not probabilistic) that must appear verbatim
@@ -24,6 +25,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from conlang_generator.core.romanization import OrthographyForce
 from conlang_generator.core.traits import TraitProfile
 
 
@@ -44,6 +46,12 @@ class GenerationSpec(BaseModel, frozen=True):
     force_isolated: bool = False
     force_high_altitude: bool = False
     force_tonal: bool = False
+    forced_orthography: OrthographyForce = OrthographyForce()
+    """Same unconditional channel as the ``force_*`` fields above, for the
+    romanization layer specifically -- see ``OrthographyForce``'s own
+    docstring. All-``None`` (the default) means "not forced, let
+    ``traits.contact_languages``/``traits.requested_orthography_style``/
+    the normal roll decide" -- see ``generation/romanization_gen.py``."""
     fantasy: bool = False
     """Simple explicit metadata (not a graded trait) -- passed as context to
     the classifier and to word-coinage prompts."""

@@ -1,0 +1,7 @@
+name: Xhosa
+aliases: [zulu, click language, nguni]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʔ", m, n, "ŋ", s, "ʃ", h, z, l, j, w, "ǀ", "ǃ", "ǂ", "ǁ"]
+vowels: [i, a, u, e, o]
+coda_profile: sonorant
+max_onset: 1
+tonal: true

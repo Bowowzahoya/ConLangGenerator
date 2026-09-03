@@ -29,6 +29,12 @@ class LexicalEntry(BaseModel, frozen=True):
     tones: tuple[ToneLevel, ...] = ()
     """Tone per syllable, if the language's ``ToneSystem`` is enabled."""
     notes: str = ""
+    root: tuple[str, ...] | None = None
+    """The consonantal root this word was derived from, for root-and-
+    pattern languages (``generation/root_pattern.py``) -- ``None`` for
+    every other word. Recorded even though nothing reads it back yet, so
+    a later derivational-relatedness feature (reusing an existing root for
+    a semantically related new word) has the data already in place."""
 
     @property
     def primary_gloss(self) -> str:

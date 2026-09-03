@@ -1,0 +1,52 @@
+name: Dutch
+aliases: [nederlands]
+consonants: [p, b, t, d, k, f, v, s, z, x, "ɣ", h, m, n, "ŋ", l, r, w, j]
+vowels: [i, "ɪ", e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə", "ɛi", "œy", au]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+orthography_category: germanic-doubling-style
+orthography:
+  # Real Dutch spelling conventions, restricted to symbols this profile
+  # actually models -- illustrative, not a full account. Long vowels that
+  # alternate between a doubled letter (closed syllable) and a single
+  # letter (open syllable) -- "vuur" /vy:r/ vs. "vuren" /'vy:rən/:
+  # doubling marks length only where the syllable needs it, an open
+  # syllable is already unambiguously long by Dutch spelling convention.
+  - {ipa: a, latin: aa, syllable: [syllable_closed]}   # "kaas"
+  - {ipa: a, latin: a, syllable: [syllable_open]}       # "kazen"
+  - {ipa: e, latin: ee, syllable: [syllable_closed]}    # "veer"
+  - {ipa: e, latin: e, syllable: [syllable_open]}       # "veren"
+  - {ipa: o, latin: oo, syllable: [syllable_closed]}    # "boot"
+  - {ipa: o, latin: o, syllable: [syllable_open]}       # "boten"
+  - {ipa: y, latin: uu, syllable: [syllable_closed]}    # "vuur"
+  - {ipa: y, latin: u, syllable: [syllable_open]}       # "vuren"
+  # Digraph-spelled long vowels never double, in either syllable type --
+  # always the same grapheme.
+  - {ipa: u, latin: oe}    # "boek"/"boeken"
+  - {ipa: i, latin: ie}    # "lied"/"lieden"
+  - {ipa: "ø", latin: eu}  # "deur"/"deuren"
+  # Short vowels can't end an open syllable in Dutch phonotactics, so
+  # there's no alternation to encode for these.
+  - {ipa: "œ", latin: u}   # "hut"
+  - {ipa: "ɪ", latin: i}   # "kind"
+  - {ipa: "ɑ", latin: a}   # "kat"
+  - {ipa: "ɔ", latin: o}   # "zon"
+  - {ipa: "ɛ", latin: e}   # "bed"
+  - {ipa: "ə", latin: e}   # "de"
+  - {ipa: x, latin: ch}    # "nacht" -- voiceless velar fricative
+  - {ipa: "ɣ", latin: g}   # "goed" -- voiced velar fricative, the actual
+                           # sound Dutch "g" represents (not a stop)
+  - {ipa: "ŋ", latin: ng}  # "zingen"
+  - {ipa: j, latin: j}     # "ja"
+  # Diphthongs. Real Dutch spells /ɛi/ as "ij" *or* "ei", and /au/ as
+  # "ou" *or* "au", depending on the specific word's etymology, with no
+  # phonological rule predicting which -- a per-word, not per-symbol,
+  # exception this project's rule system can't capture (same category of
+  # gap as "g is not written before k," see architecture/OVERVIEW.md).
+  # "ij"/"ou" picked as the modeled default: the more productive spelling
+  # in each pair. /œy/ has no such ambiguity -- always "ui".
+  - {ipa: "ɛi", latin: ij}  # "hij" (real; "klein" is the real counter-
+                             # example, spelled "ei" -- see above)
+  - {ipa: "œy", latin: ui}  # "huis"
+  - {ipa: au, latin: ou}    # "koud" (real; "saus" is a real "au" example)

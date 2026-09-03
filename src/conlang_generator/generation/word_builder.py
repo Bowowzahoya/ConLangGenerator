@@ -30,7 +30,7 @@ _BIG_HEIGHTS = (VowelHeight.OPEN, VowelHeight.NEAR_OPEN)
 _OPEN_HEIGHTS = (VowelHeight.OPEN, VowelHeight.NEAR_OPEN)
 
 
-def _weighted_choice(rng: random.Random, options: tuple):
+def weighted_choice(rng: random.Random, options: tuple):
     weights = [max(o.prevalence, 0.001) for o in options]
     return rng.choices(options, weights=weights)[0]
 
@@ -47,7 +47,7 @@ def _build_onset(
     if structure.max_onset >= 2 and structure.allowed_onset_clusters and rng.random() < 0.3:
         weights = [_cluster_weight(c, by_symbol) for c in structure.allowed_onset_clusters]
         return rng.choices(structure.allowed_onset_clusters, weights=weights)[0]
-    return (_weighted_choice(rng, inventory.consonants).ipa,)
+    return (weighted_choice(rng, inventory.consonants).ipa,)
 
 
 def _build_coda(
@@ -84,7 +84,7 @@ def _choose_nucleus(
         matching = tuple(v for v in vowels if v.height in heights)
         if matching and rng.random() < 0.8:
             vowels = matching
-    return _weighted_choice(rng, vowels)
+    return weighted_choice(rng, vowels)
 
 
 def build_syllable(
@@ -138,12 +138,15 @@ def build_reduplicated_word(
     ``manner_classes`` (the caller should fall back to normal generation).
     """
     candidates: tuple[Consonant, ...] = tuple(
-        c for c in inventory.consonants if c.manner in manner_classes and not c.ejective
+        c
+        for c in inventory.consonants
+        if c.manner in manner_classes and not (c.ejective or c.aspirated or c.pharyngealized or c.long or c.palatalized)
     )
     if not candidates:
         return None
-    consonant = _weighted_choice(rng, candidates)
-    open_vowels = tuple(v for v in inventory.vowels if v.height in _OPEN_HEIGHTS)
-    vowel = _weighted_choice(rng, open_vowels or inventory.vowels)
+    consonant = weighted_choice(rng, candidates)
+    simple_vowels = tuple(v for v in inventory.vowels if not v.diphthong)
+    open_vowels = tuple(v for v in simple_vowels if v.height in _OPEN_HEIGHTS)
+    vowel = weighted_choice(rng, open_vowels or simple_vowels or inventory.vowels)
     syllable = consonant.ipa + vowel.ipa + tone_mark
     return syllable + syllable

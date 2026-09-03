@@ -36,7 +36,7 @@ from conlang_generator.llm.factory import build_llm_client
 
 OUTPUT_PATH = Path(__file__).parent / "output" / "evolution.html"
 CACHE_DIR = Path(__file__).parent / "output" / ".cache"
-BASE_SEED = 1
+BASE_SEED = 3  # picked so the Dutch-biased scheme actually rolls the y (vuur/vuren) length alternation, for a legible demo
 EVOLVE_SEED = 42
 
 
@@ -55,6 +55,16 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario("200 years, isolated highland", 200, TraitProfile(altitude=0.9, isolation=0.85, contact_intensity=-0.6)),
     Scenario("800 years, isolated highland", 800, TraitProfile(altitude=0.9, isolation=0.85, contact_intensity=-0.6)),
     Scenario("3000 years, isolated highland", 3000, TraitProfile(altitude=0.9, isolation=0.85, contact_intensity=-0.6)),
+    # Not a "realistic Dutch history" scenario like the others -- there's no
+    # English profile in reference_languages.py to borrow from, so this uses
+    # Spanish (a Romance stand-in) purely to make the "orthography" column's
+    # "borrowed" outcome (scenario 2a -- wholesale borrowing, including
+    # spelling) visible somewhere in this report.
+    Scenario(
+        "1200 years, heavy Romance trade contact (borrowing demo)",
+        1200,
+        TraitProfile(contact_intensity=0.9, contact_languages=("Spanish",)),
+    ),
 )
 
 _STYLE = """
@@ -69,6 +79,7 @@ th { color: #9a9ba3; font-weight: 600; }
 td.form, td.roman { font-family: "Cambria", "Doulos SIL", serif; }
 td.ipa { font-family: "Cambria", "Doulos SIL", serif; color: #c9a0ff; }
 tr.changed td.roman, tr.changed td.ipa.evolved { color: #ffb27a; font-weight: 600; }
+td.mechanism { color: #7fbfff; font-size: 0.82rem; }
 footer { color: #6a6b73; font-size: 0.8rem; margin-top: 3rem; }
 """
 
@@ -96,6 +107,7 @@ def _scenario_table(base: Language, scenario: Scenario) -> str:
         form, original_ipa = original_by_gloss[gloss]
         changed = original_ipa != entry.ipa
         changed_count += changed
+        mechanism = entry.notes.removeprefix("orthography: ") if entry.notes else ""
         rows.append(
             f"<tr class='{'changed' if changed else ''}'>"
             f"<td>{html.escape(gloss)}</td>"
@@ -103,13 +115,15 @@ def _scenario_table(base: Language, scenario: Scenario) -> str:
             f"<td class='ipa'>/{html.escape(original_ipa)}/</td>"
             f"<td class='roman'>{html.escape(entry.romanization)}</td>"
             f"<td class='ipa evolved'>/{html.escape(entry.ipa)}/</td>"
+            f"<td class='mechanism'>{html.escape(mechanism)}</td>"
             f"</tr>"
         )
 
     return (
         f"<h2>{html.escape(scenario.title)}</h2>"
         f"<div class='meta'>{changed_count}/{len(rows)} words changed</div>"
-        "<table><tr><th>gloss</th><th>Dutch</th><th>Dutch IPA</th><th>evolved</th><th>evolved IPA</th></tr>"
+        "<table><tr><th>gloss</th><th>Dutch</th><th>Dutch IPA</th><th>evolved</th><th>evolved IPA</th>"
+        "<th>orthography</th></tr>"
         + "\n".join(rows)
         + "</table>"
     )

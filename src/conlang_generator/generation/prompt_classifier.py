@@ -80,6 +80,12 @@ mentions or clearly evokes, as a list of strings (usually empty).
 implied by the text, e.g. "seafaring", "herding" (usually empty).
 - "time_depth_years": an integer if the text asks how a language would \
 sound after some number of years, otherwise null.
+- "requested_orthography_style": one of "digraph-style", "diacritic-style", \
+"monoletter-style", "germanic-doubling-style", "scholarly-macron-style", \
+"wade-giles-style", "zhuang-style" if the text explicitly asks for that \
+specific spelling/tone-marking convention (by name, or by describing it \
+unambiguously, e.g. "write tone as a number after each syllable" means \
+"wade-giles-style"), otherwise "" -- most prompts should get "".
 - "salient_context": one short sentence noting anything else distinctive \
 about the request not captured above, or "" if nothing is.
 
@@ -104,6 +110,23 @@ large, well-connected population with no meaningful writing tradition"
 0.7, community_scale: -0.6 (large/well-connected, the opposite pole), \
 orality_literacy: 0.5, every other dimension: 0.0. (Evidence can point at \
 the negative pole just as confidently as the positive one.)
+
+Prompt: "a fantasy people living in flat lowlands among windmills and \
+canals, a language explicitly inspired by Dutch"
+-> contact_languages: ["Dutch"], altitude: -0.4 (lowlands, incidental), \
+every other dimension: 0.0. ("contact_languages" captures a real language \
+the text clearly evokes even without asking for literal evolution from it \
+-- windmills/canals/lowlands plus an explicit "inspired by Dutch" is enough \
+to extract the name, but doesn't on its own justify a high value on any \
+other dimension.)
+
+Prompt: "a tonal language for a trading empire, please mark tone with a \
+number after each syllable, Wade-Giles style"
+-> requested_orthography_style: "wade-giles-style", tonal_friendliness: \
+0.6, contact_intensity: 0.5, every other dimension: 0.0. (An explicit, \
+unambiguous request for a specific spelling convention -- by name here, \
+but a clear enough description alone, like "numbers after each \
+syllable for tone," would extract the same value.)
 
 Respond with ONLY a single JSON object, no prose, no markdown fences."""
 
@@ -140,6 +163,7 @@ def _parse(text: str) -> TraitProfile:
     for field in _LIST_FIELDS:
         values[field] = _coerce_str_tuple(raw.get(field))
     values["time_depth_years"] = _coerce_optional_int(raw.get("time_depth_years"))
+    values["requested_orthography_style"] = _coerce_str(raw.get("requested_orthography_style"))
     values["salient_context"] = _coerce_str(raw.get("salient_context"))
 
     return TraitProfile(**values)

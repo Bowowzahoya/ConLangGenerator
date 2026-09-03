@@ -10,6 +10,7 @@ import pytest
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import VowelBackness
 from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import lexicon_gen, phonology_gen, romanization_gen, sonority, word_builder
 from conlang_generator.llm.fake_client import FakeLLMClient
 
@@ -46,6 +47,94 @@ def test_token_frequency_within_words_follows_prevalence():
     assert common_count > rare_count
 
 
+def test_aspirated_consonants_appear_at_a_nonzero_base_rate():
+    hits = sum(
+        "pʰ" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        for s in _SEEDS
+    )
+    assert 0 < hits < len(_SEEDS)  # sometimes present, not forced, not absent
+
+
+def test_arabic_contact_language_increases_pharyngealized_consonant_presence():
+    def _hit_fraction(contact_languages: tuple[str, ...]) -> float:
+        hits = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=contact_languages))
+            inventory, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+            hits += "tˤ" in inventory.consonant_symbols()
+        return hits / len(_SEEDS)
+
+    assert _hit_fraction(("Arabic",)) > _hit_fraction(())
+
+
+def test_geminate_consonants_appear_at_a_nonzero_base_rate():
+    hits = sum(
+        "kː" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        for s in _SEEDS
+    )
+    assert 0 < hits < len(_SEEDS)
+
+
+def test_palatalized_consonants_appear_at_a_nonzero_base_rate():
+    hits = sum(
+        "tʲ" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        for s in _SEEDS
+    )
+    assert 0 < hits < len(_SEEDS)
+
+
+def test_diphthongs_appear_at_a_nonzero_base_rate():
+    hits = sum(
+        "ai" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].vowel_symbols()
+        for s in _SEEDS
+    )
+    assert 0 < hits < len(_SEEDS)
+
+
+def test_dutch_contact_language_increases_ei_diphthong_presence():
+    def _hit_fraction(contact_languages: tuple[str, ...]) -> float:
+        hits = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=contact_languages))
+            inventory, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+            hits += "ɛi" in inventory.vowel_symbols()
+        return hits / len(_SEEDS)
+
+    assert _hit_fraction(("Dutch",)) > _hit_fraction(())
+
+
+def test_finnish_contact_language_increases_geminate_consonant_presence():
+    def _hit_fraction(contact_languages: tuple[str, ...]) -> float:
+        hits = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=contact_languages))
+            inventory, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+            hits += "kː" in inventory.consonant_symbols()
+        return hits / len(_SEEDS)
+
+    assert _hit_fraction(("Finnish",)) > _hit_fraction(())
+
+
+def test_new_phonemes_from_the_shared_pool_are_used_in_words():
+    # A quick end-to-end smoke test: aspirated/pharyngealized/long-vowel
+    # symbols, once included in an inventory, are actually sampled into
+    # words (not just present in the inventory but never drawn).
+    spec = GenerationSpec(prompt="p", seed=1, traits=TraitProfile(contact_languages=("Arabic",)))
+    rng = random.Random(spec.seed)
+    inventory, structure, _ = phonology_gen.generate_phonology(rng, spec)
+    marked_symbols = {c.ipa for c in inventory.consonants if c.aspirated or c.pharyngealized or c.long or c.palatalized}
+    marked_symbols |= {v.ipa for v in inventory.vowels if v.long or v.diphthong}
+    if not marked_symbols:
+        pytest.skip("this seed's inventory happened to roll no marked phonemes")
+    found = False
+    for _ in range(200):
+        word = word_builder.build_word(rng, inventory, structure, num_syllables=3)
+        if any(symbol in word for symbol in marked_symbols):
+            found = True
+            break
+    assert found
+
+
 def test_onset_clusters_are_sonority_legal_or_the_s_stop_exception():
     checked_any_cluster = False
     for seed in range(50):
@@ -55,6 +144,41 @@ def test_onset_clusters_are_sonority_legal_or_the_s_stop_exception():
             checked_any_cluster = True
             assert sonority.is_legal_onset_cluster(by_ipa[c1_ipa], by_ipa[c2_ipa])
     assert checked_any_cluster
+
+
+def test_allowed_onset_clusters_are_a_thinned_subset_of_the_full_sonority_legal_closure():
+    # Real languages use a gappier subset of their sonority-legal cluster
+    # space than the full combinatorial closure -- proves the thinning in
+    # generate_phonology actually thins, in the real generation path (not
+    # just in isolation against sonority.thin_cluster_pairs directly).
+    checked_any = False
+    total_allowed, total_legal = 0, 0
+    for seed in _SEEDS:
+        inventory, structure, _ = phonology_gen.generate_phonology(random.Random(seed), GenerationSpec(prompt="p", seed=seed))
+        if structure.max_onset >= 2:
+            checked_any = True
+            legal = sonority.legal_onset_pairs(inventory.consonants)
+            assert set(structure.allowed_onset_clusters) <= set(legal)
+            total_allowed += len(structure.allowed_onset_clusters)
+            total_legal += len(legal)
+    assert checked_any
+    assert total_allowed < total_legal
+
+
+def test_contact_intensity_reduces_onset_cluster_count():
+    def _avg_cluster_count(contact_intensity: float) -> float:
+        total, hits = 0, 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_intensity=contact_intensity))
+            _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+            if structure.max_onset >= 2:
+                hits += 1
+                total += len(structure.allowed_onset_clusters)
+        return total / hits if hits else 0.0
+
+    unbiased_avg = _avg_cluster_count(0.0)
+    contact_avg = _avg_cluster_count(0.8)
+    assert contact_avg < unbiased_avg
 
 
 def test_sonorant_only_coda_profile_only_allows_sonorants_or_glottal_stop():

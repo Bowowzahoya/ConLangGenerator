@@ -1,0 +1,123 @@
+"""A small, hand-curated set of real languages' rough phonological +
+orthographic profiles, used to bias generation toward "sounds like X" /
+"mix of X and Y" when ``TraitProfile.contact_languages`` names one we
+recognize.
+
+Symbol sets are restricted to symbols already in ``phonology_gen.py``'s
+pools (so matching against a generated inventory is a plain set
+intersection). These are illustrative typological sketches for flavor, not
+authoritative phonological descriptions -- real language phonology is far
+richer than what our own symbol pool and phonotactic model can represent
+(no consonant length/gemination as a phonemic feature; no noun-class
+morphology; root-and-pattern morphology models word-*shape* only, not
+derivational relatedness between words -- see
+``generation/root_pattern.py``). ``orthography`` rules are similarly
+illustrative -- see ``core/romanization.py``'s module docstring for what
+they can and can't express (local adjacency conditions; not stress,
+morphology-driven spelling, or word-level algorithmic romanization like
+Korean's or Hindi's).
+
+Each profile lives in its own file under ``reference_languages/profiles/``
+(one YAML document per language -- adding a language is "add a file," no
+code change needed), loaded here into ``ReferenceLanguageProfile`` via the
+same ``model_dump()``/``model_validate()`` round-trip
+``storage/yaml_backend.py`` already uses for saved languages. A profile's
+YAML shape mirrors ``ReferenceLanguageProfile``'s fields directly:
+
+```yaml
+name: Dutch
+aliases: [nederlands]
+consonants: [p, b, t, d, k, f, v, s, z, x, h, m, n, "ŋ", l, r, w, j]
+vowels: [i, "ɪ", e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə"]
+coda_profile: unrestricted      # "none" | "sonorant" | "unrestricted"
+max_onset: 2
+tonal: false
+vowel_harmony: false            # optional, defaults false
+root_and_pattern: false         # optional, defaults false -- see the field's own docstring
+orthography_category: ""        # optional, defaults "" -- see the field's own docstring
+orthography:                    # optional, defaults empty
+  - {ipa: a, latin: aa, syllable: [syllable_closed]}    # "kaas"
+  - {ipa: a, latin: a, syllable: [syllable_open]}       # "kazen"
+  - {ipa: x, latin: ch}                                 # unconditioned ("nacht")
+```
+
+``orthography`` entries are ``RomanizationRule``s -- see its docstring for
+what ``following``/``preceding`` (neighbor tags: exact symbols, or a
+computed class -- ``vowel``/``consonant``/``boundary``/``front_vowel``/
+``back_vowel``) and ``syllable`` (this symbol's own structural position --
+``syllable_open``/``syllable_closed``) mean, and why they're separate.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+from pydantic import BaseModel
+
+from conlang_generator.core.romanization import RomanizationRule
+
+_PROFILES_DIR = Path(__file__).parent / "profiles"
+
+
+class ReferenceLanguageProfile(BaseModel, frozen=True):
+    name: str
+    aliases: tuple[str, ...] = ()
+    consonants: tuple[str, ...]
+    vowels: tuple[str, ...]
+    coda_profile: str  # "none" | "sonorant" | "unrestricted"
+    max_onset: int
+    tonal: bool
+    vowel_harmony: bool = False
+    root_and_pattern: bool = False
+    """Whether this language uses Semitic-style root-and-pattern
+    (templatic) derivational morphology -- orthogonal to
+    `core.grammar.MorphologicalType` (which measures synthesis: morphemes
+    per word, how cleanly they segment), not a value on that same axis.
+    Arabic is fusional *and* root-and-pattern simultaneously; this field
+    is how `grammar_gen.py` biases toward the latter independently of the
+    former. See `generation/root_pattern.py`."""
+    orthography: tuple[RomanizationRule, ...] = ()
+    """A handful of that language's own real spelling conventions,
+    restricted to symbols this module's own ``consonants``/``vowels``
+    cover and to what this project's phonology can represent (no
+    diphthongs). Illustrative/approximate, same spirit as the
+    phonological fields above -- not a full orthography. Empty for
+    languages we haven't curated spelling conventions for yet."""
+    orthography_category: str = ""
+    """The name of a ``generation.romanization_gen`` ``OrthographyCategory``
+    (e.g. ``"germanic-doubling-style"``) this language's own conventions
+    lean toward -- a coarse, optional "which family" signal separate from
+    (and layered under) the specific per-symbol deviations in
+    ``orthography`` above: ``generate_romanization`` probabilistically
+    biases the *whole scheme's* category toward this one when this
+    profile matches, same spirit as ``orthography`` itself. Empty (the
+    default) for languages we haven't tagged with one yet -- most
+    profiles, for now."""
+
+    def symbols(self) -> frozenset[str]:
+        return frozenset(self.consonants) | frozenset(self.vowels)
+
+
+def _load_profile(path: Path) -> ReferenceLanguageProfile:
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    return ReferenceLanguageProfile.model_validate(data)
+
+
+REFERENCE_LANGUAGES: tuple[ReferenceLanguageProfile, ...] = tuple(
+    _load_profile(path) for path in sorted(_PROFILES_DIR.glob("*.yaml"))
+)
+
+
+def match_profiles(names: tuple[str, ...]) -> tuple[ReferenceLanguageProfile, ...]:
+    """Case-insensitive match against name+aliases; unknown names are
+    silently ignored (best-effort, same spirit as everything else
+    ``contact_languages`` touches)."""
+    matched = []
+    for raw_name in names:
+        needle = raw_name.strip().lower()
+        for profile in REFERENCE_LANGUAGES:
+            if needle == profile.name.lower() or needle in profile.aliases:
+                matched.append(profile)
+                break
+    return tuple(matched)

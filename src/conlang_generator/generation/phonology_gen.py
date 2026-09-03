@@ -96,6 +96,54 @@ _UVULAR_GROUP = (
 )
 _UVULAR_GROUP_BASE_RATE = 0.12
 
+# Aspiration (Hindi, Thai, Ancient Greek, Korean's three-way stop contrast)
+# and pharyngealization/"emphatics" (Arabic's ط ص ض ظ) -- secondary
+# articulations, no existing graded trait obviously links to either, so
+# (like the exotic click/implosive pool) these are pure base-rate +
+# reference-bias groups.
+_ASPIRATED_GROUP = (
+    Consonant(ipa="pʰ", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.35),
+    Consonant(ipa="tʰ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.35),
+    Consonant(ipa="kʰ", place=Place.VELAR, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.35),
+)
+_ASPIRATED_GROUP_BASE_RATE = 0.10
+
+_PHARYNGEALIZED_GROUP = (
+    Consonant(ipa="tˤ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, pharyngealized=True, prevalence=0.10),
+    Consonant(ipa="dˤ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, pharyngealized=True, prevalence=0.08),
+    Consonant(ipa="sˤ", place=Place.ALVEOLAR, manner=Manner.FRICATIVE, voiced=False, pharyngealized=True, prevalence=0.08),
+    Consonant(ipa="ðˤ", place=Place.DENTAL, manner=Manner.FRICATIVE, voiced=True, pharyngealized=True, prevalence=0.05),
+)
+_PHARYNGEALIZED_GROUP_BASE_RATE = 0.06
+
+# Phonemic consonant length (Italian "sono"/"sonno", Finnish "kukka"/"kuka",
+# Japanese sokuon) and palatalization (Russian тʲ/дʲ/etc., spelled with a
+# trailing letter -- ь/ъ in Cyrillic, an apostrophe or "y" in Latin
+# transliteration) -- same "no existing graded trait obviously links to
+# either" reasoning as aspiration/pharyngealization above, so both are
+# pure base-rate + reference-bias groups too. Long consonants reuse the
+# same "ː" length-mark character `_VOWEL_EXTRAS` already uses for long
+# vowels, each paired with a high-prevalence plain counterpart already in
+# this pool (k/t/n/s/l/p) so `romanization_gen.py`'s pairing usually
+# resolves -- see its own module for that side.
+_GEMINATE_GROUP = (
+    Consonant(ipa="kː", place=Place.VELAR, manner=Manner.STOP, voiced=False, long=True, prevalence=0.12),
+    Consonant(ipa="tː", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, long=True, prevalence=0.12),
+    Consonant(ipa="pː", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, long=True, prevalence=0.10),
+    Consonant(ipa="sː", place=Place.ALVEOLAR, manner=Manner.FRICATIVE, voiced=False, long=True, prevalence=0.10),
+    Consonant(ipa="nː", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, long=True, prevalence=0.10),
+    Consonant(ipa="lː", place=Place.ALVEOLAR, manner=Manner.LATERAL_APPROXIMANT, voiced=True, long=True, prevalence=0.08),
+)
+_GEMINATE_GROUP_BASE_RATE = 0.10
+
+_PALATALIZED_GROUP = (
+    Consonant(ipa="tʲ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, palatalized=True, prevalence=0.10),
+    Consonant(ipa="dʲ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, palatalized=True, prevalence=0.08),
+    Consonant(ipa="nʲ", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, palatalized=True, prevalence=0.08),
+    Consonant(ipa="lʲ", place=Place.ALVEOLAR, manner=Manner.LATERAL_APPROXIMANT, voiced=True, palatalized=True, prevalence=0.08),
+)
+_PALATALIZED_GROUP_BASE_RATE = 0.08
+
 _m = Consonant(ipa="m", place=Place.BILABIAL, manner=Manner.NASAL, voiced=True, prevalence=0.95)
 _n = Consonant(ipa="n", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, prevalence=0.95)
 _ng = Consonant(ipa="ŋ", place=Place.VELAR, manner=Manner.NASAL, voiced=True, prevalence=0.55)
@@ -109,6 +157,7 @@ _FRICATIVE_POOL = (
     Consonant(ipa="s", place=Place.ALVEOLAR, manner=Manner.FRICATIVE, voiced=False, prevalence=0.80),
     Consonant(ipa="ʃ", place=Place.POSTALVEOLAR, manner=Manner.FRICATIVE, voiced=False, prevalence=0.35),
     Consonant(ipa="x", place=Place.VELAR, manner=Manner.FRICATIVE, voiced=False, prevalence=0.30),
+    Consonant(ipa="ɣ", place=Place.VELAR, manner=Manner.FRICATIVE, voiced=True, prevalence=0.18),
     Consonant(ipa="ʒ", place=Place.POSTALVEOLAR, manner=Manner.FRICATIVE, voiced=True, prevalence=0.20),
     Consonant(ipa="ʂ", place=Place.RETROFLEX, manner=Manner.FRICATIVE, voiced=False, prevalence=0.10),
     Consonant(ipa="ʐ", place=Place.RETROFLEX, manner=Manner.FRICATIVE, voiced=True, prevalence=0.06),
@@ -126,7 +175,7 @@ _FRICATIVE_POOL = (
 )
 # "Vibe" tagging for aesthetic_harshness -- illustrative sound symbolism, not
 # a linguistic universal.
-_HARSH_LEANING_FRICATIVES = {"ʃ", "x", "s", "ʒ", "ʂ", "ʐ", "ħ", "ʕ", "ɬ"}
+_HARSH_LEANING_FRICATIVES = {"ʃ", "x", "ɣ", "s", "ʒ", "ʂ", "ʐ", "ħ", "ʕ", "ɬ"}
 _SOFT_LEANING_FRICATIVES = {"f", "h", "z", "v", "θ", "ð", "ç", "ʝ"}
 
 _APPROXIMANT_POOL = (
@@ -175,6 +224,27 @@ _VOWEL_EXTRAS = (
     Vowel(ipa="y", height=VowelHeight.CLOSE, backness=VowelBackness.FRONT, rounded=True, prevalence=0.06),
     Vowel(ipa="ø", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=True, prevalence=0.05),
     Vowel(ipa="œ", height=VowelHeight.OPEN_MID, backness=VowelBackness.FRONT, rounded=True, prevalence=0.04),
+    # Genuine same-quality length pairs (Arabic /a/ vs. /aː/, etc.) -- a
+    # different real-world strategy from Dutch's quality-shifted length
+    # marking (i vs. ɪ), both already representable via distinct symbols;
+    # these specifically model languages where length alone is contrastive.
+    Vowel(ipa="aː", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, long=True, prevalence=0.10),
+    Vowel(ipa="iː", height=VowelHeight.CLOSE, backness=VowelBackness.FRONT, rounded=False, long=True, prevalence=0.09),
+    Vowel(ipa="uː", height=VowelHeight.CLOSE, backness=VowelBackness.BACK, rounded=True, long=True, prevalence=0.09),
+    Vowel(ipa="eː", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, long=True, prevalence=0.05),
+    Vowel(ipa="oː", height=VowelHeight.CLOSE_MID, backness=VowelBackness.BACK, rounded=True, long=True, prevalence=0.05),
+    # Diphthongs -- each its own atomic, multi-character symbol (same
+    # pattern as the long vowels just above), classified by its *onset*
+    # quality (the standard way to give a diphthong one height/backness/
+    # roundedness value). "ai"/"au"/"ei" deliberately reuse component
+    # letters that are already plain ASCII in every romanization style,
+    # so they need no table entry there -- see romanization_gen.py.
+    Vowel(ipa="ai", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, diphthong=True, prevalence=0.15),
+    Vowel(ipa="au", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, diphthong=True, prevalence=0.12),
+    Vowel(ipa="ɔi", height=VowelHeight.OPEN_MID, backness=VowelBackness.BACK, rounded=True, diphthong=True, prevalence=0.08),
+    Vowel(ipa="ei", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, diphthong=True, prevalence=0.10),
+    Vowel(ipa="ɛi", height=VowelHeight.OPEN_MID, backness=VowelBackness.FRONT, rounded=False, diphthong=True, prevalence=0.10),
+    Vowel(ipa="œy", height=VowelHeight.OPEN_MID, backness=VowelBackness.FRONT, rounded=True, diphthong=True, prevalence=0.05),
 )
 
 _TONE_LEVEL_SETS = (
@@ -189,8 +259,9 @@ _CODA_PROFILE_WEIGHTS = (15, 35, 50)
 
 ALL_CONSONANTS: tuple[Consonant, ...] = (
     tuple(x for pair in _STOP_AND_AFFRICATE_PAIRS for x in pair)
-    + (_GLOTTAL_STOP,) + _EJECTIVES + _UVULAR_GROUP + _NASAL_POOL
-    + _FRICATIVE_POOL + _APPROXIMANT_POOL + _EXOTIC_POOL
+    + (_GLOTTAL_STOP,) + _EJECTIVES + _UVULAR_GROUP
+    + _ASPIRATED_GROUP + _PHARYNGEALIZED_GROUP + _GEMINATE_GROUP + _PALATALIZED_GROUP
+    + _NASAL_POOL + _FRICATIVE_POOL + _APPROXIMANT_POOL + _EXOTIC_POOL
 )
 """Every consonant this package models, regardless of a given language's
 inventory -- shared with ``sound_change.py``, which needs to look up any
@@ -314,6 +385,30 @@ def _select_consonants(
     if rng.random() < uvular_probability:
         consonants.extend(_UVULAR_GROUP)
 
+    aspirated_probability = _group_reference_bias(
+        _ASPIRATED_GROUP_BASE_RATE, tuple(c.ipa for c in _ASPIRATED_GROUP), reference_symbols
+    )
+    if rng.random() < aspirated_probability:
+        consonants.extend(_ASPIRATED_GROUP)
+
+    pharyngealized_probability = _group_reference_bias(
+        _PHARYNGEALIZED_GROUP_BASE_RATE, tuple(c.ipa for c in _PHARYNGEALIZED_GROUP), reference_symbols
+    )
+    if rng.random() < pharyngealized_probability:
+        consonants.extend(_PHARYNGEALIZED_GROUP)
+
+    geminate_probability = _group_reference_bias(
+        _GEMINATE_GROUP_BASE_RATE, tuple(c.ipa for c in _GEMINATE_GROUP), reference_symbols
+    )
+    if rng.random() < geminate_probability:
+        consonants.extend(_GEMINATE_GROUP)
+
+    palatalized_probability = _group_reference_bias(
+        _PALATALIZED_GROUP_BASE_RATE, tuple(c.ipa for c in _PALATALIZED_GROUP), reference_symbols
+    )
+    if rng.random() < palatalized_probability:
+        consonants.extend(_PALATALIZED_GROUP)
+
     for nasal in _NASAL_POOL:
         rate = biased_probability(nasal.prevalence, -traits.aesthetic_harshness) if nasal is _ng else nasal.prevalence
         rate = _reference_biased_rate(rate, nasal.ipa, reference_symbols)
@@ -352,24 +447,6 @@ def _select_vowels(
     return _ensure_floor(rng, vowels, ALL_VOWELS, _MIN_VOWELS)
 
 
-def _legal_onset_clusters(consonants: tuple[Consonant, ...]) -> tuple[tuple[str, str], ...]:
-    return tuple(
-        (c1.ipa, c2.ipa)
-        for c1 in consonants
-        for c2 in consonants
-        if c1 is not c2 and sonority.is_legal_onset_cluster(c1, c2)
-    )
-
-
-def _legal_coda_clusters(consonants: tuple[Consonant, ...]) -> tuple[tuple[str, str], ...]:
-    return tuple(
-        (c1.ipa, c2.ipa)
-        for c1 in consonants
-        for c2 in consonants
-        if c1 is not c2 and sonority.is_legal_coda_cluster(c1, c2)
-    )
-
-
 def _sonorant_or_glottal_symbols(consonants: tuple[Consonant, ...]) -> tuple[str, ...]:
     return tuple(c.ipa for c in consonants if c.ipa == "ʔ" or sonority.sonority(c) >= 3)
 
@@ -392,11 +469,14 @@ def generate_phonology(
     vowels = tuple(_select_vowels(rng, reference_symbols, must_include_vowels))
     inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
 
-    onset_pairs = _legal_onset_clusters(consonants)
+    onset_pairs = sonority.legal_onset_pairs(consonants)
     onset_cluster_probability = 0.5
     if reference_profiles:
         onset_cluster_probability = 0.85 if any(p.max_onset >= 2 for p in reference_profiles) else 0.1
     max_onset = 2 if onset_pairs and rng.random() < onset_cluster_probability else 1
+    allowed_onset_clusters = (
+        sonority.thin_cluster_pairs(rng, onset_pairs, traits.contact_intensity) if max_onset >= 2 else ()
+    )
 
     coda_weights = list(_CODA_PROFILE_WEIGHTS)
     if reference_profiles:
@@ -412,9 +492,11 @@ def generate_phonology(
         else:
             max_coda, allowed_coda_consonants, allowed_coda_clusters = 0, None, ()
     else:  # unrestricted
-        coda_pairs = _legal_coda_clusters(consonants)
+        coda_pairs = sonority.legal_coda_pairs(consonants)
         if coda_pairs and rng.random() < 0.3:
-            max_coda, allowed_coda_consonants, allowed_coda_clusters = 2, None, coda_pairs
+            max_coda, allowed_coda_consonants, allowed_coda_clusters = (
+                2, None, sonority.thin_cluster_pairs(rng, coda_pairs, traits.contact_intensity),
+            )
         else:
             max_coda, allowed_coda_consonants, allowed_coda_clusters = 1, None, ()
 
@@ -425,7 +507,7 @@ def generate_phonology(
     syllable_structure = SyllableStructure(
         max_onset=max_onset,
         max_coda=max_coda,
-        allowed_onset_clusters=onset_pairs if max_onset >= 2 else (),
+        allowed_onset_clusters=allowed_onset_clusters,
         allowed_coda_clusters=allowed_coda_clusters,
         allowed_coda_consonants=allowed_coda_consonants,
         vowel_harmony=vowel_harmony,

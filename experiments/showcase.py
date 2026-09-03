@@ -52,6 +52,11 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario("Dutch-biased", 1, TraitProfile(contact_languages=("Dutch",)), note="--contact-language Dutch"),
     Scenario("Japanese-biased", 59, TraitProfile(contact_languages=("Japanese",)), note="--contact-language Japanese"),
     Scenario(
+        "Arabic-biased (root-and-pattern)", 0, TraitProfile(contact_languages=("Arabic",)),
+        note="--contact-language Arabic -- seed 0 happens to roll uses_root_and_pattern=True; "
+        "look for the emphatics/ɣ/long vowels and the consistent per-POS consonant-root shapes",
+    ),
+    Scenario(
         "Anchored with seed words", 67,
         TraitProfile(isolation=0.3, aesthetic_harshness=-0.2),
         (SeedExample(gloss="water", form="aqua", ipa="akwa"), SeedExample(gloss="mountain", form="yama", ipa="jama")),
@@ -81,7 +86,8 @@ def _phonology_summary(language) -> str:
     return (
         f"order={g.word_order.value} &middot; morph={g.morphological_type.value} &middot; align={g.alignment.value} "
         f"&middot; consonants={len(inv.consonants)} &middot; vowels={len(inv.vowels)} &middot; onset&le;{st.max_onset} "
-        f"&middot; coda={coda} &middot; harmony={st.vowel_harmony} &middot; tonal={ts.enabled}"
+        f"&middot; coda={coda} &middot; harmony={st.vowel_harmony} &middot; tonal={ts.enabled} "
+        f"&middot; orthography={language.romanization.category_name}"
     )
 
 

@@ -5,9 +5,9 @@ big/small (Sapir 1929)."""
 import random
 
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.phonology import VowelHeight
+from conlang_generator.core.phonology import Manner, Place, PhonemeInventory, Vowel, VowelBackness, VowelHeight, Consonant
 from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation import lexicon_gen, phonology_gen, romanization_gen
+from conlang_generator.generation import lexicon_gen, phonology_gen, romanization_gen, word_builder
 from conlang_generator.llm.fake_client import FakeLLMClient
 
 
@@ -54,6 +54,48 @@ def test_mother_skews_nasal_and_father_skews_stop_onsets():
 
     assert mother_nasal_onsets > baseline_nasal_onsets
     assert father_stop_onsets > n * 0.5
+
+
+def test_build_reduplicated_word_excludes_marked_consonants():
+    # A stop-manner inventory mixing a plain consonant with ejective/
+    # aspirated/pharyngealized/geminate/palatalized variants -- the
+    # mama/papa convergence is specifically about simple, unmarked
+    # articulations, so only the plain one should ever be drawn.
+    inventory = PhonemeInventory(
+        consonants=(
+            Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, prevalence=0.5),
+            Consonant(ipa="pʼ", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, ejective=True, prevalence=0.5),
+            Consonant(ipa="pʰ", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.5),
+            Consonant(ipa="tˤ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, pharyngealized=True, prevalence=0.5),
+            Consonant(ipa="kː", place=Place.VELAR, manner=Manner.STOP, voiced=False, long=True, prevalence=0.5),
+            Consonant(ipa="tʲ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, palatalized=True, prevalence=0.5),
+        ),
+        vowels=(Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),),
+    )
+    rng = random.Random(1)
+    for _ in range(50):
+        word = word_builder.build_reduplicated_word(rng, inventory, (Manner.STOP,))
+        assert word is not None
+        assert word == "papa"
+
+
+def test_build_reduplicated_word_excludes_diphthongs_but_still_returns_a_word():
+    # Same "simple, unmarked sounds" reasoning applied to the vowel side --
+    # a diphthong-only inventory still falls back to a real (non-open,
+    # since none is available) monophthong rather than ever picking the
+    # diphthong or returning None.
+    inventory = PhonemeInventory(
+        consonants=(Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, prevalence=0.5),),
+        vowels=(
+            Vowel(ipa="e", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, prevalence=1.0),
+            Vowel(ipa="ai", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, diphthong=True, prevalence=1.0),
+        ),
+    )
+    rng = random.Random(1)
+    for _ in range(50):
+        word = word_builder.build_reduplicated_word(rng, inventory, (Manner.STOP,))
+        assert word is not None
+        assert word == "pepe"  # the only non-diphthong vowel available
 
 
 def test_small_words_average_closer_vowels_than_big_words():

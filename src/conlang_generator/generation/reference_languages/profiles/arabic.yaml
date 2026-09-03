@@ -1,0 +1,30 @@
+name: Arabic
+aliases: [modern standard arabic]
+consonants: [t, d, k, q, "ʔ", "tʃ", m, n, s, "ʃ", x, "ɣ", z, f, h, "ħ", "ʕ", l, r, j, w, "tˤ", "dˤ", "sˤ", "ðˤ"]
+vowels: [i, a, u, "aː", "iː", "uː"]
+coda_profile: unrestricted
+max_onset: 1
+tonal: false
+root_and_pattern: true
+orthography:
+  # Real (scholarly/IJMES-style) Arabic transliteration conventions,
+  # restricted to symbols this profile actually models -- illustrative,
+  # not a full account. Phonemic vowel length is genuine same-quality
+  # duration here (unlike Dutch's quality-shifted length marking), spelled
+  # with the standard macron convention.
+  - {ipa: "aː", latin: "ā"}
+  - {ipa: "iː", latin: "ī"}
+  - {ipa: "uː", latin: "ū"}
+  # Emphatic (pharyngealized) consonants -- the classic dot-under
+  # transliteration for ط ص ض ظ.
+  - {ipa: "tˤ", latin: "ṭ"}
+  - {ipa: "sˤ", latin: "ṣ"}
+  - {ipa: "dˤ", latin: "ḍ"}
+  - {ipa: "ðˤ", latin: "ẓ"}
+  # Pharyngeals and glottal stop.
+  - {ipa: "ħ", latin: "ḥ"}
+  - {ipa: "ʕ", latin: "ʿ"}
+  - {ipa: "ʔ", latin: "'"}
+  - {ipa: x, latin: kh}
+  - {ipa: "ɣ", latin: gh}
+  - {ipa: "tʃ", latin: ch}

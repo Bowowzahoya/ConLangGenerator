@@ -1,0 +1,10 @@
+name: Finnish
+# "kː" (real: kukka/kuka -- phonemic consonant length) is what Finnish is
+# the textbook example for; see orthography_category below.
+consonants: [p, t, k, "kː", d, m, n, "ŋ", s, h, l, r, j, v]
+vowels: [i, a, u, e, o, y, "ø", "æ"]
+coda_profile: unrestricted
+max_onset: 1
+tonal: false
+vowel_harmony: true
+orthography_category: gemination-style

@@ -85,6 +85,16 @@ class TraitProfile(BaseModel, frozen=True):
     time_depth_years: int | None = None
     """"How would this sound in N years" -- recorded only; diachronic sound
     change is future work."""
+    requested_orthography_style: str = ""
+    """A named ``generation.romanization_gen`` orthography style
+    (``"wade-giles-style"``, etc.) the text explicitly asks for, e.g.
+    "mark tone with a number after each syllable, Wade-Giles style" --
+    empty when nothing that specific was requested. Consumed by
+    ``generate_romanization`` as one more *soft*, probabilistic bias
+    toward that category (same weight as a matched reference profile's
+    own declared ``orthography_category``), never a guarantee -- a user
+    who wants a guaranteed style should use ``GenerationSpec``'s
+    ``forced_orthography`` instead, same rule as every other field here."""
 
     salient_context: str = ""
     """Free-text catch-all for anything notable that doesn't map to a field

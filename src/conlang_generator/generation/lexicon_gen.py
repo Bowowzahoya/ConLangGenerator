@@ -77,6 +77,25 @@ CORE_MEANINGS: tuple[tuple[str, PartOfSpeech], ...] = (
 
 _FUNCTION_LIKE_POS = {PartOfSpeech.PRONOUN, PartOfSpeech.PARTICLE}
 
+STABILITY_TIER: dict[PartOfSpeech, float] = {
+    # Real-world lexical-replacement rate isn't flat across vocabulary --
+    # glottochronology's core finding is that closed-class words (pronouns,
+    # low numerals, basic particles) are far more resistant to replacement
+    # than open-class content words, with basic nouns for natural
+    # kinds/body parts in between and verbs/adjectives replacing fastest.
+    # Used by ``sound_change.py`` as a multiplier on replacement's
+    # effective half-life -- reuses each entry's existing ``pos`` rather
+    # than a separate per-gloss table, since POS already captures the
+    # dominant real effect for a vocabulary this basic.
+    PartOfSpeech.PRONOUN: 4.0,
+    PartOfSpeech.PARTICLE: 4.0,
+    PartOfSpeech.NUMERAL: 4.0,
+    PartOfSpeech.NOUN: 1.5,
+    PartOfSpeech.VERB: 1.0,
+    PartOfSpeech.ADJECTIVE: 1.0,
+    PartOfSpeech.OTHER: 1.0,
+}
+
 # Sound symbolism for specific glosses -- distinct from the whole-language
 # aesthetic_harshness "vibe": these are documented tendencies tied to a
 # *particular meaning*, not the language as a whole.
@@ -99,7 +118,7 @@ _SIZE_BIAS_GLOSSES: dict[str, str] = {
 }
 
 
-def _choose_syllable_count(rng: random.Random, pos: PartOfSpeech, favor_short: bool) -> int:
+def choose_syllable_count(rng: random.Random, pos: PartOfSpeech, favor_short: bool) -> int:
     if pos in _FUNCTION_LIKE_POS:
         counts, weights = (1, 2, 3), (75, 20, 5)
     elif favor_short:
@@ -133,6 +152,54 @@ def _propose_kinship_word(
         pos=pos,
         tones=(tone, tone) if tone is not None else (),
     )
+
+
+def choose_best_candidate(
+    rng: random.Random,
+    candidates: list[str],
+    gloss: str,
+    pos: PartOfSpeech,
+    llm_client: LLMClient,
+    language_name: str,
+    context: str = "",
+) -> str:
+    """Ask the LLM which of several deterministically-built candidate
+    forms sounds best for ``gloss`` -- the one creative step in an
+    otherwise fully rule-based pipeline, kept cheap and cache-friendly
+    since the candidates themselves are already guaranteed valid. Shared
+    by ``propose_word`` and ``root_pattern.propose_templatic_word`` so the
+    LLM-request shape stays in one place.
+    """
+    if len(candidates) == 1:
+        return candidates[0]
+    context_line = f" Context: {context}." if context else ""
+    prompt = (
+        f"Language: {language_name}.{context_line} Choose the best-sounding "
+        f"word for the meaning '{gloss}' ({pos.value}) from these candidates:\n"
+        + "\n".join(f"{i + 1}. {c}" for i, c in enumerate(candidates))
+        + "\nReply with only the number."
+    )
+    request = LLMRequest(
+        system=(
+            "You are helping design a constructed language's vocabulary. "
+            "Pick the candidate word that best fits the requested meaning "
+            "and part of speech, considering sound symbolism."
+        ),
+        prompt=prompt,
+        model=DEFAULT_MODEL,
+        max_tokens=8,
+        purpose="lexicon.propose_word",
+        metadata={
+            "fake_strategy": "choose_index",
+            "num_options": str(len(candidates)),
+        },
+    )
+    response = llm_client.complete(request)
+    digits = "".join(ch for ch in response.text if ch.isdigit())
+    index = int(digits) - 1 if digits else 0
+    if not (0 <= index < len(candidates)):
+        index = 0
+    return candidates[index]
 
 
 def propose_word(
@@ -170,7 +237,7 @@ def propose_word(
         if kinship_entry is not None:
             return kinship_entry
 
-    num_syllables = _choose_syllable_count(rng, pos, favor_short)
+    num_syllables = choose_syllable_count(rng, pos, favor_short)
     size_bias = _SIZE_BIAS_GLOSSES.get(gloss_key)
 
     tones: tuple = ()
@@ -187,37 +254,7 @@ def propose_word(
             seen.add(word)
             candidates.append(word)
 
-    if len(candidates) == 1:
-        chosen = candidates[0]
-    else:
-        context_line = f" Context: {context}." if context else ""
-        prompt = (
-            f"Language: {language_name}.{context_line} Choose the best-sounding "
-            f"word for the meaning '{gloss}' ({pos.value}) from these candidates:\n"
-            + "\n".join(f"{i + 1}. {c}" for i, c in enumerate(candidates))
-            + "\nReply with only the number."
-        )
-        request = LLMRequest(
-            system=(
-                "You are helping design a constructed language's vocabulary. "
-                "Pick the candidate word that best fits the requested meaning "
-                "and part of speech, considering sound symbolism."
-            ),
-            prompt=prompt,
-            model=DEFAULT_MODEL,
-            max_tokens=8,
-            purpose="lexicon.propose_word",
-            metadata={
-                "fake_strategy": "choose_index",
-                "num_options": str(len(candidates)),
-            },
-        )
-        response = llm_client.complete(request)
-        digits = "".join(ch for ch in response.text if ch.isdigit())
-        index = int(digits) - 1 if digits else 0
-        if not (0 <= index < len(candidates)):
-            index = 0
-        chosen = candidates[index]
+    chosen = choose_best_candidate(rng, candidates, gloss, pos, llm_client, language_name, context)
 
     return LexicalEntry(
         ipa=chosen,

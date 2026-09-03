@@ -1,0 +1,12 @@
+name: Spanish
+aliases: [italian, romance, romance language]
+consonants: [p, b, t, d, k, g, "tʃ", m, n, s, f, h, l, "ɾ", r, j, w]
+vowels: [i, a, u, e, o]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+orthography:
+  - {ipa: "tʃ", latin: ch}    # "mucho"
+  - {ipa: "ɾ", latin: r}      # "pero"
+  - {ipa: r, latin: rr}       # "perro"
+  - {ipa: h, latin: j}        # "jamón"

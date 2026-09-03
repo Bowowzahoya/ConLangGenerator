@@ -5,9 +5,17 @@ from pathlib import Path
 
 import typer
 
+from conlang_generator.core.romanization import (
+    ExoticSymbolStyle,
+    OrthographyForce,
+    SyllableBoundaryMarker,
+    ToneMarkingStrategy,
+    VowelLengthStrategy,
+)
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.generation.prompt_classifier import classify_prompt
+from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.generation.seed_examples import resolve_seed_examples
 from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.llm.factory import build_llm_client
@@ -31,6 +39,22 @@ def _client(llm: str):
     except ValueError as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
+
+
+def _parse_enum_option(raw: str | None, enum_cls: type, flag: str):
+    if raw is None:
+        return None
+    # Looked up by member *name* (lowercased), not `.value` -- for every
+    # enum here the two already coincide (e.g. VowelLengthStrategy.DOUBLING
+    # = "doubling"), except SyllableBoundaryMarker.NONE, whose value is
+    # deliberately "" (so it doubles as the literal marker text to insert)
+    # rather than the CLI-typed word "none".
+    try:
+        return enum_cls[raw.upper()]
+    except KeyError:
+        valid = ", ".join(member.name.lower() for member in enum_cls)
+        typer.echo(f"error: {flag} must be one of {valid}, got {raw!r}", err=True)
+        raise typer.Exit(code=1) from None
 
 
 def _parse_seed_example(raw: str) -> SeedExample:
@@ -62,8 +86,44 @@ def generate(
         None, "--evolve-from", help="Evolve an existing saved language via sound change instead of generating fresh (requires --years)."
     ),
     years: int = typer.Option(None, "--years", help="Time depth in years, for --evolve-from."),
+    orthography_style: str = typer.Option(
+        None, "--orthography-style",
+        help=f"Force a whole named orthography style (guaranteed, not just likely). One of: {', '.join(ORTHOGRAPHY_STYLE_NAMES)}.",
+    ),
+    exotic_symbol_style: str = typer.Option(
+        None, "--exotic-symbol-style", help="Force how an exotic sound is spelled: digraph, diacritic, or monoletter."
+    ),
+    vowel_length_style: str = typer.Option(
+        None, "--vowel-length-style", help="Force vowel-length marking: none, doubling, macron, colon, or silent_e."
+    ),
+    short_vowel_doubling: bool = typer.Option(
+        None, "--short-vowel-doubling/--no-short-vowel-doubling",
+        help="Force whether a short vowel doubles the following onset consonant.",
+    ),
+    tone_style: str = typer.Option(
+        None, "--tone-style", help="Force tone marking: vowel_diacritic, postposed_digit, postposed_letter, or unmarked."
+    ),
+    syllable_boundary_marker: str = typer.Option(
+        None, "--syllable-boundary-marker", help="Force a separator between a vowel-final and vowel-initial syllable: none, apostrophe, or hyphen."
+    ),
+    consonant_gemination_marked: bool = typer.Option(
+        None, "--consonant-gemination-marked/--no-consonant-gemination-marked",
+        help="Force whether a phonemically long/geminate consonant doubles its own letter.",
+    ),
 ) -> None:
     """Generate a new language and save it."""
+    if orthography_style is not None and orthography_style not in ORTHOGRAPHY_STYLE_NAMES:
+        typer.echo(f"error: --orthography-style must be one of {', '.join(ORTHOGRAPHY_STYLE_NAMES)}, got {orthography_style!r}", err=True)
+        raise typer.Exit(code=1)
+    forced_orthography = OrthographyForce(
+        style=orthography_style,
+        exotic_symbol_style=_parse_enum_option(exotic_symbol_style, ExoticSymbolStyle, "--exotic-symbol-style"),
+        vowel_length_strategy=_parse_enum_option(vowel_length_style, VowelLengthStrategy, "--vowel-length-style"),
+        short_vowel_consonant_doubling=short_vowel_doubling,
+        tone_strategy=_parse_enum_option(tone_style, ToneMarkingStrategy, "--tone-style"),
+        syllable_boundary_marker=_parse_enum_option(syllable_boundary_marker, SyllableBoundaryMarker, "--syllable-boundary-marker"),
+        consonant_gemination_marked=consonant_gemination_marked,
+    )
     client = _client(llm)
     traits = classify_prompt(prompt, fantasy, client)
     if contact_language:
@@ -81,7 +141,7 @@ def generate(
             typer.echo(f"error: {exc}", err=True)
             raise typer.Exit(code=1) from exc
 
-        language = evolve_language(name, base, years, traits, seed)
+        language = evolve_language(name, base, years, traits, seed, forced_orthography=forced_orthography)
         repository.save(language)
 
         typer.echo(f"Evolved '{evolve_from}' -> '{language.name}' ({language.slug}) over {years} years.")
@@ -92,6 +152,8 @@ def generate(
         nonzero_traits = {k: v for k, v in traits.model_dump().items() if isinstance(v, float) and v != 0.0}
         if nonzero_traits:
             typer.echo(f"Evolution traits: {', '.join(f'{k}={v:+.2f}' for k, v in nonzero_traits.items())}")
+        if forced_orthography != OrthographyForce():
+            typer.echo(f"Forced orthography: {forced_orthography.model_dump(exclude_none=True)}")
         for old_entry, new_entry in list(zip(base.lexicon.entries, language.lexicon.entries))[:6]:
             arrow = "=" if old_entry.romanization == new_entry.romanization else "->"
             typer.echo(f"  {old_entry.glosses[0]}: {old_entry.romanization} {arrow} {new_entry.romanization}")
@@ -108,6 +170,7 @@ def generate(
         force_isolated=isolated,
         force_high_altitude=high_altitude,
         force_tonal=tonal,
+        forced_orthography=forced_orthography,
         fantasy=fantasy,
         seed_examples=seed_examples,
     )
@@ -121,6 +184,7 @@ def generate(
         f"alignment: {language.grammar.alignment.value}, "
         f"tonal: {language.tone_system.enabled}"
     )
+    typer.echo(f"Orthography: {language.romanization.category_name}")
 
     nonzero_traits = {
         trait_name: value
@@ -132,9 +196,13 @@ def generate(
         typer.echo(f"Traits from prompt: {rendered}")
     if traits.contact_languages:
         typer.echo(f"Contact languages: {', '.join(traits.contact_languages)}")
+    if traits.requested_orthography_style:
+        typer.echo(f"Requested orthography style: {traits.requested_orthography_style}")
     forced = [f for f, on in (("isolated", isolated), ("high_altitude", high_altitude), ("tonal", tonal)) if on]
     if forced:
         typer.echo(f"Forced (guaranteed): {', '.join(forced)}")
+    if forced_orthography != OrthographyForce():
+        typer.echo(f"Forced orthography: {forced_orthography.model_dump(exclude_none=True)}")
     if seed_examples:
         rendered_examples = ", ".join(f"{e.gloss}={e.form} (/{e.ipa}/)" for e in seed_examples)
         typer.echo(f"Seed examples: {rendered_examples}")

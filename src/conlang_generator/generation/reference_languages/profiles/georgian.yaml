@@ -1,0 +1,6 @@
+name: Georgian
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "pʼ", "tʼ", "kʼ", q, m, n, s, "ʃ", x, z, "ʒ", v, l, r, j, w]
+vowels: [i, a, u, e, o]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false

@@ -1,0 +1,7 @@
+name: Hawaiian
+consonants: [p, k, "ʔ", h, m, n, l, w]
+vowels: [i, a, u, e, o]
+coda_profile: none
+max_onset: 1
+tonal: false
+orthography_category: scholarly-macron-style

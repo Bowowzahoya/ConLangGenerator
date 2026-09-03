@@ -58,14 +58,85 @@ Saved to conlangs\island-tongue
 ```
 
 `--contact-language` matches (case-insensitively, by name or alias) against
-a small hand-curated set of real languages in `generation/reference_languages.py`
-(Japanese, Finnish, Mandarin, Arabic, Hawaiian, Georgian, a click-language
-stand-in, a Romance stand-in, Dutch) and softly biases the phoneme palette,
-coda typology, cluster tolerance, and tonality toward it -- a bias, not an
+a small hand-curated set of real languages, one YAML file per language
+under `generation/reference_languages/profiles/` (Japanese, Finnish,
+Mandarin, Arabic, Hawaiian, Georgian, a click-language stand-in, a Romance
+stand-in, Dutch, French) and softly biases the phoneme palette, coda
+typology, cluster tolerance, and tonality toward it -- a bias, not an
 override; unmatched names are silently ignored. It's merged with whatever
 `--prompt` itself implies (the classifier also extracts named languages from
-free text, though `--llm fake` never does -- that part needs `--llm anthropic`
-to see for real).
+free text, including ones only atmospherically evoked, not just named --
+e.g. "lowlands among windmills and canals" -- though `--llm fake` never does
+either kind -- that part needs `--llm anthropic` to see for real). Dutch and
+Spanish also carry a few of their own real spelling conventions (Dutch
+spells /u/ as "oe", for instance); when one of them matches, generated
+words are somewhat more likely to use those conventions instead of the
+generic fallback.
+
+### Orthography style
+
+A generated language's spelling conventions come from six independent
+axes, all logged onto the saved language's `romanization.yaml`: how an
+otherwise-exotic sound gets spelled (two ASCII letters, one Latin-Extended
+letter, or a "shallow" one-ASCII-letter-per-sound system in the spirit of
+Finnish/Swahili); whether/how vowel length is marked (doubling, a macron,
+a colon, English-style trailing silent-e, or not at all) plus whether a
+short vowel doubles the *following* onset consonant instead (Dutch/German
+-- "zitten" vs. "zaten"); how tone (if any) surfaces (an inline diacritic,
+a digit or letter after the syllable, or unmarked); whether/how a
+vowel-initial syllable following a vowel-final one gets a separator (an
+apostrophe, a hyphen, or none -- Pinyin's own real rule: "Xi'an" vs.
+"Xian"); and whether a phonemically long/geminate consonant doubles its
+own letter, independent of any neighboring vowel (Italian/Finnish/Japanese
+-- "sono" vs. "sonno"). Because these are independent, nothing stops a
+generated language from combining, say, Dutch/German-style doubling with
+Wade-Giles-style postposed-digit tone marking -- a combination neither
+real system has on its own. Ten named presets exist for real, attested
+combinations (`digraph-style`, `diacritic-style`, `monoletter-style`,
+`germanic-doubling-style`, `scholarly-macron-style`, `wade-giles-style`,
+`zhuang-style`, `pinyin-style`, `silent-e-style`, `gemination-style`) --
+`pinyin-style` and `wade-giles-style` are deliberately two different
+presets, since real Pinyin and Wade-Giles are two different, both-real
+romanizations of the same language, differing specifically on tone
+marking. A matched `--contact-language` profile can lean the whole roll
+toward its own declared preset (Dutch toward `germanic-doubling-style`,
+Mandarin toward `wade-giles-style`, Japanese and Hawaiian toward
+`scholarly-macron-style`, Finnish toward `gemination-style`), and the
+prompt itself can too, when it explicitly asks for a specific convention
+(e.g. "mark tone with a number after each syllable, Wade-Giles
+style" -- same `--llm fake`-can't-see-wording caveat as
+`--contact-language` above). Absent any of that, each axis is rolled
+independently rather than picking one of the ten fixed bundles, so
+combinations none of them have are freely reachable.
+
+For an unconditional guarantee -- for testing, or when you want a
+specific style and nothing else -- seven flags force it outright, the
+same "guaranteed, not just likely" spirit as `--isolated`/`--high-altitude`/
+`--tonal`:
+
+- `--orthography-style NAME` forces one of the ten named presets exactly.
+- `--exotic-symbol-style {digraph,diacritic,monoletter}`
+- `--vowel-length-style {none,doubling,macron,colon,silent_e}`
+- `--short-vowel-doubling` / `--no-short-vowel-doubling`
+- `--tone-style {vowel_diacritic,postposed_digit,postposed_letter,unmarked}`
+- `--syllable-boundary-marker {none,apostrophe,hyphen}`
+- `--consonant-gemination-marked` / `--no-consonant-gemination-marked`
+
+`--orthography-style` sets the whole starting point; any of the other six
+then override just that one axis on top, so they compose across different
+presets:
+
+```bash
+conlang generate --prompt "a trading language" --name doubling-with-digits \
+  --llm fake --orthography-style germanic-doubling-style --tone-style postposed_digit
+```
+
+produces a language with Dutch/German-style vowel-length doubling *and*
+Wade-Giles-style postposed-digit tone marking together -- `romanization.yaml`
+shows `vowel_length_strategy: doubling`, `short_vowel_consonant_doubling:
+true`, and `tone_strategy: postposed_digit` all at once. The same seven
+flags work with `--evolve-from` too, as a deliberate, user-triggered
+orthography reform mid-evolution (see below).
 
 `--example` takes `gloss=form` (IPA guessed from the spelling) or
 `gloss=form|ipa` (explicit pronunciation) and always inserts that literal
@@ -110,11 +181,42 @@ rules run (cluster simplification, lenition, final devoicing,
 palatalization, vowel reduction, ejective drift), each scaling from the
 world-typical base rate toward -- never reaching -- certainty as `years`
 grows, so small `--years` stays close to the original and large `--years`
-drifts further, never becoming unrecognizable instantly. Only
-`contact_intensity` (simplification-leaning rules) and `altitude` (ejective
-drift) currently scale the rate. Grammar and tone system are carried over
-from the base language unchanged. See `generation/sound_change.py` for the
-full rule list and rationale.
+drifts further, never becoming unrecognizable instantly. `contact_intensity`
+scales the simplification-leaning rules, and `altitude` scales ejective
+drift's rate upward while positive `contact_intensity` additionally
+suppresses it directly (heavy sustained contact keeps ejectives unlikely
+regardless of time depth, not just slower to appear). Grammar and tone
+system are carried over from the base language unchanged.
+
+Orthography evolves through two independent mechanisms, not just re-derived
+from the changed IPA. A word may be **replaced** outright -- borrowed from a
+`--contact-language`'s own phoneme pool and spelling conventions if one is
+set, otherwise coined natively -- at a rate that also depends on the word's
+part of speech (pronouns/numerals resist replacement far longer than nouns,
+which resist longer than verbs/adjectives -- a rough glottochronological
+stability ranking, `lexicon_gen.STABILITY_TIER`). Every other word's
+spelling comes from one evolved romanization scheme, decided per *symbol*
+(not per word, so two words sharing a symbol always agree): each symbol is
+either **frozen** (kept exactly as it was, even though the sound changed --
+more likely the more literate/standardized the evolution period was
+described as) or **reformed** (regenerated, inheriting the base scheme's
+own rules for symbols that survive but a fresh style/reference lookup for
+new ones) -- reform is deliberately rare by default (anchored to how
+infrequent real spelling reforms are, e.g. Dutch's own 1804/1863/1946/1996/
+2005), then **orthography-only drift** (dropped diacritics/ejective marks)
+may simplify the result further, independent of any sound change. A word
+whose sound didn't change at all this run keeps its *own* stored spelling
+verbatim rather than being reconstructed through the scheme, preserving
+any exception it carries.
+
+A romanization rule can also be conditioned on syllable structure (open vs.
+closed), for real orthographies that spell the same vowel differently
+depending on it -- e.g. Dutch marks vowel length by doubling only in a
+closed syllable ("vuur" /vy:r/ vs. "vuren" /'vy:rən/, `uu` vs. `u`); this
+applies to both fresh generation's `--contact-language` bias and evolution.
+See `core/romanization.py`, `generation/sound_change.py`, and
+`generation/romanization_gen.py`'s module docstrings for the full rule
+list, rate model, and rationale.
 
 ## `conlang translate`
 

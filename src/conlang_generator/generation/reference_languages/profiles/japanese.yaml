@@ -1,0 +1,7 @@
+name: Japanese
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʔ", m, n, s, "ʃ", h, z, "ɾ", j, w]
+vowels: [i, a, u, e, o]
+coda_profile: sonorant
+max_onset: 1
+tonal: false
+orthography_category: scholarly-macron-style

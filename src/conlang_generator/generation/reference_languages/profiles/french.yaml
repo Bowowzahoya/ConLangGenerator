@@ -1,0 +1,27 @@
+name: French
+aliases: [francais, français]
+consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ʒ", m, n, "ɲ", l, "ʁ", j, w]
+vowels: [i, e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə"]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+orthography:
+  # Real French spelling conventions, restricted to symbols this profile
+  # actually models -- illustrative, not a full account (real French
+  # spelling has plenty of lexical/etymological exceptions to the general
+  # pattern below; nasal vowels aren't modeled at all, since this
+  # project's phoneme pool has no nasal-vowel symbols).
+  #
+  # /ʒ/: "g" is naturally soft before a front vowel ("manger" /mɑ̃.ʒe/,
+  # e is front); before a back vowel a plain "g" would harden to /g/, so
+  # French inserts a silent "e" to keep it soft ("mangeons" /mɑ̃.ʒɔ̃/, not
+  # *mangons -- ɔ is back). Elsewhere, "j" is the unconditioned spelling.
+  - {ipa: "ʒ", latin: g, following: [front_vowel]}
+  - {ipa: "ʒ", latin: ge, following: [back_vowel]}
+  - {ipa: "ʒ", latin: j}
+  # /s/: mirrors the /ʒ/ pattern -- "c" is soft before a front vowel
+  # ("cent" /sɑ̃/); before a back vowel plain "c" would harden to /k/, so
+  # French uses a cedilla to force it soft ("garçon" /ɡaʁsɔ̃/, ɔ is back).
+  - {ipa: s, latin: c, following: [front_vowel]}
+  - {ipa: s, latin: "ç", following: [back_vowel]}
+  - {ipa: s, latin: s}

@@ -4,12 +4,20 @@ grammar -> core lexicon, all seeded from ``spec.seed`` for reproducibility."""
 from __future__ import annotations
 
 import random
+import unicodedata
 
 from conlang_generator.core.grammar import MorphologicalType
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
 from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation import grammar_gen, lexicon_gen, phonology_gen, romanization_gen, word_builder
+from conlang_generator.generation import (
+    grammar_gen,
+    lexicon_gen,
+    phonology_gen,
+    romanization_gen,
+    root_pattern,
+    word_builder,
+)
 from conlang_generator.llm.base import LLMClient
 
 
@@ -17,17 +25,29 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     rng = random.Random(spec.seed)
 
     inventory, syllable_structure, tone_system = phonology_gen.generate_phonology(rng, spec)
-    romanization = romanization_gen.generate_romanization(rng, inventory)
+    romanization = romanization_gen.generate_romanization(
+        rng, inventory, spec.traits.contact_languages, spec.traits.requested_orthography_style, spec.forced_orthography
+    )
     grammar = grammar_gen.generate_grammar(rng, spec)
 
     if grammar.morphological_type is not MorphologicalType.ISOLATING:
         affix = word_builder.build_syllable(rng, inventory, syllable_structure)
         grammar = grammar.model_copy(update={"plural_suffix": affix})
 
+    if grammar.uses_root_and_pattern:
+        templates = root_pattern.generate_templates(rng, inventory)
+        grammar = grammar.model_copy(update={"templates": templates})
+
     seed_entries = tuple(
         LexicalEntry(
             ipa=example.ipa,
-            romanization=romanization.apply(example.ipa),
+            # The user's own spelling, verbatim -- not reconstructed from
+            # `example.ipa` via the scheme. A seed word's IPA is often
+            # itself an approximation (e.g. this project doesn't model
+            # diphthongs, so a real diphthong gets collapsed to its nearest
+            # monophthong), so rule-based reconstruction can never recover
+            # the real spelling even in principle; `form` already has it.
+            romanization=unicodedata.normalize("NFC", example.form),
             glosses=(example.gloss,),
             pos=PartOfSpeech.NOUN,  # v1 simplification -- no POS guessing for seed examples
         )
@@ -35,22 +55,37 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     )
     seeded_glosses = {example.gloss.lower() for example in spec.seed_examples}
 
-    generated_entries = tuple(
-        lexicon_gen.propose_word(
-            rng,
-            inventory,
-            syllable_structure,
-            tone_system,
-            romanization,
-            gloss,
-            pos,
-            llm_client,
-            name,
-            context=spec.traits.salient_context,
-        )
-        for gloss, pos in lexicon_gen.CORE_MEANINGS
-        if gloss.lower() not in seeded_glosses
-    )
+    generated_entries = []
+    for gloss, pos in lexicon_gen.CORE_MEANINGS:
+        if gloss.lower() in seeded_glosses:
+            continue
+        if grammar.uses_root_and_pattern and pos in root_pattern.TEMPLATIC_POS:
+            entry = root_pattern.propose_templatic_word(
+                rng,
+                inventory,
+                grammar.templates,
+                romanization,
+                gloss,
+                pos,
+                llm_client,
+                name,
+                context=spec.traits.salient_context,
+            )
+        else:
+            entry = lexicon_gen.propose_word(
+                rng,
+                inventory,
+                syllable_structure,
+                tone_system,
+                romanization,
+                gloss,
+                pos,
+                llm_client,
+                name,
+                context=spec.traits.salient_context,
+            )
+        generated_entries.append(entry)
+    generated_entries = tuple(generated_entries)
 
     return Language(
         name=name,

@@ -1,0 +1,29 @@
+name: Mandarin
+aliases: [chinese, mandarin chinese]
+consonants: [p, t, k, "tʃ", "ʈ", "ʂ", "ʐ", m, n, "ŋ", f, s, "ʃ", x, l, j, w]
+vowels: [i, a, u, e, o, y]
+coda_profile: sonorant
+max_onset: 1
+tonal: true
+orthography_category: wade-giles-style
+# Real Mandarin has (at least) two well-known romanizations that disagree
+# specifically on tone marking: Pinyin marks it as a diacritic over the
+# vowel (ā á ǎ à -- this project's own RomanizationScheme.apply() default,
+# needing no rule below at all), Wade-Giles as a digit after the syllable
+# (Wade-Giles-style "postposed_digit" -- see generation/romanization_gen.py).
+# Tagging this profile with "wade-giles-style" means a Mandarin-biased
+# generated language usually, not always, lands on the postposed-digit
+# convention instead of Pinyin's own inline one; the /y/ rule below is
+# Pinyin's own convention regardless of which tone-marking style wins, and
+# still applies independently.
+orthography:
+  # Real Mandarin pinyin conventions, restricted to symbols this profile
+  # actually models -- illustrative, not a full account.
+  #
+  # Pinyin drops the umlaut on /y/ (spelled "ü") specifically after a
+  # palatal-associated initial, where it's the only vowel that could
+  # follow and the umlaut is redundant -- real pinyin keys this off the
+  # j/q/x initials specifically; simplified here to the palatal glide "j",
+  # the closest this project's symbol pool models.
+  - {ipa: y, latin: "ü"}
+  - {ipa: y, latin: u, preceding: [j]}
