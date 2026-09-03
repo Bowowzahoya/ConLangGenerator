@@ -69,6 +69,7 @@ def test_build_reduplicated_word_excludes_marked_consonants():
             Consonant(ipa="tˤ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, pharyngealized=True, prevalence=0.5),
             Consonant(ipa="kː", place=Place.VELAR, manner=Manner.STOP, voiced=False, long=True, prevalence=0.5),
             Consonant(ipa="tʲ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, palatalized=True, prevalence=0.5),
+            Consonant(ipa="bʱ", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.5),
         ),
         vowels=(Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),),
     )
@@ -81,14 +82,15 @@ def test_build_reduplicated_word_excludes_marked_consonants():
 
 def test_build_reduplicated_word_excludes_diphthongs_but_still_returns_a_word():
     # Same "simple, unmarked sounds" reasoning applied to the vowel side --
-    # a diphthong-only inventory still falls back to a real (non-open,
-    # since none is available) monophthong rather than ever picking the
-    # diphthong or returning None.
+    # a diphthong/nasalized-only inventory still falls back to a real
+    # (non-open, since none is available) plain monophthong rather than
+    # ever picking either marked vowel or returning None.
     inventory = PhonemeInventory(
         consonants=(Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, prevalence=0.5),),
         vowels=(
             Vowel(ipa="e", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, prevalence=1.0),
             Vowel(ipa="ai", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, diphthong=True, prevalence=1.0),
+            Vowel(ipa="ã", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, nasalized=True, prevalence=1.0),
         ),
     )
     rng = random.Random(1)

@@ -13,6 +13,7 @@ _l = Consonant(ipa="l", place=Place.ALVEOLAR, manner=Manner.LATERAL_APPROXIMANT,
 _r = Consonant(ipa="r", place=Place.ALVEOLAR, manner=Manner.TRILL, voiced=True, prevalence=0.6)
 _n = Consonant(ipa="n", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, prevalence=0.9)
 _s = Consonant(ipa="s", place=Place.ALVEOLAR, manner=Manner.FRICATIVE, voiced=False, prevalence=0.8)
+_tl_ = Consonant(ipa="tɬ", place=Place.ALVEOLAR, manner=Manner.LATERAL_AFFRICATE, voiced=False, prevalence=0.1)
 
 
 def test_coronal_stop_plus_coronal_lateral_onset_is_excluded():
@@ -73,6 +74,18 @@ def test_thin_cluster_pairs_higher_contact_intensity_thins_more_on_average():
 
     seeds = range(100)
     assert _avg_kept(0.8, seeds) < _avg_kept(0.0, seeds)
+
+
+def test_lateral_affricate_has_the_same_sonority_rank_as_a_plain_affricate():
+    assert sonority.sonority(_tl_) == sonority.sonority(_t)  # both rank 1 (obstruents)
+
+
+def test_lateral_affricate_is_a_legal_onset_cluster_c1_like_other_obstruents():
+    # tɬ + a more-sonorant segment should be exactly as legal an onset as
+    # any other obstruent + sonorant pair (e.g. /tɬw-/ alongside /tw-/).
+    _w = Consonant(ipa="w", place=Place.BILABIAL, manner=Manner.APPROXIMANT, voiced=True, prevalence=0.7)
+    assert sonority.is_legal_onset_cluster(_tl_, _w)
+    assert sonority.is_legal_onset_cluster(_tl_, _l)
 
 
 def test_legal_coda_pairs_mirrors_legal_onset_pairs_shape():

@@ -115,6 +115,46 @@ def test_finnish_contact_language_increases_geminate_consonant_presence():
     assert _hit_fraction(("Finnish",)) > _hit_fraction(())
 
 
+def test_breathy_consonants_appear_at_a_nonzero_base_rate():
+    hits = sum(
+        "bʱ" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        for s in _SEEDS
+    )
+    assert 0 < hits < len(_SEEDS)
+
+
+def test_pre_aspirated_consonants_appear_at_a_nonzero_base_rate():
+    hits = sum(
+        "ʰp" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        for s in _SEEDS
+    )
+    assert 0 < hits < len(_SEEDS)
+
+
+def test_lateral_affricate_appears_at_a_nonzero_base_rate():
+    hits = sum(
+        "tɬ" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        for s in _SEEDS
+    )
+    assert 0 < hits < len(_SEEDS)
+
+
+def test_nasalized_vowels_appear_at_a_nonzero_base_rate():
+    hits = sum(
+        "ã" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].vowel_symbols()
+        for s in _SEEDS
+    )
+    assert 0 < hits < len(_SEEDS)
+
+
+def test_close_back_unrounded_vowel_appears_at_a_nonzero_base_rate():
+    hits = sum(
+        "ɯ" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].vowel_symbols()
+        for s in _SEEDS
+    )
+    assert 0 < hits < len(_SEEDS)
+
+
 def test_new_phonemes_from_the_shared_pool_are_used_in_words():
     # A quick end-to-end smoke test: aspirated/pharyngealized/long-vowel
     # symbols, once included in an inventory, are actually sampled into
@@ -122,8 +162,10 @@ def test_new_phonemes_from_the_shared_pool_are_used_in_words():
     spec = GenerationSpec(prompt="p", seed=1, traits=TraitProfile(contact_languages=("Arabic",)))
     rng = random.Random(spec.seed)
     inventory, structure, _ = phonology_gen.generate_phonology(rng, spec)
-    marked_symbols = {c.ipa for c in inventory.consonants if c.aspirated or c.pharyngealized or c.long or c.palatalized}
-    marked_symbols |= {v.ipa for v in inventory.vowels if v.long or v.diphthong}
+    marked_symbols = {
+        c.ipa for c in inventory.consonants if c.aspirated or c.pharyngealized or c.long or c.palatalized or c.breathy
+    }
+    marked_symbols |= {v.ipa for v in inventory.vowels if v.long or v.diphthong or v.nasalized}
     if not marked_symbols:
         pytest.skip("this seed's inventory happened to roll no marked phonemes")
     found = False

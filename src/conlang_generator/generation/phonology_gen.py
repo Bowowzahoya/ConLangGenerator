@@ -144,6 +144,31 @@ _PALATALIZED_GROUP = (
 )
 _PALATALIZED_GROUP_BASE_RATE = 0.08
 
+# Murmured/breathy voice (Hindi/Bengali's 4th stop series alongside plain
+# voiceless/voiceless-aspirated/plain-voiced) -- same "no obvious trait
+# correlate" reasoning as the groups above.
+_BREATHY_GROUP = (
+    Consonant(ipa="bʱ", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.30),
+    Consonant(ipa="dʱ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.30),
+    Consonant(ipa="ɡʱ", place=Place.VELAR, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.30),
+)
+_BREATHY_GROUP_BASE_RATE = 0.12
+
+# Pre-aspiration (Icelandic-style /ʰp ʰt ʰk/) -- a genuinely different
+# typological choice from post-aspiration (`_ASPIRATED_GROUP` above), not
+# a variant of it, so it's gated independently: a language can roll
+# post-aspiration, pre-aspiration, both, or neither. Reuses `aspirated`
+# rather than a new direction flag -- the only existing consumer of that
+# flag (kinship-reduplication's marked-sound exclusion) treats it as
+# "has an aspiration-related mark," direction-agnostically, and nothing
+# else reads it.
+_PRE_ASPIRATED_GROUP = (
+    Consonant(ipa="ʰp", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.30),
+    Consonant(ipa="ʰt", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.30),
+    Consonant(ipa="ʰk", place=Place.VELAR, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.30),
+)
+_PRE_ASPIRATED_GROUP_BASE_RATE = 0.08  # rarer cross-linguistically than post-aspiration
+
 _m = Consonant(ipa="m", place=Place.BILABIAL, manner=Manner.NASAL, voiced=True, prevalence=0.95)
 _n = Consonant(ipa="n", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, prevalence=0.95)
 _ng = Consonant(ipa="ŋ", place=Place.VELAR, manner=Manner.NASAL, voiced=True, prevalence=0.55)
@@ -199,6 +224,10 @@ _EXOTIC_POOL = (
     Consonant(ipa="ɗ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, prevalence=0.08),
     Consonant(ipa="ʄ", place=Place.PALATAL, manner=Manner.STOP, voiced=True, prevalence=0.05),
     Consonant(ipa="ɠ", place=Place.VELAR, manner=Manner.STOP, voiced=True, prevalence=0.05),
+    # Nahuatl's own /tɬ/ -- deliberately voiceless-only, not a
+    # voiced/voiceless pair like _STOP_AND_AFFRICATE_PAIRS: a voiced
+    # lateral affricate is real but markedly rarer cross-linguistically.
+    Consonant(ipa="tɬ", place=Place.ALVEOLAR, manner=Manner.LATERAL_AFFRICATE, voiced=False, prevalence=0.1),
 )
 
 _MIN_CONSONANTS = 8
@@ -245,6 +274,19 @@ _VOWEL_EXTRAS = (
     Vowel(ipa="ei", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, diphthong=True, prevalence=0.10),
     Vowel(ipa="ɛi", height=VowelHeight.OPEN_MID, backness=VowelBackness.FRONT, rounded=False, diphthong=True, prevalence=0.10),
     Vowel(ipa="œy", height=VowelHeight.OPEN_MID, backness=VowelBackness.FRONT, rounded=True, diphthong=True, prevalence=0.05),
+    # Nasalized vowels (Portuguese/French/Hindi-style) -- combining tilde
+    # (U+0303), same atomic-multi-character-symbol pattern as the long
+    # vowels/diphthongs above, drawn independently per symbol like every
+    # other _VOWEL_EXTRAS member (no group gate).
+    Vowel(ipa="ã", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, nasalized=True, prevalence=0.15),
+    Vowel(ipa="ẽ", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, nasalized=True, prevalence=0.13),
+    Vowel(ipa="ĩ", height=VowelHeight.CLOSE, backness=VowelBackness.FRONT, rounded=False, nasalized=True, prevalence=0.12),
+    Vowel(ipa="õ", height=VowelHeight.CLOSE_MID, backness=VowelBackness.BACK, rounded=True, nasalized=True, prevalence=0.13),
+    Vowel(ipa="ũ", height=VowelHeight.CLOSE, backness=VowelBackness.BACK, rounded=True, nasalized=True, prevalence=0.12),
+    # Turkish's own dotless-ı vowel -- the pool's existing close vowels
+    # are front unrounded (i), back/front rounded (u/y), and central
+    # unrounded (ɨ), but no close *back* unrounded vowel until now.
+    Vowel(ipa="ɯ", height=VowelHeight.CLOSE, backness=VowelBackness.BACK, rounded=False, prevalence=0.12),
 )
 
 _TONE_LEVEL_SETS = (
@@ -262,6 +304,7 @@ ALL_CONSONANTS: tuple[Consonant, ...] = (
     + (_GLOTTAL_STOP,) + _EJECTIVES + _UVULAR_GROUP
     + _ASPIRATED_GROUP + _PHARYNGEALIZED_GROUP + _GEMINATE_GROUP + _PALATALIZED_GROUP
     + _NASAL_POOL + _FRICATIVE_POOL + _APPROXIMANT_POOL + _EXOTIC_POOL
+    + _BREATHY_GROUP + _PRE_ASPIRATED_GROUP
 )
 """Every consonant this package models, regardless of a given language's
 inventory -- shared with ``sound_change.py``, which needs to look up any
@@ -431,6 +474,18 @@ def _select_consonants(
         if rng.random() < rate:
             consonants.append(exotic)
 
+    breathy_probability = _group_reference_bias(
+        _BREATHY_GROUP_BASE_RATE, tuple(c.ipa for c in _BREATHY_GROUP), reference_symbols
+    )
+    if rng.random() < breathy_probability:
+        consonants.extend(_BREATHY_GROUP)
+
+    pre_aspirated_probability = _group_reference_bias(
+        _PRE_ASPIRATED_GROUP_BASE_RATE, tuple(c.ipa for c in _PRE_ASPIRATED_GROUP), reference_symbols
+    )
+    if rng.random() < pre_aspirated_probability:
+        consonants.extend(_PRE_ASPIRATED_GROUP)
+
     consonants = _force_include(consonants, ALL_CONSONANTS, must_include)
     return _ensure_floor(rng, consonants, ALL_CONSONANTS, _MIN_CONSONANTS)
 
@@ -497,7 +552,9 @@ def generate_phonology(
             excluded_coda_consonants = tuple(
                 c.ipa
                 for c in consonants
-                if c.voiced and c.manner in (Manner.STOP, Manner.AFFRICATE, Manner.FRICATIVE, Manner.LATERAL_FRICATIVE)
+                if c.voiced and c.manner in (
+                    Manner.STOP, Manner.AFFRICATE, Manner.LATERAL_AFFRICATE, Manner.FRICATIVE, Manner.LATERAL_FRICATIVE,
+                )
             )
         coda_pairs = sonority.exclude_final(sonority.legal_coda_pairs(consonants), excluded_coda_consonants)
         if coda_pairs and rng.random() < 0.3:

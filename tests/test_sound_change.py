@@ -101,7 +101,7 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
         ),
         FakeLLMClient(),
     )
-    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=1)
+    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=0)
     x_rules = [r for r in evolved.romanization.rules if r.ipa == "x"]
     assert x_rules and all(r.latin == "ch" for r in x_rules)
 
@@ -288,7 +288,7 @@ def test_short_time_depth_keeps_orthography_mostly_conventional():
     # never moved) or "conventional" (sound moved but the unreformed scheme
     # still matches), not "reformed".
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=5)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=0)
     counts = Counter(e.notes for e in evolved.lexicon.entries)
     not_reformed = counts["orthography: unchanged"] + counts["orthography: conventional"]
     reformed = counts["orthography: reformed"]

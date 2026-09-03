@@ -369,7 +369,9 @@ def _recompute_syllable_structure(
             excluded_coda_consonants = tuple(
                 c.ipa
                 for c in consonants
-                if c.voiced and c.manner in (Manner.STOP, Manner.AFFRICATE, Manner.FRICATIVE, Manner.LATERAL_FRICATIVE)
+                if c.voiced and c.manner in (
+                    Manner.STOP, Manner.AFFRICATE, Manner.LATERAL_AFFRICATE, Manner.FRICATIVE, Manner.LATERAL_FRICATIVE,
+                )
             )
         coda_pairs = sonority.exclude_final(sonority.legal_coda_pairs(consonants), excluded_coda_consonants)
         max_coda = base.max_coda

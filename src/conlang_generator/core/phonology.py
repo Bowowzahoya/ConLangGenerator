@@ -34,6 +34,7 @@ class Manner(str, Enum):
     TAP = "tap"
     LATERAL_APPROXIMANT = "lateral_approximant"
     LATERAL_FRICATIVE = "lateral_fricative"
+    LATERAL_AFFRICATE = "lateral_affricate"
 
 
 class Consonant(BaseModel, frozen=True):
@@ -46,6 +47,11 @@ class Consonant(BaseModel, frozen=True):
     pharyngealized: bool = False
     long: bool = False
     palatalized: bool = False
+    breathy: bool = False
+    """Murmured/breathy voice (Hindi/Bengali-style, e.g. ``"bʱ"``) --
+    phonemically voiced *and* breathy simultaneously, a 4th member
+    alongside plain voiceless/voiceless-aspirated/plain-voiced stops,
+    not a variant of ``voiced`` or ``aspirated`` alone."""
     prevalence: float = 0.5
     """Rough cross-linguistic commonness, ~0-1. Reused two ways: as this
     symbol's inclusion probability when a language's inventory is built
@@ -88,6 +94,11 @@ class Vowel(BaseModel, frozen=True):
     matter (``generation/word_builder.py``'s kinship-reduplication
     filter) -- phonotactics and romanization matching don't care whether
     a vowel symbol happens to be one or two characters."""
+    nasalized: bool = False
+    """Nasalized (e.g. ``"ã"``, combining tilde) -- Portuguese/French/
+    Hindi-style. Same "marked, not simple/unmarked" treatment as
+    ``diphthong`` in ``generation/word_builder.py``'s kinship-
+    reduplication filter."""
     prevalence: float = 0.5
     """See ``Consonant.prevalence`` -- same meaning, same illustrative-
     approximation caveat."""

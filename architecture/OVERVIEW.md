@@ -9,12 +9,30 @@ All mutation-shaped operations return a new instance (`model_copy` /
 `with_*` methods); nothing here is mutated in place.
 
 - **`phonology.py`**: `Consonant` (place/manner/voicing, plus `ejective`/
-  `aspirated`/`pharyngealized`/`long`/`palatalized` secondary-articulation
-  and length flags), `Vowel` (height/backness/rounding, plus `long` and
-  `diphthong` -- a diphthong is its own atomic, multi-character `ipa`
-  symbol, e.g. `"ɛi"`, classified by its *onset* quality's
-  height/backness/roundedness, the same pattern already used for
-  affricates/long vowels/geminate consonants) -> `PhonemeInventory`.
+  `aspirated`/`pharyngealized`/`long`/`palatalized`/`breathy`
+  secondary-articulation and length flags -- `breathy` models
+  Hindi/Bengali-style murmured voice, e.g. `"bʱ"`, the 4th member of a
+  voiceless/voiceless-aspirated/plain-voiced/breathy-voiced stop series),
+  `Manner` including `LATERAL_AFFRICATE` (Nahuatl's own `/tɬ/`, its one
+  symbol living in `phonology_gen.py`'s `_EXOTIC_POOL` alongside
+  implosives/clicks -- treated as a normal obstruent everywhere sonority/
+  onset-legality/coda-devoicing already special-case `AFFRICATE`).
+  `Vowel` (height/backness/rounding, plus `long`, `diphthong`, and
+  `nasalized` -- Portuguese/French/Hindi-style, e.g. `"ã"`; a diphthong
+  or nasalized vowel is its own atomic, multi-character `ipa` symbol,
+  classified by its *onset* quality's (for diphthongs) or plain
+  height/backness/roundedness (for nasalized vowels) values, the same
+  pattern already used for affricates/long vowels/geminate consonants;
+  both are excluded from `word_builder.py`'s kinship-reduplication filter
+  as "marked, not simple" sounds, same treatment as every other secondary
+  articulation) -> `PhonemeInventory`. Pre-aspiration (Icelandic-style
+  `/ʰp ʰt ʰk/`) reuses the existing `aspirated` flag rather than adding a
+  direction-specific one -- a deliberate simplification, since the flag's
+  one behavioral consumer (reduplication's marked-sound exclusion) treats
+  it direction-agnostically, and gets its own independently-gated
+  `_PRE_ASPIRATED_GROUP` in `phonology_gen.py` (post- and pre-aspiration
+  are different typological choices a language makes, not variants of
+  one feature, so a language can roll either, both, or neither).
   `ToneSystem` (enabled levels + combining diacritics). `SyllableStructure`:
   onset/coda size limits, onset/coda-cluster allowlists, a coda-consonant
   allowlist (`allowed_coda_consonants`, `None` = unrestricted), an
@@ -422,7 +440,7 @@ Everything here is a pure function of a `random.Random` seeded from
   section above for why this isn't restricted to the ten named anchors);
   any other field set on `forced_orthography` then overrides just that
   one axis on top, always. The resulting category's `exotic_style` table
-  covers all 72 symbols in `phonology_gen.py`'s shared pool (no symbol
+  covers every symbol in `phonology_gen.py`'s shared pool (no symbol
   falls through to a raw IPA glyph), and every one of its axes is logged
   onto the built `RomanizationScheme` so a saved language's
   `romanization.yaml` records what produced it. Independently of the

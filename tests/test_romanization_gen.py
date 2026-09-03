@@ -173,6 +173,31 @@ def test_diphthong_spellings():
     assert _DIGRAPH_TABLE["œy"] == _DIACRITIC_TABLE["œy"] == _MONOLETTER_TABLE["œy"] == "ui"
 
 
+def test_new_phoneme_group_spellings():
+    # Nasalized vowels.
+    assert _DIGRAPH_TABLE["ã"] == "an"
+    assert _DIACRITIC_TABLE["ã"] == "ã"
+    assert _MONOLETTER_TABLE["ã"] == "a"
+    # Breathy voice.
+    assert _DIGRAPH_TABLE["bʱ"] == "bh"
+    assert _DIACRITIC_TABLE["bʱ"] == "bʱ"
+    assert _MONOLETTER_TABLE["bʱ"] == "b"
+    # Nahuatl's /tɬ/.
+    assert _DIGRAPH_TABLE["tɬ"] == "tl"
+    assert _DIACRITIC_TABLE["tɬ"] == "tł"
+    assert _MONOLETTER_TABLE["tɬ"] == "l"
+    # Pre-aspiration -- h-prefix, distinct from post-aspiration's own
+    # capital-H suffix (pH/tH/kH).
+    assert _DIGRAPH_TABLE["ʰp"] == "hp"
+    assert _DIGRAPH_TABLE["pʰ"] == "pH"
+    assert _DIACRITIC_TABLE["ʰp"] == "ʰp"
+    assert _MONOLETTER_TABLE["ʰp"] == "p"
+    # Turkish's dotless-ı.
+    assert _DIGRAPH_TABLE["ɯ"] == "i"
+    assert _DIACRITIC_TABLE["ɯ"] == "ı"
+    assert _MONOLETTER_TABLE["ɯ"] == "i"
+
+
 def test_orthography_drift_drops_diacritics_and_ejective_marks():
     assert _apply_orthography_drift("ǯëṅk̓", random.Random(1), rate=1.0) == "ʒenk"
     assert _apply_orthography_drift("k'ap'", random.Random(1), rate=1.0) == "kap"

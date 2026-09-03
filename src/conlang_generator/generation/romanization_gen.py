@@ -120,9 +120,9 @@ _DIGRAPH_TABLE: dict[str, str] = {
     "pʼ": "p'", "tʼ": "t'", "kʼ": "k'",
     "ɛ": "e", "ɔ": "o", "ə": "e", "ɨ": "y",
     # Retroflex, uvular, palatal, pharyngeal, dental, click, and implosive
-    # series, plus the near-close/open vowels -- none of phonology_gen.py's
-    # 72 symbols should fall through to a raw IPA glyph. ASCII-only, per
-    # this style's own promise.
+    # series, plus the near-close/open vowels -- no symbol in
+    # phonology_gen.py's shared pool should fall through to a raw IPA
+    # glyph. ASCII-only, per this style's own promise.
     "ʈ": "tr", "ɖ": "dr", "ɟ": "gy", "ɢ": "gg", "ʁ": "rh",
     "ɳ": "nr", "ɲ": "ny", "ʂ": "sr", "ʐ": "zr", "ɬ": "lh",
     "ħ": "hh", "ʕ": "3", "θ": "th", "ð": "dh", "ç": "hy", "ʝ": "jh",
@@ -155,6 +155,24 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # as the real, unambiguous spelling rather than composed from œ/y's
     # own separate mappings (which would give an unrecognizable result).
     "ɔi": "oi", "ɛi": "ei", "œy": "ui",
+    # Nasalized vowels (Portuguese/French/Hindi-style): trailing "n",
+    # the common ASCII stand-in for a nasalization mark.
+    "ã": "an", "ẽ": "en", "ĩ": "in", "õ": "on", "ũ": "un",
+    # Breathy/murmured voice (Hindi's own 4th stop series): "bh"/"gh"
+    # already denote the implosives ɓ/ɠ above in this style -- a
+    # deliberate, documented merge (same "shallow styles accept some
+    # collisions" precedent ʃ/ʂ/ɕ already uses in monoletter style below),
+    # not an oversight, and also the *authentic* Hindi spelling.
+    "bʱ": "bh", "dʱ": "dh", "ɡʱ": "gh",
+    # Nahuatl's own /tɬ/ -- "tl" is its real, common ASCII rendering
+    # (literally how "Nahuatl" itself is spelled).
+    "tɬ": "tl",
+    # Pre-aspiration (Icelandic-style): h-*prefix*, contrasting post-
+    # aspiration's own capital-H *suffix* just above.
+    "ʰp": "hp", "ʰt": "ht", "ʰk": "hk",
+    # Turkish's own dotless-ı vowel -- merges with plain /i/ in this
+    # ASCII-only style (diacritic style below uses the real letter).
+    "ɯ": "i",
 }
 _DIACRITIC_TABLE: dict[str, str] = {
     "ʃ": "š", "ʒ": "ž", "tʃ": "č", "dʒ": "ǯ", "ŋ": "ṅ",
@@ -192,6 +210,20 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # digraph style, which conflates them) -- diacritic style generally
     # keeps such distinctions where digraph/monoletter don't.
     "ɔi": "öi", "ɛi": "ëi", "œy": "ui",
+    # Nasalized vowels keep the real IPA nasalization mark (identity --
+    # already legitimate Latin-Extended letters, same treatment aspiration/
+    # pharyngealization/palatalization's own modifier letters got above).
+    "ã": "ã", "ẽ": "ẽ", "ĩ": "ĩ", "õ": "õ", "ũ": "ũ",
+    # Breathy/murmured voice keeps its own real IPA modifier letter (ʱ),
+    # identity, same treatment as aspiration's ʰ -- no collision here,
+    # unlike the digraph style's bh/dh/gh (see its own comment).
+    "bʱ": "bʱ", "dʱ": "dʱ", "ɡʱ": "ɡʱ",
+    "tɬ": "tł",
+    # Pre-aspiration keeps its own real IPA modifier letter (ʰ) as-is,
+    # identity, same treatment as post-aspiration.
+    "ʰp": "ʰp", "ʰt": "ʰt", "ʰk": "ʰk",
+    # Turkish's own real dotless-ı letter.
+    "ɯ": "ı",
 }
 # A "shallow"/phonemic system in the spirit of Finnish, Swahili, or
 # informal Georgian transliteration -- one ASCII letter per sound, even at
@@ -224,6 +256,15 @@ _MONOLETTER_TABLE: dict[str, str] = {
     # letter, so these stay two-letter like the other styles' renderings
     # (see the digraph table's own comment for "ai"/"au"/"ei").
     "ɔi": "oi", "ɛi": "ei", "œy": "ui",
+    # Nasalization dropped entirely, same "shallow, merges some
+    # distinctions" precedent every other marked feature above uses.
+    "ã": "a", "ẽ": "e", "ĩ": "i", "õ": "o", "ũ": "u",
+    # Breathy voice dropped, merges with the plain voiced stop.
+    "bʱ": "b", "dʱ": "d", "ɡʱ": "g",
+    "tɬ": "l",
+    # Pre-aspiration dropped, merges with the plain voiceless stop.
+    "ʰp": "p", "ʰt": "t", "ʰk": "k",
+    "ɯ": "i",
 }
 
 # Digit/letter markers a postposed-tone category maps `core.phonology`'s

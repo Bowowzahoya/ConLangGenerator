@@ -147,12 +147,13 @@ def build_reduplicated_word(
     candidates: tuple[Consonant, ...] = tuple(
         c
         for c in inventory.consonants
-        if c.manner in manner_classes and not (c.ejective or c.aspirated or c.pharyngealized or c.long or c.palatalized)
+        if c.manner in manner_classes
+        and not (c.ejective or c.aspirated or c.pharyngealized or c.long or c.palatalized or c.breathy)
     )
     if not candidates:
         return None
     consonant = weighted_choice(rng, candidates)
-    simple_vowels = tuple(v for v in inventory.vowels if not v.diphthong)
+    simple_vowels = tuple(v for v in inventory.vowels if not v.diphthong and not v.nasalized)
     open_vowels = tuple(v for v in simple_vowels if v.height in _OPEN_HEIGHTS)
     vowel = weighted_choice(rng, open_vowels or simple_vowels or inventory.vowels)
     syllable = consonant.ipa + vowel.ipa + tone_mark

@@ -17,6 +17,7 @@ from conlang_generator.generation.trait_bias import biased_probability
 _SONORITY_RANK: dict[Manner, int] = {
     Manner.STOP: 1,
     Manner.AFFRICATE: 1,
+    Manner.LATERAL_AFFRICATE: 1,
     Manner.FRICATIVE: 2,
     Manner.LATERAL_FRICATIVE: 2,
     Manner.NASAL: 3,
@@ -31,7 +32,9 @@ def sonority(consonant: Consonant) -> int:
     return _SONORITY_RANK[consonant.manner]
 
 
-_ONSET_C1_MANNERS = {Manner.STOP, Manner.AFFRICATE, Manner.FRICATIVE, Manner.LATERAL_FRICATIVE}
+_ONSET_C1_MANNERS = {
+    Manner.STOP, Manner.AFFRICATE, Manner.LATERAL_AFFRICATE, Manner.FRICATIVE, Manner.LATERAL_FRICATIVE,
+}
 
 # The well-documented cross-linguistic gap on /tl-/, /dl-/ (English, among
 # others) despite satisfying rising sonority -- narrower than a blanket
