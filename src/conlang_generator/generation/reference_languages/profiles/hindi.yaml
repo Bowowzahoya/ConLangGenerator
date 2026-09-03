@@ -1,0 +1,37 @@
+name: Hindi
+aliases: [hindustani]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʈ", "ɖ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", s, "ʃ", h, m, n, "ɳ", l, r, j, v]
+vowels: [i, "iː", u, "uː", e, "ɛ", a, "aː", o, "ɔ", "ə", "ã", "ĩ", "ũ"]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+orthography_category: scholarly-macron-style
+orthography:
+  # Real IAST (International Alphabet of Sanskrit Transliteration)
+  # conventions, restricted to symbols this profile actually models --
+  # illustrative, not a full account. Phonemic vowel length is genuine
+  # same-quality duration here, spelled with the standard macron
+  # convention (same as Arabic's own).
+  - {ipa: "aː", latin: "ā"}
+  - {ipa: "iː", latin: "ī"}
+  - {ipa: "uː", latin: "ū"}
+  # Retroflex series -- the classic dot-under transliteration, same
+  # convention Arabic's own emphatic consonants already use.
+  - {ipa: "ʈ", latin: "ṭ"}
+  - {ipa: "ɖ", latin: "ḍ"}
+  - {ipa: "ɳ", latin: "ṇ"}
+  - {ipa: "ʃ", latin: "ś"}
+  # Real IAST spells these with plain "c"/"j", not "ch"/"j" digraphs.
+  - {ipa: "tʃ", latin: c}
+  - {ipa: "dʒ", latin: j}
+  # Aspirated and breathy/murmured series -- real IAST "h" digraphs.
+  - {ipa: "pʰ", latin: ph}
+  - {ipa: "tʰ", latin: th}
+  - {ipa: "kʰ", latin: kh}
+  - {ipa: "bʱ", latin: bh}
+  - {ipa: "dʱ", latin: dh}
+  - {ipa: "ɡʱ", latin: gh}
+  # Nasalized vowels -- real IAST anusvara convention.
+  - {ipa: "ã", latin: "aṃ"}
+  - {ipa: "ĩ", latin: "iṃ"}
+  - {ipa: "ũ", latin: "uṃ"}

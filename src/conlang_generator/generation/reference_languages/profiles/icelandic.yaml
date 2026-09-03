@@ -1,0 +1,33 @@
+name: Icelandic
+aliases: [old norse, norse, viking, "íslenska"]
+consonants: [p, "pʰ", "ʰp", t, "tʰ", "ʰt", k, "kʰ", "ʰk", f, v, s, "θ", "ð", "ɣ", h, m, n, l, r, j]
+vowels: [i, "ɪ", "ɛ", a, "ɔ", u, "ʊ", "ø", "œ", y, ai, au, ei, "ɔi"]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+orthography_category: diacritic-style
+orthography:
+  # Real Icelandic spelling conventions, restricted to symbols this
+  # profile actually models -- illustrative, not a full account. Modern
+  # Icelandic doesn't contrast plain vowel length the way Arabic/Hindi
+  # do (length is predictable from syllable structure), so this profile
+  # leans on its real, rich diphthong inventory instead.
+  - {ipa: "θ", latin: "þ"}    # thorn -- real, distinct Icelandic letter
+  - {ipa: "ð", latin: "ð"}    # eth -- real, distinct Icelandic letter
+  - {ipa: "ɣ", latin: g}      # real Icelandic /ɣ/ is an allophone of g
+  - {ipa: "ø", latin: "ö"}
+  - {ipa: "œ", latin: "ö"}    # real Icelandic merges these to one letter
+  - {ipa: ai, latin: "æ"}     # real -- Icelandic "æ" is pronounced [ai]
+  - {ipa: au, latin: "á"}     # real -- Icelandic "á" is pronounced [au]
+  - {ipa: "ɔi", latin: ey}    # real Icelandic "ey"/"ei" diphthong family
+  # Pre-aspiration has no dedicated letter in real Icelandic spelling --
+  # it's inferred from a doubled consonant instead, so this profile
+  # spells it the same way real Icelandic does.
+  - {ipa: "ʰp", latin: pp}
+  - {ipa: "ʰt", latin: tt}
+  - {ipa: "ʰk", latin: kk}
+  # Word-initial aspiration isn't phonemically contrastive and isn't
+  # written at all in real Icelandic spelling.
+  - {ipa: "pʰ", latin: p}
+  - {ipa: "tʰ", latin: t}
+  - {ipa: "kʰ", latin: k}

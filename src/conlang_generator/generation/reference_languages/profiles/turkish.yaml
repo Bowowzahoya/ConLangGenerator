@@ -1,0 +1,24 @@
+name: Turkish
+aliases: ["türkçe"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", "ʒ", "ɣ", h, m, n, l, r, j]
+vowels: [i, y, "ɯ", u, e, "ø", a, o]
+coda_profile: unrestricted
+max_onset: 1
+tonal: false
+vowel_harmony: true
+coda_devoicing: true
+orthography_category: diacritic-style
+orthography:
+  # Real modern Turkish orthography -- unusually, these aren't invented
+  # transliteration conventions at all: Turkish's own native Latin
+  # alphabet already uses exactly these letters for these sounds, so
+  # this profile's curated rules are as authentic as they get.
+  - {ipa: "ʃ", latin: "ş"}
+  - {ipa: "tʃ", latin: "ç"}
+  - {ipa: "dʒ", latin: c}     # real Turkish spells /dʒ/ with plain "c"
+  - {ipa: "ɯ", latin: "ı"}    # the real dotless-i letter
+  - {ipa: "ɣ", latin: "ğ"}    # the real "yumuşak g" (soft g)
+  - {ipa: "ʒ", latin: j}
+  - {ipa: y, latin: "ü"}
+  - {ipa: "ø", latin: "ö"}
+  - {ipa: j, latin: y}

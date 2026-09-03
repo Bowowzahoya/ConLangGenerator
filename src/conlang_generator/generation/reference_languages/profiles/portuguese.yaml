@@ -1,0 +1,30 @@
+name: Portuguese
+aliases: ["português"]
+consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ʒ", m, n, "ɲ", l, "lʲ", "ɾ", "ʁ", w, j]
+vowels: [i, e, "ɛ", a, "ɔ", o, u, "ə", "ã", "ẽ", "ĩ", "õ", "ũ"]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+orthography_category: diacritic-style
+orthography:
+  # Real Portuguese spelling conventions, restricted to symbols this
+  # profile actually models -- illustrative, not a full account.
+  - {ipa: "ʃ", latin: x}      # "xadrez"
+  - {ipa: "ʒ", latin: j}      # "já"
+  - {ipa: "ɲ", latin: nh}     # "manhã"
+  - {ipa: "lʲ", latin: lh}    # real Portuguese lateral palatal /ʎ/,
+                               # approximated by this project's
+                               # secondary-palatalization symbol -- "filho"
+  - {ipa: "ɾ", latin: r}      # single "r" spelling ("pedra")
+  - {ipa: "ʁ", latin: rr}     # double "r" / word-initial "r" spelling --
+                               # real Portuguese's own uvular/guttural r
+  - {ipa: "ə", latin: e}      # unstressed final "e", real European
+                               # Portuguese reduction
+  # Nasalized vowels -- real Portuguese conventions (a nasal vowel before
+  # a consonant is usually spelled with a following "m"/"n"; word-finally
+  # or in a stressed nasal diphthong it takes the tilde directly).
+  - {ipa: "ã", latin: "ã"}
+  - {ipa: "ẽ", latin: em}
+  - {ipa: "ĩ", latin: im}
+  - {ipa: "õ", latin: "ão"}
+  - {ipa: "ũ", latin: um}

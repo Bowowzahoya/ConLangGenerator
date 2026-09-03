@@ -1,0 +1,29 @@
+name: Russian
+aliases: [russkiy]
+consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ʒ", x, "tʃ", m, n, l, r, j, "tʲ", "dʲ", "nʲ", "lʲ"]
+vowels: [i, e, a, o, u, "ɨ", "ə"]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+coda_devoicing: true
+orthography_category: diacritic-style
+orthography:
+  # Real scholarly (ISO 9/scientific) transliteration conventions,
+  # restricted to symbols this profile actually models -- illustrative,
+  # not a full account.
+  - {ipa: "ʃ", latin: "š"}    # ш
+  - {ipa: "ʒ", latin: "ž"}    # ж
+  - {ipa: "tʃ", latin: "č"}   # ч
+  - {ipa: x, latin: kh}       # х
+  - {ipa: "ɨ", latin: y}      # ы -- the standard transliteration
+  - {ipa: "ə", latin: e}      # unstressed vowel reduction, spelled е/а
+                               # depending on the specific word -- a
+                               # per-word exception this project's rule
+                               # system can't capture (same category of
+                               # gap as Dutch's own au/ou).
+  # Real scholarly soft-sign (ь) apostrophe convention for
+  # palatalization.
+  - {ipa: "tʲ", latin: "t'"}
+  - {ipa: "dʲ", latin: "d'"}
+  - {ipa: "nʲ", latin: "n'"}
+  - {ipa: "lʲ", latin: "l'"}

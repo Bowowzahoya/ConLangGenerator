@@ -120,11 +120,14 @@ def test_orthography_category_round_trips_from_yaml_for_dutch_and_mandarin():
     assert mandarin.orthography_category == "wade-giles-style"
 
 
-def test_only_dutch_declares_coda_devoicing():
-    # Real final-obstruent devoicing (Dutch/German/Russian/Turkish-style)
-    # -- among the current ten profiles, only Dutch actually qualifies.
-    for profile in REFERENCE_LANGUAGES:
-        assert profile.coda_devoicing == (profile.name == "Dutch")
+def test_only_the_real_final_devoicing_languages_declare_coda_devoicing():
+    # Real final-obstruent devoicing -- Dutch, German, Russian, and
+    # Turkish are all genuine, textbook cases (German "Rad"/"Tag";
+    # Russian "друг" [druk]; Turkish kitab->kitap); none of the other
+    # profiles categorically neutralize final obstruent voicing.
+    expected = {"Dutch", "German", "Russian", "Turkish"}
+    actual = {p.name for p in REFERENCE_LANGUAGES if p.coda_devoicing}
+    assert actual == expected
 
 
 def test_orthography_category_round_trips_from_yaml_for_japanese_and_hawaiian():
@@ -132,6 +135,34 @@ def test_orthography_category_round_trips_from_yaml_for_japanese_and_hawaiian():
     hawaiian = next(p for p in REFERENCE_LANGUAGES if p.name == "Hawaiian")
     assert japanese.orthography_category == "scholarly-macron-style"
     assert hawaiian.orthography_category == "scholarly-macron-style"
+
+
+def test_orthography_category_round_trips_from_yaml_for_the_phase_b_languages():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["German"].orthography_category == "germanic-doubling-style"
+    assert by_name["Russian"].orthography_category == "diacritic-style"
+    assert by_name["Portuguese"].orthography_category == "diacritic-style"
+    assert by_name["Hindi"].orthography_category == "scholarly-macron-style"
+    assert by_name["Turkish"].orthography_category == "diacritic-style"
+    assert by_name["Korean"].orthography_category == "digraph-style"
+    assert by_name["Icelandic"].orthography_category == "diacritic-style"
+    assert by_name["Nahuatl"].orthography_category == "digraph-style"
+
+
+def test_turkish_declares_vowel_harmony():
+    turkish = next(p for p in REFERENCE_LANGUAGES if p.name == "Turkish")
+    assert turkish.vowel_harmony is True
+
+
+def test_icelandic_matches_by_its_old_norse_and_viking_aliases():
+    matched = match_profiles(("old norse", "VIKING"))
+    names = {p.name for p in matched}
+    assert names == {"Icelandic"}
+
+
+def test_nahuatl_matches_by_its_aztec_alias():
+    matched = match_profiles(("Aztec",))
+    assert {p.name for p in matched} == {"Nahuatl"}
 
 
 def test_finnish_orthography_category_and_geminate_symbol_round_trip_from_yaml():

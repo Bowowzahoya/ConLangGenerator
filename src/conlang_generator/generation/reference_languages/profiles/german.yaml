@@ -1,0 +1,37 @@
+name: German
+aliases: [deutsch]
+consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ç", x, h, m, n, "ŋ", l, "ʁ", j]
+vowels: [i, "ɪ", e, "ɛ", a, "ɔ", o, u, "ʊ", y, "ø", "œ", "ə", "aː", "eː", "iː", "oː", "uː", ai, au, "œy"]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+coda_devoicing: true
+orthography_category: germanic-doubling-style
+orthography:
+  # Real German spelling conventions, restricted to symbols this profile
+  # actually models -- illustrative, not a full account.
+  - {ipa: "ʃ", latin: sch}   # "Schule"
+  - {ipa: "ç", latin: ch}    # "ich" (ich-laut)
+  - {ipa: x, latin: ch}      # "ach" (ach-laut) -- real German spells
+                             # both ich-laut and ach-laut identically
+  - {ipa: "ʁ", latin: r}     # standard German's real uvular r
+  - {ipa: "ŋ", latin: ng}    # "singen"
+  - {ipa: y, latin: "ü"}     # "über"
+  - {ipa: "ø", latin: "ö"}   # "schön"
+  - {ipa: "œ", latin: "ö"}   # "können" -- real German spells both ö
+                             # qualities the same way
+  - {ipa: "ə", latin: e}     # "bitte"
+  - {ipa: "ɪ", latin: i}     # "mit"
+  - {ipa: "ʊ", latin: u}     # "und"
+  - {ipa: "ɔ", latin: o}     # "voll"
+  - {ipa: "ɛ", latin: e}     # "Bett" -- real German also spells this
+                             # "ä" in umlauted words, a per-word not
+                             # per-symbol exception this project's rule
+                             # system can't capture (same category of
+                             # gap as Dutch's own au/ou, ei/ij).
+  - {ipa: ai, latin: ei}     # "mein" -- the more common of German's two
+                             # real spellings for this diphthong ("ai"
+                             # the real, rarer counter-example)
+  - {ipa: au, latin: au}     # "Haus"
+  - {ipa: "œy", latin: eu}   # "neu" -- real German's third diphthong,
+                             # approximated by this project's œy symbol

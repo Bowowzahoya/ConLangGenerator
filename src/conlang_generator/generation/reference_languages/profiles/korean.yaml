@@ -1,0 +1,26 @@
+name: Korean
+consonants: [p, "pʰ", "pʼ", t, "tʰ", "tʼ", k, "kʰ", "kʼ", "tʃ", s, h, m, n, "ŋ", l, j, w]
+vowels: [i, e, "ɛ", a, "ɔ", o, u, "ɯ"]
+coda_profile: unrestricted
+max_onset: 1
+tonal: false
+orthography_category: digraph-style
+orthography:
+  # Real Revised Romanization (the current official South Korean
+  # standard) conventions, restricted to symbols this profile actually
+  # models -- illustrative, not a full account. Korean's real 3-way stop
+  # contrast is plain / aspirated / "tense" (fortis) -- this project's
+  # ejective series is used here as an illustrative stand-in for the
+  # tense series (real Korean tense consonants aren't phonetically
+  # ejective; a well-known simplification in some phonological
+  # treatments, not phonetic fact), which is also why real Revised
+  # Romanization's own doubled-letter tense spelling (pp/tt/kk) below
+  # reads naturally as "geminate-looking" even though the underlying
+  # contrast isn't actually gemination.
+  - {ipa: "ɯ", latin: eu}
+  - {ipa: "ɔ", latin: eo}
+  - {ipa: "pʼ", latin: pp}
+  - {ipa: "tʼ", latin: tt}
+  - {ipa: "kʼ", latin: kk}
+  - {ipa: "tʃ", latin: j}
+  - {ipa: "ŋ", latin: ng}

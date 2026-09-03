@@ -399,29 +399,24 @@ Everything here is a pure function of a `random.Random` seeded from
   `_recompute_syllable_structure` reapplies the same logic post-evolution
   (using the same lineage-merged contact-language set the orthography fix
   already threads through) so the constraint doesn't silently reset on a
-  run that adds no new contact language. Currently the only profile that
-  sets it -- none of the other nine are real final-devoicing languages. A
-  profile can optionally set `orthography_category` (a name into
-  `romanization_gen.py`'s `_CATEGORIES` registry) as a coarse "which
-  family" signal, separate from and layered under its own specific
-  `orthography` deviations. All ten profiles now set one (six had no
-  anchor at all until a later pass filled the gap): Dutch
-  `"germanic-doubling-style"`, Mandarin
-  `"wade-giles-style"`, Japanese/Hawaiian `"scholarly-macron-style"`
-  (matching Hepburn romaji's and Hawaiian's own real macron-for-length
-  convention -- Arabic joins them too, for its own real scholarly-macron
-  long-vowel convention), Finnish `"gemination-style"` (matching
-  kukka/kuka -- its own `consonants` list also includes `"kː"`, so a
-  Finnish contact bias raises geminate-consonant *selection* itself via
-  the existing `_group_reference_bias` mechanism, not just the
-  orthography roll), French/Spanish `"diacritic-style"` (both genuinely
-  diacritic-heavy -- é/è/ê/ç vs. á/é/í/ñ/ü), Georgian `"digraph-style"`
-  (its own curated ejective-apostrophe rules still win over the generic
-  table via the higher-priority reference tier regardless), and Xhosa
-  `"monoletter-style"` (its clicks get single real letters -- c/q/x --
-  same shallow spirit as this anchor). This is why an uncurated symbol
-  under a contact-language bias still tends to feel like that language's
-  own family, not an unrelated generic default -- see
+  run that adds no new contact language. Dutch, German, Russian, and
+  Turkish are the four real final-devoicing languages among the current
+  profiles; the rest don't categorically neutralize final obstruent
+  voicing. A profile can optionally set `orthography_category` (a name
+  into `romanization_gen.py`'s `_CATEGORIES` registry) as a coarse
+  "which family" signal, separate from and layered under its own
+  specific `orthography` deviations -- every profile now sets one,
+  picked to match that language's own real orthographic tradition where
+  one exists (Finnish's `"gemination-style"` matching kukka/kuka, whose
+  own `consonants` list also includes `"kː"` so a Finnish contact bias
+  raises geminate-consonant *selection* itself via the existing
+  `_group_reference_bias` mechanism, not just the orthography roll;
+  Turkish's `"diacritic-style"` is unusually literal, since Turkish's
+  *own native* Latin alphabet already uses exactly those diacritics
+  natively) or the closest reasonable fit otherwise. This is why an
+  uncurated symbol under a contact-language bias still tends to feel
+  like that language's own family, not an unrelated generic default --
+  see
   `romanization_gen.py`'s per-symbol priority tiers below.
 - **`seed_examples.py`**: `resolve_seed_examples()` -- fills in
   `SeedExample.ipa` from `.form` via one LLM call per unresolved example
@@ -709,8 +704,13 @@ reading code or one-off ad hoc scripts.
   `phonology_gen.py`/`grammar_gen.py`, and the reference-language sketches
   in `reference_languages/profiles/`, are illustrative approximations, not
   a typological database (e.g. PHOIBLE) or authoritative descriptions.
-- `reference_languages/profiles/` covers 10 languages, chosen for
-  typological spread, not a general "any named language" capability -- an
+- `reference_languages/profiles/` covers 18 languages (Arabic, Dutch,
+  Finnish, French, Georgian, Hawaiian, German, Hindi, Icelandic,
+  Japanese, Korean, Mandarin, Nahuatl, Portuguese, Russian, Spanish,
+  Turkish, Xhosa), chosen for typological/cultural spread (several --
+  Icelandic, Nahuatl -- picked as much for real-world "vibe" association
+  with popular fantasy settings as typological interest), not a general
+  "any named language" capability -- an
   unmatched name is silently ignored. External-file storage makes adding
   one mechanical, but the actual linguistic curation (what a real
   language's phonology and orthography look like) is still entirely

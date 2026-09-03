@@ -1,0 +1,28 @@
+name: Nahuatl
+aliases: [aztec, "náhuatl"]
+consonants: [p, t, k, "tʃ", "tɬ", s, "ʃ", h, m, n, l, w, j, "ʔ"]
+vowels: [a, e, i, o, "aː", "eː", "iː", "oː"]
+coda_profile: sonorant
+max_onset: 1
+tonal: false
+orthography_category: digraph-style
+orthography:
+  # Real Classical Nahuatl (colonial-era, Spanish-influenced) spelling
+  # conventions, restricted to symbols this profile actually models --
+  # illustrative, not a full account. Classical Nahuatl has no phonemic
+  # /u/ distinct from /o/, hence its own compact 4-vowel system.
+  - {ipa: "tɬ", latin: tl}    # its own name's own sound -- "Nahuatl"
+  - {ipa: "tʃ", latin: ch}
+  - {ipa: "ʃ", latin: x}      # real, e.g. "Mexico," "Xochimilco"
+  - {ipa: "ʔ", latin: h}      # the saltillo -- variously written h/j/grave
+                               # accent in different real conventions
+  - {ipa: k, latin: c}        # real Nahuatl spells /k/ "qu" before e/i and
+                               # "c" elsewhere -- a per-word, not
+                               # per-symbol, exception this project's rule
+                               # system can't capture (same category of
+                               # gap as Dutch's own au/ou); "c" picked as
+                               # the modeled default.
+  - {ipa: "aː", latin: "ā"}
+  - {ipa: "eː", latin: "ē"}
+  - {ipa: "iː", latin: "ī"}
+  - {ipa: "oː", latin: "ō"}
