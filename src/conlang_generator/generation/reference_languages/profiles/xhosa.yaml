@@ -5,3 +5,16 @@ vowels: [i, a, u, e, o]
 coda_profile: sonorant
 max_onset: 1
 tonal: true
+orthography_category: monoletter-style
+orthography:
+  # The three real Xhosa click letters -- c (dental), q (postalveolar),
+  # x (lateral). "ǂ" (palatoalveolar) has no standard distinct Xhosa
+  # letter of its own, so it's deliberately left uncurated here rather
+  # than forcing an invented one -- falls to the generic table.
+  - {ipa: "ǀ", latin: c}
+  - {ipa: "ǃ", latin: q}
+  - {ipa: "ǁ", latin: x}
+  - {ipa: "ŋ", latin: ng}
+  - {ipa: "ʃ", latin: sh}
+  - {ipa: "tʃ", latin: ch}
+  - {ipa: "dʒ", latin: j}

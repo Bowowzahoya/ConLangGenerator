@@ -5,3 +5,7 @@ coda_profile: none
 max_onset: 1
 tonal: false
 orthography_category: scholarly-macron-style
+orthography:
+  # The real ʻokina character (U+02BB MODIFIER LETTER TURNED COMMA), not
+  # a plain apostrophe.
+  - {ipa: "ʔ", latin: "ʻ"}

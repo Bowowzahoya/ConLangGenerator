@@ -366,16 +366,25 @@ Everything here is a pure function of a `random.Random` seeded from
   ā/ī/ū). A profile can optionally set `orthography_category` (a name into
   `romanization_gen.py`'s `_CATEGORIES` registry) as a coarse "which
   family" signal, separate from and layered under its own specific
-  `orthography` deviations -- set on Dutch (`"germanic-doubling-style"`),
-  Mandarin (`"wade-giles-style"`), Japanese/Hawaiian (both
-  `"scholarly-macron-style"`, matching Hepburn romaji's and Hawaiian's
-  own real macron-for-length convention), and Finnish
-  (`"gemination-style"`, matching kukka/kuka -- its own `consonants` list
-  also includes `"kː"`, so a Finnish contact bias raises geminate-
-  consonant *selection* itself via the existing `_group_reference_bias`
-  mechanism, not just the orthography roll) as worked examples; empty
-  (unset) for the rest, same opt-in pattern as
-  `root_and_pattern`/`vowel_harmony`.
+  `orthography` deviations. All ten profiles now set one (six had no
+  anchor at all until a later pass filled the gap): Dutch
+  `"germanic-doubling-style"`, Mandarin
+  `"wade-giles-style"`, Japanese/Hawaiian `"scholarly-macron-style"`
+  (matching Hepburn romaji's and Hawaiian's own real macron-for-length
+  convention -- Arabic joins them too, for its own real scholarly-macron
+  long-vowel convention), Finnish `"gemination-style"` (matching
+  kukka/kuka -- its own `consonants` list also includes `"kː"`, so a
+  Finnish contact bias raises geminate-consonant *selection* itself via
+  the existing `_group_reference_bias` mechanism, not just the
+  orthography roll), French/Spanish `"diacritic-style"` (both genuinely
+  diacritic-heavy -- é/è/ê/ç vs. á/é/í/ñ/ü), Georgian `"digraph-style"`
+  (its own curated ejective-apostrophe rules still win over the generic
+  table via the higher-priority reference tier regardless), and Xhosa
+  `"monoletter-style"` (its clicks get single real letters -- c/q/x --
+  same shallow spirit as this anchor). This is why an uncurated symbol
+  under a contact-language bias still tends to feel like that language's
+  own family, not an unrelated generic default -- see
+  `romanization_gen.py`'s per-symbol priority tiers below.
 - **`seed_examples.py`**: `resolve_seed_examples()` -- fills in
   `SeedExample.ipa` from `.form` via one LLM call per unresolved example
   when the user didn't supply IPA directly. An explicit guess (stated as
@@ -405,15 +414,22 @@ Everything here is a pure function of a `random.Random` seeded from
   rule for the same symbol (Dutch's open/closed vowel-length pairs,
   Mandarin's ü/u-after-j/q/x/y pair, French's front/back-vowel consonant-
   softness pairs); when the reference roll succeeds for that symbol, every
-  variant is carried over together, never split. Per-symbol priority is
-  three tiers: a matched reference deviation, then a category's own
-  *generated* structural rule (`_generate_length_rules`/
+  variant is carried over together, never split. Per-symbol priority
+  (`_rules_for_symbol`) is four tiers: a matched reference deviation, then
+  a category's own *generated* structural rule (`_generate_length_rules`/
   `_generate_doubling_rules`, built against the actual inventory --
   syllable-conditioned doubling or an unconditioned macron/colon rule for
   every long vowel with a same-quality short counterpart; a
   `preceding=("short_vowel",)` doubled-consonant rule paired with its
   plain fallback, when the category doubles consonants after short
-  vowels), then the category's flat `exotic_style` fallback letter. The
+  vowels), then -- for a symbol no matched profile curates a specific rule
+  for -- a matched reference profile's own *named-anchor* `exotic_style`
+  table (picked among the matched profiles' anchors if more than one
+  applies), so an uncurated exotic symbol still leans on its contact
+  language's own family of conventions rather than whatever the whole
+  scheme's own independently-resolved category happens to use; only when
+  no active contact language has any anchor at all does it fall through
+  to the scheme's own flat `exotic_style` fallback letter. The
   long/short vowel pairing (and the `vowel_length` context tags
   themselves) only ever considers a vowel genuinely paired with a same-
   quality counterpart via `Vowel.long` -- deliberately *not* every vowel's
@@ -428,10 +444,18 @@ Everything here is a pure function of a `random.Random` seeded from
   language (`sound_change.py`): reconstructs and carries forward the base
   scheme's own category exactly (`_category_from_scheme`, reading its
   stored axis fields directly -- reference-profile/prompt bias is
-  deliberately *not* re-consulted here) rather than rolling a fresh one,
+  deliberately *not* re-consulted for the *whole-scheme category* here)
+  rather than rolling a fresh one. The per-symbol fallback tiers above
+  still apply for any newly-reformed or newly-introduced symbol, though,
+  using the base language's own original contact-language lineage merged
+  with any new contact this run adds (`sound_change.evolve_language`'s
+  `lineage_languages` -- not just this run's own `traits.contact_languages`
+  alone, which would otherwise silently lose a language's own reference
+  identity, e.g. Dutch's curated `x`->`ch`, the moment a symbol got
+  reformed on a run that added no *new* contact),
   then decides, per *symbol* rather than per word, whether an inherited
   spelling rule is kept (**freeze**) or dropped and regenerated via the
-  same three-tier priority (**reform** -- rare by default), then
+  same four-tier priority (**reform** -- rare by default), then
   independently rolls per-rule **orthography-only drift**
   (diacritic/ejective-mark dropping) on the result -- see its own
   docstring for the full rate model and rationale. Deciding this per

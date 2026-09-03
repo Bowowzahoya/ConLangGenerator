@@ -8,3 +8,12 @@ max_onset: 1
 tonal: false
 vowel_harmony: true
 orthography_category: gemination-style
+orthography:
+  # Finnish's own real vowel letters. Not curating "kː" here -- this
+  # profile's own gemination-style category already generates a doubling
+  # rule for it structurally (`_generate_gemination_rules`), so a
+  # reference entry would be redundant with, and could conflict with, the
+  # inventory-driven one.
+  - {ipa: "ø", latin: "ö"}
+  - {ipa: "æ", latin: "ä"}
+  - {ipa: "ŋ", latin: ng}

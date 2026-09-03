@@ -14,7 +14,7 @@ from collections import Counter
 from dataclasses import replace
 
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, sonority, sound_change
 from conlang_generator.generation.generator import generate_language
@@ -56,6 +56,90 @@ def test_deterministic_for_same_inputs():
     a = evolve_language("Evolved", base, 300, TraitProfile(contact_intensity=0.5), seed=7)
     b = evolve_language("Evolved", base, 300, TraitProfile(contact_intensity=0.5), seed=7)
     assert [e.ipa for e in a.lexicon.entries] == [e.ipa for e in b.lexicon.entries]
+
+
+def test_evolving_with_no_new_contact_still_keeps_the_base_languages_own_lineage():
+    # Regression for a real bug: evolve_language() used to pass only *this
+    # run's* traits.contact_languages into evolve_romanization(), so a
+    # "no new influence" evolution (a bare TraitProfile()) silently lost
+    # the base language's own reference-language identity (e.g. Dutch's
+    # own curated x->ch/au->ou rules) the moment a symbol got reformed --
+    # even though the base was generated with contact_languages=("Dutch",).
+    # The fix merges the base's own lineage forward; this checks it's
+    # both used this run (see the end-to-end test below) and persisted
+    # onto the returned language so a *second* evolution generation
+    # inherits it too, without needing to re-specify it every time.
+    base = generate_language(
+        "Dutch", GenerationSpec(prompt="Dutch", seed=3, traits=TraitProfile(contact_languages=("Dutch",))), FakeLLMClient()
+    )
+    evolved = evolve_language("Evolved", base, 100, TraitProfile(), seed=1)
+    assert "Dutch" in evolved.spec.traits.contact_languages
+
+    # A new contact language this run is *added* to the lineage, not
+    # substituted for it -- both should be reachable for future reforms.
+    evolved_with_contact = evolve_language(
+        "Evolved", base, 100, TraitProfile(contact_languages=("Chinese",)), seed=1
+    )
+    assert "Dutch" in evolved_with_contact.spec.traits.contact_languages
+    assert "Chinese" in evolved_with_contact.spec.traits.contact_languages
+
+
+def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spelling_rules():
+    # End-to-end version of the regression above: Dutch's own curated
+    # x->ch rule (dutch.yaml) must still be reachable for a reformed "x"
+    # even on a run that adds no new contact_languages -- at a long
+    # enough time depth that orthography reform is all but certain to
+    # fire for it (years=3000 -> reform rate ~=1-e^-6, effectively 1.0),
+    # so this seed isn't relying on a lucky roll.
+    base = generate_language(
+        "Dutch",
+        GenerationSpec(
+            prompt="Dutch",
+            seed=3,
+            traits=TraitProfile(contact_languages=("Dutch",)),
+            seed_examples=(SeedExample(gloss="bad", form="slecht", ipa="slɛxt"),),
+        ),
+        FakeLLMClient(),
+    )
+    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=1)
+    x_rules = [r for r in evolved.romanization.rules if r.ipa == "x"]
+    assert x_rules and all(r.latin == "ch" for r in x_rules)
+
+
+def test_georgian_contact_gives_an_ejective_introduced_mid_evolution_a_real_spelling():
+    # ejective_drift only ever introduces pʼ/tʼ/kʼ *during* evolution --
+    # they're never present in the base language's own old romanization
+    # scheme to inherit, so this exercises the full reference-profile
+    # fallback path (romanization_gen's new contact-language-anchor tier)
+    # for a symbol that's brand new this run, not just reformed. A modest
+    # years value with contact_intensity pulled negative (suppresses
+    # orthography drift without suppressing ejective_drift itself, which
+    # isn't contact-linked at zero-or-negative contact) keeps both "an
+    # ejective actually appears" and "its mark survives drift" plausible
+    # at the same time -- searched across seeds like this file's other
+    # seed-dependent tests, rather than forced with an extreme years value
+    # that would make orthography drift (shorter half-life than ejective
+    # drift) erase the very mark this test is checking.
+    base = generate_language(
+        "Dutch",
+        GenerationSpec(
+            prompt="Dutch",
+            seed=3,
+            traits=TraitProfile(contact_languages=("Dutch",)),
+            seed_examples=(SeedExample(gloss="bad", form="slecht", ipa="slɛxt"),),
+        ),
+        FakeLLMClient(),
+    )
+    traits = TraitProfile(contact_languages=("Georgian",), contact_intensity=-0.9)
+    ejective_rules = next(
+        rules
+        for seed in range(100)
+        if (rules := [
+            r for r in evolve_language("Evolved", base, 300, traits, seed).romanization.rules
+            if r.ipa in ("pʼ", "tʼ", "kʼ") and r.latin == r.ipa.replace("ʼ", "") + "'"
+        ])
+    )
+    assert ejective_rules
 
 
 def test_half_life_calibration_reflects_the_intended_relative_speed_ordering():

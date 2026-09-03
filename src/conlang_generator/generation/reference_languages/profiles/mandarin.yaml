@@ -27,3 +27,15 @@ orthography:
   # the closest this project's symbol pool models.
   - {ipa: y, latin: "ü"}
   - {ipa: y, latin: u, preceding: [j]}
+  # Illustrative pinyin mapping for this profile's own retroflex/affricate
+  # series -- approximate, not a precise account of Mandarin's actual
+  # phoneme inventory (this project's simplified consonant model doesn't
+  # distinguish retroflex affricates from the plain retroflex stop the
+  # way real Mandarin phonology does).
+  - {ipa: "ʈ", latin: zh}
+  - {ipa: "ʂ", latin: sh}
+  - {ipa: "ʐ", latin: r}
+  - {ipa: "tʃ", latin: ch}
+  - {ipa: "ʃ", latin: x}
+  - {ipa: "ŋ", latin: ng}
+  - {ipa: x, latin: h}

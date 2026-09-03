@@ -50,6 +50,16 @@ increasing order of certainty:
   ``force_isolated``/``force_high_altitude``/``force_tonal``, and the only
   one of the three that's a guarantee rather than a lean.
 
+For a symbol *not* covered by any matched profile's curated rules, the
+fallback still tries to stay in the family: ``_rules_for_symbol`` prefers
+a matched reference profile's own *named-anchor* exotic-symbol table
+(e.g. a Dutch-biased language still leans digraph -- "sch", "ch" -- for an
+uncurated exotic sound, not whatever the independently-resolved whole-
+scheme category happens to use) over the scheme's own flat fallback,
+which only applies when no active contact language has any convention for
+that symbol at all -- see ``_rules_for_symbol``'s own docstring for the
+full priority order.
+
 A reference profile's orthography can define more than one rule for the
 same symbol, conditioned via ``core.romanization.RomanizationRule``'s
 ``following``/``preceding`` tags (e.g. Dutch spells a long vowel with a
@@ -256,8 +266,12 @@ _MONOLETTER_CATEGORY = OrthographyCategory(
 _GERMANIC_DOUBLING_CATEGORY = OrthographyCategory(
     name="germanic-doubling-style",
     description="Dutch/German-like: a long vowel doubles its letter in a closed syllable (a/aa), and a short vowel doubles the *following* onset consonant instead (zitten vs. zaten).",
-    exotic_style=_DIACRITIC_TABLE,
-    exotic_symbol_style=ExoticSymbolStyle.DIACRITIC,
+    # Digraph, not diacritic -- real Dutch/German orthography marks its
+    # exotic sounds with two-letter combinations (sch, ch, ng, sj, tj),
+    # not accented letters; a Slavic-style š/ě/č fallback doesn't read as
+    # Germanic at all.
+    exotic_style=_DIGRAPH_TABLE,
+    exotic_symbol_style=ExoticSymbolStyle.DIGRAPH,
     vowel_length_strategy=VowelLengthStrategy.DOUBLING,
     short_vowel_consonant_doubling=True,
 )
@@ -692,6 +706,7 @@ def _rules_for_symbol(
     reference: dict[str, list[RomanizationRule]],
     structural: dict[str, list[RomanizationRule]],
     category: OrthographyCategory,
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
     rng: random.Random,
 ) -> list[RomanizationRule]:
     """The rule(s) a symbol with no old rule to inherit gets, in priority
@@ -699,13 +714,26 @@ def _rules_for_symbol(
     behavior -- e.g. Dutch's own `vuur`/`vuren` pair) > a category-
     generated structural rule (length/doubling, also new but data-driven,
     so a matched reference profile's own curated rules always still win)
-    > the category's flat fallback letter."""
+    > a matched reference profile's own *named-anchor* exotic-symbol table
+    (e.g. a Dutch-biased language still leans digraph, not Slavic-diacritic,
+    for a symbol Dutch's own profile doesn't curate a specific rule for --
+    see romanization_gen.py's module docstring) > the scheme's own flat
+    fallback letter, for a symbol no active contact language has any real
+    convention for at all."""
     variants = reference.get(symbol)
     if variants and rng.random() < _REFERENCE_ORTHOGRAPHY_WEIGHT:
         return list(variants)
     generated = structural.get(symbol)
     if generated:
         return list(generated)
+    contact_tables = [
+        _CATEGORIES_BY_NAME[p.orthography_category].exotic_style
+        for p in reference_profiles
+        if p.orthography_category and p.orthography_category in _CATEGORIES_BY_NAME
+    ]
+    if contact_tables:
+        table = contact_tables[0] if len(contact_tables) == 1 else rng.choice(contact_tables)
+        return [RomanizationRule(ipa=symbol, latin=table.get(symbol, symbol))]
     return [RomanizationRule(ipa=symbol, latin=category.exotic_style.get(symbol, symbol))]
 
 
@@ -759,14 +787,15 @@ def generate_romanization(
     forced_orthography: OrthographyForce = OrthographyForce(),
 ) -> RomanizationScheme:
     reference = _reference_orthography(contact_languages)
+    reference_profiles = match_profiles(contact_languages)
     category = _resolve_category(
-        rng, match_profiles(contact_languages), requested_orthography_style, forced_orthography,
+        rng, reference_profiles, requested_orthography_style, forced_orthography,
         fallback_factory=lambda: _roll_independent_axes(rng),
     )
     structural = _structural_rules(category, inventory)
     rules: list[RomanizationRule] = []
     for symbol in inventory.all_symbols():
-        rules.extend(_rules_for_symbol(symbol, reference, structural, category, rng))
+        rules.extend(_rules_for_symbol(symbol, reference, structural, category, reference_profiles, rng))
     vowel_symbols, legal_onset_clusters, vowel_backness, vowel_length = _scheme_context(inventory)
     return RomanizationScheme(
         rules=tuple(rules),
@@ -853,6 +882,11 @@ def evolve_romanization(
         fallback_factory=lambda: _category_from_scheme(base_scheme),
     )
     reference = _reference_orthography(contact_languages)
+    # Only the per-symbol exotic-table fallback consults contact_languages
+    # here, not the whole-scheme category (see the docstring above) -- a
+    # newly-reformed symbol with no curated rule of its own still leans on
+    # its lineage's own conventions rather than a fully generic table.
+    reference_profiles = match_profiles(contact_languages)
     structural = _structural_rules(category, new_inventory)
 
     rules: list[RomanizationRule] = []
@@ -861,7 +895,7 @@ def evolve_romanization(
         if keep_old:
             rules.extend(old_by_ipa[symbol])
         else:
-            rules.extend(_rules_for_symbol(symbol, reference, structural, category, rng))
+            rules.extend(_rules_for_symbol(symbol, reference, structural, category, reference_profiles, rng))
 
     rules = [
         RomanizationRule(

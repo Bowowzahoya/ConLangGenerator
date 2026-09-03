@@ -6,6 +6,7 @@ coda_profile: unrestricted
 max_onset: 1
 tonal: false
 root_and_pattern: true
+orthography_category: scholarly-macron-style
 orthography:
   # Real (scholarly/IJMES-style) Arabic transliteration conventions,
   # restricted to symbols this profile actually models -- illustrative,

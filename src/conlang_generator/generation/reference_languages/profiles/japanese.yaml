@@ -5,3 +5,10 @@ coda_profile: sonorant
 max_onset: 1
 tonal: false
 orthography_category: scholarly-macron-style
+orthography:
+  # Real Hepburn-romaji conventions, restricted to symbols this profile
+  # actually models.
+  - {ipa: "tʃ", latin: ch}
+  - {ipa: "dʒ", latin: j}
+  - {ipa: "ʃ", latin: sh}
+  - {ipa: "ɾ", latin: r}

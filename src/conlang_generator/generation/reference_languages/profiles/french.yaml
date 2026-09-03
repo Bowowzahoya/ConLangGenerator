@@ -5,6 +5,7 @@ vowels: [i, e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə"]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
+orthography_category: diacritic-style
 orthography:
   # Real French spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account (real French
@@ -25,3 +26,11 @@ orthography:
   - {ipa: s, latin: c, following: [front_vowel]}
   - {ipa: s, latin: "ç", following: [back_vowel]}
   - {ipa: s, latin: s}
+  # This profile's own remaining non-ASCII vowels/consonants.
+  - {ipa: "ɑ", latin: "â"}
+  - {ipa: "ɔ", latin: o}
+  - {ipa: "ø", latin: eu}
+  - {ipa: "œ", latin: eu}
+  - {ipa: "ə", latin: e}
+  - {ipa: "ɲ", latin: gn}
+  - {ipa: "ʁ", latin: r}

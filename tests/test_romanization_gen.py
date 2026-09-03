@@ -470,3 +470,63 @@ def test_dutch_biased_scheme_spells_the_vuur_alternation_correctly():
     )
     assert scheme.apply("vyr") == "vuur"  # closed syllable
     assert scheme.apply("vyrən") == "vuren"  # open syllable ("r" is the next onset)
+
+
+def test_germanic_doubling_style_uses_digraph_not_diacritic():
+    # Real Dutch/German orthography marks its exotic sounds with digraphs
+    # (sch, ch, ng, sj), not Slavic-style accented letters -- an uncurated
+    # symbol under this anchor should read Germanic, not Slavic.
+    germanic = _CATEGORIES_BY_NAME["germanic-doubling-style"]
+    assert germanic.exotic_symbol_style == ExoticSymbolStyle.DIGRAPH
+    assert germanic.exotic_style == _DIGRAPH_TABLE
+
+
+def test_every_reference_profile_declares_an_orthography_category():
+    # Without one, a contact-language-biased language has no "family" for
+    # the exotic-symbol fallback (below) to lean on at all.
+    for profile in REFERENCE_LANGUAGES:
+        assert profile.orthography_category, profile.name
+
+
+def test_georgian_biased_scheme_spells_ejectives_with_apostrophes():
+    # The real Georgian National System convention -- and the first real
+    # home anywhere in this project's reference set for ejective_drift's
+    # own output (pʼ/tʼ/kʼ).
+    georgian = next(p for p in REFERENCE_LANGUAGES if p.name == "Georgian")
+    inventory = PhonemeInventory(
+        consonants=tuple(_CONSONANT_BY_IPA[s] for s in georgian.consonants),
+        vowels=tuple(_VOWEL_BY_IPA[s] for s in georgian.vowels),
+    )
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("Georgian",)))
+        and {rule.latin for rule in s.rules if rule.ipa == "pʼ"} == {"p'"}
+    )
+    by_ipa = {rule.ipa: rule.latin for rule in scheme.rules}
+    assert by_ipa["pʼ"] == "p'"
+    assert by_ipa["tʼ"] == "t'"
+    assert by_ipa["kʼ"] == "k'"
+    assert by_ipa["tʃ"] == "ch"
+    assert by_ipa["dʒ"] == "j"
+
+
+def test_uncurated_symbol_falls_back_to_the_contact_languages_own_style_not_the_schemes():
+    # The core of the new fallback tier: force the *whole scheme* onto an
+    # unrelated named anchor (wade-giles-style, diacritic-backed -- "ʃ"
+    # would spell "š") while Georgian (digraph-backed, "ʃ" -> "sh") is the
+    # active contact language. Georgian doesn't curate "ʃ" specifically
+    # (only tʃ/dʒ/pʼ/tʼ/kʼ), so it must fall through reference/structural
+    # to this new tier -- and should land on Georgian's own digraph table,
+    # not the forced scheme's diacritic one.
+    inventory = PhonemeInventory(
+        consonants=(_CONSONANT_BY_IPA["p"], _CONSONANT_BY_IPA["ʃ"]),
+        vowels=(_VOWEL_BY_IPA["a"],),
+    )
+    scheme = generate_romanization(
+        random.Random(1), inventory, ("Georgian",),
+        forced_orthography=OrthographyForce(style="wade-giles-style"),
+    )
+    assert scheme.category_name == "wade-giles-style"  # the forced whole-scheme category really did win
+    by_ipa = {rule.ipa: rule.latin for rule in scheme.rules}
+    assert by_ipa["ʃ"] == "sh"  # Georgian's own digraph-style table, not wade-giles's diacritic "š"

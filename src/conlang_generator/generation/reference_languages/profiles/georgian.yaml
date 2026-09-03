@@ -4,3 +4,15 @@ vowels: [i, a, u, e, o]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
+orthography_category: digraph-style
+orthography:
+  # The real Georgian National System's apostrophe-for-ejectives
+  # convention -- the single most useful curated addition in this whole
+  # pool, since this profile's own native inventory is the one place
+  # `ejective_drift`'s output (pʼ/tʼ/kʼ) has genuine real-world precedent
+  # anywhere in this project's reference set.
+  - {ipa: "pʼ", latin: "p'"}
+  - {ipa: "tʼ", latin: "t'"}
+  - {ipa: "kʼ", latin: "k'"}
+  - {ipa: "tʃ", latin: ch}
+  - {ipa: "dʒ", latin: j}

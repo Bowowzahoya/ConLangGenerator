@@ -456,6 +456,17 @@ def evolve_language(
     rng = random.Random(seed)
     rates = _compute_rates(years, traits)
     orthography_rates = _compute_orthography_rates(years, traits)
+    # A language's own reference-language *lineage* (Dutch's own curated
+    # x->ch/au->ou/ɛi->ij rules, say) needs to stay available for
+    # newly-reformed symbols even on a run that adds no *new* contact --
+    # `traits.contact_languages` alone is this run's active contact only,
+    # and evolving with a neutral TraitProfile() would otherwise silently
+    # lose every one of the base language's own curated spellings the
+    # moment a symbol gets reformed. Merged (not replaced) so a run that
+    # *does* add new contact still keeps the original lineage's rules
+    # too, and persisted onto the returned language's own spec (below) so
+    # a second evolution generation inherits the same lineage in turn.
+    lineage_languages = tuple(dict.fromkeys((*base.spec.traits.contact_languages, *traits.contact_languages)))
 
     consonant_by_ipa = {c.ipa: c for c in phonology_gen.ALL_CONSONANTS}
     vowel_by_ipa = {v.ipa: v for v in phonology_gen.ALL_VOWELS}
@@ -508,7 +519,7 @@ def evolve_language(
         base.syllable_structure, final_ipas, known_symbols, rng, traits
     )
     romanization = romanization_gen.evolve_romanization(
-        base.romanization, inventory, rng, traits.contact_languages,
+        base.romanization, inventory, rng, lineage_languages,
         reform_rate=orthography_rates.reform, drift_rate=orthography_rates.drift,
         forced_orthography=forced_orthography,
     )
@@ -562,7 +573,7 @@ def evolve_language(
     spec = GenerationSpec(
         prompt=f"evolved from '{base.name}' over {years} years",
         seed=seed,
-        traits=traits,
+        traits=traits.model_copy(update={"contact_languages": lineage_languages}),
     )
 
     return Language(
