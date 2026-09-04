@@ -101,7 +101,7 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
         ),
         FakeLLMClient(),
     )
-    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=0)
+    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=1)
     x_rules = [r for r in evolved.romanization.rules if r.ipa == "x"]
     assert x_rules and all(r.latin == "ch" for r in x_rules)
 

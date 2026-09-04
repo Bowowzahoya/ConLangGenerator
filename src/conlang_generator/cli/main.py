@@ -110,6 +110,10 @@ def generate(
         None, "--consonant-gemination-marked/--no-consonant-gemination-marked",
         help="Force whether a phonemically long/geminate consonant doubles its own letter.",
     ),
+    allow_all_caps: bool = typer.Option(
+        False, "--allow-all-caps",
+        help="Permit (not guarantee) a rare roll rendering a whole part-of-speech category in ALL CAPS. Off by default.",
+    ),
 ) -> None:
     """Generate a new language and save it."""
     if orthography_style is not None and orthography_style not in ORTHOGRAPHY_STYLE_NAMES:
@@ -173,6 +177,7 @@ def generate(
         forced_orthography=forced_orthography,
         fantasy=fantasy,
         seed_examples=seed_examples,
+        allow_all_caps=allow_all_caps,
     )
     language = generate_language(name, spec, client)
     _repository().save(language)

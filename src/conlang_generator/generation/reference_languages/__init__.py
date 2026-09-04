@@ -56,7 +56,8 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel
 
-from conlang_generator.core.romanization import RomanizationRule
+from conlang_generator.core.lexicon import PartOfSpeech
+from conlang_generator.core.romanization import MuteSuffixRule, RomanizationRule
 
 _PROFILES_DIR = Path(__file__).parent / "profiles"
 
@@ -101,6 +102,19 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     ``orthography`` above: ``generate_romanization`` probabilistically
     biases the *whole scheme's* category toward this one when this
     profile matches, same spirit as ``orthography`` itself."""
+    capitalized_pos: tuple[PartOfSpeech, ...] = ()
+    """Part-of-speech categories this language's real orthography always
+    capitalizes in citation form (e.g. German's own every-common-noun
+    capitalization) -- a hint ``romanization_gen.py``'s grammatical-
+    spelling roll leans toward when this profile matches, same spirit as
+    ``orthography_category`` above but for ``core.romanization.
+    GrammaticalSpelling.capitalized_pos``."""
+    mute_suffix_by_pos: tuple[MuteSuffixRule, ...] = ()
+    """This language's own real POS-keyed silent-letter spelling
+    convention (e.g. French infinitive verbs' silent "-r") -- same
+    "hint the roll leans toward when matched" role as
+    ``capitalized_pos`` above, for ``core.romanization.
+    GrammaticalSpelling.mute_suffix_by_pos``."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

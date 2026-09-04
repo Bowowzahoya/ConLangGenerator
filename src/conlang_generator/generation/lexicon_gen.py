@@ -14,7 +14,7 @@ import random
 
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, ToneSystem
-from conlang_generator.core.romanization import RomanizationScheme
+from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
 from conlang_generator.generation import word_builder
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
@@ -147,7 +147,7 @@ def _propose_kinship_word(
         return None
     return LexicalEntry(
         ipa=word,
-        romanization=romanization.apply(word),
+        romanization=apply_grammatical_spelling(romanization, romanization.apply(word), pos),
         glosses=(gloss,),
         pos=pos,
         tones=(tone, tone) if tone is not None else (),
@@ -258,7 +258,7 @@ def propose_word(
 
     return LexicalEntry(
         ipa=chosen,
-        romanization=romanization.apply(chosen),
+        romanization=apply_grammatical_spelling(romanization, romanization.apply(chosen), pos),
         glosses=(gloss,),
         pos=pos,
         tones=tones,

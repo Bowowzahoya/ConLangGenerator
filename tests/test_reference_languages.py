@@ -1,6 +1,7 @@
 import random
 
 from conlang_generator.core.grammar import MorphologicalType
+from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import PhonemeInventory
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
@@ -236,3 +237,16 @@ def test_arabic_contact_language_biases_toward_root_and_pattern_and_fusional():
     biased_rap, biased_fusional = _rates(("Arabic",))
     assert biased_rap > unbiased_rap
     assert biased_fusional > unbiased_fusional
+
+
+def test_german_declares_capitalized_nouns():
+    german = next(p for p in REFERENCE_LANGUAGES if p.name == "German")
+    assert german.capitalized_pos == (PartOfSpeech.NOUN,)
+
+
+def test_french_declares_a_silent_r_verb_suffix():
+    french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+    assert len(french.mute_suffix_by_pos) == 1
+    rule = french.mute_suffix_by_pos[0]
+    assert rule.pos is PartOfSpeech.VERB
+    assert rule.suffix == "r"

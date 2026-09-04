@@ -2,6 +2,7 @@ import random
 
 import pytest
 
+from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import Consonant, Manner, Place, PhonemeInventory, Vowel, VowelBackness, VowelHeight
 from conlang_generator.core.romanization import (
     ExoticSymbolStyle,
@@ -555,3 +556,89 @@ def test_uncurated_symbol_falls_back_to_the_contact_languages_own_style_not_the_
     assert scheme.category_name == "wade-giles-style"  # the forced whole-scheme category really did win
     by_ipa = {rule.ipa: rule.latin for rule in scheme.rules}
     assert by_ipa["ʃ"] == "sh"  # Georgian's own digraph-style table, not wade-giles's diacritic "š"
+
+
+# --- Grammatical spelling (capitalization / all-caps / mute suffix) ---
+
+_GERMAN = next(p for p in REFERENCE_LANGUAGES if p.name == "German")
+_FRENCH = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+
+
+def _german_inventory() -> PhonemeInventory:
+    return PhonemeInventory(
+        consonants=tuple(_CONSONANT_BY_IPA[s] for s in _GERMAN.consonants),
+        vowels=tuple(_VOWEL_BY_IPA[s] for s in _GERMAN.vowels),
+    )
+
+
+def _french_inventory() -> PhonemeInventory:
+    return PhonemeInventory(
+        consonants=tuple(_CONSONANT_BY_IPA[s] for s in _FRENCH.consonants),
+        vowels=tuple(_VOWEL_BY_IPA[s] for s in _FRENCH.vowels),
+    )
+
+
+def test_capitalization_fires_at_a_nonzero_rate_with_no_contact_language():
+    inventory = _dutch_flavored_inventory()
+    hits = sum(bool(generate_romanization(random.Random(seed), inventory, ()).grammatical_spelling.capitalized_pos) for seed in _SEEDS)
+    assert hits > 0
+
+
+def test_mute_suffix_fires_at_a_nonzero_rate_with_no_contact_language():
+    inventory = _dutch_flavored_inventory()
+    hits = sum(
+        bool(generate_romanization(random.Random(seed), inventory, ()).grammatical_spelling.mute_suffix_by_pos)
+        for seed in _SEEDS
+    )
+    assert hits > 0
+
+
+def test_all_caps_fires_at_a_nonzero_rate_when_allowed():
+    inventory = _dutch_flavored_inventory()
+    hits = sum(
+        bool(generate_romanization(random.Random(seed), inventory, (), allow_all_caps=True).grammatical_spelling.all_caps_pos)
+        for seed in _SEEDS
+    )
+    assert hits > 0
+
+
+def test_all_caps_never_fires_when_not_allowed():
+    inventory = _dutch_flavored_inventory()
+    for seed in _SEEDS:
+        scheme = generate_romanization(random.Random(seed), inventory, ())  # allow_all_caps defaults False
+        assert scheme.grammatical_spelling.all_caps_pos == ()
+
+
+def test_german_contact_language_biases_toward_capitalizing_nouns():
+    inventory = _german_inventory()
+    unbiased = sum(
+        PartOfSpeech.NOUN in generate_romanization(random.Random(seed), inventory, ()).grammatical_spelling.capitalized_pos
+        for seed in _SEEDS
+    )
+    biased = sum(
+        PartOfSpeech.NOUN in generate_romanization(random.Random(seed), inventory, ("German",)).grammatical_spelling.capitalized_pos
+        for seed in _SEEDS
+    )
+    assert biased > unbiased
+
+
+def test_french_contact_language_biases_toward_a_silent_r_verb_suffix():
+    inventory = _french_inventory()
+
+    def _has_verb_r(scheme):
+        return any(rule.pos is PartOfSpeech.VERB and rule.suffix == "r" for rule in scheme.grammatical_spelling.mute_suffix_by_pos)
+
+    unbiased = sum(_has_verb_r(generate_romanization(random.Random(seed), inventory, ())) for seed in _SEEDS)
+    biased = sum(_has_verb_r(generate_romanization(random.Random(seed), inventory, ("French",))) for seed in _SEEDS)
+    assert biased > unbiased
+
+
+def test_evolve_romanization_carries_grammatical_spelling_forward_unchanged():
+    inventory = _german_inventory()
+    base = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("German",))).grammatical_spelling.capitalized_pos
+    )
+    evolved = evolve_romanization(base, inventory, random.Random(99), ())
+    assert evolved.grammatical_spelling == base.grammatical_spelling

@@ -4,8 +4,11 @@ cache/cost-tracking contract (a cache hit must not be billed twice)."""
 
 from pathlib import Path
 
+from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation.generator import generate_language
+from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.llm.base import LLMRequest
 from conlang_generator.llm.cost_tracker import CostTracker
 from conlang_generator.llm.factory import build_llm_client
@@ -73,3 +76,44 @@ def test_cache_hit_is_not_billed_again(tmp_path: Path):
 
     summary = CostTracker(tmp_path / "cost_ledger.jsonl").summarize()
     assert summary["num_calls"] == 1
+
+
+def test_german_biased_language_capitalizes_its_noun_entries():
+    # seed 0 rolls capitalized_pos=(NOUN,) for a German-contact language
+    # (see romanization_gen.py's grammatical-spelling roll) -- an
+    # empirically-found seed, same "search for a working seed" convention
+    # this project already uses elsewhere (test_sound_change.py).
+    spec = GenerationSpec(prompt="test", seed=0, traits=TraitProfile(contact_languages=("German",)))
+    language = generate_language("Test", spec, FakeLLMClient())
+    assert PartOfSpeech.NOUN in language.romanization.grammatical_spelling.capitalized_pos
+    nouns = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.NOUN]
+    assert nouns
+    assert all(entry.romanization[:1].isupper() for entry in nouns)
+
+
+def test_french_biased_language_gives_its_verb_entries_a_silent_r():
+    # seed 2 rolls French's own mute_suffix_by_pos (VERB, "r") -- see the
+    # note on the German test above for the seed-search convention.
+    spec = GenerationSpec(prompt="test", seed=2, traits=TraitProfile(contact_languages=("French",)))
+    language = generate_language("Test", spec, FakeLLMClient())
+    rule = next(
+        (r for r in language.romanization.grammatical_spelling.mute_suffix_by_pos if r.pos is PartOfSpeech.VERB), None
+    )
+    assert rule is not None and rule.suffix == "r"
+    verbs = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.VERB]
+    assert verbs
+    for entry in verbs:
+        assert entry.romanization.endswith("r")
+        assert not entry.ipa.endswith("r")  # the "r" has no corresponding sound at all
+
+
+def test_grammatical_spelling_convention_survives_evolution_with_no_new_contact_language():
+    spec = GenerationSpec(prompt="test", seed=0, traits=TraitProfile(contact_languages=("German",)))
+    base = generate_language("Base", spec, FakeLLMClient())
+    assert PartOfSpeech.NOUN in base.romanization.grammatical_spelling.capitalized_pos
+
+    evolved = evolve_language("Evolved", base, years=200, traits=TraitProfile(), seed=1)
+    assert evolved.romanization.grammatical_spelling == base.romanization.grammatical_spelling
+    nouns = [e for e in evolved.lexicon.entries if e.pos is PartOfSpeech.NOUN]
+    assert nouns
+    assert all(entry.romanization[:1].isupper() for entry in nouns)

@@ -59,3 +59,8 @@ class GenerationSpec(BaseModel, frozen=True):
     """Literal words the user supplied; always fully resolved (``ipa`` set)
     by the time this reaches ``generate_language`` -- see
     ``cli/main.py``'s ``generate`` command."""
+    allow_all_caps: bool = False
+    """Opt-in gate (default off) for `romanization_gen`'s all-caps POS
+    roll -- unlike `force_*` above, this *permits* a possibility rather
+    than forcing one: no real language renders whole word classes in full
+    caps, so a plain run should never produce one unless the user asks."""

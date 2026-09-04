@@ -98,9 +98,12 @@ import random
 import unicodedata
 from collections.abc import Callable
 
+from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import TONE_DIACRITICS, Consonant, PhonemeInventory, ToneLevel, Vowel
 from conlang_generator.core.romanization import (
     ExoticSymbolStyle,
+    GrammaticalSpelling,
+    MuteSuffixRule,
     OrthographyCategory,
     OrthographyForce,
     RomanizationRule,
@@ -434,6 +437,16 @@ _SHORT_VOWEL_DOUBLING_RATE = 0.25
 # phonemic length distinction the consonant already has on its own
 # (Italian/Finnish/Japanese), not one derived from a neighboring vowel.
 _CONSONANT_GEMINATION_RATE = 0.2
+
+# Grammatical-spelling axes (core.romanization.GrammaticalSpelling) -- see
+# _roll_grammatical_spelling's own docstring for the shape of each roll.
+_CAPITALIZATION_BASE_RATE = 0.05
+_CAPITALIZATION_REFERENCE_BOOST_RATE = 0.75  # same jump every other reference-biased axis uses
+_ALL_CAPS_BASE_RATE = 0.04
+_MUTE_SUFFIX_BASE_RATE = 0.12
+_SECOND_POS_RATE = 0.2  # chance a firing capitalization/all-caps roll adds a second POS
+_MUTE_SUFFIX_LETTERS = ("e", "t", "s", "h")  # real cross-linguistically common silent-letter candidates
+_ALL_PARTS_OF_SPEECH = tuple(PartOfSpeech)
 
 
 def _weighted_choice(rng: random.Random, weights: dict) -> object:
@@ -820,12 +833,87 @@ def _resolve_category(
     return _apply_axis_overrides(base, force)
 
 
+def _first_matched_with(
+    reference_profiles: tuple[ReferenceLanguageProfile, ...], field_name: str
+) -> tuple[ReferenceLanguageProfile | None, tuple]:
+    """The first matched reference profile declaring a non-empty value for
+    `field_name` (in match order), and that value -- `(None, ())` if none
+    does. Generic over `capitalized_pos`/`mute_suffix_by_pos` so a future
+    profile beyond German/French picks up the same boost automatically."""
+    for profile in reference_profiles:
+        value = getattr(profile, field_name)
+        if value:
+            return profile, value
+    return None, ()
+
+
+def _roll_pos_group(rng: random.Random, rate: float, candidates: tuple[PartOfSpeech, ...]) -> tuple[PartOfSpeech, ...]:
+    """Fires with probability `rate`; when it does, picks one POS from
+    `candidates` (or, if empty, any `PartOfSpeech`), with a further
+    `_SECOND_POS_RATE` chance of adding a second, distinct one from the
+    same pool -- shared shape for the capitalization and all-caps rolls."""
+    if rng.random() >= rate:
+        return ()
+    pool = list(candidates) if candidates else list(_ALL_PARTS_OF_SPEECH)
+    chosen = [rng.choice(pool)]
+    remaining = [p for p in pool if p not in chosen]
+    if remaining and rng.random() < _SECOND_POS_RATE:
+        chosen.append(rng.choice(remaining))
+    return tuple(chosen)
+
+
+def _roll_grammatical_spelling(
+    rng: random.Random,
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    allow_all_caps: bool,
+) -> GrammaticalSpelling:
+    """Three independent rolls building `core.romanization.GrammaticalSpelling`:
+
+    - Capitalization (`_CAPITALIZATION_BASE_RATE`, low): boosted to
+      `_CAPITALIZATION_REFERENCE_BOOST_RATE` only when a matched reference
+      profile declares its own `capitalized_pos` (German, today) -- stays
+      at the low base rate, and draws from every `PartOfSpeech` rather
+      than a specific profile's list, for every other prompt, so this
+      doesn't misrepresent a real language (e.g. Dutch) that doesn't
+      actually capitalize nouns just for being Germanic-family.
+    - All-caps (`_ALL_CAPS_BASE_RATE`, rarer, no reference hook -- no real
+      language does this): only ever rolls at all when `allow_all_caps`
+      is true, the explicit opt-in gate on `core.spec.GenerationSpec`.
+    - Mute suffix (`_MUTE_SUFFIX_BASE_RATE`): when it fires, reuses a
+      matched reference profile's own `mute_suffix_by_pos` verbatim if one
+      declares it (French, today); otherwise invents one from a random
+      POS paired with a random illustrative silent letter.
+    """
+    _, capitalized_candidates = _first_matched_with(reference_profiles, "capitalized_pos")
+    capitalization_rate = _CAPITALIZATION_REFERENCE_BOOST_RATE if capitalized_candidates else _CAPITALIZATION_BASE_RATE
+    capitalized_pos = _roll_pos_group(rng, capitalization_rate, capitalized_candidates)
+
+    all_caps_pos = _roll_pos_group(rng, _ALL_CAPS_BASE_RATE, ()) if allow_all_caps else ()
+
+    mute_suffix_by_pos: tuple[MuteSuffixRule, ...] = ()
+    if rng.random() < _MUTE_SUFFIX_BASE_RATE:
+        _, reference_mute_rules = _first_matched_with(reference_profiles, "mute_suffix_by_pos")
+        if reference_mute_rules:
+            mute_suffix_by_pos = reference_mute_rules
+        else:
+            mute_suffix_by_pos = (
+                MuteSuffixRule(pos=rng.choice(_ALL_PARTS_OF_SPEECH), suffix=rng.choice(_MUTE_SUFFIX_LETTERS)),
+            )
+
+    return GrammaticalSpelling(
+        capitalized_pos=capitalized_pos,
+        all_caps_pos=all_caps_pos,
+        mute_suffix_by_pos=mute_suffix_by_pos,
+    )
+
+
 def generate_romanization(
     rng: random.Random,
     inventory: PhonemeInventory,
     contact_languages: tuple[str, ...] = (),
     requested_orthography_style: str = "",
     forced_orthography: OrthographyForce = OrthographyForce(),
+    allow_all_caps: bool = False,
 ) -> RomanizationScheme:
     reference = _reference_orthography(contact_languages)
     reference_profiles = match_profiles(contact_languages)
@@ -838,6 +926,7 @@ def generate_romanization(
     for symbol in inventory.all_symbols():
         rules.extend(_rules_for_symbol(symbol, reference, structural, category, reference_profiles, rng))
     vowel_symbols, legal_onset_clusters, vowel_backness, vowel_length = _scheme_context(inventory)
+    grammatical_spelling = _roll_grammatical_spelling(rng, reference_profiles, allow_all_caps)
     return RomanizationScheme(
         rules=tuple(rules),
         vowel_symbols=vowel_symbols,
@@ -852,6 +941,7 @@ def generate_romanization(
         exotic_symbol_style=category.exotic_symbol_style,
         syllable_boundary_marker=category.syllable_boundary_marker,
         consonant_gemination_marked=category.consonant_gemination_marked,
+        grammatical_spelling=grammatical_spelling,
     )
 
 
@@ -963,4 +1053,5 @@ def evolve_romanization(
         exotic_symbol_style=category.exotic_symbol_style,
         syllable_boundary_marker=category.syllable_boundary_marker,
         consonant_gemination_marked=category.consonant_gemination_marked,
+        grammatical_spelling=base_scheme.grammatical_spelling,
     )

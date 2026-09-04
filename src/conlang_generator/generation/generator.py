@@ -26,7 +26,12 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
 
     inventory, syllable_structure, tone_system = phonology_gen.generate_phonology(rng, spec)
     romanization = romanization_gen.generate_romanization(
-        rng, inventory, spec.traits.contact_languages, spec.traits.requested_orthography_style, spec.forced_orthography
+        rng,
+        inventory,
+        spec.traits.contact_languages,
+        spec.traits.requested_orthography_style,
+        spec.forced_orthography,
+        spec.allow_all_caps,
     )
     grammar = grammar_gen.generate_grammar(rng, spec)
 

@@ -24,7 +24,7 @@ import random
 from conlang_generator.core.grammar import WordTemplate
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.phonology import PhonemeInventory
-from conlang_generator.core.romanization import RomanizationScheme
+from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
 from conlang_generator.generation import word_builder
 from conlang_generator.generation.lexicon_gen import choose_best_candidate
 from conlang_generator.llm.base import LLMClient
@@ -136,7 +136,7 @@ def propose_templatic_word(
 
     return LexicalEntry(
         ipa=chosen,
-        romanization=romanization.apply(chosen),
+        romanization=apply_grammatical_spelling(romanization, romanization.apply(chosen), pos),
         glosses=(gloss,),
         pos=pos,
         root=chosen_root,

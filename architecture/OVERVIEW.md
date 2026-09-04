@@ -756,15 +756,34 @@ reading code or one-off ad hoc scripts.
   *deliberate*, user-triggered version of the same thing already exists,
   though: passing `forced_orthography` (e.g. `--orthography-style`) to
   `--evolve-from` explicitly reforms the category on that run.
-- French-style word-final mute letters (grammatically-driven spelling --
-  agreement/conjugation endings that correspond to no IPA sound at all)
-  aren't modeled, nor is German's capitalization of nouns (same reason).
-  `RomanizationScheme.apply()` is deliberately a pure function of an IPA
-  string with no grammatical context (POS, agreement), so neither fits as
-  a `RomanizationRule`/`OrthographyCategory` concern at all -- both would
-  need to be decided at the `lexicon_gen.py`/`grammar_gen.py` layer,
-  where that context actually exists, a separate piece of work from
-  anything in `romanization.py`/`romanization_gen.py`.
+- French-style word-final mute letters and German-style noun
+  capitalization are now modeled, as a **citation-form spelling
+  convention keyed on part of speech** -- `core.romanization.
+  GrammaticalSpelling` (`capitalized_pos`, `all_caps_pos`,
+  `mute_suffix_by_pos`), applied via the module-level
+  `apply_grammatical_spelling(scheme, latin, pos)` right after every
+  `RomanizationScheme.apply()` call site (`lexicon_gen.py`,
+  `root_pattern.py`, `sound_change.py`'s `evolve_language`), since
+  `apply()` itself deliberately stays a pure function of an IPA string
+  with no grammatical context. `romanization_gen.py`'s
+  `_roll_grammatical_spelling` rolls three independent axes: a low-rate
+  capitalization roll boosted when a matched reference profile declares
+  `capitalized_pos` (German, today); an even rarer all-caps roll, gated
+  entirely behind `GenerationSpec.allow_all_caps` (default off, no real
+  language does this); and a mute-suffix roll that reuses a matched
+  profile's own `mute_suffix_by_pos` when one exists (French's
+  infinitive "-r") or invents one otherwise. `evolve_romanization`
+  carries a language's `grammatical_spelling` forward unchanged rather
+  than re-rolling it, so the convention stays stable across evolution.
+  What's still explicitly out of scope: real sentence-by-sentence
+  agreement (a word capitalized only when it's the grammatical subject,
+  a mute letter that appears only in some inflected forms) -- this
+  project has no live inflectional system to hang that on
+  (`GrammarProfile.plural_suffix`/`cases` are generated but have zero
+  consumers); and specific-word capitalization (e.g. English "I"),
+  dropped because keeping it consistent across a pronoun's variants
+  ("he"/"she"/"it") has no foothold in today's one-word-per-gloss
+  `CORE_MEANINGS` lexicon model.
 - Consonant gemination and palatalization -- both surveyed and initially
   deferred as needing a phoneme feature this project didn't model -- are
   now modeled (`Consonant.long`/`Consonant.palatalized`,

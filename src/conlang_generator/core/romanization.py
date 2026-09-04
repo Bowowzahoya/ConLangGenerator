@@ -54,6 +54,8 @@ from enum import Enum
 
 from pydantic import BaseModel
 
+from conlang_generator.core.lexicon import PartOfSpeech
+
 _CLASS_TAGS = frozenset(
     {
         "vowel", "consonant", "boundary", "front_vowel", "back_vowel",
@@ -155,6 +157,56 @@ class ExoticSymbolStyle(str, Enum):
     """A single Latin-Extended letter, e.g. "ʃ" -> "š"."""
 
 
+class MuteSuffixRule(BaseModel, frozen=True):
+    pos: PartOfSpeech
+    suffix: str
+    """Appended to a word's romanized spelling with no corresponding IPA
+    change -- a real French infinitive's silent "-r" ("parler" /paʁle/),
+    not sentence-driven agreement (this project has no live inflectional
+    system for a word's spelling to vary by -- see
+    ``GrammaticalSpelling``'s own docstring)."""
+
+
+class GrammaticalSpelling(BaseModel, frozen=True):
+    """A language's part-of-speech-keyed spelling conventions --
+    genuinely grammar-driven (needs a word's POS), so deliberately kept
+    separate from ``RomanizationScheme.apply()`` itself, which stays a
+    pure function of an IPA string with no grammatical context. Applied
+    once, when a word is coined (``apply_grammatical_spelling``), not
+    re-evaluated per sentence -- this models a word's fixed *citation
+    form* convention (real German capitalizes every common noun in its
+    dictionary form, real French infinitives end in a silent "r" in
+    their dictionary form), not agreement that varies by which sentence
+    the word appears in, which would need a live inflectional system
+    this project doesn't have (``GrammarProfile.plural_suffix``/``cases``
+    are generated but have no consumer anywhere yet)."""
+
+    capitalized_pos: tuple[PartOfSpeech, ...] = ()
+    all_caps_pos: tuple[PartOfSpeech, ...] = ()
+    """Deliberately rarer and gated behind `GenerationSpec.allow_all_caps`
+    (default off) at roll time -- no real language does this, it's the
+    purely fictional-flavor case."""
+    mute_suffix_by_pos: tuple[MuteSuffixRule, ...] = ()
+
+
+def apply_grammatical_spelling(scheme: "RomanizationScheme", latin: str, pos: PartOfSpeech) -> str:
+    """The explicit "second step with grammatical context" a word's
+    spelling gets after ``RomanizationScheme.apply()`` (which never sees
+    a POS at all) -- mute suffix first, then capitalization/all-caps
+    (all-caps wins over plain capitalization if a POS is somehow in both
+    tuples, though `_roll_grammatical_spelling` never actually produces
+    that overlap)."""
+    gs = scheme.grammatical_spelling
+    for rule in gs.mute_suffix_by_pos:
+        if rule.pos is pos:
+            latin += rule.suffix
+    if pos in gs.all_caps_pos:
+        return latin.upper()
+    if pos in gs.capitalized_pos:
+        return latin[:1].upper() + latin[1:]
+    return latin
+
+
 class RomanizationScheme(BaseModel, frozen=True):
     rules: tuple[RomanizationRule, ...]
     vowel_symbols: tuple[str, ...] = ()
@@ -209,6 +261,13 @@ class RomanizationScheme(BaseModel, frozen=True):
     reconstruct the exact category that built this scheme
     (``_category_from_scheme``) instead of inferring an approximation
     from which symbol happens to have which letter."""
+    grammatical_spelling: GrammaticalSpelling = GrammaticalSpelling()
+    """POS-keyed capitalization/all-caps/mute-suffix conventions -- unlike
+    every axis above, genuinely needs a word's part of speech, which
+    ``apply()`` never receives, so it's applied separately via the
+    module-level ``apply_grammatical_spelling`` instead of inside
+    ``apply()`` itself. Carried forward unchanged by ``evolve_romanization``
+    (not re-rolled), same treatment every other axis on this class gets."""
 
     def _known_symbols(self) -> list[str]:
         return sorted({rule.ipa for rule in self.rules}, key=len, reverse=True)

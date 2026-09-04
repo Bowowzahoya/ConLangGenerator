@@ -6,6 +6,7 @@ coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: diacritic-style
+mute_suffix_by_pos: [{pos: verb, suffix: r}]  # real French infinitive "-er"'s silent r ("parler" /paʁle/)
 orthography:
   # Real French spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account (real French

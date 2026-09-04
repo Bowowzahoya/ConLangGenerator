@@ -86,7 +86,7 @@ from dataclasses import dataclass
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon
 from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, VowelBackness
-from conlang_generator.core.romanization import OrthographyForce
+from conlang_generator.core.romanization import OrthographyForce, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import (
@@ -564,11 +564,11 @@ def evolve_language(
     for i, (entry, final_ipa) in enumerate(zip(base.lexicon.entries, final_ipas)):
         root: tuple[str, ...] | None = entry.root
         if i in borrowed_romanizations:
-            latin = borrowed_romanizations[i]
+            latin = apply_grammatical_spelling(romanization, borrowed_romanizations[i], entry.pos)
             path = "borrowed"
             root = None  # a foreign borrowing has no native root of its own
         elif i in replaced_native:
-            latin = romanization.apply(final_ipa)
+            latin = apply_grammatical_spelling(romanization, romanization.apply(final_ipa), entry.pos)
             path = "replaced"
             root = replaced_roots.get(i)  # a new native root, or None if this wasn't templatic
         elif final_ipa == entry.ipa:
@@ -583,8 +583,8 @@ def evolve_language(
             # devoicing this run should still spell as its pre-devoicing
             # voiced form (Dutch "berg" [bɛrx], spelled "g").
             spelling_ipa = spelling_ipas[i]
-            latin = romanization.apply(spelling_ipa)
-            unreformed = base.romanization.apply(spelling_ipa)
+            latin = apply_grammatical_spelling(romanization, romanization.apply(spelling_ipa), entry.pos)
+            unreformed = apply_grammatical_spelling(base.romanization, base.romanization.apply(spelling_ipa), entry.pos)
             path = "reformed" if latin != unreformed else "conventional"
         evolved_entries.append(
             entry.model_copy(
