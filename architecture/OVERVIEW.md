@@ -597,21 +597,32 @@ Everything here is a pure function of a `random.Random` seeded from
   `contact_intensity` and scaled per entry by `lexicon_gen.STABILITY_TIER`
   (pronouns/numerals ~4x more resistant than nouns, nouns ~1.5x more than
   verbs/adjectives -- POS reused as the stability proxy, since it already
-  captures the dominant real effect for a vocabulary this basic). An entry
-  whose evolved IPA is byte-identical to its original (its sound didn't
-  change this run) reuses its stored spelling *verbatim* rather than
-  reconstructing it through the scheme -- preserves any exception a word's
-  own spelling carries instead of silently "correcting" it, and is simply
-  honest about nothing having changed. Every other non-replaced entry's
-  spelling comes from the *one* evolved `RomanizationScheme` returned by
-  `romanization_gen.evolve_romanization()` (freeze/reform + drift, decided
-  per symbol -- see above); `notes` records `"unchanged"`, `"conventional"`
-  (sound changed but reconstruction still matches the unreformed scheme),
-  or `"reformed"`, for diagnostics (`experiments/evolution.py`'s report
-  column). Replacement is decided first and, when it fires, bypasses all of
-  this for that entry (a freshly coined/borrowed word has no old spelling
-  to freeze to). One outcome per entry per call, not a fuller multi-stage
-  history -- see limitations below. Reproducible: the whole pass is one
+  captures the dominant real effect for a vocabulary this basic). Every
+  non-replaced entry's spelling comes from the *one* evolved
+  `RomanizationScheme` returned by `romanization_gen.evolve_romanization()`
+  (freeze/reform + drift, decided per symbol -- see above) -- a reform is a
+  language-wide convention change, not a per-word one, so it touches every
+  word using the reformed symbol, whether or not that particular word's
+  own sound moved this run (real spelling reforms work the same way: they
+  land on every word with the affected pattern, not just ones whose
+  pronunciation happened to shift). Only when the evolved scheme's
+  rendering of a word's IPA agrees with what the *unreformed* base scheme
+  would have produced (no reform touched any symbol it uses) *and* its
+  sound is byte-identical to its original does an entry fall back to its
+  stored spelling *verbatim* instead of the reconstruction -- preserves
+  any real or curated exception a word's own spelling carries (e.g. a
+  seed-example word's literal spelling) instead of silently "correcting"
+  it, the same "why real orthographies end up with silent letters" freeze
+  `evolve_romanization` already models per symbol. `notes` records
+  `"unchanged"` (sound and spelling both untouched), `"conventional"`
+  (spelling still matches the unreformed scheme -- whether or not the
+  word's own sound moved), or `"reformed"` (some symbol the word uses was
+  actually reformed -- again regardless of whether its own sound moved),
+  for diagnostics (`experiments/evolution.py`'s report column). Replacement
+  is decided first and, when it fires, bypasses all of this for that entry
+  (a freshly coined/borrowed word has no old spelling to freeze to). One
+  outcome per entry per call, not a fuller multi-stage history -- see
+  limitations below. Reproducible: the whole pass is one
   seeded `random.Random`, consumed in lexicon order.
 
 ## `translation/` -- bidirectional translation

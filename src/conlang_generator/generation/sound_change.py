@@ -549,17 +549,22 @@ def evolve_language(
 
     # Pass 2: every non-replaced entry's spelling comes from the one
     # evolved scheme above -- decided per symbol, so words sharing a symbol
-    # always agree. An entry whose sound didn't change at all this run
-    # reuses its own stored spelling verbatim rather than reconstructing it
-    # through the scheme -- even when reconstruction would usually match,
-    # this preserves any exception the word's own spelling carries that the
-    # general rule table can't capture, and nothing about the word actually
-    # changed, so nothing should touch it. For everything else, `notes`
-    # records whether reform/drift actually touched this word's spelling,
-    # by comparing against what the *unreformed* base scheme would have
-    # produced for the same (already sound-changed) IPA -- isolates
-    # orthography evolution's own effect from the sound change that already
-    # happened above.
+    # always agree, and so a reform is a language-wide convention change,
+    # not a per-word one: it touches every word using the reformed symbol,
+    # whether or not that particular word's own sound moved this run (real
+    # spelling reforms work the same way -- they land on every word with
+    # the affected pattern, not just ones whose pronunciation happened to
+    # shift). Concretely: `latin` always comes from applying the *current*
+    # (possibly-reformed) scheme to this entry's own (spelling-oriented)
+    # IPA, compared against what the *unreformed* base scheme would have
+    # produced for that same IPA -- isolates orthography evolution's own
+    # effect from the sound change that already happened above. Only when
+    # the two agree (no reform touched any symbol this word uses) *and*
+    # the word's sound didn't move either does this fall back to the
+    # word's own stored spelling verbatim rather than the reconstruction --
+    # protects a real or curated spelling exception the general rule table
+    # can't capture, the same "why real orthographies end up with silent
+    # letters" freeze `evolve_romanization` already models per symbol.
     evolved_entries = []
     for i, (entry, final_ipa) in enumerate(zip(base.lexicon.entries, final_ipas)):
         root: tuple[str, ...] | None = entry.root
@@ -571,9 +576,6 @@ def evolve_language(
             latin = apply_grammatical_spelling(romanization, romanization.apply(final_ipa), entry.pos)
             path = "replaced"
             root = replaced_roots.get(i)  # a new native root, or None if this wasn't templatic
-        elif final_ipa == entry.ipa:
-            latin = entry.romanization
-            path = "unchanged"
         else:
             # This branch is only reached for an entry pass 1 didn't
             # replace, so `final_ipa` is exactly `evolved_ipas[i]` by
@@ -585,7 +587,13 @@ def evolve_language(
             spelling_ipa = spelling_ipas[i]
             latin = apply_grammatical_spelling(romanization, romanization.apply(spelling_ipa), entry.pos)
             unreformed = apply_grammatical_spelling(base.romanization, base.romanization.apply(spelling_ipa), entry.pos)
-            path = "reformed" if latin != unreformed else "conventional"
+            if latin != unreformed:
+                path = "reformed"
+            elif final_ipa == entry.ipa:
+                latin = entry.romanization
+                path = "unchanged"
+            else:
+                path = "conventional"
         evolved_entries.append(
             entry.model_copy(
                 update={"ipa": final_ipa, "romanization": latin, "notes": f"orthography: {path}", "root": root}

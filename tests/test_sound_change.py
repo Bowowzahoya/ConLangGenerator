@@ -14,6 +14,7 @@ from collections import Counter
 from dataclasses import replace
 
 from conlang_generator.core.lexicon import PartOfSpeech
+from conlang_generator.core.romanization import apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, sonority, sound_change
@@ -286,13 +287,19 @@ def test_short_time_depth_keeps_orthography_mostly_conventional():
     # still be rare (its half-life is long specifically so freeze
     # dominates by default) -- most entries should be "unchanged" (sound
     # never moved) or "conventional" (sound moved but the unreformed scheme
-    # still matches), not "reformed".
+    # still matches), not "reformed". A reform is a per-*symbol* roll, but
+    # its word-level footprint scales with how many core-vocabulary words
+    # happen to share that symbol -- a single reformed high-frequency vowel
+    # can flip a sizeable minority of words "reformed" even though only one
+    # (rare) reform actually fired, so this checks a simple majority rather
+    # than a fixed multiplier (which a lucky/unlucky symbol pick could blow
+    # past in either direction).
     base = _base_language()
     evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=0)
     counts = Counter(e.notes for e in evolved.lexicon.entries)
     not_reformed = counts["orthography: unchanged"] + counts["orthography: conventional"]
     reformed = counts["orthography: reformed"]
-    assert not_reformed > 5 * reformed
+    assert not_reformed > reformed
 
 
 def test_high_orality_literacy_lowers_reform_rate():
@@ -308,23 +315,22 @@ def test_high_orality_literacy_lowers_reform_rate():
 
 
 def test_non_replaced_entries_all_use_the_one_evolved_scheme():
-    # Every entry whose *sound* actually changed must have its stored
-    # romanization equal applying the language's *single* evolved scheme to
+    # Every entry not borrowed/replaced this run -- "unchanged" entries
+    # included, now that a reform propagates to a word even when its own
+    # sound didn't move -- must have its stored romanization equal applying
+    # the language's *single* evolved scheme (plus grammatical spelling) to
     # its own evolved IPA -- confirms evolve_language never derives such a
-    # word's spelling any other way, so two changed words sharing a symbol
-    # are consistent by construction. Two deliberate exceptions: "unchanged"
-    # entries (see test_unchanged_ipa_reuses_old_spelling_verbatim below) --
-    # they keep their own historical spelling even if some *other* word's
-    # shared symbol gets reformed -- and a word whose final symbol was
-    # devoiced *this run* (Dutch "berg" [bɛrx], still spelled "g") -- its
-    # spelling deliberately follows the pre-devoicing voiced form, not the
-    # bare surface IPA (see sound_change.py's own docstring), so re-applying
-    # the scheme to `entry.ipa` directly won't reproduce it. Both are
-    # excluded here.
+    # word's spelling any other way, so two words sharing a symbol are
+    # always consistent by construction. One deliberate exception: a word
+    # whose final symbol was devoiced *this run* (Dutch "berg" [bɛrx],
+    # still spelled "g") -- its spelling deliberately follows the
+    # pre-devoicing voiced form, not the bare surface IPA (see
+    # sound_change.py's own docstring), so re-applying the scheme to
+    # `entry.ipa` directly won't reproduce it -- excluded here.
     base = _base_language()
     evolved = evolve_language("Evolved", base, 800, TraitProfile(contact_intensity=-0.9), seed=5)
     for old, entry in zip(base.lexicon.entries, evolved.lexicon.entries):
-        if entry.notes != "orthography: conventional" and entry.notes != "orthography: reformed":
+        if entry.notes not in ("orthography: unchanged", "orthography: conventional", "orthography: reformed"):
             continue
         old_tokens = ipa_tokenizer.tokenize(old.ipa, _KNOWN_SYMBOLS)
         new_tokens = ipa_tokenizer.tokenize(entry.ipa, _KNOWN_SYMBOLS)
@@ -332,7 +338,8 @@ def test_non_replaced_entries_all_use_the_one_evolved_scheme():
             old_final, new_final = old_tokens[-1][0], new_tokens[-1][0]
             if old_final in sound_change._VOICED_TO_VOICELESS and new_final == sound_change._VOICED_TO_VOICELESS[old_final]:
                 continue  # final devoicing this run -- see the docstring above
-        assert entry.romanization == evolved.romanization.apply(entry.ipa)
+        expected = apply_grammatical_spelling(evolved.romanization, evolved.romanization.apply(entry.ipa), entry.pos)
+        assert entry.romanization == expected
 
 
 def test_final_devoicing_preserves_the_pre_devoicing_voiced_spelling():
@@ -364,12 +371,32 @@ def test_unchanged_ipa_reuses_old_spelling_verbatim():
     # exact old romanization, even if the scheme's reconstruction would give
     # something else for that symbol -- preserves any spelling exception a
     # word carries instead of silently "correcting" it via the rule table.
+    # Only true when no reform touched it though -- see the next test for
+    # the complementary case.
     base = _base_language()
     evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=5)
     for old, new in zip(base.lexicon.entries, evolved.lexicon.entries):
         if new.notes == "orthography: unchanged":
             assert old.ipa == new.ipa
             assert old.romanization == new.romanization
+
+
+def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
+    # A spelling reform is a language-wide convention change, not a
+    # per-word one -- it must touch every word using the reformed symbol,
+    # even one whose own pronunciation didn't shift this run at all. Fixed
+    # seed known to reform "ɔ" (ö -> o) while several words containing it
+    # ("we", "animal", "hand", ...) keep an IPA byte-identical to the base.
+    base = _base_language()
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=0)
+    touched = [
+        (old, new)
+        for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)
+        if old.ipa == new.ipa and new.notes == "orthography: reformed"
+    ]
+    assert touched  # regression guard: this seed is known to produce at least one
+    for old, new in touched:
+        assert old.romanization != new.romanization
 
 
 def test_contact_language_replacement_borrows_from_its_own_phoneme_pool():
