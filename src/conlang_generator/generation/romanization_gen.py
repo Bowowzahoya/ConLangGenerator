@@ -28,13 +28,16 @@ visible in a saved language's ``romanization.yaml``.
 Three things can steer *which* category a language lands on, in
 increasing order of certainty:
 
-- When ``contact_languages`` matches a profile in ``reference_languages``,
+- When ``source_languages`` matches a profile in ``reference_languages``,
   its own hand-curated ``orthography`` rules blend in probabilistically
   per symbol (e.g. a language biased toward Dutch is likely, not certain,
   to spell /u/ as "oe"), and, if the profile declares one, its
   ``orthography_category`` gets one probabilistic shot at winning the
   whole-scheme category roll (Dutch's own profile leans toward
-  "germanic-doubling-style").
+  "germanic-doubling-style"). ``TraitProfile.source_language_strictness``
+  pulls every one of those probabilistic shots toward certainty (see
+  ``_strict_weight``) -- a no-op at its default ``0.0``, full hard
+  restriction at ``1.0``.
 - ``requested_orthography_style`` -- a name the prompt classifier
   extracted directly from the user's wording (e.g. "mark tone with
   numbers, Wade-Giles style") -- gets the same kind of probabilistic shot,
@@ -114,6 +117,7 @@ from conlang_generator.core.romanization import (
 )
 from conlang_generator.generation import sonority
 from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles
+from conlang_generator.generation.trait_bias import biased_probability
 
 _EJECTIVE_SPELLING_MARKS = ("'", "’")  # ascii apostrophe, right single quote
 
@@ -388,6 +392,16 @@ names, for CLI help text and validation."""
 # independently-rolled/inherited category.
 _REFERENCE_ORTHOGRAPHY_WEIGHT = 0.7
 
+
+def _strict_weight(base_weight: float, strictness: float) -> float:
+    """`TraitProfile.source_language_strictness`'s pull on a reference-
+    adoption roll -- the same `biased_probability`-based interpolation
+    `phonology_gen.py` uses throughout (strength=0 -> unchanged, strength=1
+    -> certainty). A no-op at the default `strictness=0.0`, so plain
+    source-language bias (today's existing behavior) is untouched."""
+    return biased_probability(base_weight, strictness) if strictness > 0.0 else base_weight
+
+
 # Materializes a bare axis choice (from a force, or an independent roll)
 # into the concrete data an OrthographyCategory needs.
 _EXOTIC_STYLE_TABLES: dict[ExoticSymbolStyle, dict[str, str]] = {
@@ -572,14 +586,14 @@ def _category_from_scheme(scheme: RomanizationScheme) -> OrthographyCategory:
     )
 
 
-def _reference_orthography(contact_languages: tuple[str, ...]) -> dict[str, list[RomanizationRule]]:
+def _reference_orthography(source_languages: tuple[str, ...]) -> dict[str, list[RomanizationRule]]:
     """``{ipa_symbol: [rule, ...]}`` -- a symbol may have more than one
     variant rule (e.g. Dutch's open/closed vowel-length pair, or a
     specific-segment-conditioned pair like Mandarin's ü/u after j/q/x/y).
     First matched profile wins for a given (ipa, following, preceding,
-    syllable) combination if more than one contact language defines it."""
+    syllable) combination if more than one source language defines it."""
     by_symbol: dict[str, list[RomanizationRule]] = {}
-    for profile in match_profiles(contact_languages):
+    for profile in match_profiles(source_languages):
         for rule in profile.orthography:
             existing = by_symbol.setdefault(rule.ipa, [])
             condition = (rule.following, rule.preceding, rule.syllable)
@@ -676,6 +690,9 @@ def _generate_length_rules(category: OrthographyCategory, inventory: PhonemeInve
     return rules
 
 
+_DOUBLING_EXCLUDED_IPA = frozenset({"h", "j", "w"})
+
+
 def _generate_doubling_rules(category: OrthographyCategory, inventory: PhonemeInventory) -> list[RomanizationRule]:
     """A ``preceding=("short_vowel",)``-conditioned doubled-letter rule per
     consonant, when the category marks a short vowel by doubling the
@@ -688,11 +705,17 @@ def _generate_doubling_rules(category: OrthographyCategory, inventory: PhonemeIn
     Skipped for a consonant whose own rendering isn't a single ASCII
     letter -- doubling a digraph ("ch" -> "chch") reads as a typo, not a
     spelling convention, so this only fires for the plain, single-letter
-    consonants the doubling convention is actually attested for."""
+    consonants the doubling convention is actually attested for. Also
+    skipped for /h/ (real German/Dutch "h" marks the *preceding* vowel's
+    length -- it's never itself geminated, "hh" isn't a real spelling)
+    and the glides /j//w/ (doubling a glide letter isn't a real
+    convention in any of this project's modeled styles either)."""
     if not category.short_vowel_consonant_doubling:
         return []
     rules: list[RomanizationRule] = []
     for consonant in inventory.consonants:
+        if consonant.ipa in _DOUBLING_EXCLUDED_IPA:
+            continue
         base_letter = category.exotic_style.get(consonant.ipa, consonant.ipa)
         if len(base_letter) != 1:
             continue
@@ -762,6 +785,7 @@ def _rules_for_symbol(
     category: OrthographyCategory,
     reference_profiles: tuple[ReferenceLanguageProfile, ...],
     rng: random.Random,
+    strictness: float = 0.0,
 ) -> list[RomanizationRule]:
     """The rule(s) a symbol with no old rule to inherit gets, in priority
     order: a matched reference-language deviation (probabilistic, existing
@@ -772,10 +796,12 @@ def _rules_for_symbol(
     (e.g. a Dutch-biased language still leans digraph, not Slavic-diacritic,
     for a symbol Dutch's own profile doesn't curate a specific rule for --
     see romanization_gen.py's module docstring) > the scheme's own flat
-    fallback letter, for a symbol no active contact language has any real
-    convention for at all."""
+    fallback letter, for a symbol no active source language has any real
+    convention for at all. `strictness` pulls the first roll toward
+    certainty (see `_strict_weight`) -- a matched language's own curated
+    rule wins near-outright at strictness=1.0."""
     variants = reference.get(symbol)
-    if variants and rng.random() < _REFERENCE_ORTHOGRAPHY_WEIGHT:
+    if variants and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
         return list(variants)
     generated = structural.get(symbol)
     if generated:
@@ -797,22 +823,26 @@ def _resolve_category(
     requested_style_name: str,
     force: OrthographyForce,
     fallback_factory: Callable[[], OrthographyCategory],
+    strictness: float = 0.0,
 ) -> OrthographyCategory:
     """The shared category-resolution logic both `generate_romanization`
     and `evolve_romanization` use. `force.style` wins outright when set --
     an exact named anchor, no `rng` consumed at all, `ValueError` if the
     name isn't real (forcing is the "guarantee, fail loudly if misspelled"
-    channel, unlike `contact_languages`' silent best-effort matching).
+    channel, unlike `source_languages`' silent best-effort matching).
     Otherwise, each of a matched reference profile's own declared
     `orthography_category` (in order) and then `requested_style_name` (the
     prompt-classifier hint) gets one probabilistic shot at winning, same
-    spirit as `_REFERENCE_ORTHOGRAPHY_WEIGHT` elsewhere in this module;
-    nothing winning calls `fallback_factory()` -- a *callable*, not a
-    precomputed value, so a caller that doesn't need it (a force or a bias
-    already won) never burns its `rng` draws, keeping this project's
-    RNG-consumption order stable regardless of which path wins. Any other
-    field set on `force` then overrides just that one axis on top of
-    whatever was resolved, always."""
+    spirit as `_REFERENCE_ORTHOGRAPHY_WEIGHT` elsewhere in this module --
+    `strictness` pulls each of those shots toward certainty (see
+    `_strict_weight`), so the first-priority matched language's own
+    category wins outright at strictness=1.0; nothing winning calls
+    `fallback_factory()` -- a *callable*, not a precomputed value, so a
+    caller that doesn't need it (a force or a bias already won) never
+    burns its `rng` draws, keeping this project's RNG-consumption order
+    stable regardless of which path wins. Any other field set on `force`
+    then overrides just that one axis on top of whatever was resolved,
+    always."""
     if force.style is not None:
         if force.style not in _CATEGORIES_BY_NAME:
             raise ValueError(f"Unknown orthography style {force.style!r}; valid names: {sorted(_CATEGORIES_BY_NAME)}")
@@ -823,7 +853,7 @@ def _resolve_category(
             candidate_names.append(requested_style_name)
         base = None
         for candidate_name in candidate_names:
-            if candidate_name and rng.random() < _REFERENCE_ORTHOGRAPHY_WEIGHT:
+            if candidate_name and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
                 candidate = _CATEGORIES_BY_NAME.get(candidate_name)
                 if candidate is not None:
                     base = candidate
@@ -866,6 +896,7 @@ def _roll_grammatical_spelling(
     rng: random.Random,
     reference_profiles: tuple[ReferenceLanguageProfile, ...],
     allow_all_caps: bool,
+    strictness: float = 0.0,
 ) -> GrammaticalSpelling:
     """Three independent rolls building `core.romanization.GrammaticalSpelling`:
 
@@ -875,24 +906,36 @@ def _roll_grammatical_spelling(
       at the low base rate, and draws from every `PartOfSpeech` rather
       than a specific profile's list, for every other prompt, so this
       doesn't misrepresent a real language (e.g. Dutch) that doesn't
-      actually capitalize nouns just for being Germanic-family.
+      actually capitalize nouns just for being Germanic-family. `strictness`
+      pulls a *matched* boost further toward certainty (see
+      `_strict_weight`) -- never touches the unmatched base rate, so a
+      strict French-source language doesn't start capitalizing nouns just
+      because strictness is high.
     - All-caps (`_ALL_CAPS_BASE_RATE`, rarer, no reference hook -- no real
       language does this): only ever rolls at all when `allow_all_caps`
-      is true, the explicit opt-in gate on `core.spec.GenerationSpec`.
-    - Mute suffix (`_MUTE_SUFFIX_BASE_RATE`): when it fires, reuses a
-      matched reference profile's own `mute_suffix_by_pos` verbatim if one
-      declares it (French, today); otherwise invents one from a random
-      POS paired with a random illustrative silent letter.
+      is true, the explicit opt-in gate on `core.spec.GenerationSpec` --
+      unaffected by `strictness`, since no real language does this and
+      strictness should only ever pull *toward* real, matched behavior.
+    - Mute suffix (`_MUTE_SUFFIX_BASE_RATE`, also `strictness`-pulled when
+      matched): when it fires, reuses a matched reference profile's own
+      `mute_suffix_by_pos` verbatim if one declares it (French, today);
+      otherwise invents one from a random POS paired with a random
+      illustrative silent letter.
     """
     _, capitalized_candidates = _first_matched_with(reference_profiles, "capitalized_pos")
     capitalization_rate = _CAPITALIZATION_REFERENCE_BOOST_RATE if capitalized_candidates else _CAPITALIZATION_BASE_RATE
+    if strictness > 0.0 and capitalized_candidates:
+        capitalization_rate = _strict_weight(capitalization_rate, strictness)
     capitalized_pos = _roll_pos_group(rng, capitalization_rate, capitalized_candidates)
 
     all_caps_pos = _roll_pos_group(rng, _ALL_CAPS_BASE_RATE, ()) if allow_all_caps else ()
 
+    _, reference_mute_rules = _first_matched_with(reference_profiles, "mute_suffix_by_pos")
+    mute_suffix_rate = _MUTE_SUFFIX_BASE_RATE
+    if strictness > 0.0 and reference_mute_rules:
+        mute_suffix_rate = _strict_weight(mute_suffix_rate, strictness)
     mute_suffix_by_pos: tuple[MuteSuffixRule, ...] = ()
-    if rng.random() < _MUTE_SUFFIX_BASE_RATE:
-        _, reference_mute_rules = _first_matched_with(reference_profiles, "mute_suffix_by_pos")
+    if rng.random() < mute_suffix_rate:
         if reference_mute_rules:
             mute_suffix_by_pos = reference_mute_rules
         else:
@@ -910,23 +953,28 @@ def _roll_grammatical_spelling(
 def generate_romanization(
     rng: random.Random,
     inventory: PhonemeInventory,
-    contact_languages: tuple[str, ...] = (),
+    source_languages: tuple[str, ...] = (),
     requested_orthography_style: str = "",
     forced_orthography: OrthographyForce = OrthographyForce(),
     allow_all_caps: bool = False,
+    strictness: float = 0.0,
 ) -> RomanizationScheme:
-    reference = _reference_orthography(contact_languages)
-    reference_profiles = match_profiles(contact_languages)
+    reference = _reference_orthography(source_languages)
+    reference_profiles = match_profiles(source_languages)
+    effective_strictness = strictness if reference_profiles else 0.0
     category = _resolve_category(
         rng, reference_profiles, requested_orthography_style, forced_orthography,
         fallback_factory=lambda: _roll_independent_axes(rng),
+        strictness=effective_strictness,
     )
     structural = _structural_rules(category, inventory)
     rules: list[RomanizationRule] = []
     for symbol in inventory.all_symbols():
-        rules.extend(_rules_for_symbol(symbol, reference, structural, category, reference_profiles, rng))
+        rules.extend(
+            _rules_for_symbol(symbol, reference, structural, category, reference_profiles, rng, effective_strictness)
+        )
     vowel_symbols, legal_onset_clusters, vowel_backness, vowel_length = _scheme_context(inventory)
-    grammatical_spelling = _roll_grammatical_spelling(rng, reference_profiles, allow_all_caps)
+    grammatical_spelling = _roll_grammatical_spelling(rng, reference_profiles, allow_all_caps, effective_strictness)
     return RomanizationScheme(
         rules=tuple(rules),
         vowel_symbols=vowel_symbols,
@@ -964,10 +1012,11 @@ def evolve_romanization(
     base_scheme: RomanizationScheme,
     new_inventory: PhonemeInventory,
     rng: random.Random,
-    contact_languages: tuple[str, ...] = (),
+    source_languages: tuple[str, ...] = (),
     reform_rate: float = 0.0,
     drift_rate: float = 0.0,
     forced_orthography: OrthographyForce = OrthographyForce(),
+    strictness: float = 0.0,
 ) -> RomanizationScheme:
     """Orthographic inertia for sound-changed languages, decided per
     *symbol* rather than per word -- so every word sharing a symbol gets
@@ -1000,7 +1049,7 @@ def evolve_romanization(
     deliberately *not* consulted here (only ``forced_orthography.style``
     can move the category away from what it already was): this keeps a
     language's orthographic family from randomly drifting on every
-    evolution run just because ``contact_languages`` happens to be set,
+    evolution run just because ``source_languages`` happens to be set,
     matching the "carried forward, not re-rolled" behavior described
     above -- a force is still honored, as a deliberate, user-triggered
     reform.
@@ -1012,12 +1061,13 @@ def evolve_romanization(
         rng, (), "", forced_orthography,
         fallback_factory=lambda: _category_from_scheme(base_scheme),
     )
-    reference = _reference_orthography(contact_languages)
-    # Only the per-symbol exotic-table fallback consults contact_languages
+    reference = _reference_orthography(source_languages)
+    # Only the per-symbol exotic-table fallback consults source_languages
     # here, not the whole-scheme category (see the docstring above) -- a
     # newly-reformed symbol with no curated rule of its own still leans on
     # its lineage's own conventions rather than a fully generic table.
-    reference_profiles = match_profiles(contact_languages)
+    reference_profiles = match_profiles(source_languages)
+    effective_strictness = strictness if reference_profiles else 0.0
     structural = _structural_rules(category, new_inventory)
 
     rules: list[RomanizationRule] = []
@@ -1026,7 +1076,9 @@ def evolve_romanization(
         if keep_old:
             rules.extend(old_by_ipa[symbol])
         else:
-            rules.extend(_rules_for_symbol(symbol, reference, structural, category, reference_profiles, rng))
+            rules.extend(
+                _rules_for_symbol(symbol, reference, structural, category, reference_profiles, rng, effective_strictness)
+            )
 
     rules = [
         RomanizationRule(

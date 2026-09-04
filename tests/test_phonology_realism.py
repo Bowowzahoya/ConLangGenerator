@@ -9,9 +9,10 @@ import pytest
 
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import VowelBackness
-from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, romanization_gen, sonority, word_builder
+from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES
 from conlang_generator.llm.fake_client import FakeLLMClient
 
 _SEEDS = range(200)
@@ -55,11 +56,11 @@ def test_aspirated_consonants_appear_at_a_nonzero_base_rate():
     assert 0 < hits < len(_SEEDS)  # sometimes present, not forced, not absent
 
 
-def test_arabic_contact_language_increases_pharyngealized_consonant_presence():
-    def _hit_fraction(contact_languages: tuple[str, ...]) -> float:
+def test_arabic_source_language_increases_pharyngealized_consonant_presence():
+    def _hit_fraction(source_languages: tuple[str, ...]) -> float:
         hits = 0
         for seed in _SEEDS:
-            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=contact_languages))
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
             inventory, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
             hits += "tˤ" in inventory.consonant_symbols()
         return hits / len(_SEEDS)
@@ -91,11 +92,11 @@ def test_diphthongs_appear_at_a_nonzero_base_rate():
     assert 0 < hits < len(_SEEDS)
 
 
-def test_dutch_contact_language_increases_ei_diphthong_presence():
-    def _hit_fraction(contact_languages: tuple[str, ...]) -> float:
+def test_dutch_source_language_increases_ei_diphthong_presence():
+    def _hit_fraction(source_languages: tuple[str, ...]) -> float:
         hits = 0
         for seed in _SEEDS:
-            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=contact_languages))
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
             inventory, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
             hits += "ɛi" in inventory.vowel_symbols()
         return hits / len(_SEEDS)
@@ -103,11 +104,11 @@ def test_dutch_contact_language_increases_ei_diphthong_presence():
     assert _hit_fraction(("Dutch",)) > _hit_fraction(())
 
 
-def test_finnish_contact_language_increases_geminate_consonant_presence():
-    def _hit_fraction(contact_languages: tuple[str, ...]) -> float:
+def test_finnish_source_language_increases_geminate_consonant_presence():
+    def _hit_fraction(source_languages: tuple[str, ...]) -> float:
         hits = 0
         for seed in _SEEDS:
-            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=contact_languages))
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
             inventory, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
             hits += "kː" in inventory.consonant_symbols()
         return hits / len(_SEEDS)
@@ -159,7 +160,7 @@ def test_new_phonemes_from_the_shared_pool_are_used_in_words():
     # A quick end-to-end smoke test: aspirated/pharyngealized/long-vowel
     # symbols, once included in an inventory, are actually sampled into
     # words (not just present in the inventory but never drawn).
-    spec = GenerationSpec(prompt="p", seed=1, traits=TraitProfile(contact_languages=("Arabic",)))
+    spec = GenerationSpec(prompt="p", seed=1, traits=TraitProfile(source_languages=("Arabic",)))
     rng = random.Random(spec.seed)
     inventory, structure, _ = phonology_gen.generate_phonology(rng, spec)
     marked_symbols = {
@@ -242,7 +243,7 @@ def test_dutch_biased_unrestricted_coda_excludes_voiced_obstruents():
     # phonotactic constraint, not just sound_change.py's diachronic rule.
     checked_any = False
     for seed in _SEEDS:
-        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=("Dutch",)))
+        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=("Dutch",)))
         inventory, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
         if structure.max_coda >= 1 and structure.allowed_coda_consonants is None:  # "unrestricted" coda profile
             checked_any = True
@@ -256,7 +257,7 @@ def test_dutch_biased_unrestricted_coda_excludes_voiced_obstruents():
 
 def test_dutch_biased_words_never_end_in_an_excluded_coda_consonant():
     for seed in range(100):
-        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=("Dutch",)))
+        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=("Dutch",)))
         inventory, structure, tone_system = phonology_gen.generate_phonology(random.Random(seed), spec)
         if not structure.excluded_coda_consonants:
             continue
@@ -270,7 +271,7 @@ def test_dutch_biased_words_never_end_in_an_excluded_coda_consonant():
                 assert tokens[-1] not in structure.excluded_coda_consonants
 
 
-def test_no_contact_language_never_sets_excluded_coda_consonants():
+def test_no_source_language_never_sets_excluded_coda_consonants():
     # coda_devoicing is opt-in per matched reference profile -- an
     # unbiased generation should never populate it.
     for seed in range(100):
@@ -351,3 +352,180 @@ def test_function_words_skew_shorter_than_content_words():
     function_avg = avg_syllable_count(PartOfSpeech.PARTICLE, 300)
     content_avg = avg_syllable_count(PartOfSpeech.NOUN, 400)
     assert function_avg < content_avg
+
+
+# --- source_language_strictness ---
+
+_GERMAN = next(p for p in REFERENCE_LANGUAGES if p.name == "German")
+_ENGLISH = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+_HAWAIIAN = next(p for p in REFERENCE_LANGUAGES if p.name == "Hawaiian")
+
+
+def test_full_strictness_inventory_is_a_subset_of_the_source_languages_own_symbols():
+    allowed = _GERMAN.symbols()
+    for seed in range(40):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("German",), source_language_strictness=1.0)
+        )
+        inventory, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        got = set(inventory.consonant_symbols()) | set(inventory.vowel_symbols())
+        assert got <= allowed, (seed, got - allowed)
+
+
+def test_full_strictness_onset_never_exceeds_the_source_languages_own_max_onset():
+    # German's own max_onset is 2; every generated structure should honor
+    # that ceiling (never higher, and the model only supports 1 or 2 to
+    # begin with).
+    for seed in range(40):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("German",), source_language_strictness=1.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        assert structure.max_onset <= _GERMAN.max_onset
+
+
+def test_full_strictness_coda_profile_matches_the_source_languages_own_value():
+    # Hawaiian's own coda_profile is "none" -- every generated structure
+    # should land on the same effective shape (max_coda=0).
+    for seed in range(30):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("Hawaiian",), source_language_strictness=1.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        assert structure.max_coda == 0
+
+
+def test_full_strictness_still_force_includes_a_seed_example_symbol_outside_the_source_language():
+    # Hawaiian's own consonants (p, k, ʔ, h, m, n, l, w) have no "d" -- a
+    # literal seed_examples word using it must still surface "d" in the
+    # inventory even under full strictness, since _force_include is
+    # deliberately untouched by source_language_strictness.
+    spec = GenerationSpec(
+        prompt="p", seed=1,
+        traits=TraitProfile(source_languages=("Hawaiian",), source_language_strictness=1.0),
+        seed_examples=(SeedExample(gloss="x", form="kadu", ipa="kadu"),),
+    )
+    inventory, _, _ = phonology_gen.generate_phonology(random.Random(1), spec)
+    assert "d" in inventory.consonant_symbols()
+
+
+def test_full_strictness_with_two_source_languages_draws_from_their_combined_palette():
+    # English has "r" but no "ʁ"; German has "ʁ" but no "r" -- at full
+    # strictness with both named, every generated symbol must trace to
+    # *either* profile, and across enough seeds both language-exclusive
+    # symbols should surface (proving a true union, not one profile
+    # dominating the other).
+    allowed = _ENGLISH.symbols() | _GERMAN.symbols()
+    saw_german_only = False
+    saw_english_only = False
+    for seed in range(60):
+        spec = GenerationSpec(
+            prompt="p", seed=seed,
+            traits=TraitProfile(source_languages=("English", "German"), source_language_strictness=1.0),
+        )
+        inventory, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        got = set(inventory.consonant_symbols()) | set(inventory.vowel_symbols())
+        assert got <= allowed, (seed, got - allowed)
+        saw_german_only = saw_german_only or "ʁ" in got
+        saw_english_only = saw_english_only or "r" in got
+    assert saw_german_only
+    assert saw_english_only
+
+
+def test_source_language_strictness_gradient_is_monotonic():
+    # Fraction of generated symbols falling outside German's own set
+    # should strictly decrease as strictness rises from 0.0 (today's soft
+    # bias) through 0.5 to 1.0 (hard restriction).
+    def _off_reference_fraction(strictness: float) -> float:
+        off = total = 0
+        for seed in range(60):
+            spec = GenerationSpec(
+                prompt="p", seed=seed,
+                traits=TraitProfile(source_languages=("German",), source_language_strictness=strictness),
+            )
+            inventory, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+            got = set(inventory.consonant_symbols()) | set(inventory.vowel_symbols())
+            off += len(got - _GERMAN.symbols())
+            total += len(got)
+        return off / total
+
+    loose = _off_reference_fraction(0.0)
+    mid = _off_reference_fraction(0.5)
+    strict = _off_reference_fraction(1.0)
+    assert loose > mid > strict
+    assert strict == 0.0
+
+
+def test_zero_strictness_still_allows_symbols_outside_the_source_language():
+    # The no-op guarantee's other half: strictness=0.0 must NOT hard-
+    # restrict -- today's existing soft, non-exclusive bias should still
+    # let an off-profile symbol through sometimes.
+    saw_off_reference = False
+    for seed in range(60):
+        spec = GenerationSpec(
+            prompt="p", seed=seed,
+            traits=TraitProfile(source_languages=("German",), source_language_strictness=0.0),
+        )
+        inventory, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        got = set(inventory.consonant_symbols()) | set(inventory.vowel_symbols())
+        if got - _GERMAN.symbols():
+            saw_off_reference = True
+            break
+    assert saw_off_reference
+
+
+# --- restricted_onset_consonants / attested_onset_clusters ---
+
+
+def test_full_strictness_never_lets_ŋ_open_a_syllable_in_german():
+    # /ŋ/ is real in German (Zunge, singen) but coda/medial-only -- never
+    # a plain syllable onset -- confirmed via real generated words, not
+    # just the structural fields, since word_builder is what actually
+    # consumes excluded_onset_consonants.
+    for seed in range(30):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("German",), source_language_strictness=1.0)
+        )
+        rng = random.Random(seed)
+        inventory, structure, _ = phonology_gen.generate_phonology(rng, spec)
+        if "ŋ" not in inventory.consonant_symbols():
+            continue
+        for _ in range(30):
+            word = word_builder.build_word(rng, inventory, structure, num_syllables=2)
+            assert not word.startswith("ŋ"), (seed, word)
+
+
+def test_full_strictness_german_onset_clusters_stay_within_the_curated_list():
+    for seed in range(60):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("German",), source_language_strictness=1.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        for pair in structure.allowed_onset_clusters:
+            assert pair in _GERMAN.attested_onset_clusters, (seed, pair)
+
+
+def test_full_strictness_english_onset_clusters_stay_within_the_curated_list():
+    for seed in range(60):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        for pair in structure.allowed_onset_clusters:
+            assert pair in _ENGLISH.attested_onset_clusters, (seed, pair)
+
+
+def test_zero_strictness_still_allows_an_unattested_onset_cluster_or_ŋ_onset():
+    # The gradient's other end: strictness=0.0 must not hard-restrict
+    # onset shape either -- today's generic sonority-only behavior should
+    # still sometimes produce a cluster outside German's curated list.
+    saw_unattested = False
+    for seed in range(60):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("German",), source_language_strictness=0.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        if any(pair not in _GERMAN.attested_onset_clusters for pair in structure.allowed_onset_clusters):
+            saw_unattested = True
+            break
+    assert saw_unattested

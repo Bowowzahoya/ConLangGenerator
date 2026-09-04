@@ -476,14 +476,14 @@ def evolve_language(
     # A language's own reference-language *lineage* (Dutch's own curated
     # x->ch/au->ou/ɛi->ij rules, say) needs to stay available for
     # newly-reformed symbols even on a run that adds no *new* contact --
-    # `traits.contact_languages` alone is this run's active contact only,
+    # `traits.source_languages` alone is this run's active contact only,
     # and evolving with a neutral TraitProfile() would otherwise silently
     # lose every one of the base language's own curated spellings the
     # moment a symbol gets reformed. Merged (not replaced) so a run that
     # *does* add new contact still keeps the original lineage's rules
     # too, and persisted onto the returned language's own spec (below) so
     # a second evolution generation inherits the same lineage in turn.
-    lineage_languages = tuple(dict.fromkeys((*base.spec.traits.contact_languages, *traits.contact_languages)))
+    lineage_languages = tuple(dict.fromkeys((*base.spec.traits.source_languages, *traits.source_languages)))
     # Same lineage, used for phonotactic constraints (e.g. Dutch's coda-
     # devoicing) rather than orthography this time -- a separate variable
     # from `reference_profiles` below (which is deliberately current-run-
@@ -507,7 +507,7 @@ def evolve_language(
     provisional_inventory, provisional_structure = _inventory_and_structure(
         base.syllable_structure, evolved_ipas, known_symbols, rng, traits, lineage_profiles
     )
-    reference_profiles = reference_languages.match_profiles(traits.contact_languages)
+    reference_profiles = reference_languages.match_profiles(traits.source_languages)
 
     # Pass 1: lexical replacement (scenarios 2a/2b) -- decide per entry
     # whether the whole word (not just its sound) gets replaced, at a rate
@@ -545,6 +545,7 @@ def evolve_language(
         base.romanization, inventory, rng, lineage_languages,
         reform_rate=orthography_rates.reform, drift_rate=orthography_rates.drift,
         forced_orthography=forced_orthography,
+        strictness=traits.source_language_strictness,
     )
 
     # Pass 2: every non-replaced entry's spelling comes from the one
@@ -604,7 +605,7 @@ def evolve_language(
     spec = GenerationSpec(
         prompt=f"evolved from '{base.name}' over {years} years",
         seed=seed,
-        traits=traits.model_copy(update={"contact_languages": lineage_languages}),
+        traits=traits.model_copy(update={"source_languages": lineage_languages}),
     )
 
     return Language(

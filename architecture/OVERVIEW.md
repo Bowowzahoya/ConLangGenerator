@@ -188,7 +188,7 @@ All mutation-shaped operations return a new instance (`model_copy` /
   `generation/prompt_classifier.py`. `GRADED_TRAIT_FIELDS` lists the float
   fields; a handful are consumed by generation today (see `generation/`
   below), the rest are extracted and stored for future use.
-  `contact_languages` feeds `generation/reference_languages/` (milestone
+  `source_languages` feeds `generation/reference_languages/` (milestone
   5). `salient_context` is a free-text catch-all for anything the
   classifier notices that doesn't map to a named field -- consumed today
   only as extra flavor context in word-coinage prompts.
@@ -360,7 +360,7 @@ Everything here is a pure function of a `random.Random` seeded from
   and a vowel-harmony flag (modestly boosted by `traits.isolation`).
   Tone-system-enabled uses `traits.tonal_friendliness` the same way.
   Milestone 5 adds two more inputs, both soft biases layered on the same
-  probabilistic mechanism (never a hard override): `traits.contact_languages`
+  probabilistic mechanism (never a hard override by default): `traits.source_languages`
   matched against `reference_languages` boosts symbols/coda-profile/
   onset-tolerance/tonality toward the matched real language(s)' profile and
   suppresses the rest (`_reference_biased_rate`/`_group_reference_bias`/
@@ -369,6 +369,41 @@ Everything here is a pure function of a `random.Random` seeded from
   is a hard floor -- those specific phonemes are unconditionally forced into
   the inventory (`_force_include`), since a seed word's sounds must actually
   be available for the word to make sense as part of the language.
+  `traits.source_language_strictness` (`[0, 1]`, `--strictness` on the CLI,
+  or LLM-inferred from wording like "basically German" vs. merely
+  atmospheric evocation) is the gradient dial on top of that soft bias --
+  `0.0` (the default) reproduces the soft bias exactly; `1.0` pushes every
+  one of those same formulas to its certainty/impossibility limit via
+  `generation.trait_bias.biased_probability` (reused directly, since
+  strictness is already a zero-to-one "positive strength"), hard-
+  restricting the inventory to (the union of, when multiple languages are
+  named) the matched profile(s)' own declared symbols, capping onset/coda
+  shape to their own values, and making tonal/vowel-harmony deterministic.
+  The same dial extends to `romanization_gen.py` (whole-scheme category
+  selection, per-symbol curated spelling adoption, and the
+  `GrammaticalSpelling` rolls -- German nouns reliably capitalize, French
+  verbs reliably get their silent "-r") and to `grammar_gen.py`'s two
+  existing reference-bias axes (`uses_root_and_pattern`, the `FUSIONAL`
+  weight boost) -- deliberately *not* to typological axes with no
+  per-profile data at all (word order, alignment: see "Known v0
+  limitations" below).
+  `_force_include`'s seed-example floor stays completely unrestricted
+  regardless of strictness, for the same correctness reason as above.
+  Strictness also fixes two gaps a restricted *inventory* alone doesn't:
+  `sonority.py`'s onset-cluster legality is a generic Sonority Sequencing
+  Principle check, not real per-language data, so an SSP-legal but
+  never-attested pair (f+m, g+v, d+n...) used to pass freely even at full
+  strictness. `ReferenceLanguageProfile.attested_onset_clusters`
+  (curated for German/English/French so far, empty -- unaffected --
+  elsewhere) narrows the generic sonority-legal space to real attested
+  pairs via `sonority.grade_against_attested`, the same
+  `biased_probability`-graded pull as everywhere else in this feature.
+  Separately, `restricted_onset_consonants` (e.g. `ŋ`, coda/medial-only
+  in real German/English, never a plain syllable onset) plugs a second
+  gap: unlike coda position (`excluded_coda_consonants`), *onset*
+  position had no restriction mechanism of any kind before this --
+  `SyllableStructure.excluded_onset_consonants` is its mirror, strictness-
+  graded the same way, consumed by `word_builder._build_onset`.
 - **`reference_languages/`** (a package, not a single module):
   `ReferenceLanguageProfile` and `REFERENCE_LANGUAGES` -- one hand-curated,
   typologically-spread profile per language (Japanese, Finnish, Mandarin,
@@ -397,7 +432,7 @@ Everything here is a pure function of a `random.Random` seeded from
   filters the coda-cluster pool to match (`sonority.exclude_final()`) so
   a cluster can never end in one either; `sound_change.py`'s
   `_recompute_syllable_structure` reapplies the same logic post-evolution
-  (using the same lineage-merged contact-language set the orthography fix
+  (using the same lineage-merged source-language set the orthography fix
   already threads through) so the constraint doesn't silently reset on a
   run that adds no new contact language. Dutch, German, Russian, and
   Turkish are the four real final-devoicing languages among the current
@@ -414,7 +449,7 @@ Everything here is a pure function of a `random.Random` seeded from
   Turkish's `"diacritic-style"` is unusually literal, since Turkish's
   *own native* Latin alphabet already uses exactly those diacritics
   natively) or the closest reasonable fit otherwise. This is why an
-  uncurated symbol under a contact-language bias still tends to feel
+  uncurated symbol under a source-language bias still tends to feel
   like that language's own family, not an unrelated generic default --
   see
   `romanization_gen.py`'s per-symbol priority tiers below.
@@ -439,7 +474,7 @@ Everything here is a pure function of a `random.Random` seeded from
   falls through to a raw IPA glyph), and every one of its axes is logged
   onto the built `RomanizationScheme` so a saved language's
   `romanization.yaml` records what produced it. Independently of the
-  category roll, when `traits.contact_languages` matches a
+  category roll, when `traits.source_languages` matches a
   `reference_languages` profile, its own hand-curated `orthography` rules
   blend in probabilistically per symbol too (e.g. Dutch spelling /u/ as
   "oe" -- "feels like Dutch" without literal evolution from it). A
@@ -480,9 +515,9 @@ Everything here is a pure function of a `random.Random` seeded from
   deliberately *not* re-consulted for the *whole-scheme category* here)
   rather than rolling a fresh one. The per-symbol fallback tiers above
   still apply for any newly-reformed or newly-introduced symbol, though,
-  using the base language's own original contact-language lineage merged
+  using the base language's own original source-language lineage merged
   with any new contact this run adds (`sound_change.evolve_language`'s
-  `lineage_languages` -- not just this run's own `traits.contact_languages`
+  `lineage_languages` -- not just this run's own `traits.source_languages`
   alone, which would otherwise silently lose a language's own reference
   identity, e.g. Dutch's curated `x`->`ch`, the moment a symbol got
   reformed on a run that added no *new* contact),
@@ -508,7 +543,7 @@ Everything here is a pure function of a `random.Random` seeded from
   rate roll (real templatic morphology is a narrow typological category),
   boosted -- along with `morphological_type`'s weights toward `FUSIONAL`
   specifically, empirically the right classification for Arabic's
-  inflectional system -- when `traits.contact_languages` matches a
+  inflectional system -- when `traits.source_languages` matches a
   reference profile with `root_and_pattern=True`. `templates` is left
   empty here; `generator.py` fills it in afterward once the phoneme
   inventory exists (same relationship `plural_suffix` already has to it).
@@ -590,7 +625,7 @@ Everything here is a pure function of a `random.Random` seeded from
   replacement** (the whole entry, IPA and spelling, swapped for a different
   word) is decided per entry: borrowed from a matched contact language's
   own phoneme pool *and* spelled with that language's own conventions when
-  `contact_languages` is set, otherwise a native coinage via the same
+  `source_languages` is set, otherwise a native coinage via the same
   `lexicon_gen`/`word_builder` machinery fresh generation uses. Its rate is
   anchored to glottochronology's basic-vocabulary-replacement premise
   (~80-86% retention per 1000 years for stable core vocabulary), boosted by
@@ -645,11 +680,11 @@ Everything here is a pure function of a `random.Random` seeded from
 ## `cli/main.py`
 
 Typer app with exactly three commands (`generate`, `translate`, `pronounce`),
-per AGENTS.md's CLI discipline. `generate`'s `--contact-language` (repeatable)
+per AGENTS.md's CLI discipline. `generate`'s `--source-language` (repeatable)
 and `--example` (repeatable, `gloss=form` or `gloss=form|ipa`) are milestone-5
 inputs; `--evolve-from <name>` + `--years N` (milestone 6) switch `generate`
 into evolving an existing saved language instead of generating fresh --
-`--prompt`/`--contact-language` are reinterpreted as the evolution period's
+`--prompt`/`--source-language` are reinterpreted as the evolution period's
 own characteristics in that mode (classified the same way, just describing
 something different). None of these add new commands. See `docs/CLI.md`
 for verified examples.
@@ -685,6 +720,32 @@ reading code or one-off ad hoc scripts.
   rate, not by fresh generation. `time_depth_years` itself is still
   unconsumed too (`--evolve-from`/`--years` on the CLI is the actual years
   input; the classifier-extracted field isn't wired to it yet).
+- `source_language_strictness` only reaches the reference-bias mechanisms
+  that already exist (phonology's inventory/syllable-shape/tonal/vowel-
+  harmony axes; `romanization_gen.py`'s category/per-symbol/grammatical-
+  spelling rolls; `grammar_gen.py`'s `uses_root_and_pattern`/`FUSIONAL`
+  boost) -- it can't push `word_order`, `alignment`, or an explicit
+  `morphological_type` toward a matched language's real value, because
+  `ReferenceLanguageProfile` doesn't store that data for any of the 30
+  profiles today (adding real, accurate values for all of them is a
+  separate curation project, same discipline the phonological/
+  orthographic profile fields already required). It also doesn't reach
+  `sound_change.py`'s own, separate inventory-recompute path during
+  multi-century evolution -- a strict language's phonology can still
+  drift back toward looser/generic over a long evolution run, same as
+  any other language's.
+- `restricted_onset_consonants`/`attested_onset_clusters` are curated for
+  German, English, and French only -- every other profile leaves both
+  empty (falls back to the generic sonority-only check, same "not yet
+  curated" honesty `orthography` already practices). Neither fixes a
+  *coda-then-onset* sequence spanning two adjacent syllables (e.g. a
+  word's own coda "p" immediately followed by the next syllable's own
+  onset "d") -- that's not a single-syllable onset cluster at all, so
+  attested-cluster curation can't apply to it, and real languages do have
+  arbitrary syllable-boundary consonant sequences like this (English
+  "handbag", German "Erdbeere"); this project's word-builder has no
+  morpheme/compound structure to distinguish a genuine one from a
+  syllable-adjacency coincidence.
 - `sound_change.py`'s six sound-change rules are illustrative, not
   exhaustive (none of them has diphthong-specific behavior -- a real
   diphthong monophthongizing over time, e.g., isn't modeled, though

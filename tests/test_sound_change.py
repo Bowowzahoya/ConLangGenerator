@@ -61,34 +61,34 @@ def test_deterministic_for_same_inputs():
 
 def test_evolving_with_no_new_contact_still_keeps_the_base_languages_own_lineage():
     # Regression for a real bug: evolve_language() used to pass only *this
-    # run's* traits.contact_languages into evolve_romanization(), so a
+    # run's* traits.source_languages into evolve_romanization(), so a
     # "no new influence" evolution (a bare TraitProfile()) silently lost
     # the base language's own reference-language identity (e.g. Dutch's
     # own curated x->ch/au->ou rules) the moment a symbol got reformed --
-    # even though the base was generated with contact_languages=("Dutch",).
+    # even though the base was generated with source_languages=("Dutch",).
     # The fix merges the base's own lineage forward; this checks it's
     # both used this run (see the end-to-end test below) and persisted
     # onto the returned language so a *second* evolution generation
     # inherits it too, without needing to re-specify it every time.
     base = generate_language(
-        "Dutch", GenerationSpec(prompt="Dutch", seed=3, traits=TraitProfile(contact_languages=("Dutch",))), FakeLLMClient()
+        "Dutch", GenerationSpec(prompt="Dutch", seed=3, traits=TraitProfile(source_languages=("Dutch",))), FakeLLMClient()
     )
     evolved = evolve_language("Evolved", base, 100, TraitProfile(), seed=1)
-    assert "Dutch" in evolved.spec.traits.contact_languages
+    assert "Dutch" in evolved.spec.traits.source_languages
 
     # A new contact language this run is *added* to the lineage, not
     # substituted for it -- both should be reachable for future reforms.
     evolved_with_contact = evolve_language(
-        "Evolved", base, 100, TraitProfile(contact_languages=("Chinese",)), seed=1
+        "Evolved", base, 100, TraitProfile(source_languages=("Chinese",)), seed=1
     )
-    assert "Dutch" in evolved_with_contact.spec.traits.contact_languages
-    assert "Chinese" in evolved_with_contact.spec.traits.contact_languages
+    assert "Dutch" in evolved_with_contact.spec.traits.source_languages
+    assert "Chinese" in evolved_with_contact.spec.traits.source_languages
 
 
 def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spelling_rules():
     # End-to-end version of the regression above: Dutch's own curated
     # x->ch rule (dutch.yaml) must still be reachable for a reformed "x"
-    # even on a run that adds no new contact_languages -- at a long
+    # even on a run that adds no new source_languages -- at a long
     # enough time depth that orthography reform is all but certain to
     # fire for it (years=3000 -> reform rate ~=1-e^-6, effectively 1.0),
     # so this seed isn't relying on a lucky roll.
@@ -97,7 +97,7 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
         GenerationSpec(
             prompt="Dutch",
             seed=3,
-            traits=TraitProfile(contact_languages=("Dutch",)),
+            traits=TraitProfile(source_languages=("Dutch",)),
             seed_examples=(SeedExample(gloss="bad", form="slecht", ipa="slɛxt"),),
         ),
         FakeLLMClient(),
@@ -111,7 +111,7 @@ def test_georgian_contact_gives_an_ejective_introduced_mid_evolution_a_real_spel
     # ejective_drift only ever introduces pʼ/tʼ/kʼ *during* evolution --
     # they're never present in the base language's own old romanization
     # scheme to inherit, so this exercises the full reference-profile
-    # fallback path (romanization_gen's new contact-language-anchor tier)
+    # fallback path (romanization_gen's new source-language-anchor tier)
     # for a symbol that's brand new this run, not just reformed. A modest
     # years value with contact_intensity pulled negative (suppresses
     # orthography drift without suppressing ejective_drift itself, which
@@ -126,12 +126,12 @@ def test_georgian_contact_gives_an_ejective_introduced_mid_evolution_a_real_spel
         GenerationSpec(
             prompt="Dutch",
             seed=3,
-            traits=TraitProfile(contact_languages=("Dutch",)),
+            traits=TraitProfile(source_languages=("Dutch",)),
             seed_examples=(SeedExample(gloss="bad", form="slecht", ipa="slɛxt"),),
         ),
         FakeLLMClient(),
     )
-    traits = TraitProfile(contact_languages=("Georgian",), contact_intensity=-0.9)
+    traits = TraitProfile(source_languages=("Georgian",), contact_intensity=-0.9)
     ejective_rules = next(
         rules
         for seed in range(100)
@@ -189,7 +189,7 @@ def test_evolved_dutch_lineage_keeps_coda_devoicing_with_no_new_contact():
     # adds no *new* contact language, same failure mode as the romanization
     # lineage bug this mirrors.
     base = generate_language(
-        "Dutch", GenerationSpec(prompt="Dutch", seed=0, traits=TraitProfile(contact_languages=("Dutch",))), FakeLLMClient()
+        "Dutch", GenerationSpec(prompt="Dutch", seed=0, traits=TraitProfile(source_languages=("Dutch",))), FakeLLMClient()
     )
     assert base.syllable_structure.excluded_coda_consonants  # sanity: the base actually has the constraint
     evolved = evolve_language("Evolved", base, 100, TraitProfile(), seed=1)
@@ -399,10 +399,10 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
         assert old.romanization != new.romanization
 
 
-def test_contact_language_replacement_borrows_from_its_own_phoneme_pool():
+def test_source_language_replacement_borrows_from_its_own_phoneme_pool():
     base = _base_language()
     dutch = next(p for p in REFERENCE_LANGUAGES if p.name == "Dutch")
-    traits = TraitProfile(contact_intensity=0.95, contact_languages=("Dutch",))
+    traits = TraitProfile(contact_intensity=0.95, source_languages=("Dutch",))
     evolved = evolve_language("Evolved", base, 3000, traits, seed=5)
 
     within_dutch_pool = 0
@@ -417,8 +417,8 @@ def test_contact_language_replacement_borrows_from_its_own_phoneme_pool():
     assert within_dutch_pool >= 35
 
 
-def test_replacement_without_contact_language_still_round_trips():
-    # Same heavy-replacement pressure, but no contact_languages -- native
+def test_replacement_without_source_language_still_round_trips():
+    # Same heavy-replacement pressure, but no source_languages -- native
     # (2b) coinage instead of borrowing (2a). Just needs to not crash and to
     # still produce well-formed, tokenizable IPA.
     base = _base_language()

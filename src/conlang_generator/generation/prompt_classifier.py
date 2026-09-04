@@ -28,7 +28,7 @@ from conlang_generator.core.traits import GRADED_TRAIT_FIELDS, TraitProfile
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 
-_LIST_FIELDS = ("contact_languages", "salient_vocabulary_domains")
+_LIST_FIELDS = ("source_languages", "salient_vocabulary_domains")
 
 _DIMENSION_POLES = """- isolation: + isolated/cut off from outsiders; - well-connected/cosmopolitan
 - altitude: + high-altitude/mountainous; - lowland/coastal
@@ -74,8 +74,28 @@ Dimensions, with what a positive (+) vs. negative (-) value means for each:
 {_DIMENSION_POLES}
 
 Also extract:
-- "contact_languages": named real languages/language families the text \
+- "source_languages": named real languages/language families the text \
 mentions or clearly evokes, as a list of strings (usually empty).
+- "source_language_strictness": a number from 0.0 to 1.0, only meaningful \
+when "source_languages" is non-empty, for how closely the text asks the \
+generated language to resemble the named language(s) specifically (as \
+opposed to every other dimension above, which is about the *setting/ \
+culture*, not the *language itself*):
+  - 0.0-0.2: the language is only atmospherically evoked (a culture/ \
+setting detail mentions or suggests a real language in passing, e.g. \
+windmills evoking the Netherlands) without asking the conlang to sound \
+like it specifically.
+  - 0.3-0.5: a real, but soft, request to lean toward the named \
+language(s) ("loosely inspired by", "with a Slavic flavor") while clearly \
+staying its own distinct thing.
+  - 0.6-0.8: a clear, central request to closely resemble the named \
+language(s) ("modeled on", "closely based on", "should sound like X").
+  - 0.9-1.0: the text asks for the named language(s) essentially \
+verbatim/unmistakably ("basically German", "should be indistinguishable \
+from X"). Reserve this the same way other dimensions reserve values near \
++-1.0 -- rare, for genuinely unambiguous text.
+  - 0.0 (the default) whenever "source_languages" is empty -- there's \
+nothing for strictness to apply to.
 - "salient_vocabulary_domains": short domain words for subsistence/culture \
 implied by the text, e.g. "seafaring", "herding" (usually empty).
 - "time_depth_years": an integer if the text asks how a language would \
@@ -112,13 +132,14 @@ orality_literacy: 0.5, every other dimension: 0.0. (Evidence can point at \
 the negative pole just as confidently as the positive one.)
 
 Prompt: "a fantasy people living in flat lowlands among windmills and \
-canals, a language explicitly inspired by Dutch"
--> contact_languages: ["Dutch"], altitude: -0.4 (lowlands, incidental), \
-every other dimension: 0.0. ("contact_languages" captures a real language \
-the text clearly evokes even without asking for literal evolution from it \
--- windmills/canals/lowlands plus an explicit "inspired by Dutch" is enough \
-to extract the name, but doesn't on its own justify a high value on any \
-other dimension.)
+canals, a language vaguely evocative of Dutch"
+-> source_languages: ["Dutch"], source_language_strictness: 0.15, \
+altitude: -0.4 (lowlands, incidental), every other dimension: 0.0. \
+("source_languages" captures a real language the text clearly evokes \
+even without asking to closely resemble it -- windmills/canals/lowlands \
+plus "vaguely evocative of Dutch" is enough to extract the name, but the \
+soft wording keeps strictness low; doesn't on its own justify a high \
+value on any other dimension.)
 
 Prompt: "a tonal language for a trading empire, please mark tone with a \
 number after each syllable, Wade-Giles style"
@@ -127,6 +148,15 @@ number after each syllable, Wade-Giles style"
 unambiguous request for a specific spelling convention -- by name here, \
 but a clear enough description alone, like "numbers after each \
 syllable for tone," would extract the same value.)
+
+Prompt: "a language that's basically a mix of English and German, should \
+sound like a close cousin of both"
+-> source_languages: ["English", "German"], source_language_strictness: \
+0.85, every other dimension: 0.0. (Multiple named languages are fine --
+strictness is one shared number covering closeness to the *combination* \
+of everything named, not a separate value per language. "Basically a mix \
+of" + "close cousin of both" is explicit and central, so strictness sits \
+high, same reasoning as any other dimension's 0.7-0.9 band.)
 
 Respond with ONLY a single JSON object, no prose, no markdown fences."""
 
@@ -162,6 +192,7 @@ def _parse(text: str) -> TraitProfile:
     values: dict[str, object] = {field: _coerce_bipolar_float(raw.get(field)) for field in GRADED_TRAIT_FIELDS}
     for field in _LIST_FIELDS:
         values[field] = _coerce_str_tuple(raw.get(field))
+    values["source_language_strictness"] = _coerce_unit_float(raw.get("source_language_strictness"))
     values["time_depth_years"] = _coerce_optional_int(raw.get("time_depth_years"))
     values["requested_orthography_style"] = _coerce_str(raw.get("requested_orthography_style"))
     values["salient_context"] = _coerce_str(raw.get("salient_context"))
@@ -175,6 +206,17 @@ def _coerce_bipolar_float(value: object) -> float:
     except (TypeError, ValueError):
         return 0.0
     return max(-1.0, min(1.0, number))
+
+
+def _coerce_unit_float(value: object) -> float:
+    """Like ``_coerce_bipolar_float`` but clamped to ``[0.0, 1.0]`` --
+    ``source_language_strictness`` is a one-directional "how much," not a
+    bipolar "which pole" value."""
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, min(1.0, number))
 
 
 def _coerce_str_tuple(value: object) -> tuple[str, ...]:

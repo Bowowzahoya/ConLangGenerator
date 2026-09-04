@@ -278,3 +278,30 @@ def test_specific_symbol_match_beats_a_class_match():
         vowel_symbols=("y",),
     )
     assert scheme.apply("jy") == "jY_AFTER_J"
+
+
+def test_apply_collapses_an_accidental_triple_letter_to_a_double():
+    # Two adjacent /p/ tokens, one preceded by a short vowel (doubles to
+    # "pp") and one not (stays plain "p") -- each rule is independently
+    # correct, but landing next to each other would spell "ppp", which no
+    # real orthography ever writes. apply() collapses any 3+ run down to 2.
+    scheme = RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="e", latin="e"),
+            RomanizationRule(ipa="p", latin="pp", preceding=("short_vowel",)),
+            RomanizationRule(ipa="p", latin="p"),
+        ),
+        vowel_symbols=("e",),
+        vowel_length=(("e", "short"),),
+    )
+    assert scheme.apply("epp") == "epp"  # sanity: the underlying rules alone would give "epp" + "p" = "eppp"
+
+
+def test_apply_never_produces_three_identical_consecutive_letters():
+    scheme = RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="a", latin="a"),
+            RomanizationRule(ipa="p", latin="ppp"),  # deliberately pathological, to isolate the collapse itself
+        ),
+    )
+    assert scheme.apply("ap") == "app"

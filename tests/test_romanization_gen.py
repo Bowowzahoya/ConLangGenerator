@@ -65,7 +65,7 @@ def test_every_dutch_vowel_has_an_orthography_rule():
     assert set(_DUTCH.vowels) <= covered
 
 
-def test_no_contact_language_matches_current_behavior():
+def test_no_source_language_matches_current_behavior():
     inventory = _dutch_flavored_inventory()
     for seed in (1, 2, 3):
         with_empty = generate_romanization(random.Random(seed), inventory, ())
@@ -73,13 +73,15 @@ def test_no_contact_language_matches_current_behavior():
         assert with_empty == with_unmatched
 
 
-def _dutch_rule_fraction(contact_languages: tuple[str, ...]) -> float:
+def _dutch_rule_fraction(source_languages: tuple[str, ...], strictness: float = 0.0) -> float:
     dutch_by_ipa = {rule.ipa: rule.latin for rule in _DUTCH.orthography}
     inventory = _dutch_flavored_inventory()
     hits = 0
     total = 0
     for seed in _SEEDS:
-        scheme = generate_romanization(random.Random(seed), inventory, contact_languages)
+        scheme = generate_romanization(
+            random.Random(seed), inventory, source_languages, allow_all_caps=False, strictness=strictness
+        )
         by_ipa = {rule.ipa: rule.latin for rule in scheme.rules}
         for ipa, latin in dutch_by_ipa.items():
             total += 1
@@ -87,8 +89,15 @@ def _dutch_rule_fraction(contact_languages: tuple[str, ...]) -> float:
     return hits / total
 
 
-def test_dutch_contact_language_biases_romanization_toward_dutch_spelling():
+def test_dutch_source_language_biases_romanization_toward_dutch_spelling():
     assert _dutch_rule_fraction(()) < _dutch_rule_fraction(("Dutch",))
+
+
+def test_full_strictness_makes_dutch_rule_adoption_near_certain():
+    soft = _dutch_rule_fraction(("Dutch",), strictness=0.0)
+    strict = _dutch_rule_fraction(("Dutch",), strictness=1.0)
+    assert strict > soft
+    assert strict > 0.97
 
 
 def test_evolve_romanization_keeps_old_rules_for_surviving_symbols():
@@ -272,6 +281,25 @@ def test_generate_doubling_rules_double_the_consonant_after_a_short_vowel_and_fa
     assert scheme.apply("t") == "t"  # no preceding vowel at all -- unconditioned fallback still applies
 
 
+def test_generate_doubling_rules_never_doubles_h_or_a_glide():
+    # Real German/Dutch doubling never touches "h" (it marks the
+    # *preceding* vowel's length, never geminated itself) or a glide --
+    # "hh"/"yy"/"ww" aren't real spellings in any style this project models.
+    category = _CATEGORIES_BY_NAME["germanic-doubling-style"]
+    inventory = PhonemeInventory(
+        consonants=(
+            Consonant(ipa="h", place=Place.GLOTTAL, manner=Manner.FRICATIVE, voiced=False),
+            Consonant(ipa="j", place=Place.PALATAL, manner=Manner.APPROXIMANT, voiced=True),
+            Consonant(ipa="w", place=Place.VELAR, manner=Manner.APPROXIMANT, voiced=True),
+            Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False),
+        ),
+        vowels=(Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False),),
+    )
+    rules = _generate_doubling_rules(category, inventory)
+    ipas_with_rules = {rule.ipa for rule in rules}
+    assert ipas_with_rules == {"t"}  # h/j/w excluded entirely, t still gets its pair
+
+
 def test_category_from_scheme_reconstructs_every_axis_exactly():
     inventory = _dutch_flavored_inventory()
     base = generate_romanization(random.Random(3), inventory, ("Dutch",))
@@ -445,13 +473,16 @@ def test_unknown_forced_style_raises_value_error_naming_valid_options():
 
 
 def _category_fraction(
-    contact_languages: tuple[str, ...],
+    source_languages: tuple[str, ...],
     category_name: str,
     inventory: PhonemeInventory,
     requested_orthography_style: str = "",
+    strictness: float = 0.0,
 ) -> float:
     hits = sum(
-        generate_romanization(random.Random(seed), inventory, contact_languages, requested_orthography_style).category_name
+        generate_romanization(
+            random.Random(seed), inventory, source_languages, requested_orthography_style, strictness=strictness
+        ).category_name
         == category_name
         for seed in _SEEDS
     )
@@ -465,14 +496,14 @@ def test_requested_orthography_style_biases_selection():
     assert biased > unbiased
 
 
-def test_dutch_contact_language_biases_toward_its_declared_category():
+def test_dutch_source_language_biases_toward_its_declared_category():
     inventory = _dutch_flavored_inventory()
     unbiased = _category_fraction((), "germanic-doubling-style", inventory)
     biased = _category_fraction(("Dutch",), "germanic-doubling-style", inventory)
     assert biased > unbiased
 
 
-def test_mandarin_contact_language_biases_toward_its_declared_category():
+def test_mandarin_source_language_biases_toward_its_declared_category():
     mandarin = next(p for p in REFERENCE_LANGUAGES if p.name == "Mandarin")
     inventory = PhonemeInventory(
         consonants=tuple(_CONSONANT_BY_IPA[s] for s in mandarin.consonants),
@@ -481,6 +512,14 @@ def test_mandarin_contact_language_biases_toward_its_declared_category():
     unbiased = _category_fraction((), "wade-giles-style", inventory)
     biased = _category_fraction(("Mandarin",), "wade-giles-style", inventory)
     assert biased > unbiased
+
+
+def test_full_strictness_makes_dutch_category_selection_near_certain():
+    inventory = _dutch_flavored_inventory()
+    soft = _category_fraction(("Dutch",), "germanic-doubling-style", inventory, strictness=0.0)
+    strict = _category_fraction(("Dutch",), "germanic-doubling-style", inventory, strictness=1.0)
+    assert strict > soft
+    assert strict > 0.97
 
 
 def test_dutch_biased_scheme_spells_the_vuur_alternation_correctly():
@@ -508,7 +547,7 @@ def test_germanic_doubling_style_uses_digraph_not_diacritic():
 
 
 def test_every_reference_profile_declares_an_orthography_category():
-    # Without one, a contact-language-biased language has no "family" for
+    # Without one, a source-language-biased language has no "family" for
     # the exotic-symbol fallback (below) to lean on at all.
     for profile in REFERENCE_LANGUAGES:
         assert profile.orthography_category, profile.name
@@ -537,7 +576,7 @@ def test_georgian_biased_scheme_spells_ejectives_with_apostrophes():
     assert by_ipa["dʒ"] == "j"
 
 
-def test_uncurated_symbol_falls_back_to_the_contact_languages_own_style_not_the_schemes():
+def test_uncurated_symbol_falls_back_to_the_source_languages_own_style_not_the_schemes():
     # The core of the new fallback tier: force the *whole scheme* onto an
     # unrelated named anchor (wade-giles-style, diacritic-backed -- "ʃ"
     # would spell "š") while Georgian (digraph-backed, "ʃ" -> "sh") is the
@@ -578,13 +617,13 @@ def _french_inventory() -> PhonemeInventory:
     )
 
 
-def test_capitalization_fires_at_a_nonzero_rate_with_no_contact_language():
+def test_capitalization_fires_at_a_nonzero_rate_with_no_source_language():
     inventory = _dutch_flavored_inventory()
     hits = sum(bool(generate_romanization(random.Random(seed), inventory, ()).grammatical_spelling.capitalized_pos) for seed in _SEEDS)
     assert hits > 0
 
 
-def test_mute_suffix_fires_at_a_nonzero_rate_with_no_contact_language():
+def test_mute_suffix_fires_at_a_nonzero_rate_with_no_source_language():
     inventory = _dutch_flavored_inventory()
     hits = sum(
         bool(generate_romanization(random.Random(seed), inventory, ()).grammatical_spelling.mute_suffix_by_pos)
@@ -609,7 +648,7 @@ def test_all_caps_never_fires_when_not_allowed():
         assert scheme.grammatical_spelling.all_caps_pos == ()
 
 
-def test_german_contact_language_biases_toward_capitalizing_nouns():
+def test_german_source_language_biases_toward_capitalizing_nouns():
     inventory = _german_inventory()
     unbiased = sum(
         PartOfSpeech.NOUN in generate_romanization(random.Random(seed), inventory, ()).grammatical_spelling.capitalized_pos
@@ -622,7 +661,19 @@ def test_german_contact_language_biases_toward_capitalizing_nouns():
     assert biased > unbiased
 
 
-def test_french_contact_language_biases_toward_a_silent_r_verb_suffix():
+def test_full_strictness_makes_german_noun_capitalization_near_certain():
+    inventory = _german_inventory()
+    strict = sum(
+        PartOfSpeech.NOUN
+        in generate_romanization(
+            random.Random(seed), inventory, ("German",), strictness=1.0
+        ).grammatical_spelling.capitalized_pos
+        for seed in _SEEDS
+    )
+    assert strict > len(_SEEDS) * 0.97
+
+
+def test_french_source_language_biases_toward_a_silent_r_verb_suffix():
     inventory = _french_inventory()
 
     def _has_verb_r(scheme):

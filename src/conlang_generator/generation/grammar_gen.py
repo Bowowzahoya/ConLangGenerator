@@ -20,11 +20,13 @@ deterministic testing/override channel.
 ``core.grammar.GrammarProfile``'s own docstring for why it isn't a 5th
 ``MorphologicalType`` value) with a low base rate -- real root-and-pattern
 morphology is a narrow typological category -- boosted, along with
-``FUSIONAL`` specifically, when ``traits.contact_languages`` matches a
+``FUSIONAL`` specifically, when ``traits.source_languages`` matches a
 reference profile with ``root_and_pattern=True`` (Arabic): the same
 "clamp toward the matched reference" shape ``phonology_gen._reference_clamp``
 already uses for tonal/vowel harmony, reimplemented here since it's
-grammar-specific data.
+grammar-specific data. ``traits.source_language_strictness`` pulls that
+boost further toward certainty (a no-op at its default ``0.0``) -- see
+``phonology_gen.py``'s own module docstring for the shared mechanism.
 
 Illustrative, not a rigorous typological model. ``plural_suffix``/
 ``templates`` are left unset here; ``generator.py`` fills in actual
@@ -49,12 +51,14 @@ _MIN_WEIGHT = 1.0  # rng.choices needs positive weights; floor after nudging
 
 _ROOT_AND_PATTERN_BASE_RATE = 0.03  # narrow typological category by default
 _ROOT_AND_PATTERN_REFERENCE_RATE = 0.85  # dominant, not absolute, when a matched profile uses it
+_STRICT_FUSIONAL_WEIGHT_CEILING = 200.0  # dwarfs every other morphological-type weight at strictness=1.0
 
 
 def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile:
     traits = spec.traits
     word_order = rng.choices(_WORD_ORDERS, weights=_WORD_ORDER_WEIGHTS)[0]
-    reference_profiles = match_profiles(traits.contact_languages)
+    reference_profiles = match_profiles(traits.source_languages)
+    strictness = traits.source_language_strictness if reference_profiles else 0.0
     root_and_pattern_reference = any(p.root_and_pattern for p in reference_profiles)
 
     isolation_strength = 1.0 if spec.force_isolated else traits.isolation
@@ -67,7 +71,15 @@ def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile
     if root_and_pattern_reference:
         # Arabic's inflectional system is empirically fusional -- bias
         # toward that value specifically, not just "any of the four".
-        morph_weights[MorphologicalType.FUSIONAL] = max(morph_weights[MorphologicalType.FUSIONAL], 60.0)
+        # `strictness` scales the boost further (not just the flat 60.0
+        # floor) -- morphological_type is a 4-way weighted choice, not a
+        # boolean, so there's no clean "certainty" to pull toward the way
+        # the other reference-bias axes have; a very large ceiling weight
+        # is the closest equivalent, dwarfing the other three options.
+        fusional_floor = 60.0
+        if strictness > 0.0:
+            fusional_floor = fusional_floor + strictness * (_STRICT_FUSIONAL_WEIGHT_CEILING - fusional_floor)
+        morph_weights[MorphologicalType.FUSIONAL] = max(morph_weights[MorphologicalType.FUSIONAL], fusional_floor)
     morph_weights = {k: max(_MIN_WEIGHT, v) for k, v in morph_weights.items()}
     morphological_type = rng.choices(
         list(morph_weights.keys()), weights=list(morph_weights.values())
@@ -76,6 +88,8 @@ def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile
     uses_root_and_pattern_probability = (
         _ROOT_AND_PATTERN_REFERENCE_RATE if root_and_pattern_reference else _ROOT_AND_PATTERN_BASE_RATE
     )
+    if strictness > 0.0 and root_and_pattern_reference:
+        uses_root_and_pattern_probability = biased_probability(uses_root_and_pattern_probability, strictness)
     uses_root_and_pattern = rng.random() < uses_root_and_pattern_probability
 
     ergative_probability = (

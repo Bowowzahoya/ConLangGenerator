@@ -141,3 +141,33 @@ def thin_cluster_pairs(
     survival_rate = biased_probability(_CLUSTER_SURVIVAL_BASE_RATE, -contact_intensity)
     kept = tuple(p for p in pairs if rng.random() < survival_rate)
     return kept if kept else (rng.choice(pairs),)
+
+
+def grade_against_attested(
+    rng: random.Random,
+    pairs: tuple[tuple[str, str], ...],
+    attested: tuple[tuple[str, str], ...],
+    strictness: float,
+) -> tuple[tuple[str, str], ...]:
+    """Strictness-graded pull toward a reference language's own curated,
+    real attested-cluster list (``ReferenceLanguageProfile.attested_onset_clusters``)
+    -- the sonority-only legality check in this module (``is_legal_onset_cluster``)
+    is a generic cross-linguistic rule, not real per-language data, so it
+    happily allows plenty of SSP-legal pairs no real language actually
+    uses (f+m, g+v, d+n...); this narrows that down when a curated list
+    exists. A no-op at ``strictness=0.0`` (returns ``pairs`` unchanged,
+    same as every other strictness-gated axis in this project); at
+    ``strictness=1.0`` keeps only pairs actually in ``attested``. Unlike
+    ``thin_cluster_pairs``, doesn't force-keep at least one pair if none
+    survive -- correctly having no onset clusters this run (because none
+    of the attested ones fit this run's specific inventory) is more
+    honest than fabricating an unattested one."""
+    if not pairs or not attested or strictness <= 0.0:
+        return pairs
+    attested_set = set(attested)
+    kept = []
+    for pair in pairs:
+        in_attested = pair in attested_set
+        if rng.random() < biased_probability(1.0, strictness if in_attested else -strictness):
+            kept.append(pair)
+    return tuple(kept)

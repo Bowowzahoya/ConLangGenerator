@@ -180,6 +180,14 @@ class SyllableStructure(BaseModel, frozen=True):
     unrestricted, or the sonorant-only coda profile's set); this is a
     negative constraint layered on top, checked independently -- see
     ``generation/phonology_gen.py``."""
+    excluded_onset_consonants: tuple[str, ...] = ()
+    """Symbols that can never appear in an onset at all (single or as
+    part of a cluster) -- e.g. /ŋ/ in real German/English, which is
+    coda/medial only. The onset-side mirror of ``excluded_coda_consonants``,
+    but checked against every onset position (not just one edge), since a
+    genuinely onset-illegal consonant is illegal anywhere in the onset,
+    not just word-initially. Only populated when a matched
+    ``source_language_strictness`` > 0 -- see ``generation/phonology_gen.py``."""
     vowel_harmony: bool = False
     """Backness (front/back) vowel harmony -- see
     ``generation/word_builder.py``'s ``build_word``."""
@@ -192,6 +200,8 @@ class SyllableStructure(BaseModel, frozen=True):
         if len(onset) == 2 and onset not in self.allowed_onset_clusters:
             return False
         if len(onset) > 2:
+            return False
+        if any(c in self.excluded_onset_consonants for c in onset):
             return False
         if len(coda) > self.max_coda:
             return False

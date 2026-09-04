@@ -76,8 +76,12 @@ def generate(
     high_altitude: bool = typer.Option(False, "--high-altitude", help="Force ejective consonants (guaranteed, not just likely)."),
     tonal: bool = typer.Option(False, "--tonal", help="Force phonemic tone (guaranteed, not just likely)."),
     fantasy: bool = typer.Option(False, "--fantasy", help="Record as a fantasy-setting language (metadata only)."),
-    contact_language: list[str] = typer.Option(
-        [], "--contact-language", help="Bias generation toward a known real language's palette (repeatable); merged with any the prompt implies."
+    source_language: list[str] = typer.Option(
+        [], "--source-language", help="Bias generation toward a known real language's palette (repeatable); merged with any the prompt implies. See --strictness."
+    ),
+    strictness: float = typer.Option(
+        None, "--strictness",
+        help="How closely to hew to --source-language's own phonology/orthography/grammar (0.0-1.0): 0 is today's soft, non-exclusive influence; 1.0 hard-restricts to (the union of) their own declared values. Only meaningful with --source-language (explicit or prompt-inferred); overrides the prompt-inferred value when given.",
     ),
     example: list[str] = typer.Option(
         [], "--example", help="Literal seed word: 'gloss=form' or 'gloss=form|ipa' (repeatable). Always appears verbatim in the lexicon."
@@ -119,6 +123,9 @@ def generate(
     if orthography_style is not None and orthography_style not in ORTHOGRAPHY_STYLE_NAMES:
         typer.echo(f"error: --orthography-style must be one of {', '.join(ORTHOGRAPHY_STYLE_NAMES)}, got {orthography_style!r}", err=True)
         raise typer.Exit(code=1)
+    if strictness is not None and not 0.0 <= strictness <= 1.0:
+        typer.echo(f"error: --strictness must be between 0.0 and 1.0, got {strictness!r}", err=True)
+        raise typer.Exit(code=1)
     forced_orthography = OrthographyForce(
         style=orthography_style,
         exotic_symbol_style=_parse_enum_option(exotic_symbol_style, ExoticSymbolStyle, "--exotic-symbol-style"),
@@ -130,9 +137,11 @@ def generate(
     )
     client = _client(llm)
     traits = classify_prompt(prompt, fantasy, client)
-    if contact_language:
-        merged = tuple(dict.fromkeys((*traits.contact_languages, *contact_language)))
-        traits = traits.model_copy(update={"contact_languages": merged})
+    if source_language:
+        merged = tuple(dict.fromkeys((*traits.source_languages, *source_language)))
+        traits = traits.model_copy(update={"source_languages": merged})
+    if strictness is not None:
+        traits = traits.model_copy(update={"source_language_strictness": strictness})
 
     if evolve_from is not None:
         if years is None:
@@ -199,8 +208,9 @@ def generate(
     if nonzero_traits:
         rendered = ", ".join(f"{k}={v:+.2f}" for k, v in nonzero_traits.items())
         typer.echo(f"Traits from prompt: {rendered}")
-    if traits.contact_languages:
-        typer.echo(f"Contact languages: {', '.join(traits.contact_languages)}")
+    if traits.source_languages:
+        strictness_note = f" (strictness={traits.source_language_strictness:.2f})" if traits.source_language_strictness else ""
+        typer.echo(f"Source languages: {', '.join(traits.source_languages)}{strictness_note}")
     if traits.requested_orthography_style:
         typer.echo(f"Requested orthography style: {traits.requested_orthography_style}")
     forced = [f for f, on in (("isolated", isolated), ("high_altitude", high_altitude), ("tonal", tonal)) if on]

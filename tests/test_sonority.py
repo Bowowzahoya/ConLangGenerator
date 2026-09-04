@@ -95,3 +95,49 @@ def test_legal_coda_pairs_mirrors_legal_onset_pairs_shape():
     for c1_ipa, c2_ipa in coda_pairs:
         by_ipa = {c.ipa: c for c in consonants}
         assert sonority.is_legal_coda_cluster(by_ipa[c1_ipa], by_ipa[c2_ipa])
+
+
+# --- grade_against_attested ---
+
+_ALL_PAIRS = (("p", "l"), ("p", "r"), ("k", "l"), ("k", "r"), ("f", "m"), ("g", "v"))
+_ATTESTED = (("p", "l"), ("p", "r"), ("k", "l"), ("k", "r"))  # f+m, g+v deliberately not attested
+
+
+def test_grade_against_attested_is_a_no_op_at_zero_strictness():
+    kept = sonority.grade_against_attested(random.Random(1), _ALL_PAIRS, _ATTESTED, 0.0)
+    assert kept == _ALL_PAIRS
+
+
+def test_grade_against_attested_is_a_no_op_with_no_curated_list():
+    kept = sonority.grade_against_attested(random.Random(1), _ALL_PAIRS, (), 1.0)
+    assert kept == _ALL_PAIRS
+
+
+def test_grade_against_attested_keeps_only_attested_pairs_at_full_strictness():
+    kept = sonority.grade_against_attested(random.Random(1), _ALL_PAIRS, _ATTESTED, 1.0)
+    assert set(kept) <= set(_ATTESTED)
+    assert ("f", "m") not in kept
+    assert ("g", "v") not in kept
+
+
+def test_grade_against_attested_can_drop_every_pair_when_none_survive():
+    # Unlike thin_cluster_pairs, this never force-keeps a fallback pair --
+    # a run with no attested overlap should correctly end up with zero
+    # onset clusters rather than fabricate an unattested one.
+    kept = sonority.grade_against_attested(random.Random(1), (("f", "m"),), (("p", "l"),), 1.0)
+    assert kept == ()
+
+
+def test_grade_against_attested_gradient_is_monotonic():
+    def _attested_fraction(strictness: float, seeds: range) -> float:
+        total = kept_count = 0
+        for seed in seeds:
+            kept = sonority.grade_against_attested(random.Random(seed), _ALL_PAIRS, _ATTESTED, strictness)
+            total += len(kept)
+            kept_count += sum(1 for p in kept if p in _ATTESTED)
+        return kept_count / total if total else 0.0
+
+    seeds = range(200)
+    loose = _attested_fraction(0.2, seeds)
+    strict = _attested_fraction(0.9, seeds)
+    assert strict > loose

@@ -43,16 +43,16 @@ def test_every_reference_symbol_is_in_our_own_phoneme_pool():
         assert profile.symbols() <= known, profile.name
 
 
-def _consonant_symbol_sets(contact_languages: tuple[str, ...]) -> list[frozenset[str]]:
+def _consonant_symbol_sets(source_languages: tuple[str, ...]) -> list[frozenset[str]]:
     sets = []
     for seed in _SEEDS:
-        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=contact_languages))
+        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
         inventory, _, _ = generate_phonology(random.Random(seed), spec)
         sets.append(frozenset(inventory.consonant_symbols()))
     return sets
 
 
-def test_contact_language_biases_inventory_toward_its_palette():
+def test_source_language_biases_inventory_toward_its_palette():
     japanese_symbols = next(p for p in REFERENCE_LANGUAGES if p.name == "Japanese").symbols()
 
     unbiased = _consonant_symbol_sets(())
@@ -222,12 +222,12 @@ def test_dutch_diphthongs_and_their_spellings_round_trip_from_yaml():
     assert by_ipa["au"] == "ou"
 
 
-def test_arabic_contact_language_biases_toward_root_and_pattern_and_fusional():
-    def _rates(contact_languages: tuple[str, ...]) -> tuple[float, float]:
+def test_arabic_source_language_biases_toward_root_and_pattern_and_fusional():
+    def _rates(source_languages: tuple[str, ...]) -> tuple[float, float]:
         root_and_pattern_hits = 0
         fusional_hits = 0
         for seed in _SEEDS:
-            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=contact_languages))
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
             grammar = generate_grammar(random.Random(seed), spec)
             root_and_pattern_hits += grammar.uses_root_and_pattern
             fusional_hits += grammar.morphological_type is MorphologicalType.FUSIONAL

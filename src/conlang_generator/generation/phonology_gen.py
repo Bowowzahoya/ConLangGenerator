@@ -321,45 +321,124 @@ def _fricative_inclusion_probability(fricative: Consonant, harshness: float) -> 
     return fricative.prevalence
 
 
-def _reference_biased_rate(base_rate: float, symbol: str, reference_symbols: frozenset[str]) -> float:
-    """Milestone 5: when ``TraitProfile.contact_languages`` matched one or
+def _reference_biased_rate(
+    base_rate: float, symbol: str, reference_symbols: frozenset[str], strictness: float = 0.0
+) -> float:
+    """Milestone 5: when ``TraitProfile.source_languages`` matched one or
     more real-language profiles, soft-bias every inclusion draw toward
     their palette -- boost symbols they use, suppress ones they don't --
     rather than overriding the probabilistic mechanism outright. A no-op
-    (returns ``base_rate`` unchanged) when no reference is active."""
+    (returns ``base_rate`` unchanged) when no reference is active.
+
+    ``strictness`` (``TraitProfile.source_language_strictness``) layers an
+    extra pull on top of that soft result, toward certainty for a
+    reference symbol and toward impossibility for a non-reference one --
+    a no-op at the default ``0.0`` (returns the soft result unchanged,
+    byte-identical to this function before ``strictness`` existed),
+    exactly ``1.0``/``0.0`` at ``strictness=1.0`` (hard restriction),
+    smoothly graded in between. Reuses ``biased_probability`` directly:
+    ``strictness`` is already a zero-to-one "positive strength," so this
+    is just its signed form."""
     if not reference_symbols:
         return base_rate
-    if symbol in reference_symbols:
-        return max(base_rate, 0.85)
-    return base_rate * 0.3
+    in_reference = symbol in reference_symbols
+    soft_rate = max(base_rate, 0.85) if in_reference else base_rate * 0.3
+    if strictness <= 0.0:
+        return soft_rate
+    return biased_probability(soft_rate, strictness if in_reference else -strictness)
 
 
-def _group_reference_bias(probability: float, group_ipas: tuple[str, ...], reference_symbols: frozenset[str]) -> float:
+def _group_reference_bias(
+    probability: float, group_ipas: tuple[str, ...], reference_symbols: frozenset[str], strictness: float = 0.0
+) -> float:
     """Same idea as ``_reference_biased_rate`` but for an all-or-nothing
     group gate (ejectives, the uvular series): boost the group's odds if
-    the reference profile(s) use *any* member of it, suppress otherwise."""
+    the reference profile(s) use *any* member of it, suppress otherwise.
+    ``strictness`` layers the same extra pull -- see
+    ``_reference_biased_rate``'s own docstring. Note this only gates
+    whether the group fires at all; once it does, ``_strict_group_members``
+    separately grades which *individual* members actually get added."""
     if not reference_symbols:
         return probability
-    if any(ipa in reference_symbols for ipa in group_ipas):
-        return max(probability, 0.75)
-    return min(probability, 0.05)
+    any_member_matched = any(ipa in reference_symbols for ipa in group_ipas)
+    soft_probability = max(probability, 0.75) if any_member_matched else min(probability, 0.05)
+    if strictness <= 0.0:
+        return soft_probability
+    return biased_probability(soft_probability, strictness if any_member_matched else -strictness)
 
 
-def _reference_clamp(probability: float, reference_profiles: tuple[ReferenceLanguageProfile, ...], attr: str) -> float:
+def _reference_clamp(
+    probability: float,
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    attr: str,
+    strictness: float = 0.0,
+) -> float:
     """For boolean language-wide properties (tonal, vowel harmony): clamp
     the computed probability toward what the matched reference profile(s)
-    say, rather than leaving it purely to the trait-driven base rate."""
+    say, rather than leaving it purely to the trait-driven base rate --
+    "say" meaning *any* matched profile, so a multi-language match already
+    behaves as a union (true if either has it, false only if neither
+    does). ``strictness`` layers the same extra pull -- see
+    ``_reference_biased_rate``'s own docstring -- becoming fully
+    deterministic (exactly matching that union) at ``strictness=1.0``."""
     if not reference_profiles:
         return probability
     values = [getattr(p, attr) for p in reference_profiles]
-    return max(probability, 0.75) if any(values) else min(probability, 0.08)
+    any_true = any(values)
+    soft_probability = max(probability, 0.75) if any_true else min(probability, 0.08)
+    if strictness <= 0.0:
+        return soft_probability
+    return biased_probability(soft_probability, strictness if any_true else -strictness)
 
 
-def _ensure_floor(rng: random.Random, selected: list, pool: tuple, minimum: int) -> list:
+def _strict_group_members(
+    rng: random.Random, group: tuple, reference_symbols: frozenset[str], strictness: float
+) -> tuple:
+    """Once a group (or the always-on vowel anchors) has been decided to
+    fire, this grades each individual *member's* own presence -- today's
+    behavior is "every member joins unconditionally," a no-op here at the
+    default ``strictness=0.0`` (``biased_probability(1.0, 0.0) == 1.0``,
+    always included). At higher strictness a member not attested in any
+    matched reference profile gets strictness-graded out, so a firing
+    group only contributes what the reference language(s) actually have
+    -- e.g. Finnish's only geminate is "kː", not the whole
+    ``_GEMINATE_GROUP``; English has no plain "a", Nahuatl no "u", so
+    ``_VOWEL_ANCHORS`` (unconditional today regardless of any bias) needs
+    this too."""
+    if not reference_symbols or strictness <= 0.0:
+        return group
+    kept = []
+    for member in group:
+        in_reference = member.ipa in reference_symbols
+        if rng.random() < biased_probability(1.0, strictness if in_reference else -strictness):
+            kept.append(member)
+    return tuple(kept)
+
+
+def _ensure_floor(
+    rng: random.Random,
+    selected: list,
+    pool: tuple,
+    minimum: int,
+    reference_symbols: frozenset[str] = frozenset(),
+    strictness: float = 0.0,
+) -> list:
     if len(selected) >= minimum:
         return selected
     present = {p.ipa for p in selected}
-    candidates = sorted((p for p in pool if p.ipa not in present), key=lambda p: p.prevalence, reverse=True)
+    candidates = [p for p in pool if p.ipa not in present]
+    if reference_symbols and strictness > 0.0:
+        # Prefer padding from the reference languages' own palette first --
+        # only once strictness is actually active, so plain
+        # source_languages-only generation (strictness=0.0) stays a
+        # byte-identical no-op. Confirmed necessary once it IS active:
+        # some profiles sit exactly at `_MIN_CONSONANTS`/`_MIN_VOWELS`
+        # (Hawaiian: 8 consonants; Pama-Nyungan/Quechua: 3 vowels) --
+        # without this, topping up to the floor could leak an
+        # off-reference symbol in even at full strictness.
+        candidates.sort(key=lambda p: (p.ipa not in reference_symbols, -p.prevalence))
+    else:
+        candidates.sort(key=lambda p: -p.prevalence)
     for candidate in candidates:
         if len(selected) >= minimum:
             break
@@ -388,6 +467,7 @@ def _select_consonants(
     rng: random.Random,
     spec: GenerationSpec,
     reference_symbols: frozenset[str],
+    strictness: float = 0.0,
     must_include: frozenset[str] = frozenset(),
 ) -> list[Consonant]:
     traits = spec.traits
@@ -399,14 +479,14 @@ def _select_consonants(
             if voiceless.ipa == "tʃ"
             else voiceless.prevalence
         )
-        voiceless_rate = _reference_biased_rate(voiceless_rate, voiceless.ipa, reference_symbols)
+        voiceless_rate = _reference_biased_rate(voiceless_rate, voiceless.ipa, reference_symbols, strictness)
         if rng.random() < voiceless_rate:
             consonants.append(voiceless)
-            voiced_rate = _reference_biased_rate(voiced.prevalence, voiced.ipa, reference_symbols)
+            voiced_rate = _reference_biased_rate(voiced.prevalence, voiced.ipa, reference_symbols, strictness)
             if rng.random() < voiced_rate:
                 consonants.append(voiced)
 
-    glottal_rate = _reference_biased_rate(_GLOTTAL_STOP.prevalence, _GLOTTAL_STOP.ipa, reference_symbols)
+    glottal_rate = _reference_biased_rate(_GLOTTAL_STOP.prevalence, _GLOTTAL_STOP.ipa, reference_symbols, strictness)
     if rng.random() < glottal_rate:
         consonants.append(_GLOTTAL_STOP)
 
@@ -414,92 +494,95 @@ def _select_consonants(
         1.0 if spec.force_high_altitude else biased_probability(_EJECTIVE_GROUP_BASE_RATE, traits.altitude)
     )
     ejective_probability = _group_reference_bias(
-        ejective_probability, tuple(e.ipa for e in _EJECTIVES), reference_symbols
+        ejective_probability, tuple(e.ipa for e in _EJECTIVES), reference_symbols, strictness
     )
     if rng.random() < ejective_probability:
-        consonants.extend(_EJECTIVES)
+        consonants.extend(_strict_group_members(rng, _EJECTIVES, reference_symbols, strictness))
 
     uvular_probability = (
         1.0 if spec.force_isolated else biased_probability(_UVULAR_GROUP_BASE_RATE, traits.isolation)
     )
     uvular_probability = _group_reference_bias(
-        uvular_probability, tuple(u.ipa for u in _UVULAR_GROUP), reference_symbols
+        uvular_probability, tuple(u.ipa for u in _UVULAR_GROUP), reference_symbols, strictness
     )
     if rng.random() < uvular_probability:
-        consonants.extend(_UVULAR_GROUP)
+        consonants.extend(_strict_group_members(rng, _UVULAR_GROUP, reference_symbols, strictness))
 
     aspirated_probability = _group_reference_bias(
-        _ASPIRATED_GROUP_BASE_RATE, tuple(c.ipa for c in _ASPIRATED_GROUP), reference_symbols
+        _ASPIRATED_GROUP_BASE_RATE, tuple(c.ipa for c in _ASPIRATED_GROUP), reference_symbols, strictness
     )
     if rng.random() < aspirated_probability:
-        consonants.extend(_ASPIRATED_GROUP)
+        consonants.extend(_strict_group_members(rng, _ASPIRATED_GROUP, reference_symbols, strictness))
 
     pharyngealized_probability = _group_reference_bias(
-        _PHARYNGEALIZED_GROUP_BASE_RATE, tuple(c.ipa for c in _PHARYNGEALIZED_GROUP), reference_symbols
+        _PHARYNGEALIZED_GROUP_BASE_RATE, tuple(c.ipa for c in _PHARYNGEALIZED_GROUP), reference_symbols, strictness
     )
     if rng.random() < pharyngealized_probability:
-        consonants.extend(_PHARYNGEALIZED_GROUP)
+        consonants.extend(_strict_group_members(rng, _PHARYNGEALIZED_GROUP, reference_symbols, strictness))
 
     geminate_probability = _group_reference_bias(
-        _GEMINATE_GROUP_BASE_RATE, tuple(c.ipa for c in _GEMINATE_GROUP), reference_symbols
+        _GEMINATE_GROUP_BASE_RATE, tuple(c.ipa for c in _GEMINATE_GROUP), reference_symbols, strictness
     )
     if rng.random() < geminate_probability:
-        consonants.extend(_GEMINATE_GROUP)
+        consonants.extend(_strict_group_members(rng, _GEMINATE_GROUP, reference_symbols, strictness))
 
     palatalized_probability = _group_reference_bias(
-        _PALATALIZED_GROUP_BASE_RATE, tuple(c.ipa for c in _PALATALIZED_GROUP), reference_symbols
+        _PALATALIZED_GROUP_BASE_RATE, tuple(c.ipa for c in _PALATALIZED_GROUP), reference_symbols, strictness
     )
     if rng.random() < palatalized_probability:
-        consonants.extend(_PALATALIZED_GROUP)
+        consonants.extend(_strict_group_members(rng, _PALATALIZED_GROUP, reference_symbols, strictness))
 
     for nasal in _NASAL_POOL:
         rate = biased_probability(nasal.prevalence, -traits.aesthetic_harshness) if nasal is _ng else nasal.prevalence
-        rate = _reference_biased_rate(rate, nasal.ipa, reference_symbols)
+        rate = _reference_biased_rate(rate, nasal.ipa, reference_symbols, strictness)
         if rng.random() < rate:
             consonants.append(nasal)
 
     for fricative in _FRICATIVE_POOL:
         rate = _fricative_inclusion_probability(fricative, traits.aesthetic_harshness)
-        rate = _reference_biased_rate(rate, fricative.ipa, reference_symbols)
+        rate = _reference_biased_rate(rate, fricative.ipa, reference_symbols, strictness)
         if rng.random() < rate:
             consonants.append(fricative)
 
     for approximant in _APPROXIMANT_POOL:
-        rate = _reference_biased_rate(approximant.prevalence, approximant.ipa, reference_symbols)
+        rate = _reference_biased_rate(approximant.prevalence, approximant.ipa, reference_symbols, strictness)
         if rng.random() < rate:
             consonants.append(approximant)
 
     for exotic in _EXOTIC_POOL:
-        rate = _reference_biased_rate(exotic.prevalence, exotic.ipa, reference_symbols)
+        rate = _reference_biased_rate(exotic.prevalence, exotic.ipa, reference_symbols, strictness)
         if rng.random() < rate:
             consonants.append(exotic)
 
     breathy_probability = _group_reference_bias(
-        _BREATHY_GROUP_BASE_RATE, tuple(c.ipa for c in _BREATHY_GROUP), reference_symbols
+        _BREATHY_GROUP_BASE_RATE, tuple(c.ipa for c in _BREATHY_GROUP), reference_symbols, strictness
     )
     if rng.random() < breathy_probability:
-        consonants.extend(_BREATHY_GROUP)
+        consonants.extend(_strict_group_members(rng, _BREATHY_GROUP, reference_symbols, strictness))
 
     pre_aspirated_probability = _group_reference_bias(
-        _PRE_ASPIRATED_GROUP_BASE_RATE, tuple(c.ipa for c in _PRE_ASPIRATED_GROUP), reference_symbols
+        _PRE_ASPIRATED_GROUP_BASE_RATE, tuple(c.ipa for c in _PRE_ASPIRATED_GROUP), reference_symbols, strictness
     )
     if rng.random() < pre_aspirated_probability:
-        consonants.extend(_PRE_ASPIRATED_GROUP)
+        consonants.extend(_strict_group_members(rng, _PRE_ASPIRATED_GROUP, reference_symbols, strictness))
 
     consonants = _force_include(consonants, ALL_CONSONANTS, must_include)
-    return _ensure_floor(rng, consonants, ALL_CONSONANTS, _MIN_CONSONANTS)
+    return _ensure_floor(rng, consonants, ALL_CONSONANTS, _MIN_CONSONANTS, reference_symbols, strictness)
 
 
 def _select_vowels(
-    rng: random.Random, reference_symbols: frozenset[str], must_include: frozenset[str] = frozenset()
+    rng: random.Random,
+    reference_symbols: frozenset[str],
+    strictness: float = 0.0,
+    must_include: frozenset[str] = frozenset(),
 ) -> list[Vowel]:
-    vowels = list(_VOWEL_ANCHORS)
+    vowels = list(_strict_group_members(rng, _VOWEL_ANCHORS, reference_symbols, strictness))
     for extra in _VOWEL_EXTRAS:
-        rate = _reference_biased_rate(extra.prevalence, extra.ipa, reference_symbols)
+        rate = _reference_biased_rate(extra.prevalence, extra.ipa, reference_symbols, strictness)
         if rng.random() < rate:
             vowels.append(extra)
     vowels = _force_include(vowels, ALL_VOWELS, must_include)
-    return _ensure_floor(rng, vowels, ALL_VOWELS, _MIN_VOWELS)
+    return _ensure_floor(rng, vowels, ALL_VOWELS, _MIN_VOWELS, reference_symbols, strictness)
 
 
 def _sonorant_or_glottal_symbols(consonants: tuple[Consonant, ...]) -> tuple[str, ...]:
@@ -510,8 +593,9 @@ def generate_phonology(
     rng: random.Random, spec: GenerationSpec
 ) -> tuple[PhonemeInventory, SyllableStructure, ToneSystem]:
     traits = spec.traits
-    reference_profiles = match_profiles(traits.contact_languages)
+    reference_profiles = match_profiles(traits.source_languages)
     reference_symbols: frozenset[str] = frozenset().union(*(p.symbols() for p in reference_profiles)) if reference_profiles else frozenset()
+    strictness = traits.source_language_strictness if reference_profiles else 0.0
 
     seed_ipa_text = "".join(example.ipa or "" for example in spec.seed_examples)
     consonant_symbol_pool = tuple(c.ipa for c in ALL_CONSONANTS)
@@ -520,14 +604,38 @@ def generate_phonology(
     must_include_consonants = frozenset(t for t in seed_tokens if t in consonant_symbol_pool)
     must_include_vowels = frozenset(t for t in seed_tokens if t in vowel_symbol_pool)
 
-    consonants = tuple(_select_consonants(rng, spec, reference_symbols, must_include_consonants))
-    vowels = tuple(_select_vowels(rng, reference_symbols, must_include_vowels))
+    consonants = tuple(_select_consonants(rng, spec, reference_symbols, strictness, must_include_consonants))
+    vowels = tuple(_select_vowels(rng, reference_symbols, strictness, must_include_vowels))
     inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
+    consonant_symbols = inventory.consonant_symbols()
+
+    # Onset-position restriction (e.g. /ŋ/ never opens a syllable in real
+    # German/English) -- the onset-side mirror of the coda-devoicing
+    # exclusion below, graded by strictness the same "rng.random() <
+    # strictness per restricted symbol" way as every other axis in this
+    # feature (a no-op at strictness=0.0, since `restricted_onset` only
+    # matters once this loop actually runs).
+    excluded_onset_consonants: tuple[str, ...] = ()
+    if reference_profiles and strictness > 0.0:
+        restricted_onset = frozenset().union(
+            *(p.restricted_onset_consonants for p in reference_profiles)
+        ) & set(consonant_symbols)
+        excluded_onset_consonants = tuple(c for c in restricted_onset if rng.random() < strictness)
 
     onset_pairs = sonority.legal_onset_pairs(consonants)
+    if excluded_onset_consonants:
+        onset_pairs = tuple(p for p in onset_pairs if p[0] not in excluded_onset_consonants and p[1] not in excluded_onset_consonants)
+    if reference_profiles and strictness > 0.0:
+        attested_onset_clusters = frozenset().union(*(p.attested_onset_clusters for p in reference_profiles))
+        onset_pairs = sonority.grade_against_attested(rng, onset_pairs, tuple(attested_onset_clusters), strictness)
     onset_cluster_probability = 0.5
     if reference_profiles:
-        onset_cluster_probability = 0.85 if any(p.max_onset >= 2 for p in reference_profiles) else 0.1
+        allows_onset_cluster = any(p.max_onset >= 2 for p in reference_profiles)
+        onset_cluster_probability = 0.85 if allows_onset_cluster else 0.1
+        if strictness > 0.0:
+            onset_cluster_probability = biased_probability(
+                onset_cluster_probability, strictness if allows_onset_cluster else -strictness
+            )
     max_onset = 2 if onset_pairs and rng.random() < onset_cluster_probability else 1
     allowed_onset_clusters = (
         sonority.thin_cluster_pairs(rng, onset_pairs, traits.contact_intensity) if max_onset >= 2 else ()
@@ -537,6 +645,12 @@ def generate_phonology(
     if reference_profiles:
         reference_coda_profiles = {p.coda_profile for p in reference_profiles}
         coda_weights = [w * 4 if profile in reference_coda_profiles else w for profile, w in zip(_CODA_PROFILES, coda_weights)]
+        if strictness > 0.0:
+            total = sum(coda_weights)
+            coda_weights = [
+                total * biased_probability(w / total, strictness if profile in reference_coda_profiles else -strictness)
+                for profile, w in zip(_CODA_PROFILES, coda_weights)
+            ]
     coda_profile = rng.choices(_CODA_PROFILES, weights=coda_weights)[0]
     excluded_coda_consonants: tuple[str, ...] = ()
     if coda_profile == "none":
@@ -565,7 +679,7 @@ def generate_phonology(
             max_coda, allowed_coda_consonants, allowed_coda_clusters = 1, None, ()
 
     vowel_harmony_probability = biased_probability(_VOWEL_HARMONY_BASE_RATE, traits.isolation)
-    vowel_harmony_probability = _reference_clamp(vowel_harmony_probability, reference_profiles, "vowel_harmony")
+    vowel_harmony_probability = _reference_clamp(vowel_harmony_probability, reference_profiles, "vowel_harmony", strictness)
     vowel_harmony = rng.random() < vowel_harmony_probability
 
     syllable_structure = SyllableStructure(
@@ -575,6 +689,7 @@ def generate_phonology(
         allowed_coda_clusters=allowed_coda_clusters,
         allowed_coda_consonants=allowed_coda_consonants,
         excluded_coda_consonants=excluded_coda_consonants,
+        excluded_onset_consonants=excluded_onset_consonants,
         vowel_harmony=vowel_harmony,
     )
 
@@ -582,7 +697,7 @@ def generate_phonology(
         1.0 if spec.force_tonal else biased_probability(0.35, traits.tonal_friendliness)
     )
     if not spec.force_tonal:
-        tonal_probability = _reference_clamp(tonal_probability, reference_profiles, "tonal")
+        tonal_probability = _reference_clamp(tonal_probability, reference_profiles, "tonal", strictness)
     if rng.random() < tonal_probability:
         levels = rng.choice(_TONE_LEVEL_SETS)
         tone_system = ToneSystem(enabled=True, levels=levels)

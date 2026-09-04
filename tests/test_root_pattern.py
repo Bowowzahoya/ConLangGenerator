@@ -65,7 +65,7 @@ def test_generate_templates_prefers_a_long_vowel_for_the_agent_template_when_ava
 def _find_root_and_pattern_language(seed_range=_SEEDS):
     client = FakeLLMClient()
     for seed in seed_range:
-        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_languages=("Arabic",)))
+        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=("Arabic",)))
         language = generate_language("Test", spec, client)
         if language.grammar.uses_root_and_pattern:
             return language

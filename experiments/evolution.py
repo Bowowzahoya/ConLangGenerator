@@ -63,7 +63,7 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario(
         "1200 years, heavy Romance trade contact (borrowing demo)",
         1200,
-        TraitProfile(contact_intensity=0.9, contact_languages=("Spanish",)),
+        TraitProfile(contact_intensity=0.9, source_languages=("Spanish",)),
     ),
 )
 
@@ -90,7 +90,7 @@ def _build_dutch_base(llm_kind: str) -> Language:
     spec = GenerationSpec(
         prompt="Dutch",
         seed=BASE_SEED,
-        traits=TraitProfile(contact_languages=("Dutch",)),
+        traits=TraitProfile(source_languages=("Dutch",)),
         seed_examples=seed_examples,
     )
     return generate_language("Dutch", spec, client)

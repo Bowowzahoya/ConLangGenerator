@@ -50,7 +50,7 @@ class GenerationSpec(BaseModel, frozen=True):
     """Same unconditional channel as the ``force_*`` fields above, for the
     romanization layer specifically -- see ``OrthographyForce``'s own
     docstring. All-``None`` (the default) means "not forced, let
-    ``traits.contact_languages``/``traits.requested_orthography_style``/
+    ``traits.source_languages``/``traits.requested_orthography_style``/
     the normal roll decide" -- see ``generation/romanization_gen.py``."""
     fantasy: bool = False
     """Simple explicit metadata (not a graded trait) -- passed as context to

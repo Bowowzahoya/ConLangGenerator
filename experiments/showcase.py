@@ -49,11 +49,11 @@ SCENARIOS: tuple[Scenario, ...] = (
         "Soft coastal trade tongue", 23,
         TraitProfile(isolation=-0.8, altitude=-0.7, aesthetic_harshness=-0.7, contact_intensity=0.8, community_scale=-0.6, tonal_friendliness=-0.3),
     ),
-    Scenario("Dutch-biased", 1, TraitProfile(contact_languages=("Dutch",)), note="--contact-language Dutch"),
-    Scenario("Japanese-biased", 59, TraitProfile(contact_languages=("Japanese",)), note="--contact-language Japanese"),
+    Scenario("Dutch-biased", 1, TraitProfile(source_languages=("Dutch",)), note="--source-language Dutch"),
+    Scenario("Japanese-biased", 59, TraitProfile(source_languages=("Japanese",)), note="--source-language Japanese"),
     Scenario(
-        "Arabic-biased (root-and-pattern)", 0, TraitProfile(contact_languages=("Arabic",)),
-        note="--contact-language Arabic -- seed 0 happens to roll uses_root_and_pattern=True; "
+        "Arabic-biased (root-and-pattern)", 0, TraitProfile(source_languages=("Arabic",)),
+        note="--source-language Arabic -- seed 0 happens to roll uses_root_and_pattern=True; "
         "look for the emphatics/ɣ/long vowels and the consistent per-POS consonant-root shapes",
     ),
     Scenario(

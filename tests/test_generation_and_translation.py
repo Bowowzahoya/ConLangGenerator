@@ -83,7 +83,7 @@ def test_german_biased_language_capitalizes_its_noun_entries():
     # (see romanization_gen.py's grammatical-spelling roll) -- an
     # empirically-found seed, same "search for a working seed" convention
     # this project already uses elsewhere (test_sound_change.py).
-    spec = GenerationSpec(prompt="test", seed=0, traits=TraitProfile(contact_languages=("German",)))
+    spec = GenerationSpec(prompt="test", seed=0, traits=TraitProfile(source_languages=("German",)))
     language = generate_language("Test", spec, FakeLLMClient())
     assert PartOfSpeech.NOUN in language.romanization.grammatical_spelling.capitalized_pos
     nouns = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.NOUN]
@@ -94,7 +94,7 @@ def test_german_biased_language_capitalizes_its_noun_entries():
 def test_french_biased_language_gives_its_verb_entries_a_silent_r():
     # seed 2 rolls French's own mute_suffix_by_pos (VERB, "r") -- see the
     # note on the German test above for the seed-search convention.
-    spec = GenerationSpec(prompt="test", seed=2, traits=TraitProfile(contact_languages=("French",)))
+    spec = GenerationSpec(prompt="test", seed=2, traits=TraitProfile(source_languages=("French",)))
     language = generate_language("Test", spec, FakeLLMClient())
     rule = next(
         (r for r in language.romanization.grammatical_spelling.mute_suffix_by_pos if r.pos is PartOfSpeech.VERB), None
@@ -107,8 +107,8 @@ def test_french_biased_language_gives_its_verb_entries_a_silent_r():
         assert not entry.ipa.endswith("r")  # the "r" has no corresponding sound at all
 
 
-def test_grammatical_spelling_convention_survives_evolution_with_no_new_contact_language():
-    spec = GenerationSpec(prompt="test", seed=0, traits=TraitProfile(contact_languages=("German",)))
+def test_grammatical_spelling_convention_survives_evolution_with_no_new_source_language():
+    spec = GenerationSpec(prompt="test", seed=0, traits=TraitProfile(source_languages=("German",)))
     base = generate_language("Base", spec, FakeLLMClient())
     assert PartOfSpeech.NOUN in base.romanization.grammatical_spelling.capitalized_pos
 

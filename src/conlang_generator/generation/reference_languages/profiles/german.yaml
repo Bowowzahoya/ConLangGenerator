@@ -8,6 +8,30 @@ tonal: false
 coda_devoicing: true
 orthography_category: germanic-doubling-style
 capitalized_pos: [noun]  # real German capitalizes every common noun, not just proper nouns
+restricted_onset_consonants: ["ŋ"]  # /ŋ/ is coda/medial-only in real German, never opens a syllable
+attested_onset_clusters:
+  # Real, common German onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive (only used when
+  # source_language_strictness > 0).
+  - [p, f]                   # "Pferd"
+  - [k, n]                   # "Knie"
+  - [k, l]                   # "Klein"
+  - [k, "ʁ"]                  # "Kraft"
+  - [g, l]                   # "Glas"
+  - [g, "ʁ"]                  # "Gras"
+  - [b, l]                   # "Blau"
+  - [b, "ʁ"]                  # "Brot"
+  - [d, "ʁ"]                  # "Drei"
+  - [t, "ʁ"]                  # "Traum"
+  - [f, l]                   # "Flug"
+  - [f, "ʁ"]                  # "Frau"
+  - ["ʃ", p]                  # "Spiel" (realized [ʃp])
+  - ["ʃ", t]                  # "Stein" (realized [ʃt])
+  - ["ʃ", l]                  # "Schlaf"
+  - ["ʃ", m]                  # "Schmerz"
+  - ["ʃ", n]                  # "Schnee"
+  - ["ʃ", "ʁ"]                 # "Schrift"
+  - ["ʃ", v]                  # "Schwester"
 orthography:
   # Real German spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account.

@@ -69,3 +69,27 @@ def test_missing_requested_orthography_style_defaults_to_empty():
     client = _FixedJsonLLMClient("{}")
     profile = classify_prompt("anything", False, client)
     assert profile.requested_orthography_style == ""
+
+
+def test_source_language_strictness_parses_within_unit_interval():
+    client = _FixedJsonLLMClient('{"source_languages": ["English", "German"], "source_language_strictness": 0.85}')
+    profile = classify_prompt("basically a mix of English and German", False, client)
+    assert profile.source_languages == ("English", "German")
+    assert profile.source_language_strictness == 0.85
+
+
+def test_missing_source_language_strictness_defaults_to_zero():
+    client = _FixedJsonLLMClient("{}")
+    profile = classify_prompt("anything", False, client)
+    assert profile.source_language_strictness == 0.0
+
+
+def test_source_language_strictness_is_clamped_to_the_unit_interval():
+    # Unlike the bipolar trait dimensions ([-1, 1]), strictness is
+    # one-directional -- a value above 1.0 or below 0.0 (an LLM's JSON
+    # can't be trusted to respect the documented range) still clamps to
+    # [0.0, 1.0], not [-1.0, 1.0].
+    high = _FixedJsonLLMClient('{"source_language_strictness": 5.0}')
+    low = _FixedJsonLLMClient('{"source_language_strictness": -5.0}')
+    assert classify_prompt("anything", False, high).source_language_strictness == 1.0
+    assert classify_prompt("anything", False, low).source_language_strictness == 0.0

@@ -47,7 +47,15 @@ def _build_onset(
     if structure.max_onset >= 2 and structure.allowed_onset_clusters and rng.random() < 0.3:
         weights = [_cluster_weight(c, by_symbol) for c in structure.allowed_onset_clusters]
         return rng.choices(structure.allowed_onset_clusters, weights=weights)[0]
-    return (weighted_choice(rng, inventory.consonants).ipa,)
+    candidates = inventory.consonants
+    if structure.excluded_onset_consonants:
+        # `or candidates` is defensive, same fallback shape `_build_coda`
+        # already uses for `excluded_coda_consonants` -- not expected to
+        # fire in practice, since a restricted-onset symbol is only ever
+        # added when it's already present in the inventory.
+        restricted = tuple(c for c in candidates if c.ipa not in structure.excluded_onset_consonants) or candidates
+        candidates = restricted
+    return (weighted_choice(rng, candidates).ipa,)
 
 
 def _build_coda(

@@ -5,6 +5,36 @@ coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: silent-e-style
+restricted_onset_consonants: ["ŋ"]  # /ŋ/ is coda/medial-only in real English, never opens a syllable
+attested_onset_clusters:
+  # Real, common English onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive (only used when
+  # source_language_strictness > 0). s + voiceless stop (sp/st/sk) is
+  # already handled generically by sonority.is_legal_onset_cluster's own
+  # special case, so it's not duplicated here.
+  - [p, l]                   # "play"
+  - [p, r]                   # "pray"
+  - [b, l]                   # "blue"
+  - [b, r]                   # "brown"
+  - [t, r]                   # "tree"
+  - [d, r]                   # "dream"
+  - [t, w]                   # "twin"
+  - [d, w]                   # "dwell"
+  - [k, l]                   # "clean"
+  - [k, r]                   # "cream"
+  - [k, w]                   # "queen"
+  - [g, l]                   # "glow"
+  - [g, r]                   # "green"
+  - [f, l]                   # "fly"
+  - [f, r]                   # "free"
+  - [f, j]                   # "few"
+  - [v, j]                   # "view"
+  - ["θ", r]                  # "three"
+  - [s, l]                   # "sleep"
+  - [s, m]                   # "small"
+  - [s, n]                   # "snow"
+  - [s, w]                   # "swim"
+  - ["ʃ", r]                  # "shrimp"
 orthography:
   # Real English spelling conventions, restricted to symbols this
   # profile actually models -- illustrative, not a full account (real

@@ -76,9 +76,21 @@ class TraitProfile(BaseModel, frozen=True):
     taboo_register: float = Field(default=0.0, ge=-1.0, le=1.0)
     terrain_communication_distance: float = Field(default=0.0, ge=-1.0, le=1.0)
 
-    contact_languages: tuple[str, ...] = ()
-    """Named languages this conlang is meant to evoke or mix; recorded only,
-    not yet used to bias generation."""
+    source_languages: tuple[str, ...] = ()
+    """Named real languages this conlang is meant to evoke or mix -- matched
+    against ``generation.reference_languages`` and used throughout
+    generation (phonology/orthography/grammar) as a soft, non-exclusive
+    bias, however many are named. See ``source_language_strictness`` for
+    the dial that turns that bias into a hard restriction."""
+    source_language_strictness: float = Field(default=0.0, ge=0.0, le=1.0)
+    """How closely generation hews to ``source_languages``' own declared
+    phonology/orthography/grammar. ``0.0`` (the default) reproduces
+    today's existing soft, non-exclusive influence exactly. ``1.0``
+    hard-restricts every reference-bias mechanism in the pipeline to (the
+    union of) their own declared values -- drawing freely across multiple
+    named languages, but never from outside all of them. Gradeable in
+    between. See ``generation.trait_bias.biased_probability``, the shared
+    interpolation this reuses throughout."""
     salient_vocabulary_domains: tuple[str, ...] = ()
     """Subsistence/culture-driven vocabulary domains (e.g. "seafaring",
     "herding"); recorded only, not yet used to expand the core lexicon."""

@@ -49,6 +49,7 @@ for -- see its own docstring.
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from enum import Enum
 
@@ -62,6 +63,14 @@ _CLASS_TAGS = frozenset(
         "long_vowel", "short_vowel", "syllable_open", "syllable_closed",
     }
 )
+
+_TRIPLE_LETTER_RUN = re.compile(r"(.)\1{2,}")
+"""Matches 3+ consecutive identical characters -- used by ``RomanizationScheme.apply()``
+to collapse an accidental triple letter (e.g. two adjacent consonant
+tokens each independently doubling/staying plain landing next to each
+other) down to a real double. No orthography this project models ever
+intentionally writes a letter three times in a row, so this is an
+unconditional final cleanup, not a strictness-gated one."""
 
 
 class RomanizationRule(BaseModel, frozen=True):
@@ -447,7 +456,8 @@ class RomanizationScheme(BaseModel, frozen=True):
                 out.append(self.syllable_boundary_marker.value)
             out.append(latin + deco)
         out.extend(pending_markers.pop(len(tokens), ()))
-        return unicodedata.normalize("NFC", "".join(out))
+        collapsed = _TRIPLE_LETTER_RUN.sub(r"\1\1", "".join(out))
+        return unicodedata.normalize("NFC", collapsed)
 
 
 class OrthographyCategory(BaseModel, frozen=True):

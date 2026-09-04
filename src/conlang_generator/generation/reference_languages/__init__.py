@@ -1,7 +1,8 @@
 """A small, hand-curated set of real languages' rough phonological +
 orthographic profiles, used to bias generation toward "sounds like X" /
-"mix of X and Y" when ``TraitProfile.contact_languages`` names one we
-recognize.
+"mix of X and Y" when ``TraitProfile.source_languages`` names one we
+recognize -- see ``TraitProfile.source_language_strictness`` for the dial
+that turns that bias into a hard restriction.
 
 Symbol sets are restricted to symbols already in ``phonology_gen.py``'s
 pools (so matching against a generated inventory is a plain set
@@ -40,6 +41,8 @@ orthography:                    # optional, defaults empty
   - {ipa: a, latin: aa, syllable: [syllable_closed]}    # "kaas"
   - {ipa: a, latin: a, syllable: [syllable_open]}       # "kazen"
   - {ipa: x, latin: ch}                                 # unconditioned ("nacht")
+restricted_onset_consonants: []  # optional, defaults empty -- see the field's own docstring
+attested_onset_clusters: []      # optional, defaults empty -- e.g. [[s, p], [s, t]]
 ```
 
 ``orthography`` entries are ``RomanizationRule``s -- see its docstring for
@@ -115,6 +118,21 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     "hint the roll leans toward when matched" role as
     ``capitalized_pos`` above, for ``core.romanization.
     GrammaticalSpelling.mute_suffix_by_pos``."""
+    restricted_onset_consonants: tuple[str, ...] = ()
+    """Consonants this language never uses to open a syllable (single or
+    as part of a cluster) -- e.g. /ŋ/ in German/English, which is
+    coda/medial only. Only consulted when a matched
+    ``TraitProfile.source_language_strictness`` > 0 -- see
+    ``generation/phonology_gen.py``. Empty means not curated yet for
+    this language (most profiles), same "illustrative, not exhaustive"
+    spirit as ``orthography``."""
+    attested_onset_clusters: tuple[tuple[str, str], ...] = ()
+    """A curated, illustrative (not exhaustive) list of this language's
+    own real 2-consonant onset clusters, restricted to symbols this
+    profile models -- narrows the generic sonority-legal combinatorial
+    space (``generation/sonority.py``) down to real attested pairs when
+    strictness is active. Empty means no curated list yet -- falls back
+    to the generic sonority-only legality check."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)
@@ -133,7 +151,7 @@ REFERENCE_LANGUAGES: tuple[ReferenceLanguageProfile, ...] = tuple(
 def match_profiles(names: tuple[str, ...]) -> tuple[ReferenceLanguageProfile, ...]:
     """Case-insensitive match against name+aliases; unknown names are
     silently ignored (best-effort, same spirit as everything else
-    ``contact_languages`` touches)."""
+    ``source_languages`` touches)."""
     matched = []
     for raw_name in names:
         needle = raw_name.strip().lower()

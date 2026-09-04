@@ -7,6 +7,25 @@ max_onset: 2
 tonal: false
 orthography_category: diacritic-style
 mute_suffix_by_pos: [{pos: verb, suffix: r}]  # real French infinitive "-er"'s silent r ("parler" /paʁle/)
+attested_onset_clusters:
+  # Real, common French onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive (only used when
+  # source_language_strictness > 0). s + voiceless stop (sport, stylo,
+  # ski) is already handled generically by sonority.is_legal_onset_cluster's
+  # own special case, so it's not duplicated here.
+  - [p, l]                   # "pluie"
+  - [p, "ʁ"]                  # "prendre"
+  - [b, l]                   # "bleu"
+  - [b, "ʁ"]                  # "bras"
+  - [t, "ʁ"]                  # "train"
+  - [d, "ʁ"]                  # "droit"
+  - [k, l]                   # "classe"
+  - [k, "ʁ"]                  # "crayon"
+  - [g, l]                   # "glace"
+  - [g, "ʁ"]                  # "grand"
+  - [f, l]                   # "fleur"
+  - [f, "ʁ"]                  # "froid"
+  - [v, "ʁ"]                  # "vrai"
 orthography:
   # Real French spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account (real French
