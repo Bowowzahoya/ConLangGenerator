@@ -36,6 +36,24 @@ attested_onset_clusters:
   - [s, l]                   # "slaap"
   - [s, m]                   # "smal"
   - [s, n]                   # "snel"
+attested_coda_clusters:
+  # Real, common Dutch coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [r, t]                   # "hard"
+  - [r, k]                   # "sterk"
+  - [r, m]                   # "arm"
+  - [r, n]                   # "kern"
+  - [r, d]                   # "paard"
+  - [l, p]                   # "help"
+  - [l, k]                   # "melk"
+  - [l, m]                   # "film"
+  - [l, t]                   # "wilt"
+  - [n, t]                   # "kant"
+  - [n, d]                   # "land"
+  - ["ŋ", k]                  # "bank"
+  - [s, t]                   # "kust"
+  - [s, p]                   # "wesp"
+  - [x, t]                   # "nacht"
 orthography:
   # Real Dutch spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account. Long vowels that

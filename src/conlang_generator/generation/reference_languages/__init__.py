@@ -46,6 +46,7 @@ attested_onset_clusters: []      # optional, defaults empty -- e.g. [[s, p], [s,
 restricted_coda_consonants: []   # optional, defaults empty -- see the field's own docstring
 restricted_onset_nucleus_pairs: []  # optional, defaults empty -- e.g. [[w, u]] (blacklist mode)
 attested_onset_nucleus_pairs: []    # optional, defaults empty -- whitelist mode, mutually exclusive with the above
+attested_coda_clusters: []          # optional, defaults empty -- e.g. [[s, t]]
 ```
 
 ``orthography`` entries are ``RomanizationRule``s -- see its docstring for
@@ -162,6 +163,15 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     are the *only* ones legal (Mandarin-style small syllabary) -- see
     ``restricted_onset_nucleus_pairs`` above for the mode-inference rule
     and the abstain-when-empty semantics."""
+    attested_coda_clusters: tuple[tuple[str, str], ...] = ()
+    """A curated, illustrative (not exhaustive) list of this language's
+    own real 2-consonant coda clusters, restricted to symbols this
+    profile models -- the coda-side mirror of ``attested_onset_clusters``,
+    narrowing the generic sonority-legal combinatorial space down to real
+    attested pairs when strictness is active. Empty means no curated list
+    yet -- falls back to the generic sonority-only legality check. Only
+    consulted for the ``"unrestricted"`` ``coda_profile`` branch (a
+    ``"none"``/``"sonorant"`` profile never builds coda clusters at all)."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

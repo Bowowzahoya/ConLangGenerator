@@ -119,6 +119,12 @@ def test_dutch_profile_declares_its_own_onset_restrictions():
     assert ("b", "f") not in dutch.attested_onset_clusters  # never a real Dutch onset
 
 
+def test_english_profile_declares_real_coda_clusters_not_generic_ones():
+    english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+    assert ("s", "t") in english.attested_coda_clusters  # "fist"
+    assert ("ʃ", "p") not in english.attested_coda_clusters  # never a real English coda
+
+
 def test_mandarin_profile_spells_the_pinyin_u_umlaut_alternation_correctly():
     # The ü/u pinyin regression case, end to end through
     # generate_romanization -- proves specific-segment (not class-based)

@@ -789,6 +789,9 @@ def generate_phonology(
             )
         excluded_coda_consonants = tuple(frozenset(excluded_coda_consonants) | restricted_coda)
         coda_pairs = sonority.exclude_final(sonority.legal_coda_pairs(consonants), excluded_coda_consonants)
+        if reference_profiles and strictness > 0.0:
+            attested_coda_clusters = frozenset().union(*(p.attested_coda_clusters for p in reference_profiles))
+            coda_pairs = sonority.grade_against_attested(rng, coda_pairs, tuple(attested_coda_clusters), strictness)
         if coda_pairs and rng.random() < 0.3:
             max_coda, allowed_coda_consonants, allowed_coda_clusters = (
                 2, None, sonority.thin_cluster_pairs(rng, coda_pairs, traits.contact_intensity),

@@ -33,6 +33,24 @@ attested_onset_clusters:
   - ["ʃ", n]                  # "Schnee"
   - ["ʃ", "ʁ"]                 # "Schrift"
   - ["ʃ", v]                  # "Schwester"
+attested_coda_clusters:
+  # Real, common German coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [n, t]                   # "und"
+  - [n, d]                   # "Land"
+  - ["ŋ", k]                  # "Bank"
+  - [l, t]                   # "Welt"
+  - [l, d]                   # "Geld"
+  - [l, k]                   # "Volk"
+  - [l, m]                   # "Film"
+  - ["ʁ", t]                  # "hart"
+  - ["ʁ", k]                  # "stark"
+  - ["ʁ", n]                  # "Kern"
+  - ["ʁ", m]                  # "Arm"
+  - [p, f]                   # "Kopf"
+  - [x, t]                   # "Nacht"
+  - ["ç", t]                  # "nicht"
+  - [s, t]                   # "ist"
 orthography:
   # Real German spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account.

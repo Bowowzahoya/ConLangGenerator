@@ -711,3 +711,30 @@ def test_phonotactic_restrictiveness_pushes_toward_whitelist_mode():
         return hits / 80
 
     assert _whitelist_fraction(1.0) > _whitelist_fraction(0.0) > _whitelist_fraction(-1.0)
+
+
+# --- Coda-cluster attested-data grading (the coda-side mirror of attested_onset_clusters) ---
+
+
+def test_full_strictness_coda_clusters_stay_within_englishs_attested_list():
+    for seed in range(60):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        assert set(structure.allowed_coda_clusters) <= set(_ENGLISH.attested_coda_clusters)
+
+
+def test_zero_strictness_still_allows_an_unattested_coda_cluster():
+    # Same gradient shape as the onset-cluster version: strictness=0.0
+    # must not hard-restrict coda shape either.
+    saw_unattested = False
+    for seed in range(60):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("English",), source_language_strictness=0.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        if any(pair not in _ENGLISH.attested_coda_clusters for pair in structure.allowed_coda_clusters):
+            saw_unattested = True
+            break
+    assert saw_unattested

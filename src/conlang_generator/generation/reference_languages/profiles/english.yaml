@@ -46,6 +46,38 @@ attested_onset_clusters:
   - [s, n]                   # "snow"
   - [s, w]                   # "swim"
   - ["ʃ", r]                  # "shrimp"
+attested_coda_clusters:
+  # Real, common English coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [m, p]                   # "jump"
+  - [n, t]                   # "want"
+  - [n, d]                   # "hand"
+  - [n, s]                   # "dance"
+  - ["ŋ", k]                  # "think"
+  - [l, p]                   # "help"
+  - [l, t]                   # "belt"
+  - [l, k]                   # "milk"
+  - [l, f]                   # "self"
+  - [l, m]                   # "film"
+  - [l, d]                   # "cold"
+  - [l, v]                   # "twelve"
+  - [r, p]                   # "harp"
+  - [r, t]                   # "heart"
+  - [r, k]                   # "park"
+  - [r, m]                   # "harm"
+  - [r, n]                   # "barn"
+  - [r, d]                   # "hard"
+  - [r, v]                   # "carve"
+  - [r, s]                   # "curse"
+  - [s, p]                   # "wasp"
+  - [s, t]                   # "fist"
+  - [s, k]                   # "ask"
+  - [p, s]                   # "lapse"
+  - [t, s]                   # "guts"
+  - [k, s]                   # "box"
+  - [f, t]                   # "left"
+  - [p, t]                   # "kept"
+  - [k, t]                   # "act"
 orthography:
   # Real English spelling conventions, restricted to symbols this
   # profile actually models -- illustrative, not a full account (real
