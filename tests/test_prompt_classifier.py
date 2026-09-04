@@ -84,6 +84,14 @@ def test_missing_source_language_strictness_defaults_to_zero():
     assert profile.source_language_strictness == 0.0
 
 
+def test_phonotactic_restrictiveness_parses_as_an_ordinary_graded_trait():
+    # Reuses the existing bipolar coercion (GRADED_TRAIT_FIELDS) -- no new
+    # parsing helper needed, unlike source_language_strictness.
+    client = _FixedJsonLLMClient('{"phonotactic_restrictiveness": 0.8}')
+    profile = classify_prompt("a language with a tiny, rigid set of allowed syllables", False, client)
+    assert profile.phonotactic_restrictiveness == 0.8
+
+
 def test_source_language_strictness_is_clamped_to_the_unit_interval():
     # Unlike the bipolar trait dimensions ([-1, 1]), strictness is
     # one-directional -- a value above 1.0 or below 0.0 (an LLM's JSON

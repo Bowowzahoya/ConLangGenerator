@@ -163,11 +163,11 @@ def test_evolved_onset_clusters_stay_a_thinned_subset_of_the_sonority_legal_clos
     # Post-evolution recomputation must apply the same cluster thinning as
     # initial generation, not silently un-thin back to the full closure --
     # this is the exact consistency risk cluster-thinning could introduce
-    # if phonology_gen.py and sound_change.py ever drifted apart. Seed 3
+    # if phonology_gen.py and sound_change.py ever drifted apart. Seed 2
     # is picked because its base language actually rolls max_onset=2 (most
     # seeds don't, and evolution never re-rolls max_onset -- only its
     # cluster pool -- so a seed without it would make this test vacuous).
-    base = generate_language("Base", GenerationSpec(prompt="base", seed=3), FakeLLMClient())
+    base = generate_language("Base", GenerationSpec(prompt="base", seed=2), FakeLLMClient())
     assert base.syllable_structure.max_onset >= 2
     any_max_onset_2 = False
     for seed in range(30):
@@ -385,10 +385,11 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # A spelling reform is a language-wide convention change, not a
     # per-word one -- it must touch every word using the reformed symbol,
     # even one whose own pronunciation didn't shift this run at all. Fixed
-    # seed known to reform "ɔ" (ö -> o) while several words containing it
-    # ("we", "animal", "hand", ...) keep an IPA byte-identical to the base.
+    # seed known to reform several words (e.g. "mountain", "animal",
+    # "fish") -- here via orthography drift dropping the ejective
+    # apostrophe mark -- while their IPA stays byte-identical to the base.
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=0)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=12)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)

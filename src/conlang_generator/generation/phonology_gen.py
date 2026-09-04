@@ -299,6 +299,15 @@ _VOWEL_HARMONY_BASE_RATE = 0.22
 _CODA_PROFILES = ("none", "sonorant", "unrestricted")
 _CODA_PROFILE_WEIGHTS = (15, 35, 50)
 
+# Onset+nucleus co-occurrence, no-source-language roll (see
+# _resolve_onset_nucleus_restriction): "probably more likely blacklist"
+# per the project's own design call -- most real languages are closer to
+# "mostly permissive with a few gaps" than to Mandarin's small, nearly-
+# closed syllabary.
+_BLACKLIST_MODE_BASE_RATE = 0.7
+_RANDOM_BLACKLIST_FRACTION = 0.15  # a modest slice of the full space -- plenty stays legal
+_RANDOM_WHITELIST_EXTRA_FRACTION = 0.5  # on top of the coverage floor, for realistic variety
+
 ALL_CONSONANTS: tuple[Consonant, ...] = (
     tuple(x for pair in _STOP_AND_AFFRICATE_PAIRS for x in pair)
     + (_GLOTTAL_STOP,) + _EJECTIVES + _UVULAR_GROUP
@@ -589,6 +598,95 @@ def _sonorant_or_glottal_symbols(consonants: tuple[Consonant, ...]) -> tuple[str
     return tuple(c.ipa for c in consonants if c.ipa == "ʔ" or sonority.sonority(c) >= 3)
 
 
+def _resolve_onset_nucleus_restriction(
+    rng: random.Random,
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    strictness: float,
+    consonant_symbols: tuple[str, ...],
+    vowel_symbols: tuple[str, ...],
+    phonotactic_restrictiveness: float,
+) -> tuple[tuple[tuple[str, str], ...] | None, tuple[tuple[str, str], ...]]:
+    """Resolves this language's onset+nucleus co-occurrence restriction,
+    returned as ``(allowed_pairs_or_None, excluded_pairs)`` for direct use
+    as ``SyllableStructure``'s own ``allowed_onset_nucleus_pairs``/
+    ``excluded_onset_nucleus_pairs``.
+
+    Two structurally different real patterns, chosen per matched reference
+    profile by which field it populates (see
+    ``ReferenceLanguageProfile.restricted_onset_nucleus_pairs``'s own
+    docstring for the mode-inference rule): blacklist mode is a short list
+    of *forbidden* combinations (most languages -- English's real "dw-"
+    never preceding a rounded vowel); whitelist mode is a small, nearly-
+    closed *attested* list against a much larger theoretical space
+    (Mandarin-like). Multiple matched profiles combine via "the combined
+    *legal* set is the union of each language's own legal set" -- which
+    means blacklist-mode profiles *intersect* (a pair only stays forbidden
+    if every one of them forbids it) while whitelist-mode profiles *union*
+    (a pair is legal if either attests it); a mix of both collapses to
+    blacklist semantics, since there's no whitelist representation once
+    something else has already widened the legal set -- the combined
+    blacklist is the intersection of all blacklists, minus the union of
+    all whitelists as exemptions. Only when *every* matched profile is
+    whitelist-mode does the result stay genuine (restrictive) whitelist
+    semantics.
+
+    No source language matched at all: this axis doesn't depend on source
+    languages -- it rolls its own blacklist-or-whitelist mode from
+    ``phonotactic_restrictiveness`` and synthesizes data from this run's
+    own rolled inventory (there's nothing curated to draw from). A rolled
+    whitelist gets a coverage floor first -- every consonant keeps at
+    least one legal vowel partner and vice versa -- so it can never leave
+    a symbol totally unreachable in this position, per "a whitelist should
+    generally be large enough to support a language."
+    """
+    if reference_profiles:
+        blacklist_profiles = [p for p in reference_profiles if p.restricted_onset_nucleus_pairs]
+        whitelist_profiles = [p for p in reference_profiles if p.attested_onset_nucleus_pairs]
+        symbol_space = frozenset(consonant_symbols) | frozenset(vowel_symbols)
+
+        if blacklist_profiles or not whitelist_profiles:
+            combined_blacklist = frozenset(blacklist_profiles[0].restricted_onset_nucleus_pairs) if blacklist_profiles else frozenset()
+            for profile in blacklist_profiles[1:]:
+                combined_blacklist &= frozenset(profile.restricted_onset_nucleus_pairs)
+            combined_whitelist = frozenset().union(*(p.attested_onset_nucleus_pairs for p in whitelist_profiles)) if whitelist_profiles else frozenset()
+            effective_blacklist = frozenset(
+                pair for pair in (combined_blacklist - combined_whitelist) if pair[0] in symbol_space and pair[1] in symbol_space
+            )
+            if strictness <= 0.0:
+                return None, tuple(effective_blacklist)
+            return None, tuple(pair for pair in effective_blacklist if rng.random() < biased_probability(1.0, strictness))
+        else:
+            combined_whitelist = frozenset(
+                pair
+                for pair in frozenset().union(*(p.attested_onset_nucleus_pairs for p in whitelist_profiles))
+                if pair[0] in symbol_space and pair[1] in symbol_space
+            )
+            if strictness <= 0.0:
+                return (tuple(combined_whitelist) or None), ()
+            kept = tuple(pair for pair in combined_whitelist if rng.random() < biased_probability(1.0, strictness))
+            return (kept or None), ()
+
+    # No source language at all -- roll mode, synthesize from this run's own inventory.
+    all_pairs = tuple((c, v) for c in consonant_symbols for v in vowel_symbols)
+    if not all_pairs:
+        return None, ()
+    blacklist_probability = biased_probability(_BLACKLIST_MODE_BASE_RATE, -phonotactic_restrictiveness)
+    if rng.random() < blacklist_probability:
+        num_restricted = round(len(all_pairs) * _RANDOM_BLACKLIST_FRACTION)
+        return None, tuple(rng.sample(all_pairs, k=min(num_restricted, len(all_pairs))))
+
+    attested: set[tuple[str, str]] = set()
+    for consonant in consonant_symbols:
+        attested.add((consonant, rng.choice(vowel_symbols)))
+    for vowel in vowel_symbols:
+        attested.add((rng.choice(consonant_symbols), vowel))
+    remaining = [pair for pair in all_pairs if pair not in attested]
+    rng.shuffle(remaining)
+    extra_count = round(len(all_pairs) * _RANDOM_WHITELIST_EXTRA_FRACTION)
+    attested.update(remaining[:extra_count])
+    return tuple(attested), ()
+
+
 def generate_phonology(
     rng: random.Random, spec: GenerationSpec
 ) -> tuple[PhonemeInventory, SyllableStructure, ToneSystem]:
@@ -608,6 +706,10 @@ def generate_phonology(
     vowels = tuple(_select_vowels(rng, reference_symbols, strictness, must_include_vowels))
     inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
     consonant_symbols = inventory.consonant_symbols()
+    vowel_symbols_for_pairs = inventory.vowel_symbols()
+    allowed_onset_nucleus_pairs, excluded_onset_nucleus_pairs = _resolve_onset_nucleus_restriction(
+        rng, reference_profiles, strictness, consonant_symbols, vowel_symbols_for_pairs, traits.phonotactic_restrictiveness
+    )
 
     # Onset-position restriction (e.g. /ŋ/ never opens a syllable in real
     # German/English) -- the onset-side mirror of the coda-devoicing
@@ -652,11 +754,26 @@ def generate_phonology(
                 for profile, w in zip(_CODA_PROFILES, coda_weights)
             ]
     coda_profile = rng.choices(_CODA_PROFILES, weights=coda_weights)[0]
+
+    # Coda-position restriction (e.g. /j//w/ never close a syllable in
+    # real English -- what looks like a word-final glide in English
+    # spelling is actually part of a diphthong vowel) -- the coda-side
+    # mirror of the onset restriction above, same strictness grading.
+    # Computed once, ahead of the coda_profile branches below, since a
+    # curated-restricted sonorant would otherwise still slip through the
+    # "sonorant" branch's own `_sonorant_or_glottal_symbols` whitelist.
+    restricted_coda: frozenset[str] = frozenset()
+    if reference_profiles and strictness > 0.0:
+        restricted_coda = frozenset().union(
+            *(p.restricted_coda_consonants for p in reference_profiles)
+        ) & set(consonant_symbols)
+        restricted_coda = frozenset(c for c in restricted_coda if rng.random() < strictness)
+
     excluded_coda_consonants: tuple[str, ...] = ()
     if coda_profile == "none":
         max_coda, allowed_coda_consonants, allowed_coda_clusters = 0, None, ()
     elif coda_profile == "sonorant":
-        sonorants = _sonorant_or_glottal_symbols(consonants)
+        sonorants = tuple(s for s in _sonorant_or_glottal_symbols(consonants) if s not in restricted_coda)
         if sonorants:
             max_coda, allowed_coda_consonants, allowed_coda_clusters = 1, sonorants, ()
         else:
@@ -670,6 +787,7 @@ def generate_phonology(
                     Manner.STOP, Manner.AFFRICATE, Manner.LATERAL_AFFRICATE, Manner.FRICATIVE, Manner.LATERAL_FRICATIVE,
                 )
             )
+        excluded_coda_consonants = tuple(frozenset(excluded_coda_consonants) | restricted_coda)
         coda_pairs = sonority.exclude_final(sonority.legal_coda_pairs(consonants), excluded_coda_consonants)
         if coda_pairs and rng.random() < 0.3:
             max_coda, allowed_coda_consonants, allowed_coda_clusters = (
@@ -690,6 +808,8 @@ def generate_phonology(
         allowed_coda_consonants=allowed_coda_consonants,
         excluded_coda_consonants=excluded_coda_consonants,
         excluded_onset_consonants=excluded_onset_consonants,
+        allowed_onset_nucleus_pairs=allowed_onset_nucleus_pairs,
+        excluded_onset_nucleus_pairs=excluded_onset_nucleus_pairs,
         vowel_harmony=vowel_harmony,
     )
 

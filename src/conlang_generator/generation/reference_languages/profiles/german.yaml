@@ -9,6 +9,7 @@ coda_devoicing: true
 orthography_category: germanic-doubling-style
 capitalized_pos: [noun]  # real German capitalizes every common noun, not just proper nouns
 restricted_onset_consonants: ["ŋ"]  # /ŋ/ is coda/medial-only in real German, never opens a syllable
+restricted_coda_consonants: [j]  # German diphthongs (ai/au/œy) are vowel symbols, not consonant codas; German doesn't model /w/ as a consonant at all
 attested_onset_clusters:
   # Real, common German onset clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive (only used when

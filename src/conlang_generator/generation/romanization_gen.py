@@ -694,14 +694,21 @@ _DOUBLING_EXCLUDED_IPA = frozenset({"h", "j", "w"})
 
 
 def _generate_doubling_rules(category: OrthographyCategory, inventory: PhonemeInventory) -> list[RomanizationRule]:
-    """A ``preceding=("short_vowel",)``-conditioned doubled-letter rule per
-    consonant, when the category marks a short vowel by doubling the
-    *following* onset consonant instead (Dutch "zitten" vs "zaten",
-    German "Bett") -- paired with the plain unconditioned rule for every
-    other position, the same "conditioned variant + unconditioned
-    fallback" pair ``_generate_length_rules``'s ``DOUBLING`` branch
-    returns, so a consonant not preceded by a short vowel still has a
-    rule to match instead of falling through to a raw, unmapped symbol.
+    """A ``preceding=("short_vowel",), following=("vowel",)``-conditioned
+    doubled-letter rule per consonant, when the category marks a short
+    vowel by doubling the *following* onset consonant instead (Dutch
+    "zitten" vs "zaten", German "Bett") -- paired with the plain
+    unconditioned rule for every other position, the same "conditioned
+    variant + unconditioned fallback" pair ``_generate_length_rules``'s
+    ``DOUBLING`` branch returns, so a consonant not preceded by a short
+    vowel still has a rule to match instead of falling through to a raw,
+    unmapped symbol. The ``following=("vowel",)`` condition matters: real
+    doubling exists to disambiguate an *intervocalic* consonant's syllable
+    affiliation (Dutch "bakken" vs "baken") -- at word-end (or before
+    another consonant) there's no such ambiguity, so real orthography
+    keeps it single (Dutch "gek", "rekstok", not "gekk"/"rekkstok"); the
+    plain rule below already covers that case, since ``apply()``'s
+    ``_neighbor_tags`` tags word-end as ``"boundary"``, never ``"vowel"``.
     Skipped for a consonant whose own rendering isn't a single ASCII
     letter -- doubling a digraph ("ch" -> "chch") reads as a typo, not a
     spelling convention, so this only fires for the plain, single-letter
@@ -719,7 +726,11 @@ def _generate_doubling_rules(category: OrthographyCategory, inventory: PhonemeIn
         base_letter = category.exotic_style.get(consonant.ipa, consonant.ipa)
         if len(base_letter) != 1:
             continue
-        rules.append(RomanizationRule(ipa=consonant.ipa, latin=base_letter * 2, preceding=("short_vowel",)))
+        rules.append(
+            RomanizationRule(
+                ipa=consonant.ipa, latin=base_letter * 2, preceding=("short_vowel",), following=("vowel",)
+            )
+        )
         rules.append(RomanizationRule(ipa=consonant.ipa, latin=base_letter))
     return rules
 

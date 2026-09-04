@@ -2,11 +2,28 @@ import random
 
 from conlang_generator.core.grammar import WordTemplate
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.phonology import Consonant, Manner, Place, PhonemeInventory, Vowel, VowelBackness, VowelHeight
+from conlang_generator.core.phonology import (
+    Consonant,
+    Manner,
+    Place,
+    PhonemeInventory,
+    SyllableStructure,
+    Vowel,
+    VowelBackness,
+    VowelHeight,
+)
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation.generator import generate_language
-from conlang_generator.generation.root_pattern import TEMPLATIC_POS, fill_template, generate_root, generate_templates
+from conlang_generator.generation.root_pattern import (
+    TEMPLATIC_POS,
+    _root_violates_structure,
+    fill_template,
+    generate_root,
+    generate_templates,
+    propose_templatic_word,
+    template_for_pos,
+)
 from conlang_generator.llm.fake_client import FakeLLMClient
 
 _SEEDS = range(60)
@@ -96,3 +113,89 @@ def test_non_root_and_pattern_language_entries_have_no_root():
     language = generate_language("Test", GenerationSpec(prompt="p", seed=13), client)
     assert not language.grammar.uses_root_and_pattern
     assert all(entry.root is None for entry in language.lexicon.entries)
+
+
+# --- Structure-aware root generation (templatic words respecting phonotactics) ---
+
+
+def test_root_violates_structure_catches_an_onset_restricted_consonant():
+    skeleton = ("C", "a", "C", "a", "C")
+    structure = SyllableStructure(excluded_onset_consonants=("k",))
+    assert _root_violates_structure(skeleton, ("k", "t", "b"), structure, _small_inventory())
+    # Every non-final slot in this skeleton sits directly before "a" --
+    # a genuine onset (real "ka.tab"-style syllabification: both "k" and
+    # "t" open a syllable, only "b" closes one) -- so "k" only avoids the
+    # restriction in the skeleton's last (coda) slot.
+    assert not _root_violates_structure(skeleton, ("t", "b", "k"), structure, _small_inventory())
+
+
+def test_root_violates_structure_catches_an_excluded_onset_nucleus_pair():
+    skeleton = ("C", "a", "C", "a", "C")
+    structure = SyllableStructure(excluded_onset_nucleus_pairs=(("k", "a"),))
+    assert _root_violates_structure(skeleton, ("k", "t", "b"), structure, _small_inventory())
+    # "k" lands in the skeleton's *last* slot here (word-final, no fixed
+    # vowel follows it) -- the only position not immediately before "a".
+    assert not _root_violates_structure(skeleton, ("t", "b", "k"), structure, _small_inventory())
+
+
+def test_root_violates_structure_catches_a_restricted_coda_consonant():
+    skeleton = ("C", "a", "C", "a", "C")
+    structure = SyllableStructure(excluded_coda_consonants=("b",))
+    assert _root_violates_structure(skeleton, ("k", "t", "b"), structure, _small_inventory())
+    assert not _root_violates_structure(skeleton, ("b", "t", "k"), structure, _small_inventory())  # b not word-final here
+
+
+def test_root_violates_structure_catches_an_illegal_adjacent_cluster():
+    # "noun-basic"-shaped: C-a-C-C, the trailing CC is a genuine cluster.
+    skeleton = ("C", "a", "C", "C")
+    inventory = _small_inventory()
+    # t (stop) + b (stop) has flat sonority -- not a legal cluster either
+    # direction (onset needs rising, coda needs falling).
+    structure = SyllableStructure()
+    assert _root_violates_structure(skeleton, ("k", "t", "b"), structure, inventory)
+
+
+def test_generate_root_with_structure_never_returns_a_violating_root():
+    inventory = _small_inventory()
+    skeleton = ("C", "a", "C", "a", "C")
+    structure = SyllableStructure(excluded_onset_consonants=("k",), excluded_coda_consonants=("b",))
+    rng = random.Random(1)
+    for _ in range(200):
+        root = generate_root(rng, inventory, structure, skeleton)
+        assert not _root_violates_structure(skeleton, root, structure, inventory)
+
+
+def test_generate_root_falls_back_gracefully_when_nothing_satisfies_the_structure():
+    # An impossible structure (every consonant excluded from onset) must
+    # still return a root within the attempt bound, not hang or crash.
+    inventory = _small_inventory()
+    skeleton = ("C", "a", "C", "a", "C")
+    structure = SyllableStructure(excluded_onset_consonants=tuple(c.ipa for c in inventory.consonants))
+    root = generate_root(random.Random(1), inventory, structure, skeleton)
+    assert len(root) == 3
+
+
+def test_forced_templatic_word_for_english_never_puts_w_before_a_rounded_vowel():
+    # Reproduces the original bug directly: build English's real
+    # strictness=1.0 inventory/SyllableStructure (which excludes
+    # w+u/o/ʊ), then force the root-and-pattern path -- bypassing
+    # grammar's own low-probability roll entirely -- against every one
+    # of its own templates, and confirm no generated word violates the
+    # restriction.
+    from conlang_generator.generation import phonology_gen
+
+    spec = GenerationSpec(
+        prompt="p", seed=1, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0)
+    )
+    inventory, structure, _ = phonology_gen.generate_phonology(random.Random(1), spec)
+    assert ("w", "u") in structure.excluded_onset_nucleus_pairs  # sanity: this run's structure really is restricted
+
+    templates = generate_templates(random.Random(1), inventory)
+    rng = random.Random(2)
+    for _ in range(300):
+        for pos in TEMPLATIC_POS:
+            template = template_for_pos(rng, templates, pos)
+            root = generate_root(rng, inventory, structure, template.skeleton)
+            word = fill_template(template, root)
+            for i in range(len(word) - 1):
+                assert not (word[i] == "w" and word[i + 1] in ("u", "o", "ʊ")), word

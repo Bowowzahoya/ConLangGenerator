@@ -88,8 +88,16 @@ def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile
     uses_root_and_pattern_probability = (
         _ROOT_AND_PATTERN_REFERENCE_RATE if root_and_pattern_reference else _ROOT_AND_PATTERN_BASE_RATE
     )
-    if strictness > 0.0 and root_and_pattern_reference:
-        uses_root_and_pattern_probability = biased_probability(uses_root_and_pattern_probability, strictness)
+    if strictness > 0.0:
+        # Symmetric pull, same shape as _reference_biased_rate elsewhere:
+        # boosts when a matched source language really is root-and-pattern
+        # (Arabic), suppresses toward exactly 0% at strictness=1.0 when it
+        # isn't (English should never roll Semitic-style morphology at
+        # full strictness). A no-op when there's no source language at
+        # all -- strictness is already forced to 0.0 in that case, above.
+        uses_root_and_pattern_probability = biased_probability(
+            uses_root_and_pattern_probability, strictness if root_and_pattern_reference else -strictness
+        )
     uses_root_and_pattern = rng.random() < uses_root_and_pattern_probability
 
     ergative_probability = (

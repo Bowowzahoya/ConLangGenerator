@@ -7,6 +7,7 @@ max_onset: 2
 tonal: false
 orthography_category: diacritic-style
 mute_suffix_by_pos: [{pos: verb, suffix: r}]  # real French infinitive "-er"'s silent r ("parler" /paʁle/)
+restricted_coda_consonants: [w]  # /w/ is essentially onset-only in real French ("oui"); /j/ is genuinely attested in codas (soleil, travail) so it's deliberately NOT restricted here
 attested_onset_clusters:
   # Real, common French onset clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive (only used when
@@ -47,6 +48,10 @@ orthography:
   - {ipa: s, latin: "ç", following: [back_vowel]}
   - {ipa: s, latin: s}
   # This profile's own remaining non-ASCII vowels/consonants.
+  - {ipa: "ɛ", latin: "è"}   # real French's own open-e mark -- "è" (grave),
+                              # never the generic diacritic-style table's
+                              # "ë", which in real French marks a
+                              # hiatus/diaeresis ("Noël"), not vowel quality
   - {ipa: "ɑ", latin: "â"}
   - {ipa: "ɔ", latin: o}
   - {ipa: "ø", latin: eu}

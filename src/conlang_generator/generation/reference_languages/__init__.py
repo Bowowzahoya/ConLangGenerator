@@ -43,6 +43,9 @@ orthography:                    # optional, defaults empty
   - {ipa: x, latin: ch}                                 # unconditioned ("nacht")
 restricted_onset_consonants: []  # optional, defaults empty -- see the field's own docstring
 attested_onset_clusters: []      # optional, defaults empty -- e.g. [[s, p], [s, t]]
+restricted_coda_consonants: []   # optional, defaults empty -- see the field's own docstring
+restricted_onset_nucleus_pairs: []  # optional, defaults empty -- e.g. [[w, u]] (blacklist mode)
+attested_onset_nucleus_pairs: []    # optional, defaults empty -- whitelist mode, mutually exclusive with the above
 ```
 
 ``orthography`` entries are ``RomanizationRule``s -- see its docstring for
@@ -133,6 +136,32 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     space (``generation/sonority.py``) down to real attested pairs when
     strictness is active. Empty means no curated list yet -- falls back
     to the generic sonority-only legality check."""
+    restricted_coda_consonants: tuple[str, ...] = ()
+    """Consonants this language never uses to close a syllable -- the
+    coda-side mirror of ``restricted_onset_consonants`` (e.g. English
+    /j/,/w/: what looks like a word-final glide in English spelling
+    ["cow", "day"] is actually part of a diphthong vowel, not a true
+    consonant coda). Verified per-language, not a blanket rule -- French
+    genuinely has real word-final /j/ (soleil, travail), so it must NOT
+    appear here for French. Only consulted when strictness > 0; empty
+    means not curated yet, same spirit as the fields above."""
+    restricted_onset_nucleus_pairs: tuple[tuple[str, str], ...] = ()
+    """Blacklist mode: ``(last-onset-consonant, nucleus)`` pairs this
+    language never combines -- e.g. English ``(w, u)``/``(w, o)``/
+    ``(w, "ʊ")``: real "dw-"/"tw-"/"kw-"/"gw-" never precede a rounded
+    vowel, keyed on the shared final onset consonant "w" so it covers
+    every cluster ending in it, not just one specific cluster. A profile
+    populates *at most one* of this and ``attested_onset_nucleus_pairs``,
+    never both -- whichever is non-empty determines this language's mode
+    (see ``generation/phonology_gen.py``). Empty (the common case) means
+    not curated yet -- abstains from the multi-language combination
+    entirely, not the same as "verified permissive everywhere". Only
+    consulted when ``source_language_strictness`` > 0."""
+    attested_onset_nucleus_pairs: tuple[tuple[str, str], ...] = ()
+    """Whitelist mode: the ``(last-onset-consonant, nucleus)`` pairs that
+    are the *only* ones legal (Mandarin-style small syllabary) -- see
+    ``restricted_onset_nucleus_pairs`` above for the mode-inference rule
+    and the abstain-when-empty semantics."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

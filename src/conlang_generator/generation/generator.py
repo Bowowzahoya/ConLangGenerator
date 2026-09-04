@@ -75,6 +75,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
                 pos,
                 llm_client,
                 name,
+                structure=syllable_structure,
                 context=spec.traits.salient_context,
             )
         else:

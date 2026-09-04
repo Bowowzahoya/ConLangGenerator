@@ -23,9 +23,9 @@ import random
 
 from conlang_generator.core.grammar import WordTemplate
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
-from conlang_generator.core.phonology import PhonemeInventory
+from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure
 from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
-from conlang_generator.generation import word_builder
+from conlang_generator.generation import sonority, word_builder
 from conlang_generator.generation.lexicon_gen import choose_best_candidate
 from conlang_generator.llm.base import LLMClient
 
@@ -77,17 +77,113 @@ def generate_templates(rng: random.Random, inventory: PhonemeInventory) -> tuple
     )
 
 
-def generate_root(rng: random.Random, inventory: PhonemeInventory, size: int = _ROOT_SIZE) -> tuple[str, ...]:
+_MAX_ROOT_ATTEMPTS = 20
+
+
+def _root_violates_structure(
+    skeleton: tuple[str, ...],
+    root: tuple[str, ...],
+    structure: SyllableStructure,
+    inventory: PhonemeInventory,
+) -> bool:
+    """Whether filling `skeleton` with `root` would break any of
+    `structure`'s onset/coda/onset-nucleus restrictions -- checked
+    locally at each ``"C"`` slot's immediate skeleton neighbors (a fixed
+    vowel/literal, another ``"C"``, or a word boundary), the same
+    adjacency-only spirit `SyllableStructure.is_valid_syllable`'s own
+    onset+nucleus check already uses, rather than a full syllable
+    re-parse of the flat root+template string."""
+    vowel_symbols = frozenset(v.ipa for v in inventory.vowels)
+    consonant_by_ipa = {c.ipa: c for c in inventory.consonants}
+    root_iter = iter(root)
+    filled = tuple(next(root_iter) if slot == "C" else slot for slot in skeleton)
+    last_index = len(filled) - 1
+
+    for i, slot in enumerate(skeleton):
+        if slot != "C":
+            continue
+        symbol = filled[i]
+        following_is_root_slot = i < last_index and skeleton[i + 1] == "C"
+        following = filled[i + 1] if i < last_index else None
+
+        if following is None:
+            # Word-final: this is a coda position (the cluster case below
+            # separately checks the *pair* when the slot right before it
+            # is also root-derived -- this still correctly covers the
+            # single-consonant coda case, and matches
+            # `is_valid_syllable`'s own "only the cluster's final member
+            # is checked" precedent for a 2-consonant coda).
+            if symbol in structure.excluded_coda_consonants:
+                return True
+        elif following in vowel_symbols:
+            # Immediately followed by a fixed vowel -- a genuine onset,
+            # whether or not another root consonant precedes it (a
+            # cluster's own last member is still the one directly
+            # adjacent to the nucleus).
+            if symbol in structure.excluded_onset_consonants:
+                return True
+            pair = (symbol, following)
+            if structure.allowed_onset_nucleus_pairs is not None and pair not in structure.allowed_onset_nucleus_pairs:
+                return True
+            if pair in structure.excluded_onset_nucleus_pairs:
+                return True
+
+        # Two root consonants back-to-back -- a genuine cluster. Checked
+        # once here (keyed on the first member) against the generic
+        # sonority rule only, deliberately not the further-thinned
+        # allowed_onset_clusters/allowed_coda_clusters sets (those are
+        # randomly culled for regular word-building; root generation
+        # shouldn't risk being left with zero valid pairs). When it's an
+        # onset cluster (something follows the pair), both members are
+        # also checked against excluded_onset_consonants, matching
+        # `is_valid_syllable`'s own "every onset position" scope. Skipped
+        # entirely if either symbol isn't a recognized consonant (should
+        # never happen, but stays defensive rather than raising).
+        if following_is_root_slot:
+            second = filled[i + 1]
+            c1, c2 = consonant_by_ipa.get(symbol), consonant_by_ipa.get(second)
+            ends_word = i + 1 == last_index
+            if not ends_word and (symbol in structure.excluded_onset_consonants or second in structure.excluded_onset_consonants):
+                return True
+            if c1 is not None and c2 is not None:
+                is_legal = sonority.is_legal_coda_cluster(c1, c2) if ends_word else sonority.is_legal_onset_cluster(c1, c2)
+                if not is_legal:
+                    return True
+
+    return False
+
+
+def generate_root(
+    rng: random.Random,
+    inventory: PhonemeInventory,
+    structure: SyllableStructure | None = None,
+    skeleton: tuple[str, ...] | None = None,
+    size: int = _ROOT_SIZE,
+) -> tuple[str, ...]:
     """``size`` consonants weighted by prevalence, with a simple OCP-style
     constraint: no two *adjacent* root consonants identical (real Semitic
-    roots avoid this)."""
-    root: list[str] = []
-    for _ in range(size):
-        candidates = tuple(c for c in inventory.consonants if not root or c.ipa != root[-1])
-        if not candidates:
-            candidates = inventory.consonants
-        root.append(word_builder.weighted_choice(rng, candidates).ipa)
-    return tuple(root)
+    roots avoid this). When ``structure``/``skeleton`` are given, retries
+    (bounded) until the filled root clears `_root_violates_structure` --
+    generate-and-check rather than fully-correct forward-constrained
+    generation, so it stays robust to any future template shape; falls
+    back to its last attempt if none fully clears it within the bound,
+    never blocking generation entirely (same "defensive fallback" spirit
+    as `_ensure_floor`/`_choose_nucleus` elsewhere in this codebase)."""
+    attempts = _MAX_ROOT_ATTEMPTS if structure is not None and skeleton is not None else 1
+    root: tuple[str, ...] = ()
+    for _ in range(attempts):
+        candidates_root: list[str] = []
+        for _ in range(size):
+            candidates = tuple(c for c in inventory.consonants if not candidates_root or c.ipa != candidates_root[-1])
+            if not candidates:
+                candidates = inventory.consonants
+            candidates_root.append(word_builder.weighted_choice(rng, candidates).ipa)
+        root = tuple(candidates_root)
+        if structure is None or skeleton is None:
+            return root
+        if not _root_violates_structure(skeleton, root, structure, inventory):
+            return root
+    return root
 
 
 def fill_template(template: WordTemplate, root: tuple[str, ...]) -> str:
@@ -112,6 +208,7 @@ def propose_templatic_word(
     pos: PartOfSpeech,
     llm_client: LLMClient,
     language_name: str,
+    structure: SyllableStructure | None = None,
     num_candidates: int = 5,
     context: str = "",
 ) -> LexicalEntry:
@@ -119,13 +216,15 @@ def propose_templatic_word(
     for real variety across e.g. multiple nouns), generate several root
     candidates, fill the template with each, and let the LLM pick the
     best-sounding one -- same candidate-then-pick shape as
-    ``lexicon_gen.propose_word``."""
+    ``lexicon_gen.propose_word``. ``structure``, when given, makes every
+    generated root respect this language's own onset/coda/onset-nucleus
+    restrictions -- see ``generate_root``'s own docstring."""
     template = template_for_pos(rng, templates, pos)
 
     seen: set[tuple[str, ...]] = set()
     roots: list[tuple[str, ...]] = []
     for _ in range(num_candidates):
-        root = generate_root(rng, inventory)
+        root = generate_root(rng, inventory, structure, template.skeleton)
         if root not in seen:
             seen.add(root)
             roots.append(root)

@@ -81,6 +81,8 @@ def _build_coda(
 def _choose_nucleus(
     rng: random.Random,
     inventory: PhonemeInventory,
+    structure: SyllableStructure,
+    onset_final: str | None = None,
     harmony_class: VowelBackness | None = None,
     size_bias: str | None = None,
 ) -> Vowel:
@@ -88,8 +90,25 @@ def _choose_nucleus(
     high front vowels statistically evoke smallness cross-linguistically,
     low back vowels largeness (Sapir 1929 and later replications). Applied
     as a soft preference, same as ``harmony_class``, and after it, so the
-    two compose rather than one silently overriding the other."""
+    two compose rather than one silently overriding the other.
+
+    ``onset_final``'s legal-partner filtering runs *first*, as a hard
+    constraint underneath both of those soft preferences (real
+    onset+nucleus co-occurrence restrictions -- e.g. real English "dw-"
+    never precedes a rounded vowel -- aren't a stylistic nudge the way
+    harmony/size-bias are). Same defensive "only narrow the pool if it
+    doesn't go empty" shape those two already use, so a stray/overly
+    restrictive combination gets ignored rather than crashing generation."""
     vowels: tuple[Vowel, ...] = inventory.vowels
+    if onset_final is not None:
+        if structure.allowed_onset_nucleus_pairs is not None:
+            legal = tuple(v for v in vowels if (onset_final, v.ipa) in structure.allowed_onset_nucleus_pairs)
+            if legal:
+                vowels = legal
+        elif structure.excluded_onset_nucleus_pairs:
+            legal = tuple(v for v in vowels if (onset_final, v.ipa) not in structure.excluded_onset_nucleus_pairs)
+            if legal:
+                vowels = legal
     if harmony_class is not None:
         matching = tuple(v for v in vowels if v.backness in (harmony_class, VowelBackness.CENTRAL))
         if matching and rng.random() < 0.9:  # small leak, like real harmony exceptions/loans
@@ -112,9 +131,10 @@ def build_syllable(
 ) -> str:
     by_symbol = {c.ipa: c.prevalence for c in inventory.consonants}
     onset = _build_onset(rng, inventory, structure, by_symbol)
-    nucleus = _choose_nucleus(rng, inventory, harmony_class, size_bias).ipa
+    onset_final = onset[-1] if onset else None
+    nucleus = _choose_nucleus(rng, inventory, structure, onset_final, harmony_class, size_bias).ipa
     coda = _build_coda(rng, inventory, structure, by_symbol)
-    assert structure.is_valid_syllable(onset, coda), (onset, coda)
+    assert structure.is_valid_syllable(onset, nucleus, coda), (onset, nucleus, coda)
     return "".join(onset) + nucleus + tone_mark + "".join(coda)
 
 

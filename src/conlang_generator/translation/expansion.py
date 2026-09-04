@@ -42,6 +42,7 @@ def coin_word(
                 pos,
                 llm_client,
                 language.name,
+                structure=language.syllable_structure,
                 context=language.spec.traits.salient_context,
             )
         else:

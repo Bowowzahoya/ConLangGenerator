@@ -39,6 +39,7 @@ GRADED_TRAIT_FIELDS: tuple[str, ...] = (
     "tonal_friendliness",
     "taboo_register",
     "terrain_communication_distance",
+    "phonotactic_restrictiveness",
 )
 
 
@@ -66,6 +67,13 @@ class TraitProfile(BaseModel, frozen=True):
     """Positive: cultural/practical affinity for lexical tone -- nudges the
     tone system on. Negative: evidence the language explicitly is not
     tonal -- suppresses it below the world-typical base rate."""
+    phonotactic_restrictiveness: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: a tight, rigid canonical syllable shape where only a
+    small, fixed set of onset+nucleus combinations actually occur
+    (Japanese/Mandarin-like). Negative: loose, permissive combinations
+    with only a handful of gaps (most Indo-European languages). Only
+    matters when no source_languages are active -- see
+    generation/phonology_gen.py's blacklist/whitelist mode roll."""
 
     # -- Extracted and stored, not yet consumed by generation --
     social_hierarchy: float = Field(default=0.0, ge=-1.0, le=1.0)

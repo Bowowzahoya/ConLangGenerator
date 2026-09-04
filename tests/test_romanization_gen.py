@@ -269,7 +269,11 @@ def test_generate_length_rules_skips_a_long_vowel_with_no_short_counterpart():
     assert _generate_length_rules(category, inventory) == []
 
 
-def test_generate_doubling_rules_double_the_consonant_after_a_short_vowel_and_fall_back_otherwise():
+def test_generate_doubling_rules_double_only_when_intervocalic_not_at_word_end():
+    # Real Dutch/German doubling exists to disambiguate an *intervocalic*
+    # consonant's syllable affiliation (bakken vs. baken) -- at word-end
+    # there's no such ambiguity, so real orthography keeps it single
+    # (Dutch "gek", "rekstok", never "gekk"/"rekkstok").
     category = _CATEGORIES_BY_NAME["germanic-doubling-style"]
     inventory = PhonemeInventory(
         consonants=(Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False),),
@@ -277,7 +281,8 @@ def test_generate_doubling_rules_double_the_consonant_after_a_short_vowel_and_fa
     )
     rules = (RomanizationRule(ipa="a", latin="a"), *_generate_doubling_rules(category, inventory))
     scheme = RomanizationScheme(rules=rules, vowel_symbols=("a",), vowel_length=(("a", "short"),))
-    assert scheme.apply("at") == "att"  # short vowel -- doubled
+    assert scheme.apply("ata") == "atta"  # short vowel, followed by another vowel -- intervocalic, doubled
+    assert scheme.apply("at") == "at"  # short vowel, but word-final -- no ambiguity, stays single
     assert scheme.apply("t") == "t"  # no preceding vowel at all -- unconditioned fallback still applies
 
 

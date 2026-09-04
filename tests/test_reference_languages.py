@@ -95,6 +95,30 @@ def test_french_profile_spells_the_manger_alternation_correctly():
     assert scheme.apply("maʒo") == "mageo"  # back vowel following -- silent-e "ge"
 
 
+def test_french_profile_declares_its_own_real_open_e_spelling():
+    # Real French spells /ɛ/ "è" (grave) -- not the generic diacritic-
+    # style table's "ë", which in real French marks a hiatus/diaeresis
+    # ("Noël"), not vowel quality.
+    french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+    by_ipa = {rule.ipa: rule.latin for rule in french.orthography}
+    assert by_ipa["ɛ"] == "è"
+
+
+def test_english_profile_declares_its_own_w_plus_rounded_vowel_blacklist():
+    # Real English labial dissimilation: "dw-"/"tw-"/"kw-"/"gw-" (and
+    # plain "w-") never precede a rounded vowel.
+    english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+    assert set(english.restricted_onset_nucleus_pairs) == {("w", "u"), ("w", "o"), ("w", "ʊ"), ("w", "ɔ")}
+    assert english.attested_onset_nucleus_pairs == ()  # blacklist mode, not whitelist
+
+
+def test_dutch_profile_declares_its_own_onset_restrictions():
+    dutch = next(p for p in REFERENCE_LANGUAGES if p.name == "Dutch")
+    assert dutch.restricted_onset_consonants == ("ŋ",)
+    assert ("k", "n") in dutch.attested_onset_clusters  # "knie"
+    assert ("b", "f") not in dutch.attested_onset_clusters  # never a real Dutch onset
+
+
 def test_mandarin_profile_spells_the_pinyin_u_umlaut_alternation_correctly():
     # The ü/u pinyin regression case, end to end through
     # generate_romanization -- proves specific-segment (not class-based)
@@ -237,6 +261,34 @@ def test_arabic_source_language_biases_toward_root_and_pattern_and_fusional():
     biased_rap, biased_fusional = _rates(("Arabic",))
     assert biased_rap > unbiased_rap
     assert biased_fusional > unbiased_fusional
+
+
+def test_full_strictness_makes_root_and_pattern_exactly_zero_for_a_non_matching_source():
+    # English never uses Semitic-style root-and-pattern morphology --
+    # at strictness=1.0 the independent low base-rate chance of rolling
+    # it anyway must be suppressed to exactly 0%.
+    hits = 0
+    for seed in _SEEDS:
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0)
+        )
+        grammar = generate_grammar(random.Random(seed), spec)
+        hits += grammar.uses_root_and_pattern
+    assert hits == 0
+
+
+def test_full_strictness_still_boosts_root_and_pattern_for_arabic():
+    # Fix A's suppression must be one-sided -- a matched source language
+    # that genuinely *is* root-and-pattern should stay boosted, not get
+    # suppressed by the same mechanism.
+    hits = 0
+    for seed in _SEEDS:
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("Arabic",), source_language_strictness=1.0)
+        )
+        grammar = generate_grammar(random.Random(seed), spec)
+        hits += grammar.uses_root_and_pattern
+    assert hits > len(_SEEDS) * 0.9
 
 
 def test_german_declares_capitalized_nouns():

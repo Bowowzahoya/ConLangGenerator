@@ -427,7 +427,7 @@ def _coin_native_word(
     ``root`` is ``None`` for non-templatic coinage."""
     if grammar.uses_root_and_pattern and entry.pos in root_pattern.TEMPLATIC_POS and grammar.templates:
         template = root_pattern.template_for_pos(rng, grammar.templates, entry.pos)
-        root = root_pattern.generate_root(rng, inventory)
+        root = root_pattern.generate_root(rng, inventory, structure, template.skeleton)
         return root_pattern.fill_template(template, root), root
 
     num_syllables = lexicon_gen.choose_syllable_count(rng, entry.pos, favor_short=True)

@@ -7,6 +7,35 @@ max_onset: 2
 tonal: false
 coda_devoicing: true
 orthography_category: germanic-doubling-style
+restricted_onset_consonants: ["ŋ"]  # /ŋ/ is coda/medial-only in real Dutch, never opens a syllable (same as German/English)
+attested_onset_clusters:
+  # Real, common Dutch onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive (only used when
+  # source_language_strictness > 0). s + voiceless stop (sp/st/sk) is
+  # already handled generically by sonority.is_legal_onset_cluster's own
+  # special case, so it's not duplicated here.
+  - [p, l]                   # "plaats"
+  - [p, r]                   # "prachtig"
+  - [b, l]                   # "blauw"
+  - [b, r]                   # "brood"
+  - [t, r]                   # "trein"
+  - [t, w]                   # "twee"
+  - [d, r]                   # "droom"
+  - [d, w]                   # "dwars"
+  - [k, l]                   # "klein"
+  - [k, n]                   # "knie"
+  - [k, r]                   # "krant"
+  - [k, w]                   # "kwart"
+  - [f, l]                   # "fluiten"
+  - [f, r]                   # "fris"
+  - [v, l]                   # "vlieg"
+  - [v, r]                   # "vroeg"
+  - ["ɣ", l]                  # "glas" -- Dutch "g" is /ɣ/, not a stop
+  - ["ɣ", r]                  # "groot"
+  - [z, w]                   # "zwart"
+  - [s, l]                   # "slaap"
+  - [s, m]                   # "smal"
+  - [s, n]                   # "snel"
 orthography:
   # Real Dutch spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account. Long vowels that

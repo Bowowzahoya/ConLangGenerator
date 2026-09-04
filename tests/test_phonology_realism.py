@@ -12,7 +12,7 @@ from conlang_generator.core.phonology import VowelBackness
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, romanization_gen, sonority, word_builder
-from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES
+from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, ReferenceLanguageProfile
 from conlang_generator.llm.fake_client import FakeLLMClient
 
 _SEEDS = range(200)
@@ -456,6 +456,59 @@ def test_source_language_strictness_gradient_is_monotonic():
     assert strict == 0.0
 
 
+def _coda_legal(structure, symbol: str) -> bool:
+    """Whether `symbol` could actually be chosen as a single-consonant
+    coda by `word_builder._build_coda`, given `structure` -- mirrors that
+    function's own candidate-filtering logic directly, rather than
+    building many words to observe it indirectly."""
+    if structure.max_coda == 0:
+        return False
+    if structure.allowed_coda_consonants is not None and symbol not in structure.allowed_coda_consonants:
+        return False
+    return symbol not in structure.excluded_coda_consonants
+
+
+def test_full_strictness_never_admits_englishs_restricted_onset_consonants():
+    for seed in range(40):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        assert "ŋ" in structure.excluded_onset_consonants
+        assert "ʒ" in structure.excluded_onset_consonants
+
+
+def test_full_strictness_never_admits_a_restricted_coda_consonant():
+    for seed in range(40):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        assert not _coda_legal(structure, "j")
+        assert not _coda_legal(structure, "w")
+
+    for seed in range(40):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("German",), source_language_strictness=1.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        assert not _coda_legal(structure, "j")
+
+
+def test_full_strictness_french_restricts_w_coda_but_not_j():
+    # Real French genuinely has word-final /j/ (soleil, travail) -- the
+    # restriction must be per-language, not a blanket glide ban.
+    saw_j_allowed = False
+    for seed in range(60):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("French",), source_language_strictness=1.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        assert not _coda_legal(structure, "w")
+        saw_j_allowed = saw_j_allowed or _coda_legal(structure, "j")
+    assert saw_j_allowed
+
+
 def test_zero_strictness_still_allows_symbols_outside_the_source_language():
     # The no-op guarantee's other half: strictness=0.0 must NOT hard-
     # restrict -- today's existing soft, non-exclusive bias should still
@@ -529,3 +582,132 @@ def test_zero_strictness_still_allows_an_unattested_onset_cluster_or_ŋ_onset():
             saw_unattested = True
             break
     assert saw_unattested
+
+
+# --- Onset+nucleus co-occurrence (blacklist/whitelist per language) ---
+
+
+def _pair_legal(structure, onset_final: str, nucleus: str) -> bool:
+    """Whether `(onset_final, nucleus)` could actually survive
+    `word_builder._choose_nucleus`'s own filtering, given `structure` --
+    mirrors that function's logic directly rather than building many
+    words to observe it indirectly."""
+    if structure.allowed_onset_nucleus_pairs is not None:
+        return (onset_final, nucleus) in structure.allowed_onset_nucleus_pairs
+    return (onset_final, nucleus) not in structure.excluded_onset_nucleus_pairs
+
+
+def test_full_strictness_never_admits_englishs_w_plus_rounded_vowel():
+    for seed in range(40):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        for vowel in ("u", "o", "ʊ"):
+            assert not _pair_legal(structure, "w", vowel)
+
+
+def _synthetic_profile(name: str, **kwargs) -> ReferenceLanguageProfile:
+    return ReferenceLanguageProfile(
+        name=name, consonants=("p", "t", "w"), vowels=("a", "u"), coda_profile="unrestricted", max_onset=2, tonal=False, **kwargs
+    )
+
+
+def test_resolve_onset_nucleus_restriction_intersects_two_blacklists():
+    # A pair only stays forbidden if *every* blacklist-mode source
+    # forbids it -- what's legal in either becomes legal in the
+    # combination (the user's own "blacklists get shortened" rule).
+    a = _synthetic_profile("A", restricted_onset_nucleus_pairs=(("w", "u"), ("p", "a")))
+    b = _synthetic_profile("B", restricted_onset_nucleus_pairs=(("w", "u"),))
+    allowed, excluded = phonology_gen._resolve_onset_nucleus_restriction(
+        random.Random(0), (a, b), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
+    )
+    assert allowed is None
+    assert set(excluded) == {("w", "u")}  # ("p", "a") only forbidden by A, so it's legal in the combination
+
+
+def test_resolve_onset_nucleus_restriction_unions_two_whitelists():
+    # A pair is legal if *either* whitelist-mode source attests it (the
+    # user's own "whitelists get extended" rule).
+    a = _synthetic_profile("A", attested_onset_nucleus_pairs=(("p", "a"),))
+    b = _synthetic_profile("B", attested_onset_nucleus_pairs=(("t", "u"),))
+    allowed, excluded = phonology_gen._resolve_onset_nucleus_restriction(
+        random.Random(0), (a, b), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
+    )
+    assert excluded == ()
+    assert set(allowed) == {("p", "a"), ("t", "u")}
+
+
+def test_resolve_onset_nucleus_restriction_mixed_subtracts_whitelist_exemptions():
+    # A pair forbidden by a blacklist-mode source but explicitly attested
+    # by a whitelist-mode source is exempted -- collapses to blacklist
+    # semantics since a whitelist can't be represented once the legal set
+    # has already been widened by something else.
+    blacklist = _synthetic_profile("BL", restricted_onset_nucleus_pairs=(("w", "u"), ("p", "a")))
+    whitelist = _synthetic_profile("WL", attested_onset_nucleus_pairs=(("w", "u"),))
+    allowed, excluded = phonology_gen._resolve_onset_nucleus_restriction(
+        random.Random(0), (blacklist, whitelist), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
+    )
+    assert allowed is None
+    assert set(excluded) == {("p", "a")}  # ("w", "u") exempted by the whitelist
+
+
+def test_resolve_onset_nucleus_restriction_ignores_uncurated_profiles():
+    # An uncurated profile (empty on both fields) must abstain from the
+    # intersection entirely, not be treated as "verified permissive
+    # everywhere" (which would zero out every other source's blacklist).
+    curated = _synthetic_profile("Curated", restricted_onset_nucleus_pairs=(("w", "u"),))
+    uncurated = _synthetic_profile("Uncurated")
+    allowed, excluded = phonology_gen._resolve_onset_nucleus_restriction(
+        random.Random(0), (curated, uncurated), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
+    )
+    assert allowed is None
+    assert set(excluded) == {("w", "u")}
+
+
+def test_no_source_language_whitelist_mode_keeps_a_coverage_floor():
+    # phonotactic_restrictiveness=1.0 (strong positive) makes whitelist
+    # mode near-certain -- every consonant/vowel should keep at least one
+    # legal partner, per "a whitelist should generally be large enough to
+    # support a language."
+    consonants = ("p", "t", "k", "m", "n")
+    vowels = ("a", "i", "u")
+    for seed in range(20):
+        allowed, excluded = phonology_gen._resolve_onset_nucleus_restriction(
+            random.Random(seed), (), 0.0, consonants, vowels, 1.0
+        )
+        if allowed is None:
+            continue  # this seed happened to roll blacklist mode anyway
+        covered_consonants = {pair[0] for pair in allowed}
+        covered_vowels = {pair[1] for pair in allowed}
+        assert covered_consonants == set(consonants)
+        assert covered_vowels == set(vowels)
+
+
+def test_no_source_language_blacklist_mode_leaves_most_pairs_legal():
+    consonants = ("p", "t", "k", "m", "n")
+    vowels = ("a", "i", "u")
+    total = len(consonants) * len(vowels)
+    for seed in range(20):
+        allowed, excluded = phonology_gen._resolve_onset_nucleus_restriction(
+            random.Random(seed), (), 0.0, consonants, vowels, -1.0
+        )
+        if allowed is not None:
+            continue  # this seed happened to roll whitelist mode anyway
+        assert len(excluded) < total / 2
+
+
+def test_phonotactic_restrictiveness_pushes_toward_whitelist_mode():
+    consonants = ("p", "t", "k", "m", "n")
+    vowels = ("a", "i", "u")
+
+    def _whitelist_fraction(restrictiveness: float) -> float:
+        hits = 0
+        for seed in range(80):
+            allowed, _ = phonology_gen._resolve_onset_nucleus_restriction(
+                random.Random(seed), (), 0.0, consonants, vowels, restrictiveness
+            )
+            hits += allowed is not None
+        return hits / 80
+
+    assert _whitelist_fraction(1.0) > _whitelist_fraction(0.0) > _whitelist_fraction(-1.0)

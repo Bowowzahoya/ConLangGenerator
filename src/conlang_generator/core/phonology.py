@@ -188,12 +188,26 @@ class SyllableStructure(BaseModel, frozen=True):
     genuinely onset-illegal consonant is illegal anywhere in the onset,
     not just word-initially. Only populated when a matched
     ``source_language_strictness`` > 0 -- see ``generation/phonology_gen.py``."""
+    allowed_onset_nucleus_pairs: tuple[tuple[str, str], ...] | None = None
+    """Whitelist mode for onset+nucleus co-occurrence: ``None`` means
+    unrestricted (today's default); when set, a syllable's
+    ``(onset[-1], nucleus)`` pair must be in this set -- e.g. a
+    Mandarin-style small syllabary. Mirrors ``allowed_coda_consonants``'s
+    own ``None``-means-unrestricted convention. See
+    ``generation/phonology_gen.py``."""
+    excluded_onset_nucleus_pairs: tuple[tuple[str, str], ...] = ()
+    """Blacklist mode for onset+nucleus co-occurrence: a syllable's
+    ``(onset[-1], nucleus)`` pair may never be one of these -- e.g. real
+    English's "dw-"/"tw-"/"kw-" never precede a rounded vowel. Layered
+    independently on top of ``allowed_onset_nucleus_pairs`` (checked
+    regardless of whether that's set), same relationship
+    ``excluded_coda_consonants`` has to ``allowed_coda_consonants``."""
     vowel_harmony: bool = False
     """Backness (front/back) vowel harmony -- see
     ``generation/word_builder.py``'s ``build_word``."""
 
     def is_valid_syllable(
-        self, onset: tuple[str, ...], coda: tuple[str, ...]
+        self, onset: tuple[str, ...], nucleus: str, coda: tuple[str, ...]
     ) -> bool:
         if len(onset) > self.max_onset:
             return False
@@ -203,6 +217,12 @@ class SyllableStructure(BaseModel, frozen=True):
             return False
         if any(c in self.excluded_onset_consonants for c in onset):
             return False
+        if onset:
+            pair = (onset[-1], nucleus)
+            if self.allowed_onset_nucleus_pairs is not None and pair not in self.allowed_onset_nucleus_pairs:
+                return False
+            if pair in self.excluded_onset_nucleus_pairs:
+                return False
         if len(coda) > self.max_coda:
             return False
         if len(coda) == 2 and coda not in self.allowed_coda_clusters:

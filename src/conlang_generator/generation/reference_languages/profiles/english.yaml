@@ -5,7 +5,18 @@ coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: silent-e-style
-restricted_onset_consonants: ["ŋ"]  # /ŋ/ is coda/medial-only in real English, never opens a syllable
+restricted_onset_consonants: ["ŋ", "ʒ"]  # /ŋ/ is coda/medial-only; /ʒ/ word-initial is loanword-only (genre, jete)
+restricted_coda_consonants: [j, w]  # what looks like a word-final glide in English spelling ("cow", "day") is really part of a diphthong vowel (ai/au/ɔi/ei), not a true consonant coda
+restricted_onset_nucleus_pairs:
+  # Real English labial dissimilation: "dw-"/"tw-"/"kw-"/"gw-" (and plain
+  # "w-") never precede a rounded vowel -- "dwoo"/"dwo" isn't a real
+  # combination, but "dwe"/"dwa"-shaped ones are (dwell, dwarf). Keyed on
+  # the shared final onset consonant "w", so this covers every cluster
+  # ending in it uniformly, not just one specific cluster.
+  - [w, u]
+  - [w, o]
+  - [w, "ʊ"]
+  - [w, "ɔ"]
 attested_onset_clusters:
   # Real, common English onset clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive (only used when

@@ -42,7 +42,8 @@ _DIMENSION_POLES = """- isolation: + isolated/cut off from outsiders; - well-con
 - aesthetic_harshness: + harsh/guttural sound; - soft/melodic sound
 - tonal_friendliness: + tonal/pitch-based meaning; - explicitly not tonal (e.g. stress-only)
 - taboo_register: + an avoidance/taboo speech register; - no such register
-- terrain_communication_distance: + need for loud/long-distance communication; - close-quarters, no such need"""
+- terrain_communication_distance: + need for loud/long-distance communication; - close-quarters, no such need
+- phonotactic_restrictiveness: + a tight, rigid set of allowed syllables (only a small fixed combination of sounds actually occurs); - loose/permissive, almost any sound combination goes"""
 
 _SYSTEM_PROMPT = f"""You classify a free-text description of a constructed language \
 against a fixed set of dimensions known to shape real languages. For each \
@@ -157,6 +158,14 @@ strictness is one shared number covering closeness to the *combination* \
 of everything named, not a separate value per language. "Basically a mix \
 of" + "close cousin of both" is explicit and central, so strictness sits \
 high, same reasoning as any other dimension's 0.7-0.9 band.)
+
+Prompt: "a language with a small, rigid set of allowed syllables, almost \
+like a fixed syllabary, no source language in mind"
+-> phonotactic_restrictiveness: 0.8, every other dimension: 0.0, all \
+lists empty. (Explicit and central description of a tight syllable \
+canon, no other dimension touched -- "no source language in mind" is why \
+source_languages stays empty even though the description is Mandarin-like \
+in spirit.)
 
 Respond with ONLY a single JSON object, no prose, no markdown fences."""
 
