@@ -52,6 +52,13 @@ attested_nucleus_coda_pairs: []     # optional, defaults empty -- whitelist mode
 restricted_coda_onset_pairs: []     # optional, defaults empty -- cross-syllable, blacklist mode
 attested_coda_onset_pairs: []       # optional, defaults empty -- cross-syllable, whitelist mode
 core_vocabulary_average_syllables: null  # optional, defaults null -- e.g. 1.43, a hand-counted illustrative average
+onset_frequency_tiers:              # optional, defaults empty -- in-word frequency by word-type productivity
+  very_common: [s, t]
+  common: [p, b, d]
+  uncommon: [z]
+  rare: ["ð"]
+nucleus_frequency_tiers: {}         # optional, defaults empty -- same tier shape, for vowels
+coda_frequency_tiers: {}            # optional, defaults empty -- same tier shape, for coda consonants
 ```
 
 ``orthography`` entries are ``RomanizationRule``s -- see its docstring for
@@ -210,6 +217,37 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     convention as every other field above. Only consulted when
     ``source_language_strictness`` > 0 -- see
     ``generation/lexicon_gen.py``'s ``choose_syllable_count``."""
+    onset_frequency_tiers: dict[str, tuple[str, ...]] = {}
+    """How often each of this language's own legal onset consonants
+    shows up *within* words, once it's in the inventory -- a different
+    axis from ``restricted_onset_consonants``/``attested_onset_clusters``
+    (which govern whether a symbol/cluster can appear there at all) and
+    from ``Consonant.prevalence`` (a single cross-linguistic value used
+    for every position alike). Keys are the tier names
+    ``"very_common"``/``"common"``/``"uncommon"``/``"rare"``; values are
+    the symbols in that tier for this position, judged by **word-type
+    productivity** (how many distinct words use this sound here), not
+    token/corpus frequency -- those diverge sharply for closed function-
+    word classes (real English ``/ð/`` is extremely frequent in running
+    text purely via "the/this/that/these/those/then/than/there/they",
+    but is one of the *smallest* onset classes by word-type count).
+    Covers only symbols actually legal in this position for this
+    profile. Empty (the common case) means not curated -- abstains, same
+    convention as every other field above. Only consulted when
+    ``source_language_strictness`` > 0 -- see
+    ``generation/phonology_gen.py``'s ``_resolve_position_multipliers``
+    and ``core.phonology.SyllableStructure.onset_symbol_multipliers``."""
+    nucleus_frequency_tiers: dict[str, tuple[str, ...]] = {}
+    """The nucleus-position mirror of ``onset_frequency_tiers`` -- same
+    tier names, same word-type-productivity judgment, covering this
+    profile's own vowels."""
+    coda_frequency_tiers: dict[str, tuple[str, ...]] = {}
+    """The coda-position mirror of ``onset_frequency_tiers``. Frequency
+    genuinely differs by position for the same symbol -- e.g. real
+    Dutch's ``/x/`` is a rare onset (near loanword-only: chaos, chemie)
+    but one of the most productive codas in the language (the
+    "-cht"/"-acht" family: nacht, recht, acht) -- which is why this is
+    three separate fields rather than one flat per-symbol table."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

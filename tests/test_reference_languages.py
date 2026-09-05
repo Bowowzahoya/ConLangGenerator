@@ -352,3 +352,54 @@ def test_most_profiles_leave_average_syllables_uncurated():
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in perfected:
             assert profile.core_vocabulary_average_syllables is None
+
+
+_PERFECTED_LANGUAGES = ("English", "German", "French", "Dutch")
+_TIER_NAMES = {"very_common", "common", "uncommon", "rare"}
+
+
+def _legal_symbols(profile, position: str) -> set[str]:
+    if position == "onset":
+        return set(profile.consonants) - set(profile.restricted_onset_consonants)
+    if position == "coda":
+        return set(profile.consonants) - set(profile.restricted_coda_consonants)
+    return set(profile.vowels)  # nucleus -- every vowel is legal
+
+
+def test_frequency_tiers_exactly_partition_each_legal_symbol_set():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in _PERFECTED_LANGUAGES:
+        profile = by_name[name]
+        for position, field in (
+            ("onset", profile.onset_frequency_tiers),
+            ("coda", profile.coda_frequency_tiers),
+            ("nucleus", profile.nucleus_frequency_tiers),
+        ):
+            assert set(field.keys()) == _TIER_NAMES, f"{name} {position}"
+            tiered: list[str] = [symbol for members in field.values() for symbol in members]
+            assert len(tiered) == len(set(tiered)), f"{name} {position} has a symbol in more than one tier"
+            assert set(tiered) == _legal_symbols(profile, position), f"{name} {position}"
+
+
+def test_frequency_tiers_correctly_flip_by_position_for_dutch_x():
+    # The clearest single example of why this needs to be per-position:
+    # /x/ is a rare onset in Dutch but one of the most productive codas.
+    dutch = next(p for p in REFERENCE_LANGUAGES if p.name == "Dutch")
+    assert "x" in dutch.onset_frequency_tiers["rare"]
+    assert "x" in dutch.coda_frequency_tiers["very_common"]
+
+
+def test_english_ð_is_onset_rare_despite_high_token_frequency():
+    # The type-vs-token-frequency distinction this whole feature is built
+    # on: /ð/ is everywhere in running English text (the/this/that/...)
+    # but is one of the smallest onset classes by word-type count.
+    english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+    assert "ð" in english.onset_frequency_tiers["rare"]
+
+
+def test_non_perfected_profiles_leave_frequency_tiers_uncurated():
+    for profile in REFERENCE_LANGUAGES:
+        if profile.name not in _PERFECTED_LANGUAGES:
+            assert profile.onset_frequency_tiers == {}
+            assert profile.nucleus_frequency_tiers == {}
+            assert profile.coda_frequency_tiers == {}

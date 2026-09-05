@@ -228,6 +228,22 @@ class SyllableStructure(BaseModel, frozen=True):
     these. Layered independently on top of
     ``allowed_coda_onset_boundary_pairs``, same relationship the other
     excluded/allowed pair fields have to each other."""
+    onset_symbol_multipliers: tuple[tuple[str, float], ...] = ()
+    """In-word sampling-frequency realism: a multiplier on top of each
+    onset consonant's own ``Consonant.prevalence`` (not a replacement --
+    a symbol absent from this table keeps its plain ``prevalence``
+    unchanged, multiplier ``1.0``). Distinct from every restriction field
+    above, which governs whether a symbol can appear at all; this
+    governs how often it does once it's legal there, which varies by
+    language *and*, independently, by position for the very same symbol
+    (real Dutch ``/x/`` is a rare onset but one of the most common
+    codas -- see ``coda_symbol_multipliers``). See
+    ``generation/phonology_gen.py``'s ``_resolve_position_multipliers``
+    and ``generation/word_builder.py``'s ``weighted_choice``."""
+    nucleus_symbol_multipliers: tuple[tuple[str, float], ...] = ()
+    """The nucleus-position mirror of ``onset_symbol_multipliers``."""
+    coda_symbol_multipliers: tuple[tuple[str, float], ...] = ()
+    """The coda-position mirror of ``onset_symbol_multipliers``."""
     vowel_harmony: bool = False
     """Backness (front/back) vowel harmony -- see
     ``generation/word_builder.py``'s ``build_word``."""

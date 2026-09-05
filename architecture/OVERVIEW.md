@@ -251,7 +251,22 @@ Everything here is a pure function of a `random.Random` seeded from
   construction (never generates then validates). Phoneme selection is
   weighted by each candidate's `prevalence` rather than uniform, so common
   phonemes show up more often *within* words, not just more often in
-  inventories (the schwa-in-English effect). `build_word` picks one
+  inventories (the schwa-in-English effect). On top of that generic
+  weight, `SyllableStructure.onset_symbol_multipliers`/
+  `nucleus_symbol_multipliers`/`coda_symbol_multipliers` -- resolved once
+  per language in `phonology_gen.py`'s `_resolve_position_multipliers`
+  from a matched profile's own `{onset,nucleus,coda}_frequency_tiers` --
+  let `weighted_choice()` (and `_cluster_weight()`) apply a *per-position*
+  strictness-graded multiplier on top: the same symbol can be common in
+  one position and rare in another for a given language (real Dutch `/x/`
+  is a rare onset -- chaos, chemie -- but one of the most productive codas
+  via "-cht"/"-acht"), which a single flat `prevalence` value can't
+  express. Curated by word-*type* productivity, not token/corpus
+  frequency, since this project generates one word per meaning rather
+  than running text -- those two measures diverge sharply for closed
+  function-word classes (real English `/ð/` is everywhere in running text
+  purely via "the/this/that/..." but is one of the smallest onset classes
+  by word-type count). `build_word` picks one
   front/back harmony class per word up front when `vowel_harmony` is set
   and threads it into every syllable, with a small leak probability
   (central vowels stay harmony-neutral); an optional `size_bias`

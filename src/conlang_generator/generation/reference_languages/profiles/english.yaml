@@ -122,3 +122,25 @@ orthography:
   - {ipa: "ɔi", latin: oy}   # "boy"
   - {ipa: ei, latin: ay}     # "day"
 core_vocabulary_average_syllables: 1.14  # hand-counted across this project's own CORE_MEANINGS glosses -- the shortest of the four perfected languages, reflecting English's aggressive historical apocope
+onset_frequency_tiers:
+  # By word-type productivity (how many distinct words use this sound
+  # here), not token/corpus frequency -- /ð/ is extremely frequent in
+  # running text (the/this/that/these/those/then/than/there/they) but
+  # is one of the smallest onset classes by word-type count.
+  very_common: [s, t, k, p, b]
+  common: [d, m, f, r, l, w, g, h, n, v]
+  uncommon: [j, "ʃ", "tʃ", "dʒ", "θ"]
+  rare: ["ð", z]
+coda_frequency_tiers:
+  # /ŋ/ is very_common here despite being excluded from onset entirely --
+  # the "-ing" suffix is one of the most productive patterns in the
+  # language, a real type-frequency fact independent of token frequency.
+  very_common: [t, d, s, z, n, "ŋ"]
+  common: [r, l, m, k, p, b, g, f, v]
+  uncommon: ["ʃ", "tʃ", "dʒ", "θ", "ð"]
+  rare: [h, "ʒ"]
+nucleus_frequency_tiers:
+  very_common: ["ə", "ɪ", i]
+  common: ["æ", "ɐ", "ɛ", ai, ei]
+  uncommon: ["ɑ", "ɔ", o, u, au]
+  rare: ["ʊ", "ɔi", e]

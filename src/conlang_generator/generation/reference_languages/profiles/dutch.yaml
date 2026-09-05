@@ -99,3 +99,21 @@ orthography:
   - {ipa: "œy", latin: ui}  # "huis"
   - {ipa: au, latin: ou}    # "koud" (real; "saus" is a real "au" example)
 core_vocabulary_average_syllables: 1.27  # hand-counted across this project's own CORE_MEANINGS glosses -- shorter than German due to Dutch's own schwa-apocope (vuur/zon vs. Feuer/Sonne), but not as short as English
+onset_frequency_tiers:
+  very_common: ["ɣ", s]  # g-spelled onsets are broadly productive: gaan, goed, groot, geven
+  common: [p, b, t, d, k, f, v, h, m, n, l, r, w, j]
+  uncommon: [z]
+  rare: [x]  # word-initial ch-/x- is close to loanword-only: chaos, chemie
+coda_frequency_tiers:
+  # /x/ flips from onset-rare to coda-very_common -- the "-cht"/"-acht"
+  # family (nacht, recht, acht, licht) is one of the most characteristic,
+  # productive patterns in Dutch.
+  very_common: [n, t, x]
+  common: [s, l, r, k, p, m]
+  uncommon: [f, b, d, "ŋ"]
+  rare: [v, z, "ɣ", h, j, w]
+nucleus_frequency_tiers:
+  very_common: ["ə", a]
+  common: ["ɪ", "ɛ", o, u, "ɑ"]
+  uncommon: [i, "ɔ", y, "ø", au, e]
+  rare: ["œ", "ɛi", "œy"]

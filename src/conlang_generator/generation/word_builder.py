@@ -31,13 +31,25 @@ _BIG_HEIGHTS = (VowelHeight.OPEN, VowelHeight.NEAR_OPEN)
 _OPEN_HEIGHTS = (VowelHeight.OPEN, VowelHeight.NEAR_OPEN)
 
 
-def weighted_choice(rng: random.Random, options: tuple):
-    weights = [max(o.prevalence, 0.001) for o in options]
+def weighted_choice(rng: random.Random, options: tuple, multipliers: dict[str, float] | None = None):
+    """``multipliers`` (symbol -> multiplier on top of its own
+    ``prevalence``, e.g. ``SyllableStructure.onset_symbol_multipliers``)
+    is an in-word sampling-frequency adjustment, not a replacement for
+    ``prevalence`` -- a symbol absent from it keeps its plain
+    ``prevalence`` unchanged (multiplier ``1.0``). ``None`` (every
+    existing caller except ``_build_onset``/``_build_coda``/
+    ``_choose_nucleus``) is a full no-op, byte-identical to this
+    function before ``multipliers`` existed."""
+    m = multipliers or {}
+    weights = [max(o.prevalence * m.get(o.ipa, 1.0), 0.001) for o in options]
     return rng.choices(options, weights=weights)[0]
 
 
-def _cluster_weight(cluster: tuple[str, str], by_symbol: dict[str, float]) -> float:
-    return max(by_symbol.get(cluster[0], 0.001) * by_symbol.get(cluster[1], 0.001), 0.001)
+def _cluster_weight(cluster: tuple[str, str], by_symbol: dict[str, float], multipliers: dict[str, float] | None = None) -> float:
+    m = multipliers or {}
+    w0 = by_symbol.get(cluster[0], 0.001) * m.get(cluster[0], 1.0)
+    w1 = by_symbol.get(cluster[1], 0.001) * m.get(cluster[1], 1.0)
+    return max(w0 * w1, 0.001)
 
 
 def _filter_by_adjacency(items: tuple, key: Callable, is_legal: Callable[[str], bool]) -> tuple:
@@ -55,18 +67,19 @@ def _build_onset(
     rng: random.Random,
     inventory: PhonemeInventory,
     structure: SyllableStructure,
-    by_symbol: dict[str, float],
     prev_coda_final: str | None = None,
 ) -> tuple[str, ...]:
     if structure.max_onset == 0:
         return ()
+    onset_multipliers = dict(structure.onset_symbol_multipliers)
     if structure.max_onset >= 2 and structure.allowed_onset_clusters and rng.random() < 0.3:
         clusters = structure.allowed_onset_clusters
         if prev_coda_final is not None:
             clusters = _filter_by_adjacency(
                 clusters, key=lambda c: c[0], is_legal=lambda s: structure.is_valid_boundary(prev_coda_final, s)
             )
-        weights = [_cluster_weight(c, by_symbol) for c in clusters]
+        by_symbol = {c.ipa: c.prevalence for c in inventory.consonants}
+        weights = [_cluster_weight(c, by_symbol, onset_multipliers) for c in clusters]
         return rng.choices(clusters, weights=weights)[0]
     candidates = inventory.consonants
     if structure.excluded_onset_consonants:
@@ -80,18 +93,19 @@ def _build_onset(
         candidates = _filter_by_adjacency(
             candidates, key=lambda c: c.ipa, is_legal=lambda s: structure.is_valid_boundary(prev_coda_final, s)
         )
-    return (weighted_choice(rng, candidates).ipa,)
+    return (weighted_choice(rng, candidates, onset_multipliers).ipa,)
 
 
 def _build_coda(
     rng: random.Random,
     inventory: PhonemeInventory,
     structure: SyllableStructure,
-    by_symbol: dict[str, float],
     nucleus: str,
 ) -> tuple[str, ...]:
     if structure.max_coda == 0 or rng.random() < 0.4:
         return ()
+    coda_multipliers = dict(structure.coda_symbol_multipliers)
+    by_symbol = {c.ipa: c.prevalence for c in inventory.consonants}
 
     def is_legal_nucleus_coda(c: str) -> bool:
         pair = (nucleus, c)
@@ -102,7 +116,7 @@ def _build_coda(
     if structure.max_coda >= 2 and structure.allowed_coda_clusters and rng.random() < 0.2:
         clusters = tuple(c for c in structure.allowed_coda_clusters if is_legal_nucleus_coda(c[0]))
         if clusters:
-            weights = [_cluster_weight(c, by_symbol) for c in clusters]
+            weights = [_cluster_weight(c, by_symbol, coda_multipliers) for c in clusters]
             return rng.choices(clusters, weights=weights)[0]
         # No coda cluster is nucleus-coda-legal for this specific vowel --
         # fall through to the single-consonant branch below rather than
@@ -128,7 +142,7 @@ def _build_coda(
         # having no coda this time beats forcing an illegal one just to
         # have one, unlike the mandatory-onset case.
         return ()
-    weights = [by_symbol.get(c, 0.001) for c in legal_candidates]
+    weights = [by_symbol.get(c, 0.001) * coda_multipliers.get(c, 1.0) for c in legal_candidates]
     return (rng.choices(legal_candidates, weights=weights)[0],)
 
 
@@ -172,7 +186,7 @@ def _choose_nucleus(
         matching = tuple(v for v in vowels if v.height in heights)
         if matching and rng.random() < 0.8:
             vowels = matching
-    return weighted_choice(rng, vowels)
+    return weighted_choice(rng, vowels, dict(structure.nucleus_symbol_multipliers))
 
 
 def _build_syllable_parts(
@@ -191,11 +205,10 @@ def _build_syllable_parts(
     standalone single-syllable use like ``build_syllable``) skips that
     check entirely, same as every other position-dependent filter in this
     module being a no-op when its trigger is absent."""
-    by_symbol = {c.ipa: c.prevalence for c in inventory.consonants}
-    onset = _build_onset(rng, inventory, structure, by_symbol, prev_coda_final)
+    onset = _build_onset(rng, inventory, structure, prev_coda_final)
     onset_final = onset[-1] if onset else None
     nucleus = _choose_nucleus(rng, inventory, structure, onset_final, harmony_class, size_bias).ipa
-    coda = _build_coda(rng, inventory, structure, by_symbol, nucleus)
+    coda = _build_coda(rng, inventory, structure, nucleus)
     assert structure.is_valid_syllable(onset, nucleus, coda), (onset, nucleus, coda)
     # No assert on `is_valid_boundary` here, unlike the line above: unlike
     # a coda (always optional -- `_build_coda` can honestly return `()`

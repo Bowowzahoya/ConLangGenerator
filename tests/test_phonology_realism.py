@@ -878,10 +878,9 @@ def test_build_coda_never_returns_an_excluded_nucleus_coda_pair():
     vowels = tuple(v for v in phonology_gen.ALL_VOWELS if v.ipa in ("a", "i"))
     inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
     structure = SyllableStructure(max_onset=1, max_coda=1, excluded_nucleus_coda_pairs=(("i", "ŋ"),))
-    by_symbol = {c.ipa: c.prevalence for c in consonants}
     rng = random.Random(1)
     for _ in range(300):
-        coda = word_builder._build_coda(rng, inventory, structure, by_symbol, "i")
+        coda = word_builder._build_coda(rng, inventory, structure, "i")
         assert coda != ("ŋ",)
 
 
@@ -894,10 +893,9 @@ def test_build_coda_returns_no_coda_when_every_candidate_is_illegal_for_this_nuc
     vowels = tuple(v for v in phonology_gen.ALL_VOWELS if v.ipa in ("i",))
     inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
     structure = SyllableStructure(max_onset=0, max_coda=1, excluded_nucleus_coda_pairs=(("i", "ŋ"),))
-    by_symbol = {c.ipa: c.prevalence for c in consonants}
     rng = random.Random(1)
     for _ in range(50):
-        assert word_builder._build_coda(rng, inventory, structure, by_symbol, "i") == ()
+        assert word_builder._build_coda(rng, inventory, structure, "i") == ()
 
 
 def test_build_word_respects_a_coda_onset_boundary_restriction_across_syllables():
@@ -1027,3 +1025,117 @@ def test_full_strictness_german_words_average_more_syllables_than_english():
             total += sum(1 for ch in entry.ipa if ch in vowel_symbols)
         means[lang] = total / n
     assert means["German"] > means["English"]
+
+
+# --- Per-position in-word phoneme frequency realism ---
+
+
+def test_resolve_position_multipliers_lerps_from_1_0_toward_the_tier_weight():
+    profile = _synthetic_profile("A", onset_frequency_tiers={"very_common": ("s",), "rare": ("z",)})
+    for strictness, expected_s, expected_z in ((0.0, 1.0, 1.0), (0.5, 1.5, 1.0 - 0.425), (1.0, 2.0, 0.15)):
+        result = dict(
+            phonology_gen._resolve_position_multipliers(("s", "z"), (profile,), strictness, "onset_frequency_tiers")
+        )
+        if strictness <= 0.0:
+            assert result == {}
+        else:
+            assert result["s"] == pytest.approx(expected_s)
+            assert result["z"] == pytest.approx(expected_z)
+
+
+def test_resolve_position_multipliers_common_tier_is_always_exactly_1_0():
+    profile = _synthetic_profile("A", onset_frequency_tiers={"common": ("p",)})
+    for strictness in (0.25, 0.5, 1.0):
+        result = dict(
+            phonology_gen._resolve_position_multipliers(("p",), (profile,), strictness, "onset_frequency_tiers")
+        )
+        assert result["p"] == 1.0
+
+
+def test_resolve_position_multipliers_unflagged_symbol_gets_no_entry():
+    profile = _synthetic_profile("A", onset_frequency_tiers={"very_common": ("s",)})
+    result = dict(
+        phonology_gen._resolve_position_multipliers(("s", "t"), (profile,), 1.0, "onset_frequency_tiers")
+    )
+    assert "t" not in result
+    assert result["s"] == 2.0
+
+
+def test_resolve_position_multipliers_averages_disagreeing_profiles():
+    a = _synthetic_profile("A", onset_frequency_tiers={"very_common": ("s",)})  # 2.0
+    b = _synthetic_profile("B", onset_frequency_tiers={"rare": ("s",)})  # 0.15
+    result = dict(
+        phonology_gen._resolve_position_multipliers(("s",), (a, b), 1.0, "onset_frequency_tiers")
+    )
+    assert result["s"] == pytest.approx((2.0 + 0.15) / 2)
+
+
+def test_resolve_position_multipliers_no_op_without_a_match_or_strictness():
+    profile = _synthetic_profile("A", onset_frequency_tiers={"very_common": ("s",)})
+    assert phonology_gen._resolve_position_multipliers(("s",), (), 1.0, "onset_frequency_tiers") == ()
+    assert phonology_gen._resolve_position_multipliers(("s",), (profile,), 0.0, "onset_frequency_tiers") == ()
+
+
+def _onset_token_share(rng: random.Random, inventory, structure, symbol: str, n: int = 200) -> float:
+    hits = 0
+    for _ in range(n):
+        word = word_builder.build_word(rng, inventory, structure, num_syllables=2)
+        if word and word[0] == symbol:
+            hits += 1
+    return hits / n
+
+
+def test_full_strictness_english_boosts_frequent_onsets_and_suppresses_rare_ones():
+    def onset_s_share(strictness: float, seed: int) -> float:
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("English",), source_language_strictness=strictness)
+        )
+        inventory, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        if "s" not in inventory.consonant_symbols():
+            return None
+        rng = random.Random(seed + 500)
+        return _onset_token_share(rng, inventory, structure, "s", n=300)
+
+    for seed in range(10):
+        strict_share = onset_s_share(1.0, seed)
+        loose_share = onset_s_share(0.0, seed)
+        if strict_share is None or loose_share is None:
+            continue
+        assert strict_share >= loose_share
+        break
+    else:
+        raise AssertionError("no seed in range had /s/ in both inventories")
+
+
+def test_full_strictness_dutch_x_rises_in_coda_but_not_onset():
+    # The concrete position-asymmetry case this feature targets: the same
+    # symbol, opposite tiers, by position.
+    found_case = False
+    for seed in range(10):
+        spec0 = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("Dutch",), source_language_strictness=0.0)
+        )
+        spec1 = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("Dutch",), source_language_strictness=1.0)
+        )
+        inv0, structure0, _ = phonology_gen.generate_phonology(random.Random(seed), spec0)
+        inv1, structure1, _ = phonology_gen.generate_phonology(random.Random(seed), spec1)
+        if "x" not in inv1.consonant_symbols():
+            continue
+        found_case = True
+        onset_mult = dict(structure1.onset_symbol_multipliers).get("x", 1.0)
+        coda_mult = dict(structure1.coda_symbol_multipliers).get("x", 1.0)
+        assert onset_mult < 1.0  # rare onset
+        assert coda_mult > 1.0  # very_common coda
+    assert found_case
+
+
+def test_zero_strictness_and_no_source_language_leave_multiplier_fields_empty():
+    for spec in (
+        GenerationSpec(prompt="p", seed=1),
+        GenerationSpec(prompt="p", seed=1, traits=TraitProfile(source_languages=("English",), source_language_strictness=0.0)),
+    ):
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(1), spec)
+        assert structure.onset_symbol_multipliers == ()
+        assert structure.nucleus_symbol_multipliers == ()
+        assert structure.coda_symbol_multipliers == ()

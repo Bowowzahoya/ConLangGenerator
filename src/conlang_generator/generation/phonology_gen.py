@@ -739,6 +739,56 @@ def _resolve_coda_onset_boundary_restriction(
     )
 
 
+_FREQUENCY_TIER_WEIGHTS: dict[str, float] = {
+    "very_common": 2.0, "common": 1.0, "uncommon": 0.5, "rare": 0.15,
+}
+"""Multipliers for ``_resolve_position_multipliers`` -- centered so
+``"common"`` (the tier most symbols in any position actually fall into)
+is exactly ``1.0``, i.e. unchanged from today's uninfluenced behavior."""
+
+
+def _resolve_position_multipliers(
+    symbols: tuple[str, ...],
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    strictness: float,
+    field: str,
+) -> tuple[tuple[str, float], ...]:
+    """Resolves this run's own in-word sampling-weight multiplier per
+    symbol for one position (onset/nucleus/coda), from a matched
+    profile's own ``{onset,nucleus,coda}_frequency_tiers`` (``field``
+    names which one). A multiplier, not a replacement value: an
+    unmatched or uncurated symbol keeps its existing
+    ``Consonant.prevalence``/``Vowel.prevalence`` exactly (multiplier
+    ``1.0``), only symbols a matched profile actually tiers move at all
+    -- see ``core.phonology.SyllableStructure.onset_symbol_multipliers``
+    and ``word_builder.py`` for how the result is consumed.
+
+    ``strictness`` linearly interpolates each tiered symbol's multiplier
+    from ``1.0`` (no bias) toward its tier's weight (``_FREQUENCY_TIER_WEIGHTS``)
+    -- not ``biased_probability``, which models pulling a probability
+    toward certainty/impossibility; these are arbitrary positive sampling
+    weights, not probabilities of a binary event. A no-op at
+    ``strictness<=0`` or with no matched profile, same guarantee as every
+    other axis in this feature. Multiple matched profiles disagreeing on
+    a symbol's tier average their weights (not a union/intersection --
+    there's no legal/illegal split here to combine that way)."""
+    if not reference_profiles or strictness <= 0.0:
+        return ()
+    result = []
+    for symbol in symbols:
+        tier_weights = [
+            _FREQUENCY_TIER_WEIGHTS[tier]
+            for p in reference_profiles
+            for tier, members in getattr(p, field).items()
+            if symbol in members
+        ]
+        if not tier_weights:
+            continue
+        target = sum(tier_weights) / len(tier_weights)
+        result.append((symbol, 1.0 + strictness * (target - 1.0)))
+    return tuple(result)
+
+
 def generate_phonology(
     rng: random.Random, spec: GenerationSpec
 ) -> tuple[PhonemeInventory, SyllableStructure, ToneSystem]:
@@ -861,6 +911,28 @@ def generate_phonology(
     vowel_harmony_probability = _reference_clamp(vowel_harmony_probability, reference_profiles, "vowel_harmony", strictness)
     vowel_harmony = rng.random() < vowel_harmony_probability
 
+    # In-word sampling-frequency realism (distinct from every restriction
+    # above, which governs whether a symbol/cluster can appear at all):
+    # once a symbol is legal in a position, how often it actually shows
+    # up there varies a lot by language and, independently, by position
+    # for the very same symbol (real Dutch /x/ is onset-rare but one of
+    # the most common codas) -- see `_resolve_position_multipliers`.
+    onset_legal_symbols = tuple(c for c in consonant_symbols if c not in excluded_onset_consonants)
+    coda_legal_symbols = (
+        tuple(allowed_coda_consonants)
+        if allowed_coda_consonants is not None
+        else tuple(c for c in consonant_symbols if c not in excluded_coda_consonants)
+    )
+    onset_symbol_multipliers = _resolve_position_multipliers(
+        onset_legal_symbols, reference_profiles, strictness, "onset_frequency_tiers"
+    )
+    nucleus_symbol_multipliers = _resolve_position_multipliers(
+        vowel_symbols_for_pairs, reference_profiles, strictness, "nucleus_frequency_tiers"
+    )
+    coda_symbol_multipliers = _resolve_position_multipliers(
+        coda_legal_symbols, reference_profiles, strictness, "coda_frequency_tiers"
+    )
+
     syllable_structure = SyllableStructure(
         max_onset=max_onset,
         max_coda=max_coda,
@@ -875,6 +947,9 @@ def generate_phonology(
         excluded_nucleus_coda_pairs=excluded_nucleus_coda_pairs,
         allowed_coda_onset_boundary_pairs=allowed_coda_onset_boundary_pairs,
         excluded_coda_onset_boundary_pairs=excluded_coda_onset_boundary_pairs,
+        onset_symbol_multipliers=onset_symbol_multipliers,
+        nucleus_symbol_multipliers=nucleus_symbol_multipliers,
+        coda_symbol_multipliers=coda_symbol_multipliers,
         vowel_harmony=vowel_harmony,
     )
 

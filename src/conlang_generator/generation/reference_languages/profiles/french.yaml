@@ -60,3 +60,18 @@ orthography:
   - {ipa: "ɲ", latin: gn}
   - {ipa: "ʁ", latin: r}
 core_vocabulary_average_syllables: 1.35  # hand-counted across this project's own CORE_MEANINGS glosses -- between English and German, reflecting a mix of monosyllabic (eau, feu) and longer Latinate (animal, poisson) core words
+onset_frequency_tiers:
+  very_common: ["ʁ", s]  # French's only rhotic, in nearly every infinitive verb; s- broadly productive
+  common: [p, t, k, b, d, g, f, v, m, n, l, j, w, "ʃ", "ʒ"]  # "ʒ" (je-family) is a broad, productive class here, unlike English /ð/'s closed set
+  uncommon: [z]
+  rare: ["ɲ"]  # gn- word-initial is rare -- almost all /ɲ/ is medial (montagne, ligne, agneau)
+coda_frequency_tiers:
+  very_common: ["ʁ", l]  # -er/-ir agent-noun/infinitive productivity; le/la/les-family productivity carries l into codas too
+  common: [s, n, t, d, k, p, b, g, f, v, m, "ʃ", "ʒ", j]
+  uncommon: [z]
+  rare: ["ɲ"]
+nucleus_frequency_tiers:
+  very_common: ["ə", a]
+  common: [e, "ɛ", i, u, o]
+  uncommon: ["ɔ", "ɑ"]
+  rare: [y, "ø", "œ"]

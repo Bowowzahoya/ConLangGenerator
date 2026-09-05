@@ -80,3 +80,20 @@ orthography:
   - {ipa: "œy", latin: eu}   # "neu" -- real German's third diphthong,
                              # approximated by this project's œy symbol
 core_vocabulary_average_syllables: 1.43  # hand-counted across this project's own CORE_MEANINGS glosses -- the longest of the four perfected languages, reflecting German's retained endings (Wasser, Mutter, Vater...)
+onset_frequency_tiers:
+  very_common: ["ʃ", "ʁ"]  # the very productive native schl-/schm-/schn-/schw-/schr- cluster family; r- broadly productive too
+  common: [b, d, f, g, h, k, l, m, n, p, s, t]
+  uncommon: [v, z, j]
+  rare: [x, "ç"]  # both overwhelmingly post-vocalic in native German -- word-initial is close to loanword-only
+coda_frequency_tiers:
+  # /ç/ is very_common here despite being onset-rare -- "ich"/"nicht"
+  # plus the very productive -lich adjective family.
+  very_common: [n, t, s, "ç"]
+  common: ["ʁ", m, l, k, g, d]
+  uncommon: [f, b, p, v, "ŋ"]
+  rare: ["ʃ", z, h, x]
+nucleus_frequency_tiers:
+  very_common: ["ə", "ɪ", a]
+  common: ["ɛ", ai, u, o, au]
+  uncommon: [e, "ɔ", "ʊ", "iː", "aː", i, "eː"]
+  rare: [y, "ø", "œ", "œy", "oː", "uː"]
