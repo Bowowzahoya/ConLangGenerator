@@ -606,6 +606,7 @@ def test_uncurated_symbol_falls_back_to_the_source_languages_own_style_not_the_s
 
 _GERMAN = next(p for p in REFERENCE_LANGUAGES if p.name == "German")
 _FRENCH = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+_ENGLISH = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
 
 
 def _german_inventory() -> PhonemeInventory:
@@ -619,6 +620,13 @@ def _french_inventory() -> PhonemeInventory:
     return PhonemeInventory(
         consonants=tuple(_CONSONANT_BY_IPA[s] for s in _FRENCH.consonants),
         vowels=tuple(_VOWEL_BY_IPA[s] for s in _FRENCH.vowels),
+    )
+
+
+def _english_inventory() -> PhonemeInventory:
+    return PhonemeInventory(
+        consonants=tuple(_CONSONANT_BY_IPA[s] for s in _ENGLISH.consonants),
+        vowels=tuple(_VOWEL_BY_IPA[s] for s in _ENGLISH.vowels),
     )
 
 
@@ -676,6 +684,44 @@ def test_full_strictness_makes_german_noun_capitalization_near_certain():
         for seed in _SEEDS
     )
     assert strict > len(_SEEDS) * 0.97
+
+
+def test_full_strictness_suppresses_capitalization_for_a_non_capitalizing_language():
+    # English doesn't declare capitalized_pos -- at strictness=1.0 it
+    # should never invent capitalization real English doesn't have,
+    # unlike the base rate's usual "some seeds fire" behavior.
+    inventory = _english_inventory()
+    hits = sum(
+        bool(generate_romanization(random.Random(seed), inventory, ("English",), strictness=1.0).grammatical_spelling.capitalized_pos)
+        for seed in _SEEDS
+    )
+    assert hits == 0
+
+
+def test_full_strictness_suppresses_mute_suffix_for_a_non_mute_suffix_language():
+    # German doesn't declare mute_suffix_by_pos -- at strictness=1.0 it
+    # should never invent a silent-letter convention real German lacks.
+    inventory = _german_inventory()
+    hits = sum(
+        bool(generate_romanization(random.Random(seed), inventory, ("German",), strictness=1.0).grammatical_spelling.mute_suffix_by_pos)
+        for seed in _SEEDS
+    )
+    assert hits == 0
+
+
+def test_full_strictness_suppresses_all_caps_even_when_explicitly_allowed():
+    # No real language does this -- strictness should suppress it to
+    # exactly 0% even when the caller opts into allow_all_caps.
+    inventory = _german_inventory()
+    hits = sum(
+        bool(
+            generate_romanization(
+                random.Random(seed), inventory, ("German",), allow_all_caps=True, strictness=1.0
+            ).grammatical_spelling.all_caps_pos
+        )
+        for seed in _SEEDS
+    )
+    assert hits == 0
 
 
 def test_french_source_language_biases_toward_a_silent_r_verb_suffix():

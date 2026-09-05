@@ -918,33 +918,43 @@ def _roll_grammatical_spelling(
       than a specific profile's list, for every other prompt, so this
       doesn't misrepresent a real language (e.g. Dutch) that doesn't
       actually capitalize nouns just for being Germanic-family. `strictness`
-      pulls a *matched* boost further toward certainty (see
-      `_strict_weight`) -- never touches the unmatched base rate, so a
-      strict French-source language doesn't start capitalizing nouns just
-      because strictness is high.
-    - All-caps (`_ALL_CAPS_BASE_RATE`, rarer, no reference hook -- no real
-      language does this): only ever rolls at all when `allow_all_caps`
-      is true, the explicit opt-in gate on `core.spec.GenerationSpec` --
-      unaffected by `strictness`, since no real language does this and
-      strictness should only ever pull *toward* real, matched behavior.
-    - Mute suffix (`_MUTE_SUFFIX_BASE_RATE`, also `strictness`-pulled when
-      matched): when it fires, reuses a matched reference profile's own
-      `mute_suffix_by_pos` verbatim if one declares it (French, today);
-      otherwise invents one from a random POS paired with a random
-      illustrative silent letter.
+      pulls this *symmetrically*: toward certainty when matched, toward
+      impossibility (exactly 0% at strictness=1.0) when not -- a strict
+      English-source language should never invent capitalization real
+      English doesn't have, the same "adhere to everything in the real
+      language, not just its sounds" principle `_reference_biased_rate`
+      already applies to phonology.
+    - All-caps (`_ALL_CAPS_BASE_RATE`, rarer): only ever rolls at all when
+      `allow_all_caps` is true (the explicit opt-in gate on
+      `core.spec.GenerationSpec`), and even then `strictness` only ever
+      suppresses it (never boosts -- no real language does this, so
+      there's no "matched" case to pull toward), reaching exactly 0% at
+      strictness=1.0 regardless of `allow_all_caps`.
+    - Mute suffix (`_MUTE_SUFFIX_BASE_RATE`, same symmetric strictness pull
+      as capitalization): when it fires, reuses a matched reference
+      profile's own `mute_suffix_by_pos` verbatim if one declares it
+      (French, today); otherwise invents one from a random POS paired
+      with a random illustrative silent letter -- but at strictness=1.0
+      with a matched, non-mute-suffix language (German, English, Dutch),
+      it never fires at all.
     """
     _, capitalized_candidates = _first_matched_with(reference_profiles, "capitalized_pos")
     capitalization_rate = _CAPITALIZATION_REFERENCE_BOOST_RATE if capitalized_candidates else _CAPITALIZATION_BASE_RATE
-    if strictness > 0.0 and capitalized_candidates:
-        capitalization_rate = _strict_weight(capitalization_rate, strictness)
+    if strictness > 0.0:
+        capitalization_rate = biased_probability(capitalization_rate, strictness if capitalized_candidates else -strictness)
     capitalized_pos = _roll_pos_group(rng, capitalization_rate, capitalized_candidates)
 
-    all_caps_pos = _roll_pos_group(rng, _ALL_CAPS_BASE_RATE, ()) if allow_all_caps else ()
+    all_caps_pos = ()
+    if allow_all_caps:
+        all_caps_rate = _ALL_CAPS_BASE_RATE
+        if strictness > 0.0:
+            all_caps_rate = biased_probability(all_caps_rate, -strictness)  # no real language does this -- strictness only ever suppresses
+        all_caps_pos = _roll_pos_group(rng, all_caps_rate, ())
 
     _, reference_mute_rules = _first_matched_with(reference_profiles, "mute_suffix_by_pos")
     mute_suffix_rate = _MUTE_SUFFIX_BASE_RATE
-    if strictness > 0.0 and reference_mute_rules:
-        mute_suffix_rate = _strict_weight(mute_suffix_rate, strictness)
+    if strictness > 0.0:
+        mute_suffix_rate = biased_probability(mute_suffix_rate, strictness if reference_mute_rules else -strictness)
     mute_suffix_by_pos: tuple[MuteSuffixRule, ...] = ()
     if rng.random() < mute_suffix_rate:
         if reference_mute_rules:
