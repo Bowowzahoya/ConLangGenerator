@@ -17,6 +17,20 @@ restricted_onset_nucleus_pairs:
   - [w, o]
   - [w, "ʊ"]
   - [w, "ɔ"]
+restricted_nucleus_coda_pairs:
+  # Real English /ŋ/ only closes a syllable after a lax/checked vowel
+  # (sing, sung, hang, song) -- never a tense vowel or diphthong (no
+  # native "seeng"/"sayng"/"sowng"). Keyed on every tense vowel/diphthong
+  # this profile models.
+  - [i, "ŋ"]
+  - [e, "ŋ"]
+  - [u, "ŋ"]
+  - [o, "ŋ"]
+  - ["ə", "ŋ"]
+  - [ai, "ŋ"]
+  - [au, "ŋ"]
+  - ["ɔi", "ŋ"]
+  - [ei, "ŋ"]
 attested_onset_clusters:
   # Real, common English onset clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive (only used when
@@ -107,3 +121,4 @@ orthography:
   - {ipa: au, latin: ow}     # "cow"
   - {ipa: "ɔi", latin: oy}   # "boy"
   - {ipa: ei, latin: ay}     # "day"
+core_vocabulary_average_syllables: 1.14  # hand-counted across this project's own CORE_MEANINGS glosses -- the shortest of the four perfected languages, reflecting English's aggressive historical apocope

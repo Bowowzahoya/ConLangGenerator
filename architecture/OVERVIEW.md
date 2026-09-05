@@ -578,8 +578,20 @@ Everything here is a pure function of a `random.Random` seeded from
   (pronouns/particles skew short regardless; core generation defaults
   `favor_short=True`, `translation/expansion.py`'s coinage passes `False`)
   -- Zipf's law of abbreviation, using core-vs-coined as the one frequency
-  proxy the system has. Two meaning-specific sound-symbolism effects layer
-  on top: `"mother"`/`"father"` try `word_builder.build_reduplicated_word()`
+  proxy the system has. Both base weight tables were recalibrated against
+  a hand-count of this project's own `CORE_MEANINGS` glosses translated
+  into English/Dutch/French/German (the generic content-word mean was
+  ~1.7 syllables, higher than even German's real ~1.43). On top of that,
+  `ReferenceLanguageProfile.core_vocabulary_average_syllables` (curated
+  for those same four languages: English 1.14, Dutch 1.27, French 1.35,
+  German 1.43) lets a matched `source_languages` bias graded by
+  `source_language_strictness` exponentially tilt whichever base table
+  got picked, via `choose_syllable_count`'s own `math.exp(theta * count)`
+  reweighting -- deliberately the one mechanism in this whole feature that
+  never zeroes out an option even at `strictness=1.0`, since average word
+  length is a statistical tendency, not a categorical restriction the way
+  every phonotactic axis above is. Two meaning-specific sound-symbolism
+  effects layer on top: `"mother"`/`"father"` try `word_builder.build_reduplicated_word()`
   first (nasal vs. stop onset, ~80% of the time, falling back to normal
   generation if the inventory has neither or the roll misses) -- the
   mama/papa convergence; `"small"`/`"big"` thread `size_bias` into the
@@ -735,17 +747,32 @@ reading code or one-off ad hoc scripts.
   drift back toward looser/generic over a long evolution run, same as
   any other language's.
 - `restricted_onset_consonants`/`attested_onset_clusters` are curated for
-  German, English, and French only -- every other profile leaves both
-  empty (falls back to the generic sonority-only check, same "not yet
-  curated" honesty `orthography` already practices). Neither fixes a
-  *coda-then-onset* sequence spanning two adjacent syllables (e.g. a
+  German, English, French, and Dutch only -- every other profile leaves
+  both empty (falls back to the generic sonority-only check, same "not
+  yet curated" honesty `orthography` already practices). The full local-
+  adjacency family now covers all three positions in `(onset) nucleus
+  (coda)`: onset+nucleus (`allowed_onset_nucleus_pairs`/
+  `excluded_onset_nucleus_pairs`, e.g. real English "dw-"/"tw-" never
+  preceding a rounded vowel), nucleus+coda (`allowed_nucleus_coda_pairs`/
+  `excluded_nucleus_coda_pairs`, e.g. real English `/ŋ/` only closing a
+  syllable after a lax/checked vowel), and the cross-syllable
+  `SyllableStructure.is_valid_boundary` (coda-then-next-onset, e.g. a
   word's own coda "p" immediately followed by the next syllable's own
-  onset "d") -- that's not a single-syllable onset cluster at all, so
-  attested-cluster curation can't apply to it, and real languages do have
-  arbitrary syllable-boundary consonant sequences like this (English
-  "handbag", German "Erdbeere"); this project's word-builder has no
-  morpheme/compound structure to distinguish a genuine one from a
-  syllable-adjacency coincidence.
+  onset "d") -- all three resolved by the one generic
+  `phonology_gen._resolve_pair_restriction`, all three consumed by
+  `word_builder.py`. The onset+nucleus and cross-syllable-boundary
+  curated fields are empty for every profile except onset+nucleus's
+  English entry -- real, solidly-verifiable, purely *combinatorial*
+  (non-assimilation) facts of this shape are genuinely sparse for the
+  four perfected languages (most real syllable-boundary phenomena in
+  German/French/Dutch are assimilation/liaison processes, not a flat
+  "this coda never precedes that onset," and this project's word-builder
+  still has no morpheme/compound structure to distinguish a genuine
+  cross-morpheme sequence like English "handbag"/German "Erdbeere" from
+  ordinary syllable adjacency) -- so the cross-syllable mechanism mostly
+  stands ready for a future language with a more clearly documented
+  boundary restriction (e.g. a closed-syllabary language) rather than
+  changing these four languages' own output today.
 - `sound_change.py`'s six sound-change rules are illustrative, not
   exhaustive (none of them has diphthong-specific behavior -- a real
   diphthong monophthongizing over time, e.g., isn't modeled, though

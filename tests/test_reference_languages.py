@@ -125,6 +125,31 @@ def test_english_profile_declares_real_coda_clusters_not_generic_ones():
     assert ("ʃ", "p") not in english.attested_coda_clusters  # never a real English coda
 
 
+def test_english_profile_declares_its_own_ŋ_nucleus_restriction():
+    # Real English /ŋ/ only closes a syllable after a lax/checked vowel
+    # (sing, sung, hang) -- never a tense vowel or diphthong.
+    english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+    assert set(english.restricted_nucleus_coda_pairs) == {
+        ("i", "ŋ"), ("e", "ŋ"), ("u", "ŋ"), ("o", "ŋ"), ("ə", "ŋ"),
+        ("ai", "ŋ"), ("au", "ŋ"), ("ɔi", "ŋ"), ("ei", "ŋ"),
+    }
+    assert english.attested_nucleus_coda_pairs == ()  # blacklist mode, not whitelist
+    bad = [pair for pair in english.restricted_nucleus_coda_pairs if pair[0] not in english.vowels or pair[1] not in english.consonants]
+    assert bad == []
+
+
+def test_coda_onset_boundary_pairs_default_empty_for_the_four_perfected_languages():
+    # No solidly-verifiable, purely combinatorial (non-assimilation)
+    # cross-syllable-boundary fact was curated for these four -- the
+    # mechanism exists for future languages, but shouldn't fabricate data
+    # here (same "abstain rather than fabricate" discipline as every
+    # other curated field).
+    for name in ("English", "German", "French", "Dutch"):
+        profile = next(p for p in REFERENCE_LANGUAGES if p.name == name)
+        assert profile.restricted_coda_onset_pairs == ()
+        assert profile.attested_coda_onset_pairs == ()
+
+
 def test_mandarin_profile_spells_the_pinyin_u_umlaut_alternation_correctly():
     # The ü/u pinyin regression case, end to end through
     # generate_romanization -- proves specific-segment (not class-based)
@@ -308,3 +333,22 @@ def test_french_declares_a_silent_r_verb_suffix():
     rule = french.mute_suffix_by_pos[0]
     assert rule.pos is PartOfSpeech.VERB
     assert rule.suffix == "r"
+
+
+def test_the_four_perfected_languages_declare_a_real_average_syllable_count():
+    # Hand-counted across this project's own CORE_MEANINGS glosses --
+    # English shortest, German longest, Dutch/French in between.
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["English"].core_vocabulary_average_syllables == 1.14
+    assert by_name["Dutch"].core_vocabulary_average_syllables == 1.27
+    assert by_name["French"].core_vocabulary_average_syllables == 1.35
+    assert by_name["German"].core_vocabulary_average_syllables == 1.43
+    ordering = [by_name[n].core_vocabulary_average_syllables for n in ("English", "Dutch", "French", "German")]
+    assert ordering == sorted(ordering)
+
+
+def test_most_profiles_leave_average_syllables_uncurated():
+    perfected = {"English", "German", "French", "Dutch"}
+    for profile in REFERENCE_LANGUAGES:
+        if profile.name not in perfected:
+            assert profile.core_vocabulary_average_syllables is None

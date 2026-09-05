@@ -79,3 +79,4 @@ orthography:
   - {ipa: au, latin: au}     # "Haus"
   - {ipa: "œy", latin: eu}   # "neu" -- real German's third diphthong,
                              # approximated by this project's œy symbol
+core_vocabulary_average_syllables: 1.43  # hand-counted across this project's own CORE_MEANINGS glosses -- the longest of the four perfected languages, reflecting German's retained endings (Wasser, Mutter, Vater...)

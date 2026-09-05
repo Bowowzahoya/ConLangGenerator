@@ -90,6 +90,8 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
                 llm_client,
                 name,
                 context=spec.traits.salient_context,
+                source_languages=spec.traits.source_languages,
+                strictness=spec.traits.source_language_strictness,
             )
         generated_entries.append(entry)
     generated_entries = tuple(generated_entries)

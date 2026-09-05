@@ -598,18 +598,24 @@ def _sonorant_or_glottal_symbols(consonants: tuple[Consonant, ...]) -> tuple[str
     return tuple(c.ipa for c in consonants if c.ipa == "ʔ" or sonority.sonority(c) >= 3)
 
 
-def _resolve_onset_nucleus_restriction(
+def _resolve_pair_restriction(
     rng: random.Random,
     reference_profiles: tuple[ReferenceLanguageProfile, ...],
     strictness: float,
-    consonant_symbols: tuple[str, ...],
-    vowel_symbols: tuple[str, ...],
+    first_symbols: tuple[str, ...],
+    second_symbols: tuple[str, ...],
     phonotactic_restrictiveness: float,
+    blacklist_field: str,
+    whitelist_field: str,
 ) -> tuple[tuple[tuple[str, str], ...] | None, tuple[tuple[str, str], ...]]:
-    """Resolves this language's onset+nucleus co-occurrence restriction,
-    returned as ``(allowed_pairs_or_None, excluded_pairs)`` for direct use
-    as ``SyllableStructure``'s own ``allowed_onset_nucleus_pairs``/
-    ``excluded_onset_nucleus_pairs``.
+    """Resolves a local-adjacency co-occurrence restriction between two
+    symbol positions (e.g. onset+nucleus, nucleus+coda, or a cross-syllable
+    coda+next-onset boundary), returned as ``(allowed_pairs_or_None,
+    excluded_pairs)`` for direct use as the corresponding pair of
+    ``SyllableStructure`` fields. ``blacklist_field``/``whitelist_field``
+    name the ``ReferenceLanguageProfile`` attributes to read for each
+    matched profile -- this function is otherwise agnostic to which
+    adjacency it's resolving.
 
     Two structurally different real patterns, chosen per matched reference
     profile by which field it populates (see
@@ -634,21 +640,21 @@ def _resolve_onset_nucleus_restriction(
     languages -- it rolls its own blacklist-or-whitelist mode from
     ``phonotactic_restrictiveness`` and synthesizes data from this run's
     own rolled inventory (there's nothing curated to draw from). A rolled
-    whitelist gets a coverage floor first -- every consonant keeps at
-    least one legal vowel partner and vice versa -- so it can never leave
+    whitelist gets a coverage floor first -- every symbol on each side
+    keeps at least one legal partner on the other -- so it can never leave
     a symbol totally unreachable in this position, per "a whitelist should
     generally be large enough to support a language."
     """
     if reference_profiles:
-        blacklist_profiles = [p for p in reference_profiles if p.restricted_onset_nucleus_pairs]
-        whitelist_profiles = [p for p in reference_profiles if p.attested_onset_nucleus_pairs]
-        symbol_space = frozenset(consonant_symbols) | frozenset(vowel_symbols)
+        blacklist_profiles = [p for p in reference_profiles if getattr(p, blacklist_field)]
+        whitelist_profiles = [p for p in reference_profiles if getattr(p, whitelist_field)]
+        symbol_space = frozenset(first_symbols) | frozenset(second_symbols)
 
         if blacklist_profiles or not whitelist_profiles:
-            combined_blacklist = frozenset(blacklist_profiles[0].restricted_onset_nucleus_pairs) if blacklist_profiles else frozenset()
+            combined_blacklist = frozenset(getattr(blacklist_profiles[0], blacklist_field)) if blacklist_profiles else frozenset()
             for profile in blacklist_profiles[1:]:
-                combined_blacklist &= frozenset(profile.restricted_onset_nucleus_pairs)
-            combined_whitelist = frozenset().union(*(p.attested_onset_nucleus_pairs for p in whitelist_profiles)) if whitelist_profiles else frozenset()
+                combined_blacklist &= frozenset(getattr(profile, blacklist_field))
+            combined_whitelist = frozenset().union(*(getattr(p, whitelist_field) for p in whitelist_profiles)) if whitelist_profiles else frozenset()
             effective_blacklist = frozenset(
                 pair for pair in (combined_blacklist - combined_whitelist) if pair[0] in symbol_space and pair[1] in symbol_space
             )
@@ -658,7 +664,7 @@ def _resolve_onset_nucleus_restriction(
         else:
             combined_whitelist = frozenset(
                 pair
-                for pair in frozenset().union(*(p.attested_onset_nucleus_pairs for p in whitelist_profiles))
+                for pair in frozenset().union(*(getattr(p, whitelist_field) for p in whitelist_profiles))
                 if pair[0] in symbol_space and pair[1] in symbol_space
             )
             if strictness <= 0.0:
@@ -667,7 +673,7 @@ def _resolve_onset_nucleus_restriction(
             return (kept or None), ()
 
     # No source language at all -- roll mode, synthesize from this run's own inventory.
-    all_pairs = tuple((c, v) for c in consonant_symbols for v in vowel_symbols)
+    all_pairs = tuple((a, b) for a in first_symbols for b in second_symbols)
     if not all_pairs:
         return None, ()
     blacklist_probability = biased_probability(_BLACKLIST_MODE_BASE_RATE, -phonotactic_restrictiveness)
@@ -676,15 +682,61 @@ def _resolve_onset_nucleus_restriction(
         return None, tuple(rng.sample(all_pairs, k=min(num_restricted, len(all_pairs))))
 
     attested: set[tuple[str, str]] = set()
-    for consonant in consonant_symbols:
-        attested.add((consonant, rng.choice(vowel_symbols)))
-    for vowel in vowel_symbols:
-        attested.add((rng.choice(consonant_symbols), vowel))
+    for a in first_symbols:
+        attested.add((a, rng.choice(second_symbols)))
+    for b in second_symbols:
+        attested.add((rng.choice(first_symbols), b))
     remaining = [pair for pair in all_pairs if pair not in attested]
     rng.shuffle(remaining)
     extra_count = round(len(all_pairs) * _RANDOM_WHITELIST_EXTRA_FRACTION)
     attested.update(remaining[:extra_count])
     return tuple(attested), ()
+
+
+def _resolve_onset_nucleus_restriction(
+    rng: random.Random,
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    strictness: float,
+    consonant_symbols: tuple[str, ...],
+    vowel_symbols: tuple[str, ...],
+    phonotactic_restrictiveness: float,
+) -> tuple[tuple[tuple[str, str], ...] | None, tuple[tuple[str, str], ...]]:
+    """Onset+nucleus co-occurrence -- see ``_resolve_pair_restriction``."""
+    return _resolve_pair_restriction(
+        rng, reference_profiles, strictness, consonant_symbols, vowel_symbols, phonotactic_restrictiveness,
+        "restricted_onset_nucleus_pairs", "attested_onset_nucleus_pairs",
+    )
+
+
+def _resolve_nucleus_coda_restriction(
+    rng: random.Random,
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    strictness: float,
+    vowel_symbols: tuple[str, ...],
+    consonant_symbols: tuple[str, ...],
+    phonotactic_restrictiveness: float,
+) -> tuple[tuple[tuple[str, str], ...] | None, tuple[tuple[str, str], ...]]:
+    """Nucleus+coda co-occurrence -- see ``_resolve_pair_restriction``."""
+    return _resolve_pair_restriction(
+        rng, reference_profiles, strictness, vowel_symbols, consonant_symbols, phonotactic_restrictiveness,
+        "restricted_nucleus_coda_pairs", "attested_nucleus_coda_pairs",
+    )
+
+
+def _resolve_coda_onset_boundary_restriction(
+    rng: random.Random,
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    strictness: float,
+    consonant_symbols: tuple[str, ...],
+    phonotactic_restrictiveness: float,
+) -> tuple[tuple[tuple[str, str], ...] | None, tuple[tuple[str, str], ...]]:
+    """Cross-syllable coda-then-next-onset co-occurrence -- see
+    ``_resolve_pair_restriction``. Both sides draw from the same
+    consonant pool."""
+    return _resolve_pair_restriction(
+        rng, reference_profiles, strictness, consonant_symbols, consonant_symbols, phonotactic_restrictiveness,
+        "restricted_coda_onset_pairs", "attested_coda_onset_pairs",
+    )
 
 
 def generate_phonology(
@@ -709,6 +761,12 @@ def generate_phonology(
     vowel_symbols_for_pairs = inventory.vowel_symbols()
     allowed_onset_nucleus_pairs, excluded_onset_nucleus_pairs = _resolve_onset_nucleus_restriction(
         rng, reference_profiles, strictness, consonant_symbols, vowel_symbols_for_pairs, traits.phonotactic_restrictiveness
+    )
+    allowed_nucleus_coda_pairs, excluded_nucleus_coda_pairs = _resolve_nucleus_coda_restriction(
+        rng, reference_profiles, strictness, vowel_symbols_for_pairs, consonant_symbols, traits.phonotactic_restrictiveness
+    )
+    allowed_coda_onset_boundary_pairs, excluded_coda_onset_boundary_pairs = _resolve_coda_onset_boundary_restriction(
+        rng, reference_profiles, strictness, consonant_symbols, traits.phonotactic_restrictiveness
     )
 
     # Onset-position restriction (e.g. /ŋ/ never opens a syllable in real
@@ -813,6 +871,10 @@ def generate_phonology(
         excluded_onset_consonants=excluded_onset_consonants,
         allowed_onset_nucleus_pairs=allowed_onset_nucleus_pairs,
         excluded_onset_nucleus_pairs=excluded_onset_nucleus_pairs,
+        allowed_nucleus_coda_pairs=allowed_nucleus_coda_pairs,
+        excluded_nucleus_coda_pairs=excluded_nucleus_coda_pairs,
+        allowed_coda_onset_boundary_pairs=allowed_coda_onset_boundary_pairs,
+        excluded_coda_onset_boundary_pairs=excluded_coda_onset_boundary_pairs,
         vowel_harmony=vowel_harmony,
     )
 

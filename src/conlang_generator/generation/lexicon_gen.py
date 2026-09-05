@@ -10,12 +10,14 @@ no free-form generation to validate or repair.
 
 from __future__ import annotations
 
+import math
 import random
 
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, ToneSystem
 from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
 from conlang_generator.generation import word_builder
+from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 
@@ -118,14 +120,74 @@ _SIZE_BIAS_GLOSSES: dict[str, str] = {
 }
 
 
-def choose_syllable_count(rng: random.Random, pos: PartOfSpeech, favor_short: bool) -> int:
+_GENERIC_AVERAGE_SYLLABLES = 1.35
+"""The pivot a curated ``ReferenceLanguageProfile.core_vocabulary_average_syllables``
+tilts away from -- deliberately equal to the recalibrated content-word
+table's own mean below, so "no source language" and "strictness=0.0" both
+naturally coincide with this same realistic default, no separate no-op
+case needed. Recalibrated (see ``choose_syllable_count``'s own docstring)
+from a hand-counted average across this project's own ``CORE_MEANINGS``
+glosses translated into English (~1.14), Dutch (~1.27), French (~1.35),
+and German (~1.43) -- the old generic default of ~1.7 ran higher than
+even German's real figure."""
+
+_LENGTH_BIAS_TILT_SCALE = 4.5
+"""Tuned so a curated profile at ``strictness=1.0`` produces a clearly
+measurable, but not cartoonish, shift in sampled average syllable count --
+real cross-linguistic differences in core-vocabulary average syllable
+count are inherently modest (this project's own four curated profiles
+span only ~1.14-1.43), so a much larger scale than other
+``biased_probability``-style constants in this codebase is needed for the
+tilt to actually move the sampled mean toward that curated figure -- see
+``choose_syllable_count``."""
+
+
+def choose_syllable_count(
+    rng: random.Random,
+    pos: PartOfSpeech,
+    favor_short: bool,
+    average_syllables: float | None = None,
+    strictness: float = 0.0,
+) -> int:
+    """``average_syllables`` (a matched ``source_languages`` profile's own
+    ``core_vocabulary_average_syllables``, when curated) and ``strictness``
+    together tilt the chosen base table toward that language's own real
+    word-length tendency, via exponential tilting: each candidate count's
+    weight is scaled by ``exp(theta * count)``, which smoothly shifts the
+    distribution's mean up (a longer-than-generic language) or down
+    (shorter), and -- unlike every other ``source_language_strictness``-
+    gated mechanism in this project -- can never zero out an option, even
+    at ``strictness=1.0``. That's a deliberate choice: those other
+    mechanisms model genuine categorical restrictions (a sound either can
+    or can't open a syllable), but average word length is a statistical
+    *tendency* -- even Mandarin has some bisyllabic roots, even German has
+    plenty of monosyllabic words -- so this always leaves every count
+    reachable. A no-op (returns the base table unchanged) when
+    ``average_syllables`` is ``None`` (no curated match) or
+    ``strictness <= 0.0``, same "no source language, no bias" guarantee
+    every other axis in this feature already has.
+    """
     if pos in _FUNCTION_LIKE_POS:
-        counts, weights = (1, 2, 3), (75, 20, 5)
+        counts, weights = (1, 2, 3), (90, 9, 1)
     elif favor_short:
-        counts, weights = (1, 2, 3), (45, 40, 15)
+        counts, weights = (1, 2, 3), (70, 25, 5)
     else:
         counts, weights = (1, 2, 3, 4), (15, 35, 35, 15)
+    if average_syllables is not None and strictness > 0.0:
+        theta = _LENGTH_BIAS_TILT_SCALE * strictness * (average_syllables - _GENERIC_AVERAGE_SYLLABLES)
+        weights = [w * math.exp(theta * c) for w, c in zip(weights, counts)]
     return rng.choices(counts, weights=weights)[0]
+
+
+def _resolve_average_syllables(reference_profiles: tuple[ReferenceLanguageProfile, ...]) -> float | None:
+    """Averages ``core_vocabulary_average_syllables`` across every matched
+    profile that has curated it, ignoring ones that haven't (abstain, same
+    convention as every other curated field in this feature) -- ``None``
+    when none of them have."""
+    values = [
+        p.core_vocabulary_average_syllables for p in reference_profiles if p.core_vocabulary_average_syllables is not None
+    ]
+    return sum(values) / len(values) if values else None
 
 
 def _propose_kinship_word(
@@ -215,6 +277,8 @@ def propose_word(
     num_candidates: int = 5,
     context: str = "",
     favor_short: bool = True,
+    source_languages: tuple[str, ...] = (),
+    strictness: float = 0.0,
 ) -> LexicalEntry:
     """Build candidate forms deterministically, then ask the LLM to pick one.
 
@@ -229,6 +293,13 @@ def propose_word(
     (``translation/expansion.py``) passes ``False``. Function-like POS
     (pronouns, particles) skew short regardless, matching their own
     well-documented cross-linguistic brevity.
+
+    ``source_languages``/``strictness`` resolve this call's own reference
+    bias internally, the same self-contained way
+    ``phonology_gen.generate_phonology``/``romanization_gen.generate_romanization``/
+    ``grammar_gen.generate_grammar`` already do -- see
+    ``choose_syllable_count``'s own docstring for what the resulting tilt
+    actually does.
     """
     gloss_key = gloss.lower()
 
@@ -237,7 +308,8 @@ def propose_word(
         if kinship_entry is not None:
             return kinship_entry
 
-    num_syllables = choose_syllable_count(rng, pos, favor_short)
+    average_syllables = _resolve_average_syllables(match_profiles(source_languages))
+    num_syllables = choose_syllable_count(rng, pos, favor_short, average_syllables, strictness)
     size_bias = _SIZE_BIAS_GLOSSES.get(gloss_key)
 
     tones: tuple = ()

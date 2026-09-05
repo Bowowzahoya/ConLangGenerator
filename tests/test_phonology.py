@@ -77,3 +77,52 @@ def test_onset_nucleus_pair_restrictions_dont_apply_without_an_onset():
     # A vowel-initial syllable has no onset[-1] to check against at all.
     structure = SyllableStructure(max_onset=1, max_coda=0, excluded_onset_nucleus_pairs=(("w", "u"),))
     assert structure.is_valid_syllable((), "u", ())
+
+
+def test_excluded_nucleus_coda_pairs_blocks_only_that_combination():
+    structure = SyllableStructure(max_onset=0, max_coda=1, excluded_nucleus_coda_pairs=(("i", "ŋ"),))
+    assert not structure.is_valid_syllable((), "i", ("ŋ",))
+    assert structure.is_valid_syllable((), "i", ("n",))  # same nucleus, different coda -- fine
+    assert structure.is_valid_syllable((), "a", ("ŋ",))  # same coda, different nucleus -- fine
+
+
+def test_excluded_nucleus_coda_pairs_keys_on_the_first_coda_consonant():
+    # The coda's *first* consonant is what's adjacent to the nucleus --
+    # the pair check uses coda[0], not the whole cluster.
+    structure = SyllableStructure(
+        max_onset=0, max_coda=2, allowed_coda_clusters=(("ŋ", "k"),), excluded_nucleus_coda_pairs=(("i", "ŋ"),)
+    )
+    assert not structure.is_valid_syllable((), "i", ("ŋ", "k"))
+    assert structure.is_valid_syllable((), "a", ("ŋ", "k"))
+
+
+def test_allowed_nucleus_coda_pairs_is_a_whitelist():
+    structure = SyllableStructure(max_onset=0, max_coda=1, allowed_nucleus_coda_pairs=(("ɪ", "ŋ"),))
+    assert structure.is_valid_syllable((), "ɪ", ("ŋ",))
+    assert not structure.is_valid_syllable((), "ɪ", ("n",))
+    assert not structure.is_valid_syllable((), "a", ("ŋ",))  # nucleus itself never attested at all
+
+
+def test_nucleus_coda_pair_restrictions_dont_apply_without_a_coda():
+    structure = SyllableStructure(max_onset=0, max_coda=1, excluded_nucleus_coda_pairs=(("i", "ŋ"),))
+    assert structure.is_valid_syllable((), "i", ())
+
+
+def test_is_valid_boundary_passes_when_either_side_is_absent():
+    structure = SyllableStructure(excluded_coda_onset_boundary_pairs=(("t", "l"),))
+    assert structure.is_valid_boundary(None, "l")  # word start -- no previous coda
+    assert structure.is_valid_boundary("t", None)  # next syllable is vowel-initial
+
+
+def test_excluded_coda_onset_boundary_pairs_is_a_blacklist():
+    structure = SyllableStructure(excluded_coda_onset_boundary_pairs=(("t", "l"),))
+    assert not structure.is_valid_boundary("t", "l")
+    assert structure.is_valid_boundary("t", "n")  # same prev coda, different next onset -- fine
+    assert structure.is_valid_boundary("k", "l")  # same next onset, different prev coda -- fine
+
+
+def test_allowed_coda_onset_boundary_pairs_is_a_whitelist():
+    structure = SyllableStructure(allowed_coda_onset_boundary_pairs=(("n", "d"),))
+    assert structure.is_valid_boundary("n", "d")
+    assert not structure.is_valid_boundary("n", "t")
+    assert not structure.is_valid_boundary("k", "d")  # prev coda itself never attested at all

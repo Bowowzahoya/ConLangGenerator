@@ -47,6 +47,11 @@ restricted_coda_consonants: []   # optional, defaults empty -- see the field's o
 restricted_onset_nucleus_pairs: []  # optional, defaults empty -- e.g. [[w, u]] (blacklist mode)
 attested_onset_nucleus_pairs: []    # optional, defaults empty -- whitelist mode, mutually exclusive with the above
 attested_coda_clusters: []          # optional, defaults empty -- e.g. [[s, t]]
+restricted_nucleus_coda_pairs: []   # optional, defaults empty -- e.g. [[i, "ŋ"]] (blacklist mode)
+attested_nucleus_coda_pairs: []     # optional, defaults empty -- whitelist mode, mutually exclusive with the above
+restricted_coda_onset_pairs: []     # optional, defaults empty -- cross-syllable, blacklist mode
+attested_coda_onset_pairs: []       # optional, defaults empty -- cross-syllable, whitelist mode
+core_vocabulary_average_syllables: null  # optional, defaults null -- e.g. 1.43, a hand-counted illustrative average
 ```
 
 ``orthography`` entries are ``RomanizationRule``s -- see its docstring for
@@ -172,6 +177,39 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     yet -- falls back to the generic sonority-only legality check. Only
     consulted for the ``"unrestricted"`` ``coda_profile`` branch (a
     ``"none"``/``"sonorant"`` profile never builds coda clusters at all)."""
+    restricted_nucleus_coda_pairs: tuple[tuple[str, str], ...] = ()
+    """Blacklist mode: ``(nucleus, coda[0])`` pairs this language never
+    combines -- e.g. real English /ŋ/ only closes a syllable after a
+    lax/checked vowel (sing, sung, hang), never a tense vowel or
+    diphthong. The coda-side mirror of ``restricted_onset_nucleus_pairs``;
+    same mode-inference/abstain-when-empty rule against
+    ``attested_nucleus_coda_pairs``, only consulted when
+    ``source_language_strictness`` > 0."""
+    attested_nucleus_coda_pairs: tuple[tuple[str, str], ...] = ()
+    """Whitelist mode: the ``(nucleus, coda[0])`` pairs that are the only
+    ones legal -- see ``restricted_nucleus_coda_pairs`` above for the
+    mode-inference rule and the abstain-when-empty semantics."""
+    restricted_coda_onset_pairs: tuple[tuple[str, str], ...] = ()
+    """Blacklist mode, cross-syllable: ``(previous syllable's final coda
+    consonant, next syllable's first onset consonant)`` pairs this
+    language never combines at a word-internal syllable boundary. Same
+    mode-inference/abstain-when-empty rule against
+    ``attested_coda_onset_pairs``; only consulted when
+    ``source_language_strictness`` > 0. See
+    ``core.phonology.SyllableStructure.is_valid_boundary``."""
+    attested_coda_onset_pairs: tuple[tuple[str, str], ...] = ()
+    """Whitelist mode, cross-syllable: the ``(prev coda, next onset)``
+    pairs that are the only ones legal at a word-internal syllable
+    boundary -- see ``restricted_coda_onset_pairs`` above."""
+    core_vocabulary_average_syllables: float | None = None
+    """A rough, hand-counted average syllable count across this project's
+    own core-vocabulary-equivalent word list for this language --
+    illustrative, not a rigorous corpus statistic, same honesty standard
+    as every other curated field. ``None`` (the common case) means not
+    curated -- abstains from the multi-language average entirely, same
+    convention as every other field above. Only consulted when
+    ``source_language_strictness`` > 0 -- see
+    ``generation/lexicon_gen.py``'s ``choose_syllable_count``."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

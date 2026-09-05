@@ -87,12 +87,16 @@ def _root_violates_structure(
     inventory: PhonemeInventory,
 ) -> bool:
     """Whether filling `skeleton` with `root` would break any of
-    `structure`'s onset/coda/onset-nucleus restrictions -- checked
-    locally at each ``"C"`` slot's immediate skeleton neighbors (a fixed
-    vowel/literal, another ``"C"``, or a word boundary), the same
+    `structure`'s onset/coda/onset-nucleus/nucleus-coda restrictions --
+    checked locally at each ``"C"`` slot's immediate skeleton neighbors (a
+    fixed vowel/literal, another ``"C"``, or a word boundary), the same
     adjacency-only spirit `SyllableStructure.is_valid_syllable`'s own
     onset+nucleus check already uses, rather than a full syllable
-    re-parse of the flat root+template string."""
+    re-parse of the flat root+template string. Not checking the
+    cross-syllable coda-onset boundary here -- a flat, unsyllabified
+    skeleton has no clean notion of "end of one syllable, start of the
+    next" beyond the two-adjacent-``"C"`` cluster case already handled
+    below."""
     vowel_symbols = frozenset(v.ipa for v in inventory.vowels)
     consonant_by_ipa = {c.ipa: c for c in inventory.consonants}
     root_iter = iter(root)
@@ -105,6 +109,24 @@ def _root_violates_structure(
         symbol = filled[i]
         following_is_root_slot = i < last_index and skeleton[i + 1] == "C"
         following = filled[i + 1] if i < last_index else None
+        preceding = filled[i - 1] if i > 0 else None
+
+        intervocalic_onset = following is not None and following in vowel_symbols
+        if preceding is not None and preceding in vowel_symbols and not intervocalic_onset:
+            # Immediately preceded by a fixed vowel, and NOT also
+            # immediately followed by one -- a genuine coda position
+            # adjacent to that vowel's nucleus. A single consonant
+            # sitting *between* two vowels is excluded here: under the
+            # maximal-onset principle (the same one
+            # `sonority.legal_onset_pairs`'s own docstring invokes), an
+            # intervocalic single consonant is the *next* syllable's
+            # onset, never the previous syllable's coda -- it's already
+            # covered by the onset+nucleus branch below.
+            pair = (preceding, symbol)
+            if structure.allowed_nucleus_coda_pairs is not None and pair not in structure.allowed_nucleus_coda_pairs:
+                return True
+            if pair in structure.excluded_nucleus_coda_pairs:
+                return True
 
         if following is None:
             # Word-final: this is a coda position (the cluster case below

@@ -58,6 +58,8 @@ def coin_word(
                 language.name,
                 context=language.spec.traits.salient_context,
                 favor_short=False,
+                source_languages=language.spec.traits.source_languages,
+                strictness=language.spec.traits.source_language_strictness,
             )
         if language.lexicon.by_form(entry.romanization) is None:
             return entry

@@ -98,3 +98,4 @@ orthography:
                              # example, spelled "ei" -- see above)
   - {ipa: "œy", latin: ui}  # "huis"
   - {ipa: au, latin: ou}    # "koud" (real; "saus" is a real "au" example)
+core_vocabulary_average_syllables: 1.27  # hand-counted across this project's own CORE_MEANINGS glosses -- shorter than German due to Dutch's own schwa-apocope (vuur/zon vs. Feuer/Sonne), but not as short as English

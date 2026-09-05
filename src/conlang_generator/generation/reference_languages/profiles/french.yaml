@@ -59,3 +59,4 @@ orthography:
   - {ipa: "ə", latin: e}
   - {ipa: "ɲ", latin: gn}
   - {ipa: "ʁ", latin: r}
+core_vocabulary_average_syllables: 1.35  # hand-counted across this project's own CORE_MEANINGS glosses -- between English and German, reflecting a mix of monosyllabic (eau, feu) and longer Latinate (animal, poisson) core words

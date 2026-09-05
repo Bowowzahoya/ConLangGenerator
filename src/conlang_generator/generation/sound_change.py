@@ -456,7 +456,10 @@ def _coin_borrowed_word(
     inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
     max_coda = 0 if profile.coda_profile == "none" else 1
     structure = SyllableStructure(max_onset=1, max_coda=max_coda)
-    num_syllables = lexicon_gen.choose_syllable_count(rng, entry.pos, favor_short=True)
+    num_syllables = lexicon_gen.choose_syllable_count(
+        rng, entry.pos, favor_short=True,
+        average_syllables=profile.core_vocabulary_average_syllables, strictness=1.0,
+    )
     ipa = word_builder.build_word(rng, inventory, structure, num_syllables)
     scheme = romanization_gen.generate_romanization(rng, inventory, (profile.name,))
     return ipa, scheme.apply(ipa)

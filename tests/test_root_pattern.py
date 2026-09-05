@@ -138,6 +138,29 @@ def test_root_violates_structure_catches_an_excluded_onset_nucleus_pair():
     assert not _root_violates_structure(skeleton, ("t", "b", "k"), structure, _small_inventory())
 
 
+def test_root_violates_structure_catches_an_excluded_nucleus_coda_pair():
+    # "noun-place"-shaped: m-a-C-C-a-C -- the second "C" (index 3) is
+    # word-final, preceded by another "C" (a genuine coda cluster), not a
+    # fixed vowel, so it doesn't exercise this check. Use a simpler
+    # skeleton with a genuine single coda before a word boundary.
+    skeleton = ("C", "a", "C")
+    structure = SyllableStructure(excluded_nucleus_coda_pairs=(("a", "b"),))
+    assert _root_violates_structure(skeleton, ("k", "b"), structure, _small_inventory())
+    assert not _root_violates_structure(skeleton, ("k", "t"), structure, _small_inventory())
+
+
+def test_root_violates_structure_ignores_an_intervocalic_consonant_for_nucleus_coda():
+    # A single consonant sitting between two fixed vowels is the *next*
+    # syllable's onset under the maximal-onset principle, never the
+    # previous syllable's coda -- the nucleus-coda check must not apply
+    # to it even though a vowel immediately precedes it.
+    skeleton = ("C", "a", "C", "a", "C")
+    structure = SyllableStructure(excluded_nucleus_coda_pairs=(("a", "t"),))
+    # "t" (root[1]) sits at index 2, preceded by "a" and followed by "a" --
+    # intervocalic, so this must NOT be flagged by the nucleus-coda check.
+    assert not _root_violates_structure(skeleton, ("k", "t", "b"), structure, _small_inventory())
+
+
 def test_root_violates_structure_catches_a_restricted_coda_consonant():
     skeleton = ("C", "a", "C", "a", "C")
     structure = SyllableStructure(excluded_coda_consonants=("b",))

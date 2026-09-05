@@ -738,3 +738,292 @@ def test_zero_strictness_still_allows_an_unattested_coda_cluster():
             saw_unattested = True
             break
     assert saw_unattested
+
+
+# --- Nucleus+coda co-occurrence (the coda-side mirror of onset+nucleus) ---
+
+
+def _nucleus_coda_pair_legal(structure, nucleus: str, coda: str) -> bool:
+    if structure.allowed_nucleus_coda_pairs is not None:
+        return (nucleus, coda) in structure.allowed_nucleus_coda_pairs
+    return (nucleus, coda) not in structure.excluded_nucleus_coda_pairs
+
+
+def test_full_strictness_never_admits_englishs_tense_vowel_plus_ŋ():
+    for seed in range(40):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0)
+        )
+        _, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        for vowel in ("i", "e", "u", "o", "ə", "ai", "au", "ɔi", "ei"):
+            assert not _nucleus_coda_pair_legal(structure, vowel, "ŋ")
+
+
+def test_full_strictness_english_words_never_have_a_tense_vowel_before_ŋ():
+    tense_or_diphthong = {"i", "e", "u", "o", "ə", "ai", "au", "ɔi", "ei"}
+    checked_any = False
+    for seed in range(60):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0)
+        )
+        inventory, structure, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        if "ŋ" not in inventory.consonant_symbols():
+            continue
+        rng = random.Random(seed)
+        known_symbols = inventory.consonant_symbols() + inventory.vowel_symbols()
+        for _ in range(50):
+            word = word_builder.build_word(rng, inventory, structure, num_syllables=2)
+            tokens = ipa_tokenizer.symbols_only(word, known_symbols)
+            for i, token in enumerate(tokens[:-1]):
+                if tokens[i + 1] == "ŋ":
+                    checked_any = True
+                    assert token not in tense_or_diphthong
+    assert checked_any
+
+
+def test_resolve_nucleus_coda_restriction_intersects_two_blacklists():
+    a = _synthetic_profile("A", restricted_nucleus_coda_pairs=(("i", "ŋ"), ("u", "n")))
+    b = _synthetic_profile("B", restricted_nucleus_coda_pairs=(("i", "ŋ"),))
+    allowed, excluded = phonology_gen._resolve_nucleus_coda_restriction(
+        random.Random(0), (a, b), 1.0, ("a", "i", "u"), ("ŋ", "n"), 0.0
+    )
+    assert allowed is None
+    assert set(excluded) == {("i", "ŋ")}  # ("u", "n") only forbidden by A
+
+
+def test_resolve_nucleus_coda_restriction_unions_two_whitelists():
+    a = _synthetic_profile("A", attested_nucleus_coda_pairs=(("a", "n"),))
+    b = _synthetic_profile("B", attested_nucleus_coda_pairs=(("u", "t"),))
+    allowed, excluded = phonology_gen._resolve_nucleus_coda_restriction(
+        random.Random(0), (a, b), 1.0, ("a", "u"), ("n", "t"), 0.0
+    )
+    assert excluded == ()
+    assert set(allowed) == {("a", "n"), ("u", "t")}
+
+
+def test_resolve_nucleus_coda_restriction_ignores_uncurated_profiles():
+    curated = _synthetic_profile("Curated", restricted_nucleus_coda_pairs=(("i", "ŋ"),))
+    uncurated = _synthetic_profile("Uncurated")
+    allowed, excluded = phonology_gen._resolve_nucleus_coda_restriction(
+        random.Random(0), (curated, uncurated), 1.0, ("a", "i"), ("ŋ", "n"), 0.0
+    )
+    assert allowed is None
+    assert set(excluded) == {("i", "ŋ")}
+
+
+def test_no_source_language_nucleus_coda_whitelist_mode_keeps_a_coverage_floor():
+    vowels = ("a", "i", "u")
+    consonants = ("p", "t", "k", "m", "n")
+    for seed in range(20):
+        allowed, excluded = phonology_gen._resolve_nucleus_coda_restriction(
+            random.Random(seed), (), 0.0, vowels, consonants, 1.0
+        )
+        if allowed is None:
+            continue  # this seed happened to roll blacklist mode anyway
+        assert {pair[0] for pair in allowed} == set(vowels)
+        assert {pair[1] for pair in allowed} == set(consonants)
+
+
+# --- Coda-then-next-onset co-occurrence (cross-syllable boundary) ---
+
+
+def test_resolve_coda_onset_boundary_restriction_intersects_two_blacklists():
+    a = _synthetic_profile("A", restricted_coda_onset_pairs=(("t", "l"), ("n", "d")))
+    b = _synthetic_profile("B", restricted_coda_onset_pairs=(("t", "l"),))
+    allowed, excluded = phonology_gen._resolve_coda_onset_boundary_restriction(
+        random.Random(0), (a, b), 1.0, ("t", "l", "n", "d"), 0.0
+    )
+    assert allowed is None
+    assert set(excluded) == {("t", "l")}  # ("n", "d") only forbidden by A
+
+
+def test_resolve_coda_onset_boundary_restriction_unions_two_whitelists():
+    a = _synthetic_profile("A", attested_coda_onset_pairs=(("n", "d"),))
+    b = _synthetic_profile("B", attested_coda_onset_pairs=(("t", "l"),))
+    allowed, excluded = phonology_gen._resolve_coda_onset_boundary_restriction(
+        random.Random(0), (a, b), 1.0, ("n", "d", "t", "l"), 0.0
+    )
+    assert excluded == ()
+    assert set(allowed) == {("n", "d"), ("t", "l")}
+
+
+def test_resolve_coda_onset_boundary_restriction_ignores_uncurated_profiles():
+    curated = _synthetic_profile("Curated", restricted_coda_onset_pairs=(("t", "l"),))
+    uncurated = _synthetic_profile("Uncurated")
+    allowed, excluded = phonology_gen._resolve_coda_onset_boundary_restriction(
+        random.Random(0), (curated, uncurated), 1.0, ("t", "l", "n"), 0.0
+    )
+    assert allowed is None
+    assert set(excluded) == {("t", "l")}
+
+
+def test_no_source_language_coda_onset_boundary_whitelist_mode_keeps_a_coverage_floor():
+    consonants = ("p", "t", "k", "m", "n")
+    for seed in range(20):
+        allowed, excluded = phonology_gen._resolve_coda_onset_boundary_restriction(
+            random.Random(seed), (), 0.0, consonants, 1.0
+        )
+        if allowed is None:
+            continue  # this seed happened to roll blacklist mode anyway
+        covered_first = {pair[0] for pair in allowed}
+        covered_second = {pair[1] for pair in allowed}
+        assert covered_first == set(consonants)
+        assert covered_second == set(consonants)
+
+
+def test_build_coda_never_returns_an_excluded_nucleus_coda_pair():
+    from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure
+
+    consonants = tuple(c for c in phonology_gen.ALL_CONSONANTS if c.ipa in ("m", "n", "ŋ", "t"))
+    vowels = tuple(v for v in phonology_gen.ALL_VOWELS if v.ipa in ("a", "i"))
+    inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
+    structure = SyllableStructure(max_onset=1, max_coda=1, excluded_nucleus_coda_pairs=(("i", "ŋ"),))
+    by_symbol = {c.ipa: c.prevalence for c in consonants}
+    rng = random.Random(1)
+    for _ in range(300):
+        coda = word_builder._build_coda(rng, inventory, structure, by_symbol, "i")
+        assert coda != ("ŋ",)
+
+
+def test_build_coda_returns_no_coda_when_every_candidate_is_illegal_for_this_nucleus():
+    # Honest empty result preferred over fabricating an illegal coda --
+    # a coda is always optional, unlike a mandatory onset.
+    from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure
+
+    consonants = tuple(c for c in phonology_gen.ALL_CONSONANTS if c.ipa in ("ŋ",))
+    vowels = tuple(v for v in phonology_gen.ALL_VOWELS if v.ipa in ("i",))
+    inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
+    structure = SyllableStructure(max_onset=0, max_coda=1, excluded_nucleus_coda_pairs=(("i", "ŋ"),))
+    by_symbol = {c.ipa: c.prevalence for c in consonants}
+    rng = random.Random(1)
+    for _ in range(50):
+        assert word_builder._build_coda(rng, inventory, structure, by_symbol, "i") == ()
+
+
+def test_build_word_respects_a_coda_onset_boundary_restriction_across_syllables():
+    from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure
+
+    consonants = tuple(c for c in phonology_gen.ALL_CONSONANTS if c.ipa in ("t", "l", "n"))
+    vowels = tuple(v for v in phonology_gen.ALL_VOWELS if v.ipa in ("a", "i"))
+    inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
+    structure = SyllableStructure(
+        max_onset=1, max_coda=1, allowed_coda_consonants=("t", "n"), excluded_coda_onset_boundary_pairs=(("t", "l"),)
+    )
+    rng = random.Random(1)
+    for _ in range(100):
+        word = word_builder.build_word(rng, inventory, structure, num_syllables=2)
+        known_symbols = inventory.consonant_symbols() + inventory.vowel_symbols()
+        tokens = ipa_tokenizer.symbols_only(word, known_symbols)
+        # No "t" immediately followed by "l" anywhere a coda meets the
+        # next syllable's onset (there's no vowel between them, since a
+        # coda-onset boundary is precisely two consonants back to back).
+        for i in range(len(tokens) - 1):
+            if tokens[i] == "t" and tokens[i + 1] == "l":
+                raise AssertionError(f"illegal boundary in {word!r}")
+
+
+def test_word_builder_respects_a_maximally_tight_boundary_restriction_without_crashing():
+    # A pathological structure where the only "legal" boundary consonant
+    # doesn't actually exist in the inventory -- `_build_onset`'s
+    # defensive "or candidates" fallback must still produce *something*
+    # rather than leaving onset construction stuck, across many seeds.
+    from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure
+
+    consonants = tuple(c for c in phonology_gen.ALL_CONSONANTS if c.ipa in ("p", "t", "k"))
+    vowels = tuple(v for v in phonology_gen.ALL_VOWELS if v.ipa in ("a", "i"))
+    inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
+    structure = SyllableStructure(
+        max_onset=1,
+        max_coda=1,
+        allowed_coda_consonants=("p", "t", "k"),
+        allowed_coda_onset_boundary_pairs=(("p", "x"),),  # "x" isn't even in the inventory
+    )
+    for seed in range(20):
+        rng = random.Random(seed)
+        word = word_builder.build_word(rng, inventory, structure, num_syllables=3)
+        assert word
+
+
+# --- Per-language word-length realism (core_vocabulary_average_syllables) ---
+
+
+def _mean_syllable_count(pos, favor_short: bool, average_syllables, strictness: float, seed: int, n: int = 400) -> float:
+    rng = random.Random(seed)
+    total = sum(
+        lexicon_gen.choose_syllable_count(rng, pos, favor_short, average_syllables, strictness) for _ in range(n)
+    )
+    return total / n
+
+
+def test_resolve_average_syllables_averages_curated_profiles_and_ignores_uncurated():
+    curated_a = _synthetic_profile("A", core_vocabulary_average_syllables=1.0)
+    curated_b = _synthetic_profile("B", core_vocabulary_average_syllables=2.0)
+    uncurated = _synthetic_profile("Uncurated")
+    assert lexicon_gen._resolve_average_syllables((curated_a, curated_b)) == 1.5
+    assert lexicon_gen._resolve_average_syllables((curated_a, uncurated)) == 1.0
+    assert lexicon_gen._resolve_average_syllables((uncurated,)) is None
+    assert lexicon_gen._resolve_average_syllables(()) is None
+
+
+def test_choose_syllable_count_is_a_no_op_without_a_curated_average_or_strictness():
+    baseline = _mean_syllable_count(PartOfSpeech.NOUN, True, None, 0.0, seed=1)
+    still_none = _mean_syllable_count(PartOfSpeech.NOUN, True, None, 1.0, seed=1)
+    zero_strictness = _mean_syllable_count(PartOfSpeech.NOUN, True, 1.43, 0.0, seed=1)
+    assert baseline == still_none == zero_strictness
+
+
+def test_choose_syllable_count_gradient_is_monotonic_in_both_directions():
+    # German (long-biased) pulls the mean up as strictness increases;
+    # English (short-biased) pulls it down -- mirrors this session's
+    # existing test_source_language_strictness_gradient_is_monotonic shape.
+    def means(average_syllables: float) -> list[float]:
+        return [
+            _mean_syllable_count(PartOfSpeech.NOUN, True, average_syllables, s, seed=2)
+            for s in (0.0, 0.5, 1.0)
+        ]
+
+    german_means = means(_GERMAN.core_vocabulary_average_syllables)
+    assert german_means[0] < german_means[1] < german_means[2]
+
+    english_means = means(_ENGLISH.core_vocabulary_average_syllables)
+    assert english_means[0] > english_means[1] > english_means[2]
+
+
+def test_choose_syllable_count_never_zeroes_out_an_option_even_at_full_strictness():
+    # A statistical tendency, not a hard rule -- unlike every pair-
+    # restriction mechanism in this feature, every count must stay
+    # reachable even at strictness=1.0.
+    rng = random.Random(3)
+    seen = set()
+    for _ in range(2000):
+        seen.add(lexicon_gen.choose_syllable_count(rng, PartOfSpeech.NOUN, True, 1.43, 1.0))
+    assert seen == {1, 2, 3}
+
+
+def test_recalibrated_generic_table_averages_well_under_the_old_1_7_figure():
+    mean = _mean_syllable_count(PartOfSpeech.NOUN, True, None, 0.0, seed=4, n=1000)
+    assert mean < 1.5
+
+
+def test_full_strictness_german_words_average_more_syllables_than_english():
+    client = FakeLLMClient()
+    vowel_symbols_by_lang = {}
+    means = {}
+    for lang in ("English", "German"):
+        spec = GenerationSpec(
+            prompt="p", seed=6, traits=TraitProfile(source_languages=(lang,), source_language_strictness=1.0)
+        )
+        rng = random.Random(spec.seed)
+        inventory, structure, tone_system = phonology_gen.generate_phonology(rng, spec)
+        romanization = romanization_gen.generate_romanization(rng, inventory)
+        vowel_symbols = set(inventory.vowel_symbols())
+        total = 0
+        n = 150
+        for _ in range(n):
+            entry = lexicon_gen.propose_word(
+                rng, inventory, structure, tone_system, romanization, "thing", PartOfSpeech.NOUN, client, "Test",
+                source_languages=(lang,), strictness=1.0,
+            )
+            total += sum(1 for ch in entry.ipa if ch in vowel_symbols)
+        means[lang] = total / n
+    assert means["German"] > means["English"]

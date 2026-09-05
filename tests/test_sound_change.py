@@ -385,11 +385,14 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # A spelling reform is a language-wide convention change, not a
     # per-word one -- it must touch every word using the reformed symbol,
     # even one whose own pronunciation didn't shift this run at all. Fixed
-    # seed known to reform several words (e.g. "mountain", "animal",
-    # "fish") -- here via orthography drift dropping the ejective
-    # apostrophe mark -- while their IPA stays byte-identical to the base.
+    # seed known to reform several words (e.g. "rain", "name", "low") --
+    # here via orthography drift dropping the glottal-stop apostrophe mark
+    # -- while their IPA stays byte-identical to the base. (Seed 12's own
+    # base-language words shifted once lexicon_gen's syllable-count tables
+    # were recalibrated for more realistic average word length -- see
+    # lexicon_gen.py -- so this seed was re-found against the new base.)
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=12)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=1)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)

@@ -202,6 +202,32 @@ class SyllableStructure(BaseModel, frozen=True):
     independently on top of ``allowed_onset_nucleus_pairs`` (checked
     regardless of whether that's set), same relationship
     ``excluded_coda_consonants`` has to ``allowed_coda_consonants``."""
+    allowed_nucleus_coda_pairs: tuple[tuple[str, str], ...] | None = None
+    """Whitelist mode for nucleus+coda co-occurrence: ``None`` means
+    unrestricted (today's default); when set, a syllable's
+    ``(nucleus, coda[0])`` pair must be in this set. The coda-side mirror
+    of ``allowed_onset_nucleus_pairs``. See ``generation/phonology_gen.py``."""
+    excluded_nucleus_coda_pairs: tuple[tuple[str, str], ...] = ()
+    """Blacklist mode for nucleus+coda co-occurrence: a syllable's
+    ``(nucleus, coda[0])`` pair may never be one of these -- e.g. real
+    English /ŋ/ only closes a syllable after a lax/checked vowel (sing,
+    sung, hang), never a tense vowel or diphthong. Layered independently
+    on top of ``allowed_nucleus_coda_pairs``, same relationship
+    ``excluded_onset_nucleus_pairs`` has to ``allowed_onset_nucleus_pairs``."""
+    allowed_coda_onset_boundary_pairs: tuple[tuple[str, str], ...] | None = None
+    """Whitelist mode for the cross-syllable boundary: ``None`` means
+    unrestricted; when set, a word-internal ``(previous syllable's final
+    coda consonant, next syllable's first onset consonant)`` pair must be
+    in this set. Checked by ``is_valid_boundary``, not
+    ``is_valid_syllable`` -- it spans two syllables, so a single
+    syllable's own validity can't express it. See
+    ``generation/word_builder.py``."""
+    excluded_coda_onset_boundary_pairs: tuple[tuple[str, str], ...] = ()
+    """Blacklist mode for the cross-syllable boundary: a
+    ``(prev coda final, next onset initial)`` pair may never be one of
+    these. Layered independently on top of
+    ``allowed_coda_onset_boundary_pairs``, same relationship the other
+    excluded/allowed pair fields have to each other."""
     vowel_harmony: bool = False
     """Backness (front/back) vowel harmony -- see
     ``generation/word_builder.py``'s ``build_word``."""
@@ -236,5 +262,27 @@ class SyllableStructure(BaseModel, frozen=True):
         ):
             return False
         if coda and coda[-1] in self.excluded_coda_consonants:
+            return False
+        if coda:
+            nucleus_coda_pair = (nucleus, coda[0])
+            if self.allowed_nucleus_coda_pairs is not None and nucleus_coda_pair not in self.allowed_nucleus_coda_pairs:
+                return False
+            if nucleus_coda_pair in self.excluded_nucleus_coda_pairs:
+                return False
+        return True
+
+    def is_valid_boundary(self, prev_coda_final: str | None, next_onset_initial: str | None) -> bool:
+        """Whether a word-internal syllable boundary is legal: the pair
+        formed by the previous syllable's final coda consonant and the
+        next syllable's first onset consonant. Always ``True`` when either
+        side is absent (word start, or either syllable lacks that
+        position) -- this only ever restricts a genuine coda-then-onset
+        adjacency, never a vowel-adjacent hiatus."""
+        if prev_coda_final is None or next_onset_initial is None:
+            return True
+        pair = (prev_coda_final, next_onset_initial)
+        if self.allowed_coda_onset_boundary_pairs is not None and pair not in self.allowed_coda_onset_boundary_pairs:
+            return False
+        if pair in self.excluded_coda_onset_boundary_pairs:
             return False
         return True
