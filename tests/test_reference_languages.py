@@ -441,3 +441,27 @@ def test_only_french_overrides_syllable_boundary_marker():
     for name, profile in by_name.items():
         if name != "French":
             assert profile.syllable_boundary_marker == ""
+
+
+def test_french_restricts_w_to_its_three_real_attested_vowels():
+    # Real French /w/ only ever precedes a (moi, roi), i (oui), or ɛ
+    # (ouest) -- blacklist the rest so a strict French language can't
+    # generate implausible sequences like /w/+/o/ ("wagon" is actually
+    # /v/, not /w/, in real French).
+    french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+    blacklisted_vowels = {pair[1] for pair in french.restricted_onset_nucleus_pairs if pair[0] == "w"}
+    assert blacklisted_vowels == set(french.vowels) - {"a", "i", "ɛ"}
+
+
+def test_french_declares_the_real_wa_joint_spelling():
+    # Real French "moi"/"roi" -- /w/+/a/ spelled as one joint "oi" unit,
+    # not /w/'s own spelling plus a separately-appended "a".
+    french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+    assert len(french.onset_nucleus_spellings) == 1
+    entry = french.onset_nucleus_spellings[0]
+    assert (entry.first, entry.second, entry.latin) == ("w", "a", "oi")
+
+
+def test_no_profile_curates_nucleus_coda_spellings_yet():
+    for profile in REFERENCE_LANGUAGES:
+        assert profile.nucleus_coda_spellings == ()

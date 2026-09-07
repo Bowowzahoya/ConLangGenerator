@@ -7,8 +7,29 @@ max_onset: 2
 tonal: false
 orthography_category: diacritic-style
 syllable_boundary_marker: diaeresis  # real French tréma (Noël, naïve) -- specific to French, not shared by the other diacritic-style profiles (Icelandic, Persian, Portuguese, Quechua, Russian, Spanish, Tibetan, Turkish)
+onset_nucleus_spellings:
+  # Real French /w/+/a/ (moi, roi, voix) is spelled "oi" as a genuine
+  # *joint* unit -- 2 letters for 2 phonemes, consuming both, not "oi"
+  # (for /w/ alone) plus a separate "a" appended after (which would
+  # wrongly produce "moia").
+  - {first: w, second: a, latin: oi}
 mute_suffix_by_pos: [{pos: verb, suffix: r}]  # real French infinitive "-er"'s silent r ("parler" /paʁle/)
 restricted_coda_consonants: [w]  # /w/ is essentially onset-only in real French ("oui"); /j/ is genuinely attested in codas (soleil, travail) so it's deliberately NOT restricted here
+restricted_onset_nucleus_pairs:
+  # Real French /w/ only ever precedes a (moi, roi), i (oui), or ɛ
+  # (ouest) -- /w/ before any other vowel essentially doesn't occur
+  # natively (French "wagon" is actually /v/, not /w/). Blacklisting the
+  # rest keeps a strict French language from generating implausible
+  # sequences like /w/+/o/, which used to spell as nonsense ("oueau").
+  - [w, o]
+  - [w, u]
+  - [w, y]
+  - [w, "ø"]
+  - [w, "œ"]
+  - [w, "ɔ"]
+  - [w, e]
+  - [w, "ə"]
+  - [w, "ɑ"]
 attested_onset_clusters:
   # Real, common French onset clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive (only used when
@@ -83,9 +104,16 @@ orthography:
   - {ipa: e, latin: er, following: [boundary], weight: 0.3}
   - {ipa: e, latin: ez, following: [boundary], weight: 0.2}
   - {ipa: e, latin: "é"}
-  # /w/: "oi" specifically before /a/ (moi, roi, voix), "ou" elsewhere
-  # (oui, ouest) -- fully deterministic, no real free alternation.
-  - {ipa: w, latin: oi, following: [a]}
+  # /w/ before /i/ or /ɛ/ (oui, ouest): "ou" per-phoneme, independently
+  # spelled -- already correct as-is, no joint convention needed here.
+  # /w/+/a/ (moi, roi, voix) is handled separately, below, as a genuine
+  # *joint* spelling (onset_nucleus_spellings) -- NOT here as a
+  # following-conditioned rule on /w/ alone: that would only override
+  # /w/'s own slot while /a/ still appended its own separate "a" right
+  # after, wrongly producing "moia" instead of real "moi". Not
+  # manufacturing an "oui"-as-joint-spelling rule either -- real French
+  # /wi/ isn't reliably "oui" (kiwi spells the same sequence "wi"), so
+  # that's genuinely lexical/inconsistent, not a convention to hardcode.
   - {ipa: w, latin: ou}
   # /i/: "y" is a real minor alternative in Greek-derived loanwords
   # (stylo, type); plain "i" is overwhelmingly dominant otherwise.

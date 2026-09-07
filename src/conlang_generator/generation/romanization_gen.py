@@ -106,6 +106,7 @@ from conlang_generator.core.phonology import TONE_DIACRITICS, Consonant, Phoneme
 from conlang_generator.core.romanization import (
     ExoticSymbolStyle,
     GrammaticalSpelling,
+    JointSpelling,
     MuteSuffixRule,
     OrthographyCategory,
     OrthographyForce,
@@ -421,6 +422,37 @@ def _resolve_syllable_boundary_marker(
         if profile.syllable_boundary_marker and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
             return SyllableBoundaryMarker(profile.syllable_boundary_marker)
     return default
+
+
+def _resolve_joint_spellings(
+    rng: random.Random,
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    strictness: float,
+    inventory_symbols: frozenset[str],
+    field: str,
+) -> tuple[JointSpelling, ...]:
+    """`field` names which of `ReferenceLanguageProfile`'s two joint-
+    spelling fields to resolve (`"onset_nucleus_spellings"` or
+    `"nucleus_coda_spellings"` -- same resolution logic either way).
+    Entries whose `first`/`second` symbol isn't actually in this run's
+    own inventory are dropped (meaningless otherwise). Grouped by `first`
+    and adopted per group with the same `_strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT,
+    strictness)` roll every other curated-convention adoption in this
+    module gets -- `by_first` is built by iterating `reference_profiles`
+    (a tuple) and each profile's own field (also a tuple), so its
+    insertion order -- and this function's own rng-consumption order --
+    is fully deterministic, never a raw hash-ordered `set`."""
+    by_first: dict[str, list[JointSpelling]] = {}
+    for profile in reference_profiles:
+        for entry in getattr(profile, field):
+            if entry.first not in inventory_symbols or entry.second not in inventory_symbols:
+                continue
+            by_first.setdefault(entry.first, []).append(entry)
+    resolved: list[JointSpelling] = []
+    for entries in by_first.values():
+        if rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
+            resolved.extend(entries)
+    return tuple(resolved)
 
 
 # Materializes a bare axis choice (from a force, or an independent roll)
@@ -1033,6 +1065,13 @@ def generate_romanization(
         rules.extend(
             _rules_for_symbol(symbol, reference, structural, category, reference_profiles, rng, effective_strictness)
         )
+    inventory_symbols = frozenset(inventory.all_symbols())
+    onset_nucleus_spellings = _resolve_joint_spellings(
+        rng, reference_profiles, effective_strictness, inventory_symbols, "onset_nucleus_spellings"
+    )
+    nucleus_coda_spellings = _resolve_joint_spellings(
+        rng, reference_profiles, effective_strictness, inventory_symbols, "nucleus_coda_spellings"
+    )
     vowel_symbols, legal_onset_clusters, vowel_backness, vowel_length = _scheme_context(inventory)
     grammatical_spelling = _roll_grammatical_spelling(rng, reference_profiles, allow_all_caps, effective_strictness)
     return RomanizationScheme(
@@ -1041,6 +1080,8 @@ def generate_romanization(
         legal_onset_clusters=legal_onset_clusters,
         vowel_backness=vowel_backness,
         vowel_length=vowel_length,
+        onset_nucleus_spellings=onset_nucleus_spellings,
+        nucleus_coda_spellings=nucleus_coda_spellings,
         category_name=category.name,
         tone_strategy=category.tone_strategy,
         tone_markers=category.tone_markers,
@@ -1144,6 +1185,38 @@ def evolve_romanization(
         rule.model_copy(update={"latin": _apply_orthography_drift(rule.latin, rng, drift_rate)})
         for rule in rules
     ]
+
+    new_symbols = frozenset(new_inventory.all_symbols())
+
+    def _evolve_joint_field(old_entries: tuple[JointSpelling, ...], field: str) -> tuple[JointSpelling, ...]:
+        # Same "keep verbatim unless reformed, else fall back to a fresh
+        # reference-adoption roll" treatment `rules` above already gets,
+        # keyed on `first` instead of a single `ipa`, iterating
+        # `new_inventory.all_symbols()` (already the stable, deterministic
+        # order the loop above uses) rather than a raw `set` of symbols,
+        # which would have hash-randomized -- non-reproducible -- order.
+        old_by_first: dict[str, list[JointSpelling]] = {}
+        for entry in old_entries:
+            old_by_first.setdefault(entry.first, []).append(entry)
+        resolved: list[JointSpelling] = []
+        for symbol in new_inventory.all_symbols():
+            keep_old_joint = symbol in old_by_first and rng.random() >= reform_rate
+            if keep_old_joint:
+                resolved.extend(old_by_first[symbol])
+                continue
+            candidates = [
+                entry
+                for profile in reference_profiles
+                for entry in getattr(profile, field)
+                if entry.first == symbol and entry.first in new_symbols and entry.second in new_symbols
+            ]
+            if candidates and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, effective_strictness):
+                resolved.extend(candidates)
+        return tuple(resolved)
+
+    onset_nucleus_spellings = _evolve_joint_field(base_scheme.onset_nucleus_spellings, "onset_nucleus_spellings")
+    nucleus_coda_spellings = _evolve_joint_field(base_scheme.nucleus_coda_spellings, "nucleus_coda_spellings")
+
     vowel_symbols, legal_onset_clusters, vowel_backness, vowel_length = _scheme_context(new_inventory)
     return RomanizationScheme(
         rules=tuple(rules),
@@ -1151,6 +1224,8 @@ def evolve_romanization(
         legal_onset_clusters=legal_onset_clusters,
         vowel_backness=vowel_backness,
         vowel_length=vowel_length,
+        onset_nucleus_spellings=onset_nucleus_spellings,
+        nucleus_coda_spellings=nucleus_coda_spellings,
         category_name=category.name,
         tone_strategy=category.tone_strategy,
         tone_markers=category.tone_markers,

@@ -38,6 +38,9 @@ root_and_pattern: false         # optional, defaults false -- see the field's ow
 coda_devoicing: false           # optional, defaults false -- see the field's own docstring
 orthography_category: ""        # optional, defaults "" -- see the field's own docstring
 syllable_boundary_marker: ""    # optional, defaults "" -- e.g. "diaeresis", overrides just this one axis
+onset_nucleus_spellings:        # optional, defaults empty -- joint spelling, consumes both letters
+  - {first: w, second: a, latin: oi}
+nucleus_coda_spellings: []      # optional, defaults empty -- same shape, coda-side mirror
 orthography:                    # optional, defaults empty
   - {ipa: a, latin: aa, syllable: [syllable_closed]}    # "kaas"
   - {ipa: a, latin: a, syllable: [syllable_open]}       # "kazen"
@@ -77,7 +80,7 @@ import yaml
 from pydantic import BaseModel
 
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.romanization import MuteSuffixRule, RomanizationRule
+from conlang_generator.core.romanization import JointSpelling, MuteSuffixRule, RomanizationRule
 
 _PROFILES_DIR = Path(__file__).parent / "profiles"
 
@@ -132,6 +135,20 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     Tibetan/Turkish also point at that same category and don't use it).
     Empty (the common case) means no override -- the normal category roll
     decides this axis, same convention as every other curated field."""
+    onset_nucleus_spellings: tuple[JointSpelling, ...] = ()
+    """Real conventions that jointly spell an onset consonant + the
+    nucleus vowel right after it, consuming both letters at once (real
+    French ``/w/``+``/a/`` -> "oi" -- see ``core.romanization.JointSpelling``'s
+    own docstring for why this needs a different mechanism from
+    ``orthography``'s per-symbol conditioning). Empty (the common case)
+    means not curated -- abstains, same convention as every other field
+    above. Only consulted when ``source_language_strictness`` > 0."""
+    nucleus_coda_spellings: tuple[JointSpelling, ...] = ()
+    """The coda-side mirror of ``onset_nucleus_spellings`` -- a nucleus
+    vowel + the coda consonant right after it spelled jointly. No profile
+    currently curates this (see ``JointSpelling``'s own docstring for
+    why most nucleus+coda-*looking* conventions turn out not to need
+    it), but the mechanism is symmetric and ready for one that does."""
     capitalized_pos: tuple[PartOfSpeech, ...] = ()
     """Part-of-speech categories this language's real orthography always
     capitalizes in citation form (e.g. German's own every-common-noun

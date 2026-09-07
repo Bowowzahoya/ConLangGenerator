@@ -117,6 +117,39 @@ class RomanizationRule(BaseModel, frozen=True):
     for a rule that never ties with another."""
 
 
+class JointSpelling(BaseModel, frozen=True):
+    """A real spelling convention that consumes *two* adjacent phonemes'
+    letters at once, for the cases where neither phoneme's own
+    independent spelling survives in the combined result -- unlike
+    ``RomanizationRule.following``/``preceding`` conditioning (which lets
+    one symbol's *own* spelling depend on its neighbor, but always
+    leaves the neighbor to contribute its own separate letter too). Real
+    French `/w/`+`/a/` -> "oi" is the motivating case: `/w/`'s own
+    elsewhere-spelling is "ou" and `/a/`'s own is "a", but neither
+    survives in "oi" -- so simply conditioning `/w/`'s own rule on
+    ``following=("a",)`` (as this project briefly did) still leaves the
+    following `/a/` free to append its own "a", wrongly producing "oia".
+    Used two ways, symmetric in shape: ``RomanizationScheme.onset_nucleus_spellings``
+    (``first`` = onset consonant, ``second`` = nucleus vowel) and
+    ``nucleus_coda_spellings`` (``first`` = nucleus vowel, ``second`` =
+    coda consonant) -- see ``apply()``'s own docstring for how the two
+    compose and which wins when both could apply to the same vowel.
+    Genuinely three-way (onset+nucleus+coda, fused indivisibly) spelling
+    has no verified real-language case motivating it, so it isn't
+    modeled -- most whole-syllable-*looking* conventions actually
+    decompose into one symbol's own conditioned rule (real English
+    "-ight" is `/aɪ/`'s own spelling conditioned on `following=("t",)`;
+    the coda keeps its own ordinary "t", no joint consumption needed)."""
+
+    first: str
+    second: str
+    latin: str
+    weight: float = 1.0
+    """Same role as ``RomanizationRule.weight`` -- a reproducible
+    weighted pick among several joint entries tied for the same
+    ``(first, second)`` pair, irrelevant when there's only one."""
+
+
 class ToneMarkingStrategy(str, Enum):
     """How a tone diacritic on a vowel's IPA symbol (see
     ``core.phonology.ToneSystem.mark``) surfaces in the Latin spelling.
@@ -323,6 +356,20 @@ class RomanizationScheme(BaseModel, frozen=True):
     module-level ``apply_grammatical_spelling`` instead of inside
     ``apply()`` itself. Carried forward unchanged by ``evolve_romanization``
     (not re-rolled), same treatment every other axis on this class gets."""
+    onset_nucleus_spellings: tuple[JointSpelling, ...] = ()
+    """Real conventions that jointly spell an onset consonant + the
+    nucleus vowel right after it, consuming both letters at once (real
+    French `/w/`+`/a/` -> "oi") -- see ``JointSpelling``'s own docstring
+    for why this is a different mechanism from per-symbol conditioning.
+    Empty (every scheme until a profile curates some) is a no-op --
+    ``apply()`` falls back to today's independent per-symbol spelling."""
+    nucleus_coda_spellings: tuple[JointSpelling, ...] = ()
+    """The coda-side mirror of ``onset_nucleus_spellings`` -- a nucleus
+    vowel + the coda consonant right after it spelled jointly. No
+    verified real-language case currently populates this (most
+    nucleus+coda-*looking* conventions decompose into ordinary
+    conditioning -- see ``JointSpelling``'s docstring), but the mechanism
+    is symmetric so it's ready the moment one does."""
 
     def _known_symbols(self) -> list[str]:
         return sorted({rule.ipa for rule in self.rules}, key=len, reverse=True)
@@ -418,6 +465,57 @@ class RomanizationScheme(BaseModel, frozen=True):
                     score += 1  # an exact-symbol tag is more specific than a class tag
         return score
 
+    def _resolve_joint_spellings(
+        self, tokens: list[tuple[str | None, str, str]], ipa_text: str
+    ) -> tuple[dict[int, str], set[int]]:
+        """A single left-to-right pass deciding which token positions
+        emit a joint spelling (``emits``, index -> the chosen ``latin``
+        for *both* this position and the next) and which are consumed by
+        a preceding one (``consumed``, contribute an empty ``latin``).
+        Onset+nucleus is checked before nucleus+coda at each position, and
+        since this walks left to right, a vowel already claimed by its
+        *preceding* onset (added to ``consumed`` before this same vowel's
+        own turn comes up) never also tries to claim its own following
+        coda -- the documented precedence from ``JointSpelling``'s
+        docstring falls out of the iteration order for free, no separate
+        conflict check needed."""
+        onset_nucleus_by_pair: dict[tuple[str, str], list[JointSpelling]] = {}
+        for j in self.onset_nucleus_spellings:
+            onset_nucleus_by_pair.setdefault((j.first, j.second), []).append(j)
+        nucleus_coda_by_pair: dict[tuple[str, str], list[JointSpelling]] = {}
+        for j in self.nucleus_coda_spellings:
+            nucleus_coda_by_pair.setdefault((j.first, j.second), []).append(j)
+
+        emits: dict[int, str] = {}
+        consumed: set[int] = set()
+        if not onset_nucleus_by_pair and not nucleus_coda_by_pair:
+            return emits, consumed  # no-op fast path -- every existing scheme
+
+        def _pick(candidates: list[JointSpelling], index: int) -> str:
+            if len(candidates) == 1:
+                return candidates[0].latin
+            chosen = _stable_local_choice(f"{ipa_text}:{index}", candidates, [c.weight for c in candidates])
+            return chosen.latin
+
+        for index, (symbol, _deco, _raw) in enumerate(tokens):
+            if symbol is None or index in consumed:
+                continue
+            next_symbol = tokens[index + 1][0] if index + 1 < len(tokens) else None
+            if next_symbol is None:
+                continue
+            if symbol not in self.vowel_symbols and next_symbol in self.vowel_symbols:
+                candidates = onset_nucleus_by_pair.get((symbol, next_symbol))
+                if candidates:
+                    emits[index] = _pick(candidates, index)
+                    consumed.add(index + 1)
+                    continue
+            if symbol in self.vowel_symbols and next_symbol not in self.vowel_symbols:
+                candidates = nucleus_coda_by_pair.get((symbol, next_symbol))
+                if candidates:
+                    emits[index] = _pick(candidates, index)
+                    consumed.add(index + 1)
+        return emits, consumed
+
     def apply(self, ipa_text: str) -> str:
         """Greedily rewrite an IPA string into its Latin romanization.
 
@@ -458,6 +556,7 @@ class RomanizationScheme(BaseModel, frozen=True):
         tone_marker_map = dict(self.tone_markers)
         postposed = self.tone_strategy in (ToneMarkingStrategy.POSTPOSED_DIGIT, ToneMarkingStrategy.POSTPOSED_LETTER)
         vowel_length_map = dict(self.vowel_length)
+        joint_emits, joint_consumed = self._resolve_joint_spellings(tokens, ipa_text)
 
         pending_markers: dict[int, list[str]] = {}
         out: list[str] = []
@@ -470,31 +569,40 @@ class RomanizationScheme(BaseModel, frozen=True):
             following_tags = self._neighbor_tags(tokens, index + 1)
             own_syllable_tag = self._syllable_openness(tokens, index)
             own_tags = {own_syllable_tag} if own_syllable_tag else set()
-            matches = []
-            for rule in rules_by_ipa.get(symbol, []):
-                if rule.preceding and not (set(rule.preceding) & preceding_tags):
-                    continue
-                if rule.following and not (set(rule.following) & following_tags):
-                    continue
-                if rule.syllable and not (set(rule.syllable) & own_tags):
-                    continue
-                matches.append(rule)
-            if not matches:
-                latin = symbol
+            if index in joint_emits:
+                latin = joint_emits[index]
+            elif index in joint_consumed:
+                # Already spelled out by the preceding position's joint
+                # entry -- this position contributes nothing further to
+                # `latin`, but still runs its own deco/tone-mark/silent-e/
+                # hiatus handling below exactly as usual.
+                latin = ""
             else:
-                best_score = max(self._specificity(rule) for rule in matches)
-                top = [rule for rule in matches if self._specificity(rule) == best_score]
-                if len(top) == 1:
-                    latin = top[0].latin
+                matches = []
+                for rule in rules_by_ipa.get(symbol, []):
+                    if rule.preceding and not (set(rule.preceding) & preceding_tags):
+                        continue
+                    if rule.following and not (set(rule.following) & following_tags):
+                        continue
+                    if rule.syllable and not (set(rule.syllable) & own_tags):
+                        continue
+                    matches.append(rule)
+                if not matches:
+                    latin = symbol
                 else:
-                    # Genuine alternatives (e.g. real French "o"/"au"/"eau"
-                    # for the same /o/) -- a weighted pick, reproducible
-                    # per token position rather than a fresh roll every
-                    # call (see `_stable_local_choice`).
-                    chosen = _stable_local_choice(
-                        f"{ipa_text}:{index}", top, [rule.weight for rule in top]
-                    )
-                    latin = chosen.latin
+                    best_score = max(self._specificity(rule) for rule in matches)
+                    top = [rule for rule in matches if self._specificity(rule) == best_score]
+                    if len(top) == 1:
+                        latin = top[0].latin
+                    else:
+                        # Genuine alternatives (e.g. real French "o"/"au"/"eau"
+                        # for the same /o/) -- a weighted pick, reproducible
+                        # per token position rather than a fresh roll every
+                        # call (see `_stable_local_choice`).
+                        chosen = _stable_local_choice(
+                            f"{ipa_text}:{index}", top, [rule.weight for rule in top]
+                        )
+                        latin = chosen.latin
 
             if deco and self.tone_strategy == ToneMarkingStrategy.UNMARKED:
                 deco = ""

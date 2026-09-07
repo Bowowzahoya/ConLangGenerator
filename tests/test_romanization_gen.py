@@ -812,3 +812,23 @@ def test_full_strictness_english_schwa_produces_more_than_one_real_spelling():
         spellings.add(result[1 : -len(suffix)])
     assert spellings <= {"a", "e", "o", "u", "i"}
     assert len(spellings) > 1
+
+
+def test_full_strictness_french_wa_spells_as_the_real_joint_moi_not_moia():
+    # The concrete bug this feature fixes: /w/+/a/ used to spell as
+    # "oi"+"a" ("moia") since /w/'s own conditioned rule only overrode
+    # its own slot -- real French "moi" is "oi" as one joint unit.
+    french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+    inventory = _profile_inventory(french)
+    for seed in range(10):
+        scheme = generate_romanization(random.Random(seed), inventory, ("French",), strictness=1.0)
+        assert scheme.apply("mwa") == "moi"
+
+
+def test_evolve_romanization_carries_joint_spellings_forward_when_not_reformed():
+    french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+    inventory = _profile_inventory(french)
+    base = generate_romanization(random.Random(1), inventory, ("French",), strictness=1.0)
+    assert base.onset_nucleus_spellings  # sanity: the base scheme actually has it
+    evolved = evolve_romanization(base, inventory, random.Random(2), ("French",), reform_rate=0.0, strictness=1.0)
+    assert evolved.onset_nucleus_spellings == base.onset_nucleus_spellings

@@ -91,7 +91,28 @@ All mutation-shaped operations return a new instance (`model_copy` /
   also the most thoroughly curated example of weighted alternatives (its
   real `/o/`/`/ɛ/`/`/s/`/word-final-`/e/` alternations) alongside
   English's schwa (`/ə/`, spelled with almost any vowel letter depending
-  on the word: about/item/lemon/focus/pencil).
+  on the word: about/item/lemon/focus/pencil). `JointSpelling`
+  (`onset_nucleus_spellings`/`nucleus_coda_spellings` on both
+  `RomanizationScheme` and `ReferenceLanguageProfile`) is a separate,
+  narrower mechanism for the cases `following`/`preceding` conditioning
+  *can't* reach: a real convention that consumes two adjacent phonemes'
+  letters at once because *neither* phoneme's own independent spelling
+  survives in the result (real French `/w/`+`/a/` -> "oi" -- French's own
+  earlier `following=("a",)`-conditioned rule on `/w/` alone was actually
+  a bug, since it only overrode `/w/`'s own slot while the following
+  `/a/` still appended its own separate "a", wrongly producing "moia"
+  instead of real "moi"). `apply()` resolves which positions emit a
+  joint spelling and which are consumed by a preceding one in a single
+  left-to-right pass, checking onset+nucleus before nucleus+coda at each
+  position -- a vowel already claimed by its preceding onset therefore
+  never also tries to claim its own following coda, which is the whole
+  precedence rule, no separate conflict check needed. Deliberately
+  pairwise, not a combined onset+nucleus+coda mechanism (same reasoning
+  as the phonotactic restrictions below): real conventions that *look*
+  three-way -- English "-ight" -- usually decompose into one symbol's
+  own conditioning (`/aɪ/` before `/t/`), and there's no verified
+  non-decomposable three-way case motivating a genuinely fused
+  mechanism.
 
   `OrthographyCategory` (same module) names a reusable orthography
   *typology*, not a full per-language rule set: how an otherwise-exotic
@@ -787,20 +808,27 @@ reading code or one-off ad hoc scripts.
   adjacency family now covers all three positions in `(onset) nucleus
   (coda)`: onset+nucleus (`allowed_onset_nucleus_pairs`/
   `excluded_onset_nucleus_pairs`, e.g. real English "dw-"/"tw-" never
-  preceding a rounded vowel), nucleus+coda (`allowed_nucleus_coda_pairs`/
+  preceding a rounded vowel; French's own `/w/` is blacklisted before
+  every vowel except its three real attested ones, a/i/ɛ -- real French
+  "wagon" is actually `/v/`, not `/w/`), nucleus+coda (`allowed_nucleus_coda_pairs`/
   `excluded_nucleus_coda_pairs`, e.g. real English `/ŋ/` only closing a
   syllable after a lax/checked vowel), and the cross-syllable
   `SyllableStructure.is_valid_boundary` (coda-then-next-onset, e.g. a
   word's own coda "p" immediately followed by the next syllable's own
   onset "d") -- all three resolved by the one generic
   `phonology_gen._resolve_pair_restriction`, all three consumed by
-  `word_builder.py`. The onset+nucleus and cross-syllable-boundary
-  curated fields are empty for every profile except onset+nucleus's
-  English entry -- real, solidly-verifiable, purely *combinatorial*
-  (non-assimilation) facts of this shape are genuinely sparse for the
-  four perfected languages (most real syllable-boundary phenomena in
-  German/French/Dutch are assimilation/liaison processes, not a flat
-  "this coda never precedes that onset," and this project's word-builder
+  `word_builder.py`. All three are deliberately pairwise (one adjacent
+  pair at a time), never a combined onset+nucleus+coda check -- real
+  phonotactic co-occurrence constraints are almost always local, and
+  there's no verified English/German/French/Dutch example of a genuine
+  non-decomposable three-way restriction (every pair fine on its own,
+  the triple together not) to justify a fused mechanism. The
+  cross-syllable-boundary field is empty for every profile -- real,
+  solidly-verifiable, purely *combinatorial* (non-assimilation) facts of
+  this shape are genuinely sparse for the four perfected languages (most
+  real syllable-boundary phenomena in German/French/Dutch are
+  assimilation/liaison processes, not a flat "this coda never precedes
+  that onset," and this project's word-builder
   still has no morpheme/compound structure to distinguish a genuine
   cross-morpheme sequence like English "handbag"/German "Erdbeere" from
   ordinary syllable adjacency) -- so the cross-syllable mechanism mostly

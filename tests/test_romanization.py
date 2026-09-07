@@ -1,6 +1,7 @@
 import unicodedata
 
 from conlang_generator.core.romanization import (
+    JointSpelling,
     RomanizationRule,
     RomanizationScheme,
     SyllableBoundaryMarker,
@@ -412,3 +413,94 @@ def test_reform_detection_style_comparison_matches_when_the_candidate_set_is_unc
     scheme_a = _tied_scheme()
     scheme_b = _tied_scheme()
     assert scheme_a.apply("otherwise") == scheme_b.apply("otherwise")
+
+
+# --- Joint spelling (JointSpelling: onset+nucleus / nucleus+coda) ---
+
+
+def _joint_scheme(**kwargs) -> RomanizationScheme:
+    return RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="m", latin="m"),
+            RomanizationRule(ipa="w", latin="ou"),
+            RomanizationRule(ipa="a", latin="a"),
+            RomanizationRule(ipa="t", latin="t"),
+        ),
+        vowel_symbols=("a",),
+        **kwargs,
+    )
+
+
+def test_onset_nucleus_joint_spelling_consumes_both_tokens():
+    # The real bug this feature fixes: real French /w/+/a/ ("moi", roi,
+    # voix) is "oi" as one joint unit, not /w/'s own "oi" plus /a/'s own
+    # separate "a" appended after (which would wrongly give "moia").
+    scheme = _joint_scheme(onset_nucleus_spellings=(JointSpelling(first="w", second="a", latin="oi"),))
+    assert scheme.apply("mwa") == "moi"
+
+
+def test_onset_nucleus_joint_spelling_is_a_no_op_for_other_pairs():
+    scheme = _joint_scheme(onset_nucleus_spellings=(JointSpelling(first="w", second="a", latin="oi"),))
+    assert scheme.apply("ma") == "ma"  # no /w/ at all -- ordinary per-symbol spelling
+
+
+def test_nucleus_coda_joint_spelling_consumes_both_tokens():
+    # The coda-side mirror -- no real content curates this yet, but the
+    # mechanism itself is symmetric.
+    scheme = _joint_scheme(nucleus_coda_spellings=(JointSpelling(first="a", second="t", latin="augh"),))
+    assert scheme.apply("mat") == "maugh"
+
+
+def test_onset_nucleus_takes_precedence_over_nucleus_coda_for_the_same_vowel():
+    # A vowel with both a winning onset+nucleus claim (on its preceding
+    # consonant) and its own nucleus+coda rule for its following coda
+    # defers to the onset+nucleus claim -- the coda then gets its own
+    # ordinary, un-consumed spelling.
+    scheme = _joint_scheme(
+        onset_nucleus_spellings=(JointSpelling(first="w", second="a", latin="oi"),),
+        nucleus_coda_spellings=(JointSpelling(first="a", second="t", latin="augh"),),
+    )
+    assert scheme.apply("mwat") == "moit"
+
+
+def test_joint_spelling_ties_resolve_via_the_same_weighted_pick():
+    scheme = _joint_scheme(
+        onset_nucleus_spellings=(
+            JointSpelling(first="w", second="a", latin="oi", weight=0.5),
+            JointSpelling(first="w", second="a", latin="wa", weight=0.5),
+        )
+    )
+    spellings = {scheme.apply(f"mwa{i}")[1:-len(str(i))] for i in range(20)}
+    assert spellings <= {"oi", "wa"}
+    assert len(spellings) > 1
+
+
+def test_joint_spelling_choice_is_reproducible_for_the_same_ipa_text():
+    scheme = _joint_scheme(
+        onset_nucleus_spellings=(
+            JointSpelling(first="w", second="a", latin="oi", weight=0.5),
+            JointSpelling(first="w", second="a", latin="wa", weight=0.5),
+        )
+    )
+    assert scheme.apply("mwatherton") == scheme.apply("mwatherton")
+
+
+def test_consumed_position_still_runs_its_own_tone_and_hiatus_logic():
+    # A vowel consumed by a preceding onset+nucleus rule still gets its
+    # own tone-mark deco appended after the joint spelling, rather than
+    # the deco silently vanishing along with its own `latin`.
+    scheme = RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="w", latin="ou"),
+            RomanizationRule(ipa="a", latin="a"),
+        ),
+        vowel_symbols=("a",),
+        onset_nucleus_spellings=(JointSpelling(first="w", second="a", latin="oi"),),
+    )
+    result = scheme.apply("wa" + COMBINING_ACUTE)
+    assert result == unicodedata.normalize("NFC", "oi" + COMBINING_ACUTE)  # "oí" -- the tone mark still landed on the "i"
+
+
+def test_no_joint_spellings_is_byte_identical_to_before_this_feature():
+    scheme = _joint_scheme()
+    assert scheme.apply("mwat") == "mouat"  # every symbol spelled independently, as before
