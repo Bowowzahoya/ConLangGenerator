@@ -402,6 +402,27 @@ def _strict_weight(base_weight: float, strictness: float) -> float:
     return biased_probability(base_weight, strictness) if strictness > 0.0 else base_weight
 
 
+def _resolve_syllable_boundary_marker(
+    rng: random.Random,
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    default: SyllableBoundaryMarker,
+    strictness: float,
+) -> SyllableBoundaryMarker:
+    """A matched profile's own `syllable_boundary_marker` override (e.g.
+    French's real tréma) gets the same probabilistic shot as every other
+    reference-adoption roll in this module -- `default` (whatever the
+    resolved whole-scheme `category` already has) wins otherwise. Only
+    consulted by `generate_romanization`: `evolve_romanization`
+    deliberately doesn't re-consult reference bias for any category axis
+    (see its own docstring) -- it reconstructs the *already-resolved*
+    value from the base scheme via `_category_from_scheme` instead, so a
+    language's orthographic family doesn't randomly drift mid-evolution."""
+    for profile in reference_profiles:
+        if profile.syllable_boundary_marker and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
+            return SyllableBoundaryMarker(profile.syllable_boundary_marker)
+    return default
+
+
 # Materializes a bare axis choice (from a force, or an independent roll)
 # into the concrete data an OrthographyCategory needs.
 _EXOTIC_STYLE_TABLES: dict[ExoticSymbolStyle, dict[str, str]] = {
@@ -588,17 +609,32 @@ def _category_from_scheme(scheme: RomanizationScheme) -> OrthographyCategory:
 
 def _reference_orthography(source_languages: tuple[str, ...]) -> dict[str, list[RomanizationRule]]:
     """``{ipa_symbol: [rule, ...]}`` -- a symbol may have more than one
-    variant rule (e.g. Dutch's open/closed vowel-length pair, or a
-    specific-segment-conditioned pair like Mandarin's ü/u after j/q/x/y).
-    First matched profile wins for a given (ipa, following, preceding,
-    syllable) combination if more than one source language defines it."""
+    variant rule, for two different reasons: a genuine context split
+    (Dutch's open/closed vowel-length pair, Mandarin's ü/u after
+    j/q/x/y), or genuine *weighted alternatives* sharing the very same
+    condition (real French ``/o/`` being "o"/"au"/"eau" -- see
+    ``core.romanization.RomanizationRule.weight``). First matched profile
+    wins for a given (ipa, following, preceding, syllable) combination if
+    more than one *different* source language defines it -- but that
+    dedup must not fire *within* a single profile's own rule list, or a
+    profile's second/third weighted alternative for the same condition
+    would be silently dropped as "already covered". So this tracks
+    coverage per already-*fully processed* profile, not globally: a
+    profile can freely contribute several same-condition rules, and only
+    a later, different profile is blocked from adding more for a
+    condition an earlier one already claimed."""
     by_symbol: dict[str, list[RomanizationRule]] = {}
+    covered: dict[str, set[tuple]] = {}
     for profile in match_profiles(source_languages):
+        newly_covered: dict[str, set[tuple]] = {}
         for rule in profile.orthography:
-            existing = by_symbol.setdefault(rule.ipa, [])
             condition = (rule.following, rule.preceding, rule.syllable)
-            if not any((r.following, r.preceding, r.syllable) == condition for r in existing):
-                existing.append(rule)
+            if condition in covered.get(rule.ipa, ()):
+                continue  # an earlier-matched, different profile already claimed this
+            by_symbol.setdefault(rule.ipa, []).append(rule)
+            newly_covered.setdefault(rule.ipa, set()).add(condition)
+        for ipa, conditions in newly_covered.items():
+            covered.setdefault(ipa, set()).update(conditions)
     return by_symbol
 
 
@@ -988,6 +1024,9 @@ def generate_romanization(
         fallback_factory=lambda: _roll_independent_axes(rng),
         strictness=effective_strictness,
     )
+    syllable_boundary_marker = _resolve_syllable_boundary_marker(
+        rng, reference_profiles, category.syllable_boundary_marker, effective_strictness
+    )
     structural = _structural_rules(category, inventory)
     rules: list[RomanizationRule] = []
     for symbol in inventory.all_symbols():
@@ -1008,7 +1047,7 @@ def generate_romanization(
         vowel_length_strategy=category.vowel_length_strategy,
         short_vowel_consonant_doubling=category.short_vowel_consonant_doubling,
         exotic_symbol_style=category.exotic_symbol_style,
-        syllable_boundary_marker=category.syllable_boundary_marker,
+        syllable_boundary_marker=syllable_boundary_marker,
         consonant_gemination_marked=category.consonant_gemination_marked,
         grammatical_spelling=grammatical_spelling,
     )
@@ -1102,13 +1141,7 @@ def evolve_romanization(
             )
 
     rules = [
-        RomanizationRule(
-            ipa=rule.ipa,
-            latin=_apply_orthography_drift(rule.latin, rng, drift_rate),
-            following=rule.following,
-            preceding=rule.preceding,
-            syllable=rule.syllable,
-        )
+        rule.model_copy(update={"latin": _apply_orthography_drift(rule.latin, rng, drift_rate)})
         for rule in rules
     ]
     vowel_symbols, legal_onset_clusters, vowel_backness, vowel_length = _scheme_context(new_inventory)

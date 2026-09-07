@@ -265,6 +265,41 @@ def test_syllable_boundary_marker_is_absent_when_unset():
     assert _boundary_marker_scheme(SyllableBoundaryMarker.NONE).apply("nia") == "nia"
 
 
+def test_diaeresis_marker_rewrites_the_second_vowels_own_letter():
+    # Real French tréma (Noël, naïve) -- not an inserted character like
+    # APOSTROPHE/HYPHEN, a modification of the second vowel's own letter.
+    # "nia": "a" is the *second* vowel (the one that triggers the hiatus
+    # branch, adjacent to the preceding "i") -- confirm it's "a" that
+    # gets rewritten to "ä", not "i".
+    result = _boundary_marker_scheme(SyllableBoundaryMarker.DIAERESIS).apply("nia")
+    assert result == "niä"
+
+
+def test_diaeresis_marker_leaves_the_first_vowel_untouched():
+    result = _boundary_marker_scheme(SyllableBoundaryMarker.DIAERESIS).apply("nia")
+    assert result[1] == "i"  # the first vowel's own letter is unchanged
+
+
+def test_diaeresis_marker_is_absent_when_a_consonant_separates_the_vowels():
+    assert _boundary_marker_scheme(SyllableBoundaryMarker.DIAERESIS).apply("nina") == "nina"
+
+
+def test_diaeresis_marker_leaves_latin_unchanged_when_not_a_plain_vowel_letter():
+    # A symbol whose own latin spelling doesn't start with one of
+    # a/e/i/o/u is left as-is rather than crashing or silently mangling
+    # the first character.
+    scheme = RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="n", latin="n"),
+            RomanizationRule(ipa="i", latin="i"),
+            RomanizationRule(ipa="o", latin="zh"),
+        ),
+        vowel_symbols=("i", "o"),
+        syllable_boundary_marker=SyllableBoundaryMarker.DIAERESIS,
+    )
+    assert scheme.apply("nio") == "nizh"
+
+
 def test_specific_symbol_match_beats_a_class_match():
     # A scheme where both a class-conditioned and a symbol-conditioned rule
     # could apply (both key off "preceding") -- the symbol match should win
@@ -305,3 +340,75 @@ def test_apply_never_produces_three_identical_consecutive_letters():
         ),
     )
     assert scheme.apply("ap") == "app"
+
+
+# --- Weighted spelling alternatives (RomanizationRule.weight) ---
+
+
+def _tied_scheme() -> RomanizationScheme:
+    return RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="o", latin="o", weight=0.45),
+            RomanizationRule(ipa="o", latin="au", weight=0.30),
+            RomanizationRule(ipa="o", latin="eau", weight=0.25),
+            RomanizationRule(ipa="k", latin="k"),  # untouched by this feature -- no tie
+        ),
+    )
+
+
+def test_a_single_matching_rule_is_unaffected_by_weight():
+    # "k" has no alternatives at all -- never ties, so its rule's default
+    # weight=1.0 is simply never consulted.
+    assert _tied_scheme().apply("k") == "k"
+
+
+def test_tied_rules_produce_more_than_one_spelling_across_many_words():
+    scheme = _tied_scheme()
+    spellings = {scheme.apply(f"o{i}") for i in range(30)}
+    # Each "o{i}" is a distinct ipa_text, so each gets its own independent
+    # pick -- across 30 of them, more than one of the three real
+    # alternatives should show up (each "o{i}" leaves the digit itself
+    # unmapped/passed through, so compare just the mapped prefix).
+    prefixes = {scheme.apply(f"o{i}")[: -len(str(i))] for i in range(30)}
+    assert prefixes <= {"o", "au", "eau"}
+    assert len(prefixes) > 1
+
+
+def test_tied_rule_choice_is_reproducible_for_the_same_ipa_text():
+    scheme = _tied_scheme()
+    assert scheme.apply("omanic") == scheme.apply("omanic")
+
+
+def test_tied_rule_choice_is_resolved_independently_per_token_position():
+    # Two occurrences of the same tied symbol within one word are keyed
+    # on token index, not just the symbol -- across many two-"o" words,
+    # the pair of picks isn't always identical (would be, if the choice
+    # were keyed on symbol alone rather than per-occurrence).
+    scheme = _tied_scheme()
+    pairs = {scheme.apply(f"o{'x' * i}o") for i in range(20)}
+    assert len(pairs) > 1
+
+
+def test_weight_is_irrelevant_when_only_one_rule_matches_a_position():
+    # A symbol with alternatives, but conditioned such that only one can
+    # ever match a given context -- no tie, so `weight` never comes into
+    # play and the result is fully deterministic.
+    scheme = RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="s", latin="ss", preceding=("vowel",), following=("vowel",), weight=0.7),
+            RomanizationRule(ipa="s", latin="s"),
+            RomanizationRule(ipa="a", latin="a"),
+        ),
+        vowel_symbols=("a",),
+    )
+    assert scheme.apply("sa") == "sa"  # word-initial -- only the unconditioned rule matches
+
+
+def test_reform_detection_style_comparison_matches_when_the_candidate_set_is_unchanged():
+    # Mirrors sound_change.py's own reform-detection logic: apply() called
+    # twice on the same ipa_text against two schemes whose rules for the
+    # relevant symbol are identical must agree -- otherwise a spelling
+    # reform could be spuriously detected from independent re-rolls alone.
+    scheme_a = _tied_scheme()
+    scheme_b = _tied_scheme()
+    assert scheme_a.apply("otherwise") == scheme_b.apply("otherwise")

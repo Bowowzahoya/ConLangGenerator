@@ -13,8 +13,9 @@ from conlang_generator.core.romanization import (
     ToneMarkingStrategy,
     VowelLengthStrategy,
 )
+from conlang_generator.generation import reference_languages
 from conlang_generator.generation.phonology_gen import ALL_CONSONANTS, ALL_VOWELS
-from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES
+from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, ReferenceLanguageProfile
 from conlang_generator.generation.romanization_gen import (
     _CATEGORIES_BY_NAME,
     _DIACRITIC_TABLE,
@@ -25,6 +26,7 @@ from conlang_generator.generation.romanization_gen import (
     _generate_doubling_rules,
     _generate_gemination_rules,
     _generate_length_rules,
+    _reference_orthography,
     _roll_independent_axes,
     evolve_romanization,
     generate_romanization,
@@ -63,6 +65,34 @@ def test_every_dutch_vowel_has_an_orthography_rule():
     # instead of "o" for /ɔ/).
     covered = {rule.ipa for rule in _DUTCH.orthography}
     assert set(_DUTCH.vowels) <= covered
+
+
+def test_reference_orthography_keeps_all_of_one_profiles_tied_alternatives():
+    # A single profile's own multiple same-condition rules (real French
+    # /o/ being "o"/"au"/"eau", no phonological rule to predict which)
+    # must all survive -- the dedup that stops a *later*, different
+    # profile from overriding an earlier one's coverage must not also
+    # fire within one profile's own list.
+    reference = _reference_orthography(("French",))
+    o_spellings = {rule.latin for rule in reference["o"]}
+    assert o_spellings == {"o", "au", "eau"}
+
+
+def test_reference_orthography_still_lets_the_first_matched_profile_win(monkeypatch):
+    # The original intent of the dedup this fix touches: two *different*
+    # source languages both curating the same (ipa, condition) still
+    # resolve to the first matched profile's own rule, not both.
+    first = ReferenceLanguageProfile(
+        name="First", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False,
+        orthography=(RomanizationRule(ipa="p", latin="FIRST"),),
+    )
+    second = ReferenceLanguageProfile(
+        name="Second", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False,
+        orthography=(RomanizationRule(ipa="p", latin="SECOND"),),
+    )
+    monkeypatch.setattr(reference_languages, "REFERENCE_LANGUAGES", (first, second))
+    reference = _reference_orthography(("First", "Second"))
+    assert [rule.latin for rule in reference["p"]] == ["FIRST"]
 
 
 def test_no_source_language_matches_current_behavior():
@@ -744,3 +774,41 @@ def test_evolve_romanization_carries_grammatical_spelling_forward_unchanged():
     )
     evolved = evolve_romanization(base, inventory, random.Random(99), ())
     assert evolved.grammatical_spelling == base.grammatical_spelling
+
+
+def _profile_inventory(profile) -> PhonemeInventory:
+    return PhonemeInventory(
+        consonants=tuple(_CONSONANT_BY_IPA[s] for s in profile.consonants),
+        vowels=tuple(_VOWEL_BY_IPA[s] for s in profile.vowels),
+    )
+
+
+def test_full_strictness_french_o_produces_more_than_one_real_spelling():
+    # Integration-level check for the weighted-alternative mechanism:
+    # across many independently-generated schemes, French /o/ ("o"/"au"/
+    # "eau") shouldn't collapse to always the same spelling.
+    french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+    inventory = _profile_inventory(french)
+    spellings = set()
+    for seed in range(40):
+        scheme = generate_romanization(random.Random(seed), inventory, ("French",), strictness=1.0)
+        suffix = str(seed)
+        result = scheme.apply(f"po{suffix}")
+        assert result.startswith("p") and result.endswith(suffix)
+        spellings.add(result[1 : -len(suffix)])
+    assert spellings <= {"o", "au", "eau"}
+    assert len(spellings) > 1
+
+
+def test_full_strictness_english_schwa_produces_more_than_one_real_spelling():
+    english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+    inventory = _profile_inventory(english)
+    spellings = set()
+    for seed in range(40):
+        scheme = generate_romanization(random.Random(seed), inventory, ("English",), strictness=1.0)
+        suffix = str(seed)
+        result = scheme.apply(f"p{'ə'}{suffix}")
+        assert result.startswith("p") and result.endswith(suffix)
+        spellings.add(result[1 : -len(suffix)])
+    assert spellings <= {"a", "e", "o", "u", "i"}
+    assert len(spellings) > 1

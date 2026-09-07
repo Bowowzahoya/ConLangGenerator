@@ -96,8 +96,16 @@ orthography:
   # Real English spelling conventions, restricted to symbols this
   # profile actually models -- illustrative, not a full account (real
   # English spelling has enormous lexical/etymological irregularity this
-  # project's rule system can't capture at all).
+  # project's rule system can't capture at all). Several sounds below
+  # have genuinely more than one real spelling with no phonological rule
+  # to predict which -- `weight` picks a reproducible-per-word
+  # alternative among ties, it doesn't mean "rare"; omitted entirely
+  # where English really does have just one spelling.
   - {ipa: "tʃ", latin: ch}
+  # /dʒ/: real English splits before a front vowel (gem/giant/gym vs.
+  # jet) with no rule to predict which; elsewhere (jump/join) plain "j".
+  - {ipa: "dʒ", latin: g, following: [front_vowel], weight: 0.5}
+  - {ipa: "dʒ", latin: j, following: [front_vowel], weight: 0.5}
   - {ipa: "dʒ", latin: j}
   - {ipa: "ʃ", latin: sh}
   - {ipa: "ʒ", latin: zh}
@@ -111,7 +119,15 @@ orthography:
   - {ipa: "ɔ", latin: o}
   - {ipa: "ɑ", latin: a}
   - {ipa: "æ", latin: a}
-  - {ipa: "ə", latin: e}
+  # /ə/ (schwa): the single most famous fact about English spelling --
+  # it's written with almost any vowel letter depending on the word, with
+  # no rule to predict which (about/sofa, item/silent, lemon/gallop,
+  # focus/circus, pencil/edible).
+  - {ipa: "ə", latin: a, weight: 0.30}
+  - {ipa: "ə", latin: e, weight: 0.30}
+  - {ipa: "ə", latin: o, weight: 0.20}
+  - {ipa: "ə", latin: u, weight: 0.10}
+  - {ipa: "ə", latin: i, weight: 0.10}
   - {ipa: "ɐ", latin: u}     # real English /ʌ/ ("cup"), approximated by
                               # this project's near-open central vowel
   - {ipa: ai, latin: y}      # "my" -- real English also spells this
@@ -121,6 +137,62 @@ orthography:
   - {ipa: au, latin: ow}     # "cow"
   - {ipa: "ɔi", latin: oy}   # "boy"
   - {ipa: ei, latin: ay}     # "day"
+  # /i/: previously uncurated here, defaulting to plain "i" -- real, but
+  # rare except in loanwords (ski, pizza). Four real spellings, no rule
+  # to predict which -- see/three/green, sea/eat/team, field/piece/chief,
+  # and a minor bare "e" (be/he/we/she -- a small closed pronoun/copula
+  # class, so a low weight rather than the word-final-only condition
+  # ee/ea/ie also legitimately win with, e.g. "free"/"tree").
+  - {ipa: i, latin: ee, weight: 0.40}
+  - {ipa: i, latin: ea, weight: 0.30}
+  - {ipa: i, latin: ie, weight: 0.15}
+  - {ipa: i, latin: e, weight: 0.15}
+  # /u/: previously uncurated here, defaulting to plain "u" -- only one
+  # of five real spellings -- moon/food/school, June/rule/truth,
+  # new/few/grew, blue/true/glue, who/do/move (genuinely irregular but
+  # common).
+  - {ipa: u, latin: oo, weight: 0.45}
+  - {ipa: u, latin: u, weight: 0.15}
+  - {ipa: u, latin: ew, weight: 0.15}
+  - {ipa: u, latin: ue, weight: 0.15}
+  - {ipa: u, latin: o, weight: 0.10}
+  # /o/: previously uncurated here, defaulting to plain "o" -- only one
+  # of four real spellings -- go/no/most, boat/road/coat, know/show/grow
+  # (yes, genuinely ambiguous with /au/'s own "ow" in real English too --
+  # "know" vs. "cow" -- a real irregularity, not a bug, since these come
+  # from different IPA symbols here), toe/doe.
+  - {ipa: o, latin: o, weight: 0.35}
+  - {ipa: o, latin: oa, weight: 0.30}
+  - {ipa: o, latin: ow, weight: 0.20}
+  - {ipa: o, latin: oe, weight: 0.15}
+  # /k/: "k" is preferred before a front vowel specifically to avoid the
+  # letter "c" reading as its own soft /s/ there (keep/kid/key, not
+  # *ceep/*cid/*cey) -- deterministic. Elsewhere real English splits
+  # between "c" (dominant: cat/cup/class), "k" (kangaroo), and
+  # word-final-after-a-short-vowel "ck" (back/pick/rock -- approximated
+  # here as a flat alternative, since this project's condition system
+  # doesn't have the full short-vowel-coda compound condition that real
+  # rule actually needs).
+  - {ipa: k, latin: k, following: [front_vowel]}
+  - {ipa: k, latin: c, weight: 0.55}
+  - {ipa: k, latin: k, weight: 0.30}
+  - {ipa: k, latin: ck, weight: 0.15}
+  # /s/: real English is genuinely mixed before a front vowel (sit/see/
+  # sing vs. cent/city/cell) -- not rule-governed the way /ʃ/ etc. are.
+  # Elsewhere, plain "s" is the only real spelling.
+  - {ipa: s, latin: s, following: [front_vowel], weight: 0.55}
+  - {ipa: s, latin: c, following: [front_vowel], weight: 0.45}
+  - {ipa: s, latin: s}
+  # /z/: real English very commonly spells this intervocalically as "s"
+  # (rose/use/busy/easy) alongside plain "z" (lazy/dozen) -- a hugely
+  # common, genuinely unpredictable pattern. Elsewhere, plain "z".
+  - {ipa: z, latin: s, preceding: [vowel], following: [vowel], weight: 0.5}
+  - {ipa: z, latin: z, preceding: [vowel], following: [vowel], weight: 0.5}
+  - {ipa: z, latin: z}
+  # /f/: "ph" in Greek-derived words (phone/graph/photo) is real but
+  # minor next to plain "f".
+  - {ipa: f, latin: f, weight: 0.85}
+  - {ipa: f, latin: ph, weight: 0.15}
 core_vocabulary_average_syllables: 1.14  # hand-counted across this project's own CORE_MEANINGS glosses -- the shortest of the four perfected languages, reflecting English's aggressive historical apocope
 onset_frequency_tiers:
   # By word-type productivity (how many distinct words use this sound

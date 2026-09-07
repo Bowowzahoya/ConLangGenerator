@@ -69,10 +69,29 @@ All mutation-shaped operations return a new instance (`model_copy` /
   closed), and NFC-normalizes the result so accented output matches what
   a human would type or paste. When several of a symbol's rules match a
   position, the more specific one wins (an exact-symbol match beats a
-  class match; matching on more conditions beats fewer). See its own
-  module docstring for the full reasoning, and `reference_languages/`'s
-  French/Mandarin profiles for worked, non-Dutch examples of each
-  condition type.
+  class match; matching on more conditions beats fewer); when multiple
+  rules *tie* at the winning specificity, `RomanizationRule.weight`
+  breaks the tie via a reproducible weighted pick, keyed on a stable
+  `hashlib`-derived seed from `(ipa_text, token index)` rather than an
+  externally threaded `rng` -- real French `/o/` genuinely is "o"/"au"/
+  "eau" depending on the specific word, with no phonological rule to
+  predict which, so this models genuine spelling alternatives, not just
+  a tie-break of last resort. Reusing `translation/expansion.py`'s own
+  `_derived_seed` pattern (not Python's own randomized-per-process
+  `hash()`) keeps `apply()` a pure function of `ipa_text` for a given
+  scheme, which `sound_change.py`'s reform-detection logic depends on
+  (it calls `apply()` twice -- current vs. pre-reform scheme -- and
+  compares the results). `SyllableBoundaryMarker.DIAERESIS` is the one
+  exception to "the marker's own value is the literal inserted text" --
+  real French tréma (Noël, naïve) modifies the *second* vowel's own
+  letter instead of inserting a character between the two, so `apply()`
+  special-cases it. See its own module docstring for the full reasoning,
+  and `reference_languages/`'s French/Mandarin profiles for worked,
+  non-Dutch examples of each condition type -- French's own profile is
+  also the most thoroughly curated example of weighted alternatives (its
+  real `/o/`/`/ɛ/`/`/s/`/word-final-`/e/` alternations) alongside
+  English's schwa (`/ə/`, spelled with almost any vowel letter depending
+  on the word: about/item/lemon/focus/pencil).
 
   `OrthographyCategory` (same module) names a reusable orthography
   *typology*, not a full per-language rule set: how an otherwise-exotic

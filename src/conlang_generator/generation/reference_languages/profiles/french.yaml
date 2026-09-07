@@ -6,6 +6,7 @@ coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: diacritic-style
+syllable_boundary_marker: diaeresis  # real French tréma (Noël, naïve) -- specific to French, not shared by the other diacritic-style profiles (Icelandic, Persian, Portuguese, Quechua, Russian, Spanish, Tibetan, Turkish)
 mute_suffix_by_pos: [{pos: verb, suffix: r}]  # real French infinitive "-er"'s silent r ("parler" /paʁle/)
 restricted_coda_consonants: [w]  # /w/ is essentially onset-only in real French ("oui"); /j/ is genuinely attested in codas (soleil, travail) so it's deliberately NOT restricted here
 attested_onset_clusters:
@@ -31,8 +32,12 @@ orthography:
   # Real French spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account (real French
   # spelling has plenty of lexical/etymological exceptions to the general
-  # pattern below; nasal vowels aren't modeled at all, since this
-  # project's phoneme pool has no nasal-vowel symbols).
+  # patterns below; nasal vowels aren't modeled at all, since this
+  # project's phoneme pool has no nasal-vowel symbols). Several sounds
+  # below have genuinely more than one real spelling with no phonological
+  # rule to predict which -- `weight` picks a reproducible-per-word
+  # alternative among ties, it doesn't mean "rare"; omitted entirely
+  # where French really does have just one spelling.
   #
   # /ʒ/: "g" is naturally soft before a front vowel ("manger" /mɑ̃.ʒe/,
   # e is front); before a back vowel a plain "g" would harden to /g/, so
@@ -41,17 +46,59 @@ orthography:
   - {ipa: "ʒ", latin: g, following: [front_vowel]}
   - {ipa: "ʒ", latin: ge, following: [back_vowel]}
   - {ipa: "ʒ", latin: j}
-  # /s/: mirrors the /ʒ/ pattern -- "c" is soft before a front vowel
-  # ("cent" /sɑ̃/); before a back vowel plain "c" would harden to /k/, so
-  # French uses a cedilla to force it soft ("garçon" /ɡaʁsɔ̃/, ɔ is back).
-  - {ipa: s, latin: c, following: [front_vowel]}
-  - {ipa: s, latin: "ç", following: [back_vowel]}
+  # /ʃ/: always "ch" -- real French has exactly one spelling for this
+  # sound (chat, chien, chose). Previously uncurated here, which meant it
+  # fell through to the generic diacritic-style category's fallback
+  # table ("š", Slavic-style) -- correct for nobody in this project, and
+  # specifically wrong for French.
+  - {ipa: "ʃ", latin: ch}
+  # /s/: real French genuinely splits lexically between two vowels --
+  # "ss" is the majority pattern (poisson, laisser, tissu, chaussure),
+  # but "c"/"ç" also occurs intervocalically before a front/back vowel
+  # respectively (ici, garçon) with no way to predict which from context
+  # alone. Elsewhere (word-initial, after a consonant, word-final) plain
+  # "s" is the only real spelling.
+  - {ipa: s, latin: ss, preceding: [vowel], following: [vowel], weight: 0.7}
+  - {ipa: s, latin: c, preceding: [vowel], following: [front_vowel], weight: 0.3}
+  - {ipa: s, latin: "ç", preceding: [vowel], following: [back_vowel], weight: 0.3}
   - {ipa: s, latin: s}
-  # This profile's own remaining non-ASCII vowels/consonants.
-  - {ipa: "ɛ", latin: "è"}   # real French's own open-e mark -- "è" (grave),
-                              # never the generic diacritic-style table's
-                              # "ë", which in real French marks a
-                              # hiatus/diaeresis ("Noël"), not vowel quality
+  # /o/: three real spellings, no phonological rule to predict which --
+  # vélo/zéro/rose vs. chaud/jaune/faute vs. beau/eau/chapeau.
+  - {ipa: o, latin: o, weight: 0.45}
+  - {ipa: o, latin: au, weight: 0.30}
+  - {ipa: o, latin: eau, weight: 0.25}
+  # /ɛ/: four real spellings, likewise unpredictable from context --
+  # mère/père, tête/forêt, lait/mais/français, neige/treize.
+  - {ipa: "ɛ", latin: "è", weight: 0.30}
+  - {ipa: "ɛ", latin: "ê", weight: 0.20}
+  - {ipa: "ɛ", latin: ai, weight: 0.35}
+  - {ipa: "ɛ", latin: ei, weight: 0.15}
+  # /e/ word-final: "-er"/"-ez" are real, common, non-verb-specific
+  # patterns (boulanger, danger; chez, nez, assez) alongside plain "é" --
+  # distinct from the separate verb-infinitive mute-r suffix mechanism
+  # above (mute_suffix_by_pos), which just appends a silent "r" after
+  # whichever spelling wins here. Elsewhere, plain "é" is the only real
+  # spelling.
+  - {ipa: e, latin: "é", following: [boundary], weight: 0.5}
+  - {ipa: e, latin: er, following: [boundary], weight: 0.3}
+  - {ipa: e, latin: ez, following: [boundary], weight: 0.2}
+  - {ipa: e, latin: "é"}
+  # /w/: "oi" specifically before /a/ (moi, roi, voix), "ou" elsewhere
+  # (oui, ouest) -- fully deterministic, no real free alternation.
+  - {ipa: w, latin: oi, following: [a]}
+  - {ipa: w, latin: ou}
+  # /i/: "y" is a real minor alternative in Greek-derived loanwords
+  # (stylo, type); plain "i" is overwhelmingly dominant otherwise.
+  - {ipa: i, latin: i, weight: 0.9}
+  - {ipa: i, latin: y, weight: 0.1}
+  # /y/ and /u/ -- previously uncurated here (falling back to plain
+  # identity "y"/"u", which is wrong: real French /y/ is essentially
+  # always spelled "u" (lune, tu, sur), and real French /u/ is spelled
+  # "ou" (vous, nous, tout) -- deterministic, no meaningful alternation.
+  - {ipa: y, latin: u}
+  - {ipa: u, latin: ou}
+  # This profile's own remaining non-ASCII vowels/consonants -- no
+  # meaningful free variation, one real spelling each.
   - {ipa: "ɑ", latin: "â"}
   - {ipa: "ɔ", latin: o}
   - {ipa: "ø", latin: eu}

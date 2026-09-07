@@ -34,7 +34,12 @@ All of this comes from plain symbol-set data supplied by whoever builds
 the scheme -- ``core/`` itself has no phonological knowledge. When several
 of a symbol's rules match a position, the more specific one wins (an
 exact-symbol match beats a class match; matching on more conditions beats
-matching on fewer).
+matching on fewer). When multiple rules tie at the winning specificity --
+genuine spelling alternatives for the same sound in the same context,
+e.g. real French ``/o/`` being "o"/"au"/"eau" with no phonological rule
+to predict which -- ``RomanizationRule.weight`` breaks the tie via a
+reproducible weighted pick (see ``apply()``'s own docstring for why this
+doesn't need an external RNG).
 
 ``OrthographyCategory`` (bottom of this module) names a *typology* --
 digraph vs. diacritic vs. monoletter exotic-symbol spelling, a vowel-
@@ -49,6 +54,8 @@ for -- see its own docstring.
 
 from __future__ import annotations
 
+import hashlib
+import random
 import re
 import unicodedata
 from enum import Enum
@@ -72,6 +79,26 @@ other) down to a real double. No orthography this project models ever
 intentionally writes a letter three times in a row, so this is an
 unconditional final cleanup, not a strictness-gated one."""
 
+_DIAERESIS_MAP: dict[str, str] = {"a": "ä", "e": "ë", "i": "ï", "o": "ö", "u": "ü"}
+"""``SyllableBoundaryMarker.DIAERESIS``'s letter substitution table --
+real French tréma (Noël, naïve)."""
+
+
+def _stable_local_choice(payload: str, options: list, weights: list[float]):
+    """A weighted pick that's reproducible for the same ``payload`` (and
+    changes when the candidate set itself changes) without needing an
+    external ``rng`` threaded through every caller -- same
+    ``hashlib``-based stable-seed pattern ``translation/expansion.py``'s
+    own ``_derived_seed`` already uses for coining, not Python's built-in
+    ``hash()`` (randomized per process by default, which would break
+    ``GenerationSpec.seed`` reproducibility across runs). Keeps
+    ``RomanizationScheme.apply()`` a pure function of ``ipa_text`` for a
+    given scheme, which ``sound_change.py``'s reform-detection logic
+    relies on (it calls ``apply()`` twice on the same IPA -- current vs.
+    pre-reform scheme -- and compares the results)."""
+    seed = int(hashlib.sha256(payload.encode("utf-8")).hexdigest(), 16) % (2**32)
+    return random.Random(seed).choices(options, weights=weights)[0]
+
 
 class RomanizationRule(BaseModel, frozen=True):
     ipa: str
@@ -79,6 +106,15 @@ class RomanizationRule(BaseModel, frozen=True):
     following: tuple[str, ...] = ()
     preceding: tuple[str, ...] = ()
     syllable: tuple[str, ...] = ()
+    weight: float = 1.0
+    """When more than one of this symbol's rules match the same position
+    with equal specificity (see ``RomanizationScheme.apply()``), this is
+    its relative share of a weighted pick among them -- e.g. real French
+    ``/o/`` genuinely is "o"/"au"/"eau" depending on the specific word,
+    with no phonological rule to predict which. Irrelevant (never
+    consulted) when a symbol has only one matching rule for a position,
+    which is still true almost everywhere -- this field changes nothing
+    for a rule that never ties with another."""
 
 
 class ToneMarkingStrategy(str, Enum):
@@ -144,11 +180,21 @@ class SyllableBoundaryMarker(str, Enum):
     common case), so two bare vowel nuclei never end up literally
     adjacent to begin with. The member's own value *is* the
     literal marker text, unlike ``tone_markers`` (no per-language lookup
-    table needed)."""
+    table needed) -- except ``DIAERESIS``, which isn't an inserted
+    character at all (see its own docstring)."""
 
     NONE = ""
     APOSTROPHE = "'"
     HYPHEN = "-"
+    DIAERESIS = "diaeresis"
+    """Real French tréma (Noël, naïve): marks that two adjacent vowel
+    *letters* are read as separate sounds, not blended into one of the
+    language's established digraph readings -- unlike ``APOSTROPHE``/
+    ``HYPHEN``, this doesn't insert a character *between* the two vowels;
+    it modifies the *second* vowel's own letter (a -> ä, e -> ë, i -> ï,
+    o -> ö, u -> ü). ``apply()`` special-cases this value for exactly
+    that reason -- its own value here isn't literal marker text the way
+    the other members' are."""
 
 
 class ExoticSymbolStyle(str, Enum):
@@ -401,7 +447,9 @@ class RomanizationScheme(BaseModel, frozen=True):
         scheme specifically -- see ``SyllableBoundaryMarker``'s own
         docstring for why a registered diphthong never gets mistaken for
         one), the marker is emitted right before that vowel's own letter
-        (Pinyin's own real rule: "Xi'an" vs. "Xian").
+        (Pinyin's own real rule: "Xi'an" vs. "Xian") -- except
+        ``DIAERESIS``, which instead rewrites that vowel's own letter in
+        place (real French tréma: Noël, naïve).
         """
         tokens = self._tokenize(ipa_text)
         rules_by_ipa: dict[str, list[RomanizationRule]] = {}
@@ -422,8 +470,7 @@ class RomanizationScheme(BaseModel, frozen=True):
             following_tags = self._neighbor_tags(tokens, index + 1)
             own_syllable_tag = self._syllable_openness(tokens, index)
             own_tags = {own_syllable_tag} if own_syllable_tag else set()
-            best: RomanizationRule | None = None
-            best_score = -1
+            matches = []
             for rule in rules_by_ipa.get(symbol, []):
                 if rule.preceding and not (set(rule.preceding) & preceding_tags):
                     continue
@@ -431,10 +478,23 @@ class RomanizationScheme(BaseModel, frozen=True):
                     continue
                 if rule.syllable and not (set(rule.syllable) & own_tags):
                     continue
-                score = self._specificity(rule)
-                if score > best_score:
-                    best, best_score = rule, score
-            latin = best.latin if best is not None else symbol
+                matches.append(rule)
+            if not matches:
+                latin = symbol
+            else:
+                best_score = max(self._specificity(rule) for rule in matches)
+                top = [rule for rule in matches if self._specificity(rule) == best_score]
+                if len(top) == 1:
+                    latin = top[0].latin
+                else:
+                    # Genuine alternatives (e.g. real French "o"/"au"/"eau"
+                    # for the same /o/) -- a weighted pick, reproducible
+                    # per token position rather than a fresh roll every
+                    # call (see `_stable_local_choice`).
+                    chosen = _stable_local_choice(
+                        f"{ipa_text}:{index}", top, [rule.weight for rule in top]
+                    )
+                    latin = chosen.latin
 
             if deco and self.tone_strategy == ToneMarkingStrategy.UNMARKED:
                 deco = ""
@@ -453,7 +513,16 @@ class RomanizationScheme(BaseModel, frozen=True):
                 pending_markers.setdefault(flush_index, []).append("e")
 
             if self.syllable_boundary_marker and symbol in self.vowel_symbols and index > 0 and tokens[index - 1][0] in self.vowel_symbols:
-                out.append(self.syllable_boundary_marker.value)
+                if self.syllable_boundary_marker == SyllableBoundaryMarker.DIAERESIS:
+                    # Not an inserted character -- real French tréma
+                    # modifies the *second* vowel's own letter instead
+                    # (Noël, naïve). Left unchanged if it doesn't start
+                    # with a plain vowel letter this table covers.
+                    first = _DIAERESIS_MAP.get(latin[:1])
+                    if first is not None:
+                        latin = first + latin[1:]
+                else:
+                    out.append(self.syllable_boundary_marker.value)
             out.append(latin + deco)
         out.extend(pending_markers.pop(len(tokens), ()))
         collapsed = _TRIPLE_LETTER_RUN.sub(r"\1\1", "".join(out))

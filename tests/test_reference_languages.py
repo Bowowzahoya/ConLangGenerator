@@ -1,5 +1,7 @@
 import random
 
+import pytest
+
 from conlang_generator.core.grammar import MorphologicalType
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import PhonemeInventory
@@ -82,26 +84,29 @@ def test_french_profile_spells_the_manger_alternation_correctly():
     scheme = next(
         s
         for seed in _SEEDS
-        if (s := generate_romanization(random.Random(seed), inventory, ("French",)))
+        if (s := generate_romanization(random.Random(seed), inventory, ("French",), strictness=1.0))
         and {rule.latin for rule in s.rules if rule.ipa == "ʒ"} == {"g", "ge", "j"}
     )
     # French nasal vowels aren't modeled (french.yaml's own docstring notes
-    # this), so this uses the oral vowels the profile actually has -- "e"
-    # and "o" specifically, since neither has its own style-dependent
-    # rendering (plain ASCII, identity in both digraph and diacritic
-    # style), keeping this deterministic regardless of which style the
-    # rest of the scheme happened to roll.
-    assert scheme.apply("maʒe") == "mage"  # front vowel following -- plain "g"
-    assert scheme.apply("maʒo") == "mageo"  # back vowel following -- silent-e "ge"
+    # this), so this uses "y" and "ɔ" specifically -- both still deterministic,
+    # single-spelling vowels in French's own curated data (unlike "e"/"o",
+    # which now have their own real weighted spelling alternatives -- see
+    # the per-language content curation). `strictness=1.0` makes every
+    # curated rule win outright rather than a per-symbol probabilistic
+    # roll, so this stays deterministic without depending on luck for a
+    # symbol the test isn't actually about.
+    assert scheme.apply("maʒy") == "magu"  # front vowel following -- plain "g"
+    assert scheme.apply("maʒɔ") == "mageo"  # back vowel following -- silent-e "ge"
 
 
 def test_french_profile_declares_its_own_real_open_e_spelling():
-    # Real French spells /ɛ/ "è" (grave) -- not the generic diacritic-
-    # style table's "ë", which in real French marks a hiatus/diaeresis
-    # ("Noël"), not vowel quality.
+    # Real French spells /ɛ/ "è" (grave) among its real alternatives --
+    # never the generic diacritic-style table's "ë", which in real French
+    # marks a hiatus/diaeresis ("Noël"), not vowel quality.
     french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
-    by_ipa = {rule.ipa: rule.latin for rule in french.orthography}
-    assert by_ipa["ɛ"] == "è"
+    epsilon_spellings = {rule.latin for rule in french.orthography if rule.ipa == "ɛ"}
+    assert "è" in epsilon_spellings
+    assert "ë" not in epsilon_spellings
 
 
 def test_english_profile_declares_its_own_w_plus_rounded_vowel_blacklist():
@@ -403,3 +408,36 @@ def test_non_perfected_profiles_leave_frequency_tiers_uncurated():
             assert profile.onset_frequency_tiers == {}
             assert profile.nucleus_frequency_tiers == {}
             assert profile.coda_frequency_tiers == {}
+
+
+# --- Probabilistic, richer French/English romanization ---
+
+
+def test_french_ʃ_is_curated_as_ch_not_the_generic_diacritic_fallback():
+    # Regression guard for the reported "glaplèš" bug: /ʃ/ had no curated
+    # rule at all, so it fell through to the generic "diacritic-style"
+    # category's fallback table ("š", Slavic-style) -- correct for
+    # nobody in this project, and specifically wrong for French, which
+    # always spells this sound "ch".
+    french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+    sh_spellings = {rule.latin for rule in french.orthography if rule.ipa == "ʃ"}
+    assert sh_spellings == {"ch"}
+
+
+def test_french_and_english_declare_real_weighted_spelling_alternatives():
+    french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+    english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+    o_rules = [rule for rule in french.orthography if rule.ipa == "o" and not rule.following]
+    assert {rule.latin for rule in o_rules} == {"o", "au", "eau"}
+    assert sum(rule.weight for rule in o_rules) == pytest.approx(1.0)
+    schwa_rules = [rule for rule in english.orthography if rule.ipa == "ə"]
+    assert {rule.latin for rule in schwa_rules} == {"a", "e", "o", "u", "i"}
+    assert sum(rule.weight for rule in schwa_rules) == pytest.approx(1.0)
+
+
+def test_only_french_overrides_syllable_boundary_marker():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["French"].syllable_boundary_marker == "diaeresis"
+    for name, profile in by_name.items():
+        if name != "French":
+            assert profile.syllable_boundary_marker == ""

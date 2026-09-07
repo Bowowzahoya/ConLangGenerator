@@ -37,6 +37,7 @@ vowel_harmony: false            # optional, defaults false
 root_and_pattern: false         # optional, defaults false -- see the field's own docstring
 coda_devoicing: false           # optional, defaults false -- see the field's own docstring
 orthography_category: ""        # optional, defaults "" -- see the field's own docstring
+syllable_boundary_marker: ""    # optional, defaults "" -- e.g. "diaeresis", overrides just this one axis
 orthography:                    # optional, defaults empty
   - {ipa: a, latin: aa, syllable: [syllable_closed]}    # "kaas"
   - {ipa: a, latin: a, syllable: [syllable_open]}       # "kazen"
@@ -121,6 +122,16 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     ``orthography`` above: ``generate_romanization`` probabilistically
     biases the *whole scheme's* category toward this one when this
     profile matches, same spirit as ``orthography`` itself."""
+    syllable_boundary_marker: str = ""
+    """Overrides just this one axis of whichever category wins for this
+    language (a ``core.romanization.SyllableBoundaryMarker`` value, e.g.
+    ``"diaeresis"``) -- for a convention specific to this language, not
+    shared by its whole ``orthography_category`` family (real French
+    tréma -- Noël, naïve -- isn't a trait of every ``"diacritic-style"``
+    language; Icelandic/Persian/Portuguese/Quechua/Russian/Spanish/
+    Tibetan/Turkish also point at that same category and don't use it).
+    Empty (the common case) means no override -- the normal category roll
+    decides this axis, same convention as every other curated field."""
     capitalized_pos: tuple[PartOfSpeech, ...] = ()
     """Part-of-speech categories this language's real orthography always
     capitalizes in citation form (e.g. German's own every-common-noun

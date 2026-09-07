@@ -47,6 +47,24 @@ def test_zero_years_produces_no_changes():
     assert [e.ipa for e in base.lexicon.entries] == [e.ipa for e in evolved.lexicon.entries]
 
 
+def test_weighted_spelling_alternatives_dont_spuriously_reform_at_zero_years():
+    # Regression guard for RomanizationRule.weight's reform-detection
+    # hazard: evolve_romanization compares apply()'s output on the current
+    # vs. pre-reform scheme to decide whether a symbol was reformed. If
+    # that comparison rolled independent random alternatives each call
+    # (rather than a stable, ipa_text-keyed pick), a tied symbol like
+    # French /o/ ("o"/"au"/"eau") could show up as spuriously "reformed"
+    # even with zero actual sound or orthography change. At years=0
+    # nothing should move at all.
+    base = generate_language(
+        "Base", GenerationSpec(prompt="p", seed=3, traits=TraitProfile(source_languages=("French",), source_language_strictness=1.0)),
+        FakeLLMClient(),
+    )
+    evolved = evolve_language("Evolved", base, 0, TraitProfile(source_languages=("French",), source_language_strictness=1.0), seed=1)
+    assert [e.ipa for e in base.lexicon.entries] == [e.ipa for e in evolved.lexicon.entries]
+    assert [e.romanization for e in base.lexicon.entries] == [e.romanization for e in evolved.lexicon.entries]
+
+
 def test_more_years_changes_more_words():
     base = _base_language()
     assert _changed_count(base, 20, TraitProfile(), seed=1) < _changed_count(base, 2000, TraitProfile(), seed=1)
