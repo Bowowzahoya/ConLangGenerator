@@ -417,6 +417,32 @@ def test_generate_gemination_rules_skips_a_long_consonant_with_no_short_counterp
     assert _generate_gemination_rules(marked, inventory) == []
 
 
+def test_gemination_short_counterpart_never_matches_a_palatalized_consonant():
+    # Regression guard: real Italian's plain long "lː" (sonno-style
+    # gemination) and its own separate palatalized "lʲ" symbol
+    # (approximating /ʎ/, spelled "gli") share place/manner/voicing --
+    # matching on those three alone let "lː" incorrectly resolve to
+    # "lʲ" as its "short counterpart" (whichever sorted first in the
+    # inventory), doubling into the literal, un-romanized IPA glyphs
+    # "lʲlʲ" instead of the real "ll". Order matters here: "lʲ" is
+    # listed before "l" (matching real Italian's own profile order,
+    # which is exactly how this bug first surfaced), so a fix that
+    # merely got lucky with ordering wouldn't be caught otherwise.
+    marked = _CATEGORIES_BY_NAME["gemination-style"]
+    inventory = PhonemeInventory(
+        consonants=(
+            Consonant(ipa="lʲ", place=Place.ALVEOLAR, manner=Manner.LATERAL_APPROXIMANT, voiced=True, palatalized=True),
+            Consonant(ipa="l", place=Place.ALVEOLAR, manner=Manner.LATERAL_APPROXIMANT, voiced=True),
+            Consonant(ipa="lː", place=Place.ALVEOLAR, manner=Manner.LATERAL_APPROXIMANT, voiced=True, long=True),
+        ),
+        vowels=(),
+    )
+    rules = _generate_gemination_rules(marked, inventory)
+    assert len(rules) == 1
+    assert rules[0].ipa == "lː"
+    assert rules[0].latin == "ll"
+
+
 def test_new_named_anchors_have_the_expected_axis_values():
     pinyin = _CATEGORIES_BY_NAME["pinyin-style"]
     assert pinyin.tone_strategy == ToneMarkingStrategy.VOWEL_DIACRITIC

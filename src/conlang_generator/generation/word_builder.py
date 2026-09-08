@@ -292,13 +292,21 @@ def build_reduplicated_word(
     inventory: PhonemeInventory,
     manner_classes: tuple[Manner, ...],
     tone_mark: str = "",
+    excluded_onset_consonants: tuple[str, ...] = (),
 ) -> str | None:
     """A same-syllable-twice word (``mama``/``papa``-shaped): one onset
     consonant restricted to ``manner_classes``, one vowel preferring open
     height, repeated. Models the cross-linguistic convergence of basic
     kinship terms on the simplest sounds a human infant can produce
-    (Jakobson 1960) -- not a phonotactic rule, so it deliberately bypasses
-    ``SyllableStructure`` (no coda, no cluster, always legal).
+    (Jakobson 1960) -- not a phonotactic *style* rule, so it deliberately
+    bypasses most of ``SyllableStructure`` (no coda, no cluster, no
+    frequency weighting). ``excluded_onset_consonants`` (this language's
+    ``SyllableStructure.excluded_onset_consonants``) is the one exception
+    still enforced -- unlike everything else this function skips, it's a
+    hard phonotactic fact, not a stylistic preference (real Dutch /ŋ/
+    categorically cannot open *any* syllable, kinship term or not; a
+    naive manner-only filter would otherwise happily produce "ŋaŋa" for
+    a Dutch-biased language, which no real Dutch word could ever be).
 
     Returns ``None`` if the inventory has no consonant in any of
     ``manner_classes`` (the caller should fall back to normal generation).
@@ -307,6 +315,7 @@ def build_reduplicated_word(
         c
         for c in inventory.consonants
         if c.manner in manner_classes
+        and c.ipa not in excluded_onset_consonants
         and not (c.ejective or c.aspirated or c.pharyngealized or c.long or c.palatalized or c.breathy)
     )
     if not candidates:

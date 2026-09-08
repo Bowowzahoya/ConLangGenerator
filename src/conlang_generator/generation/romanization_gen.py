@@ -840,12 +840,32 @@ def _generate_doubling_rules(category: OrthographyCategory, inventory: PhonemeIn
 
 
 def _consonant_short_counterpart(consonant: Consonant, inventory: PhonemeInventory) -> Consonant | None:
-    """The consonant in `inventory` sharing `consonant`'s place/manner/
-    voicing but not its length -- the same role `_short_counterpart`
-    plays for vowels, just matched on place/manner/voiced instead of
-    height/backness/rounding."""
+    """The consonant in `inventory` sharing every one of `consonant`'s
+    own articulation features except its length -- the same role
+    `_short_counterpart` plays for vowels. Matches place/manner/voiced
+    *and* the secondary-articulation flags (ejective/aspirated/
+    pharyngealized/palatalized/breathy): omitting any of these risks
+    matching a *different* phoneme that merely happens to share place/
+    manner/voicing -- concretely, real Italian's long plain "lː" (sonno-
+    style gemination) and its own separate palatalized "lʲ" symbol
+    (approximating /ʎ/, spelled "gli") share place/manner/voicing but
+    are not the same consonant at all; matching on those three alone
+    let a geminate "lː" incorrectly resolve to "lʲ" as its "short
+    counterpart" whenever "lʲ" happened to sort earlier in the
+    inventory, doubling into the literal, un-romanized IPA glyphs
+    "lʲlʲ" instead of the real "ll"."""
     for other in inventory.consonants:
-        if not other.long and other.place == consonant.place and other.manner == consonant.manner and other.voiced == consonant.voiced:
+        if (
+            not other.long
+            and other.place == consonant.place
+            and other.manner == consonant.manner
+            and other.voiced == consonant.voiced
+            and other.ejective == consonant.ejective
+            and other.aspirated == consonant.aspirated
+            and other.pharyngealized == consonant.pharyngealized
+            and other.palatalized == consonant.palatalized
+            and other.breathy == consonant.breathy
+        ):
             return other
     return None
 

@@ -195,6 +195,7 @@ def _resolve_average_syllables(reference_profiles: tuple[ReferenceLanguageProfil
 def _propose_kinship_word(
     rng: random.Random,
     inventory: PhonemeInventory,
+    structure: SyllableStructure,
     tone_system: ToneSystem,
     romanization: RomanizationScheme,
     gloss: str,
@@ -206,7 +207,10 @@ def _propose_kinship_word(
     back to ``propose_word``'s normal candidate-build/LLM-choice path."""
     tone = rng.choice(tone_system.levels) if tone_system.enabled else None
     tone_mark = tone_system.mark("", tone) if tone is not None else ""
-    word = word_builder.build_reduplicated_word(rng, inventory, _KINSHIP_MANNER_CLASSES[gloss_key], tone_mark=tone_mark)
+    word = word_builder.build_reduplicated_word(
+        rng, inventory, _KINSHIP_MANNER_CLASSES[gloss_key], tone_mark=tone_mark,
+        excluded_onset_consonants=structure.excluded_onset_consonants,
+    )
     if word is None:
         return None
     return LexicalEntry(
@@ -306,7 +310,7 @@ def propose_word(
     gloss_key = gloss.lower()
 
     if gloss_key in _KINSHIP_MANNER_CLASSES and rng.random() < _KINSHIP_PATTERN_PROBABILITY:
-        kinship_entry = _propose_kinship_word(rng, inventory, tone_system, romanization, gloss, pos, gloss_key)
+        kinship_entry = _propose_kinship_word(rng, inventory, structure, tone_system, romanization, gloss, pos, gloss_key)
         if kinship_entry is not None:
             return kinship_entry
 

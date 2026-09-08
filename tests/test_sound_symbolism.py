@@ -80,6 +80,29 @@ def test_build_reduplicated_word_excludes_marked_consonants():
         assert word == "papa"
 
 
+def test_build_reduplicated_word_respects_a_hard_onset_restriction():
+    # Regression guard: /ŋ/ categorically can't open a syllable in real
+    # Dutch (SyllableStructure.excluded_onset_consonants) -- unlike the
+    # marked-articulation exclusions above (a style choice this function
+    # otherwise deliberately skips), that's a hard phonotactic fact, so
+    # it must still apply even to the reduplication special case. Before
+    # this fix, a Dutch-shaped inventory could produce "ŋaŋa" for
+    # "mother", which no real Dutch word could ever be.
+    inventory = PhonemeInventory(
+        consonants=(
+            Consonant(ipa="m", place=Place.BILABIAL, manner=Manner.NASAL, voiced=True, prevalence=0.5),
+            Consonant(ipa="ŋ", place=Place.VELAR, manner=Manner.NASAL, voiced=True, prevalence=0.9),
+        ),
+        vowels=(Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),),
+    )
+    rng = random.Random(1)
+    for _ in range(50):
+        word = word_builder.build_reduplicated_word(
+            rng, inventory, (Manner.NASAL,), excluded_onset_consonants=("ŋ",)
+        )
+        assert word == "mama"  # never "ŋaŋa", even though /ŋ/ has higher prevalence
+
+
 def test_build_reduplicated_word_excludes_diphthongs_but_still_returns_a_word():
     # Same "simple, unmarked sounds" reasoning applied to the vowel side --
     # a diphthong/nasalized-only inventory still falls back to a real
