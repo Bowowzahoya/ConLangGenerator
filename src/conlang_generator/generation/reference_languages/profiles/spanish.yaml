@@ -5,21 +5,34 @@ coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: diacritic-style
+restricted_coda_consonants: [r]
+# The trill /r/ categorically never closes a syllable in real Spanish --
+# it only ever occurs word-initially or intervocalically (spelled "rr"
+# to contrast with the tap). Coda /r/-sound is always the tap "ɾ" (see
+# coda_frequency_tiers below). Without this, the unconditional
+# {ipa: r, latin: rr} spelling rule would double a coda trill into an
+# unnatural "-rr-" no real Spanish word has -- the same root issue as
+# the onset-cluster fix below, just at the other end of the syllable.
 attested_onset_clusters:
   # Real, common Spanish onset clusters, restricted to symbols this
-  # profile models -- illustrative, not exhaustive.
+  # profile models -- illustrative, not exhaustive. The second member of
+  # every C+r cluster is the *tap* "ɾ", never the trill "r" -- real
+  # Spanish "pr"/"br"/"tr"/"dr"/"cr"/"gr"/"fr" are always [pɾ], [bɾ], etc.
+  # (primo, tren, drama, crear, grande, fruta); the trill only ever
+  # follows a vowel (word-initial "rosa", or intervocalic "perro"),
+  # never another onset consonant.
   - [p, l]                   # "plato"
-  - [p, r]                   # "primo"
+  - [p, "ɾ"]                  # "primo"
   - [b, l]                   # "blanco"
-  - [b, r]                   # "brazo"
-  - [t, r]                   # "tren"
-  - [d, r]                   # "drama"
+  - [b, "ɾ"]                  # "brazo"
+  - [t, "ɾ"]                  # "tren"
+  - [d, "ɾ"]                  # "drama"
   - [k, l]                   # "clase"
-  - [k, r]                   # "cred" / "crear"
+  - [k, "ɾ"]                  # "cred" / "crear"
   - [g, l]                   # "globo"
-  - [g, r]                   # "grande"
+  - [g, "ɾ"]                  # "grande"
   - [f, l]                   # "flor"
-  - [f, r]                   # "fruta"
+  - [f, "ɾ"]                  # "fruta"
 attested_coda_clusters:
   # Real Spanish coda clusters, restricted to symbols this profile
   # models -- illustrative, not exhaustive, kept short since real
@@ -30,8 +43,9 @@ attested_coda_clusters:
   - [n, s]                   # "instante"
 orthography:
   - {ipa: "tʃ", latin: ch}    # "mucho"
-  - {ipa: "ɾ", latin: r}      # "pero"
-  - {ipa: r, latin: rr}       # "perro"
+  - {ipa: "ɾ", latin: r}      # "pero" -- the tap is always single "r", in any position
+  - {ipa: r, latin: rr, preceding: [vowel]}  # "perro" -- the trill only doubles intervocalically
+  - {ipa: r, latin: r}         # "rosa" -- elsewhere (word-initial, or after n/l/s) it's single "r"
   - {ipa: h, latin: j}        # "jamón"
   - {ipa: "ɲ", latin: "ñ"}    # "año"
   - {ipa: k, latin: qu, following: [front_vowel]}  # "queso"
@@ -66,11 +80,12 @@ nucleus_frequency_tiers:
   rare: [u]          # most real /u/ occurs inside an unmodeled diphthong (ue/ui), rarer as its own plain nucleus
 coda_frequency_tiers:
   # Real Spanish coda phonotactics are famously restrictive -- expressed
-  # here as frequency (most of this profile's consonants essentially
-  # never close a native syllable) rather than a hard
-  # restricted_coda_consonants list, since a handful of these do turn up
-  # in real, if rare, loanwords/learned words (club, robot, álbum).
+  # here mostly as frequency (most of this profile's consonants
+  # essentially never close a native syllable) rather than hard
+  # restrictions, since a handful of these do turn up in real, if rare,
+  # loanwords/learned words (club, robot, álbum). The trill "r" is the
+  # one categorical exception -- see restricted_coda_consonants above.
   very_common: [s, n]         # mismo/los/español; bien/con/tren
-  common: [l, "ɾ", d]         # sal; puerta (coda tap, never the trill); verdad/ciudad -- the whole -dad noun family
-  uncommon: [r, k, t, b]      # loanword/learned-word-ish: tic, robot, club (real coda /r/ is a tap, not this profile's trill symbol, but included here rather than fabricating a restriction)
+  common: [l, "ɾ", d]         # sal; puerta (coda tap); verdad/ciudad -- the whole -dad noun family
+  uncommon: [k, t, b]         # loanword/learned-word-ish: tic, robot, club
   rare: [p, g, "tʃ", m, "ɲ", f, h, j, w]

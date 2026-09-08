@@ -541,7 +541,8 @@ def test_italian_profile_declares_its_own_coda_restrictions():
 
 def test_spanish_profile_declares_its_own_onset_clusters():
     spanish = next(p for p in REFERENCE_LANGUAGES if p.name == "Spanish")
-    assert ("g", "r") in spanish.attested_onset_clusters  # "grande"
+    assert ("g", "ɾ") in spanish.attested_onset_clusters  # "grande" -- always the tap, never the trill
+    assert ("g", "r") not in spanish.attested_onset_clusters  # the trill never follows another onset consonant
     assert ("s", "k") not in spanish.attested_onset_clusters  # never a real Spanish onset
 
 
@@ -608,6 +609,54 @@ def test_spanish_profile_fixes_its_k_g_j_w_spellings():
     assert scheme.apply("jo") == "yo"    # "yo" -- no longer collides with h
     assert scheme.apply("ho") == "jo"    # "jamón"-style -- unaffected by the j fix
     assert scheme.apply("wa") == "ua"    # "cuando"-style
+
+
+def test_spanish_c_plus_r_clusters_use_the_tap_not_the_trill():
+    # Regression guard: attested_onset_clusters originally used the
+    # trill "r" as the second member of every C+r cluster, which put the
+    # trill phoneme directly after a stop -- real Spanish "pr"/"tr"/
+    # "dr"/"cr"/"gr"/"fr" are always the tap [ɾ] (primo, tren, drama,
+    # crear, grande, fruta); the trill only ever follows a vowel. Because
+    # {ipa: r, latin: rr} fires unconditionally, the bug doubled every
+    # such cluster into an unnatural "drr"/"crr" ("clabdrrasat").
+    spanish = next(p for p in REFERENCE_LANGUAGES if p.name == "Spanish")
+    assert all(pair[1] != "r" for pair in spanish.attested_onset_clusters)
+    inventory = _inventory_for(spanish)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("Spanish",), strictness=1.0))
+    )
+    assert scheme.apply("dɾa") == "dra"   # "drama" -- single r, not doubled
+    assert scheme.apply("kɾe") == "cre"   # "crear"-style
+
+
+def test_spanish_restricts_the_trill_from_coda_position():
+    # The same root bug as the cluster one above, at the other end of the
+    # syllable: the trill /r/ categorically never closes a real Spanish
+    # syllable (only the tap does) -- without this restriction, the
+    # unconditional {ipa: r, latin: rr} rule would double a coda trill
+    # into an unnatural "-rr-" no real Spanish word has.
+    spanish = next(p for p in REFERENCE_LANGUAGES if p.name == "Spanish")
+    assert spanish.restricted_coda_consonants == ("r",)
+    assert "r" not in spanish.coda_frequency_tiers.get("uncommon", ())
+
+
+def test_spanish_only_doubles_the_trill_intervocalically():
+    # Real Spanish word-initial /r/ is single "r" (rosa, rey) -- "rr"
+    # marks the trill only where it needs to be distinguished from the
+    # tap, i.e. intervocalically (perro vs. pero). The original rule was
+    # unconditioned, so a word-initial trill also doubled ("rrablatsel").
+    spanish = next(p for p in REFERENCE_LANGUAGES if p.name == "Spanish")
+    inventory = _inventory_for(spanish)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("Spanish",), strictness=1.0))
+    )
+    assert scheme.apply("ra") == "ra"     # "rosa"-style -- word-initial, single r
+    assert scheme.apply("ara") == "arra"  # "perro"-style -- intervocalic, doubled
+    assert scheme.apply("ɾa") == "ra"     # the tap is always single, unaffected by this fix
 
 
 def test_spanish_declares_the_real_seseo_s_alternation():
