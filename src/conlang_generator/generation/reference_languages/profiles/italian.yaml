@@ -59,9 +59,16 @@ orthography:
   - {ipa: "dʒ", latin: g, following: [front_vowel]}  # "gente"
   - {ipa: "dʒ", latin: gi}                            # "giorno" -- elsewhere
   - {ipa: k, latin: ch, following: [front_vowel]}    # "chiesa"
+  - {ipa: k, latin: q, following: ["w"]}              # "quattro" -- real Italian /kw/ is always "qu", never "cw"
   - {ipa: k, latin: c}                                 # "casa" -- elsewhere
   - {ipa: g, latin: gh, following: [front_vowel]}    # "ghiaccio"
   - {ipa: g, latin: g}                                 # "gatto" -- elsewhere
+  # /w/: real Italian barely uses the letter "w" at all (loanword-only:
+  # whisky, weekend) -- native /w/ is always spelled "u", whether as its
+  # own glide onset ("uovo" /ˈwɔvo/, "uomo") or as the second half of a
+  # qu-/gu- cluster (quattro, guerra -- composes for free with the /k/
+  # rule above and /g/'s own already-unconditioned "g" elsewhere rule).
+  - {ipa: w, latin: u}
   - {ipa: z, latin: s}   # real Italian never opens a word with letter
                          # "z" for this fricative (that letter spells
                          # /ts~dz/, not modeled as its own phoneme here)

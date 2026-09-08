@@ -26,6 +26,7 @@ attested_onset_clusters:
   - [t, "ʁ"]                  # "Traum"
   - [f, l]                   # "Flug"
   - [f, "ʁ"]                  # "Frau"
+  - [k, v]                   # "Quelle"/"Qualität" -- real German "qu" = /kv/, always spelled that way (see orthography)
   - ["ʃ", p]                  # "Spiel" (realized [ʃp])
   - ["ʃ", t]                  # "Stein" (realized [ʃt])
   - ["ʃ", l]                  # "Schlaf"
@@ -88,6 +89,7 @@ orthography:
   # Vulkan).
   - {ipa: v, latin: w, weight: 0.85}
   - {ipa: v, latin: v, weight: 0.15}
+  - {ipa: v, latin: u, preceding: ["k"]}  # "Quelle"/"Qualität"/"bequem" -- the /kv/ cluster is always spelled "qu", overriding the w/v alternation above
   # /z/: real German never writes this sound with the letter "z" (that
   # letter is reserved for /ts/, not modeled as its own phoneme here) --
   # always "s" (sagen, lesen, Sonne), deterministic, not a real
@@ -107,6 +109,7 @@ orthography:
   # native German (Computer, Café), not modeled as a third alternative.
   - {ipa: k, latin: k, weight: 0.85}
   - {ipa: k, latin: ck, weight: 0.15}
+  - {ipa: k, latin: q, following: ["v"]}  # "Quelle"/"Qualität" -- overrides the weighted k/ck alternatives above whenever /v/ follows
 core_vocabulary_average_syllables: 1.43  # hand-counted across this project's own CORE_MEANINGS glosses -- the longest of the four perfected languages, reflecting German's retained endings (Wasser, Mutter, Vater...)
 onset_frequency_tiers:
   very_common: ["ʃ", "ʁ"]  # the very productive native schl-/schm-/schn-/schw-/schr- cluster family; r- broadly productive too

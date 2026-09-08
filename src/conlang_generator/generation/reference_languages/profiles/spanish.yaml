@@ -33,6 +33,8 @@ attested_onset_clusters:
   - [g, "ɾ"]                  # "grande"
   - [f, l]                   # "flor"
   - [f, "ɾ"]                  # "fruta"
+  - [k, w]                   # "cuando", "cuatro", "cuidado" -- real Spanish /kw/, always spelled "cu" (see orthography -- unlike Italian's "qu")
+  - [g, w]                   # "pingüino", "vergüenza", "antigüedad" -- real Spanish /gw/, disambiguated from plain /g/+vowel by the diaeresis below
 attested_coda_clusters:
   # Real Spanish coda clusters, restricted to symbols this profile
   # models -- illustrative, not exhaustive, kept short since real
@@ -58,6 +60,15 @@ orthography:
   - {ipa: w, latin: u}   # "cuando", "bueno" -- real Spanish essentially
                          # never spells /w/ with the letter "w" itself
                          # (that's loanword-only: "kiwi", "web")
+  # /w/ after /g/ before a front vowel (pingüino, vergüenza, antigüedad):
+  # real Spanish marks this with a diaeresis to distinguish a genuinely
+  # pronounced /w/ from plain /g/+front-vowel's own silent-u "gu" spelling
+  # (guitarra, guerra -- no /w/ phoneme at all in those words' IPA).
+  # Higher specificity than both the plain w->u rule above and /g/'s own
+  # front-vowel rule below, so it wins exactly when both conditions hold;
+  # gwa-style (agua, guante) is correctly untouched since front_vowel
+  # doesn't match a back vowel.
+  - {ipa: w, latin: "ü", preceding: ["g"], following: [front_vowel]}
   # /s/: real seseo merger -- most of the Spanish-speaking world (all of
   # Latin America, plus parts of southern Spain) pronounces "z" and "c"
   # (before e/i) identically with plain "s" (zapato/sopa, cielo/silla) --

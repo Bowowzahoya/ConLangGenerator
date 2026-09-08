@@ -48,6 +48,7 @@ attested_onset_clusters:
   - [k, l]                   # "clean"
   - [k, r]                   # "cream"
   - [k, w]                   # "queen"
+  - [g, w]                   # "penguin"/"language"/"distinguish" -- medial rather than word-initial, but a real, regularly-spelled cluster
   - [g, l]                   # "glow"
   - [g, r]                   # "green"
   - [f, l]                   # "fly"
@@ -182,9 +183,15 @@ orthography:
   # doesn't have the full short-vowel-coda compound condition that real
   # rule actually needs).
   - {ipa: k, latin: k, following: [front_vowel]}
+  - {ipa: k, latin: q, following: ["w"]}  # "queen"/"quick"/"aqueduct" -- real English /kw/ is always "qu", regardless of the vowel that follows
   - {ipa: k, latin: c, weight: 0.55}
   - {ipa: k, latin: k, weight: 0.30}
   - {ipa: k, latin: ck, weight: 0.15}
+  # /w/ after /k/ or /g/ (queen/quick/aqueduct; penguin/language/
+  # distinguish): real English spells this "u", not "w" -- /w/'s own
+  # plain elsewhere spelling ("wind", "way") is untouched.
+  - {ipa: w, latin: u, preceding: ["k"]}
+  - {ipa: w, latin: u, preceding: ["g"]}
   # /s/: real English is genuinely mixed before a front vowel (sit/see/
   # sing vs. cent/city/cell) -- not rule-governed the way /ʃ/ etc. are.
   # Elsewhere, plain "s" is the only real spelling.

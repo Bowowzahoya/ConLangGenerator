@@ -671,3 +671,126 @@ def test_spanish_declares_the_real_seseo_s_alternation():
     assert sum(rule.weight for rule in front_rules) == pytest.approx(1.0)
     assert {rule.latin for rule in elsewhere_rules} == {"s", "z"}
     assert sum(rule.weight for rule in elsewhere_rules) == pytest.approx(1.0)
+
+
+# --- The real /kw/-/gw/-/kv/ family (qu/gu/qu=kv), across all six profiles ---
+
+
+def test_italian_kw_and_gw_clusters_spell_qu_and_gu_not_cw_and_gw():
+    # Regression guard: Italian's /w/ was never curated at all, defaulting
+    # to bare identity "w" -- "quando" rendered as "cwando", "guerra" as
+    # "gwerra", and even a bare glide like "uovo" as "wovo". Real Italian
+    # spells /w/ "u" almost everywhere (it barely uses the letter "w" at
+    # all), which composes correctly with /k/'s new q-before-w override
+    # and /g/'s own already-unconditioned elsewhere rule.
+    italian = next(p for p in REFERENCE_LANGUAGES if p.name == "Italian")
+    inventory = _inventory_for(italian)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("Italian",), strictness=1.0))
+    )
+    assert scheme.apply("kwa") == "qua"   # "quando"-style
+    assert scheme.apply("gwe") == "gue"   # "guerra"-style
+    assert scheme.apply("wo") == "uo"     # "uovo"-style -- bare /w/, no k/g involved
+
+
+def test_spanish_gue_gui_diaeresis_distinguishes_a_real_w_from_silent_u():
+    # The actual güe/güi fix: pingüino/vergüenza (a real /w/ before a
+    # front vowel) must render differently from guitarra/guerra (plain
+    # /g/+front-vowel, no /w/ phoneme at all in that word's IPA) -- before
+    # this fix both collapsed to the same "gui"/"gue" spelling.
+    spanish = next(p for p in REFERENCE_LANGUAGES if p.name == "Spanish")
+    inventory = _inventory_for(spanish)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("Spanish",), strictness=1.0))
+    )
+    assert scheme.apply("gwi") == "güi"   # "pingüino"-style -- real w, front vowel
+    assert scheme.apply("gwe") == "güe"   # "vergüenza"-style
+    assert scheme.apply("gwa") == "gua"   # "agua"-style -- real w, but back vowel: no diaeresis needed
+    assert scheme.apply("gi") == "gui"    # "guitarra"-style -- no w at all, unaffected
+    assert scheme.apply("kwa") == "cua"   # "cuando"-style -- w not preceded by g, unaffected
+
+
+def test_spanish_declares_kw_and_gw_as_attested_onset_clusters():
+    # Without these, real Spanish's very productive "cu-" family (cuando,
+    # cuatro, cuidado) and the güe/güi family above would barely ever get
+    # generated at all, even with the spelling rules ready for them.
+    spanish = next(p for p in REFERENCE_LANGUAGES if p.name == "Spanish")
+    assert ("k", "w") in spanish.attested_onset_clusters
+    assert ("g", "w") in spanish.attested_onset_clusters
+
+
+def test_english_kw_and_gw_clusters_spell_qu_and_gu():
+    # Real English /kw/ is always "qu" (queen, quick, aqueduct), never
+    # "w" -- /k/'s existing front-vowel/elsewhere rules never anticipated
+    # /w/ as the following segment, and /w/ had no rule of its own at
+    # all. /g/+/w/ (penguin, language, distinguish) gets the same fix.
+    english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+    assert ("k", "w") in english.attested_onset_clusters
+    assert ("g", "w") in english.attested_onset_clusters
+    inventory = _inventory_for(english)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("English",), strictness=1.0))
+    )
+    assert scheme.apply("kwa") == "qua"   # "quack"-style
+    assert scheme.apply("gwa") == "gua"   # "iguana"-style -- w preceded by g, not k
+
+
+def test_german_kv_cluster_spells_qu():
+    # Real German "qu" is always /kv/ (Quelle, Qualität, bequem) -- /k/'s
+    # existing weighted k/ck alternatives never anticipated /v/ as the
+    # following segment, and /v/'s existing w/v alternation never
+    # anticipated a preceding /k/.
+    german = next(p for p in REFERENCE_LANGUAGES if p.name == "German")
+    assert ("k", "v") in german.attested_onset_clusters
+    inventory = _inventory_for(german)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("German",), strictness=1.0))
+    )
+    assert scheme.apply("kve") == "que"   # "Quelle"-style
+    assert scheme.apply("kva") == "qua"   # "Qualität"-style
+
+
+def test_french_k_spells_qu_before_a_front_vowel_and_c_elsewhere():
+    # Real French "qui"/"que" (qui, que, quel, quinze) is deterministic --
+    # no rule predicted this before, so /k/ fell through to the generic
+    # category's own uncurated default. Elsewhere, plain "c" is the
+    # dominant native spelling (comme, cou); "k" is loanword-only
+    # (kilo, kayak), deliberately not modeled as a competing alternative,
+    # same call already made for German's own excluded loanword "c".
+    french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+    inventory = _inventory_for(french)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("French",), strictness=1.0))
+    )
+    assert scheme.apply("ki") == "qui"
+    assert scheme.apply("ka") == "ca"
+
+
+def test_dutch_kw_cluster_needs_no_fix():
+    # The one profile in this family that turns out to already be
+    # correct: native Dutch /kʋ/ is genuinely spelled "kw" (kwart, kwaad,
+    # kwaliteit) via /k/ and /w/'s own independent identity defaults --
+    # "aquaduct"/"aquarium" retain "qu" only as an unassimilated Latin/
+    # French loanword spelling, not a native convention to model as a
+    # competing alternative (same call as French/German's excluded
+    # loanword letters above).
+    dutch = next(p for p in REFERENCE_LANGUAGES if p.name == "Dutch")
+    assert not any(rule.ipa == "w" for rule in dutch.orthography)
+    assert not any(rule.ipa == "k" for rule in dutch.orthography)
+    inventory = _inventory_for(dutch)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("Dutch",), strictness=1.0))
+    )
+    assert scheme.apply("kwa") == "kwa"

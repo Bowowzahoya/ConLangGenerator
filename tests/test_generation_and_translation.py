@@ -96,9 +96,13 @@ def test_german_biased_language_capitalizes_its_noun_entries():
 
 
 def test_french_biased_language_gives_its_verb_entries_a_silent_r():
-    # seed 2 rolls French's own mute_suffix_by_pos (VERB, "r") -- see the
-    # note on the German test above for the seed-search convention.
-    spec = GenerationSpec(prompt="test", seed=2, traits=TraitProfile(source_languages=("French",)))
+    # seed 11 rolls French's own mute_suffix_by_pos (VERB, "r") -- see the
+    # note on the German test above for the seed-search convention. (Was
+    # seed 2 before French's qu-before-front-vowel /k/ fix added two new
+    # orthography rules, shifting downstream rng draws enough to change
+    # which seed rolls this -- same "seed-shift from new content" pattern
+    # documented elsewhere in this project's history.)
+    spec = GenerationSpec(prompt="test", seed=11, traits=TraitProfile(source_languages=("French",)))
     language = generate_language("Test", spec, FakeLLMClient())
     rule = next(
         (r for r in language.romanization.grammatical_spelling.mute_suffix_by_pos if r.pos is PartOfSpeech.VERB), None

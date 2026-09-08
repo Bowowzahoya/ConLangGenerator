@@ -73,6 +73,17 @@ orthography:
   # table ("š", Slavic-style) -- correct for nobody in this project, and
   # specifically wrong for French.
   - {ipa: "ʃ", latin: ch}
+  # /k/: always "qu" before a front vowel (qui, que, quel, quinze,
+  # quitter -- never "ki"/"ke", which would look foreign) -- a silent-u
+  # convention, not a real /w/ phoneme (unlike Italian/English/German's
+  # own k+w cluster, French "quoi"/"pourquoi" is the rare genuine
+  # exception with a real /w/, too narrow a word family to curate here).
+  # Elsewhere, plain "c" is the dominant native spelling (comme, cou,
+  # cage); "k" is loanword-only (kilo, kayak, koala), same "don't
+  # fabricate a competing alternative for a loanword letter" call as
+  # German's own excluded loanword "c".
+  - {ipa: k, latin: qu, following: [front_vowel]}
+  - {ipa: k, latin: c}
   # /s/: real French genuinely splits lexically between two vowels --
   # "ss" is the majority pattern (poisson, laisser, tissu, chaussure),
   # but "c"/"ç" also occurs intervocalically before a front/back vowel
