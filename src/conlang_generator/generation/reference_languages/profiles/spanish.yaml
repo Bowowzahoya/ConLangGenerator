@@ -1,14 +1,76 @@
 name: Spanish
-aliases: [italian, romance, romance language]
 consonants: [p, b, t, d, k, g, "tʃ", m, n, "ɲ", s, f, h, l, "ɾ", r, j, w]
 vowels: [i, a, u, e, o]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: diacritic-style
+attested_onset_clusters:
+  # Real, common Spanish onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [p, l]                   # "plato"
+  - [p, r]                   # "primo"
+  - [b, l]                   # "blanco"
+  - [b, r]                   # "brazo"
+  - [t, r]                   # "tren"
+  - [d, r]                   # "drama"
+  - [k, l]                   # "clase"
+  - [k, r]                   # "cred" / "crear"
+  - [g, l]                   # "globo"
+  - [g, r]                   # "grande"
+  - [f, l]                   # "flor"
+  - [f, r]                   # "fruta"
+attested_coda_clusters:
+  # Real Spanish coda clusters, restricted to symbols this profile
+  # models -- illustrative, not exhaustive, kept short since real
+  # Spanish codas are otherwise heavily restricted to a small set of
+  # single consonants (see coda_frequency_tiers below).
+  - [s, t]                   # "estar"-internal, "texto"
+  - [k, s]                   # "extra" -- real Spanish "x" /ks/, approximated with this profile's own symbols
+  - [n, s]                   # "instante"
 orthography:
   - {ipa: "tʃ", latin: ch}    # "mucho"
   - {ipa: "ɾ", latin: r}      # "pero"
   - {ipa: r, latin: rr}       # "perro"
   - {ipa: h, latin: j}        # "jamón"
   - {ipa: "ɲ", latin: "ñ"}    # "año"
+  - {ipa: k, latin: qu, following: [front_vowel]}  # "queso"
+  - {ipa: k, latin: c}                               # "casa" -- elsewhere
+  - {ipa: g, latin: gu, following: [front_vowel]}  # "guerra"
+  - {ipa: g, latin: g}                               # "gato" -- elsewhere
+  - {ipa: j, latin: y}   # "yo" -- real Spanish never spells this glide
+                         # "j" (that letter is reserved for /h/ above --
+                         # jamón, joven -- a different phoneme)
+  - {ipa: w, latin: u}   # "cuando", "bueno" -- real Spanish essentially
+                         # never spells /w/ with the letter "w" itself
+                         # (that's loanword-only: "kiwi", "web")
+  # /s/: real seseo merger -- most of the Spanish-speaking world (all of
+  # Latin America, plus parts of southern Spain) pronounces "z" and "c"
+  # (before e/i) identically with plain "s" (zapato/sopa, cielo/silla) --
+  # a genuine, well-documented weighted alternative, not a free-for-all:
+  # "c" only competes before a front vowel, "z" only elsewhere.
+  - {ipa: s, latin: s, following: [front_vowel], weight: 0.6}
+  - {ipa: s, latin: c, following: [front_vowel], weight: 0.4}
+  - {ipa: s, latin: s, weight: 0.7}
+  - {ipa: s, latin: z, weight: 0.3}
+core_vocabulary_average_syllables: 1.90  # hand-counted across this project's own CORE_MEANINGS glosses -- shorter than Italian (sol vs. sole, pez vs. pesce) but still longer than any of the four Germanic/French profiles; more counting uncertainty than the earlier four given genuinely ambiguous diphthong-vs-hiatus syllabification
+onset_frequency_tiers:
+  very_common: [s, n, t, d, k, l, m]
+  common: [p, b, g, f, r, "ɾ", h]
+  uncommon: ["tʃ", j, "ɲ"]  # ɲ never opens a word in real Spanish (año, niño -- always word-medial)
+  rare: [w]  # essentially loanword-only as its own onset consonant (whisky, web) -- most real /w/ is the "cua-"/"cue-" glide spelled with u instead, see the joint w->u spelling above
+nucleus_frequency_tiers:
+  very_common: [a]  # by far the most frequent Spanish vowel by word-type -- feminine -a, huge -ar verb class
+  common: [e, o]     # -er/-ir and masculine -o endings
+  uncommon: [i]
+  rare: [u]          # most real /u/ occurs inside an unmodeled diphthong (ue/ui), rarer as its own plain nucleus
+coda_frequency_tiers:
+  # Real Spanish coda phonotactics are famously restrictive -- expressed
+  # here as frequency (most of this profile's consonants essentially
+  # never close a native syllable) rather than a hard
+  # restricted_coda_consonants list, since a handful of these do turn up
+  # in real, if rare, loanwords/learned words (club, robot, álbum).
+  very_common: [s, n]         # mismo/los/español; bien/con/tren
+  common: [l, "ɾ", d]         # sal; puerta (coda tap, never the trill); verdad/ciudad -- the whole -dad noun family
+  uncommon: [r, k, t, b]      # loanword/learned-word-ish: tic, robot, club (real coda /r/ is a tap, not this profile's trill symbol, but included here rather than fabricating a restriction)
+  rare: [p, g, "tʃ", m, "ɲ", f, h, j, w]

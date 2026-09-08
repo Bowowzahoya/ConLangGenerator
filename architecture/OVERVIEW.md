@@ -638,8 +638,10 @@ Everything here is a pure function of a `random.Random` seeded from
   into English/Dutch/French/German (the generic content-word mean was
   ~1.7 syllables, higher than even German's real ~1.43). On top of that,
   `ReferenceLanguageProfile.core_vocabulary_average_syllables` (curated
-  for those same four languages: English 1.14, Dutch 1.27, French 1.35,
-  German 1.43) lets a matched `source_languages` bias graded by
+  for English 1.14, Dutch 1.27, French 1.35, German 1.43, Spanish 1.90,
+  Italian 2.15 -- the last two carrying more counting uncertainty than
+  the first four, given genuinely ambiguous diphthong-vs-hiatus
+  syllabification in both) lets a matched `source_languages` bias graded by
   `source_language_strictness` exponentially tilt whichever base table
   got picked, via `choose_syllable_count`'s own `math.exp(theta * count)`
   reweighting -- deliberately the one mechanism in this whole feature that
@@ -802,9 +804,14 @@ reading code or one-off ad hoc scripts.
   drift back toward looser/generic over a long evolution run, same as
   any other language's.
 - `restricted_onset_consonants`/`attested_onset_clusters` are curated for
-  German, English, French, and Dutch only -- every other profile leaves
-  both empty (falls back to the generic sonority-only check, same "not
-  yet curated" honesty `orthography` already practices). The full local-
+  German, English, French, Dutch, Italian, and Spanish -- every other
+  profile leaves both empty (falls back to the generic sonority-only
+  check, same "not yet curated" honesty `orthography` already
+  practices). Italian's `coda_profile` is `"sonorant"`, which hardcodes
+  `max_coda=1`/`allowed_coda_clusters=()` in `phonology_gen.py`
+  regardless of any curated cluster list -- so `attested_coda_clusters`
+  is deliberately left empty for Italian specifically (would be dead
+  data), unlike the other five. The full local-
   adjacency family now covers all three positions in `(onset) nucleus
   (coda)`: onset+nucleus (`allowed_onset_nucleus_pairs`/
   `excluded_onset_nucleus_pairs`, e.g. real English "dw-"/"tw-" never

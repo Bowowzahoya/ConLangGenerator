@@ -5,6 +5,45 @@ coda_profile: sonorant
 max_onset: 2
 tonal: false
 orthography_category: gemination-style
+restricted_onset_consonants: ["kː", "tː", "pː", "sː", "nː", "lː", z]
+# Gemination is strictly intervocalic in real Italian -- no geminate ever
+# opens a word. Word-initial /z/ doesn't occur either: an "s"-initial
+# word is always voiceless [s] (sole, sale) -- the voiced [z] allophone
+# only ever shows up intervocalically (rosa, casa).
+restricted_coda_consonants: [j, w, "ɲ", "lʲ"]
+# coda_profile is already "sonorant", but that alone still admits every
+# consonant with sonority >= 3 -- j/w/ɲ/lʲ all qualify by that measure
+# but none genuinely closes a real Italian syllable (real Italian codas
+# are just m/n/l/r, mostly in loanwords or prepositions like "per"/"con").
+attested_onset_clusters:
+  # Real, common Italian onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive. sp/st/sk excluded --
+  # already covered by sonority's own generic s+voiceless-stop exception,
+  # same convention every other profile uses.
+  - [p, l]                   # "piano"
+  - [p, r]                   # "prima"
+  - [b, l]                   # "blu"
+  - [b, r]                   # "bravo"
+  - [t, r]                   # "treno"
+  - [d, r]                   # "dramma"
+  - [k, l]                   # "clima"
+  - [k, r]                   # "credere"
+  - [g, l]                   # "gloria"
+  - [g, r]                   # "grande"
+  - [f, l]                   # "fiore" (approximated -- real "fl" as in "flauto")
+  - [f, r]                   # "fratello"
+  - [k, w]                   # "quattro" -- real Italian "qu" = /kw/
+  - [g, w]                   # "guerra" -- real Italian "gu" = /gw/
+  - [s, f]                   # "sfumare"
+  - [s, m]                   # "smettere"
+  - [s, n]                   # "snello"
+  - [s, v]                   # "svegliare"
+  - [s, l]                   # "slitta"
+# No attested_coda_clusters -- coda_profile "sonorant" hardcodes
+# max_coda=1/allowed_coda_clusters=() regardless of any curated cluster
+# list (see generation/phonology_gen.py), so that field would be dead
+# data here, consistent with real Italian genuinely having no coda
+# clusters at all.
 orthography:
   # Real Italian spelling conventions, restricted to symbols this
   # profile actually models -- illustrative, not a full account.
@@ -13,13 +52,35 @@ orthography:
   # real doubled-letter spelling structurally
   # (`_generate_gemination_rules`) for every long/short pair, same
   # reasoning Finnish's own profile already uses for "kː".
-  - {ipa: "ʃ", latin: sc}    # "scena" -- real Italian spells /ʃ/ this
-                              # way before a front vowel
-  - {ipa: "tʃ", latin: c}    # "cena" -- real, before a front vowel
-  - {ipa: "dʒ", latin: g}    # "gente" -- real, before a front vowel
+  - {ipa: "ʃ", latin: sc, following: [front_vowel]}  # "scena"
+  - {ipa: "ʃ", latin: sci}                            # "sciopero" -- elsewhere (scoiattolo, sciopero)
+  - {ipa: "tʃ", latin: c, following: [front_vowel]}  # "cena"
+  - {ipa: "tʃ", latin: ci}                            # "ciao" -- elsewhere
+  - {ipa: "dʒ", latin: g, following: [front_vowel]}  # "gente"
+  - {ipa: "dʒ", latin: gi}                            # "giorno" -- elsewhere
+  - {ipa: k, latin: ch, following: [front_vowel]}    # "chiesa"
+  - {ipa: k, latin: c}                                 # "casa" -- elsewhere
+  - {ipa: g, latin: gh, following: [front_vowel]}    # "ghiaccio"
+  - {ipa: g, latin: g}                                 # "gatto" -- elsewhere
+  - {ipa: z, latin: s}   # real Italian never opens a word with letter
+                         # "z" for this fricative (that letter spells
+                         # /ts~dz/, not modeled as its own phoneme here)
+                         # -- the fricative is a real but intervocalic-
+                         # only allophone of /s/ (rosa, casa)
   - {ipa: "ɲ", latin: gn}    # "gnocchi"
   - {ipa: "lʲ", latin: gli}  # real Italian lateral palatal /ʎ/,
                               # approximated by this project's secondary-
                               # palatalization symbol
   - {ipa: "ɔ", latin: o}
   - {ipa: "ɛ", latin: e}
+core_vocabulary_average_syllables: 2.15  # hand-counted across this project's own CORE_MEANINGS glosses -- the longest of the six curated profiles, reflecting Italian's retained, vowel-final polysyllabic words (animale, montagna, bambino); more counting uncertainty than the earlier four given genuinely ambiguous diphthong-vs-hiatus syllabification
+onset_frequency_tiers:
+  very_common: [p, t, k, s, m, n, l, r]
+  common: [b, d, g, f, v, "tʃ", "dʒ", "ʃ"]
+  uncommon: ["ɲ", j, w]  # ɲ- is a small closed word family (gnomo, gnocco); onset j/w are mostly loanwords, most real w/j-like sounds arise as glide realizations of i/u instead
+  rare: ["lʲ"]  # the "gli" sound is a handful of very frequent words (figlio, aglio, famiglia) but a tiny, unproductive onset class
+nucleus_frequency_tiers:
+  very_common: [a, i]  # -a/-e feminine and -i masculine plural endings
+  common: [e, o]
+  uncommon: ["ɛ", "ɔ"]  # open-mid qualities, mostly stressed-syllable-only and not predictable from spelling
+  rare: [u]

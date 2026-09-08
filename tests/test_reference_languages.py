@@ -359,13 +359,32 @@ def test_the_four_perfected_languages_declare_a_real_average_syllable_count():
 
 
 def test_most_profiles_leave_average_syllables_uncurated():
-    perfected = {"English", "German", "French", "Dutch"}
+    perfected = {"English", "German", "French", "Dutch", "Italian", "Spanish"}
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in perfected:
             assert profile.core_vocabulary_average_syllables is None
 
 
-_PERFECTED_LANGUAGES = ("English", "German", "French", "Dutch")
+def test_italian_and_spanish_declare_a_real_average_syllable_count():
+    # Hand-counted across this project's own CORE_MEANINGS glosses, same
+    # illustrative caveat as the earlier four -- Italian and Spanish both
+    # retain more unstressed final vowels than any Germanic/French
+    # profile, so both land well above German's own 1.43.
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["Spanish"].core_vocabulary_average_syllables == 1.90
+    assert by_name["Italian"].core_vocabulary_average_syllables == 2.15
+    assert by_name["German"].core_vocabulary_average_syllables < by_name["Spanish"].core_vocabulary_average_syllables
+    assert by_name["Spanish"].core_vocabulary_average_syllables < by_name["Italian"].core_vocabulary_average_syllables
+
+
+# Spanish has full onset/nucleus/coda tiers (an "unrestricted" coda
+# profile, same as the four below); Italian is deliberately left out of
+# this list -- its "sonorant" coda_profile means the true legal coda set
+# is narrower than consonants-minus-restricted (see
+# generation/phonology_gen.py's "sonorant" branch), so curating a
+# same-shaped coda tier would silently mismatch _legal_symbols below.
+# Italian's onset/nucleus tiers are checked separately.
+_PERFECTED_LANGUAGES = ("English", "German", "French", "Dutch", "Spanish")
 _TIER_NAMES = {"very_common", "common", "uncommon", "rare"}
 
 
@@ -410,10 +429,26 @@ def test_english_ð_is_onset_rare_despite_high_token_frequency():
 
 def test_non_perfected_profiles_leave_frequency_tiers_uncurated():
     for profile in REFERENCE_LANGUAGES:
-        if profile.name not in _PERFECTED_LANGUAGES:
+        if profile.name not in _PERFECTED_LANGUAGES and profile.name != "Italian":
             assert profile.onset_frequency_tiers == {}
             assert profile.nucleus_frequency_tiers == {}
             assert profile.coda_frequency_tiers == {}
+
+
+def test_italian_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    # Italian curates onset/nucleus tiers like every other perfected
+    # profile, but deliberately leaves coda_frequency_tiers uncurated --
+    # see _PERFECTED_LANGUAGES' own comment above for why.
+    italian = next(p for p in REFERENCE_LANGUAGES if p.name == "Italian")
+    for position, field in (
+        ("onset", italian.onset_frequency_tiers),
+        ("nucleus", italian.nucleus_frequency_tiers),
+    ):
+        assert set(field.keys()) == _TIER_NAMES, position
+        tiered = [symbol for members in field.values() for symbol in members]
+        assert len(tiered) == len(set(tiered)), position
+        assert set(tiered) == _legal_symbols(italian, position), position
+    assert italian.coda_frequency_tiers == {}
 
 
 # --- Probabilistic, richer French/English romanization ---
@@ -471,3 +506,119 @@ def test_french_declares_the_real_wa_joint_spelling():
 def test_no_profile_curates_nucleus_coda_spellings_yet():
     for profile in REFERENCE_LANGUAGES:
         assert profile.nucleus_coda_spellings == ()
+
+
+# --- Italian / Spanish parity with the other perfected languages ---
+
+
+def test_spanish_no_longer_aliases_italian():
+    # Regression guard: spanish.yaml used to carry a leftover
+    # `aliases: [italian, ...]` from before Italian had its own profile.
+    # Harmless in practice (match_profiles checks files in alphabetical
+    # order and italian.yaml always sorted first), but wrong data --
+    # a real "Italian" query must resolve to Italian's own profile.
+    matched = match_profiles(("Italian",))
+    assert {p.name for p in matched} == {"Italian"}
+    spanish = next(p for p in REFERENCE_LANGUAGES if p.name == "Spanish")
+    assert "italian" not in spanish.aliases
+
+
+def test_italian_profile_declares_its_own_onset_restrictions():
+    italian = next(p for p in REFERENCE_LANGUAGES if p.name == "Italian")
+    assert set(italian.restricted_onset_consonants) == {"kː", "tː", "pː", "sː", "nː", "lː", "z"}
+    assert ("k", "w") in italian.attested_onset_clusters  # "quattro"
+    assert ("t", "l") not in italian.attested_onset_clusters  # never a real Italian onset
+
+
+def test_italian_profile_declares_its_own_coda_restrictions():
+    # coda_profile is already "sonorant", but that alone still admits
+    # every sonority>=3 consonant -- j/w/ɲ/lʲ all qualify by that measure
+    # but none genuinely closes a real Italian syllable.
+    italian = next(p for p in REFERENCE_LANGUAGES if p.name == "Italian")
+    assert set(italian.restricted_coda_consonants) == {"j", "w", "ɲ", "lʲ"}
+    assert italian.attested_coda_clusters == ()  # dead data under coda_profile "sonorant" -- see phonology_gen.py
+
+
+def test_spanish_profile_declares_its_own_onset_clusters():
+    spanish = next(p for p in REFERENCE_LANGUAGES if p.name == "Spanish")
+    assert ("g", "r") in spanish.attested_onset_clusters  # "grande"
+    assert ("s", "k") not in spanish.attested_onset_clusters  # never a real Spanish onset
+
+
+def test_spanish_profile_declares_real_coda_clusters():
+    spanish = next(p for p in REFERENCE_LANGUAGES if p.name == "Spanish")
+    assert ("s", "t") in spanish.attested_coda_clusters  # "estar"-internal, "texto"
+    assert ("p", "l") not in spanish.attested_coda_clusters  # never a real Spanish coda cluster
+
+
+def test_italian_profile_fixes_its_hard_k_and_g_spellings():
+    # /k/ and /g/ used to default to bare identity ("k"->"k", "g"->"g"),
+    # but real Italian keeps these sounds hard via the c/ch and g/gh
+    # alternation (casa/chiesa, gatto/ghiaccio) -- bare "k"/no digraph
+    # never actually appears.
+    italian = next(p for p in REFERENCE_LANGUAGES if p.name == "Italian")
+    k_spellings = {(rule.latin, tuple(rule.following)) for rule in italian.orthography if rule.ipa == "k"}
+    g_spellings = {(rule.latin, tuple(rule.following)) for rule in italian.orthography if rule.ipa == "g"}
+    assert ("ch", ("front_vowel",)) in k_spellings
+    assert ("c", ()) in k_spellings
+    assert ("gh", ("front_vowel",)) in g_spellings
+    assert ("g", ()) in g_spellings
+
+
+def test_italian_profile_spells_soft_c_g_sc_correctly_before_front_and_back_vowels():
+    # Regression guard: the original ʃ/tʃ/dʒ rules had no `following`
+    # condition and no elsewhere alternative -- "cena" (front vowel,
+    # correct /tʃ/) and "cono" (back vowel, real /k/) would have spelled
+    # identically. End to end through generate_romanization proves the
+    # fix composes correctly with the rest of the scheme.
+    italian = next(p for p in REFERENCE_LANGUAGES if p.name == "Italian")
+    inventory = _inventory_for(italian)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("Italian",), strictness=1.0))
+    )
+    assert scheme.apply("tʃe") == "ce"    # "cena" -- front vowel
+    assert scheme.apply("tʃo") == "cio"   # "ciao"-style -- elsewhere
+    assert scheme.apply("dʒe") == "ge"    # "gente" -- front vowel
+    assert scheme.apply("dʒo") == "gio"   # "giorno" -- elsewhere
+    assert scheme.apply("ʃe") == "sce"    # "scena" -- front vowel
+    assert scheme.apply("ʃo") == "scio"   # "sciopero"-style -- elsewhere
+    assert scheme.apply("ke") == "che"    # "chiesa" -- front vowel
+    assert scheme.apply("ko") == "co"     # "casa"-style -- elsewhere
+    assert scheme.apply("ge") == "ghe"    # "ghiaccio" -- front vowel
+    assert scheme.apply("go") == "go"     # "gatto"-style -- elsewhere
+
+
+def test_spanish_profile_fixes_its_k_g_j_w_spellings():
+    # /k/, /g/ had the identical hard-sound bug as Italian; /j/ defaulted
+    # to identity "j", colliding with /h/'s own already-correct "j"
+    # mapping; /w/ defaulted to identity "w" instead of real Spanish "u".
+    spanish = next(p for p in REFERENCE_LANGUAGES if p.name == "Spanish")
+    inventory = _inventory_for(spanish)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("Spanish",), strictness=1.0))
+    )
+    assert scheme.apply("ke") == "que"   # "queso" -- front vowel
+    assert scheme.apply("ko") == "co"    # "casa"-style -- elsewhere
+    assert scheme.apply("ge") == "gue"   # "guerra" -- front vowel
+    assert scheme.apply("go") == "go"    # "gato"-style -- elsewhere
+    assert scheme.apply("jo") == "yo"    # "yo" -- no longer collides with h
+    assert scheme.apply("ho") == "jo"    # "jamón"-style -- unaffected by the j fix
+    assert scheme.apply("wa") == "ua"    # "cuando"-style
+
+
+def test_spanish_declares_the_real_seseo_s_alternation():
+    # Real seseo: most of the Spanish-speaking world merges "z" and
+    # "c" (before e/i) with plain "s" -- a genuine weighted alternative,
+    # conditioned so "c" only competes before a front vowel and "z"
+    # only elsewhere.
+    spanish = next(p for p in REFERENCE_LANGUAGES if p.name == "Spanish")
+    front_rules = [rule for rule in spanish.orthography if rule.ipa == "s" and rule.following == ("front_vowel",)]
+    elsewhere_rules = [rule for rule in spanish.orthography if rule.ipa == "s" and not rule.following]
+    assert {rule.latin for rule in front_rules} == {"s", "c"}
+    assert sum(rule.weight for rule in front_rules) == pytest.approx(1.0)
+    assert {rule.latin for rule in elsewhere_rules} == {"s", "z"}
+    assert sum(rule.weight for rule in elsewhere_rules) == pytest.approx(1.0)
