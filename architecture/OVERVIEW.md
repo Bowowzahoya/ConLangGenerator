@@ -967,11 +967,12 @@ reading code or one-off ad hoc scripts.
   `phonology_gen.py`/`grammar_gen.py`, and the reference-language sketches
   in `reference_languages/profiles/`, are illustrative approximations, not
   a typological database (e.g. PHOIBLE) or authoritative descriptions.
-- `reference_languages/profiles/` covers 30 languages (Arabic, Arawakan,
-  Bengali, Dutch, English, Finnish, French, Georgian, German, Hawaiian,
-  Hebrew, Hindi, Icelandic, Indonesian, Italian, Japanese, Korean,
-  Mandarin, Mongolian, Nahuatl, Pama-Nyungan, Persian, Portuguese,
-  Quechua, Russian, Spanish, Tamil, Tibetan, Turkish, Xhosa), chosen for
+- `reference_languages/profiles/` covers 33 languages (Arabic, Arawakan,
+  Bengali, Danish, Dutch, English, Finnish, French, Georgian, German,
+  Hawaiian, Hebrew, Hindi, Icelandic, Indonesian, Italian, Japanese,
+  Korean, Mandarin, Mongolian, Nahuatl, Norwegian, Pama-Nyungan, Persian,
+  Portuguese, Quechua, Russian, Spanish, Swedish, Tamil, Tibetan, Turkish,
+  Xhosa), chosen for
   typological/cultural spread (several -- Icelandic, Nahuatl, Tibetan,
   Mongolian, Arawakan, Pama-Nyungan, Quechua, Hebrew -- picked as much
   for real-world "vibe" association with popular fantasy settings as
@@ -988,6 +989,46 @@ reading code or one-off ad hoc scripts.
   schwa deletion) are also out of reach of this project's per-symbol
   adjacency-conditioned rules -- not attempted, not silently assumed
   covered.
+- **The North Germanic batch** (Danish/Swedish/Norwegian/Icelandic) is
+  curated to the same depth as English/German/French/Dutch/Italian/
+  Spanish: phonotactic restrictions/clusters, per-position frequency
+  tiers, a hand-counted `core_vocabulary_average_syllables`, curated
+  orthography, and full stress data. Danish/Swedish/Norwegian didn't
+  exist as profiles before this batch (created from scratch); Icelandic
+  already had a real phoneme inventory and orthography rules and got the
+  missing axes layered on. All four restrict `/ŋ/` and `/h/` from onset/
+  coda respectively (the shared Germanic facts English/German/Dutch/
+  Icelandic already modeled); Swedish/Norwegian additionally model a
+  real retroflex series (`ʈ/ɖ/ɳ/ʂ`, the surface outcome of real `/r/` +
+  dental sandhi -- "kort" -> `[kɔʈ]`) as independent phonemes restricted
+  from onset but not coda, spelled "r"+letter (never marked as its own
+  articulation in real spelling) -- a deliberate simplification over
+  modeling the sandhi as a derivation rule. Swedish's real "sj-sound" has
+  no exact symbol in this project's pool (the closest is `/x/`, flagged
+  as an approximation the same way Italian's `/lʲ/` approximates `/ʎ/`)
+  and gets a real, genuinely irregular multi-way weighted spelling
+  (sj-/sk-/skj-/stj-/sch-); Norwegian's own less-extreme realization uses
+  plain `/ʃ/` with a narrower real spelling spread instead. Icelandic
+  additionally restricts its pre-aspirated series and `/h/` from coda,
+  and its aspirated stops from coda too (aspiration is onset-conditioned
+  in real Icelandic) -- and its own onset frequency tiers rank the
+  aspirated stops *above* their plain counterparts, the reverse of every
+  other profile's stop tiers, because real Icelandic's default
+  word-initial realization of `/p,t,k/` is aspirated (plain stops mainly
+  surface onset-medially after `/s/`). All four get `stress_pattern:
+  "initial"` (the shared Germanic default); Icelandic's own
+  `stress_deviation_rate` is notably lower than the mainland three's
+  (its own stress is more rigidly initial than even German/Dutch's), and
+  it deliberately gets `stress_driven_vowel_reduction: false` where
+  Danish/Swedish/Norwegian get `true` -- a real typological split
+  (Icelandic's own inflectional endings keep distinct full vowel
+  qualities; mainland Scandinavian genuinely reduces toward schwa, Danish
+  especially). Danish's stød and Swedish/Norwegian's pitch accent are
+  both real, genuine suprasegmental contrasts with no fitting existing
+  mechanism (`ToneSystem` is built for genuine tone languages, not one
+  binary contrast layered on stress) -- deliberately not modeled, same
+  "note the real gap, don't force a mismatched fit" discipline as
+  English's own unmodeled noun/verb stress alternation.
 - Dutch's `g`/`ch` distinction is now modeled: /ɣ/ (voiced velar
   fricative -- what Dutch `g` actually represents; Dutch has no native
   /g/ stop) is a real phoneme in `phonology_gen.py`'s shared pool, Dutch's

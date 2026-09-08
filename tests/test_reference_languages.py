@@ -359,10 +359,26 @@ def test_the_four_perfected_languages_declare_a_real_average_syllable_count():
 
 
 def test_most_profiles_leave_average_syllables_uncurated():
-    perfected = {"English", "German", "French", "Dutch", "Italian", "Spanish"}
+    curated = {
+        "English", "German", "French", "Dutch", "Italian", "Spanish",
+        "Danish", "Swedish", "Norwegian", "Icelandic",
+    }
     for profile in REFERENCE_LANGUAGES:
-        if profile.name not in perfected:
+        if profile.name not in curated:
             assert profile.core_vocabulary_average_syllables is None
+
+
+def test_north_germanic_batch_declares_a_real_average_syllable_count():
+    # Hand-counted across this project's own CORE_MEANINGS glosses, same
+    # illustrative caveat as every other curated language. Icelandic's
+    # own conservative, ending-rich morphology keeps it a bit longer than
+    # the more eroded mainland Scandinavian forms.
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in ("Danish", "Swedish", "Norwegian", "Icelandic"):
+        assert by_name[name].core_vocabulary_average_syllables is not None
+    assert by_name["Icelandic"].core_vocabulary_average_syllables > by_name["Danish"].core_vocabulary_average_syllables
+    assert by_name["Icelandic"].core_vocabulary_average_syllables > by_name["Swedish"].core_vocabulary_average_syllables
+    assert by_name["Icelandic"].core_vocabulary_average_syllables > by_name["Norwegian"].core_vocabulary_average_syllables
 
 
 def test_italian_and_spanish_declare_a_real_average_syllable_count():
@@ -384,7 +400,10 @@ def test_italian_and_spanish_declare_a_real_average_syllable_count():
 # generation/phonology_gen.py's "sonorant" branch), so curating a
 # same-shaped coda tier would silently mismatch _legal_symbols below.
 # Italian's onset/nucleus tiers are checked separately.
-_PERFECTED_LANGUAGES = ("English", "German", "French", "Dutch", "Spanish")
+_PERFECTED_LANGUAGES = (
+    "English", "German", "French", "Dutch", "Spanish",
+    "Danish", "Swedish", "Norwegian", "Icelandic",
+)
 _TIER_NAMES = {"very_common", "common", "uncommon", "rare"}
 
 
@@ -896,7 +915,10 @@ def test_the_six_perfected_languages_declare_a_real_stress_pattern():
 
 
 def test_most_profiles_leave_stress_pattern_uncurated():
-    curated = {"French", "Spanish", "Italian", "German", "Dutch", "English"}
+    curated = {
+        "French", "Spanish", "Italian", "German", "Dutch", "English",
+        "Danish", "Swedish", "Norwegian", "Icelandic",
+    }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
             assert profile.stress_pattern == ""
@@ -908,8 +930,34 @@ def test_only_spanish_and_italian_declare_a_real_stress_accent_marking():
     by_name = {p.name: p for p in REFERENCE_LANGUAGES}
     assert by_name["Spanish"].stress_accent_marking == "irregular_only"
     assert by_name["Italian"].stress_accent_marking == "final_only"
-    for name in ("French", "German", "Dutch", "English"):
+    for name in ("French", "German", "Dutch", "English", "Danish", "Swedish", "Norwegian", "Icelandic"):
         assert by_name[name].stress_accent_marking == ""
+
+
+def test_north_germanic_batch_declares_a_real_initial_stress_pattern():
+    # All four are real, robust initial-stress languages -- the shared
+    # Germanic default. Icelandic's own stress is famously more rigidly
+    # initial than even German/Dutch, so it gets a notably lower
+    # deviation rate than the mainland three.
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in ("Danish", "Swedish", "Norwegian", "Icelandic"):
+        assert by_name[name].stress_pattern == "initial"
+        assert by_name[name].stress_deviation_rate is not None
+    assert by_name["Icelandic"].stress_deviation_rate < by_name["Danish"].stress_deviation_rate
+    assert by_name["Icelandic"].stress_deviation_rate < by_name["Swedish"].stress_deviation_rate
+    assert by_name["Icelandic"].stress_deviation_rate < by_name["Norwegian"].stress_deviation_rate
+
+
+def test_mainland_scandinavian_reduces_unstressed_vowels_but_icelandic_does_not():
+    # Real, deliberate typological split: Danish/Swedish/Norwegian
+    # genuinely reduce unstressed syllables toward schwa (Danish
+    # especially); Icelandic's own inflectional endings keep distinct
+    # full vowel qualities instead.
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["Danish"].stress_driven_vowel_reduction is True
+    assert by_name["Swedish"].stress_driven_vowel_reduction is True
+    assert by_name["Norwegian"].stress_driven_vowel_reduction is True
+    assert by_name["Icelandic"].stress_driven_vowel_reduction is False
 
 
 def test_spanish_marks_stress_only_when_it_deviates_from_the_predictable_default():

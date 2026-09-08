@@ -31,3 +31,50 @@ orthography:
   - {ipa: "pʰ", latin: p}
   - {ipa: "tʰ", latin: t}
   - {ipa: "kʰ", latin: k}
+restricted_onset_consonants: ["ʰp", "ʰt", "ʰk"]  # real Icelandic pre-aspiration is a root-medial phenomenon (átta, ekki), never word-initial
+restricted_coda_consonants: ["pʰ", "tʰ", "kʰ", h]  # real Icelandic: aspiration is an onset-conditioned property (word-initial stops are aspirated, syllable-final stops are plain or pre-aspirated instead), and /h/ itself only ever opens a syllable (hv-, hl-, hn-, hr-), never closes one
+attested_onset_clusters:
+  # Real, common Icelandic onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [p, l]                   # "playa"-style loans aside, real native "pl" is rare; kept minimal
+  - [k, l]                   # "klár"
+  - [k, r]                   # "kraftur"
+  - [k, v]                   # "kvikur"
+  - [f, l]                   # "flagg"
+  - [f, j]                   # "fjall"
+  - [t, r]                   # "tré"
+  - ["θ", r]                  # "þrír"
+attested_coda_clusters:
+  # Real, common Icelandic coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [r, t]                   # "vart"
+  - [l, t]                   # "gult"
+  - [l, k]                   # "mjólk"
+  - [n, t]                   # "hunt"-style, illustrative
+  - [f, t]                   # "haft"
+  - [s, t]                   # "fast"
+  - [s, k]                   # "fiskur"
+core_vocabulary_average_syllables: 1.42  # hand-counted across this project's own CORE_MEANINGS glosses -- Icelandic's own conservative, ending-rich morphology keeps words a bit longer than mainland Scandinavian's eroded forms; illustrative, same caveat as every newly-added language
+onset_frequency_tiers:
+  # Aspirated pʰ/tʰ/kʰ, not plain p/t/k, are the real default onset
+  # realization of Icelandic's own /p,t,k/ word-initially -- plain
+  # unaspirated stops mainly surface onset-medially after /s/ (sp-, st-,
+  # sk-) instead, so the aspirated series ranks well above its plain
+  # counterpart here, the reverse of most other profiles' stop tiers.
+  very_common: ["pʰ", "tʰ", "kʰ", s, f]
+  common: [h, m, n, l, v, "θ", r]
+  uncommon: [t, k, p, "ð", j]
+  rare: ["ɣ"]  # real Icelandic /ɣ/ is essentially a medial allophone of g -- rare as a true onset
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: ["ɪ", "ɛ", u, "ɔ"]
+  uncommon: [au, ei]
+  rare: ["ʊ", "ø", "œ", y, ai, "ɔi"]
+coda_frequency_tiers:
+  very_common: [r, n, t]
+  common: [s, l, k, "ð"]
+  uncommon: [m, "θ", f, v, p]
+  rare: ["ʰp", "ʰt", "ʰk", j, "ɣ"]
+stress_pattern: initial  # real Icelandic: stress is exceptionlessly the root's first syllable, the same Germanic default as German/Dutch/Danish/Swedish/Norwegian but held to more strictly
+stress_deviation_rate: 0.05  # illustrative -- real Icelandic stress is famously more rigidly initial than even German/Dutch, rarely deviates outside a handful of loanwords
+stress_driven_vowel_reduction: false  # real, deliberate typological call: Icelandic's own inflectional endings (-ur/-inn/-ins) keep distinct full vowel qualities rather than reducing to schwa the way mainland Scandinavian does

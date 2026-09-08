@@ -1,0 +1,96 @@
+name: Swedish
+aliases: [svenska]
+consonants: [p, b, t, d, k, g, f, v, s, x, h, m, n, "ŋ", l, r, j, "ʈ", "ɖ", "ɳ", "ʂ"]
+vowels: [i, e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə", "aː", "iː", "uː", "eː", "oː"]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+orthography_category: diacritic-style
+restricted_onset_consonants: ["ŋ", "ʈ", "ɖ", "ɳ", "ʂ"]  # /ŋ/: same robust Germanic onset-exclusion fact as Danish/German/Dutch/English. Retroflex ʈ/ɖ/ɳ/ʂ: real Swedish, no native word starts with these -- they only ever arise medially from an /r/+dental sandhi, never word-initially.
+restricted_coda_consonants: [h]  # /h/ is onset-only in real Swedish, same robust Germanic fact as Danish/Icelandic's own /h/ restriction
+attested_onset_clusters:
+  # Real, common Swedish onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive. sp/st/sk excluded --
+  # already covered by sonority's own generic s+voiceless-stop exception.
+  - [p, l]                   # "plats"
+  - [p, r]                   # "pris"
+  - [b, l]                   # "blod"
+  - [b, r]                   # "bror"
+  - [t, r]                   # "träd"
+  - [d, r]                   # "dröm"
+  - [k, l]                   # "klar"
+  - [k, r]                   # "kraft"
+  - [k, v]                   # "kvinna" -- real Swedish /kv/, always spelled that way
+  - [g, l]                   # "glas"
+  - [g, r]                   # "gren"
+  - [f, l]                   # "flagga"
+  - [f, r]                   # "fri"
+attested_coda_clusters:
+  # Real, common Swedish coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [n, t]                   # "vant"
+  - [n, d]                   # "land"
+  - ["ŋ", k]                  # "bank"
+  - [l, t]                   # "gult"
+  - [l, d]                   # "guld"
+  - [l, k]                   # "folk"
+  - [l, m]                   # "film"
+  - [r, t]                   # "kort" (real, alongside the derived ʈ variant)
+  - [r, k]                   # "märke"
+  - [r, n]                   # "barn"
+  - [r, m]                   # "arm"
+  - [s, t]                   # "fest"
+  - [s, k]                   # "fisk"
+  - [f, t]                   # "luft"
+orthography:
+  # Real Swedish spelling conventions, restricted to symbols this profile
+  # actually models -- illustrative, not a full account. Swedish/Norwegian
+  # pitch accent (a real, genuine lexical tone-accent contrast) has no
+  # fitting existing mechanism in this project -- explicitly not modeled,
+  # same "note the real gap" discipline as Danish's stød.
+  - {ipa: "ŋ", latin: ng}   # "sjunga"
+  - {ipa: y, latin: y}
+  - {ipa: "ø", latin: "ö"}   # äöå are real, distinct Swedish letters --
+  - {ipa: "œ", latin: "ö"}   # real Swedish spells both ö-qualities the same way
+  - {ipa: "ɛ", latin: "ä"}   # real Swedish spells open-e as "ä" (väder), unlike Danish/Norwegian's "æ"
+  - {ipa: "ɔ", latin: "å"}
+  - {ipa: "ə", latin: e}     # "pojke"
+  - {ipa: "ɑ", latin: a}     # real Swedish doesn't orthographically distinguish /ɑ/ from /a/ -- both spelled plain "a"
+  # The real Swedish "sj-sound" is famously, genuinely irregular in its
+  # own spelling -- modeled here as a real multi-way weighted
+  # alternative, the same curation style as English's own 5-way schwa
+  # spelling. /x/ is this project's own closest available approximation
+  # to the real sound (often transcribed with its own dedicated IPA
+  # symbol, ɧ, outside this project's pool) -- flagged as an
+  # approximation, the same honest way Italian's /lʲ/ approximates /ʎ/.
+  - {ipa: x, latin: sj, weight: 0.35}
+  - {ipa: x, latin: sk, weight: 0.3, following: [front_vowel]}   # "skjuta", "skön" -- sk before a front vowel
+  - {ipa: x, latin: skj, weight: 0.15}
+  - {ipa: x, latin: stj, weight: 0.1}
+  - {ipa: x, latin: "sch", weight: 0.1}   # loanword-ish but genuinely attested (schema)
+  # Real Swedish spells its own derived retroflex series as plain "r" +
+  # the corresponding dental letter -- the orthography never marks the
+  # retroflex articulation itself.
+  - {ipa: "ʈ", latin: rt}
+  - {ipa: "ɖ", latin: rd}
+  - {ipa: "ɳ", latin: rn}
+  - {ipa: "ʂ", latin: rs}
+core_vocabulary_average_syllables: 1.31  # hand-counted across this project's own CORE_MEANINGS glosses -- similar to Danish/German/Dutch; more counting uncertainty than the six perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [s, t, k, p, b, r]
+  common: [d, f, g, h, l, m, n, v, j]
+  uncommon: [x]  # the sj-sound is real but comparatively low word-type productivity as a true onset
+  rare: []  # the retroflex series, this position's only other candidates, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
+nucleus_frequency_tiers:
+  very_common: ["ə", a]
+  common: ["e", "i", "ɔ", "u"]
+  uncommon: ["ɛ", "o", "ɑ"]
+  rare: [y, "ø", "œ", "aː", "iː", "uː", "eː", "oː"]
+coda_frequency_tiers:
+  very_common: [n, t, s, r]
+  common: [l, k, d, m, "ʈ", "ɖ", "ɳ", "ʂ"]  # the retroflex series is real and genuinely common as a coda (unlike onset) -- the surface outcome of real Swedish /r/+dental sandhi (kort, bord, barn, mars)
+  uncommon: [f, "ŋ", b, p, v, g]
+  rare: [x, j]
+stress_pattern: initial  # real Swedish: usually the root's first syllable, same Germanic default as German/Dutch/Danish
+stress_deviation_rate: 0.15  # illustrative -- loanwords are the main real exception
+stress_driven_vowel_reduction: true  # real Swedish: unstressed syllables reduce toward schwa, same Scandinavian-mainland pattern as Danish

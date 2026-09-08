@@ -1,0 +1,95 @@
+name: Danish
+aliases: [dansk]
+consonants: [p, b, t, d, k, g, f, v, s, "ð", h, m, n, "ŋ", l, "ʁ", j]
+vowels: [i, e, "ɛ", "æ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə", "aː", "iː", "uː", "eː", "oː"]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+orthography_category: diacritic-style
+restricted_onset_consonants: ["ŋ"]  # /ŋ/ is coda/medial-only in real Danish, never opens a syllable (same robust Germanic fact as German/Dutch/English)
+restricted_coda_consonants: [h]  # /h/ is onset-only in real Danish, same robust Germanic fact as Icelandic's own /h/ restriction
+attested_onset_clusters:
+  # Real, common Danish onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive. sp/st/sk excluded --
+  # already covered by sonority's own generic s+voiceless-stop exception,
+  # same convention every other profile uses.
+  - [p, l]                   # "plads"
+  - [p, "ʁ"]                  # "pris"
+  - [b, l]                   # "blod"
+  - [b, "ʁ"]                  # "bror"
+  - [t, "ʁ"]                  # "træ"
+  - [d, "ʁ"]                  # "drøm"
+  - [k, l]                   # "klar"
+  - [k, "ʁ"]                  # "kraft"
+  - [k, v]                   # "kvinde" -- real Danish /kv/, always spelled that way
+  - [g, l]                   # "glas"
+  - [g, "ʁ"]                  # "gren"
+  - [f, l]                   # "flag"
+  - [f, "ʁ"]                  # "fri"
+attested_coda_clusters:
+  # Real, common Danish coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [n, t]                   # "vent"
+  - [n, d]                   # "land"
+  - ["ŋ", k]                  # "bank"
+  - [l, t]                   # "gult"
+  - [l, d]                   # "guld"
+  - [l, k]                   # "folk"
+  - [l, m]                   # "film"
+  - ["ʁ", t]                  # "hjort"
+  - ["ʁ", k]                  # "mærke" -- real, non-exhaustive
+  - ["ʁ", n]                  # "barn"
+  - ["ʁ", m]                  # "arm"
+  - [s, t]                   # "fest"
+  - [s, k]                   # "fisk"
+  - [f, t]                   # "luft"
+orthography:
+  # Real Danish spelling conventions, restricted to symbols this profile
+  # actually models -- illustrative, not a full account. Danish's own
+  # famous prosodic "stød" (a real glottalization contrast) has no
+  # dedicated letter in real Danish spelling -- it isn't written at all,
+  # so nothing to model here; the mismatch between Danish's heavily
+  # eroded pronunciation and its comparatively conservative spelling is
+  # a real, well-known fact this project's per-symbol rules can only
+  # approximate at the segment level, not capture in full.
+  - {ipa: "ð", latin: d}   # real Danish "soft d" -- spelled with the
+                           # plain letter "d" despite sounding nothing
+                           # like an English/German "d" (the single most
+                           # notable spelling-pronunciation mismatch in
+                           # real Danish)
+  - {ipa: "ʁ", latin: r}   # real Danish r is a uvular sound (not an
+                           # alveolar trill/tap), same real fact this
+                           # project's own French profile already models
+                           # for its own /ʁ/
+  - {ipa: "ŋ", latin: ng}  # "synge"
+  - {ipa: y, latin: y}
+  - {ipa: "ø", latin: "ø"}   # æøå are real, distinct Danish letters --
+  - {ipa: "œ", latin: "ø"}   # real Danish spells both ø-qualities the same way
+  - {ipa: "æ", latin: "æ"}
+  - {ipa: "ɛ", latin: "æ"}   # real Danish also spells short open-e as "æ" (læse)
+  - {ipa: "ɔ", latin: "å"}
+  - {ipa: "ə", latin: e}     # "bede"
+  - {ipa: "ɑ", latin: a}   # real Danish doesn't orthographically distinguish /ɑ/ from /a/ -- both spelled plain "a"
+  - {ipa: k, latin: k, weight: 0.7, preceding: [boundary]}
+  - {ipa: k, latin: c, weight: 0.3, preceding: [boundary]}  # loanword-ish but genuinely common enough in Danish to model as a real minor alternative -- word-initial only (cirka, camping, container), never a real coda spelling
+  - {ipa: k, latin: k, preceding: [vowel]}
+  - {ipa: k, latin: k, preceding: [consonant]}
+core_vocabulary_average_syllables: 1.28  # hand-counted across this project's own CORE_MEANINGS glosses -- similar to German/Dutch, reflecting Danish's own retained Germanic monosyllables; more counting uncertainty than the six perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [s, t, k, p, b, "ʁ"]
+  common: [d, f, g, h, l, m, n, v, j]
+  uncommon: ["ð"]  # /ð/ is overwhelmingly a medial/intervocalic sound in real Danish (soft d), rare as a true onset
+  rare: []  # /ŋ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
+nucleus_frequency_tiers:
+  very_common: ["ə", a]
+  common: ["e", "i", "ɔ", "u"]
+  uncommon: ["ɛ", "æ", "o", "ɑ"]
+  rare: [y, "ø", "œ", "aː", "iː", "uː", "eː", "oː"]
+coda_frequency_tiers:
+  very_common: [n, t, s]
+  common: ["ʁ", l, k, d, m]
+  uncommon: [f, "ŋ", b, p, v, g]
+  rare: ["ð", j]
+stress_pattern: initial  # real Danish: usually the root's first syllable, same Germanic default as German/Dutch
+stress_deviation_rate: 0.15  # illustrative -- loanwords are the main real exception
+stress_driven_vowel_reduction: true  # real Danish: unstressed syllables reduce heavily toward schwa -- often described as the most aggressively vowel-eroded of the Germanic languages

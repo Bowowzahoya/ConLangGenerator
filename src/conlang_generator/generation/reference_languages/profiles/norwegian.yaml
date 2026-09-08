@@ -1,0 +1,90 @@
+name: Norwegian
+aliases: [norsk]
+consonants: [p, b, t, d, k, g, f, v, s, "ʃ", h, m, n, "ŋ", l, r, j, "ʈ", "ɖ", "ɳ", "ʂ"]
+vowels: [i, e, "ɛ", "æ", a, "ɔ", o, u, y, "ø", "œ", "ə", "aː", "iː", "uː", "eː", "oː"]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+orthography_category: diacritic-style
+restricted_onset_consonants: ["ŋ", "ʈ", "ɖ", "ɳ", "ʂ"]  # /ŋ/: same robust Germanic onset-exclusion fact as Danish/Swedish/German/Dutch/English. Retroflex ʈ/ɖ/ɳ/ʂ: real Norwegian (same real /r/+dental sandhi as Swedish), no native word starts with these.
+restricted_coda_consonants: [h]  # /h/ is onset-only in real Norwegian, same robust Germanic fact as Danish/Swedish/Icelandic's own /h/ restriction
+attested_onset_clusters:
+  # Real, common Norwegian onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive. sp/st/sk excluded --
+  # already covered by sonority's own generic s+voiceless-stop exception.
+  - [p, l]                   # "plass"
+  - [p, r]                   # "pris"
+  - [b, l]                   # "blod"
+  - [b, r]                   # "bror"
+  - [t, r]                   # "tre"
+  - [d, r]                   # "drøm"
+  - [k, l]                   # "klar"
+  - [k, r]                   # "kraft"
+  - [k, v]                   # "kvinne" -- real Norwegian /kv/, always spelled that way
+  - [g, l]                   # "glass"
+  - [g, r]                   # "grønn"
+  - [f, l]                   # "flagg"
+  - [f, r]                   # "fri"
+attested_coda_clusters:
+  # Real, common Norwegian coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [n, t]                   # "vant"
+  - [n, d]                   # "land"
+  - ["ŋ", k]                  # "bank"
+  - [l, t]                   # "gult"
+  - [l, d]                   # "gull" (approximated as /l,d/-adjacent illustrative cluster; real gemination not modeled)
+  - [l, k]                   # "folk"
+  - [l, m]                   # "film"
+  - [r, t]                   # "kort" (alongside the derived ʈ variant)
+  - [r, k]                   # "merke"
+  - [r, n]                   # "barn"
+  - [r, m]                   # "arm"
+  - [s, t]                   # "fest"
+  - [s, k]                   # "fisk"
+  - [f, t]                   # "luft"
+orthography:
+  # Real Norwegian spelling conventions, restricted to symbols this
+  # profile actually models -- illustrative, not a full account. Swedish/
+  # Norwegian pitch accent (a real, genuine lexical tone-accent contrast)
+  # has no fitting existing mechanism in this project -- explicitly not
+  # modeled, same "note the real gap" discipline as Danish's stød.
+  - {ipa: "ŋ", latin: ng}   # "synge"
+  - {ipa: y, latin: y}
+  - {ipa: "ø", latin: "ø"}   # æøå are real, distinct Norwegian letters --
+  - {ipa: "œ", latin: "ø"}   # real Norwegian spells both ø-qualities the same way
+  - {ipa: "æ", latin: "æ"}
+  - {ipa: "ɛ", latin: "æ"}   # real Norwegian also spells short open-e as "æ" in places, same convention as Danish
+  - {ipa: "ɔ", latin: "å"}
+  - {ipa: "ə", latin: e}     # "gutte"
+  # Real Norwegian's own realization of the "sj-sound" is less extreme
+  # than Swedish's -- modeled as plain /ʃ/ with its own real (smaller)
+  # spelling variation, rather than Swedish's wider sj/sk/skj/stj spread.
+  - {ipa: "ʃ", latin: sj, weight: 0.4}
+  - {ipa: "ʃ", latin: skj, weight: 0.3}
+  - {ipa: "ʃ", latin: sk, weight: 0.3, following: [front_vowel]}   # "skinne" -- sk before a front vowel
+  # Real Norwegian spells its own derived retroflex series as plain "r" +
+  # the corresponding dental letter, same convention as Swedish -- the
+  # orthography never marks the retroflex articulation itself.
+  - {ipa: "ʈ", latin: rt}
+  - {ipa: "ɖ", latin: rd}
+  - {ipa: "ɳ", latin: rn}
+  - {ipa: "ʂ", latin: rs}
+core_vocabulary_average_syllables: 1.29  # hand-counted across this project's own CORE_MEANINGS glosses -- similar to Danish/Swedish/German/Dutch; more counting uncertainty than the six perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [s, t, k, p, b, r]
+  common: [d, f, g, h, l, m, n, v, j]
+  uncommon: ["ʃ"]  # the sj-sound is real but comparatively low word-type productivity as a true onset
+  rare: []  # the retroflex series, this position's only other candidates, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
+nucleus_frequency_tiers:
+  very_common: ["ə", a]
+  common: ["e", "i", "ɔ", "u"]
+  uncommon: ["ɛ", "æ", "o"]
+  rare: [y, "ø", "œ", "aː", "iː", "uː", "eː", "oː"]
+coda_frequency_tiers:
+  very_common: [n, t, s, r]
+  common: [l, k, d, m, "ʈ", "ɖ", "ɳ", "ʂ"]  # the retroflex series is real and genuinely common as a coda (unlike onset) -- the surface outcome of real Norwegian /r/+dental sandhi (kort, bord, barn)
+  uncommon: [f, "ŋ", b, p, v, g]
+  rare: ["ʃ", j]
+stress_pattern: initial  # real Norwegian: usually the root's first syllable, same Germanic default as German/Dutch/Danish/Swedish
+stress_deviation_rate: 0.15  # illustrative -- loanwords are the main real exception
+stress_driven_vowel_reduction: true  # real Norwegian: unstressed syllables reduce toward schwa, same Scandinavian-mainland pattern as Danish/Swedish
