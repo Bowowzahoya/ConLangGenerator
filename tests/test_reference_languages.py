@@ -794,3 +794,87 @@ def test_dutch_kw_cluster_needs_no_fix():
         if (s := generate_romanization(random.Random(seed), inventory, ("Dutch",), strictness=1.0))
     )
     assert scheme.apply("kwa") == "kwa"
+
+
+# --- English's digraph-implies-position fixes (/u/, /i/, /o/, /ai/, /ɔi/, /ei/) ---
+
+
+def test_english_u_digraphs_never_fire_before_a_real_coda():
+    # Regression guard for the reported "sewv" bug: "ew"/"ue" are real
+    # only word-finally (new/few, blue/true) -- they must never appear
+    # when a real consonant follows.
+    english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+    inventory = _inventory_for(english)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("English",), strictness=1.0))
+    )
+    assert scheme.apply("suv") not in {"sewv", "suev"}
+    assert "ew" not in scheme.apply("suv") and "ue" not in scheme.apply("suv")
+    # word-final: oo/o must still compete alongside ew/ue, not be excluded
+    assert scheme.apply("su") in {"sew", "sue", "soo", "so"}
+
+
+def test_english_i_bare_e_only_fires_word_finally():
+    # Same shape as /u/'s bug: bare "e" (be/he/we/she) is real only
+    # word-finally -- must never fire mid-word (e.g. a hypothetical
+    # "smiv"->"smev").
+    english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+    inventory = _inventory_for(english)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("English",), strictness=1.0))
+    )
+    assert scheme.apply("smiv") != "smev"
+    assert scheme.apply("smi") in {"smee", "smea", "smie", "sme"}
+
+
+def test_english_o_oa_and_oe_are_mutually_exclusive_by_position():
+    # "oa" (boat/road) is real only before a following consonant; "oe"
+    # (toe/doe) is real only word-finally -- the mirror image.
+    english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+    inventory = _inventory_for(english)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("English",), strictness=1.0))
+    )
+    assert "oe" not in scheme.apply("gov")   # never word-medial
+    assert scheme.apply("go") != "goa"        # never word-final
+
+
+def test_english_ai_igh_is_restricted_to_before_t_or_word_final():
+    # "igh" (night/light/right) is real only before /t/, or -- a much
+    # smaller set -- word-finally (high/sigh); it must never fire before
+    # any other consonant (no real "aim"->"ighm").
+    english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+    inventory = _inventory_for(english)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("English",), strictness=1.0))
+    )
+    assert scheme.apply("bait") == "bight"     # before /t/ -- deterministic
+    assert "igh" not in scheme.apply("baim")   # before another consonant -- never "igh"
+    assert scheme.apply("bai") in {"by", "bigh"}  # word-final -- y or igh compete
+
+
+def test_english_ɔi_and_ei_split_by_following_position():
+    # Real English "oy"/"ay" before a vowel or at a word's end (boy/toy,
+    # day/way), "oi"/"ai" before a consonant (point/voice, rain/wait) --
+    # a structural split, not a genuine lexical alternation, so no
+    # weight is involved.
+    english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
+    inventory = _inventory_for(english)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("English",), strictness=1.0))
+    )
+    oi = "ɔi"
+    assert scheme.apply("b" + oi + "n") == "boin"
+    assert scheme.apply("b" + oi) == "boy"
+    assert scheme.apply("dein") == "dain"
+    assert scheme.apply("dei") == "day"

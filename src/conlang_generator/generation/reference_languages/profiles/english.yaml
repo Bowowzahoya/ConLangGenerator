@@ -131,49 +131,75 @@ orthography:
   - {ipa: "ə", latin: i, weight: 0.10}
   - {ipa: "ɐ", latin: u}     # real English /ʌ/ ("cup"), approximated by
                               # this project's near-open central vowel
-  # /ai/: real English also has a productive "igh" spelling (night,
-  # light, right, sight, high) alongside "y" (my, by, cry, dry, fly) --
-  # weights are relative to just these two modeled alternatives, not a
-  # claim to the full real distribution: English *also* spells this
-  # vowel via the silent-e pattern (time, mine, side), which would need
-  # the existing `VowelLengthStrategy.SILENT_E` deferred-marker mechanism
-  # wired to English's own vowel set (currently inert for English --
-  # none of its modeled vowel qualities carry the `long` flag that
-  # mechanism keys on) -- a separate architectural decision, not folded
-  # in here.
-  - {ipa: ai, latin: y, weight: 0.4}
-  - {ipa: ai, latin: igh, weight: 0.6}
+  # /ai/: "igh" (night, light, right, sight) is real only immediately
+  # before /t/, or -- a much smaller set -- word-finally (high, sigh,
+  # thigh); "y" is genuinely flexible everywhere (my/by word-final,
+  # type/style/cycle before another consonant) but is real English's
+  # dominant word-final spelling too (my/by/cry/dry/fly/spy/try/why is a
+  # bigger set than high/sigh/thigh), so it needs its own word-final
+  # entry rather than losing that position outright to the more specific
+  # "igh" rule. English *also* spells this vowel via the silent-e pattern
+  # (time, mine, side), which would need the existing
+  # `VowelLengthStrategy.SILENT_E` deferred-marker mechanism wired to
+  # English's own vowel set (currently inert for English -- none of its
+  # modeled vowel qualities carry the `long` flag that mechanism keys
+  # on) -- a separate architectural decision, not folded in here.
+  - {ipa: ai, latin: igh, following: ["t"]}                      # "night"/"light"/"right" -- deterministic
+  - {ipa: ai, latin: y, following: [boundary], weight: 0.75}     # "my"/"by"/"cry"/"why"
+  - {ipa: ai, latin: igh, following: [boundary], weight: 0.25}   # "high"/"sigh"/"thigh"
+  - {ipa: ai, latin: y}                                            # "type"/"style"/"cycle" -- elsewhere
   - {ipa: au, latin: ow}     # "cow"
-  - {ipa: "ɔi", latin: oy}   # "boy"
-  - {ipa: ei, latin: ay}     # "day"
-  # /i/: previously uncurated here, defaulting to plain "i" -- real, but
-  # rare except in loanwords (ski, pizza). Four real spellings, no rule
-  # to predict which -- see/three/green, sea/eat/team, field/piece/chief,
-  # and a minor bare "e" (be/he/we/she -- a small closed pronoun/copula
-  # class, so a low weight rather than the word-final-only condition
-  # ee/ea/ie also legitimately win with, e.g. "free"/"tree").
+  # /ɔi/ and /ei/: each has a real two-way positional split -- "oy"/"ay"
+  # before a vowel or at a word's end (boy/toy/royal, day/way/player),
+  # "oi"/"ai" before a consonant (point/voice/join, rain/wait/train) --
+  # not a genuine lexical alternation the way the weighted vowels above
+  # are, just a structural fact about which spelling a given position
+  # allows, so no `weight` needed.
+  - {ipa: "ɔi", latin: oy, following: [vowel, boundary]}   # "boy"/"toy"/"royal"
+  - {ipa: "ɔi", latin: oi, following: [consonant]}          # "point"/"voice"/"join"
+  - {ipa: ei, latin: ay, following: [vowel, boundary]}      # "day"/"way"/"player"
+  - {ipa: ei, latin: ai, following: [consonant]}            # "rain"/"wait"/"train"
+  # /i/: "ee"/"ea"/"ie" are all genuinely flexible both word-finally
+  # (free/tree, sea/tea, movie/genie) and before a consonant (green/
+  # sleep, meat/dream, piece/chief) -- no restriction needed. Bare "e"
+  # (be/he/we/she) is real only word-finally -- a small closed pronoun/
+  # copula class -- so unlike the other three it needs the boundary
+  # condition rather than just a low flat weight (which could otherwise
+  # fire mid-word, e.g. a hypothetical "smiv"->"smev").
+  - {ipa: i, latin: ee, following: [boundary], weight: 0.35}
+  - {ipa: i, latin: ea, following: [boundary], weight: 0.30}
+  - {ipa: i, latin: ie, following: [boundary], weight: 0.20}
+  - {ipa: i, latin: e, following: [boundary], weight: 0.15}   # "be"/"he"/"we"/"she"
   - {ipa: i, latin: ee, weight: 0.40}
-  - {ipa: i, latin: ea, weight: 0.30}
-  - {ipa: i, latin: ie, weight: 0.15}
-  - {ipa: i, latin: e, weight: 0.15}
-  # /u/: previously uncurated here, defaulting to plain "u" -- only one
-  # of five real spellings -- moon/food/school, June/rule/truth,
-  # new/few/grew, blue/true/glue, who/do/move (genuinely irregular but
-  # common).
-  - {ipa: u, latin: oo, weight: 0.45}
-  - {ipa: u, latin: u, weight: 0.15}
-  - {ipa: u, latin: ew, weight: 0.15}
-  - {ipa: u, latin: ue, weight: 0.15}
-  - {ipa: u, latin: o, weight: 0.10}
-  # /o/: previously uncurated here, defaulting to plain "o" -- only one
-  # of four real spellings -- go/no/most, boat/road/coat, know/show/grow
-  # (yes, genuinely ambiguous with /au/'s own "ow" in real English too --
-  # "know" vs. "cow" -- a real irregularity, not a bug, since these come
-  # from different IPA symbols here), toe/doe.
-  - {ipa: o, latin: o, weight: 0.35}
-  - {ipa: o, latin: oa, weight: 0.30}
-  - {ipa: o, latin: ow, weight: 0.20}
-  - {ipa: o, latin: oe, weight: 0.15}
+  - {ipa: i, latin: ea, weight: 0.35}
+  - {ipa: i, latin: ie, weight: 0.25}
+  # /u/: "ew"/"ue" (new/few, blue/true) are real only word-finally --
+  # never before a following consonant (no real "sewv"-shaped word).
+  # "oo"/"u"/"o" are genuinely flexible both ways (moon/zoo, rule/menu,
+  # move/who), each at different relative weights per context.
+  - {ipa: u, latin: ew, following: [boundary], weight: 0.30}   # "new"/"few"/"chew"/"grew"
+  - {ipa: u, latin: ue, following: [boundary], weight: 0.25}   # "blue"/"true"/"glue"
+  - {ipa: u, latin: oo, following: [boundary], weight: 0.30}   # "zoo"/"too"/"boo"
+  - {ipa: u, latin: o, following: [boundary], weight: 0.15}    # "who"/"do"/"two"
+  - {ipa: u, latin: oo, weight: 0.55}    # "moon"/"food"/"school"/"boot"/"tooth"
+  - {ipa: u, latin: u, weight: 0.25}     # "rule"/"truth"/"June"/"flute"
+  - {ipa: u, latin: o, weight: 0.20}     # "move"/"prove"/"lose"/"tomb"
+  # /o/: "oa" (boat/road/coat) is real only before a following
+  # consonant -- no real "boa"-as-a-common-word shape word-finally.
+  # "oe" (toe/doe/hoe/foe) is the mirror image -- real only word-finally.
+  # "o"/"ow" are genuinely flexible both ways (go/most, grow/own) but at
+  # different relative weights per context ("ow" is more common
+  # word-finally -- grow/know/show/snow -- than in the smaller "-own"
+  # coda family -- own/grown/known -- and is genuinely ambiguous with
+  # /au/'s own "ow" in real English too -- "know" vs. "cow" -- a real
+  # irregularity, not a bug, since these come from different IPA symbols
+  # here).
+  - {ipa: o, latin: o, following: [boundary], weight: 0.45}    # "go"/"no"/"so"
+  - {ipa: o, latin: ow, following: [boundary], weight: 0.35}   # "grow"/"know"/"show"/"snow"
+  - {ipa: o, latin: oe, following: [boundary], weight: 0.20}   # "toe"/"doe"/"hoe"/"foe"
+  - {ipa: o, latin: o, weight: 0.30}      # "most"/"post"/"cold"/"gold"/"host"
+  - {ipa: o, latin: oa, weight: 0.40}     # "boat"/"road"/"coat"/"goat"/"soap"
+  - {ipa: o, latin: ow, weight: 0.30}     # "own"/"grown"/"known"/"shown"/"thrown"
   # /k/: "k" is preferred before a front vowel specifically to avoid the
   # letter "c" reading as its own soft /s/ there (keep/kid/key, not
   # *ceep/*cid/*cey) -- deterministic. Elsewhere real English splits
