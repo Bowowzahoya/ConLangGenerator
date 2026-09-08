@@ -89,15 +89,16 @@ orthography:
   - {ipa: j, latin: j}     # "ja"
   # Diphthongs. Real Dutch spells /ɛi/ as "ij" *or* "ei", and /au/ as
   # "ou" *or* "au", depending on the specific word's etymology, with no
-  # phonological rule predicting which -- a per-word, not per-symbol,
-  # exception this project's rule system can't capture (same category of
-  # gap as "g is not written before k," see architecture/OVERVIEW.md).
-  # "ij"/"ou" picked as the modeled default: the more productive spelling
-  # in each pair. /œy/ has no such ambiguity -- always "ui".
-  - {ipa: "ɛi", latin: ij}  # "hij" (real; "klein" is the real counter-
-                             # example, spelled "ei" -- see above)
+  # phonological rule predicting which -- genuine weighted alternatives
+  # (hij/wij/mijn/prijs -- extremely common "ij" words -- vs. klein/
+  # trein/geheim/reis for "ei"; koud/oud/goud/hout/fout for "ou" vs.
+  # blauw/gauw/nauw/pauze for "au"). /œy/ has no such ambiguity -- always
+  # "ui".
+  - {ipa: "ɛi", latin: ij, weight: 0.65}
+  - {ipa: "ɛi", latin: ei, weight: 0.35}
   - {ipa: "œy", latin: ui}  # "huis"
-  - {ipa: au, latin: ou}    # "koud" (real; "saus" is a real "au" example)
+  - {ipa: au, latin: ou, weight: 0.75}
+  - {ipa: au, latin: au, weight: 0.25}
 core_vocabulary_average_syllables: 1.27  # hand-counted across this project's own CORE_MEANINGS glosses -- shorter than German due to Dutch's own schwa-apocope (vuur/zon vs. Feuer/Sonne), but not as short as English
 onset_frequency_tiers:
   very_common: ["ɣ", s]  # g-spelled onsets are broadly productive: gaan, goed, groot, geven

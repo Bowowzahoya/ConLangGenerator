@@ -130,10 +130,18 @@ orthography:
   - {ipa: "ə", latin: i, weight: 0.10}
   - {ipa: "ɐ", latin: u}     # real English /ʌ/ ("cup"), approximated by
                               # this project's near-open central vowel
-  - {ipa: ai, latin: y}      # "my" -- real English also spells this
-                              # "igh"/"i-e", a per-word exception this
-                              # project's rule system can't capture (same
-                              # category of gap as Dutch's own au/ou)
+  # /ai/: real English also has a productive "igh" spelling (night,
+  # light, right, sight, high) alongside "y" (my, by, cry, dry, fly) --
+  # weights are relative to just these two modeled alternatives, not a
+  # claim to the full real distribution: English *also* spells this
+  # vowel via the silent-e pattern (time, mine, side), which would need
+  # the existing `VowelLengthStrategy.SILENT_E` deferred-marker mechanism
+  # wired to English's own vowel set (currently inert for English --
+  # none of its modeled vowel qualities carry the `long` flag that
+  # mechanism keys on) -- a separate architectural decision, not folded
+  # in here.
+  - {ipa: ai, latin: y, weight: 0.4}
+  - {ipa: ai, latin: igh, weight: 0.6}
   - {ipa: au, latin: ow}     # "cow"
   - {ipa: "ɔi", latin: oy}   # "boy"
   - {ipa: ei, latin: ay}     # "day"

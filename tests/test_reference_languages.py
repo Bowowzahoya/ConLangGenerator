@@ -274,12 +274,18 @@ def test_finnish_orthography_category_and_geminate_symbol_round_trip_from_yaml()
 
 
 def test_dutch_diphthongs_and_their_spellings_round_trip_from_yaml():
+    # /ɛi/ and /au/ are genuine weighted alternatives (ij/ei, ou/au) --
+    # checked as membership, not a naive {ipa: latin} dict (which would
+    # silently collapse to just one of the tied rules); /œy/ has no real
+    # alternation, still a single deterministic rule.
     dutch = next(p for p in REFERENCE_LANGUAGES if p.name == "Dutch")
     assert {"ɛi", "œy", "au"} <= set(dutch.vowels)
-    by_ipa = {rule.ipa: rule.latin for rule in dutch.orthography}
-    assert by_ipa["ɛi"] == "ij"
+    ei_spellings = {rule.latin for rule in dutch.orthography if rule.ipa == "ɛi"}
+    au_spellings = {rule.latin for rule in dutch.orthography if rule.ipa == "au"}
+    by_ipa = {rule.ipa: rule.latin for rule in dutch.orthography if rule.ipa == "œy"}
+    assert ei_spellings == {"ij", "ei"}
+    assert au_spellings == {"ou", "au"}
     assert by_ipa["œy"] == "ui"
-    assert by_ipa["au"] == "ou"
 
 
 def test_arabic_source_language_biases_toward_root_and_pattern_and_fusional():

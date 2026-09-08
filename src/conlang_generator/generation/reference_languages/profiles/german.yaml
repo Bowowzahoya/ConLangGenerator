@@ -68,17 +68,45 @@ orthography:
   - {ipa: "ɪ", latin: i}     # "mit"
   - {ipa: "ʊ", latin: u}     # "und"
   - {ipa: "ɔ", latin: o}     # "voll"
-  - {ipa: "ɛ", latin: e}     # "Bett" -- real German also spells this
-                             # "ä" in umlauted words, a per-word not
-                             # per-symbol exception this project's rule
-                             # system can't capture (same category of
-                             # gap as Dutch's own au/ou, ei/ij).
-  - {ipa: ai, latin: ei}     # "mein" -- the more common of German's two
-                             # real spellings for this diphthong ("ai"
-                             # the real, rarer counter-example)
+  # /ɛ/: real German genuinely splits between plain "e" (Bett, Geld,
+  # wenn) and "ä" in umlaut-derived words (Hände, Länder, Männer) -- a
+  # real, productive alternation with no phonological rule predicting
+  # which from context alone.
+  - {ipa: "ɛ", latin: e, weight: 0.7}
+  - {ipa: "ɛ", latin: "ä", weight: 0.3}
+  # /ai/: "ei" dominates (mein, dein, sein, Wein, Stein, klein, zwei --
+  # including several core-vocabulary numbers/pronouns), but "ai" is a
+  # real, if much rarer, alternative (Mai, Kaiser, Mais, Saite).
+  - {ipa: ai, latin: ei, weight: 0.9}
+  - {ipa: ai, latin: ai, weight: 0.1}
   - {ipa: au, latin: au}     # "Haus"
   - {ipa: "œy", latin: eu}   # "neu" -- real German's third diphthong,
                              # approximated by this project's œy symbol
+  # /v/: real German overwhelmingly spells this sound "w" (Wasser, Wein,
+  # wir -- German "v" the *letter* is usually /f/, a different phoneme,
+  # see below), with a genuine minor "v" alternative in loanwords (Vase,
+  # Vulkan).
+  - {ipa: v, latin: w, weight: 0.85}
+  - {ipa: v, latin: v, weight: 0.15}
+  # /z/: real German never writes this sound with the letter "z" (that
+  # letter is reserved for /ts/, not modeled as its own phoneme here) --
+  # always "s" (sagen, lesen, Sonne), deterministic, not a real
+  # alternation the way /v/ above is.
+  - {ipa: z, latin: s}
+  # /f/: dominant "f" (Fisch, Frau), with a genuine minor "v" alternative
+  # in a handful of common native words (Vater, Vogel, viel, vier, von,
+  # vor) -- distinct from loanword /v/ above, which is a different
+  # phoneme spelled with the same letter.
+  - {ipa: f, latin: f, weight: 0.85}
+  - {ipa: f, latin: v, weight: 0.15}
+  # /k/: dominant "k" (Katze, kalt, Keller), with a real "ck" alternative
+  # after a short vowel (Zucker, Ecke, Drucker) -- approximated as a flat
+  # alternative, same caveat as English's own k/c/ck fix (this project's
+  # condition system doesn't have the short-vowel-coda compound condition
+  # that real rule actually needs). Plain "c" for /k/ is loanword-only in
+  # native German (Computer, Café), not modeled as a third alternative.
+  - {ipa: k, latin: k, weight: 0.85}
+  - {ipa: k, latin: ck, weight: 0.15}
 core_vocabulary_average_syllables: 1.43  # hand-counted across this project's own CORE_MEANINGS glosses -- the longest of the four perfected languages, reflecting German's retained endings (Wasser, Mutter, Vater...)
 onset_frequency_tiers:
   very_common: ["ʃ", "ʁ"]  # the very productive native schl-/schm-/schn-/schw-/schr- cluster family; r- broadly productive too
