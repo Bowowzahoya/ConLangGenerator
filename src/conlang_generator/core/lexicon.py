@@ -27,7 +27,17 @@ class LexicalEntry(BaseModel, frozen=True):
     """English meanings; ``glosses[0]`` is the primary/lookup gloss."""
     pos: PartOfSpeech
     tones: tuple[ToneLevel, ...] = ()
-    """Tone per syllable, if the language's ``ToneSystem`` is enabled."""
+    """Tone per syllable, if the language's ``ToneSystem`` is enabled.
+    Word accent (the other suprasegmental feature, real Danish stød /
+    Swedish-Norwegian pitch accent) deliberately has no equivalent
+    structured field here -- like stress, it's decided too late (after
+    the accented syllable's own shape is known) to hand to
+    ``LexicalEntry`` as a pre-computed value the way per-syllable tone
+    is; the embedded IPA mark (``core.romanization.WORD_ACCENT_MARK`` or
+    a reused ``TONE_DIACRITICS`` character) is its single source of
+    truth, the same "no second, structured copy" convention
+    ``generation.stress_gen``'s own module docstring establishes for
+    ``STRESS_MARK``."""
     notes: str = ""
     root: tuple[str, ...] | None = None
     """The consonantal root this word was derived from, for root-and-

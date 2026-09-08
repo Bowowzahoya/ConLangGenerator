@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from conlang_generator.core.grammar import GrammarProfile
 from conlang_generator.core.lexicon import Idiom, LexicalEntry, Lexicon
-from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure, ToneSystem
+from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure, ToneSystem, WordAccentSystem
 from conlang_generator.core.romanization import RomanizationScheme
 from conlang_generator.core.spec import GenerationSpec
 
@@ -27,6 +27,11 @@ class Language(BaseModel, frozen=True):
     phonology: PhonemeInventory
     syllable_structure: SyllableStructure
     tone_system: ToneSystem
+    word_accent: WordAccentSystem = WordAccentSystem()
+    """Defaults to disabled (unlike ``tone_system``, which every generation
+    call site already passes explicitly) -- purely additive, so existing
+    ``Language(...)`` construction sites (tests included) that predate
+    this feature stay valid without modification."""
     romanization: RomanizationScheme
     grammar: GrammarProfile
     lexicon: Lexicon = Lexicon()

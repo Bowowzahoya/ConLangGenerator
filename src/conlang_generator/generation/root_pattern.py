@@ -23,9 +23,9 @@ import random
 
 from conlang_generator.core.grammar import WordTemplate
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
-from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure
+from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure, WordAccentSystem
 from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
-from conlang_generator.generation import sonority, stress_gen, word_builder
+from conlang_generator.generation import sonority, stress_gen, word_accent_gen, word_builder
 from conlang_generator.generation.lexicon_gen import choose_best_candidate
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient
@@ -236,6 +236,7 @@ def propose_templatic_word(
     context: str = "",
     source_languages: tuple[str, ...] = (),
     strictness: float = 0.0,
+    word_accent_system: WordAccentSystem = WordAccentSystem(),
 ) -> LexicalEntry:
     """Pick a template matching ``pos`` (varying across same-POS calls,
     for real variety across e.g. multiple nouns), generate several root
@@ -248,10 +249,15 @@ def propose_templatic_word(
     does; a templatic word has no per-syllable build loop of its own to
     hook stress into, so it's assigned as a post-processing step on the
     chosen candidate's already-filled skeleton (see
-    ``stress_gen.mark_stress``) -- a real approximation for languages
-    whose actual stress typology depends on morphological structure the
-    way Semitic languages' own does, not attempted in depth here, same
-    spirit as this module's other simplifications."""
+    ``word_accent_gen.mark_stress_and_word_accent``) -- a real
+    approximation for languages whose actual stress typology depends on
+    morphological structure the way Semitic languages' own does, not
+    attempted in depth here, same spirit as this module's other
+    simplifications. ``word_accent_system`` (default disabled, unlike
+    ``tone_system`` -- this function has never threaded tone through at
+    all, a separate pre-existing gap not addressed here) gates word
+    accent the same per-language-systemic way ``lexicon_gen.propose_word``
+    already does."""
     template = template_for_pos(rng, templates, pos)
 
     seen: set[tuple[str, ...]] = set()
@@ -269,8 +275,18 @@ def propose_templatic_word(
     root_iter = iter(chosen_root)
     filled_symbols = tuple(next(root_iter) if slot == "C" else slot for slot in template.skeleton)
     vowel_symbols = frozenset(v.ipa for v in inventory.vowels)
-    stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(match_profiles(source_languages))
-    stressed = stress_gen.mark_stress(rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, strictness)
+    reference_profiles = match_profiles(source_languages)
+    stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(reference_profiles)
+    word_accent_pattern = ""
+    word_accent_deviation_rate: float | None = None
+    if word_accent_system.enabled:
+        _, word_accent_pattern, word_accent_deviation_rate = word_accent_gen.resolve_word_accent(reference_profiles)
+    stressed = word_accent_gen.mark_stress_and_word_accent(
+        rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, strictness,
+        word_accent_realization=word_accent_system.realization,
+        word_accent_pattern=word_accent_pattern,
+        word_accent_deviation_rate=word_accent_deviation_rate,
+    )
 
     return LexicalEntry(
         ipa=stressed,

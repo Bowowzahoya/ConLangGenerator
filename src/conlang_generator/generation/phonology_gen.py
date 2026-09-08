@@ -54,9 +54,10 @@ from conlang_generator.core.phonology import (
     Vowel,
     VowelBackness,
     VowelHeight,
+    WordAccentSystem,
 )
 from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation import ipa_tokenizer, sonority
+from conlang_generator.generation import ipa_tokenizer, sonority, word_accent_gen
 from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles
 from conlang_generator.generation.trait_bias import biased_probability
 
@@ -791,7 +792,7 @@ def _resolve_position_multipliers(
 
 def generate_phonology(
     rng: random.Random, spec: GenerationSpec
-) -> tuple[PhonemeInventory, SyllableStructure, ToneSystem]:
+) -> tuple[PhonemeInventory, SyllableStructure, ToneSystem, WordAccentSystem]:
     traits = spec.traits
     reference_profiles = match_profiles(traits.source_languages)
     reference_symbols: frozenset[str] = frozenset().union(*(p.symbols() for p in reference_profiles)) if reference_profiles else frozenset()
@@ -964,4 +965,27 @@ def generate_phonology(
     else:
         tone_system = ToneSystem(enabled=False)
 
-    return inventory, syllable_structure, tone_system
+    # Word accent (real Danish stød / Swedish-Norwegian pitch accent) has
+    # no trait dial of its own -- unlike `tonal_friendliness`, a
+    # world-building "flavor" knob, this is a narrow, specific
+    # typological feature that should only ever appear via an explicit
+    # matched reference profile, the same reference-profile-only gating
+    # `coda_devoicing`/`root_and_pattern`/`vowel_harmony` already use for
+    # features with no trait backing them (starting the clamp from a base
+    # probability of 0.0, rather than a trait-derived rate, guarantees
+    # this never fires for an unmatched or unrelated-language run).
+    # Mutually exclusive with tone (a real language is never both a tone
+    # language and a pitch-accent language) -- skip the roll entirely
+    # once `tonal` has already won.
+    word_accent_realization, _, _ = word_accent_gen.resolve_word_accent(reference_profiles)
+    if tone_system.enabled or not word_accent_realization:
+        word_accent_system = WordAccentSystem(enabled=False)
+    else:
+        word_accent_probability = _reference_clamp(0.0, reference_profiles, "word_accent_realization", strictness)
+        word_accent_system = (
+            WordAccentSystem(enabled=True, realization=word_accent_realization)
+            if rng.random() < word_accent_probability
+            else WordAccentSystem(enabled=False)
+        )
+
+    return inventory, syllable_structure, tone_system, word_accent_system

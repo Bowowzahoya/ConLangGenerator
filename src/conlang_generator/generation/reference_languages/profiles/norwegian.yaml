@@ -44,10 +44,11 @@ attested_coda_clusters:
   - [f, t]                   # "luft"
 orthography:
   # Real Norwegian spelling conventions, restricted to symbols this
-  # profile actually models -- illustrative, not a full account. Swedish/
-  # Norwegian pitch accent (a real, genuine lexical tone-accent contrast)
-  # has no fitting existing mechanism in this project -- explicitly not
-  # modeled, same "note the real gap" discipline as Danish's stød.
+  # profile actually models -- illustrative, not a full account.
+  # Norwegian's own pitch accent is now modeled (see
+  # word_accent_realization below), but purely as an IPA-internal
+  # contrast -- real Norwegian spelling never writes it at all, so
+  # nothing to add here.
   - {ipa: "ŋ", latin: ng}   # "synge"
   - {ipa: y, latin: y}
   - {ipa: "ø", latin: "ø"}   # æøå are real, distinct Norwegian letters --
@@ -88,3 +89,6 @@ coda_frequency_tiers:
 stress_pattern: initial  # real Norwegian: usually the root's first syllable, same Germanic default as German/Dutch/Danish/Swedish
 stress_deviation_rate: 0.15  # illustrative -- loanwords are the main real exception
 stress_driven_vowel_reduction: true  # real Norwegian: unstressed syllables reduce toward schwa, same Scandinavian-mainland pattern as Danish/Swedish
+word_accent_realization: pitch  # real Norwegian "tonem 1"/"tonem 2" -- historically the same Common Scandinavian contrast Danish marks with glottalization (stød) instead
+word_accent_pattern: underived_monosyllable  # real Norwegian: accent 1 default for underived monosyllables, accent 2 default for polysyllabic/suffixed/compound forms
+word_accent_deviation_rate: 0.2  # illustrative -- real minimal pairs are a genuine but small minority of the lexicon

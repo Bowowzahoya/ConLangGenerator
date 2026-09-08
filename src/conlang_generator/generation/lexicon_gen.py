@@ -14,9 +14,9 @@ import math
 import random
 
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
-from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, ToneSystem
+from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, ToneSystem, WordAccentSystem
 from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
-from conlang_generator.generation import stress_gen, word_builder
+from conlang_generator.generation import stress_gen, word_accent_gen, word_builder
 from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
@@ -204,6 +204,9 @@ def _propose_kinship_word(
     stress_pattern: str = "",
     stress_deviation_rate: float | None = None,
     stress_strictness: float = 0.0,
+    word_accent_realization: str = "",
+    word_accent_pattern: str = "",
+    word_accent_deviation_rate: float | None = None,
 ) -> LexicalEntry | None:
     """Try the mama/papa-style reduplicated pattern; ``None`` means the
     inventory has no matching consonant class and the caller should fall
@@ -214,6 +217,8 @@ def _propose_kinship_word(
         rng, inventory, _KINSHIP_MANNER_CLASSES[gloss_key], tone_mark=tone_mark,
         excluded_onset_consonants=structure.excluded_onset_consonants,
         stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=stress_strictness,
+        word_accent_realization=word_accent_realization, word_accent_pattern=word_accent_pattern,
+        word_accent_deviation_rate=word_accent_deviation_rate, word_accent_strictness=stress_strictness,
     )
     if word is None:
         return None
@@ -279,6 +284,7 @@ def propose_word(
     inventory: PhonemeInventory,
     structure: SyllableStructure,
     tone_system: ToneSystem,
+    word_accent_system: WordAccentSystem,
     romanization: RomanizationScheme,
     gloss: str,
     pos: PartOfSpeech,
@@ -310,15 +316,32 @@ def propose_word(
     ``grammar_gen.generate_grammar`` already do -- see
     ``choose_syllable_count``'s own docstring for what the resulting tilt
     actually does.
+
+    ``word_accent_system`` (this run's own, already-resolved
+    ``WordAccentSystem`` -- see ``phonology_gen.generate_phonology``) gates
+    whether this word gets a word-accent mark at all, the same
+    per-language-systemic role ``tone_system.enabled`` already plays for
+    tone; when it's enabled, this call still resolves the actual
+    ``word_accent_pattern``/``word_accent_deviation_rate`` fresh from
+    ``reference_profiles`` (via ``word_accent_gen.resolve_word_accent``),
+    the same "stored system decides *whether*, matched profile decides
+    *how*" split ``tone_system.enabled``/``tone_system.levels`` already
+    has.
     """
     gloss_key = gloss.lower()
     reference_profiles = match_profiles(source_languages)
     stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(reference_profiles)
+    word_accent_pattern = ""
+    word_accent_deviation_rate: float | None = None
+    if word_accent_system.enabled:
+        _, word_accent_pattern, word_accent_deviation_rate = word_accent_gen.resolve_word_accent(reference_profiles)
 
     if gloss_key in _KINSHIP_MANNER_CLASSES and rng.random() < _KINSHIP_PATTERN_PROBABILITY:
         kinship_entry = _propose_kinship_word(
             rng, inventory, structure, tone_system, romanization, gloss, pos, gloss_key,
             stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=strictness,
+            word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
+            word_accent_deviation_rate=word_accent_deviation_rate,
         )
         if kinship_entry is not None:
             return kinship_entry
@@ -341,6 +364,8 @@ def propose_word(
             rng, inventory, structure, num_syllables, tone_marks, size_bias=size_bias,
             stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=strictness,
             reduce_unstressed_vowels=reduce_unstressed_vowels,
+            word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
+            word_accent_deviation_rate=word_accent_deviation_rate, word_accent_strictness=strictness,
         )
         if word not in seen:
             seen.add(word)

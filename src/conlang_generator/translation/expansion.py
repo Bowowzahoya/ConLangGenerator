@@ -46,6 +46,7 @@ def coin_word(
                 context=language.spec.traits.salient_context,
                 source_languages=language.spec.traits.source_languages,
                 strictness=language.spec.traits.source_language_strictness,
+                word_accent_system=language.word_accent,
             )
         else:
             entry = propose_word(
@@ -53,6 +54,7 @@ def coin_word(
                 language.phonology,
                 language.syllable_structure,
                 language.tone_system,
+                language.word_accent,
                 language.romanization,
                 gloss,
                 pos,

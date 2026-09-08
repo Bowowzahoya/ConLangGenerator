@@ -63,6 +63,7 @@ from enum import Enum
 from pydantic import BaseModel
 
 from conlang_generator.core.lexicon import PartOfSpeech
+from conlang_generator.core.phonology import WordAccentCategory
 
 _CLASS_TAGS = frozenset(
     {
@@ -128,6 +129,93 @@ def predict_default_stress(num_syllables: int, pattern: str, final_coda: tuple[s
             return num_syllables - 2
         return num_syllables - 1
     return num_syllables - 2  # "penultimate", "lexical", and the generic fallback
+
+
+WORD_ACCENT_MARK = "ˀ"
+"""IPA MODIFIER LETTER GLOTTAL STOP (U+02C0) -- the real convention for
+Danish stød, appended after the affected rime (nucleus + coda), not just
+the vowel (stød is a property of the whole rime). Only used when
+``WordAccentSystem.realization == "glottalization"`` and the word carries
+``WordAccentCategory.ACCENT_1``; the ``"pitch"`` realization (Swedish/
+Norwegian) instead reuses ``core.phonology.TONE_DIACRITICS``' combining
+characters directly (see ``generation.word_accent_gen.mark_word_accent``),
+since a genuine two-way pitch contrast needs a mark on both categories,
+unlike stød's presence/absence shape. Not a Unicode *combining* mark
+(same non-combining, own-token status as ``STRESS_MARK`` above, for the
+same reasons) -- ``core`` is the shared home both ``ipa_tokenizer.py`` and
+``word_builder.py`` need to agree on, the same role ``STRESS_MARK`` plays."""
+
+_PITCH_WORD_ACCENT_CHARS = frozenset({"́", "̀"})
+"""The literal two combining characters the ``"pitch"`` word-accent
+realization uses -- combining acute and combining grave, the same values
+``core.phonology.TONE_DIACRITICS[ToneLevel.HIGH]``/``[ToneLevel.LOW]``
+hold. Duplicated as bare literals here rather than importing
+``TONE_DIACRITICS``/``ToneLevel`` -- ``ToneMarkingStrategy``'s own
+docstring below documents that this module deliberately never imports
+``ToneLevel``, staying decoupled from tone semantics; this is a
+coincidence of which characters look right, not a real dependency on
+tone. ``RomanizationScheme.apply()`` uses this set to strip a word-accent
+mark out of a vowel's ``deco`` before it's mistaken for real tone
+decoration -- safe only because a word-accented language is never also a
+tone language (see ``generation.phonology_gen``'s mutual-exclusivity
+guard)."""
+
+
+def predict_default_word_accent(
+    num_syllables: int, accented_nucleus: str, accented_coda: tuple[str, ...], pattern: str
+) -> WordAccentCategory:
+    """The word-accent category ``pattern`` alone would predict for the
+    word's accented syllable (its stressed syllable, or syllable 0 for a
+    monosyllable -- stød is canonically a monosyllable phenomenon, unlike
+    stress marking, which skips monosyllables entirely; see
+    ``generation.word_builder.build_word``). Lives here, not in
+    ``generation.word_accent_gen`` (which imports it back), for the same
+    reason ``predict_default_stress`` does: a future
+    ``word_accent_marking == "irregular_only"``-style rendering in
+    ``apply()`` would need it directly, and ``core`` can't depend on
+    ``generation``.
+
+    Unlike ``predict_default_stress``, there's no generic cross-linguistic
+    fallback -- most languages don't have this feature at all, so an
+    unrecognized/empty ``pattern`` is never actually reached in practice
+    (``WordAccentSystem`` simply isn't enabled for such a language --
+    see ``generation.phonology_gen``). Still handled defensively (returns
+    ``ACCENT_2``, the cross-linguistically unmarked member) rather than
+    raising, the same defensive-but-inert posture ``predict_default_stress``
+    takes for a pattern it doesn't recognize.
+
+    - ``"monosyllabic_heavy"`` (Danish stød): ``ACCENT_1`` if
+      ``num_syllables == 1`` and the accented syllable is "heavy" --
+      ``accented_nucleus`` is long or a diphthong (a plain string-length
+      proxy, ``len(accented_nucleus) >= 2``, since every long-vowel/
+      diphthong symbol this project models is itself 2+ characters --
+      the same pragmatic symbol-string heuristic
+      ``"penultimate_or_final_by_coda"`` above already uses instead of
+      importing ``generation.sonority``'s ``Consonant``-based check,
+      which ``core`` can't do), or ``accented_coda`` ends in a sonorant.
+      ``ACCENT_2`` otherwise -- a defensible approximation of stød's real,
+      more nuanced conditioning, not a full account.
+    - ``"underived_monosyllable"`` (Swedish/Norwegian pitch accent):
+      ``ACCENT_1`` if ``num_syllables == 1``, else ``ACCENT_2`` -- real
+      monomorphemic monosyllables default to accent 1, everything
+      polysyllabic/suffixed/compound defaults to accent 2.
+    """
+    if pattern == "monosyllabic_heavy":
+        heavy = num_syllables == 1 and (
+            len(accented_nucleus) >= 2 or (accented_coda and accented_coda[-1] in _SONORANT_SYMBOLS)
+        )
+        return WordAccentCategory.ACCENT_1 if heavy else WordAccentCategory.ACCENT_2
+    if pattern == "underived_monosyllable":
+        return WordAccentCategory.ACCENT_1 if num_syllables == 1 else WordAccentCategory.ACCENT_2
+    return WordAccentCategory.ACCENT_2
+
+
+_SONORANT_SYMBOLS = frozenset({"m", "n", "ŋ", "ɳ", "l", "r", "ɾ", "ʁ", "j", "w"})
+"""Coda consonant symbols treated as sonorant for ``"monosyllabic_heavy"``
+above -- a small hardcoded set (not a lookup into
+``generation.sonority.sonority``'s ``Consonant``-based ranking, which
+``core`` can't import) covering every sonorant symbol this project's
+phoneme pool defines."""
 
 
 def _stable_local_choice(payload: str, options: list, weights: list[float]):
@@ -403,6 +491,29 @@ class RomanizationScheme(BaseModel, frozen=True):
     needing a word's part of speech or any other context ``apply()``
     doesn't already have. Empty means no curated pattern -- the generic
     baseline (see ``stress_gen.predict_default_stress``)."""
+    word_accent_realization: str = ""
+    """This scheme's own matched profile's ``word_accent_realization``
+    (``""`` | ``"glottalization"`` | ``"pitch"`` -- see
+    ``ReferenceLanguageProfile``'s own docstring), carried onto the scheme
+    so ``apply()`` knows how to *not* leak the corresponding IPA-internal
+    mark into Latin output even when ``word_accent_marking`` is ``""``
+    (the common case -- no target profile's real orthography writes this
+    feature): ``"glottalization"``'s ``WORD_ACCENT_MARK`` is consumed via
+    a side channel the same way ``STRESS_MARK`` already is;
+    ``"pitch"``'s two reused ``TONE_DIACRITICS`` characters need this
+    field specifically to tell them apart from a *genuine* tone
+    diacritic riding the same combining-mark slot -- safe because a
+    language is never simultaneously tonal and word-accented (see
+    ``generation.phonology_gen``'s mutual-exclusivity guard), so within
+    one scheme these characters can only ever mean one or the other."""
+    word_accent_marking: str = ""
+    """Whether/how this scheme's real orthography writes the word-accent
+    contrast at all -- ``""`` (every profile curated so far: real Danish/
+    Swedish/Norwegian orthography writes neither stød nor pitch accent),
+    or ``"marked"`` (a real or fictional language that *does* write it --
+    designed for, not yet exercised by any curated profile). Same
+    per-``ReferenceLanguageProfile`` override role ``stress_accent_marking``
+    plays for stress."""
     consonant_gemination_marked: bool = False
     """Whether a phonemically long/geminate consonant (``core.phonology.Consonant.long``,
     e.g. Italian "sono" vs. "sonno") doubles its own letter -- distinct
@@ -445,28 +556,37 @@ class RomanizationScheme(BaseModel, frozen=True):
     def _known_symbols(self) -> list[str]:
         return sorted({rule.ipa for rule in self.rules}, key=len, reverse=True)
 
-    def _tokenize(self, ipa_text: str) -> tuple[list[tuple[str | None, str, str]], int | None]:
+    def _tokenize(self, ipa_text: str) -> tuple[list[tuple[str | None, str, str]], int | None, int | None]:
         """Greedy longest-match against this scheme's own ipa symbols.
-        Returns ``(tokens, stress_before)``: ``tokens`` is a list of
-        ``(symbol, decoration, raw)`` triples exactly as before (a matched
-        symbol carries its trailing combining-mark decoration in
-        ``decoration``, ``raw`` empty; an unrecognized character is
-        carried in ``raw`` verbatim, ``symbol`` is ``None`` -- this
-        scheme's long-standing "unmapped input passes through unchanged"
-        contract). ``stress_before`` is the index into ``tokens`` that
-        ``STRESS_MARK`` immediately preceded (``None`` if absent) --
-        deliberately *not* itself a token, so every existing consumer of
-        ``tokens`` (neighbor-tag lookups, coda-run-length, joint-spelling
-        resolution) sees exactly the same list it always has, with zero
-        risk of a stress marker being mistaken for a real phoneme
+        Returns ``(tokens, stress_before, word_accent_after)``: ``tokens``
+        is a list of ``(symbol, decoration, raw)`` triples exactly as
+        before (a matched symbol carries its trailing combining-mark
+        decoration in ``decoration``, ``raw`` empty; an unrecognized
+        character is carried in ``raw`` verbatim, ``symbol`` is ``None``
+        -- this scheme's long-standing "unmapped input passes through
+        unchanged" contract). ``stress_before`` is the index into
+        ``tokens`` that ``STRESS_MARK`` immediately preceded (``None`` if
+        absent); ``word_accent_after`` is the index ``WORD_ACCENT_MARK``
+        (the ``"glottalization"``-realization word-accent mark)
+        immediately *followed* (``None`` if absent) -- the mirror-image
+        side channel, since that mark trails its rime rather than leading
+        its onset. Neither is itself a token, so every existing consumer
+        of ``tokens`` (neighbor-tag lookups, coda-run-length, joint-
+        spelling resolution) sees exactly the same list it always has,
+        with zero risk of either marker being mistaken for a real phoneme
         anywhere in this scheme's own following/preceding conditioning."""
         known = self._known_symbols()
         tokens: list[tuple[str | None, str, str]] = []
         stress_before: int | None = None
+        word_accent_after: int | None = None
         i = 0
         while i < len(ipa_text):
             if ipa_text[i] == STRESS_MARK:
                 stress_before = len(tokens)
+                i += 1
+                continue
+            if ipa_text[i] == WORD_ACCENT_MARK:
+                word_accent_after = len(tokens) - 1
                 i += 1
                 continue
             matched = next((s for s in known if ipa_text.startswith(s, i)), None)
@@ -480,7 +600,7 @@ class RomanizationScheme(BaseModel, frozen=True):
                 deco += ipa_text[i]
                 i += 1
             tokens.append((matched, deco, ""))
-        return tokens, stress_before
+        return tokens, stress_before, word_accent_after
 
     def _coda_run_length(self, tokens: list[tuple[str | None, str, str]], index: int) -> int | None:
         """How many of this vowel's immediately-following consonant tokens
@@ -642,8 +762,24 @@ class RomanizationScheme(BaseModel, frozen=True):
         (real Spanish) marks it when the actual stressed syllable differs
         from what ``predict_default_stress`` would have predicted from
         ``stress_pattern`` alone.
+
+        Word accent (``word_accent_realization``/``word_accent_marking``)
+        never rewrites a letter today (every curated profile leaves it
+        unmarked -- ``word_accent_marking`` stays a designed-for, not-yet-
+        built hook, the same "abstain when uncurated" honesty every other
+        axis here practices), but still needs to make sure neither
+        realization's IPA-internal mark leaks into Latin output:
+        ``"glottalization"``'s ``WORD_ACCENT_MARK`` is consumed via the
+        ``word_accent_after`` side channel (extracted by ``_tokenize``,
+        mirroring ``stress_before``) and simply never emitted;
+        ``"pitch"``'s two reused ``TONE_DIACRITICS`` characters are
+        stripped from whichever vowel's ``deco`` carries them before the
+        existing tone-decoration logic below ever sees them -- safe only
+        because a word-accented language is never also tonal (see
+        ``generation.phonology_gen``), so within one scheme these
+        characters can only mean one thing.
         """
-        tokens, stress_before = self._tokenize(ipa_text)
+        tokens, stress_before, word_accent_after = self._tokenize(ipa_text)
         rules_by_ipa: dict[str, list[RomanizationRule]] = {}
         for rule in self.rules:
             rules_by_ipa.setdefault(rule.ipa, []).append(rule)
@@ -718,6 +854,14 @@ class RomanizationScheme(BaseModel, frozen=True):
                             f"{ipa_text}:{index}", top, [rule.weight for rule in top]
                         )
                         latin = chosen.latin
+
+            if deco and self.word_accent_realization == "pitch" and self.word_accent_marking == "":
+                # These two characters are reused `TONE_DIACRITICS` (see
+                # `word_accent_gen.mark_word_accent`), not real tone --
+                # strip them before the tone-decoration logic below gets a
+                # chance to treat them as such. Safe unconditionally: a
+                # word-accented language is never simultaneously tonal.
+                deco = "".join(ch for ch in deco if ch not in _PITCH_WORD_ACCENT_CHARS)
 
             if deco and self.tone_strategy == ToneMarkingStrategy.UNMARKED:
                 deco = ""

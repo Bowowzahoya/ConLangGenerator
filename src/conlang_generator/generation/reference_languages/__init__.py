@@ -67,6 +67,10 @@ stress_pattern: ""                  # optional, defaults empty -- e.g. "penultim
 stress_deviation_rate: null         # optional, defaults null -- e.g. 0.15, how often a word deviates from that default
 stress_accent_marking: ""           # optional, defaults empty -- e.g. "irregular_only" (real Spanish's á/é/í/ó/ú)
 stress_driven_vowel_reduction: false  # optional, defaults false -- true for English/German/Dutch's own real synchronic schwa reduction
+word_accent_realization: ""         # optional, defaults empty -- "glottalization" | "pitch", e.g. real Danish stød
+word_accent_pattern: ""             # optional, defaults empty -- e.g. "monosyllabic_heavy"
+word_accent_deviation_rate: null    # optional, defaults null -- e.g. 0.15
+word_accent_marking: ""             # optional, defaults empty -- e.g. "marked", for a language that writes it (none curated do)
 ```
 
 ``orthography`` entries are ``RomanizationRule``s -- see its docstring for
@@ -328,6 +332,49 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     only in a word's own non-stressed syllables, and only when "ə" is
     actually in this run's generated vowel inventory. Only consulted
     when ``source_language_strictness`` > 0."""
+    word_accent_realization: str = ""
+    """Whether/how this language marks the binary word-accent contrast on
+    its own stressed syllable -- ``""`` (the common case: most languages,
+    including all six perfected profiles, don't have this feature at
+    all), ``"glottalization"`` (real Danish stød), or ``"pitch"`` (real
+    Swedish/Norwegian pitch accent) -- see
+    ``core.phonology.WordAccentCategory``'s own docstring for why these
+    are one mechanism, not two. Consumed by
+    ``generation.word_accent_gen.resolve_word_accent``; only consulted
+    when ``source_language_strictness`` > 0. Empty means not curated --
+    abstains, same convention as every other field above (never a
+    verified "this language definitely lacks the feature")."""
+    word_accent_pattern: str = ""
+    """How this language predicts a word's word-accent category from its
+    own shape -- ``"monosyllabic_heavy"`` (Danish: accent 1/stød on a
+    monosyllable with a long/diphthong nucleus or a sonorant coda),
+    ``"underived_monosyllable"`` (Swedish/Norwegian: accent 1 on any
+    monosyllable, accent 2 otherwise) -- consumed by
+    ``core.romanization.predict_default_word_accent``/
+    ``generation.word_accent_gen.assign_word_accent``. Empty (the common
+    case) means not curated -- abstains, same convention as
+    ``stress_pattern``. Unlike ``stress_pattern``, there's no generic
+    fallback for an uncurated language: an empty pattern means this
+    language's ``WordAccentSystem`` is never enabled at all (see
+    ``generation.phonology_gen``), not "use some default typology"."""
+    word_accent_deviation_rate: float | None = None
+    """How often a real word's actual word-accent category deviates from
+    this language's own predictable default above -- illustrative, not a
+    corpus statistic, same honesty standard as ``stress_deviation_rate``.
+    ``None`` (the common case) means not curated --
+    ``generation.word_accent_gen.assign_word_accent`` falls back to a
+    generic cross-linguistic baseline rate instead, same "genuine lexical
+    exceptions are real but a minority" role ``stress_deviation_rate``'s
+    own fallback plays."""
+    word_accent_marking: str = ""
+    """Whether/how this language's real orthography writes the word-accent
+    contrast itself -- ``""`` (every profile curated so far: real Danish/
+    Swedish/Norwegian orthography writes neither stød nor pitch accent),
+    or ``"marked"`` (a real or fictional language that does write it --
+    the mechanism is ready, no currently curated profile exercises it).
+    Same per-profile-override role ``stress_accent_marking`` plays for
+    stress; only consulted when ``source_language_strictness`` > 0 -- see
+    ``core.romanization.RomanizationScheme.apply()``."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

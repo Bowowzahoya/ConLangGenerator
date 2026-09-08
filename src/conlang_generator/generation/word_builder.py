@@ -25,7 +25,7 @@ from conlang_generator.core.phonology import (
     VowelBackness,
     VowelHeight,
 )
-from conlang_generator.generation import stress_gen
+from conlang_generator.generation import stress_gen, word_accent_gen
 
 _SMALL_HEIGHTS = (VowelHeight.CLOSE, VowelHeight.NEAR_CLOSE)
 _BIG_HEIGHTS = (VowelHeight.OPEN, VowelHeight.NEAR_OPEN)
@@ -256,6 +256,10 @@ def build_word(
     stress_deviation_rate: float | None = None,
     stress_strictness: float = 0.0,
     reduce_unstressed_vowels: bool = False,
+    word_accent_realization: str = "",
+    word_accent_pattern: str = "",
+    word_accent_deviation_rate: float | None = None,
+    word_accent_strictness: float = 0.0,
 ) -> str:
     """``stress_pattern``/``stress_deviation_rate``/``stress_strictness``
     are the already-resolved values from whichever matched
@@ -292,7 +296,20 @@ def build_word(
     checked via ``structure.is_valid_syllable`` before committing,
     skipped (not fabricated) rather than forced through, same
     "honest empty result over an invalid one" discipline
-    ``_build_coda`` already practices."""
+    ``_build_coda`` already practices.
+
+    ``word_accent_*`` (this run's matched ``ReferenceLanguageProfile``'s
+    own word-accent axes -- see ``generation.word_accent_gen``) marks the
+    word's *accented* syllable -- its stressed syllable, or syllable 0
+    for a monosyllable. Deliberately **not** ``stress_index`` directly:
+    unlike ``STRESS_MARK``, which skips monosyllables (nothing to
+    contrast against), real Danish stød is canonically a monosyllable
+    phenomenon, so a monosyllable still needs an accented-syllable index
+    even though ``stress_index`` is ``None`` for it. An empty
+    ``word_accent_pattern`` (the common case -- most languages don't have
+    this feature) makes this whole block a no-op, mirroring how an empty
+    ``stress_pattern`` already falls through to a generic default rather
+    than raising."""
     marks = tone_marks or ("",) * num_syllables
     harmony_class: VowelBackness | None = None
     if structure.vowel_harmony:
@@ -312,6 +329,15 @@ def build_word(
         if num_syllables > 1
         else None
     )
+    accented_index = stress_index if stress_index is not None else 0
+    accent_mark = ""
+    if word_accent_pattern:
+        accented_nucleus, accented_coda = syllables[accented_index][1], syllables[accented_index][2]
+        accent_category = word_accent_gen.assign_word_accent(
+            rng, num_syllables, accented_nucleus, accented_coda,
+            word_accent_pattern, word_accent_deviation_rate, word_accent_strictness,
+        )
+        accent_mark = word_accent_gen.mark_word_accent(accent_category, word_accent_realization)
     if reduce_unstressed_vowels and num_syllables > 1 and "ə" in inventory.vowel_symbols():
         reduction_rate = _STRESS_REDUCTION_RATE * max(0.0, min(1.0, stress_strictness))
         for i, (onset, nucleus, coda) in enumerate(syllables):
@@ -322,7 +348,16 @@ def build_word(
     parts: list[str] = []
     for i, (onset, nucleus, coda) in enumerate(syllables):
         prefix = stress_gen.STRESS_MARK if i == stress_index else ""
-        parts.append(prefix + "".join(onset) + nucleus + marks[i] + "".join(coda))
+        this_accent_mark = accent_mark if i == accented_index else ""
+        if word_accent_realization == "glottalization":
+            # Stød marks the whole rime, not just the vowel -- appended
+            # after the coda rather than riding the nucleus.
+            parts.append(prefix + "".join(onset) + nucleus + marks[i] + "".join(coda) + this_accent_mark)
+        else:
+            # A combining pitch diacritic (or no word accent at all) needs
+            # a base vowel to ride -- goes right after the nucleus, same
+            # position `marks[i]` (tone) already uses.
+            parts.append(prefix + "".join(onset) + nucleus + this_accent_mark + marks[i] + "".join(coda))
     return "".join(parts)
 
 
@@ -335,6 +370,10 @@ def build_reduplicated_word(
     stress_pattern: str = "",
     stress_deviation_rate: float | None = None,
     stress_strictness: float = 0.0,
+    word_accent_realization: str = "",
+    word_accent_pattern: str = "",
+    word_accent_deviation_rate: float | None = None,
+    word_accent_strictness: float = 0.0,
 ) -> str | None:
     """A same-syllable-twice word (``mama``/``papa``-shaped): one onset
     consonant restricted to ``manner_classes``, one vowel preferring open
@@ -358,6 +397,11 @@ def build_reduplicated_word(
     ma-MA), so ``stress_pattern``/``stress_deviation_rate``/
     ``stress_strictness`` are resolved and applied the same way
     ``build_word`` does, via the same ``stress_gen.assign_stress``.
+    ``word_accent_*`` get the same treatment, via the same
+    ``word_accent_gen`` calls ``build_word`` uses -- the accented syllable
+    is always whichever of the two stress picked (never syllable 0 by a
+    monosyllable fallback, since a reduplicated word is always 2
+    syllables).
 
     Returns ``None`` if the inventory has no consonant in any of
     ``manner_classes`` (the caller should fall back to normal generation).
@@ -377,6 +421,13 @@ def build_reduplicated_word(
     vowel = weighted_choice(rng, open_vowels or simple_vowels or inventory.vowels)
     syllable = consonant.ipa + vowel.ipa + tone_mark
     stress_index = stress_gen.assign_stress(rng, 2, (), stress_pattern, stress_deviation_rate, stress_strictness)
-    first = (stress_gen.STRESS_MARK if stress_index == 0 else "") + syllable
-    second = (stress_gen.STRESS_MARK if stress_index == 1 else "") + syllable
+    accent_mark = ""
+    if word_accent_pattern:
+        accent_category = word_accent_gen.assign_word_accent(
+            rng, 2, vowel.ipa, (), word_accent_pattern, word_accent_deviation_rate, word_accent_strictness,
+        )
+        accent_mark = word_accent_gen.mark_word_accent(accent_category, word_accent_realization)
+    accented_syllable = syllable + accent_mark
+    first = (stress_gen.STRESS_MARK if stress_index == 0 else "") + (accented_syllable if stress_index == 0 else syllable)
+    second = (stress_gen.STRESS_MARK if stress_index == 1 else "") + (accented_syllable if stress_index == 1 else syllable)
     return first + second

@@ -152,6 +152,45 @@ class ToneSystem(BaseModel, frozen=True):
         return vowel_ipa + TONE_DIACRITICS[tone]
 
 
+class WordAccentCategory(str, Enum):
+    """A closed, binary word-accent contrast -- real Danish stød / Swedish
+    and Norwegian pitch accent, historically the same Common Scandinavian
+    contrast surfacing two different ways (Danish kept only glottalization;
+    Swedish/Norwegian kept only the pitch contour). Deliberately *not* an
+    extension of ``ToneLevel``/``ToneSystem``: a tone language assigns
+    pitch per syllable, independent of stress, while a word-accent
+    language has exactly one contrast, tied to the stressed syllable --
+    typologically distinct categories that a real language never
+    simultaneously belongs to (see ``generation.phonology_gen``'s mutual-
+    exclusivity guard). Binary by design, matching what every currently
+    curated language actually needs -- a genuinely 4-way system (Serbo-
+    Croatian's tone-and-length contrast) or a positional one (Japanese's
+    pitch-drop point) would be a real, larger extension, not attempted
+    here."""
+
+    ACCENT_1 = "accent_1"
+    """Historically the ex-monosyllabic-shaped member of the contrast --
+    Danish stød, Swedish/Norwegian's "acute" accent."""
+    ACCENT_2 = "accent_2"
+    """Historically the ex-polysyllabic-shaped member -- Danish's plain
+    (no-stød) forms, Swedish/Norwegian's "grave" accent."""
+
+
+class WordAccentSystem(BaseModel, frozen=True):
+    """A per-language systemic property, decided once at generation time
+    (mirroring ``ToneSystem.enabled`` -- not a per-word roll). ``realization``
+    is ``""`` (not this language), ``"glottalization"`` (Danish-style, marked
+    with ``core.romanization.WORD_ACCENT_MARK``), or ``"pitch"``
+    (Swedish/Norwegian-style, marked with one of two ``TONE_DIACRITICS``
+    characters reused directly -- see ``generation.word_accent_gen.mark_word_accent``).
+    No ``mark()`` method of its own (unlike ``ToneSystem``): the two
+    realizations render too differently (a non-combining rime-final mark
+    vs. a combining nucleus diacritic) to share one call shape."""
+
+    enabled: bool = False
+    realization: str = ""
+
+
 class SyllableStructure(BaseModel, frozen=True):
     """A coarse phonotactic template: (onset) nucleus (coda).
 

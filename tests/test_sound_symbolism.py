@@ -5,7 +5,7 @@ big/small (Sapir 1929)."""
 import random
 
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.phonology import Manner, Place, PhonemeInventory, Vowel, VowelBackness, VowelHeight, Consonant
+from conlang_generator.core.phonology import Manner, Place, PhonemeInventory, Vowel, VowelBackness, VowelHeight, Consonant, WordAccentSystem
 from conlang_generator.core.romanization import STRESS_MARK
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import lexicon_gen, phonology_gen, romanization_gen, word_builder
@@ -15,7 +15,7 @@ from conlang_generator.llm.fake_client import FakeLLMClient
 def _fixed_language(seed: int = 42):
     spec = GenerationSpec(prompt="p", seed=seed)
     rng = random.Random(seed)
-    inventory, structure, tone_system = phonology_gen.generate_phonology(rng, spec)
+    inventory, structure, tone_system, _ = phonology_gen.generate_phonology(rng, spec)
     romanization = romanization_gen.generate_romanization(rng, inventory)
     return inventory, structure, tone_system, romanization
 
@@ -40,12 +40,12 @@ def test_mother_skews_nasal_and_father_skews_stop_onsets():
     n = 100
     for _ in range(n):
         mother = lexicon_gen.propose_word(
-            rng, inventory, structure, tone_system, romanization, "mother", PartOfSpeech.NOUN, client, "Test"
+            rng, inventory, structure, tone_system, WordAccentSystem(), romanization, "mother", PartOfSpeech.NOUN, client, "Test"
         )
         if _first_phoneme(mother.ipa) in nasal_ipas:
             mother_nasal_onsets += 1
         father = lexicon_gen.propose_word(
-            rng, inventory, structure, tone_system, romanization, "father", PartOfSpeech.NOUN, client, "Test"
+            rng, inventory, structure, tone_system, WordAccentSystem(), romanization, "father", PartOfSpeech.NOUN, client, "Test"
         )
         if _first_phoneme(father.ipa) in stop_ipas:
             father_stop_onsets += 1
@@ -56,7 +56,7 @@ def test_mother_skews_nasal_and_father_skews_stop_onsets():
         for _ in range(n)
         if _first_phoneme(
             lexicon_gen.propose_word(
-                rng, inventory, structure, tone_system, romanization, "tree", PartOfSpeech.NOUN, client, "Test"
+                rng, inventory, structure, tone_system, WordAccentSystem(), romanization, "tree", PartOfSpeech.NOUN, client, "Test"
             ).ipa
         )
         in nasal_ipas
@@ -169,7 +169,7 @@ def test_small_words_average_closer_vowels_than_big_words():
     def avg_first_vowel_height(gloss: str, pos, n: int = 100) -> float:
         total = 0
         for _ in range(n):
-            entry = lexicon_gen.propose_word(rng, inventory, structure, tone_system, romanization, gloss, pos, client, "Test")
+            entry = lexicon_gen.propose_word(rng, inventory, structure, tone_system, WordAccentSystem(), romanization, gloss, pos, client, "Test")
             first_vowel = next(ch for ch in entry.ipa if ch in height_by_ipa)
             total += height_by_ipa[first_vowel]
         return total / n

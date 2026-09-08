@@ -15,8 +15,8 @@ from dataclasses import replace
 
 from conlang_generator.core.grammar import Alignment, GrammarProfile, MorphologicalType, WordOrder, WordTemplate
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
-from conlang_generator.core.phonology import Consonant, Manner, Place, PhonemeInventory, SyllableStructure, ToneSystem, Vowel, VowelBackness, VowelHeight
-from conlang_generator.core.romanization import STRESS_MARK, apply_grammatical_spelling
+from conlang_generator.core.phonology import Consonant, Manner, Place, PhonemeInventory, SyllableStructure, ToneSystem, Vowel, VowelBackness, VowelHeight, WordAccentSystem
+from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, sonority, sound_change
@@ -524,7 +524,7 @@ def test_coin_native_word_uses_the_lineage_profiles_own_stress_pattern():
         stress_pattern="final", stress_deviation_rate=0.0,
     )
     ipa, root = sound_change._coin_native_word(
-        random.Random(1), entry, inventory, structure, ToneSystem(), grammar,
+        random.Random(1), entry, inventory, structure, ToneSystem(), WordAccentSystem(), grammar,
         lineage_profiles=(lineage_profile,), strictness=1.0,
     )
     assert root is not None
@@ -534,3 +534,35 @@ def test_coin_native_word_uses_the_lineage_profiles_own_stress_pattern():
     mark_index = ipa.index(STRESS_MARK)
     vowels_after_mark = sum(1 for ch in ipa[mark_index + 1 :] if ch == "a")
     assert vowels_after_mark == 1  # exactly the stressed syllable's own vowel, nothing beyond it
+
+
+def test_apply_lenition_still_lenites_across_a_word_accent_mark():
+    # Real, systematic interaction fixed alongside STRESS_MARK's own:
+    # WORD_ACCENT_MARK sits exactly at a syllable boundary, which is
+    # exactly where an intervocalic lenition check looks -- the real
+    # neighboring vowels on either side must still be found through it.
+    vowel_by_ipa = {"a": _VOWEL_BY_IPA["a"]}
+    tokens = [("t", ""), ("a", ""), (WORD_ACCENT_MARK, ""), ("p", ""), ("a", "")]
+    result = sound_change._apply_lenition(tokens, random.Random(0), 1.0, vowel_by_ipa)
+    assert result == [("t", ""), ("a", ""), (WORD_ACCENT_MARK, ""), ("b", ""), ("a", "")]
+
+
+def test_apply_final_devoicing_finds_the_real_final_consonant_past_a_trailing_word_accent_mark():
+    # A trailing WORD_ACCENT_MARK (the common case: the accented syllable
+    # is word-final) must not hide the true final consonant from a naive
+    # `tokens[-1]` lookup.
+    consonant_by_ipa = {"d": _CONSONANT_BY_IPA["d"], "t": _CONSONANT_BY_IPA["t"]}
+    tokens = [("a", ""), ("d", ""), (WORD_ACCENT_MARK, "")]
+    result, original = sound_change._apply_final_devoicing(tokens, random.Random(0), 1.0, consonant_by_ipa)
+    assert result == [("a", ""), ("t", ""), (WORD_ACCENT_MARK, "")]
+    assert original == "d"
+
+
+def test_adjacent_real_symbol_skips_both_stress_and_word_accent_marks():
+    tokens = [("t", ""), (STRESS_MARK, ""), ("a", ""), (WORD_ACCENT_MARK, ""), ("p", "")]
+    # `STRESS_MARK` isn't a real token position in this list shape (it's
+    # only ever produced as a genuine list entry by `ipa_tokenizer.py`,
+    # which is exactly what this helper is meant to walk) -- constructed
+    # directly here to exercise both skip cases in one token stream.
+    assert sound_change._adjacent_real_symbol(tokens, 0, 1) == "a"
+    assert sound_change._adjacent_real_symbol(tokens, 4, -1) == "a"

@@ -24,7 +24,7 @@ from conlang_generator.llm.base import LLMClient
 def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) -> Language:
     rng = random.Random(spec.seed)
 
-    inventory, syllable_structure, tone_system = phonology_gen.generate_phonology(rng, spec)
+    inventory, syllable_structure, tone_system, word_accent_system = phonology_gen.generate_phonology(rng, spec)
     romanization = romanization_gen.generate_romanization(
         rng,
         inventory,
@@ -79,6 +79,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
                 context=spec.traits.salient_context,
                 source_languages=spec.traits.source_languages,
                 strictness=spec.traits.source_language_strictness,
+                word_accent_system=word_accent_system,
             )
         else:
             entry = lexicon_gen.propose_word(
@@ -86,6 +87,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
                 inventory,
                 syllable_structure,
                 tone_system,
+                word_accent_system,
                 romanization,
                 gloss,
                 pos,
@@ -104,6 +106,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         phonology=inventory,
         syllable_structure=syllable_structure,
         tone_system=tone_system,
+        word_accent=word_accent_system,
         romanization=romanization,
         grammar=grammar,
         lexicon=Lexicon(entries=seed_entries + generated_entries),

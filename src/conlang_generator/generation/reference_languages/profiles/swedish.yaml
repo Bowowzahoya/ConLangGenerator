@@ -44,10 +44,10 @@ attested_coda_clusters:
   - [f, t]                   # "luft"
 orthography:
   # Real Swedish spelling conventions, restricted to symbols this profile
-  # actually models -- illustrative, not a full account. Swedish/Norwegian
-  # pitch accent (a real, genuine lexical tone-accent contrast) has no
-  # fitting existing mechanism in this project -- explicitly not modeled,
-  # same "note the real gap" discipline as Danish's stød.
+  # actually models -- illustrative, not a full account. Swedish's own
+  # pitch accent is now modeled (see word_accent_realization below), but
+  # purely as an IPA-internal contrast -- real Swedish spelling never
+  # writes it at all, so nothing to add here.
   - {ipa: "ŋ", latin: ng}   # "sjunga"
   - {ipa: y, latin: y}
   - {ipa: "ø", latin: "ö"}   # äöå are real, distinct Swedish letters --
@@ -94,3 +94,6 @@ coda_frequency_tiers:
 stress_pattern: initial  # real Swedish: usually the root's first syllable, same Germanic default as German/Dutch/Danish
 stress_deviation_rate: 0.15  # illustrative -- loanwords are the main real exception
 stress_driven_vowel_reduction: true  # real Swedish: unstressed syllables reduce toward schwa, same Scandinavian-mainland pattern as Danish
+word_accent_realization: pitch  # real Swedish "accent 1"/"accent 2" -- historically the same Common Scandinavian contrast Danish marks with glottalization (stød) instead
+word_accent_pattern: underived_monosyllable  # real Swedish: accent 1 default for underived monosyllables, accent 2 default for polysyllabic/suffixed/compound forms
+word_accent_deviation_rate: 0.2  # illustrative -- real minimal pairs (anden "the duck" vs. "the spirit") are a genuine but small minority of the lexicon

@@ -459,6 +459,39 @@ def _resolve_stress_pattern(reference_profiles: tuple[ReferenceLanguageProfile, 
     return ""
 
 
+def _resolve_word_accent_marking(
+    rng: random.Random,
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    default: str,
+    strictness: float,
+) -> str:
+    """The word-accent-marking mirror of ``_resolve_stress_accent_marking``
+    above -- same probabilistic-adoption shot, same "only consulted by
+    ``generate_romanization``, ``evolve_romanization`` reconstructs from
+    the base scheme instead" carve-out. No currently curated profile sets
+    ``word_accent_marking`` (real Danish/Swedish/Norwegian orthography
+    writes neither stød nor pitch accent), so this always returns
+    ``default`` today -- wired for a future profile that does, the same
+    "designed for, not yet exercised" spirit as the field itself."""
+    for profile in reference_profiles:
+        if profile.word_accent_marking and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
+            return profile.word_accent_marking
+    return default
+
+
+def _resolve_word_accent_realization(reference_profiles: tuple[ReferenceLanguageProfile, ...]) -> str:
+    """The matched profile's own ``word_accent_realization``, for
+    ``RomanizationScheme.word_accent_realization`` -- always first-match-
+    wins outright, the same reasoning ``_resolve_stress_pattern`` gives:
+    ``apply()``'s pitch-vs-tone ``deco``-stripping needs to know the exact
+    realization ``generation.phonology_gen``/``word_accent_gen`` actually
+    used for this run, not an independently-rolled one."""
+    for profile in reference_profiles:
+        if profile.word_accent_realization:
+            return profile.word_accent_realization
+    return ""
+
+
 def _resolve_joint_spellings(
     rng: random.Random,
     reference_profiles: tuple[ReferenceLanguageProfile, ...],
@@ -1119,6 +1152,8 @@ def generate_romanization(
         rng, reference_profiles, category.stress_accent_marking, effective_strictness
     )
     stress_pattern = _resolve_stress_pattern(reference_profiles)
+    word_accent_marking = _resolve_word_accent_marking(rng, reference_profiles, "", effective_strictness)
+    word_accent_realization = _resolve_word_accent_realization(reference_profiles)
     structural = _structural_rules(category, inventory)
     rules: list[RomanizationRule] = []
     for symbol in inventory.all_symbols():
@@ -1151,6 +1186,8 @@ def generate_romanization(
         syllable_boundary_marker=syllable_boundary_marker,
         stress_accent_marking=stress_accent_marking,
         stress_pattern=stress_pattern,
+        word_accent_marking=word_accent_marking,
+        word_accent_realization=word_accent_realization,
         consonant_gemination_marked=category.consonant_gemination_marked,
         grammatical_spelling=grammatical_spelling,
     )
@@ -1297,6 +1334,8 @@ def evolve_romanization(
         syllable_boundary_marker=category.syllable_boundary_marker,
         stress_accent_marking=category.stress_accent_marking,
         stress_pattern=base_scheme.stress_pattern,
+        word_accent_marking=base_scheme.word_accent_marking,
+        word_accent_realization=base_scheme.word_accent_realization,
         consonant_gemination_marked=category.consonant_gemination_marked,
         grammatical_spelling=base_scheme.grammatical_spelling,
     )

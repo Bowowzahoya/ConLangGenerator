@@ -49,7 +49,7 @@ def _consonant_symbol_sets(source_languages: tuple[str, ...]) -> list[frozenset[
     sets = []
     for seed in _SEEDS:
         spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
-        inventory, _, _ = generate_phonology(random.Random(seed), spec)
+        inventory, _, _, _ = generate_phonology(random.Random(seed), spec)
         sets.append(frozenset(inventory.consonant_symbols()))
     return sets
 
@@ -958,6 +958,33 @@ def test_mainland_scandinavian_reduces_unstressed_vowels_but_icelandic_does_not(
     assert by_name["Swedish"].stress_driven_vowel_reduction is True
     assert by_name["Norwegian"].stress_driven_vowel_reduction is True
     assert by_name["Icelandic"].stress_driven_vowel_reduction is False
+
+
+def test_danish_declares_glottalization_word_accent_and_swedish_norwegian_declare_pitch():
+    # Real, well-established fact: stød and Swedish/Norwegian pitch accent
+    # are two different surface realizations of the same Common
+    # Scandinavian binary word-accent contrast -- see
+    # core.phonology.WordAccentCategory's own docstring.
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["Danish"].word_accent_realization == "glottalization"
+    assert by_name["Danish"].word_accent_pattern == "monosyllabic_heavy"
+    for name in ("Swedish", "Norwegian"):
+        assert by_name[name].word_accent_realization == "pitch"
+        assert by_name[name].word_accent_pattern == "underived_monosyllable"
+    for name in ("Danish", "Swedish", "Norwegian"):
+        assert by_name[name].word_accent_deviation_rate is not None
+
+
+def test_icelandic_and_the_six_perfected_languages_leave_word_accent_uncurated():
+    # Real Icelandic has no stød/pitch accent; the six perfected profiles
+    # are unrelated languages that don't have this feature either.
+    curated = {"Danish", "Swedish", "Norwegian"}
+    for profile in REFERENCE_LANGUAGES:
+        if profile.name not in curated:
+            assert profile.word_accent_realization == ""
+            assert profile.word_accent_pattern == ""
+            assert profile.word_accent_deviation_rate is None
+            assert profile.word_accent_marking == ""
 
 
 def test_spanish_marks_stress_only_when_it_deviates_from_the_predictable_default():

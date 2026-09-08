@@ -215,7 +215,7 @@ def test_forced_templatic_word_for_english_never_puts_w_before_a_rounded_vowel()
     spec = GenerationSpec(
         prompt="p", seed=1, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0)
     )
-    inventory, structure, _ = phonology_gen.generate_phonology(random.Random(1), spec)
+    inventory, structure, _, _ = phonology_gen.generate_phonology(random.Random(1), spec)
     assert ("w", "u") in structure.excluded_onset_nucleus_pairs  # sanity: this run's structure really is restricted
 
     templates = generate_templates(random.Random(1), inventory)

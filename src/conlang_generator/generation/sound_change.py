@@ -86,7 +86,7 @@ from dataclasses import dataclass
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon
 from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, VowelBackness
-from conlang_generator.core.romanization import STRESS_MARK, OrthographyForce, apply_grammatical_spelling
+from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK, OrthographyForce, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import (
@@ -98,6 +98,7 @@ from conlang_generator.generation import (
     root_pattern,
     sonority,
     stress_gen,
+    word_accent_gen,
     word_builder,
 )
 
@@ -243,17 +244,19 @@ def _simplify_clusters(tokens: list[Token], rng: random.Random, rate: float, con
 
 def _adjacent_real_symbol(tokens: list[Token], index: int, step: int) -> str | None:
     """The nearest real phoneme symbol in ``tokens`` from ``index``,
-    stepping by ``step`` (+1/-1), skipping past any ``STRESS_MARK``
-    token in between -- stress always sits at a syllable boundary, i.e.
-    exactly where an intervocalic check like ``_apply_lenition``'s looks,
-    so treating it as a real neighbor would wrongly break that check for
-    every leniting consonant that happens to open a stressed syllable
-    (systematic, not a rare edge case -- unlike a couple of the other
-    five rules' own narrower interactions with a stress marker, this one
-    needs an explicit fix). ``None`` if there's no real symbol that way."""
+    stepping by ``step`` (+1/-1), skipping past any ``STRESS_MARK``/
+    ``WORD_ACCENT_MARK`` token in between -- both always sit at a
+    syllable boundary, i.e. exactly where an intervocalic check like
+    ``_apply_lenition``'s looks, so treating either as a real neighbor
+    would wrongly break that check for every leniting consonant that
+    happens to open a stressed syllable, or that sits right after a
+    glottalization-realization word-accent mark (systematic, not a rare
+    edge case -- unlike a couple of the other five rules' own narrower
+    interactions with these markers, this one needs an explicit fix).
+    ``None`` if there's no real symbol that way."""
     j = index + step
     while 0 <= j < len(tokens):
-        if tokens[j][0] != STRESS_MARK:
+        if tokens[j][0] not in (STRESS_MARK, WORD_ACCENT_MARK):
             return tokens[j][0]
         j += step
     return None
@@ -281,14 +284,27 @@ def _apply_final_devoicing(
     piece of diachronic context ``_evolve_ipa`` needs to let spelling
     follow the underlying/paradigmatic form (Dutch "berg" pronounced
     [bɛrx] but still spelled with "g") instead of the bare surface IPA,
-    the way real orthography does. ``None`` when nothing devoiced."""
+    the way real orthography does. ``None`` when nothing devoiced.
+
+    ``WORD_ACCENT_MARK`` (the ``"glottalization"``-realization word-accent
+    mark) is the one systematic case a plain ``tokens[-1]`` lookup would
+    get wrong here, unlike every other rule this marker touches: when the
+    accented syllable is word-final (the common case), the mark itself,
+    not the real final consonant, is the literal last token -- checked
+    and skipped past explicitly, so the *real* final consonant still gets
+    considered, with the mark left exactly where it was."""
     if rate <= 0 or not tokens:
         return tokens, None
     result = list(tokens)
-    symbol, deco = result[-1]
+    final_index = len(result) - 1
+    if result[final_index][0] == WORD_ACCENT_MARK:
+        final_index -= 1
+    if final_index < 0:
+        return result, None
+    symbol, deco = result[final_index]
     consonant = consonant_by_ipa.get(symbol)
     if consonant is not None and consonant.voiced and symbol in _VOICED_TO_VOICELESS and rng.random() < rate:
-        result[-1] = (_VOICED_TO_VOICELESS[symbol], deco)
+        result[final_index] = (_VOICED_TO_VOICELESS[symbol], deco)
         return result, symbol
     return result, None
 
@@ -454,6 +470,7 @@ def _coin_native_word(
     inventory: PhonemeInventory,
     structure: SyllableStructure,
     tone_system,
+    word_accent_system,
     grammar,
     lineage_profiles: tuple[reference_languages.ReferenceLanguageProfile, ...] = (),
     strictness: float = 0.0,
@@ -475,13 +492,23 @@ def _coin_native_word(
     Dutch-lineage language replacing a word still stresses it the way
     Dutch would, not via the generic baseline."""
     stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(lineage_profiles)
+    word_accent_pattern = ""
+    word_accent_deviation_rate: float | None = None
+    if word_accent_system.enabled:
+        _, word_accent_pattern, word_accent_deviation_rate = word_accent_gen.resolve_word_accent(lineage_profiles)
+
     if grammar.uses_root_and_pattern and entry.pos in root_pattern.TEMPLATIC_POS and grammar.templates:
         template = root_pattern.template_for_pos(rng, grammar.templates, entry.pos)
         root = root_pattern.generate_root(rng, inventory, structure, template.skeleton)
         root_iter = iter(root)
         filled_symbols = tuple(next(root_iter) if slot == "C" else slot for slot in template.skeleton)
         vowel_symbols = frozenset(v.ipa for v in inventory.vowels)
-        stressed = stress_gen.mark_stress(rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, strictness)
+        stressed = word_accent_gen.mark_stress_and_word_accent(
+            rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, strictness,
+            word_accent_realization=word_accent_system.realization,
+            word_accent_pattern=word_accent_pattern,
+            word_accent_deviation_rate=word_accent_deviation_rate,
+        )
         return stressed, root
 
     num_syllables = lexicon_gen.choose_syllable_count(rng, entry.pos, favor_short=True)
@@ -491,6 +518,10 @@ def _coin_native_word(
     return word_builder.build_word(
         rng, inventory, structure, num_syllables, tone_marks,
         stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=strictness,
+        word_accent_realization=word_accent_system.realization,
+        word_accent_pattern=word_accent_pattern,
+        word_accent_deviation_rate=word_accent_deviation_rate,
+        word_accent_strictness=strictness,
     ), None
 
 
@@ -589,7 +620,7 @@ def evolve_language(
                 borrowed_romanizations[i] = latin
             else:
                 ipa, root = _coin_native_word(
-                    rng, entry, provisional_inventory, provisional_structure, base.tone_system, base.grammar,
+                    rng, entry, provisional_inventory, provisional_structure, base.tone_system, base.word_accent, base.grammar,
                     lineage_profiles=lineage_profiles, strictness=traits.source_language_strictness,
                 )
                 final_ipas.append(ipa)
@@ -675,6 +706,7 @@ def evolve_language(
         phonology=inventory,
         syllable_structure=syllable_structure,
         tone_system=base.tone_system,
+        word_accent=base.word_accent,
         romanization=romanization,
         grammar=base.grammar,
         lexicon=Lexicon(entries=evolved_entries, idioms=base.lexicon.idioms),

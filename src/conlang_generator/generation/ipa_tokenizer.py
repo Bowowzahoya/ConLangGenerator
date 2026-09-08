@@ -15,26 +15,34 @@ from __future__ import annotations
 
 import unicodedata
 
-from conlang_generator.core.romanization import STRESS_MARK
+from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
+
+_STANDALONE_MARKS = (STRESS_MARK, WORD_ACCENT_MARK)
 
 
 def tokenize(text: str, known_symbols: tuple[str, ...]) -> list[tuple[str, str]]:
     """Returns ``(symbol, trailing_combining_marks)`` pairs. ``STRESS_MARK``
-    becomes its own token (``(STRESS_MARK, "")``, never a decoration on
-    another token) -- unlike ``core.romanization``'s own ``_tokenize``
-    (a single, non-mutating pass, which pulls it out as a side-channel
-    index instead), keeping it as a genuine list entry here lets it move
-    naturally with its neighbors through ``sound_change.py``'s own
+    and ``WORD_ACCENT_MARK`` (the ``"glottalization"``-realization word-
+    accent mark -- real Danish stød) each become their own token
+    (``(mark, "")``, never a decoration on another token) -- unlike
+    ``core.romanization``'s own ``_tokenize`` (a single, non-mutating
+    pass, which pulls ``STRESS_MARK`` out as a side-channel index
+    instead), keeping them as genuine list entries here lets them move
+    naturally with their neighbors through ``sound_change.py``'s own
     token-list mutations (only ``_simplify_clusters`` deletes a token
     today, but future rules could too) with no separate index to keep in
-    sync. Every other unrecognized, non-combining character is silently
-    skipped -- unrecognized input, not an error."""
+    sync. The ``"pitch"``-realization word-accent marks need no such
+    handling -- they're ordinary Unicode combining characters (reused
+    from ``core.phonology.TONE_DIACRITICS``), already covered by the
+    trailing-combining-mark slurp below the same way tone diacritics
+    always have been. Every other unrecognized, non-combining character
+    is silently skipped -- unrecognized input, not an error."""
     ordered = sorted(set(known_symbols), key=len, reverse=True)
     tokens: list[tuple[str, str]] = []
     i = 0
     while i < len(text):
-        if text[i] == STRESS_MARK:
-            tokens.append((STRESS_MARK, ""))
+        if text[i] in _STANDALONE_MARKS:
+            tokens.append((text[i], ""))
             i += 1
             continue
         matched = next((s for s in ordered if text.startswith(s, i)), None)
@@ -55,8 +63,8 @@ def tokenize(text: str, known_symbols: tuple[str, ...]) -> list[tuple[str, str]]
 
 def symbols_only(text: str, known_symbols: tuple[str, ...]) -> tuple[str, ...]:
     """Just the base symbols, decorations discarded -- for "which phonemes
-    appear" queries. ``STRESS_MARK`` is deliberately excluded here (unlike
-    ``tokenize``'s own full output) -- it isn't a phoneme, and every
-    caller of this function is asking "which sounds does this word use,"
-    a question stress has no part in."""
-    return tuple(symbol for symbol, _ in tokenize(text, known_symbols) if symbol != STRESS_MARK)
+    appear" queries. ``STRESS_MARK``/``WORD_ACCENT_MARK`` are deliberately
+    excluded here (unlike ``tokenize``'s own full output) -- neither is a
+    phoneme, and every caller of this function is asking "which sounds
+    does this word use," a question stress/word accent have no part in."""
+    return tuple(symbol for symbol, _ in tokenize(text, known_symbols) if symbol not in _STANDALONE_MARKS)

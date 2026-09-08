@@ -1023,12 +1023,94 @@ reading code or one-off ad hoc scripts.
   Danish/Swedish/Norwegian get `true` -- a real typological split
   (Icelandic's own inflectional endings keep distinct full vowel
   qualities; mainland Scandinavian genuinely reduces toward schwa, Danish
-  especially). Danish's stød and Swedish/Norwegian's pitch accent are
-  both real, genuine suprasegmental contrasts with no fitting existing
-  mechanism (`ToneSystem` is built for genuine tone languages, not one
-  binary contrast layered on stress) -- deliberately not modeled, same
-  "note the real gap, don't force a mismatched fit" discipline as
-  English's own unmodeled noun/verb stress alternation.
+  especially). Danish's stød and Swedish/Norwegian's pitch accent are now
+  modeled -- see `WordAccentSystem` below (this bullet originally said
+  they were deliberately left unmodeled; that's stale).
+- **Word accent** (`core/phonology.py`'s `WordAccentCategory`/
+  `WordAccentSystem`, `generation/word_accent_gen.py`) models real Danish
+  stød and Swedish/Norwegian pitch accent as *one* mechanism, not two --
+  historical Scandinavian linguistics treats them as different surface
+  realizations of the same Common Scandinavian binary accent-1/accent-2
+  contrast (accent 1 from originally-monosyllabic Old Norse forms, accent
+  2 from originally-polysyllabic ones; Danish kept only the glottalization
+  component, Swedish/Norwegian kept only the pitch contour), so one
+  `realization` axis (`"glottalization"` | `"pitch"`) covers both rather
+  than two unrelated features. Deliberately *not* built as an extension of
+  `ToneSystem`: a tone language assigns pitch per syllable independent of
+  stress, while word accent is exactly one contrast tied to the stressed
+  syllable -- typologically distinct, so a language never rolls both
+  (`generate_phonology` resolves `tonal` first and skips the word-accent
+  roll entirely once it's won, and vice versa).
+  - Architecturally closer to stress than to tone: tone is fixed *before*
+    syllables are built (`word_builder.build_word`'s own long-standing
+    docstring), but word accent -- like stress -- can't be decided until
+    the accented syllable's own shape is known (Danish's default rule
+    needs the real nucleus length/coda sonority), so it's computed right
+    after `stress_index` in `build_word`, reusing the same collected
+    `syllables` list. One genuinely easy-to-get-wrong detail: stress
+    marking skips monosyllables (nothing to contrast against), but real
+    Danish stød is *canonically* a monosyllable phenomenon ("hund"
+    [hunˀ]) -- so the accented-syllable index defaults to `0` for a
+    monosyllable even though `stress_index` itself is `None` there.
+  - `core/romanization.py` owns `WORD_ACCENT_MARK` (U+02C0, non-combining,
+    same "own token, not a combining decoration" status as `STRESS_MARK`)
+    and `predict_default_word_accent` (same "lives in `core` because
+    `apply()` needs it directly" reasoning as `predict_default_stress`),
+    with two named patterns: `"monosyllabic_heavy"` (Danish) and
+    `"underived_monosyllable"` (Swedish/Norwegian). Unlike stress, there's
+    no generic cross-linguistic fallback -- most languages don't have
+    this feature, so an uncurated profile just never enables
+    `WordAccentSystem` at all, rather than falling back to some default
+    typology.
+  - The `"pitch"` realization reuses `core.phonology.TONE_DIACRITICS`'
+    two combining characters (acute/grave) directly for its own two
+    accent marks -- a practical reuse of already-proven-safe characters,
+    *not* a coupling to `ToneSystem` (mutual exclusivity is what makes
+    reusing the literal characters safe: within one scheme they can only
+    ever mean tone or word accent, never both). `"glottalization"` marks
+    only `ACCENT_1` (stød's real presence/absence shape); `"pitch"` marks
+    both categories (a genuine two-way contrast).
+  - Real Danish/Swedish/Norwegian orthography writes neither feature, so
+    `RomanizationScheme.word_accent_marking` (mirroring
+    `stress_accent_marking`) stays `""` for all three curated profiles --
+    `apply()`'s job is purely to keep the IPA-internal marks from leaking
+    into Latin output: `WORD_ACCENT_MARK` is consumed via a
+    `word_accent_after` side channel in `_tokenize` (mirroring
+    `stress_before`, so it's never emitted as a token in the first
+    place), and the two pitch-realization diacritics are stripped from a
+    vowel's `deco` before the existing tone-decoration logic could
+    mistake them for real tone. An `"irregular_only"`/`"final_only"`-style
+    rendering block (via `word_accent_marking == "marked"`) is a real,
+    designed-for hook -- `RomanizationScheme`/`ReferenceLanguageProfile`
+    both carry the field -- but not built, since no curated profile needs
+    it yet.
+  - `sound_change.py`: `word_accent` is copied through unchanged during
+    evolution, same "grammar and tone system are copied from the base
+    language unchanged" treatment `tone_system` already gets.
+    `_coin_native_word` re-derives word accent from `lineage_profiles`
+    (not the current run's `reference_profiles`, same reasoning as its
+    own stress handling) via a new `word_accent_gen.mark_stress_and_word_accent`
+    -- root_pattern.py's own templatic path uses the same function
+    (replacing its earlier `stress_gen.mark_stress`-only call), since
+    computing word accent for a flat, already-filled skeleton needs the
+    actual stress *index* that `mark_stress` computed internally but
+    never exposed. Two of the six sound-change rules needed a real fix
+    for `WORD_ACCENT_MARK`, found by the same systematic audit
+    `STRESS_MARK` got: `_apply_lenition` (via `_adjacent_real_symbol`,
+    now skipping past `WORD_ACCENT_MARK` the same way it already skipped
+    `STRESS_MARK`) and `_apply_final_devoicing` (a trailing
+    `WORD_ACCENT_MARK` was hiding the real final consonant from a plain
+    `tokens[-1]` lookup whenever the accented syllable was word-final --
+    the common case). `_simplify_clusters`/`_apply_palatalization`'s own
+    narrower interactions were judged benign (a word-accent mark sitting
+    exactly at a syllable boundary resisting cluster simplification or
+    blocking a coda-position palatalization check across that boundary),
+    same judgment call `STRESS_MARK` got for the same two rules.
+    `_apply_vowel_reduction`/`_apply_ejective_drift` are structurally
+    immune (neither ever inspects a non-vowel, non-consonant token).
+  - Curated for Danish (`glottalization`/`monosyllabic_heavy`), Swedish
+    and Norwegian (`pitch`/`underived_monosyllable`) -- Icelandic
+    untouched (no stød/pitch accent in real Icelandic).
 - Dutch's `g`/`ch` distinction is now modeled: /ɣ/ (voiced velar
   fricative -- what Dutch `g` actually represents; Dutch has no native
   /g/ stop) is a real phoneme in `phonology_gen.py`'s shared pool, Dutch's
