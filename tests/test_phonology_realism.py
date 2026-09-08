@@ -9,9 +9,11 @@ import pytest
 
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import VowelBackness
+from conlang_generator.core.romanization import STRESS_MARK
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, romanization_gen, sonority, word_builder
+from conlang_generator.generation.generator import generate_language
 from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, ReferenceLanguageProfile
 from conlang_generator.llm.fake_client import FakeLLMClient
 
@@ -1152,3 +1154,59 @@ def test_zero_strictness_and_no_source_language_leave_multiplier_fields_empty():
         assert structure.onset_symbol_multipliers == ()
         assert structure.nucleus_symbol_multipliers == ()
         assert structure.coda_symbol_multipliers == ()
+
+
+# --- Word stress (milestone: primary lexical stress) ---
+
+
+def test_full_strictness_french_words_are_overwhelmingly_stressed_on_the_last_syllable():
+    # Real French: essentially always final-syllable stress -- French's
+    # own curated stress_deviation_rate is illustratively tiny. French's
+    # own vowel symbols are all single characters and this profile
+    # doesn't model diphthongs, so "exactly one vowel character after
+    # the stress mark" is a reliable proxy for "the stressed syllable is
+    # the word's own last one."
+    french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
+    vowel_symbols = frozenset(french.vowels)
+    total = 0
+    final_stressed = 0
+    for seed in range(15):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("French",), source_language_strictness=1.0)
+        )
+        language = generate_language("French", spec, FakeLLMClient())
+        for entry in language.lexicon.entries:
+            if STRESS_MARK not in entry.ipa:
+                continue  # a monosyllable, or the reduplicated kinship path (no mark either way)
+            total += 1
+            mark_index = entry.ipa.index(STRESS_MARK)
+            rest = entry.ipa[mark_index + 1 :]
+            if sum(1 for ch in rest if ch in vowel_symbols) == 1:
+                final_stressed += 1
+    assert total > 0
+    assert final_stressed / total > 0.85
+
+
+def test_full_strictness_spanish_and_italian_never_leak_the_stress_mark_into_romanization():
+    for lang in ("Spanish", "Italian", "English", "German", "French", "Dutch"):
+        for seed in range(5):
+            spec = GenerationSpec(
+                prompt="p", seed=seed, traits=TraitProfile(source_languages=(lang,), source_language_strictness=1.0)
+            )
+            language = generate_language(lang, spec, FakeLLMClient())
+            for entry in language.lexicon.entries:
+                assert STRESS_MARK not in entry.romanization, (lang, entry.ipa, entry.romanization)
+
+
+def test_full_strictness_most_words_carry_an_embedded_stress_mark():
+    # Not every word (a monosyllable's own single syllable is trivially
+    # "the stressed one" and doesn't get marked; the reduplicated
+    # mama/papa kinship path doesn't assign stress at all -- see
+    # word_builder.build_reduplicated_word), but the overwhelming
+    # majority of a real, mixed-syllable-count lexicon should.
+    spec = GenerationSpec(
+        prompt="p", seed=2, traits=TraitProfile(source_languages=("Italian",), source_language_strictness=1.0)
+    )
+    language = generate_language("Italian", spec, FakeLLMClient())
+    marked = sum(STRESS_MARK in e.ipa for e in language.lexicon.entries)
+    assert marked > len(language.lexicon.entries) * 0.5

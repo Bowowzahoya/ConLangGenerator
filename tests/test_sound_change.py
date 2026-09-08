@@ -14,7 +14,7 @@ from collections import Counter
 from dataclasses import replace
 
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.romanization import apply_grammatical_spelling
+from conlang_generator.core.romanization import STRESS_MARK, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, sonority, sound_change
@@ -109,7 +109,10 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
     # even on a run that adds no new source_languages -- at a long
     # enough time depth that orthography reform is all but certain to
     # fire for it (years=3000 -> reform rate ~=1-e^-6, effectively 1.0),
-    # so this seed isn't relying on a lucky roll.
+    # so this seed isn't relying on a lucky roll. (Re-found against
+    # seed=0 after word-stress assignment started consuming extra rng
+    # draws during word building -- see stress_gen.py -- shifting this
+    # fixed seed's downstream results.)
     base = generate_language(
         "Dutch",
         GenerationSpec(
@@ -120,7 +123,7 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
         ),
         FakeLLMClient(),
     )
-    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=1)
+    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=0)
     x_rules = [r for r in evolved.romanization.rules if r.ipa == "x"]
     assert x_rules and all(r.latin == "ch" for r in x_rules)
 
@@ -403,14 +406,14 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # A spelling reform is a language-wide convention change, not a
     # per-word one -- it must touch every word using the reformed symbol,
     # even one whose own pronunciation didn't shift this run at all. Fixed
-    # seed known to reform several words (e.g. "rain", "name", "low") --
-    # here via orthography drift dropping the glottal-stop apostrophe mark
-    # -- while their IPA stays byte-identical to the base. (Seed 12's own
-    # base-language words shifted once lexicon_gen's syllable-count tables
-    # were recalibrated for more realistic average word length -- see
-    # lexicon_gen.py -- so this seed was re-found against the new base.)
+    # seed known to reform at least one word while its IPA stays
+    # byte-identical to the base. (Re-found against seed=0 after word-
+    # stress assignment started consuming extra rng draws during word
+    # building -- see stress_gen.py -- shifting this fixed seed's
+    # downstream results, same "seed-shift from new content" pattern
+    # documented elsewhere in this project's history.)
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=1)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=0)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)
@@ -458,3 +461,32 @@ def test_stability_tier_scales_replacement_rate():
         return sound_change._replacement_rate(3000, TraitProfile(contact_intensity=0.5), pos)
 
     assert _rate(PartOfSpeech.PRONOUN) < _rate(PartOfSpeech.VERB)
+
+
+# --- Stress-aware vowel reduction ---
+
+
+def test_vowel_reduction_spares_the_stressed_vowel_not_the_first_one():
+    # "paˈtaka" -- stress on the *second* syllable -- must spare that
+    # vowel specifically, not the word's first vowel the way the old,
+    # position-blind heuristic did.
+    tokens = [("p", ""), ("a", ""), (STRESS_MARK, ""), ("t", ""), ("a", ""), ("k", ""), ("a", "")]
+    result = sound_change._apply_vowel_reduction(tokens, random.Random(0), rate=1.0, vowel_by_ipa=_VOWEL_BY_IPA)
+    symbols = [s for s, _ in result]
+    assert symbols == ["p", "ə", STRESS_MARK, "t", "a", "k", "ə"]
+
+
+def test_vowel_reduction_falls_back_to_the_first_vowel_heuristic_with_no_stress_marker():
+    tokens = [("p", ""), ("a", ""), ("t", ""), ("a", ""), ("k", ""), ("a", "")]
+    result = sound_change._apply_vowel_reduction(tokens, random.Random(0), rate=1.0, vowel_by_ipa=_VOWEL_BY_IPA)
+    symbols = [s for s, _ in result]
+    assert symbols == ["p", "a", "t", "ə", "k", "ə"]
+
+
+def test_stress_mark_survives_diachronic_evolution_at_zero_years():
+    base = _base_language()
+    evolved = evolve_language("Evolved", base, 0, TraitProfile(), seed=1)
+    for old, new in zip(base.lexicon.entries, evolved.lexicon.entries):
+        assert (STRESS_MARK in old.ipa) == (STRESS_MARK in new.ipa)
+        if STRESS_MARK in old.ipa:
+            assert old.ipa.count(STRESS_MARK) == new.ipa.count(STRESS_MARK) == 1

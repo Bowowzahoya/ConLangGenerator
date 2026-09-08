@@ -878,3 +878,79 @@ def test_english_ɔi_and_ei_split_by_following_position():
     assert scheme.apply("b" + oi) == "boy"
     assert scheme.apply("dein") == "dain"
     assert scheme.apply("dei") == "day"
+
+
+# --- Word stress: profile curation and Spanish/Italian's real accent marks ---
+
+
+def test_the_six_perfected_languages_declare_a_real_stress_pattern():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["French"].stress_pattern == "final"
+    assert by_name["Spanish"].stress_pattern == "penultimate_or_final_by_coda"
+    assert by_name["Italian"].stress_pattern == "lexical"
+    assert by_name["German"].stress_pattern == "initial"
+    assert by_name["Dutch"].stress_pattern == "initial"
+    assert by_name["English"].stress_pattern == "lexical"
+    for name in ("French", "Spanish", "Italian", "German", "Dutch", "English"):
+        assert by_name[name].stress_deviation_rate is not None
+
+
+def test_most_profiles_leave_stress_pattern_uncurated():
+    curated = {"French", "Spanish", "Italian", "German", "Dutch", "English"}
+    for profile in REFERENCE_LANGUAGES:
+        if profile.name not in curated:
+            assert profile.stress_pattern == ""
+            assert profile.stress_deviation_rate is None
+            assert profile.stress_accent_marking == ""
+
+
+def test_only_spanish_and_italian_declare_a_real_stress_accent_marking():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["Spanish"].stress_accent_marking == "irregular_only"
+    assert by_name["Italian"].stress_accent_marking == "final_only"
+    for name in ("French", "German", "Dutch", "English"):
+        assert by_name[name].stress_accent_marking == ""
+
+
+def test_spanish_marks_stress_only_when_it_deviates_from_the_predictable_default():
+    # Real Spanish: casa/comen (vowel/n-final, penultimate -- the
+    # default) stay unmarked; corazón-shaped irregular final stress on a
+    # vowel-final word gets the accent. papel-shaped (l-final, final
+    # stress) is itself the *regular* case for a non-n/s-final word and
+    # stays unmarked; stressing that same shape on the penultimate
+    # instead is what's irregular there, and gets accented.
+    spanish = next(p for p in REFERENCE_LANGUAGES if p.name == "Spanish")
+    inventory = _inventory_for(spanish)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("Spanish",), strictness=1.0))
+        and s.stress_accent_marking == "irregular_only"
+    )
+    # The middle "s" is Spanish's own real, independent seseo s/z/c
+    # alternation (see the earlier weighted-spelling tests) -- unrelated
+    # to stress, so both letters are accepted here; only the presence or
+    # absence, and position, of the accent mark is under test.
+    S = "ˈ"
+    assert scheme.apply("k" + S + "asa") in {"casa", "caza"}          # penultimate, vowel-final -- regular
+    assert scheme.apply("kas" + S + "a") in {"casá", "cazá"}          # final, vowel-final -- irregular, accented
+    assert scheme.apply("pap" + S + "el") == "papel"                  # final, l-final -- regular
+    assert scheme.apply(S + "papel") == "pápel"                       # penultimate, l-final -- irregular, accented
+
+
+def test_italian_marks_stress_only_on_the_final_syllable():
+    # Real Italian: a grave accent appears whenever the last syllable is
+    # stressed (città/perché-style), regardless of any other measure of
+    # "regularity" -- non-final stress (the majority pattern) never gets
+    # marked at all, even though it's also genuinely lexical/unpredictable.
+    italian = next(p for p in REFERENCE_LANGUAGES if p.name == "Italian")
+    inventory = _inventory_for(italian)
+    scheme = next(
+        s
+        for seed in _SEEDS
+        if (s := generate_romanization(random.Random(seed), inventory, ("Italian",), strictness=1.0))
+        and s.stress_accent_marking == "final_only"
+    )
+    S = "ˈ"
+    assert scheme.apply("kit" + S + "a") == "chitá"  # final syllable stressed -- accented
+    assert scheme.apply(S + "kita") == "chita"        # non-final stressed -- unmarked

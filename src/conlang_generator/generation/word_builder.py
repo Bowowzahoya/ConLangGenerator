@@ -25,6 +25,7 @@ from conlang_generator.core.phonology import (
     VowelBackness,
     VowelHeight,
 )
+from conlang_generator.generation import stress_gen
 
 _SMALL_HEIGHTS = (VowelHeight.CLOSE, VowelHeight.NEAR_CLOSE)
 _BIG_HEIGHTS = (VowelHeight.OPEN, VowelHeight.NEAR_OPEN)
@@ -241,17 +242,48 @@ def build_word(
     num_syllables: int,
     tone_marks: tuple[str, ...] = (),
     size_bias: str | None = None,
+    stress_pattern: str = "",
+    stress_deviation_rate: float | None = None,
+    stress_strictness: float = 0.0,
 ) -> str:
+    """``stress_pattern``/``stress_deviation_rate``/``stress_strictness``
+    are the already-resolved values from whichever matched
+    ``ReferenceLanguageProfile`` won (see
+    ``lexicon_gen._resolve_stress_pattern``) -- this module has no
+    dependency on ``reference_languages`` itself, only on
+    ``stress_gen``, which doesn't either. Stress can't be decided until
+    *after* every syllable is built (unlike a tone mark, which is fixed
+    per syllable in advance): real Spanish's own default rule depends on
+    the word's actual final coda, which only exists once the last
+    syllable has actually been chosen -- so this collects every
+    syllable's ``(onset, nucleus, coda)`` first, calls
+    ``stress_gen.assign_stress`` with the real final syllable's own
+    coda, and only then assembles the final string with
+    ``stress_gen.STRESS_MARK`` prepended to the stressed syllable's own
+    onset."""
     marks = tone_marks or ("",) * num_syllables
     harmony_class: VowelBackness | None = None
     if structure.vowel_harmony:
         harmony_class = rng.choice([VowelBackness.FRONT, VowelBackness.BACK])
-    parts: list[str] = []
+    syllables: list[tuple[tuple[str, ...], str, tuple[str, ...]]] = []
     prev_coda_final: str | None = None
-    for i in range(num_syllables):
+    for _ in range(num_syllables):
         onset, nucleus, coda = _build_syllable_parts(rng, inventory, structure, harmony_class, size_bias, prev_coda_final)
-        parts.append("".join(onset) + nucleus + marks[i] + "".join(coda))
+        syllables.append((onset, nucleus, coda))
         prev_coda_final = coda[-1] if coda else None
+    # A monosyllable's own single syllable is trivially "the stressed
+    # one" -- marking it conveys nothing (there's no other syllable to
+    # contrast it with), the same reasoning real dictionary transcription
+    # conventions already use to omit it there.
+    stress_index = (
+        stress_gen.assign_stress(rng, num_syllables, syllables[-1][2], stress_pattern, stress_deviation_rate, stress_strictness)
+        if num_syllables > 1
+        else None
+    )
+    parts: list[str] = []
+    for i, (onset, nucleus, coda) in enumerate(syllables):
+        prefix = stress_gen.STRESS_MARK if i == stress_index else ""
+        parts.append(prefix + "".join(onset) + nucleus + marks[i] + "".join(coda))
     return "".join(parts)
 
 

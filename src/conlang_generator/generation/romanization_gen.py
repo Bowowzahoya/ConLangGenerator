@@ -424,6 +424,41 @@ def _resolve_syllable_boundary_marker(
     return default
 
 
+def _resolve_stress_accent_marking(
+    rng: random.Random,
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    default: str,
+    strictness: float,
+) -> str:
+    """A matched profile's own ``stress_accent_marking`` override (e.g.
+    real Spanish's irregular-only á/é/í/ó/ú) gets the same probabilistic
+    shot as ``syllable_boundary_marker`` above, and the same "only
+    consulted by ``generate_romanization``" carve-out -- ``evolve_romanization``
+    reconstructs the already-resolved value from the base scheme instead
+    (via ``_category_from_scheme``), so a language's stress-marking
+    convention doesn't randomly drift mid-evolution."""
+    for profile in reference_profiles:
+        if profile.stress_accent_marking and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
+            return profile.stress_accent_marking
+    return default
+
+
+def _resolve_stress_pattern(reference_profiles: tuple[ReferenceLanguageProfile, ...]) -> str:
+    """The matched profile's own ``stress_pattern``, for
+    ``RomanizationScheme.stress_pattern`` -- unlike ``stress_accent_marking``
+    (a category-family-level axis with its own probabilistic-adoption
+    roll), this is always just "whichever matched profile's own value,
+    if any" outright, the same first-match-wins rule
+    ``generation.stress_gen.resolve_stress_pattern`` already uses for
+    stress *assignment* -- ``apply()``'s own "irregular_only" marking
+    needs to compare against the exact same pattern assignment actually
+    used, not an independently-rolled one."""
+    for profile in reference_profiles:
+        if profile.stress_pattern:
+            return profile.stress_pattern
+    return ""
+
+
 def _resolve_joint_spellings(
     rng: random.Random,
     reference_profiles: tuple[ReferenceLanguageProfile, ...],
@@ -635,6 +670,7 @@ def _category_from_scheme(scheme: RomanizationScheme) -> OrthographyCategory:
         tone_strategy=scheme.tone_strategy,
         tone_markers=scheme.tone_markers,
         syllable_boundary_marker=scheme.syllable_boundary_marker,
+        stress_accent_marking=scheme.stress_accent_marking,
         consonant_gemination_marked=scheme.consonant_gemination_marked,
     )
 
@@ -1059,6 +1095,10 @@ def generate_romanization(
     syllable_boundary_marker = _resolve_syllable_boundary_marker(
         rng, reference_profiles, category.syllable_boundary_marker, effective_strictness
     )
+    stress_accent_marking = _resolve_stress_accent_marking(
+        rng, reference_profiles, category.stress_accent_marking, effective_strictness
+    )
+    stress_pattern = _resolve_stress_pattern(reference_profiles)
     structural = _structural_rules(category, inventory)
     rules: list[RomanizationRule] = []
     for symbol in inventory.all_symbols():
@@ -1089,6 +1129,8 @@ def generate_romanization(
         short_vowel_consonant_doubling=category.short_vowel_consonant_doubling,
         exotic_symbol_style=category.exotic_symbol_style,
         syllable_boundary_marker=syllable_boundary_marker,
+        stress_accent_marking=stress_accent_marking,
+        stress_pattern=stress_pattern,
         consonant_gemination_marked=category.consonant_gemination_marked,
         grammatical_spelling=grammatical_spelling,
     )
@@ -1233,6 +1275,8 @@ def evolve_romanization(
         short_vowel_consonant_doubling=category.short_vowel_consonant_doubling,
         exotic_symbol_style=category.exotic_symbol_style,
         syllable_boundary_marker=category.syllable_boundary_marker,
+        stress_accent_marking=category.stress_accent_marking,
+        stress_pattern=base_scheme.stress_pattern,
         consonant_gemination_marked=category.consonant_gemination_marked,
         grammatical_spelling=base_scheme.grammatical_spelling,
     )

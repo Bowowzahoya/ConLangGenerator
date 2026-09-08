@@ -86,7 +86,7 @@ from dataclasses import dataclass
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon
 from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, VowelBackness
-from conlang_generator.core.romanization import OrthographyForce, apply_grammatical_spelling
+from conlang_generator.core.romanization import STRESS_MARK, OrthographyForce, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import (
@@ -97,6 +97,7 @@ from conlang_generator.generation import (
     romanization_gen,
     root_pattern,
     sonority,
+    stress_gen,
     word_builder,
 )
 
@@ -240,6 +241,24 @@ def _simplify_clusters(tokens: list[Token], rng: random.Random, rate: float, con
     return result
 
 
+def _adjacent_real_symbol(tokens: list[Token], index: int, step: int) -> str | None:
+    """The nearest real phoneme symbol in ``tokens`` from ``index``,
+    stepping by ``step`` (+1/-1), skipping past any ``STRESS_MARK``
+    token in between -- stress always sits at a syllable boundary, i.e.
+    exactly where an intervocalic check like ``_apply_lenition``'s looks,
+    so treating it as a real neighbor would wrongly break that check for
+    every leniting consonant that happens to open a stressed syllable
+    (systematic, not a rare edge case -- unlike a couple of the other
+    five rules' own narrower interactions with a stress marker, this one
+    needs an explicit fix). ``None`` if there's no real symbol that way."""
+    j = index + step
+    while 0 <= j < len(tokens):
+        if tokens[j][0] != STRESS_MARK:
+            return tokens[j][0]
+        j += step
+    return None
+
+
 def _apply_lenition(tokens: list[Token], rng: random.Random, rate: float, vowel_by_ipa: dict) -> list[Token]:
     if rate <= 0:
         return tokens
@@ -247,7 +266,9 @@ def _apply_lenition(tokens: list[Token], rng: random.Random, rate: float, vowel_
     for i, (symbol, deco) in enumerate(result):
         if symbol not in _VOICELESS_TO_VOICED or i == 0 or i == len(result) - 1:
             continue
-        if result[i - 1][0] in vowel_by_ipa and result[i + 1][0] in vowel_by_ipa and rng.random() < rate:
+        before = _adjacent_real_symbol(result, i, -1)
+        after = _adjacent_real_symbol(result, i, 1)
+        if before in vowel_by_ipa and after in vowel_by_ipa and rng.random() < rate:
             result[i] = (_VOICELESS_TO_VOICED[symbol], deco)
     return result
 
@@ -286,15 +307,34 @@ def _apply_palatalization(tokens: list[Token], rng: random.Random, rate: float, 
 
 
 def _apply_vowel_reduction(tokens: list[Token], rng: random.Random, rate: float, vowel_by_ipa: dict) -> list[Token]:
+    """Every vowel *except the stressed one* is a candidate to reduce
+    toward schwa -- the real, stress-driven phenomenon this rule's own
+    half-life comment already named (English/Russian/Portuguese). The
+    protected vowel is whichever one immediately follows a real
+    ``STRESS_MARK`` token, found fresh in *this* call's own ``tokens``
+    (not threaded from word-building) since it needs to survive whatever
+    ``_simplify_clusters``/``_apply_lenition``/``_apply_final_devoicing``
+    already did to this same list earlier in ``_evolve_ipa``'s pipeline.
+    Falls back to the older, position-blind "not the first vowel"
+    heuristic when a word has no stress marker at all -- an uncurated
+    language, or a coining path that doesn't assign one -- same
+    abstain-gracefully discipline used throughout this project when
+    curated/derived data is missing."""
     if rate <= 0:
         return tokens
     result = list(tokens)
-    seen_first_vowel = False
+    stress_index = next((i for i, (symbol, _) in enumerate(result) if symbol == STRESS_MARK), None)
+    protected_index = (
+        next((i for i in range(stress_index + 1, len(result)) if result[i][0] in vowel_by_ipa), None)
+        if stress_index is not None
+        else None
+    )
+    if protected_index is None:
+        # No stress marker (or nothing followed it) -- the pre-stress
+        # heuristic, spared vowel is just the first one in the word.
+        protected_index = next((i for i, (symbol, _) in enumerate(result) if symbol in vowel_by_ipa), None)
     for i, (symbol, deco) in enumerate(result):
-        if symbol not in vowel_by_ipa:
-            continue
-        if not seen_first_vowel:
-            seen_first_vowel = True
+        if symbol not in vowel_by_ipa or i == protected_index:
             continue
         if symbol != "ə" and rng.random() < rate:
             result[i] = ("ə", deco)
@@ -428,7 +468,15 @@ def _coin_native_word(
     if grammar.uses_root_and_pattern and entry.pos in root_pattern.TEMPLATIC_POS and grammar.templates:
         template = root_pattern.template_for_pos(rng, grammar.templates, entry.pos)
         root = root_pattern.generate_root(rng, inventory, structure, template.skeleton)
-        return root_pattern.fill_template(template, root), root
+        root_iter = iter(root)
+        filled_symbols = tuple(next(root_iter) if slot == "C" else slot for slot in template.skeleton)
+        vowel_symbols = frozenset(v.ipa for v in inventory.vowels)
+        # Generic baseline stress only (no reference-profile threading
+        # into this narrow evolution-time coining path) -- still real
+        # stress data for the new stress-aware `_apply_vowel_reduction`
+        # to key on, rather than none at all.
+        stressed = stress_gen.mark_stress(rng, filled_symbols, vowel_symbols, "", None, 0.0)
+        return stressed, root
 
     num_syllables = lexicon_gen.choose_syllable_count(rng, entry.pos, favor_short=True)
     tone_marks: tuple[str, ...] = ()

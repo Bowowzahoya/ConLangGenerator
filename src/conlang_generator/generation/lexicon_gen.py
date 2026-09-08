@@ -16,7 +16,7 @@ import random
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, ToneSystem
 from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
-from conlang_generator.generation import word_builder
+from conlang_generator.generation import stress_gen, word_builder
 from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
@@ -190,6 +190,8 @@ def _resolve_average_syllables(reference_profiles: tuple[ReferenceLanguageProfil
     return sum(values) / len(values) if values else None
 
 
+
+
 def _propose_kinship_word(
     rng: random.Random,
     inventory: PhonemeInventory,
@@ -308,9 +310,11 @@ def propose_word(
         if kinship_entry is not None:
             return kinship_entry
 
-    average_syllables = _resolve_average_syllables(match_profiles(source_languages))
+    reference_profiles = match_profiles(source_languages)
+    average_syllables = _resolve_average_syllables(reference_profiles)
     num_syllables = choose_syllable_count(rng, pos, favor_short, average_syllables, strictness)
     size_bias = _SIZE_BIAS_GLOSSES.get(gloss_key)
+    stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(reference_profiles)
 
     tones: tuple = ()
     tone_marks: tuple[str, ...] = ()
@@ -321,7 +325,10 @@ def propose_word(
     seen: set[str] = set()
     candidates: list[str] = []
     for _ in range(num_candidates):
-        word = word_builder.build_word(rng, inventory, structure, num_syllables, tone_marks, size_bias=size_bias)
+        word = word_builder.build_word(
+            rng, inventory, structure, num_syllables, tone_marks, size_bias=size_bias,
+            stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=strictness,
+        )
         if word not in seen:
             seen.add(word)
             candidates.append(word)

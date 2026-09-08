@@ -653,6 +653,74 @@ Everything here is a pure function of a `random.Random` seeded from
   generation if the inventory has neither or the roll misses) -- the
   mama/papa convergence; `"small"`/`"big"` thread `size_bias` into the
   normal candidate-build loop instead of replacing it.
+- **`stress_gen.py`**: primary lexical word-stress -- which syllable of a
+  word is stressed, stored as the standard IPA mark `ˈ` (U+02C8) directly
+  before the stressed syllable's onset (e.g. Italian `parˈlare`), not as
+  a separate structured field (unlike tone, the embedded mark is the
+  single source of truth -- every consumer re-tokenizes the IPA string
+  when it needs the position, rather than risking two representations
+  drifting apart). `STRESS_MARK`/`predict_default_stress` live in
+  `core/romanization.py`, not here -- `core.romanization.apply()`'s own
+  stress-accent rendering (see below) needs them directly, and `core`
+  can't depend on `generation`. `predict_default_stress(num_syllables,
+  pattern, final_coda)` is pure and deterministic: `"final"` (French,
+  ~always the last syllable), `"initial"` (German/Dutch, ~the root's
+  first), `"penultimate_or_final_by_coda"` (real Spanish: penultimate if
+  the word ends in a vowel/n/s, final otherwise), or `"lexical"`
+  (English/Italian -- majority-penultimate for Italian, genuinely
+  unpredictable for English; a further real refinement, English's own
+  noun/verb stress alternation like ˈrecord/reˈcord, isn't modeled).
+  `assign_stress()` picks the actual syllable per word: a bernoulli gate
+  on `strictness` decides per word whether *this* word uses the matched
+  profile's own pattern+deviation-rate pairing at all, or the generic
+  penultimate-leaning baseline -- deliberately not a continuous blend of
+  the two (there's no coherent "70% initial-stress" middle ground for a
+  single word the way a numeric rate can interpolate); deterministic at
+  `strictness=1.0`, pure baseline at `0.0`. `word_builder.build_word`
+  can't decide stress until *after* every syllable is built (real
+  Spanish's own rule depends on the actual final coda, which doesn't
+  exist yet when syllable count alone is known) -- it collects each
+  syllable's `(onset, nucleus, coda)` first, then calls `assign_stress`
+  with the real final syllable's coda. `root_pattern.py`'s templatic path
+  has no per-syllable build loop to hook into -- `mark_stress()` is a
+  post-processing step on the chosen candidate's already-filled skeleton,
+  syllabifying it via `syllable_onset_starts()` (the maximal-onset
+  principle, the phoneme-symbol-level equivalent of
+  `core.romanization`'s own `_coda_run_length`). Monosyllables are never
+  marked at all (nothing to contrast against, the same reason real
+  dictionary transcription omits it there). `_tokenize` in
+  `core/romanization.py` extracts `STRESS_MARK` into a side-channel index
+  (`stress_before`) rather than a real token -- it precedes its syllable
+  and isn't a Unicode combining mark, so it can't ride the existing
+  trailing-decoration slurp, and keeping it out of the token list
+  entirely means zero risk to any existing following/preceding-conditioned
+  rule. `apply()` then either drops it silently (`stress_accent_marking
+  == ""`, most languages) or rewrites the stressed vowel's own letter in
+  place via `_STRESS_ACCENT_MAP` -- `"final_only"` (real Italian: città,
+  perché) when it's the word's last syllable, `"irregular_only"` (real
+  Spanish: corazón, está) when the actual syllable differs from what
+  `predict_default_stress` would have predicted -- the same "rewrite this
+  vowel's own letter" shape `SyllableBoundaryMarker.DIAERESIS` already
+  uses for French tréma, resolved in `romanization_gen.py` via
+  `_resolve_stress_accent_marking`, following `_resolve_syllable_boundary_marker`'s
+  own precedent exactly (a per-profile override on top of whatever
+  `OrthographyCategory` resolved, carried forward unchanged -- not
+  re-rolled -- by `evolve_romanization`). `sound_change.py`'s
+  `ipa_tokenizer.tokenize()` keeps `STRESS_MARK` as a genuine token
+  (unlike `core.romanization`'s side-channel approach) so it survives
+  the six sound-change rules' own token-list mutations without separate
+  index bookkeeping; `_apply_lenition`'s intervocalic check needed an
+  explicit "skip past a stress marker" fix (stress systematically sits
+  exactly where that check looks -- right before a syllable's onset --
+  so leaving it unfixed would have silently suppressed lenition for
+  every stressed-syllable onset). The actual payoff: `_apply_vowel_reduction`
+  -- previously a position-blind "reduce every vowel except the word's
+  first" approximation of unstressed-vowel-to-schwa reduction (English/
+  Russian/Portuguese) -- now protects the vowel that actually follows the
+  stress marker, falling back to the old first-vowel heuristic only when
+  a word has no stress data at all (an uncurated language, or a narrow
+  evolution-time native-coinage path that only gets the generic baseline
+  rather than a matched profile's own pattern).
 - **`generator.py`**: `generate_language()` -- orchestrates the above into
   one `Language`. Builds a `LexicalEntry` directly from each
   `spec.seed_examples` entry (skipping `CORE_MEANINGS` generation for any

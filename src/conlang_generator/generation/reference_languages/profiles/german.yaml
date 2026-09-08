@@ -8,6 +8,8 @@ tonal: false
 coda_devoicing: true
 orthography_category: germanic-doubling-style
 capitalized_pos: [noun]  # real German capitalizes every common noun, not just proper nouns
+stress_pattern: initial  # real German: usually the root's first syllable (Wasser, Mutter, Vater)
+stress_deviation_rate: 0.2  # illustrative -- loanwords and certain separable/inseparable-prefix verbs are the real exceptions
 restricted_onset_consonants: ["ŋ"]  # /ŋ/ is coda/medial-only in real German, never opens a syllable
 restricted_coda_consonants: [j]  # German diphthongs (ai/au/œy) are vowel symbols, not consonant codas; German doesn't model /w/ as a consonant at all
 attested_onset_clusters:

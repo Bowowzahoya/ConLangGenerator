@@ -63,6 +63,9 @@ onset_frequency_tiers:              # optional, defaults empty -- in-word freque
   rare: ["ð"]
 nucleus_frequency_tiers: {}         # optional, defaults empty -- same tier shape, for vowels
 coda_frequency_tiers: {}            # optional, defaults empty -- same tier shape, for coda consonants
+stress_pattern: ""                  # optional, defaults empty -- e.g. "penultimate_or_final_by_coda"
+stress_deviation_rate: null         # optional, defaults null -- e.g. 0.15, how often a word deviates from that default
+stress_accent_marking: ""           # optional, defaults empty -- e.g. "irregular_only" (real Spanish's á/é/í/ó/ú)
 ```
 
 ``orthography`` entries are ``RomanizationRule``s -- see its docstring for
@@ -276,6 +279,39 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     but one of the most productive codas in the language (the
     "-cht"/"-acht" family: nacht, recht, acht) -- which is why this is
     three separate fields rather than one flat per-symbol table."""
+    stress_pattern: str = ""
+    """How this language predicts a word's stress position from its own
+    shape -- ``"final"`` (French: essentially always the last syllable),
+    ``"penultimate"`` (a simple, cross-linguistically common default),
+    ``"penultimate_or_final_by_coda"`` (real Spanish: penultimate if the
+    word ends in a vowel or in ``n``/``s``, final otherwise),
+    ``"initial"`` (German/Dutch: usually the root's first syllable), or
+    ``"lexical"`` (English, and Italian's own majority-penultimate-but-
+    genuinely-lexical pattern) -- consumed by
+    ``generation.stress_gen.predict_default_stress``/``assign_stress``.
+    Empty (the common case) means not curated -- abstains, same
+    convention as every other field above. Only consulted when
+    ``source_language_strictness`` > 0."""
+    stress_deviation_rate: float | None = None
+    """How often a real word's actual stress deviates from this
+    language's own predictable default above -- illustrative, not a
+    corpus statistic, same honesty standard as every other curated rate
+    in this project. ``None`` (the common case) means not curated --
+    ``generation.stress_gen.assign_stress`` falls back to a generic
+    cross-linguistic baseline rate instead."""
+    stress_accent_marking: str = ""
+    """Whether/how this language's real orthography writes stress at
+    all -- ``""`` (the common case: most languages, including English/
+    German/French/Dutch, never write it), ``"irregular_only"`` (real
+    Spanish: an accent mark appears only on the vowel of a syllable
+    whose stress deviates from this language's own predictable default
+    above -- pizza/pero are unmarked because they follow the rule,
+    corazón/está are marked because they don't), ``"final_only"`` (real
+    Italian: an accent mark appears whenever the *last* syllable is
+    stressed -- città/perché -- regardless of whether that's "regular"
+    by any other measure). Only consulted when
+    ``source_language_strictness`` > 0 -- see
+    ``core.romanization.RomanizationScheme.apply()``."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

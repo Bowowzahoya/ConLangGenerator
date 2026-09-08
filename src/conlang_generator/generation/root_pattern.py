@@ -25,8 +25,9 @@ from conlang_generator.core.grammar import WordTemplate
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure
 from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
-from conlang_generator.generation import sonority, word_builder
+from conlang_generator.generation import sonority, stress_gen, word_builder
 from conlang_generator.generation.lexicon_gen import choose_best_candidate
+from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient
 
 TEMPLATIC_POS: frozenset[PartOfSpeech] = frozenset({PartOfSpeech.NOUN, PartOfSpeech.VERB, PartOfSpeech.ADJECTIVE})
@@ -233,6 +234,8 @@ def propose_templatic_word(
     structure: SyllableStructure | None = None,
     num_candidates: int = 5,
     context: str = "",
+    source_languages: tuple[str, ...] = (),
+    strictness: float = 0.0,
 ) -> LexicalEntry:
     """Pick a template matching ``pos`` (varying across same-POS calls,
     for real variety across e.g. multiple nouns), generate several root
@@ -240,7 +243,15 @@ def propose_templatic_word(
     best-sounding one -- same candidate-then-pick shape as
     ``lexicon_gen.propose_word``. ``structure``, when given, makes every
     generated root respect this language's own onset/coda/onset-nucleus
-    restrictions -- see ``generate_root``'s own docstring."""
+    restrictions -- see ``generate_root``'s own docstring. ``source_languages``/
+    ``strictness`` resolve stress the same way ``lexicon_gen.propose_word``
+    does; a templatic word has no per-syllable build loop of its own to
+    hook stress into, so it's assigned as a post-processing step on the
+    chosen candidate's already-filled skeleton (see
+    ``stress_gen.mark_stress``) -- a real approximation for languages
+    whose actual stress typology depends on morphological structure the
+    way Semitic languages' own does, not attempted in depth here, same
+    spirit as this module's other simplifications."""
     template = template_for_pos(rng, templates, pos)
 
     seen: set[tuple[str, ...]] = set()
@@ -255,9 +266,15 @@ def propose_templatic_word(
     chosen = choose_best_candidate(rng, candidates, gloss, pos, llm_client, language_name, context)
     chosen_root = roots[candidates.index(chosen)]
 
+    root_iter = iter(chosen_root)
+    filled_symbols = tuple(next(root_iter) if slot == "C" else slot for slot in template.skeleton)
+    vowel_symbols = frozenset(v.ipa for v in inventory.vowels)
+    stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(match_profiles(source_languages))
+    stressed = stress_gen.mark_stress(rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, strictness)
+
     return LexicalEntry(
-        ipa=chosen,
-        romanization=apply_grammatical_spelling(romanization, romanization.apply(chosen), pos),
+        ipa=stressed,
+        romanization=apply_grammatical_spelling(romanization, romanization.apply(stressed), pos),
         glosses=(gloss,),
         pos=pos,
         root=chosen_root,

@@ -83,6 +83,52 @@ _DIAERESIS_MAP: dict[str, str] = {"a": "ä", "e": "ë", "i": "ï", "o": "ö", "u
 """``SyllableBoundaryMarker.DIAERESIS``'s letter substitution table --
 real French tréma (Noël, naïve)."""
 
+_STRESS_ACCENT_MAP: dict[str, str] = {"a": "á", "e": "é", "i": "í", "o": "ó", "u": "ú"}
+"""``stress_accent_marking``'s letter substitution table -- real
+Spanish's acute accent (á/é/í/ó/ú), rewriting the stressed vowel's own
+first letter in place, the same shape ``_DIAERESIS_MAP`` already uses for
+French tréma."""
+
+STRESS_MARK = "ˈ"
+"""IPA primary stress: MODIFIER LETTER VERTICAL LINE (U+02C8), inserted
+directly before a stressed syllable's onset -- ``generation.word_builder``/
+``generation.root_pattern``'s own stress-assignment machinery
+(``generation.stress_gen``) embeds this in a word's raw IPA string, so
+``core`` -- which knows nothing about ``generation`` -- is the shared home
+for the literal character both sides need to agree on, the same role
+``core.phonology.TONE_DIACRITICS`` already plays for tone. Not a Unicode
+*combining* mark (``unicodedata.combining()`` is 0 for it) and it precedes
+the syllable it marks rather than decorating one vowel from behind, so
+``_tokenize`` gives it its own explicit handling below rather than
+reusing the trailing-combining-mark slurp tone diacritics ride on."""
+
+
+def predict_default_stress(num_syllables: int, pattern: str, final_coda: tuple[str, ...] = ()) -> int:
+    """The syllable index (0-based) ``pattern`` alone would predict, with
+    no per-word randomness. Lives here (not in ``generation.stress_gen``,
+    which imports it back) because ``apply()``'s own
+    ``"irregular_only"`` stress-accent rendering needs it directly, and
+    ``core`` can't depend on ``generation`` -- same reasoning as
+    ``STRESS_MARK`` itself living here. ``final_coda`` -- the word's own
+    last syllable's coda consonants, empty if it ends in a vowel -- is
+    only consulted by ``"penultimate_or_final_by_coda"`` (real Spanish:
+    the default is penultimate if the word ends in a vowel or in
+    ``n``/``s``, final otherwise); every other pattern ignores it.
+    Unrecognized or empty ``pattern`` falls back to plain penultimate --
+    one of the cross-linguistically most common unmarked defaults, the
+    same role ``"penultimate"`` itself plays when explicitly curated."""
+    if num_syllables <= 1:
+        return 0
+    if pattern == "final":
+        return num_syllables - 1
+    if pattern == "initial":
+        return 0
+    if pattern == "penultimate_or_final_by_coda":
+        if not final_coda or final_coda[-1] in ("n", "s"):
+            return num_syllables - 2
+        return num_syllables - 1
+    return num_syllables - 2  # "penultimate", "lexical", and the generic fallback
+
 
 def _stable_local_choice(payload: str, options: list, weights: list[float]):
     """A weighted pick that's reproducible for the same ``payload`` (and
@@ -332,6 +378,31 @@ class RomanizationScheme(BaseModel, frozen=True):
     short_vowel_consonant_doubling: bool = False
     exotic_symbol_style: ExoticSymbolStyle = ExoticSymbolStyle.DIGRAPH
     syllable_boundary_marker: SyllableBoundaryMarker = SyllableBoundaryMarker.NONE
+    stress_accent_marking: str = ""
+    """Whether/how this scheme's real orthography writes word stress at
+    all -- ``""`` (the common case: most languages never write it, so
+    ``STRESS_MARK`` is simply consumed and never rendered -- see
+    ``apply()``), ``"irregular_only"`` (real Spanish: an accent mark
+    appears only on the vowel of a syllable whose stress deviates from
+    what ``generation.stress_gen.predict_default_stress`` would have
+    predicted by default for this word -- pizza/pero are unmarked
+    because they follow the rule, corazón/está are marked because they
+    don't), ``"final_only"`` (real Italian: an accent mark appears
+    whenever the *last* syllable is stressed -- città/perché --
+    regardless of whether that's "regular" by any other measure). A
+    per-``ReferenceLanguageProfile`` override, the same role
+    ``syllable_boundary_marker`` plays for French's own tréma -- not
+    every language pointing at the same ``OrthographyCategory`` shares
+    this, so it's resolved independently rather than baked into the
+    category itself."""
+    stress_pattern: str = ""
+    """The matched profile's own ``stress_pattern`` (see
+    ``ReferenceLanguageProfile``'s own docstring) -- carried onto the
+    scheme purely so ``apply()`` can recompute what this word's default
+    stress *would* have been for ``"irregular_only"`` marking, without
+    needing a word's part of speech or any other context ``apply()``
+    doesn't already have. Empty means no curated pattern -- the generic
+    baseline (see ``stress_gen.predict_default_stress``)."""
     consonant_gemination_marked: bool = False
     """Whether a phonemically long/geminate consonant (``core.phonology.Consonant.long``,
     e.g. Italian "sono" vs. "sonno") doubles its own letter -- distinct
@@ -374,17 +445,30 @@ class RomanizationScheme(BaseModel, frozen=True):
     def _known_symbols(self) -> list[str]:
         return sorted({rule.ipa for rule in self.rules}, key=len, reverse=True)
 
-    def _tokenize(self, ipa_text: str) -> list[tuple[str | None, str, str]]:
+    def _tokenize(self, ipa_text: str) -> tuple[list[tuple[str | None, str, str]], int | None]:
         """Greedy longest-match against this scheme's own ipa symbols.
-        Returns ``(symbol, decoration, raw)`` triples: a matched symbol
-        carries its trailing combining-mark decoration in ``decoration``
-        (``raw`` empty); an unrecognized character is carried in ``raw``
-        verbatim (``symbol`` is ``None``), matching this scheme's long-
-        standing "unmapped input passes through unchanged" contract."""
+        Returns ``(tokens, stress_before)``: ``tokens`` is a list of
+        ``(symbol, decoration, raw)`` triples exactly as before (a matched
+        symbol carries its trailing combining-mark decoration in
+        ``decoration``, ``raw`` empty; an unrecognized character is
+        carried in ``raw`` verbatim, ``symbol`` is ``None`` -- this
+        scheme's long-standing "unmapped input passes through unchanged"
+        contract). ``stress_before`` is the index into ``tokens`` that
+        ``STRESS_MARK`` immediately preceded (``None`` if absent) --
+        deliberately *not* itself a token, so every existing consumer of
+        ``tokens`` (neighbor-tag lookups, coda-run-length, joint-spelling
+        resolution) sees exactly the same list it always has, with zero
+        risk of a stress marker being mistaken for a real phoneme
+        anywhere in this scheme's own following/preceding conditioning."""
         known = self._known_symbols()
         tokens: list[tuple[str | None, str, str]] = []
+        stress_before: int | None = None
         i = 0
         while i < len(ipa_text):
+            if ipa_text[i] == STRESS_MARK:
+                stress_before = len(tokens)
+                i += 1
+                continue
             matched = next((s for s in known if ipa_text.startswith(s, i)), None)
             if matched is None:
                 tokens.append((None, "", ipa_text[i]))
@@ -396,7 +480,7 @@ class RomanizationScheme(BaseModel, frozen=True):
                 deco += ipa_text[i]
                 i += 1
             tokens.append((matched, deco, ""))
-        return tokens
+        return tokens, stress_before
 
     def _coda_run_length(self, tokens: list[tuple[str | None, str, str]], index: int) -> int | None:
         """How many of this vowel's immediately-following consonant tokens
@@ -548,8 +632,18 @@ class RomanizationScheme(BaseModel, frozen=True):
         (Pinyin's own real rule: "Xi'an" vs. "Xian") -- except
         ``DIAERESIS``, which instead rewrites that vowel's own letter in
         place (real French tréma: Noël, naïve).
+
+        ``stress_accent_marking`` is the same "rewrite this vowel's own
+        letter in place" shape, keyed on ``STRESS_MARK`` in the raw IPA
+        (extracted by ``_tokenize`` into ``stress_before``, never a real
+        token) instead of on hiatus: ``""`` (most languages) leaves it
+        untouched, ``"final_only"`` (real Italian) marks it when the
+        stressed syllable is the word's own last one, ``"irregular_only"``
+        (real Spanish) marks it when the actual stressed syllable differs
+        from what ``predict_default_stress`` would have predicted from
+        ``stress_pattern`` alone.
         """
-        tokens = self._tokenize(ipa_text)
+        tokens, stress_before = self._tokenize(ipa_text)
         rules_by_ipa: dict[str, list[RomanizationRule]] = {}
         for rule in self.rules:
             rules_by_ipa.setdefault(rule.ipa, []).append(rule)
@@ -558,9 +652,30 @@ class RomanizationScheme(BaseModel, frozen=True):
         vowel_length_map = dict(self.vowel_length)
         joint_emits, joint_consumed = self._resolve_joint_spellings(tokens, ipa_text)
 
+        # Stress-accent bookkeeping, computed once up front the same way
+        # `rules_by_ipa`/`tone_marker_map` are -- `actual_stress_syllable`
+        # is which syllable (0-based, by vowel count) `stress_before`
+        # falls on, `final_coda_symbols` is the word's own last syllable's
+        # coda (both feed `stress_accent_marking`'s "irregular_only" check
+        # below, which needs to know the same thing `stress_gen.assign_stress`
+        # knew at build time -- but re-derived from the tokenized string
+        # itself, not threaded through, since `apply()` never receives a
+        # word's original per-syllable structure, only its flat IPA).
+        vowel_indices = [i for i, t in enumerate(tokens) if t[0] in self.vowel_symbols]
+        num_syllables = len(vowel_indices)
+        actual_stress_syllable = (
+            sum(1 for i in vowel_indices if i < stress_before) if stress_before is not None else None
+        )
+        final_coda_symbols = (
+            tuple(t[0] for t in tokens[vowel_indices[-1] + 1 :] if t[0] is not None) if vowel_indices else ()
+        )
+        stress_pending = False
+
         pending_markers: dict[int, list[str]] = {}
         out: list[str] = []
         for index, (symbol, deco, raw) in enumerate(tokens):
+            if index == stress_before:
+                stress_pending = True
             out.extend(pending_markers.pop(index, ()))
             if symbol is None:
                 out.append(raw)
@@ -631,6 +746,26 @@ class RomanizationScheme(BaseModel, frozen=True):
                         latin = first + latin[1:]
                 else:
                     out.append(self.syllable_boundary_marker.value)
+
+            if stress_pending and symbol in self.vowel_symbols:
+                # This is the stressed syllable's own nucleus -- the
+                # first (and only) vowel reached since `stress_before`.
+                # `""` (the common case, most languages never write
+                # stress) leaves `latin` untouched; the other two modes
+                # rewrite this vowel's own first letter in place, the
+                # same shape `_DIAERESIS_MAP` above already uses.
+                is_final_syllable = actual_stress_syllable == num_syllables - 1
+                should_mark = (self.stress_accent_marking == "final_only" and is_final_syllable) or (
+                    self.stress_accent_marking == "irregular_only"
+                    and actual_stress_syllable
+                    != predict_default_stress(num_syllables, self.stress_pattern, final_coda_symbols)
+                )
+                if should_mark:
+                    accented = _STRESS_ACCENT_MAP.get(latin[:1])
+                    if accented is not None:
+                        latin = accented + latin[1:]
+                stress_pending = False
+
             out.append(latin + deco)
         out.extend(pending_markers.pop(len(tokens), ()))
         collapsed = _TRIPLE_LETTER_RUN.sub(r"\1\1", "".join(out))
@@ -684,6 +819,13 @@ class OrthographyCategory(BaseModel, frozen=True):
     consonant), reusing the existing tag-matching machinery rather than
     any new code path in ``apply()``."""
     syllable_boundary_marker: SyllableBoundaryMarker = SyllableBoundaryMarker.NONE
+    stress_accent_marking: str = ""
+    """This category family's own baseline for whether/how stress gets
+    written -- almost always ``""`` (real written stress-accent is
+    genuinely rare typologically), the same "family default, overridden
+    per-profile when curated" role ``syllable_boundary_marker`` plays for
+    French's own tréma among ``diacritic-style`` languages -- see
+    ``RomanizationScheme.stress_accent_marking``'s own docstring."""
     consonant_gemination_marked: bool = False
     """Whether a phonemically long/geminate consonant doubles its own
     letter (Italian "sono" vs. "sonno") -- distinct from

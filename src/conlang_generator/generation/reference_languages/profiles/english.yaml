@@ -5,6 +5,8 @@ coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: silent-e-style
+stress_pattern: lexical  # real English stress is largely unpredictable from a word's shape alone (real/heavy noun/verb pairs like REcord/reCORD are a further refinement this project doesn't model -- see stress_gen.py)
+stress_deviation_rate: 0.5  # illustrative -- genuinely close to a coin flip relative to any single default, the least rule-governed of the six curated profiles
 restricted_onset_consonants: ["ŋ", "ʒ"]  # /ŋ/ is coda/medial-only; /ʒ/ word-initial is loanword-only (genre, jete)
 restricted_coda_consonants: [j, w]  # what looks like a word-final glide in English spelling ("cow", "day") is really part of a diphthong vowel (ai/au/ɔi/ei), not a true consonant coda
 restricted_onset_nucleus_pairs:

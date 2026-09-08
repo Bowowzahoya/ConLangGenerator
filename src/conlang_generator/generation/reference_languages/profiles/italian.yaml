@@ -5,6 +5,9 @@ coda_profile: sonorant
 max_onset: 2
 tonal: false
 orthography_category: gemination-style
+stress_pattern: lexical  # real Italian is majority-penultimate (parola piana) but genuinely lexical -- real minorities on the final syllable (tronca: città, perché) and antepenultimate (sdrucciola: tavolo) that no rule predicts
+stress_deviation_rate: 0.25  # illustrative -- captures Italian's real, if minority, tronca/sdrucciola classes
+stress_accent_marking: final_only  # real Italian: a grave accent appears whenever the *last* syllable is stressed (città, perché, però) -- unlike Spanish, not conditioned on "irregularity" by any other measure; antepenultimate (sdrucciola) stress is real but stays unmarked
 restricted_onset_consonants: ["kː", "tː", "pː", "sː", "nː", "lː", z]
 # Gemination is strictly intervocalic in real Italian -- no geminate ever
 # opens a word. Word-initial /z/ doesn't occur either: an "s"-initial

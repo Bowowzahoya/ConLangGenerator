@@ -5,6 +5,9 @@ coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: diacritic-style
+stress_pattern: penultimate_or_final_by_coda  # real Spanish: penultimate if the word ends in a vowel or n/s (casa, comen), final otherwise (hotel, papel, ciudad)
+stress_deviation_rate: 0.15  # illustrative -- the real exceptions are exactly what the written accent (á/é/í/ó/ú) marks
+stress_accent_marking: irregular_only  # real Spanish's own á/é/í/ó/ú: written only when a word's actual stress deviates from the predictable default above (corazón/está), never when it follows the rule (casa/comen)
 restricted_coda_consonants: [r]
 # The trill /r/ categorically never closes a syllable in real Spanish --
 # it only ever occurs word-initially or intervocalically (spelled "rr"

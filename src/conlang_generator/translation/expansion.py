@@ -44,6 +44,8 @@ def coin_word(
                 language.name,
                 structure=language.syllable_structure,
                 context=language.spec.traits.salient_context,
+                source_languages=language.spec.traits.source_languages,
+                strictness=language.spec.traits.source_language_strictness,
             )
         else:
             entry = propose_word(

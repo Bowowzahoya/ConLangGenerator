@@ -77,6 +77,8 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
                 name,
                 structure=syllable_structure,
                 context=spec.traits.salient_context,
+                source_languages=spec.traits.source_languages,
+                strictness=spec.traits.source_language_strictness,
             )
         else:
             entry = lexicon_gen.propose_word(

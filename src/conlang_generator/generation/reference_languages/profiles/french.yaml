@@ -14,6 +14,8 @@ onset_nucleus_spellings:
   # wrongly produce "moia").
   - {first: w, second: a, latin: oi}
 mute_suffix_by_pos: [{pos: verb, suffix: r}]  # real French infinitive "-er"'s silent r ("parler" /paʁle/)
+stress_pattern: final  # real French: essentially always the last syllable of the word (phrase-level stress is a separate, word-boundary-crossing phenomenon this project doesn't model)
+stress_deviation_rate: 0.02  # illustrative -- French's own real exceptions are vanishingly rare relative to the other five profiles
 restricted_coda_consonants: [w]  # /w/ is essentially onset-only in real French ("oui"); /j/ is genuinely attested in codas (soleil, travail) so it's deliberately NOT restricted here
 restricted_onset_nucleus_pairs:
   # Real French /w/ only ever precedes a (moi, roi), i (oui), or ɛ

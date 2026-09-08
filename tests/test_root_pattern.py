@@ -12,6 +12,7 @@ from conlang_generator.core.phonology import (
     VowelBackness,
     VowelHeight,
 )
+from conlang_generator.core.romanization import STRESS_MARK
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation.generator import generate_language
@@ -102,8 +103,12 @@ def test_root_and_pattern_language_entries_have_roots_that_reproduce_their_ipa()
             continue
         assert entry.root is not None
         # The entry's IPA must be reproducible by filling *some* template
-        # for its POS with its own recorded root.
-        assert any(fill_template(t, entry.root) == entry.ipa for t in templates_by_pos[entry.pos])
+        # for its POS with its own recorded root -- modulo the embedded
+        # stress mark, which `fill_template` itself knows nothing about
+        # (stress is a separate post-processing step, see
+        # `root_pattern.propose_templatic_word`'s own docstring).
+        bare_ipa = entry.ipa.replace(STRESS_MARK, "")
+        assert any(fill_template(t, entry.root) == bare_ipa for t in templates_by_pos[entry.pos])
         checked += 1
     assert checked > 0
 
