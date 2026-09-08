@@ -8,7 +8,16 @@ import random
 import pytest
 
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.phonology import VowelBackness
+from conlang_generator.core.phonology import (
+    Consonant,
+    Manner,
+    PhonemeInventory,
+    Place,
+    SyllableStructure,
+    Vowel,
+    VowelBackness,
+    VowelHeight,
+)
 from conlang_generator.core.romanization import STRESS_MARK
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
@@ -1199,14 +1208,135 @@ def test_full_strictness_spanish_and_italian_never_leak_the_stress_mark_into_rom
 
 
 def test_full_strictness_most_words_carry_an_embedded_stress_mark():
-    # Not every word (a monosyllable's own single syllable is trivially
-    # "the stressed one" and doesn't get marked; the reduplicated
-    # mama/papa kinship path doesn't assign stress at all -- see
-    # word_builder.build_reduplicated_word), but the overwhelming
-    # majority of a real, mixed-syllable-count lexicon should.
+    # Not every word gets marked (a monosyllable's own single syllable is
+    # trivially "the stressed one," conveying nothing to mark), but the
+    # overwhelming majority of a real, mixed-syllable-count lexicon
+    # should -- including reduplicated mama/papa kinship words, which
+    # get real stress like any other word (see
+    # word_builder.build_reduplicated_word).
     spec = GenerationSpec(
         prompt="p", seed=2, traits=TraitProfile(source_languages=("Italian",), source_language_strictness=1.0)
     )
     language = generate_language("Italian", spec, FakeLLMClient())
     marked = sum(STRESS_MARK in e.ipa for e in language.lexicon.entries)
     assert marked > len(language.lexicon.entries) * 0.5
+
+
+# --- Synchronic stress-driven vowel reduction ---
+
+
+def test_reduce_unstressed_vowels_swaps_non_stressed_nuclei_toward_schwa():
+    # Isolated before/after comparison: schwa has near-zero prevalence
+    # (0.01) against a dominant "e" (0.99), so almost no schwa should
+    # appear via ordinary weighted selection alone -- the swap mechanism
+    # itself, not schwa's own frequency, has to be doing the work.
+    inventory = PhonemeInventory(
+        consonants=(
+            Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, prevalence=0.9),
+            Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, prevalence=0.9),
+        ),
+        vowels=(
+            Vowel(ipa="e", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, prevalence=0.99),
+            Vowel(ipa="ə", height=VowelHeight.MID, backness=VowelBackness.CENTRAL, rounded=False, prevalence=0.01),
+        ),
+    )
+    structure = SyllableStructure(max_onset=1, max_coda=0)
+
+    def _schwa_count(reduce: bool) -> int:
+        total = 0
+        for seed in range(150):
+            word = word_builder.build_word(
+                random.Random(seed), inventory, structure, 3,
+                stress_pattern="final", stress_deviation_rate=0.0, stress_strictness=1.0,
+                reduce_unstressed_vowels=reduce,
+            )
+            total += word.count("ə")
+        return total
+
+    assert _schwa_count(False) < 15  # near-baseline, matching schwa's tiny prevalence
+    assert _schwa_count(True) > 150  # the swap mechanism visibly firing
+
+
+def test_reduce_unstressed_vowels_rarely_touches_the_stressed_syllable():
+    # `weighted_choice` floors every weight at 0.001 (see its own
+    # docstring), so even at prevalence=0.0 ordinary selection retains a
+    # tiny nonzero chance of picking schwa anywhere, including the
+    # stressed syllable -- that's an existing, deliberate floor, not a
+    # bug this test should fight. So this compares rates rather than
+    # asserting an absolute "never": the swap should make schwa common
+    # in *non*-stressed syllables while leaving the stressed one at
+    # (close to) that same tiny floor-driven baseline.
+    inventory = PhonemeInventory(
+        consonants=(Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, prevalence=0.9),),
+        vowels=(
+            Vowel(ipa="e", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, prevalence=0.99),
+            Vowel(ipa="ə", height=VowelHeight.MID, backness=VowelBackness.CENTRAL, rounded=False, prevalence=0.0),
+        ),
+    )
+    structure = SyllableStructure(max_onset=1, max_coda=0)
+    stressed_schwa = 0
+    unstressed_schwa = 0
+    n = 500
+    for seed in range(n):
+        word = word_builder.build_word(
+            random.Random(seed), inventory, structure, 3,
+            stress_pattern="final", stress_deviation_rate=0.0, stress_strictness=1.0,
+            reduce_unstressed_vowels=True,
+        )
+        # final stress -- the stressed syllable is everything from the
+        # mark to the end of the word.
+        mark_index = word.index(STRESS_MARK)
+        if "ə" in word[mark_index:]:
+            stressed_schwa += 1
+        if "ə" in word[:mark_index]:
+            unstressed_schwa += 1
+    assert unstressed_schwa > n * 0.4  # the swap visibly firing
+    assert stressed_schwa < n * 0.05  # only the residual weight-floor rate, not the swap
+
+
+def test_reduce_unstressed_vowels_is_a_no_op_without_schwa_in_the_inventory():
+    inventory = PhonemeInventory(
+        consonants=(Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, prevalence=0.9),),
+        vowels=(Vowel(ipa="e", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, prevalence=1.0),),
+    )
+    structure = SyllableStructure(max_onset=1, max_coda=0)
+    word = word_builder.build_word(
+        random.Random(1), inventory, structure, 3,
+        stress_pattern="final", stress_deviation_rate=0.0, stress_strictness=1.0,
+        reduce_unstressed_vowels=True,
+    )
+    assert "ə" not in word  # nothing to swap toward -- abstains rather than fabricating one
+
+
+def test_reduce_unstressed_vowels_skips_a_swap_that_would_violate_a_nucleus_coda_restriction():
+    # Real English's own /ŋ/-only-after-a-checked-vowel restriction:
+    # schwa doesn't license it, so a syllable's own (nucleus, coda) pair
+    # must never end up being (ə, ŋ), even when the swap would otherwise
+    # fire. max_onset=0 (no onset consonants at all) makes every
+    # syllable exactly nucleus+optional-coda, so the flat string parses
+    # back into syllables unambiguously (a vowel starts a new syllable; a
+    # consonant right after one, with nothing to consume it as an onset,
+    # can only be *that* vowel's own coda) -- with a real onset, "ə"
+    # ending one syllable and "ŋ" opening the next would be a legal
+    # cross-syllable adjacency, not the same restriction at all.
+    inventory = PhonemeInventory(
+        consonants=(Consonant(ipa="ŋ", place=Place.VELAR, manner=Manner.NASAL, voiced=True, prevalence=0.9),),
+        vowels=(
+            Vowel(ipa="i", height=VowelHeight.CLOSE, backness=VowelBackness.FRONT, rounded=False, prevalence=0.9),
+            Vowel(ipa="ə", height=VowelHeight.MID, backness=VowelBackness.CENTRAL, rounded=False, prevalence=0.0),
+        ),
+    )
+    structure = SyllableStructure(
+        max_onset=0, max_coda=1, excluded_nucleus_coda_pairs=(("ə", "ŋ"),),
+    )
+    for seed in range(100):
+        word = word_builder.build_word(
+            random.Random(seed), inventory, structure, 3,
+            stress_pattern="final", stress_deviation_rate=0.0, stress_strictness=1.0,
+            reduce_unstressed_vowels=True,
+        )
+        bare = word.replace(STRESS_MARK, "")
+        vowels = "iə"
+        for i, ch in enumerate(bare):
+            if ch == "ŋ" and i > 0 and bare[i - 1] in vowels:
+                assert bare[i - 1] != "ə"

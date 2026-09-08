@@ -713,14 +713,41 @@ Everything here is a pure function of a `random.Random` seeded from
   explicit "skip past a stress marker" fix (stress systematically sits
   exactly where that check looks -- right before a syllable's onset --
   so leaving it unfixed would have silently suppressed lenition for
-  every stressed-syllable onset). The actual payoff: `_apply_vowel_reduction`
+  every stressed-syllable onset). One payoff: `_apply_vowel_reduction`
   -- previously a position-blind "reduce every vowel except the word's
   first" approximation of unstressed-vowel-to-schwa reduction (English/
   Russian/Portuguese) -- now protects the vowel that actually follows the
   stress marker, falling back to the old first-vowel heuristic only when
-  a word has no stress data at all (an uncurated language, or a narrow
-  evolution-time native-coinage path that only gets the generic baseline
-  rather than a matched profile's own pattern).
+  a word has no stress data at all. Root-and-pattern replacement during
+  evolution (`_coin_native_word`'s templatic branch) resolves stress from
+  `evolve_language`'s own `lineage_profiles` (the evolving language's
+  heritage, not the current run's -- by construction always empty --
+  `reference_profiles`), not a hardcoded generic baseline, so a
+  Dutch-lineage language replacing a templatic word still stresses it
+  the Dutch way. `word_builder.build_reduplicated_word` (the mama/papa
+  path) assigns real stress too, via the same `stress_gen.assign_stress`
+  -- a reduplicated word's two syllables are segmentally identical but
+  audibly distinct in real stress placement (English "mama" is
+  genuinely MA-ma).
+
+  The other payoff, and the reason stress modeling extends past
+  `sound_change.py`: `build_word` also takes a `reduce_unstressed_vowels`
+  flag (from `ReferenceLanguageProfile.stress_driven_vowel_reduction`,
+  curated true for English/German/Dutch, false -- the default -- for
+  French/Spanish/Italian, which keep full vowel quality regardless of
+  stress) modeling real *synchronic* reduction -- a freshly generated
+  English/German/Dutch word's own citation form already has its
+  unstressed vowels reduced (real "banana"/"Wasser" aren't three full
+  vowels each), not something that only emerges after centuries of
+  `sound_change.py`'s own separate diachronic drift. Implemented as a
+  direct post-hoc swap of an already-built, already-valid syllable's
+  nucleus to "ə" (never a re-draw through the normal weighted
+  machinery), gated through `structure.is_valid_syllable` before
+  committing so it can never manufacture an illegal nucleus-coda pairing
+  (real English's own /ŋ/-only-after-a-checked-vowel restriction, e.g.
+  -- schwa doesn't license it) -- skipped, not forced through, same
+  "honest empty result over a fabricated illegal one" discipline
+  `_build_coda` already practices elsewhere in this file.
 - **`generator.py`**: `generate_language()` -- orchestrates the above into
   one `Language`. Builds a `LexicalEntry` directly from each
   `spec.seed_examples` entry (skipping `CORE_MEANINGS` generation for any

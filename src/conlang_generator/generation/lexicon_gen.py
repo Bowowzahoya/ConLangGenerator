@@ -201,6 +201,9 @@ def _propose_kinship_word(
     gloss: str,
     pos: PartOfSpeech,
     gloss_key: str,
+    stress_pattern: str = "",
+    stress_deviation_rate: float | None = None,
+    stress_strictness: float = 0.0,
 ) -> LexicalEntry | None:
     """Try the mama/papa-style reduplicated pattern; ``None`` means the
     inventory has no matching consonant class and the caller should fall
@@ -210,6 +213,7 @@ def _propose_kinship_word(
     word = word_builder.build_reduplicated_word(
         rng, inventory, _KINSHIP_MANNER_CLASSES[gloss_key], tone_mark=tone_mark,
         excluded_onset_consonants=structure.excluded_onset_consonants,
+        stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=stress_strictness,
     )
     if word is None:
         return None
@@ -308,17 +312,21 @@ def propose_word(
     actually does.
     """
     gloss_key = gloss.lower()
+    reference_profiles = match_profiles(source_languages)
+    stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(reference_profiles)
 
     if gloss_key in _KINSHIP_MANNER_CLASSES and rng.random() < _KINSHIP_PATTERN_PROBABILITY:
-        kinship_entry = _propose_kinship_word(rng, inventory, structure, tone_system, romanization, gloss, pos, gloss_key)
+        kinship_entry = _propose_kinship_word(
+            rng, inventory, structure, tone_system, romanization, gloss, pos, gloss_key,
+            stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=strictness,
+        )
         if kinship_entry is not None:
             return kinship_entry
 
-    reference_profiles = match_profiles(source_languages)
     average_syllables = _resolve_average_syllables(reference_profiles)
     num_syllables = choose_syllable_count(rng, pos, favor_short, average_syllables, strictness)
     size_bias = _SIZE_BIAS_GLOSSES.get(gloss_key)
-    stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(reference_profiles)
+    reduce_unstressed_vowels = any(p.stress_driven_vowel_reduction for p in reference_profiles)
 
     tones: tuple = ()
     tone_marks: tuple[str, ...] = ()
@@ -332,6 +340,7 @@ def propose_word(
         word = word_builder.build_word(
             rng, inventory, structure, num_syllables, tone_marks, size_bias=size_bias,
             stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=strictness,
+            reduce_unstressed_vowels=reduce_unstressed_vowels,
         )
         if word not in seen:
             seen.add(word)

@@ -13,13 +13,15 @@ import random
 from collections import Counter
 from dataclasses import replace
 
-from conlang_generator.core.lexicon import PartOfSpeech
+from conlang_generator.core.grammar import Alignment, GrammarProfile, MorphologicalType, WordOrder, WordTemplate
+from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
+from conlang_generator.core.phonology import Consonant, Manner, Place, PhonemeInventory, SyllableStructure, ToneSystem, Vowel, VowelBackness, VowelHeight
 from conlang_generator.core.romanization import STRESS_MARK, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, sonority, sound_change
 from conlang_generator.generation.generator import generate_language
-from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES
+from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, ReferenceLanguageProfile
 from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.llm.fake_client import FakeLLMClient
 
@@ -490,3 +492,45 @@ def test_stress_mark_survives_diachronic_evolution_at_zero_years():
         assert (STRESS_MARK in old.ipa) == (STRESS_MARK in new.ipa)
         if STRESS_MARK in old.ipa:
             assert old.ipa.count(STRESS_MARK) == new.ipa.count(STRESS_MARK) == 1
+
+
+def test_coin_native_word_uses_the_lineage_profiles_own_stress_pattern():
+    # Regression guard: root-and-pattern replacement during evolution used
+    # to hardcode the generic baseline (pattern="", strictness=0.0) no
+    # matter what -- this proves `lineage_profiles`/`strictness` actually
+    # reach `stress_gen.mark_stress`, with a synthetic profile combining
+    # `root_and_pattern` and a real curated `stress_pattern` (no single
+    # real profile in this project currently has both, so this is the
+    # only way to prove the wiring itself, independent of what happens to
+    # be curated today).
+    inventory = PhonemeInventory(
+        consonants=(
+            Consonant(ipa="k", place=Place.VELAR, manner=Manner.STOP, voiced=False, prevalence=0.9),
+            Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, prevalence=0.9),
+            Consonant(ipa="b", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, prevalence=0.9),
+        ),
+        vowels=(Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),),
+    )
+    structure = SyllableStructure(max_onset=1, max_coda=0)
+    template = WordTemplate(name="verb-basic", pos=PartOfSpeech.VERB, skeleton=("C", "a", "C", "a", "C"))
+    grammar = GrammarProfile(
+        word_order=WordOrder.SVO, morphological_type=MorphologicalType.FUSIONAL, alignment=Alignment.NOMINATIVE_ACCUSATIVE,
+        has_articles=False, adjective_after_noun=False, has_overt_copula=True,
+        uses_root_and_pattern=True, templates=(template,),
+    )
+    entry = LexicalEntry(ipa="kataba", romanization="kataba", glosses=("write",), pos=PartOfSpeech.VERB)
+    lineage_profile = ReferenceLanguageProfile(
+        name="TestLineage", consonants=("k", "t", "b"), vowels=("a",), coda_profile="none", max_onset=1, tonal=False,
+        stress_pattern="final", stress_deviation_rate=0.0,
+    )
+    ipa, root = sound_change._coin_native_word(
+        random.Random(1), entry, inventory, structure, ToneSystem(), grammar,
+        lineage_profiles=(lineage_profile,), strictness=1.0,
+    )
+    assert root is not None
+    assert STRESS_MARK in ipa
+    # 3-syllable CaCaC template, "final" pattern with zero deviation at
+    # full strictness -> deterministically the third syllable.
+    mark_index = ipa.index(STRESS_MARK)
+    vowels_after_mark = sum(1 for ch in ipa[mark_index + 1 :] if ch == "a")
+    assert vowels_after_mark == 1  # exactly the stressed syllable's own vowel, nothing beyond it

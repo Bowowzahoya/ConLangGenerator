@@ -235,6 +235,16 @@ def build_syllable(
     return "".join(onset) + nucleus + tone_mark + "".join(coda)
 
 
+_STRESS_REDUCTION_RATE = 0.6
+"""How often an eligible non-stressed syllable's nucleus reduces to
+schwa when ``reduce_unstressed_vowels`` fires, at ``stress_strictness=1.0``
+-- illustrative, not a corpus statistic (same honesty standard as every
+other curated rate in this project), scaled to describe real English's
+own famously aggressive reduction (about/sofa, item/silent) without
+claiming every single non-stressed vowel in every language with this
+feature reduces every time."""
+
+
 def build_word(
     rng: random.Random,
     inventory: PhonemeInventory,
@@ -245,6 +255,7 @@ def build_word(
     stress_pattern: str = "",
     stress_deviation_rate: float | None = None,
     stress_strictness: float = 0.0,
+    reduce_unstressed_vowels: bool = False,
 ) -> str:
     """``stress_pattern``/``stress_deviation_rate``/``stress_strictness``
     are the already-resolved values from whichever matched
@@ -260,7 +271,28 @@ def build_word(
     ``stress_gen.assign_stress`` with the real final syllable's own
     coda, and only then assembles the final string with
     ``stress_gen.STRESS_MARK`` prepended to the stressed syllable's own
-    onset."""
+    onset.
+
+    ``reduce_unstressed_vowels`` (this run's matched
+    ``ReferenceLanguageProfile.stress_driven_vowel_reduction`` -- see
+    its own docstring) is real English/German/Dutch-style *synchronic*
+    reduction, distinct from ``sound_change.py``'s own diachronic
+    ``vowel_reduction`` rule (a generic drift-over-time tendency applied
+    regardless of this flag): once stress is known, every *other*
+    syllable's own already-chosen nucleus is a candidate to be swapped
+    for "ə" outright (never re-drawn through the normal weighted
+    machinery -- this is a targeted rewrite of one already-valid choice
+    for another, the same "post-hoc probabilistic rewrite" shape
+    ``sound_change._apply_vowel_reduction`` already uses), at
+    ``_STRESS_REDUCTION_RATE`` scaled by ``stress_strictness``. A no-op
+    whenever "ə" isn't actually in this run's own generated vowel
+    inventory, or whenever swapping it in would violate this language's
+    own nucleus-coda pairing rules (e.g. real English's own /ŋ/-only-
+    after-a-checked-vowel restriction -- schwa doesn't license it) --
+    checked via ``structure.is_valid_syllable`` before committing,
+    skipped (not fabricated) rather than forced through, same
+    "honest empty result over an invalid one" discipline
+    ``_build_coda`` already practices."""
     marks = tone_marks or ("",) * num_syllables
     harmony_class: VowelBackness | None = None
     if structure.vowel_harmony:
@@ -280,6 +312,13 @@ def build_word(
         if num_syllables > 1
         else None
     )
+    if reduce_unstressed_vowels and num_syllables > 1 and "ə" in inventory.vowel_symbols():
+        reduction_rate = _STRESS_REDUCTION_RATE * max(0.0, min(1.0, stress_strictness))
+        for i, (onset, nucleus, coda) in enumerate(syllables):
+            if i == stress_index or nucleus == "ə" or rng.random() >= reduction_rate:
+                continue
+            if structure.is_valid_syllable(onset, "ə", coda):
+                syllables[i] = (onset, "ə", coda)
     parts: list[str] = []
     for i, (onset, nucleus, coda) in enumerate(syllables):
         prefix = stress_gen.STRESS_MARK if i == stress_index else ""
@@ -293,6 +332,9 @@ def build_reduplicated_word(
     manner_classes: tuple[Manner, ...],
     tone_mark: str = "",
     excluded_onset_consonants: tuple[str, ...] = (),
+    stress_pattern: str = "",
+    stress_deviation_rate: float | None = None,
+    stress_strictness: float = 0.0,
 ) -> str | None:
     """A same-syllable-twice word (``mama``/``papa``-shaped): one onset
     consonant restricted to ``manner_classes``, one vowel preferring open
@@ -307,6 +349,15 @@ def build_reduplicated_word(
     categorically cannot open *any* syllable, kinship term or not; a
     naive manner-only filter would otherwise happily produce "ŋaŋa" for
     a Dutch-biased language, which no real Dutch word could ever be).
+
+    Structurally this is just an ordinary 2-syllable, coda-less word for
+    stress-assignment purposes (the two syllables happen to be
+    segmentally identical, but real stress placement is still audible
+    and still governed by the same language-specific rule -- English
+    "mama" is genuinely MA-ma, not interchangeable with a hypothetical
+    ma-MA), so ``stress_pattern``/``stress_deviation_rate``/
+    ``stress_strictness`` are resolved and applied the same way
+    ``build_word`` does, via the same ``stress_gen.assign_stress``.
 
     Returns ``None`` if the inventory has no consonant in any of
     ``manner_classes`` (the caller should fall back to normal generation).
@@ -325,4 +376,7 @@ def build_reduplicated_word(
     open_vowels = tuple(v for v in simple_vowels if v.height in _OPEN_HEIGHTS)
     vowel = weighted_choice(rng, open_vowels or simple_vowels or inventory.vowels)
     syllable = consonant.ipa + vowel.ipa + tone_mark
-    return syllable + syllable
+    stress_index = stress_gen.assign_stress(rng, 2, (), stress_pattern, stress_deviation_rate, stress_strictness)
+    first = (stress_gen.STRESS_MARK if stress_index == 0 else "") + syllable
+    second = (stress_gen.STRESS_MARK if stress_index == 1 else "") + syllable
+    return first + second

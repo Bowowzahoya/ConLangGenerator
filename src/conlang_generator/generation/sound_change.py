@@ -455,6 +455,8 @@ def _coin_native_word(
     structure: SyllableStructure,
     tone_system,
     grammar,
+    lineage_profiles: tuple[reference_languages.ReferenceLanguageProfile, ...] = (),
+    strictness: float = 0.0,
 ) -> tuple[str, tuple[str, ...] | None]:
     """Native replacement (scenario 2b): an unrelated word for the same
     meaning, coined the same way fresh core-vocabulary generation coins any
@@ -464,25 +466,32 @@ def _coin_native_word(
     same template mechanism -- one root, no candidate-then-LLM-pick (unlike
     ``root_pattern.propose_templatic_word``), keeping evolution pure
     rule-based like every other path here. Returns ``(ipa, root)`` --
-    ``root`` is ``None`` for non-templatic coinage."""
+    ``root`` is ``None`` for non-templatic coinage.
+
+    ``lineage_profiles`` is the evolving language's own heritage (``evolve_language``'s
+    ``lineage_profiles``, not the current run's possibly-empty ``reference_profiles`` --
+    this whole function is only ever called when ``reference_profiles`` is
+    empty in the first place, i.e. no *new* contact this run), so a
+    Dutch-lineage language replacing a word still stresses it the way
+    Dutch would, not via the generic baseline."""
+    stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(lineage_profiles)
     if grammar.uses_root_and_pattern and entry.pos in root_pattern.TEMPLATIC_POS and grammar.templates:
         template = root_pattern.template_for_pos(rng, grammar.templates, entry.pos)
         root = root_pattern.generate_root(rng, inventory, structure, template.skeleton)
         root_iter = iter(root)
         filled_symbols = tuple(next(root_iter) if slot == "C" else slot for slot in template.skeleton)
         vowel_symbols = frozenset(v.ipa for v in inventory.vowels)
-        # Generic baseline stress only (no reference-profile threading
-        # into this narrow evolution-time coining path) -- still real
-        # stress data for the new stress-aware `_apply_vowel_reduction`
-        # to key on, rather than none at all.
-        stressed = stress_gen.mark_stress(rng, filled_symbols, vowel_symbols, "", None, 0.0)
+        stressed = stress_gen.mark_stress(rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, strictness)
         return stressed, root
 
     num_syllables = lexicon_gen.choose_syllable_count(rng, entry.pos, favor_short=True)
     tone_marks: tuple[str, ...] = ()
     if tone_system.enabled:
         tone_marks = tuple(tone_system.mark("", rng.choice(tone_system.levels)) for _ in range(num_syllables))
-    return word_builder.build_word(rng, inventory, structure, num_syllables, tone_marks), None
+    return word_builder.build_word(
+        rng, inventory, structure, num_syllables, tone_marks,
+        stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=strictness,
+    ), None
 
 
 def _coin_borrowed_word(
@@ -580,7 +589,8 @@ def evolve_language(
                 borrowed_romanizations[i] = latin
             else:
                 ipa, root = _coin_native_word(
-                    rng, entry, provisional_inventory, provisional_structure, base.tone_system, base.grammar
+                    rng, entry, provisional_inventory, provisional_structure, base.tone_system, base.grammar,
+                    lineage_profiles=lineage_profiles, strictness=traits.source_language_strictness,
                 )
                 final_ipas.append(ipa)
                 replaced_native.add(i)

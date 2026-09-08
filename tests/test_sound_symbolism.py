@@ -6,6 +6,7 @@ import random
 
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import Manner, Place, PhonemeInventory, Vowel, VowelBackness, VowelHeight, Consonant
+from conlang_generator.core.romanization import STRESS_MARK
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import lexicon_gen, phonology_gen, romanization_gen, word_builder
 from conlang_generator.llm.fake_client import FakeLLMClient
@@ -17,6 +18,13 @@ def _fixed_language(seed: int = 42):
     inventory, structure, tone_system = phonology_gen.generate_phonology(rng, spec)
     romanization = romanization_gen.generate_romanization(rng, inventory)
     return inventory, structure, tone_system, romanization
+
+
+def _first_phoneme(ipa: str) -> str:
+    # A word's own first *syllable* can legitimately be the stressed one
+    # (see stress_gen.py), in which case STRESS_MARK -- not the real
+    # onset consonant -- is ipa[0]; strip it before indexing.
+    return ipa[1:2] if ipa[:1] == STRESS_MARK else ipa[:1]
 
 
 def test_mother_skews_nasal_and_father_skews_stop_onsets():
@@ -34,21 +42,23 @@ def test_mother_skews_nasal_and_father_skews_stop_onsets():
         mother = lexicon_gen.propose_word(
             rng, inventory, structure, tone_system, romanization, "mother", PartOfSpeech.NOUN, client, "Test"
         )
-        if mother.ipa[0] in nasal_ipas:
+        if _first_phoneme(mother.ipa) in nasal_ipas:
             mother_nasal_onsets += 1
         father = lexicon_gen.propose_word(
             rng, inventory, structure, tone_system, romanization, "father", PartOfSpeech.NOUN, client, "Test"
         )
-        if father.ipa[0] in stop_ipas:
+        if _first_phoneme(father.ipa) in stop_ipas:
             father_stop_onsets += 1
 
     # Baseline (unrelated gloss) onset-manner rate for comparison.
     baseline_nasal_onsets = sum(
         1
         for _ in range(n)
-        if lexicon_gen.propose_word(
-            rng, inventory, structure, tone_system, romanization, "tree", PartOfSpeech.NOUN, client, "Test"
-        ).ipa[0]
+        if _first_phoneme(
+            lexicon_gen.propose_word(
+                rng, inventory, structure, tone_system, romanization, "tree", PartOfSpeech.NOUN, client, "Test"
+            ).ipa
+        )
         in nasal_ipas
     )
 
@@ -77,7 +87,7 @@ def test_build_reduplicated_word_excludes_marked_consonants():
     for _ in range(50):
         word = word_builder.build_reduplicated_word(rng, inventory, (Manner.STOP,))
         assert word is not None
-        assert word == "papa"
+        assert word.replace(STRESS_MARK, "") == "papa"
 
 
 def test_build_reduplicated_word_respects_a_hard_onset_restriction():
@@ -100,7 +110,29 @@ def test_build_reduplicated_word_respects_a_hard_onset_restriction():
         word = word_builder.build_reduplicated_word(
             rng, inventory, (Manner.NASAL,), excluded_onset_consonants=("ŋ",)
         )
-        assert word == "mama"  # never "ŋaŋa", even though /ŋ/ has higher prevalence
+        assert word.replace(STRESS_MARK, "") == "mama"  # never "ŋaŋa", even though /ŋ/ has higher prevalence
+
+
+def test_build_reduplicated_word_stresses_the_syllable_the_pattern_predicts():
+    # Regression guard: the mama/papa path used to never assign stress at
+    # all -- real reduplicated words *do* have audible stress (English
+    # "mama" is MA-ma, not interchangeable with a hypothetical ma-MA),
+    # governed by the same language-specific rule as any other word.
+    inventory = PhonemeInventory(
+        consonants=(Consonant(ipa="m", place=Place.BILABIAL, manner=Manner.NASAL, voiced=True, prevalence=0.5),),
+        vowels=(Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),),
+    )
+    rng = random.Random(1)
+    word = word_builder.build_reduplicated_word(
+        rng, inventory, (Manner.NASAL,), stress_pattern="final", stress_deviation_rate=0.0, stress_strictness=1.0
+    )
+    assert word == "ma" + STRESS_MARK + "ma"
+
+    rng2 = random.Random(1)
+    word2 = word_builder.build_reduplicated_word(
+        rng2, inventory, (Manner.NASAL,), stress_pattern="initial", stress_deviation_rate=0.0, stress_strictness=1.0
+    )
+    assert word2 == STRESS_MARK + "mama"
 
 
 def test_build_reduplicated_word_excludes_diphthongs_but_still_returns_a_word():
@@ -120,7 +152,7 @@ def test_build_reduplicated_word_excludes_diphthongs_but_still_returns_a_word():
     for _ in range(50):
         word = word_builder.build_reduplicated_word(rng, inventory, (Manner.STOP,))
         assert word is not None
-        assert word == "pepe"  # the only non-diphthong vowel available
+        assert word.replace(STRESS_MARK, "") == "pepe"  # the only non-diphthong vowel available
 
 
 def test_small_words_average_closer_vowels_than_big_words():

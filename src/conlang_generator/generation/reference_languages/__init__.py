@@ -66,6 +66,7 @@ coda_frequency_tiers: {}            # optional, defaults empty -- same tier shap
 stress_pattern: ""                  # optional, defaults empty -- e.g. "penultimate_or_final_by_coda"
 stress_deviation_rate: null         # optional, defaults null -- e.g. 0.15, how often a word deviates from that default
 stress_accent_marking: ""           # optional, defaults empty -- e.g. "irregular_only" (real Spanish's á/é/í/ó/ú)
+stress_driven_vowel_reduction: false  # optional, defaults false -- true for English/German/Dutch's own real synchronic schwa reduction
 ```
 
 ``orthography`` entries are ``RomanizationRule``s -- see its docstring for
@@ -312,6 +313,21 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     by any other measure). Only consulted when
     ``source_language_strictness`` > 0 -- see
     ``core.romanization.RomanizationScheme.apply()``."""
+    stress_driven_vowel_reduction: bool = False
+    """Whether unstressed syllables in this language's own words
+    genuinely reduce toward schwa *synchronically* -- true for English/
+    German/Dutch (real "banana"/"Wasser"/"gegeven"-style reduction is
+    already there in the citation form, not just something that develops
+    over centuries of drift), false (the common case, including French/
+    Spanish/Italian -- real syllable-timed Romance languages that keep
+    full vowel quality regardless of stress) for everyone else. Distinct
+    from ``sound_change.py``'s own diachronic ``vowel_reduction`` rule
+    (which applies a generic drift-over-time tendency to any language
+    regardless of this flag) -- this one biases fresh
+    ``word_builder.build_word`` output itself, toward "ə" specifically,
+    only in a word's own non-stressed syllables, and only when "ə" is
+    actually in this run's generated vowel inventory. Only consulted
+    when ``source_language_strictness`` > 0."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

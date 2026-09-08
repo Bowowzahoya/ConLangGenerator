@@ -9,6 +9,7 @@ coda_devoicing: true
 orthography_category: germanic-doubling-style
 stress_pattern: initial  # real Dutch: usually the root's first syllable, same Germanic default as German
 stress_deviation_rate: 0.2  # illustrative -- loanwords and certain prefixed verbs are the real exceptions
+stress_driven_vowel_reduction: true  # real Dutch: unstressed syllables (especially word-final "-e") reduce to schwa (zitten, gegeven) -- already the reasoning behind /ə/ being curated very_common in nucleus_frequency_tiers below
 restricted_onset_consonants: ["ŋ"]  # /ŋ/ is coda/medial-only in real Dutch, never opens a syllable (same as German/English)
 attested_onset_clusters:
   # Real, common Dutch onset clusters, restricted to symbols this
