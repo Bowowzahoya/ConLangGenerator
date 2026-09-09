@@ -104,7 +104,9 @@ the syllable it marks rather than decorating one vowel from behind, so
 reusing the trailing-combining-mark slurp tone diacritics ride on."""
 
 
-def predict_default_stress(num_syllables: int, pattern: str, final_coda: tuple[str, ...] = ()) -> int:
+def predict_default_stress(
+    num_syllables: int, pattern: str, final_coda: tuple[str, ...] = (), final_nucleus: str = ""
+) -> int:
     """The syllable index (0-based) ``pattern`` alone would predict, with
     no per-word randomness. Lives here (not in ``generation.stress_gen``,
     which imports it back) because ``apply()``'s own
@@ -114,10 +116,18 @@ def predict_default_stress(num_syllables: int, pattern: str, final_coda: tuple[s
     last syllable's coda consonants, empty if it ends in a vowel -- is
     only consulted by ``"penultimate_or_final_by_coda"`` (real Spanish:
     the default is penultimate if the word ends in a vowel or in
-    ``n``/``s``, final otherwise); every other pattern ignores it.
-    Unrecognized or empty ``pattern`` falls back to plain penultimate --
-    one of the cross-linguistically most common unmarked defaults, the
-    same role ``"penultimate"`` itself plays when explicitly curated."""
+    ``n``/``s``, final otherwise). ``final_nucleus`` -- that same last
+    syllable's own vowel -- is only consulted by
+    ``"final_unless_unstressed_vowel"`` (real Portuguese: penultimate
+    only if the word ends in unstressed a/e/o, final otherwise --
+    genuinely the *opposite* shape from Spanish's own rule, which is why
+    it needs the vowel's own identity rather than just the coda: both
+    "ends in a/e/o" and "ends in i/u" alike have an empty ``final_coda``,
+    so the coda alone can't distinguish real Portuguese's two cases).
+    Every pattern not named above ignores both. Unrecognized or empty
+    ``pattern`` falls back to plain penultimate -- one of the
+    cross-linguistically most common unmarked defaults, the same role
+    ``"penultimate"`` itself plays when explicitly curated."""
     if num_syllables <= 1:
         return 0
     if pattern == "final":
@@ -126,6 +136,10 @@ def predict_default_stress(num_syllables: int, pattern: str, final_coda: tuple[s
         return 0
     if pattern == "penultimate_or_final_by_coda":
         if not final_coda or final_coda[-1] in ("n", "s"):
+            return num_syllables - 2
+        return num_syllables - 1
+    if pattern == "final_unless_unstressed_vowel":
+        if final_nucleus in ("a", "e", "o"):
             return num_syllables - 2
         return num_syllables - 1
     return num_syllables - 2  # "penultimate", "lexical", and the generic fallback
@@ -145,24 +159,32 @@ unlike stød's presence/absence shape. Not a Unicode *combining* mark
 same reasons) -- ``core`` is the shared home both ``ipa_tokenizer.py`` and
 ``word_builder.py`` need to agree on, the same role ``STRESS_MARK`` plays."""
 
-_PITCH_WORD_ACCENT_CHARS = frozenset({"́", "̀"})
-"""The literal two combining characters the ``"pitch"`` word-accent
-realization uses -- combining acute and combining grave, the same values
+_PITCH_WORD_ACCENT_CHARS = frozenset({"́", "̀", "̂", "̏"})
+"""The literal combining characters either pitch-based word-accent
+realization can produce -- combining acute and combining grave (used by
+both ``"pitch"`` and, reused, ``"pitch_and_length"``; the same values
 ``core.phonology.TONE_DIACRITICS[ToneLevel.HIGH]``/``[ToneLevel.LOW]``
-hold. Duplicated as bare literals here rather than importing
-``TONE_DIACRITICS``/``ToneLevel`` -- ``ToneMarkingStrategy``'s own
-docstring below documents that this module deliberately never imports
-``ToneLevel``, staying decoupled from tone semantics; this is a
-coincidence of which characters look right, not a real dependency on
-tone. ``RomanizationScheme.apply()`` uses this set to strip a word-accent
-mark out of a vowel's ``deco`` before it's mistaken for real tone
-decoration -- safe only because a word-accented language is never also a
-tone language (see ``generation.phonology_gen``'s mutual-exclusivity
-guard)."""
+hold), plus combining circumflex (U+0302) and combining double grave
+(U+030F), the two additional marks ``"pitch_and_length"``'s real 4-way
+Serbo-Croatian tone x length contrast needs (see
+``generation.word_accent_gen._TONE_LENGTH_DIACRITICS``). Duplicated as
+bare literals here rather than importing ``TONE_DIACRITICS``/
+``ToneLevel`` -- ``ToneMarkingStrategy``'s own docstring below documents
+that this module deliberately never imports ``ToneLevel``, staying
+decoupled from tone semantics; this is a coincidence of which characters
+look right, not a real dependency on tone. ``RomanizationScheme.apply()``
+uses this set to strip a word-accent mark out of a vowel's ``deco``
+before it's mistaken for real tone decoration -- safe only because a
+word-accented language is never also a tone language (see
+``generation.phonology_gen``'s mutual-exclusivity guard)."""
 
 
 def predict_default_word_accent(
-    num_syllables: int, accented_nucleus: str, accented_coda: tuple[str, ...], pattern: str
+    num_syllables: int,
+    accented_nucleus: str,
+    accented_coda: tuple[str, ...],
+    pattern: str,
+    accented_syllable_index: int = 0,
 ) -> WordAccentCategory:
     """The word-accent category ``pattern`` alone would predict for the
     word's accented syllable (its stressed syllable, or syllable 0 for a
@@ -174,6 +196,12 @@ def predict_default_word_accent(
     ``word_accent_marking == "irregular_only"``-style rendering in
     ``apply()`` would need it directly, and ``core`` can't depend on
     ``generation``.
+
+    ``accented_syllable_index`` (0-based, within the word) is only
+    consulted by ``"initial_falling_elsewhere_rising"`` below -- every
+    other pattern ignores it, same "only the pattern that needs an axis
+    reads it" convention ``final_coda`` already has in
+    ``predict_default_stress``.
 
     Unlike ``predict_default_stress``, there's no generic cross-linguistic
     fallback -- most languages don't have this feature at all, so an
@@ -199,6 +227,19 @@ def predict_default_word_accent(
       ``ACCENT_1`` if ``num_syllables == 1``, else ``ACCENT_2`` -- real
       monomorphemic monosyllables default to accent 1, everything
       polysyllabic/suffixed/compound defaults to accent 2.
+    - ``"initial_falling_elsewhere_rising"`` (Serbo-Croatian's own real
+      *tone* default -- see ``accented_syllable_index`` below):
+      ``ACCENT_1`` (falling) if the accented syllable is the word's
+      first one (index 0 -- true for every monosyllable too), else
+      ``ACCENT_2`` (rising). A genuine, commonly-cited BCMS
+      generalization: falling accents cluster on word-initial syllables
+      and monosyllables, rising accents occur elsewhere. Reuses
+      ``ACCENT_1``/``ACCENT_2`` for the *tone* dimension only -- real
+      Serbo-Croatian's accent is actually tone x length (4-way); the
+      *length* half is handled separately by
+      ``generation.word_accent_gen.assign_word_accent_with_length``,
+      since it's substantially lexical rather than shape-predictable
+      (unlike tone, which has this real positional tendency).
     """
     if pattern == "monosyllabic_heavy":
         heavy = num_syllables == 1 and (
@@ -207,6 +248,8 @@ def predict_default_word_accent(
         return WordAccentCategory.ACCENT_1 if heavy else WordAccentCategory.ACCENT_2
     if pattern == "underived_monosyllable":
         return WordAccentCategory.ACCENT_1 if num_syllables == 1 else WordAccentCategory.ACCENT_2
+    if pattern == "initial_falling_elsewhere_rising":
+        return WordAccentCategory.ACCENT_1 if accented_syllable_index == 0 else WordAccentCategory.ACCENT_2
     return WordAccentCategory.ACCENT_2
 
 
@@ -855,12 +898,18 @@ class RomanizationScheme(BaseModel, frozen=True):
                         )
                         latin = chosen.latin
 
-            if deco and self.word_accent_realization == "pitch" and self.word_accent_marking == "":
-                # These two characters are reused `TONE_DIACRITICS` (see
-                # `word_accent_gen.mark_word_accent`), not real tone --
-                # strip them before the tone-decoration logic below gets a
-                # chance to treat them as such. Safe unconditionally: a
-                # word-accented language is never simultaneously tonal.
+            if (
+                deco
+                and self.word_accent_realization in ("pitch", "pitch_and_length")
+                and self.word_accent_marking == ""
+            ):
+                # These characters are reused `TONE_DIACRITICS` (or, for
+                # `"pitch_and_length"`, the two additional real Slavistic
+                # marks -- see `word_accent_gen._TONE_LENGTH_DIACRITICS`),
+                # not real tone -- strip them before the tone-decoration
+                # logic below gets a chance to treat them as such. Safe
+                # unconditionally: a word-accented language is never
+                # simultaneously tonal.
                 deco = "".join(ch for ch in deco if ch not in _PITCH_WORD_ACCENT_CHARS)
 
             if deco and self.tone_strategy == ToneMarkingStrategy.UNMARKED:

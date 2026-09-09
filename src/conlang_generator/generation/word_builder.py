@@ -260,6 +260,7 @@ def build_word(
     word_accent_pattern: str = "",
     word_accent_deviation_rate: float | None = None,
     word_accent_strictness: float = 0.0,
+    word_accent_length_rate: float | None = None,
 ) -> str:
     """``stress_pattern``/``stress_deviation_rate``/``stress_strictness``
     are the already-resolved values from whichever matched
@@ -325,7 +326,10 @@ def build_word(
     # contrast it with), the same reasoning real dictionary transcription
     # conventions already use to omit it there.
     stress_index = (
-        stress_gen.assign_stress(rng, num_syllables, syllables[-1][2], stress_pattern, stress_deviation_rate, stress_strictness)
+        stress_gen.assign_stress(
+            rng, num_syllables, syllables[-1][2], stress_pattern, stress_deviation_rate, stress_strictness,
+            syllables[-1][1],
+        )
         if num_syllables > 1
         else None
     )
@@ -333,11 +337,18 @@ def build_word(
     accent_mark = ""
     if word_accent_pattern:
         accented_nucleus, accented_coda = syllables[accented_index][1], syllables[accented_index][2]
-        accent_category = word_accent_gen.assign_word_accent(
-            rng, num_syllables, accented_nucleus, accented_coda,
-            word_accent_pattern, word_accent_deviation_rate, word_accent_strictness,
-        )
-        accent_mark = word_accent_gen.mark_word_accent(accent_category, word_accent_realization)
+        if word_accent_realization == "pitch_and_length":
+            accent = word_accent_gen.assign_word_accent_with_length(
+                rng, num_syllables, accented_index,
+                word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate, word_accent_strictness,
+            )
+            accent_mark = word_accent_gen.mark_word_accent_with_length(accent)
+        else:
+            accent_category = word_accent_gen.assign_word_accent(
+                rng, num_syllables, accented_nucleus, accented_coda,
+                word_accent_pattern, word_accent_deviation_rate, word_accent_strictness,
+            )
+            accent_mark = word_accent_gen.mark_word_accent(accent_category, word_accent_realization)
     if reduce_unstressed_vowels and num_syllables > 1 and "ə" in inventory.vowel_symbols():
         reduction_rate = _STRESS_REDUCTION_RATE * max(0.0, min(1.0, stress_strictness))
         for i, (onset, nucleus, coda) in enumerate(syllables):
@@ -374,6 +385,7 @@ def build_reduplicated_word(
     word_accent_pattern: str = "",
     word_accent_deviation_rate: float | None = None,
     word_accent_strictness: float = 0.0,
+    word_accent_length_rate: float | None = None,
 ) -> str | None:
     """A same-syllable-twice word (``mama``/``papa``-shaped): one onset
     consonant restricted to ``manner_classes``, one vowel preferring open
@@ -420,13 +432,20 @@ def build_reduplicated_word(
     open_vowels = tuple(v for v in simple_vowels if v.height in _OPEN_HEIGHTS)
     vowel = weighted_choice(rng, open_vowels or simple_vowels or inventory.vowels)
     syllable = consonant.ipa + vowel.ipa + tone_mark
-    stress_index = stress_gen.assign_stress(rng, 2, (), stress_pattern, stress_deviation_rate, stress_strictness)
+    stress_index = stress_gen.assign_stress(rng, 2, (), stress_pattern, stress_deviation_rate, stress_strictness, vowel.ipa)
     accent_mark = ""
     if word_accent_pattern:
-        accent_category = word_accent_gen.assign_word_accent(
-            rng, 2, vowel.ipa, (), word_accent_pattern, word_accent_deviation_rate, word_accent_strictness,
-        )
-        accent_mark = word_accent_gen.mark_word_accent(accent_category, word_accent_realization)
+        if word_accent_realization == "pitch_and_length":
+            accent = word_accent_gen.assign_word_accent_with_length(
+                rng, 2, stress_index,
+                word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate, word_accent_strictness,
+            )
+            accent_mark = word_accent_gen.mark_word_accent_with_length(accent)
+        else:
+            accent_category = word_accent_gen.assign_word_accent(
+                rng, 2, vowel.ipa, (), word_accent_pattern, word_accent_deviation_rate, word_accent_strictness,
+            )
+            accent_mark = word_accent_gen.mark_word_accent(accent_category, word_accent_realization)
     accented_syllable = syllable + accent_mark
     first = (stress_gen.STRESS_MARK if stress_index == 0 else "") + (accented_syllable if stress_index == 0 else syllable)
     second = (stress_gen.STRESS_MARK if stress_index == 1 else "") + (accented_syllable if stress_index == 1 else syllable)

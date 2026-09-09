@@ -59,13 +59,14 @@ def test_predict_default_word_accent_unrecognized_pattern_falls_back_to_accent_2
 
 def test_resolve_word_accent_first_matched_profile_wins():
     class _Fake:
-        def __init__(self, realization, pattern, rate):
+        def __init__(self, realization, pattern, rate, length_rate=None):
             self.word_accent_realization = realization
             self.word_accent_pattern = pattern
             self.word_accent_deviation_rate = rate
+            self.word_accent_length_rate = length_rate
 
     profiles = (_Fake("", "", None), _Fake("glottalization", "monosyllabic_heavy", 0.15), _Fake("pitch", "underived_monosyllable", 0.2))
-    assert word_accent_gen.resolve_word_accent(profiles) == ("glottalization", "monosyllabic_heavy", 0.15)
+    assert word_accent_gen.resolve_word_accent(profiles) == ("glottalization", "monosyllabic_heavy", 0.15, None)
 
 
 def test_resolve_word_accent_no_curated_profile_abstains():
@@ -73,8 +74,9 @@ def test_resolve_word_accent_no_curated_profile_abstains():
         word_accent_realization = ""
         word_accent_pattern = ""
         word_accent_deviation_rate = None
+        word_accent_length_rate = None
 
-    assert word_accent_gen.resolve_word_accent((_Fake(), _Fake())) == ("", "", None)
+    assert word_accent_gen.resolve_word_accent((_Fake(), _Fake())) == ("", "", None, None)
 
 
 def test_assign_word_accent_at_zero_strictness_always_returns_none():
@@ -205,3 +207,89 @@ def test_build_word_never_marks_word_accent_when_pattern_is_unset():
     for _ in range(20):
         word = word_builder.build_word(rng, inventory, structure, 1)
         assert WORD_ACCENT_MARK not in word
+
+
+# --- Tone + length extension (real Serbo-Croatian "pitch_and_length") ---
+
+_ACCENT_1_LONG = "̂"  # circumflex, U+0302
+_ACCENT_1_SHORT = "̏"  # double grave, U+030F
+_ACCENT_2_SHORT = TONE_DIACRITICS[ToneLevel.LOW]  # grave
+_ACCENT_2_LONG = TONE_DIACRITICS[ToneLevel.HIGH]  # acute
+
+
+def test_predict_default_word_accent_initial_falling_elsewhere_rising():
+    # Real BCMS generalization: falling on a word-initial syllable or any
+    # monosyllable, rising elsewhere.
+    assert predict_default_word_accent(1, "a", (), "initial_falling_elsewhere_rising", 0) == WordAccentCategory.ACCENT_1
+    assert predict_default_word_accent(3, "a", (), "initial_falling_elsewhere_rising", 0) == WordAccentCategory.ACCENT_1
+    assert predict_default_word_accent(3, "a", (), "initial_falling_elsewhere_rising", 1) == WordAccentCategory.ACCENT_2
+    assert predict_default_word_accent(3, "a", (), "initial_falling_elsewhere_rising", 2) == WordAccentCategory.ACCENT_2
+
+
+def test_resolve_word_accent_returns_curated_length_rate():
+    class _Fake:
+        def __init__(self, realization, pattern, rate, length_rate):
+            self.word_accent_realization = realization
+            self.word_accent_pattern = pattern
+            self.word_accent_deviation_rate = rate
+            self.word_accent_length_rate = length_rate
+
+    profiles = (_Fake("pitch_and_length", "initial_falling_elsewhere_rising", 0.1, 0.6),)
+    assert word_accent_gen.resolve_word_accent(profiles) == ("pitch_and_length", "initial_falling_elsewhere_rising", 0.1, 0.6)
+
+
+def test_assign_word_accent_with_length_at_zero_strictness_always_returns_none():
+    rng = random.Random(0)
+    for _ in range(50):
+        assert (
+            word_accent_gen.assign_word_accent_with_length(
+                rng, 1, 0, "initial_falling_elsewhere_rising", 0.0, 0.5, 0.0
+            )
+            is None
+        )
+
+
+def test_assign_word_accent_with_length_at_full_strictness_matches_the_predicted_default_most_of_the_time():
+    rng = random.Random(0)
+    hits = sum(
+        1
+        for _ in range(500)
+        if word_accent_gen.assign_word_accent_with_length(
+            rng, 3, 0, "initial_falling_elsewhere_rising", 0.02, 0.5, 1.0
+        )[0]
+        == WordAccentCategory.ACCENT_1
+    )
+    assert hits > 450  # ~2% deviation rate -> overwhelmingly matches the initial-syllable falling default
+
+
+def test_mark_word_accent_with_length_none_is_always_unmarked():
+    assert word_accent_gen.mark_word_accent_with_length(None) == ""
+
+
+def test_mark_word_accent_with_length_covers_all_four_real_slavistic_marks():
+    assert word_accent_gen.mark_word_accent_with_length((WordAccentCategory.ACCENT_1, True)) == _ACCENT_1_LONG
+    assert word_accent_gen.mark_word_accent_with_length((WordAccentCategory.ACCENT_1, False)) == _ACCENT_1_SHORT
+    assert word_accent_gen.mark_word_accent_with_length((WordAccentCategory.ACCENT_2, True)) == _ACCENT_2_LONG
+    assert word_accent_gen.mark_word_accent_with_length((WordAccentCategory.ACCENT_2, False)) == _ACCENT_2_SHORT
+
+
+def test_mark_stress_and_word_accent_pitch_and_length_marks_a_monosyllable():
+    # Same monosyllable regression this whole feature hinges on (see the
+    # binary "glottalization" test above), for the tone+length path.
+    rng = random.Random(0)
+    symbols = ("h", "u", "n")
+    result = word_accent_gen.mark_stress_and_word_accent(
+        rng, symbols, frozenset("u"), "final", 0.0, 1.0,
+        word_accent_realization="pitch_and_length", word_accent_pattern="initial_falling_elsewhere_rising",
+        word_accent_deviation_rate=0.0, word_accent_length_rate=1.0,
+    )
+    assert STRESS_MARK not in result
+    assert result == "h" + "u" + _ACCENT_1_LONG + "n"
+
+
+def test_apply_never_leaks_the_new_tone_length_marks_into_latin_output():
+    scheme = RomanizationScheme(rules=_RULES, vowel_symbols=("u",), word_accent_realization="pitch_and_length")
+    assert scheme.apply("hu" + _ACCENT_1_LONG + "n") == "hun"
+    assert scheme.apply("hu" + _ACCENT_1_SHORT + "n") == "hun"
+    assert scheme.apply("hu" + _ACCENT_2_LONG + "n") == "hun"
+    assert scheme.apply("hu" + _ACCENT_2_SHORT + "n") == "hun"

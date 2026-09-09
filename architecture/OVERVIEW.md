@@ -1224,6 +1224,115 @@ reading code or one-off ad hoc scripts.
     substantially higher `stress_deviation_rate` than Turkish's own
     narrower, more systematic exceptions (place names, "stress-neutral"
     suffixes).
+- **The Russian/Serbo-Croatian/Portuguese batch** brought a fifth trio to
+  the same curation depth. Russian and Portuguese already had real
+  (non-bare) profiles; Serbo-Croatian didn't exist at all and was built
+  from scratch. Two genuinely new architecture extensions were needed
+  (both explicitly approved before implementation), plus non-major data
+  additions reusing existing mechanisms.
+  - **Word accent's tone+length axis** (`core/phonology.py`'s
+    `WordAccentSystem.realization` gains `"pitch_and_length"`;
+    `generation/word_accent_gen.py`): real Serbo-Croatian/BCMS has a
+    genuine 4-way pitch accent (short/long x rising/falling on the
+    accented syllable) -- more complex than the binary `WordAccentCategory`
+    contrast built for Danish/Swedish/Norwegian, whose own code comment
+    explicitly named this as the deferred case. Reuses the existing
+    binary `WordAccentCategory` for the *tone* dimension only (`ACCENT_1`
+    = falling, the historically older/conservative pattern; `ACCENT_2` =
+    rising, the Neo-Štokavian retraction/innovation -- a genuine, if
+    loose, historical-linguistic parallel to the Scandinavian older/newer
+    framing already used, not just a convenient reuse) -- no new enum.
+    *Length* is a new, orthogonal `bool` dimension, handled via wholly
+    separate functions (`assign_word_accent_with_length`,
+    `mark_word_accent_with_length`, `_TONE_LENGTH_DIACRITICS`) rather
+    than overloading the existing binary `assign_word_accent`/
+    `mark_word_accent`, so the proven Danish/Swedish/Norwegian path is
+    untouched by construction. The four real, standard Slavistic
+    accentuation marks: long rising = acute (U+0301, already reused from
+    the binary system's own `ACCENT_1` mark -- note the *character*
+    carries over, not the category pairing, since rising is `ACCENT_2`
+    here), short rising = grave (U+0300, likewise reused), long falling =
+    circumflex (U+0302, new), short falling = double grave (U+030F, new).
+    `core.romanization.predict_default_word_accent` gained a new
+    `accented_syllable_index: int = 0` parameter (default-safe for every
+    other pattern) and a new pattern, `"initial_falling_elsewhere_rising"`
+    -- the real, commonly-cited BCMS generalization: falling on a
+    word-initial syllable or any monosyllable, rising elsewhere. Length
+    itself is an independent curated bernoulli rate
+    (`word_accent_length_rate`, mirroring `word_accent_deviation_rate`'s
+    shape), not derived from word shape -- real BCMS length on the
+    accented syllable is substantially lexical, the same honesty
+    standard `stress_deviation_rate` already relies on.
+    `word_accent_gen.resolve_word_accent` is now a 4-tuple
+    (`realization, pattern, deviation_rate, length_rate`); every call
+    site across `lexicon_gen.py`/`root_pattern.py`/`sound_change.py`/
+    `phonology_gen.py` was updated. `core.romanization.apply()`'s
+    pitch-mark leak-stripping set and its `"pitch"`-only check were both
+    extended to also cover the two new characters and
+    `"pitch_and_length"` -- real Serbo-Croatian standard orthography
+    doesn't write pitch accent in ordinary text either (only specialized
+    dictionaries do).
+  - A smaller, related fix rode along: real Portuguese default stress is
+    coda-conditioned but in the *opposite* direction from Spanish's
+    existing `"penultimate_or_final_by_coda"` pattern (real Portuguese:
+    penultimate only if the word ends in an unstressed a/e/o, final
+    otherwise) -- reusing Spanish's pattern verbatim would have silently
+    applied the wrong rule. New `predict_default_stress` pattern
+    `"final_unless_unstressed_vowel"` needed a genuinely new
+    `final_nucleus: str` parameter (not just the existing `final_coda`),
+    threaded through `predict_default_stress`/`stress_gen.assign_stress`/
+    `stress_gen.mark_stress`/`word_accent_gen.mark_stress_and_word_accent`/
+    `word_builder.build_word`/`build_reduplicated_word` -- both "ends in
+    a/e/o" and "ends in i/u" have an *empty* `final_coda` alike (both are
+    vowel-final), so the coda alone genuinely can't distinguish real
+    Portuguese's two cases the way it can for Spanish.
+  - **Real Serbo-Croatian syllabic /r/** (vrt "garden", trg "square", Krk,
+    prst "finger" -- a whole syllable with no vowel at all, /r/ itself
+    carrying the nucleus) turned out to need *no* new core-engine
+    architecture: `PhonemeInventory` already separates `consonants`/
+    `vowels` purely by which list an entry sits in, with no deeper
+    structural "is this really a vowel" check anywhere in
+    `word_builder.py`/`sonority.py`. Modeled as one more `Vowel` pool
+    member in `phonology_gen.py`'s `_VOWEL_EXTRAS` -- IPA `"r̩"` (U+0329
+    COMBINING VERTICAL LINE BELOW, the real standard IPA syllabic-
+    consonant diacritic), low prevalence (~0.04, matching this pool's own
+    established "rare exotic member" rate, e.g. y/ø/œ) -- which slots
+    into onset/nucleus/coda selection, frequency tiers, stress, and
+    romanization through the exact existing machinery every other vowel
+    already uses, with zero changes to selection/tokenization code (the
+    tokenizer already handles a base symbol plus trailing combining mark
+    correctly, the same mechanism nasalized vowels ã/ẽ already rely on).
+    Safe for every other language by construction -- opt-in pool data, no
+    existing profile referenced `"r̩"` before this batch, same status the
+    ts/dz/tɕ/dʑ/long-vowel pool additions had in the Finnish/Hungarian/
+    Polish batch. Real Serbo-Croatian spells syllabic /r/ identically to
+    consonantal /r/ ("vrt", not "vr̩t") -- one curated `{ipa: "r̩", latin:
+    r}` orthography rule, plus a `"r̩"` -> `"r"` fallback entry added to
+    all three of `romanization_gen.py`'s exotic-style tables (digraph/
+    diacritic/monoletter), per the established "every pool symbol needs a
+    fallback entry or it leaks as raw IPA" rule.
+  - **Non-architectural, reused-mechanism work**: real Russian
+    palatalization is far more pervasive than the 4 symbols
+    (`tʲ`/`dʲ`/`nʲ`/`lʲ`) `phonology_gen.py`'s `_PALATALIZED_GROUP`
+    originally had -- extended the *same* group (more members, same
+    selection mechanism) with `pʲ`/`bʲ`/`mʲ`/`fʲ`/`vʲ`/`sʲ`/`zʲ`/`kʲ`/
+    `xʲ`/`rʲ`, with matching fallback-table entries (same real scholarly
+    soft-sign apostrophe convention, e.g. `pʲ` -> `p'`) in all three
+    `romanization_gen.py` exotic styles and in Russian's own profile
+    orthography. Russian's profile also curates real akanye/ikanye
+    (`stress_driven_vowel_reduction: true`) and its famously "free"
+    lexical stress (`stress_pattern: "lexical"`, a high deviation rate --
+    same "genuinely complex, no simple flat rule" catch-all English's own
+    real stress system uses).
+  - As with every prior phoneme-pool extension, adding new consonant/
+    vowel pool members shifted downstream RNG draw sequences for
+    *unrelated* fixed-seed tests (new `rng.random()` calls happen during
+    every run's phonology selection, regardless of which language is
+    being generated) -- re-found working seeds for
+    `test_french_biased_language_gives_its_verb_entries_a_silent_r` (11
+    -> 3) and `test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved`
+    (8 -> 14), same "seed-shift from new content" pattern documented
+    elsewhere in this history, not a functional regression.
 - Dutch's `g`/`ch` distinction is now modeled: /ɣ/ (voiced velar
   fricative -- what Dutch `g` actually represents; Dutch has no native
   /g/ stop) is a real phoneme in `phonology_gen.py`'s shared pool, Dutch's

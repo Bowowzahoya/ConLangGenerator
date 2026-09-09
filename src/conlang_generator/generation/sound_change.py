@@ -494,8 +494,11 @@ def _coin_native_word(
     stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(lineage_profiles)
     word_accent_pattern = ""
     word_accent_deviation_rate: float | None = None
+    word_accent_length_rate: float | None = None
     if word_accent_system.enabled:
-        _, word_accent_pattern, word_accent_deviation_rate = word_accent_gen.resolve_word_accent(lineage_profiles)
+        _, word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate = word_accent_gen.resolve_word_accent(
+            lineage_profiles
+        )
 
     if grammar.uses_root_and_pattern and entry.pos in root_pattern.TEMPLATIC_POS and grammar.templates:
         template = root_pattern.template_for_pos(rng, grammar.templates, entry.pos)
@@ -508,6 +511,7 @@ def _coin_native_word(
             word_accent_realization=word_accent_system.realization,
             word_accent_pattern=word_accent_pattern,
             word_accent_deviation_rate=word_accent_deviation_rate,
+            word_accent_length_rate=word_accent_length_rate,
         )
         return stressed, root
 
@@ -522,6 +526,7 @@ def _coin_native_word(
         word_accent_pattern=word_accent_pattern,
         word_accent_deviation_rate=word_accent_deviation_rate,
         word_accent_strictness=strictness,
+        word_accent_length_rate=word_accent_length_rate,
     ), None
 
 

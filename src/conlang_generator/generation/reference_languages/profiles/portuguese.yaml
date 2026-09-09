@@ -6,6 +6,27 @@ coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: diacritic-style
+attested_onset_clusters:
+  # Real, common Portuguese onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [p, l]                   # "plano"
+  - [p, "ɾ"]                  # "prato"
+  - [b, l]                   # "blusa"
+  - [b, "ɾ"]                  # "bravo"
+  - [t, "ɾ"]                  # "trabalho"
+  - [d, "ɾ"]                  # "drama"
+  - [k, l]                   # "clima"
+  - [k, "ɾ"]                  # "cravo"
+  - [g, l]                   # "glória"
+  - [g, "ɾ"]                  # "grande"
+  - [f, l]                   # "flor"
+  - [f, "ɾ"]                  # "frio"
+# Real Portuguese codas are heavily restricted to a small set of single
+# consonants (s/z/ʃ/l/ɾ/ʁ/m/n -- see coda_frequency_tiers below), so true
+# coda *clusters* are essentially absent from native vocabulary --
+# attested_coda_clusters is left uncurated (abstain) for that real
+# reason, same "genuinely doesn't have this" honesty standard already
+# applied to word_accent for this profile.
 orthography:
   # Real Portuguese spelling conventions, restricted to symbols this
   # profile actually models -- illustrative, not a full account.
@@ -28,3 +49,28 @@ orthography:
   - {ipa: "ĩ", latin: im}
   - {ipa: "õ", latin: "ão"}
   - {ipa: "ũ", latin: um}
+core_vocabulary_average_syllables: 1.78  # hand-counted across this project's own CORE_MEANINGS glosses -- close to Spanish's own figure, reflecting the same Romance-family verb/noun ending pattern; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [p, t, k, s, m, n]
+  common: [b, d, g, f, v, l, "ɾ", "ʁ"]
+  uncommon: [z, "ʃ", "ʒ", j, w]
+  rare: ["ɲ", "lʲ"]
+nucleus_frequency_tiers:
+  very_common: [a, i, u]
+  common: [e, o, "ɛ", "ɔ"]
+  uncommon: ["ə", "ã", "ẽ"]
+  rare: ["ĩ", "õ", "ũ"]
+coda_frequency_tiers:
+  # Real Portuguese coda phonotactics are famously restrictive -- most of
+  # this profile's consonants essentially never close a native syllable
+  # (same "expressed as frequency, not a hard restriction" precedent
+  # Spanish's own coda_frequency_tiers already uses, since a handful do
+  # turn up in real, if rare, loanwords/learned words).
+  very_common: [s, m, n]
+  common: [l, "ɾ", "ʁ"]
+  uncommon: [z, "ʃ"]
+  rare: [p, b, t, d, k, g, f, v, "ʒ", "ɲ", "lʲ", w, j]
+stress_pattern: final_unless_unstressed_vowel  # real Portuguese: penultimate only if the word ends in an unstressed a/e/o (casa, chave, livre), final otherwise (café, jardim, papel) -- roughly the mirror image of Spanish's own n/s-triggers-penultimate rule
+stress_deviation_rate: 0.15  # illustrative -- same figure as Spanish, the real exceptions are exactly what the written accent marks
+stress_accent_marking: irregular_only  # real Portuguese's own á/é/í/ó/ú and â/ê/ô: written only when a word's actual stress deviates from the predictable default above (café, órgão), never when it follows the rule (casa, comem)
+stress_driven_vowel_reduction: true  # real Portuguese: unstressed vowels (especially European Portuguese's own famously reduced/devoiced final -e) weaken toward a central "ə" quality, already curated in this profile's own orthography rule above

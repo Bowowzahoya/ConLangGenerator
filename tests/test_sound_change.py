@@ -411,16 +411,13 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # per-word one -- it must touch every word using the reformed symbol,
     # even one whose own pronunciation didn't shift this run at all. Fixed
     # seed known to reform at least one word while its IPA stays
-    # byte-identical to the base. (Re-found against seed=0 after word-
-    # stress assignment started consuming extra rng draws during word
-    # building -- see stress_gen.py -- shifting this fixed seed's
-    # downstream results, same "seed-shift from new content" pattern
-    # documented elsewhere in this project's history; re-found again
-    # against that same seed=0 after the ts/dz/alveolo-palatal-affricate/
-    # long-vowel pool extension added new rng draws to consonant/vowel
-    # selection.)
+    # byte-identical to the base. (Re-found repeatedly as new pool members
+    # shifted downstream rng draws -- most recently against seed=14 after
+    # the Russian/Serbo-Croatian palatalization and syllabic-/r/ pool
+    # additions, same "seed-shift from new content" pattern documented
+    # elsewhere in this project's history.)
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=8)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=14)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)

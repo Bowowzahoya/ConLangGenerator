@@ -155,6 +155,15 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # category actually renders; `_generate_gemination_rules` overrides
     # them with the doubled letter when that axis is on.
     "tʲ": "ty", "dʲ": "dy", "nʲ": "ny", "lʲ": "ly",
+    # Real Russian's much broader palatalization series (see
+    # phonology_gen.py's own extended `_PALATALIZED_GROUP`) -- same
+    # trailing-"y" convention as the original four above.
+    "pʲ": "py", "bʲ": "by", "mʲ": "my", "fʲ": "fy", "vʲ": "vy",
+    "sʲ": "sy", "zʲ": "zy", "kʲ": "ky", "xʲ": "xy", "rʲ": "ry",
+    # Real Serbo-Croatian syllabic /r/ (vrt, trg, Krk) -- spelled
+    # identically to consonantal /r/ in every real orthography, no
+    # special marking in any style.
+    "r̩": "r",
     "kː": "k", "tː": "t", "pː": "p", "sː": "s", "nː": "n", "lː": "l",
     # Diphthongs -- "ai"/"au"/"ei" need no entry at all (already plain
     # ASCII, so the identity fallback already spells them correctly); the
@@ -224,6 +233,13 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # treatment aspiration/pharyngealization's modifier letters already
     # got. Gemination fallback (see the digraph table's own comment).
     "tʲ": "tʲ", "dʲ": "dʲ", "nʲ": "nʲ", "lʲ": "lʲ",
+    # Real Russian's much broader palatalization series -- same identity
+    # IPA-modifier-letter treatment as the original four above.
+    "pʲ": "pʲ", "bʲ": "bʲ", "mʲ": "mʲ", "fʲ": "fʲ", "vʲ": "vʲ",
+    "sʲ": "sʲ", "zʲ": "zʲ", "kʲ": "kʲ", "xʲ": "xʲ", "rʲ": "rʲ",
+    # Real Serbo-Croatian syllabic /r/ -- no special marking in any style
+    # (see the digraph table's own comment).
+    "r̩": "r",
     "kː": "k", "tː": "t", "pː": "p", "sː": "s", "nː": "n", "lː": "l",
     # Diphthongs (see the digraph table's own comment for "ai"/"au"/"ei").
     # "ɛi" stays distinct from the plain "ei" diphthong here (unlike
@@ -281,6 +297,12 @@ _MONOLETTER_TABLE: dict[str, str] = {
     # same "shallow system accepts some merging" precedent ejectives
     # already use above. Gemination fallback (see digraph table comment).
     "tʲ": "t", "dʲ": "d", "nʲ": "n", "lʲ": "l",
+    # Real Russian's much broader palatalization series -- same
+    # merge-with-plain-consonant treatment as the original four above.
+    "pʲ": "p", "bʲ": "b", "mʲ": "m", "fʲ": "f", "vʲ": "v",
+    "sʲ": "s", "zʲ": "z", "kʲ": "k", "xʲ": "x", "rʲ": "r",
+    # Real Serbo-Croatian syllabic /r/ -- no special marking in any style.
+    "r̩": "r",
     "kː": "k", "tː": "t", "pː": "p", "sː": "s", "nː": "n", "lː": "l",
     # Diphthongs are the one deliberate exception to this style's own
     # one-letter philosophy -- they're inherently two-part sounds, and no

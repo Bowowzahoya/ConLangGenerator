@@ -149,6 +149,21 @@ _PALATALIZED_GROUP = (
     Consonant(ipa="dʲ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, palatalized=True, prevalence=0.08),
     Consonant(ipa="nʲ", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, palatalized=True, prevalence=0.08),
     Consonant(ipa="lʲ", place=Place.ALVEOLAR, manner=Manner.LATERAL_APPROXIMANT, voiced=True, palatalized=True, prevalence=0.08),
+    # Real Russian contrasts palatalized/plain across nearly its whole
+    # consonant inventory, not just the four coronals above -- these
+    # extend the same shared group (more members, same mechanism) rather
+    # than adding Russian-specific selection code, so any future language
+    # with a comparably pervasive palatalization system benefits too.
+    Consonant(ipa="pʲ", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, palatalized=True, prevalence=0.06),
+    Consonant(ipa="bʲ", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, palatalized=True, prevalence=0.06),
+    Consonant(ipa="mʲ", place=Place.BILABIAL, manner=Manner.NASAL, voiced=True, palatalized=True, prevalence=0.06),
+    Consonant(ipa="fʲ", place=Place.LABIODENTAL, manner=Manner.FRICATIVE, voiced=False, palatalized=True, prevalence=0.04),
+    Consonant(ipa="vʲ", place=Place.LABIODENTAL, manner=Manner.FRICATIVE, voiced=True, palatalized=True, prevalence=0.05),
+    Consonant(ipa="sʲ", place=Place.ALVEOLAR, manner=Manner.FRICATIVE, voiced=False, palatalized=True, prevalence=0.06),
+    Consonant(ipa="zʲ", place=Place.ALVEOLAR, manner=Manner.FRICATIVE, voiced=True, palatalized=True, prevalence=0.04),
+    Consonant(ipa="kʲ", place=Place.VELAR, manner=Manner.STOP, voiced=False, palatalized=True, prevalence=0.06),
+    Consonant(ipa="xʲ", place=Place.VELAR, manner=Manner.FRICATIVE, voiced=False, palatalized=True, prevalence=0.03),
+    Consonant(ipa="rʲ", place=Place.ALVEOLAR, manner=Manner.TRILL, voiced=True, palatalized=True, prevalence=0.05),
 )
 _PALATALIZED_GROUP_BASE_RATE = 0.08
 
@@ -317,6 +332,20 @@ _VOWEL_EXTRAS = (
     # are front unrounded (i), back/front rounded (u/y), and central
     # unrounded (ɨ), but no close *back* unrounded vowel until now.
     Vowel(ipa="ɯ", height=VowelHeight.CLOSE, backness=VowelBackness.BACK, rounded=False, prevalence=0.12),
+    # Real Serbo-Croatian syllabic /r/ (vrt "garden", trg "square", Krk)
+    # -- a whole syllable with no vowel at all, /r/ itself carrying the
+    # nucleus. Modeled as one more `Vowel` pool member (U+0329 COMBINING
+    # VERTICAL LINE BELOW, the real standard IPA syllabic-consonant
+    # diacritic) since `PhonemeInventory` separates consonants/vowels
+    # purely by which list an entry sits in, with no deeper structural
+    # "is this really a vowel" check anywhere in word_builder.py/
+    # sonority.py -- this slots into onset/nucleus/coda selection,
+    # frequency tiers, stress and romanization through the exact existing
+    # machinery every other vowel uses. height/backness are the closest
+    # defensible vocoid classification, not a real claim that syllabic
+    # /r/ "is" a close central vowel. Low prevalence, matching this
+    # pool's own established "rare exotic member" rate (y/ø/œ).
+    Vowel(ipa="r̩", height=VowelHeight.CLOSE, backness=VowelBackness.CENTRAL, rounded=False, prevalence=0.04),
 )
 
 _TONE_LEVEL_SETS = (
@@ -1013,7 +1042,7 @@ def generate_phonology(
     # Mutually exclusive with tone (a real language is never both a tone
     # language and a pitch-accent language) -- skip the roll entirely
     # once `tonal` has already won.
-    word_accent_realization, _, _ = word_accent_gen.resolve_word_accent(reference_profiles)
+    word_accent_realization, _, _, _ = word_accent_gen.resolve_word_accent(reference_profiles)
     if tone_system.enabled or not word_accent_realization:
         word_accent_system = WordAccentSystem(enabled=False)
     else:

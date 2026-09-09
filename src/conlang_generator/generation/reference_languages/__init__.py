@@ -67,9 +67,10 @@ stress_pattern: ""                  # optional, defaults empty -- e.g. "penultim
 stress_deviation_rate: null         # optional, defaults null -- e.g. 0.15, how often a word deviates from that default
 stress_accent_marking: ""           # optional, defaults empty -- e.g. "irregular_only" (real Spanish's á/é/í/ó/ú)
 stress_driven_vowel_reduction: false  # optional, defaults false -- true for English/German/Dutch's own real synchronic schwa reduction
-word_accent_realization: ""         # optional, defaults empty -- "glottalization" | "pitch", e.g. real Danish stød
+word_accent_realization: ""         # optional, defaults empty -- "glottalization" | "pitch" | "pitch_and_length", e.g. real Danish stød
 word_accent_pattern: ""             # optional, defaults empty -- e.g. "monosyllabic_heavy"
 word_accent_deviation_rate: null    # optional, defaults null -- e.g. 0.15
+word_accent_length_rate: null       # optional, defaults null -- e.g. 0.5; only meaningful for "pitch_and_length" (real BCMS length is substantially lexical)
 word_accent_marking: ""             # optional, defaults empty -- e.g. "marked", for a language that writes it (none curated do)
 ```
 
@@ -366,6 +367,18 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     generic cross-linguistic baseline rate instead, same "genuine lexical
     exceptions are real but a minority" role ``stress_deviation_rate``'s
     own fallback plays."""
+    word_accent_length_rate: float | None = None
+    """Only meaningful for ``word_accent_realization == "pitch_and_length"``
+    (real Serbo-Croatian's genuine 4-way tone x length contrast) --
+    ``generation.word_accent_gen.assign_word_accent_with_length``'s own
+    curated bernoulli rate for whether the accented syllable is long,
+    mirroring ``word_accent_deviation_rate``'s exact shape. Modeled as an
+    independent rate rather than derived from word shape, since real BCMS
+    length on the accented syllable is substantially lexical -- the same
+    honest-rate reasoning ``stress_deviation_rate`` already relies on for
+    genuinely unpredictable systems. ``None`` (the common case, including
+    every binary-realization profile) means not curated --
+    ``assign_word_accent_with_length`` falls back to an even 0.5 rate."""
     word_accent_marking: str = ""
     """Whether/how this language's real orthography writes the word-accent
     contrast itself -- ``""`` (every profile curated so far: real Danish/

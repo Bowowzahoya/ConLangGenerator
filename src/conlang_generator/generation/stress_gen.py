@@ -95,7 +95,8 @@ def mark_stress(
         return "".join(filled_symbols)
     vowel_indices = [i for i, s in enumerate(filled_symbols) if s in vowel_symbols]
     final_coda = tuple(filled_symbols[vowel_indices[-1] + 1 :]) if vowel_indices else ()
-    stress_index = assign_stress(rng, num_syllables, final_coda, pattern, deviation_rate, strictness)
+    final_nucleus = filled_symbols[vowel_indices[-1]] if vowel_indices else ""
+    stress_index = assign_stress(rng, num_syllables, final_coda, pattern, deviation_rate, strictness, final_nucleus)
     insert_at = starts[stress_index]
     return "".join(
         (STRESS_MARK if i == insert_at else "") + symbol for i, symbol in enumerate(filled_symbols)
@@ -109,6 +110,7 @@ def assign_stress(
     pattern: str,
     deviation_rate: float | None,
     strictness: float,
+    final_nucleus: str = "",
 ) -> int:
     """Picks the actual stressed syllable for one word: the
     ``pattern``-predicted default, occasionally overridden by a real
@@ -121,7 +123,12 @@ def assign_stress(
     dependency on ``reference_languages`` itself, the same separation
     ``word_builder.py`` already keeps from it. Never consulted for a
     monosyllable -- ``predict_default_stress`` already special-cases
-    that, and there's nothing to deviate *to*.
+    that, and there's nothing to deviate *to*. ``final_nucleus`` (the
+    word's own last syllable's vowel) is passed straight through to
+    ``predict_default_stress`` -- only ``"final_unless_unstressed_vowel"``
+    (real Portuguese) reads it, every other pattern ignores it, same
+    "only the pattern that needs an axis reads it" convention
+    ``final_coda`` already has.
 
     ``strictness`` gates whether *this word* uses the curated pattern's
     own default+deviation-rate at all, rather than partially blending
@@ -136,10 +143,10 @@ def assign_stress(
         return 0
     strictness = max(0.0, min(1.0, strictness))
     if pattern and rng.random() < strictness:
-        default = predict_default_stress(num_syllables, pattern, final_coda)
+        default = predict_default_stress(num_syllables, pattern, final_coda, final_nucleus)
         rate = deviation_rate if deviation_rate is not None else _GENERIC_STRESS_DEVIATION_RATE
     else:
-        default = predict_default_stress(num_syllables, "", final_coda)
+        default = predict_default_stress(num_syllables, "", final_coda, final_nucleus)
         rate = _GENERIC_STRESS_DEVIATION_RATE
     if rng.random() < rate:
         alternatives = [i for i in range(num_syllables) if i != default]

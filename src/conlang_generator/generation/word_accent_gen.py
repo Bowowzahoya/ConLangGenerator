@@ -50,21 +50,52 @@ categories get a real mark here (unlike the ``"glottalization"``
 realization's presence/absence shape), since pitch accent is a genuine
 two-way contrast."""
 
+_TONE_LENGTH_DIACRITICS: dict[tuple[WordAccentCategory, bool], str] = {
+    (WordAccentCategory.ACCENT_2, False): TONE_DIACRITICS[ToneLevel.LOW],
+    (WordAccentCategory.ACCENT_2, True): TONE_DIACRITICS[ToneLevel.HIGH],
+    (WordAccentCategory.ACCENT_1, True): "̂",
+    (WordAccentCategory.ACCENT_1, False): "̏",
+}
+"""The four real, standard Slavistic accentuation marks for the
+``"pitch_and_length"`` realization's genuine 4-way tone x length
+contrast (real Serbo-Croatian/BCMS). Keyed by ``(WordAccentCategory,
+is_long)`` rather than a 4-member enum, per ``WordAccentSystem``'s own
+docstring reasoning: ``ACCENT_1`` = falling (the historically older/
+more conservative pattern), ``ACCENT_2`` = rising (the Neo-Stokavian
+retraction/innovation) -- a genuine, if loose, historical-linguistic
+parallel to the Scandinavian older/newer framing already used for the
+binary system. Marks: short rising = grave (reusing the same character
+``_PITCH_DIACRITICS`` uses for ``ACCENT_2``), long rising = acute
+(reusing the same character ``_PITCH_DIACRITICS`` uses for
+``ACCENT_1`` -- the character carries over, not the category pairing,
+since here rising is ``ACCENT_2`` not ``ACCENT_1``), long falling =
+circumflex (U+0302, new), short falling = double grave (U+030F, new)."""
+
 
 def resolve_word_accent(
     reference_profiles: tuple["ReferenceLanguageProfile", ...],
-) -> tuple[str, str, float | None]:
+) -> tuple[str, str, float | None, float | None]:
     """The first matched profile that has curated
     ``word_accent_realization`` wins outright -- same first-match, no-
     blending rule ``stress_gen.resolve_stress_pattern`` uses, for the same
     reason (there's no meaningful "halfway between glottalization and
-    pitch"). ``("", "", None)`` when none have -- callers treat an empty
-    ``realization`` as "this run's language doesn't have this feature",
-    never attempting ``assign_word_accent`` at all."""
+    pitch"). ``("", "", None, None)`` when none have -- callers treat an
+    empty ``realization`` as "this run's language doesn't have this
+    feature", never attempting ``assign_word_accent``/
+    ``assign_word_accent_with_length`` at all. ``length_rate`` (the new
+    4th element) is only ever meaningful for ``"pitch_and_length"``
+    profiles -- every binary-realization profile simply leaves
+    ``word_accent_length_rate`` uncurated (``None``), and callers never
+    read it in that case."""
     for profile in reference_profiles:
         if profile.word_accent_realization:
-            return profile.word_accent_realization, profile.word_accent_pattern, profile.word_accent_deviation_rate
-    return "", "", None
+            return (
+                profile.word_accent_realization,
+                profile.word_accent_pattern,
+                profile.word_accent_deviation_rate,
+                profile.word_accent_length_rate,
+            )
+    return "", "", None, None
 
 
 def assign_word_accent(
@@ -123,6 +154,61 @@ def mark_word_accent(category: WordAccentCategory | None, realization: str) -> s
     return ""
 
 
+def assign_word_accent_with_length(
+    rng: random.Random,
+    num_syllables: int,
+    accented_syllable_index: int,
+    pattern: str,
+    deviation_rate: float | None,
+    length_rate: float | None,
+    strictness: float,
+) -> tuple[WordAccentCategory, bool] | None:
+    """The ``"pitch_and_length"`` counterpart of ``assign_word_accent``,
+    kept as a wholly separate function (not an overload) so the proven
+    binary-language path -- Danish/Swedish/Norwegian, still calling
+    ``assign_word_accent`` unchanged -- can never regress from this
+    extension. Picks this word's own tone (``WordAccentCategory``, reused
+    per this module's own ``_TONE_LENGTH_DIACRITICS`` docstring: falling
+    = ``ACCENT_1``, rising = ``ACCENT_2``) *and*, independently, whether
+    the accented syllable is long, or ``None`` if the system isn't gated
+    in for this word (same ``strictness`` roll shape as
+    ``assign_word_accent``).
+
+    Tone follows ``predict_default_word_accent``'s
+    ``"initial_falling_elsewhere_rising"`` pattern (real BCMS: falling on
+    a word-initial syllable or any monosyllable, rising elsewhere) plus
+    the same lexical-deviation-rate flip ``assign_word_accent`` already
+    uses. Length is modeled as an independent, curated bernoulli rate
+    rather than derived from word shape -- real BCMS length on the
+    accented syllable is substantially lexical, the same honest-rate
+    reasoning ``stress_deviation_rate`` already relies on for genuinely
+    unpredictable systems."""
+    if not pattern:
+        return None
+    strictness = max(0.0, min(1.0, strictness))
+    if rng.random() >= strictness:
+        return None
+    default = predict_default_word_accent(num_syllables, "", (), pattern, accented_syllable_index)
+    rate = deviation_rate if deviation_rate is not None else _GENERIC_WORD_ACCENT_DEVIATION_RATE
+    if rng.random() < rate:
+        category = WordAccentCategory.ACCENT_2 if default == WordAccentCategory.ACCENT_1 else WordAccentCategory.ACCENT_1
+    else:
+        category = default
+    length_rate = length_rate if length_rate is not None else 0.5
+    is_long = rng.random() < length_rate
+    return category, is_long
+
+
+def mark_word_accent_with_length(accent: tuple[WordAccentCategory, bool] | None) -> str:
+    """The ``"pitch_and_length"`` counterpart of ``mark_word_accent`` --
+    ``accent is None`` (the system didn't gate in for this word) yields
+    ``""``, otherwise looks the ``(category, is_long)`` pair straight up
+    in ``_TONE_LENGTH_DIACRITICS``."""
+    if accent is None:
+        return ""
+    return _TONE_LENGTH_DIACRITICS[accent]
+
+
 def mark_stress_and_word_accent(
     rng: random.Random,
     filled_symbols: tuple[str, ...],
@@ -133,6 +219,7 @@ def mark_stress_and_word_accent(
     word_accent_realization: str = "",
     word_accent_pattern: str = "",
     word_accent_deviation_rate: float | None = None,
+    word_accent_length_rate: float | None = None,
 ) -> str:
     """The templatic-word-formation counterpart of
     ``word_builder.build_word``'s own combined stress+word-accent handling,
@@ -155,8 +242,9 @@ def mark_stress_and_word_accent(
     stress_index: int | None = None
     if num_syllables > 1:
         final_coda = tuple(filled_symbols[vowel_indices[-1] + 1 :]) if vowel_indices else ()
+        final_nucleus = filled_symbols[vowel_indices[-1]] if vowel_indices else ""
         stress_index = stress_gen.assign_stress(
-            rng, num_syllables, final_coda, stress_pattern, stress_deviation_rate, stress_strictness
+            rng, num_syllables, final_coda, stress_pattern, stress_deviation_rate, stress_strictness, final_nucleus
         )
         insert_at = starts[stress_index]
 
@@ -169,11 +257,18 @@ def mark_stress_and_word_accent(
         nucleus_index = next(i for i in vowel_indices if syllable_start <= i < syllable_end)
         accented_nucleus = filled_symbols[nucleus_index]
         accented_coda = filled_symbols[nucleus_index + 1 : syllable_end]
-        accent_category = assign_word_accent(
-            rng, num_syllables, accented_nucleus, accented_coda,
-            word_accent_pattern, word_accent_deviation_rate, stress_strictness,
-        )
-        accent_mark = mark_word_accent(accent_category, word_accent_realization)
+        if word_accent_realization == "pitch_and_length":
+            accent = assign_word_accent_with_length(
+                rng, num_syllables, accented_syllable,
+                word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate, stress_strictness,
+            )
+            accent_mark = mark_word_accent_with_length(accent)
+        else:
+            accent_category = assign_word_accent(
+                rng, num_syllables, accented_nucleus, accented_coda,
+                word_accent_pattern, word_accent_deviation_rate, stress_strictness,
+            )
+            accent_mark = mark_word_accent(accent_category, word_accent_realization)
         if accent_mark:
             # Glottalization marks the whole rime -- after its last
             # symbol (the nucleus itself when there's no coda). Pitch is a

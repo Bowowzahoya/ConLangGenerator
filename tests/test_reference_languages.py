@@ -398,6 +398,75 @@ def test_dutch_diphthongs_and_their_spellings_round_trip_from_yaml():
     assert by_ipa["œy"] == "ui"
 
 
+def test_russian_declares_the_extended_palatalization_series():
+    # Real Russian contrasts palatalized/plain across nearly its whole
+    # consonant inventory, not just the four coronals (tʲ/dʲ/nʲ/lʲ) the
+    # original profile modeled.
+    russian = next(p for p in REFERENCE_LANGUAGES if p.name == "Russian")
+    extended = {"pʲ", "bʲ", "mʲ", "fʲ", "vʲ", "sʲ", "zʲ", "kʲ", "xʲ", "rʲ"}
+    assert extended <= set(russian.consonants)
+    inventory = _inventory_for(russian)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Russian",),
+        requested_orthography_style=russian.orthography_category, strictness=1.0,
+    )
+    # Same real scholarly soft-sign apostrophe convention as the original
+    # four palatalized consonants.
+    assert scheme.apply("pʲ") == "p'"
+    assert scheme.apply("rʲ") == "r'"
+
+
+def test_russian_declares_a_real_stress_pattern_and_vowel_reduction():
+    # Real Russian stress is famously "free" (lexical), with genuine
+    # akanye/ikanye unstressed-vowel reduction.
+    russian = next(p for p in REFERENCE_LANGUAGES if p.name == "Russian")
+    assert russian.stress_pattern == "lexical"
+    assert russian.stress_deviation_rate is not None
+    assert russian.stress_driven_vowel_reduction is True
+
+
+def test_portuguese_declares_its_own_mirror_image_stress_pattern():
+    # Real Portuguese default stress is coda-conditioned but in the
+    # opposite direction from Spanish's own "penultimate_or_final_by_coda"
+    # -- final unless the word ends in an unstressed a/e/o.
+    portuguese = next(p for p in REFERENCE_LANGUAGES if p.name == "Portuguese")
+    assert portuguese.stress_pattern == "final_unless_unstressed_vowel"
+    assert portuguese.stress_pattern != "penultimate_or_final_by_coda"
+    assert portuguese.stress_deviation_rate is not None
+    assert portuguese.stress_accent_marking == "irregular_only"
+    assert portuguese.stress_driven_vowel_reduction is True
+
+
+def test_serbo_croatian_profile_exists_with_syllabic_r_and_pitch_and_length_accent():
+    serbo_croatian = next(p for p in REFERENCE_LANGUAGES if p.name == "Serbo-Croatian")
+    assert "r̩" in serbo_croatian.vowels
+    assert {"tɕ", "dʑ"} <= set(serbo_croatian.consonants)  # real ć/đ
+    assert serbo_croatian.word_accent_realization == "pitch_and_length"
+    assert serbo_croatian.word_accent_pattern == "initial_falling_elsewhere_rising"
+    assert serbo_croatian.word_accent_deviation_rate is not None
+    assert serbo_croatian.word_accent_length_rate is not None
+    assert serbo_croatian.stress_pattern == "lexical"
+    assert serbo_croatian.stress_driven_vowel_reduction is False
+
+
+def test_serbo_croatian_syllabic_r_romanizes_as_plain_r():
+    # Real Serbo-Croatian spells syllabic /r/ identically to consonantal
+    # /r/ ("vrt", not "vr̩t") -- no special marking in any style.
+    serbo_croatian = next(p for p in REFERENCE_LANGUAGES if p.name == "Serbo-Croatian")
+    inventory = _inventory_for(serbo_croatian)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Serbo-Croatian",),
+        requested_orthography_style=serbo_croatian.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("r̩") == "r"
+
+
+def test_russian_portuguese_serbo_croatian_declare_a_real_average_syllable_count():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in ("Russian", "Portuguese", "Serbo-Croatian"):
+        assert by_name[name].core_vocabulary_average_syllables is not None
+
+
 def test_arabic_source_language_biases_toward_root_and_pattern_and_fusional():
     def _rates(source_languages: tuple[str, ...]) -> tuple[float, float]:
         root_and_pattern_hits = 0
@@ -474,6 +543,7 @@ def test_most_profiles_leave_average_syllables_uncurated():
         "Danish", "Swedish", "Norwegian", "Icelandic",
         "Finnish", "Hungarian", "Polish",
         "Arabic", "Hebrew", "Turkish",
+        "Russian", "Portuguese", "Serbo-Croatian",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -517,6 +587,7 @@ _PERFECTED_LANGUAGES = (
     "Danish", "Swedish", "Norwegian", "Icelandic",
     "Finnish", "Hungarian", "Polish",
     "Arabic", "Hebrew", "Turkish",
+    "Russian", "Portuguese", "Serbo-Croatian",
 )
 _TIER_NAMES = {"very_common", "common", "uncommon", "rare"}
 
@@ -1034,6 +1105,7 @@ def test_most_profiles_leave_stress_pattern_uncurated():
         "Danish", "Swedish", "Norwegian", "Icelandic",
         "Finnish", "Hungarian", "Polish",
         "Arabic", "Hebrew", "Turkish",
+        "Russian", "Portuguese", "Serbo-Croatian",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -1093,12 +1165,15 @@ def test_danish_declares_glottalization_word_accent_and_swedish_norwegian_declar
 
 def test_icelandic_and_the_six_perfected_languages_leave_word_accent_uncurated():
     # Real Icelandic has no stød/pitch accent; the six perfected profiles
-    # are unrelated languages that don't have this feature either.
-    curated = {"Danish", "Swedish", "Norwegian"}
+    # are unrelated languages that don't have this feature either. Real
+    # Russian/Portuguese also lack a lexical tone/pitch-accent contrast --
+    # only Serbo-Croatian's own genuine 4-way tone+length system is curated.
+    curated = {"Danish", "Swedish", "Norwegian", "Serbo-Croatian"}
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
             assert profile.word_accent_realization == ""
             assert profile.word_accent_pattern == ""
+            assert profile.word_accent_length_rate is None
             assert profile.word_accent_deviation_rate is None
             assert profile.word_accent_marking == ""
 

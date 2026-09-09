@@ -1,12 +1,54 @@
 name: Russian
 aliases: [russkiy]
-consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ʒ", x, "tʃ", m, n, l, r, j, "tʲ", "dʲ", "nʲ", "lʲ"]
+consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ʒ", x, "tʃ", m, n, l, r, j, "tʲ", "dʲ", "nʲ", "lʲ", "pʲ", "bʲ", "mʲ", "fʲ", "vʲ", "sʲ", "zʲ", "kʲ", "xʲ", "rʲ"]
 vowels: [i, e, a, o, u, "ɨ", "ə"]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
 coda_devoicing: true
 orthography_category: diacritic-style
+attested_onset_clusters:
+  # Real, common Russian onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive. Real Russian is
+  # famously permissive here (real "встреча", "взгляд" genuinely start
+  # with 3-4 consonants), well beyond this project's own max_onset=2
+  # ceiling -- the list below stays within it. s+voiceless-stop (st/sk)
+  # excluded -- already covered by sonority's own generic exception, same
+  # convention every other profile uses.
+  - [p, r]                   # "право"
+  - [p, l]                   # "плохой"
+  - [t, r]                   # "три"
+  - [d, r]                   # "друг"
+  - [k, r]                   # "кровь"
+  - [k, l]                   # "класс"
+  - [g, r]                   # "гром"
+  - [g, l]                   # "глаз"
+  - [b, r]                   # "брат"
+  - [b, l]                   # "блин"
+  - [f, r]                   # "фрукт"
+  - [v, r]                   # "врач"
+  - [v, l]                   # "власть"
+  - [z, n]                   # "знать"
+  - [m, n]                   # "много"
+  - [v, z]                   # "взять"
+  - [d, v]                   # "два"
+  - [t, v]                   # "твой"
+  - [k, v]                   # "квас"
+  - [p, "rʲ"]                 # "пряник" -- a palatalized consonant can
+                              # follow just like its plain counterpart
+attested_coda_clusters:
+  # Real, common Russian coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [s, t]                   # "мост"
+  - [r, k]                   # "парк"
+  - [l, k]                   # "полк"
+  - [n, k]                   # "банк"
+  - [n, t]                   # "студент"
+  - [r, t]                   # "спорт"
+  - [s, k]                   # "риск"
+  - [z, m]                   # "организм"
+  - [l, s]                   # "рельс"
+  - [f, t]                   # illustrative
 orthography:
   # Real scholarly (ISO 9/scientific) transliteration conventions,
   # restricted to symbols this profile actually models -- illustrative,
@@ -22,8 +64,46 @@ orthography:
                                # system can't capture (same category of
                                # gap as Dutch's own au/ou).
   # Real scholarly soft-sign (ь) apostrophe convention for
-  # palatalization.
+  # palatalization, extended here from the original four (t/d/n/l) to
+  # real Russian's much broader palatalization series (see
+  # phonology_gen.py's own extended `_PALATALIZED_GROUP`) -- same
+  # convention, more members.
   - {ipa: "tʲ", latin: "t'"}
   - {ipa: "dʲ", latin: "d'"}
   - {ipa: "nʲ", latin: "n'"}
   - {ipa: "lʲ", latin: "l'"}
+  - {ipa: "pʲ", latin: "p'"}
+  - {ipa: "bʲ", latin: "b'"}
+  - {ipa: "mʲ", latin: "m'"}
+  - {ipa: "fʲ", latin: "f'"}
+  - {ipa: "vʲ", latin: "v'"}
+  - {ipa: "sʲ", latin: "s'"}
+  - {ipa: "zʲ", latin: "z'"}
+  - {ipa: "kʲ", latin: "k'"}
+  - {ipa: "xʲ", latin: "kh'"}
+  - {ipa: "rʲ", latin: "r'"}
+core_vocabulary_average_syllables: 1.86  # hand-counted across this project's own CORE_MEANINGS glosses -- higher than every Germanic profile, reflecting Russian's own richer nominal/verbal morphology even at the bare-root level; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [s, t, k, p, n, v, m]
+  common: [d, b, g, z, r, l, j, "tʃ"]
+  uncommon: [f, x, "ʃ", "ʒ", "tʲ", "dʲ", "nʲ", "lʲ"]
+  rare: ["pʲ", "bʲ", "mʲ", "fʲ", "vʲ", "sʲ", "zʲ", "kʲ", "xʲ", "rʲ"]
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [o, e, u]
+  uncommon: ["ɨ"]
+  rare: ["ə"]
+coda_frequency_tiers:
+  # coda_devoicing above already excludes every voiced obstruent from
+  # legal coda position at generation time -- b/d/g/v/z/ʒ/dʲ/bʲ/vʲ/zʲ
+  # below are never actually consulted (phonology_gen.py's own
+  # "unrestricted" branch removes them from the legal coda set before
+  # this table is ever queried), same dead-data-but-harmless status
+  # Polish's own coda_frequency_tiers already has for the same real fact.
+  very_common: [t, k, s, n]
+  common: [r, l, m, p, "tʃ"]
+  uncommon: [f, x, "ʃ", j, "tʲ", "nʲ", "lʲ"]
+  rare: [b, d, g, v, z, "ʒ", "dʲ", "bʲ", "vʲ", "zʲ", "pʲ", "fʲ", "sʲ", "kʲ", "xʲ", "rʲ", "mʲ"]
+stress_pattern: lexical  # real Russian stress is famously "free" -- lexically fixed per word (and can even move within a paradigm), not predictable from a word's shape, same "genuinely complex, no simple flat rule" status English/Arabic/Italian's own stress already has
+stress_deviation_rate: 0.45  # illustrative -- close to English's own near-coin-flip figure, reflecting how little a flat positional default actually predicts real Russian stress
+stress_driven_vowel_reduction: true  # real Russian akanye/ikanye: unstressed о/а merge toward a reduced central quality, unstressed е/я toward a reduced front quality -- one of the most famous facts about Russian phonology

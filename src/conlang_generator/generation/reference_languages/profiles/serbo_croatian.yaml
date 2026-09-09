@@ -1,0 +1,93 @@
+name: Serbo-Croatian
+aliases: [bcms, "srpskohrvatski"]
+consonants: [p, b, t, d, k, g, ts, dz, "tʃ", "dʒ", "tɕ", "dʑ", f, v, s, z, "ʃ", "ʒ", x, m, n, "ɲ", l, "lʲ", r, j]
+vowels: [a, e, i, o, u, "r̩"]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+orthography_category: diacritic-style
+attested_onset_clusters:
+  # Real, common Serbo-Croatian onset clusters, restricted to symbols
+  # this profile models -- illustrative, not exhaustive. sp/st/sk
+  # excluded -- already covered by sonority's own generic
+  # s+voiceless-stop exception, same convention every other profile
+  # uses. None of these pair a consonant with the new syllabic "r̩" --
+  # that symbol is a *vowel* in this project's model (see the profile's
+  # own note on syllabic /r/ below), so a word like "prst" ("finger")
+  # has just a single onset consonant "p" before the r̩ nucleus, not a
+  # "pr" cluster.
+  - [k, r]                   # "kruh"
+  - [g, r]                   # "grad"
+  - [t, r]                   # "trava"
+  - [b, r]                   # "brat"
+  - [p, l]                   # "plav"
+  - [k, l]                   # "klupa"
+  - [g, l]                   # "glava"
+  - [v, l]                   # "vlast"
+  - [z, l]                   # "zlato"
+  - [z, n]                   # "znati"
+  - [s, v]                   # "svijet"
+  - [s, k]                   # "skupo"
+  - [m, n]                   # "mnogo"
+  - [x, v]                   # "hvala"
+attested_coda_clusters:
+  # Real, common Serbo-Croatian coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive. "list" and "prst"
+  # both genuinely end in a real two-consonant coda -- "prst" ("finger")
+  # is also this project's own canonical syllabic-/r/ example: onset
+  # "p", nucleus "r̩", coda "st".
+  - [s, t]                   # "list" ("leaf"), "prst" ("finger")
+  - [z, d]                   # "grozd" ("grape cluster")
+  - [n, k]                   # illustrative
+  - [s, k]                   # "disk" -- illustrative
+orthography:
+  # Real Gaj's Latin alphabet (Serbo-Croatian/BCMS's own standard Latin
+  # orthography) -- one letter (or a fixed digraph/trigraph) per sound,
+  # restricted to symbols this profile actually models -- illustrative,
+  # not a full account.
+  - {ipa: "ʃ", latin: "š"}
+  - {ipa: "ʒ", latin: "ž"}
+  - {ipa: "tʃ", latin: "č"}
+  - {ipa: "dʒ", latin: "dž"}
+  # Real "ć"/"đ" map precisely onto this project's own alveolo-palatal
+  # affricates "tɕ"/"dʑ" (added for Polish's own real "ć"/"dź" in an
+  # earlier batch) -- a genuine phonetic match, not an approximation.
+  - {ipa: "tɕ", latin: "ć"}
+  - {ipa: "dʑ", latin: "đ"}
+  - {ipa: ts, latin: c}
+  - {ipa: dz, latin: dz}
+  - {ipa: x, latin: h}
+  - {ipa: "ɲ", latin: nj}
+  # Real /ʎ/ ("lj") approximated by this project's own secondary-
+  # palatalization symbol "lʲ" -- the same Italian/Portuguese-precedent
+  # convention this project already uses for their own /ʎ/.
+  - {ipa: "lʲ", latin: lj}
+  # Real Serbo-Croatian syllabic /r/ (vrt "garden", trg "square", Krk,
+  # prst "finger") -- a whole syllable with no vowel at all, /r/ itself
+  # carrying the nucleus. Spelled identically to consonantal /r/ in real
+  # BCMS orthography ("vrt", not "vr̩t") -- no special marking, unlike
+  # this project's own IPA modeling of it as a distinct pool vowel.
+  - {ipa: "r̩", latin: r}
+core_vocabulary_average_syllables: 1.88  # hand-counted across this project's own CORE_MEANINGS glosses -- close to Russian's own figure, reflecting a comparably rich Slavic nominal/verbal morphology even at the bare-root level; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [p, t, k, s, n, v, m]
+  common: [b, d, g, z, r, l, j, "tʃ"]
+  uncommon: [f, x, "ʃ", "ʒ", ts, dz, "ɲ", "lʲ"]
+  rare: ["dʒ", "tɕ", "dʑ"]
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [e, o]
+  uncommon: [u]
+  rare: ["r̩"]  # real syllabic /r/ is a genuine but comparatively rare nucleus, restricted to a specific real word class (prst, vrt, trg, Krk, crn) -- low prevalence already curated at the pool level in phonology_gen.py, this tier reflects the same rarity in-language
+coda_frequency_tiers:
+  very_common: [t, k, s, n]
+  common: [r, l, m, v, "tʃ"]
+  uncommon: [p, b, d, g, z, "ʃ", x, j]
+  rare: [f, "ʒ", ts, dz, "dʒ", "tɕ", "dʑ", "ɲ", "lʲ"]
+stress_pattern: lexical  # real BCMS (Neo-Stokavian) stress is lexically variable but categorically never falls on a word's own final syllable -- satisfied for free by predict_default_stress's own generic penultimate-leaning fallback, which never lands on the final syllable of any multi-syllable word
+stress_deviation_rate: 0.3  # illustrative -- same generic baseline this project already uses for a genuinely lexical system with no single dominant flat rule
+stress_driven_vowel_reduction: false  # real BCMS: a conservative, pitch-accent language that keeps full vowel quality regardless of stress -- unlike Russian's own akanye/ikanye
+word_accent_realization: pitch_and_length  # real BCMS's own genuine 4-way tone x length contrast (short/long x rising/falling) on the accented syllable -- the deliberately-out-of-scope case this project's own binary WordAccentSystem was first built without (see danish.yaml/swedish.yaml's own "monosyllabic_heavy"/"underived_monosyllable" for the simpler binary version)
+word_accent_pattern: initial_falling_elsewhere_rising  # real, commonly-cited BCMS generalization (Neo-Stokavian): falling accent on a word-initial syllable (or any monosyllable), rising elsewhere
+word_accent_deviation_rate: 0.15  # illustrative -- real BCMS accent placement has genuine lexical/dialectal exceptions to its own predictable-by-position default, similar order of magnitude to Danish's own stød exceptions
+word_accent_length_rate: 0.5  # illustrative -- real BCMS length on the accented syllable is substantially lexical, not predictable from word shape, so modeled as an even split rather than derived from any structural cue

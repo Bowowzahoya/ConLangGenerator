@@ -207,6 +207,7 @@ def _propose_kinship_word(
     word_accent_realization: str = "",
     word_accent_pattern: str = "",
     word_accent_deviation_rate: float | None = None,
+    word_accent_length_rate: float | None = None,
 ) -> LexicalEntry | None:
     """Try the mama/papa-style reduplicated pattern; ``None`` means the
     inventory has no matching consonant class and the caller should fall
@@ -219,6 +220,7 @@ def _propose_kinship_word(
         stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=stress_strictness,
         word_accent_realization=word_accent_realization, word_accent_pattern=word_accent_pattern,
         word_accent_deviation_rate=word_accent_deviation_rate, word_accent_strictness=stress_strictness,
+        word_accent_length_rate=word_accent_length_rate,
     )
     if word is None:
         return None
@@ -333,15 +335,18 @@ def propose_word(
     stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(reference_profiles)
     word_accent_pattern = ""
     word_accent_deviation_rate: float | None = None
+    word_accent_length_rate: float | None = None
     if word_accent_system.enabled:
-        _, word_accent_pattern, word_accent_deviation_rate = word_accent_gen.resolve_word_accent(reference_profiles)
+        _, word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate = word_accent_gen.resolve_word_accent(
+            reference_profiles
+        )
 
     if gloss_key in _KINSHIP_MANNER_CLASSES and rng.random() < _KINSHIP_PATTERN_PROBABILITY:
         kinship_entry = _propose_kinship_word(
             rng, inventory, structure, tone_system, romanization, gloss, pos, gloss_key,
             stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=strictness,
             word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
-            word_accent_deviation_rate=word_accent_deviation_rate,
+            word_accent_deviation_rate=word_accent_deviation_rate, word_accent_length_rate=word_accent_length_rate,
         )
         if kinship_entry is not None:
             return kinship_entry
@@ -366,6 +371,7 @@ def propose_word(
             reduce_unstressed_vowels=reduce_unstressed_vowels,
             word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
             word_accent_deviation_rate=word_accent_deviation_rate, word_accent_strictness=strictness,
+            word_accent_length_rate=word_accent_length_rate,
         )
         if word not in seen:
             seen.add(word)
