@@ -237,6 +237,47 @@ def test_hebrew_declares_root_and_pattern():
     assert hebrew.root_and_pattern is True
 
 
+def test_arabic_jim_is_voiced_and_gemination_is_curated():
+    # Real Modern Standard Arabic jīm is voiced /dʒ/ (not the voiceless
+    # /tʃ/ this profile used to model), and real Arabic shadda
+    # (gemination) is a genuine, productive feature -- reuses the shared
+    # geminate pool, restricted from onset (never word-initial), same
+    # fact already curated for Finnish's own geminates.
+    arabic = next(p for p in REFERENCE_LANGUAGES if p.name == "Arabic")
+    assert "dʒ" in arabic.consonants
+    assert "tʃ" not in arabic.consonants
+    assert "kː" in arabic.consonants
+    assert "kː" in arabic.restricted_onset_consonants
+    assert arabic.orthography_category == "scholarly-macron-gemination-style"
+
+
+def test_hebrew_rhotic_is_uvular():
+    # Real *Modern Israeli* Hebrew (this profile's own "ivrit" alias)
+    # canonically has a uvular rhotic, not Biblical Hebrew's alveolar one
+    # -- same real fact already curated for Danish/Swedish/French's own
+    # /ʁ/.
+    hebrew = next(p for p in REFERENCE_LANGUAGES if p.name == "Hebrew")
+    assert "ʁ" in hebrew.consonants
+    assert "r" not in hebrew.consonants
+
+
+def test_arabic_hebrew_turkish_declare_a_real_stress_pattern():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    # Real Arabic stress is quantity-sensitive, not a flat position --
+    # modeled as "lexical", the same "genuinely complex" catch-all
+    # English's own real stress system uses.
+    assert by_name["Arabic"].stress_pattern == "lexical"
+    # Real Hebrew and Turkish are both robustly word-final by default.
+    assert by_name["Hebrew"].stress_pattern == "final"
+    assert by_name["Turkish"].stress_pattern == "final"
+    for name in ("Arabic", "Hebrew", "Turkish"):
+        assert by_name[name].stress_deviation_rate is not None
+        assert by_name[name].stress_driven_vowel_reduction is False
+    # Real Hebrew's penultimate ("milel") minority is substantially
+    # larger than Turkish's own narrower, more systematic exceptions.
+    assert by_name["Hebrew"].stress_deviation_rate > by_name["Turkish"].stress_deviation_rate
+
+
 def test_tibetan_declares_tonal():
     tibetan = next(p for p in REFERENCE_LANGUAGES if p.name == "Tibetan")
     assert tibetan.tonal is True
@@ -432,6 +473,7 @@ def test_most_profiles_leave_average_syllables_uncurated():
         "English", "German", "French", "Dutch", "Italian", "Spanish",
         "Danish", "Swedish", "Norwegian", "Icelandic",
         "Finnish", "Hungarian", "Polish",
+        "Arabic", "Hebrew", "Turkish",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -474,6 +516,7 @@ _PERFECTED_LANGUAGES = (
     "English", "German", "French", "Dutch", "Spanish",
     "Danish", "Swedish", "Norwegian", "Icelandic",
     "Finnish", "Hungarian", "Polish",
+    "Arabic", "Hebrew", "Turkish",
 )
 _TIER_NAMES = {"very_common", "common", "uncommon", "rare"}
 
@@ -990,6 +1033,7 @@ def test_most_profiles_leave_stress_pattern_uncurated():
         "French", "Spanish", "Italian", "German", "Dutch", "English",
         "Danish", "Swedish", "Norwegian", "Icelandic",
         "Finnish", "Hungarian", "Polish",
+        "Arabic", "Hebrew", "Turkish",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:

@@ -1,6 +1,6 @@
 name: Hebrew
 aliases: ["ivrit"]
-consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", x, h, m, n, l, r, j, w, "ʔ", "ʕ", q, "tˤ", "sˤ"]
+consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", x, h, m, n, l, "ʁ", j, w, "ʔ", "ʕ", q, "tˤ", "sˤ"]
 vowels: [a, e, i, o, u, "aː", "eː", "iː", "oː", "uː"]
 coda_profile: unrestricted
 max_onset: 1
@@ -14,6 +14,11 @@ orthography:
   # largely lost in Modern Hebrew) is genuine same-quality duration
   # here, spelled with the standard macron convention (same as Arabic's
   # and Hindi's own).
+  - {ipa: "ʁ", latin: r}     # real *Modern Israeli* Hebrew resh is
+                             # canonically uvular (unlike Biblical/
+                             # Classical Hebrew's alveolar r), but real
+                             # transliteration -- letter-based, not
+                             # phonetic -- still just writes plain "r"
   - {ipa: "aː", latin: "ā"}
   - {ipa: "eː", latin: "ē"}
   - {ipa: "iː", latin: "ī"}
@@ -25,3 +30,28 @@ orthography:
   - {ipa: "ʕ", latin: "‘"}   # ayin -- real scholarly reversed-comma mark
   - {ipa: "tˤ", latin: "ṭ"}  # tet
   - {ipa: "sˤ", latin: "ṣ"}  # tsadi
+# No attested_coda_clusters curated -- a real fact, not an oversight: a
+# large swath of core Hebrew vocabulary (the "segolate" noun pattern)
+# historically broke up real CVCC coda clusters with an epenthetic vowel
+# specifically to avoid them (*malk > "melekh"), leaving genuine native
+# coda clusters comparatively rare in the modern core lexicon, unlike
+# Arabic's own real ones.
+core_vocabulary_average_syllables: 1.5  # hand-counted across this project's own CORE_MEANINGS glosses -- illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, m, n, s, l, b, "ʁ"]
+  common: [p, d, g, f, v, h, z, j]
+  uncommon: ["ʃ", x, w, "ʔ", "ʕ", q]
+  rare: ["tˤ", "sˤ"]
+nucleus_frequency_tiers:
+  very_common: [a, e]
+  common: [i, o, u]
+  uncommon: ["aː", "eː"]
+  rare: ["iː", "oː", "uː"]
+coda_frequency_tiers:
+  very_common: [t, n, m, s, l, "ʁ"]
+  common: [k, b, d, f, v, z, x, "ʔ"]
+  uncommon: [p, g, h, "ʃ", "ʕ", q, j, w]
+  rare: ["tˤ", "sˤ"]
+stress_pattern: final  # real Modern Hebrew: robustly word-final by default (milra) -- a distinctive fact unlike most European languages
+stress_deviation_rate: 0.28  # illustrative -- real penultimate ("milel") stress is a substantial minority class, not just a handful of loanword exceptions, so this sits meaningfully higher than a typical exceptions-only rate
+stress_driven_vowel_reduction: false  # real Modern Hebrew: keeps comparatively full vowel quality regardless of stress

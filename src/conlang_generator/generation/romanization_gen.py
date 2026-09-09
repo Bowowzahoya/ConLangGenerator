@@ -410,12 +410,21 @@ _GEMINATION_CATEGORY = OrthographyCategory(
     # profile hand-curates each long vowel's real doubled spelling
     # directly instead (see finnish.yaml).
 )
+_SCHOLARLY_MACRON_GEMINATION_CATEGORY = OrthographyCategory(
+    name="scholarly-macron-gemination-style",
+    description="Arabic-scholarly-transliteration-like: a long vowel takes a macron (ā), and a geminate consonant (shadda) doubles its own letter -- both real, standard conventions in the same transliteration system, unlike scholarly-macron-style's own Hindi/Bengali/Tamil-style languages, which have vowel length but no productive gemination.",
+    exotic_style=_DIGRAPH_TABLE,
+    exotic_symbol_style=ExoticSymbolStyle.DIGRAPH,
+    vowel_length_strategy=VowelLengthStrategy.MACRON,
+    consonant_gemination_marked=True,
+)
 _CATEGORIES = (
     _DIGRAPH_CATEGORY,
     _DIACRITIC_CATEGORY,
     _MONOLETTER_CATEGORY,
     _GERMANIC_DOUBLING_CATEGORY,
     _SCHOLARLY_MACRON_CATEGORY,
+    _SCHOLARLY_MACRON_GEMINATION_CATEGORY,
     _WADE_GILES_CATEGORY,
     _ZHUANG_CATEGORY,
     _PINYIN_CATEGORY,

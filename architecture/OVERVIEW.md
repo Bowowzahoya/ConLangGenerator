@@ -1174,6 +1174,56 @@ reading code or one-off ad hoc scripts.
     penultimate Polish stress) -- already `predict_default_stress`'s own
     generic fallback, so this needed zero new logic, only a data
     addition.
+- **The Arabic/Hebrew/Turkish batch** brought a fourth trio to the same
+  curation depth -- unlike the prior three batches, all three already had
+  real (non-bare) profiles (Arabic/Hebrew both `root_and_pattern: true`
+  with a curated scholarly transliteration; Turkish already
+  `vowel_harmony`/`coda_devoicing`), so this batch only extended the
+  missing axes -- no new shared-pool symbols were needed.
+  - Two real phoneme corrections surfaced while researching, fixed
+    directly: Arabic's ج (jīm) was modeled as voiceless `tʃ`, but real
+    Modern Standard Arabic jīm is voiced `/dʒ/`; Hebrew's rhotic was
+    modeled as alveolar `r`, but real *Modern Israeli* Hebrew (what the
+    profile's own `"ivrit"` alias targets) canonically has a uvular
+    rhotic `/ʁ/`, the same real fact already curated for Danish/Swedish/
+    French. Two more gaps surfaced while building Arabic's own frequency
+    tiers: native `/b/` and the interdental fricatives `/θ/ð/` (ب ث ذ)
+    were both missing from a profile that's supposed to model MSA's real
+    consonant inventory -- added directly rather than silently working
+    around a partition mismatch.
+  - Real Arabic shadda (gemination) is now modeled, reusing the existing
+    `_GEMINATE_GROUP` pool symbols (no new architecture) -- but this
+    surfaced a genuine, separate bug in `root_pattern.py::generate_root`:
+    a geminate consonant could be drawn as one of a word's own three
+    *root* letters, which no real Semitic language does (gemination is a
+    property the *template* imposes on an ordinary radical -- Form II
+    verbs double the middle one -- never an inherent property of the
+    root itself). Fixed generally in `generate_root` (excludes any
+    `.long` consonant from the root-candidate pool, with a fallback to
+    the unfiltered pool if that would empty it) rather than special-cased
+    for Arabic, since the same real fact holds for any root-and-pattern
+    language. Real Arabic transliteration also conventionally marks
+    *both* vowel length (macron) and gemination (doubling) in the same
+    system -- no existing `OrthographyCategory` did both (the existing
+    `scholarly-macron-style` category Hindi/Bengali/Tamil also use has
+    macron only, correctly, since none of those have productive
+    gemination), so a new `scholarly-macron-gemination-style` category
+    was added for Arabic specifically to point at.
+  - Real Arabic diphthongs `/aj/`/`/aw/` (bayt "house", yawm "day") are
+    now modeled too, with `/j/`/`/w/` restricted from true coda position
+    (they're diphthong components there, not true consonant codas) --
+    the same real fact and same fix shape English's own
+    `restricted_coda_consonants` already uses.
+  - Stress needed three genuinely different real treatments: Arabic's is
+    quantity-sensitive (heavy-syllable-attracting), not a flat position
+    -- modeled as `"lexical"`, the same "genuinely complex, no simple
+    flat rule" catch-all English's own real stress system already uses.
+    Hebrew and Turkish are both real, robustly word-**final** languages
+    -- distinctive since most European languages aren't -- with Hebrew's
+    own genuine penultimate ("milel") minority curated as a
+    substantially higher `stress_deviation_rate` than Turkish's own
+    narrower, more systematic exceptions (place names, "stress-neutral"
+    suffixes).
 - Dutch's `g`/`ch` distinction is now modeled: /ɣ/ (voiced velar
   fricative -- what Dutch `g` actually represents; Dutch has no native
   /g/ stop) is a real phoneme in `phonology_gen.py`'s shared pool, Dutch's

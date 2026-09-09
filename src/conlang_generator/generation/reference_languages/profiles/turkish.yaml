@@ -22,3 +22,48 @@ orthography:
   - {ipa: y, latin: "ü"}
   - {ipa: "ø", latin: "ö"}
   - {ipa: j, latin: y}
+# /ɣ/ ("ğ") is real, well-known Turkish trivia -- it never opens a *word*
+# (no native word starts with ğ), but it genuinely does open non-initial
+# syllables medially (değil "not", öğretmen "teacher") -- this project's
+# restricted_onset_consonants has no way to express "never word-initial,
+# but fine syllable-medially" (it blocks a symbol from every onset
+# position uniformly), so curating it here would incorrectly also block
+# real medial words. Left uncurated rather than force a restriction
+# narrower than what actually holds.
+attested_coda_clusters:
+  # Real, common Turkish coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive. Real native Turkish
+  # phonotactics lean CV(C); most of these are old Persian/Arabic loans
+  # long since fully nativized.
+  - [r, t]                   # "dert" (trouble)
+  - [s, t]                   # "üst" (top/upper)
+  - [l, t]                   # "alt" (bottom/lower)
+  - [r, k]                   # "türk"-adjacent, illustrative
+  - [n, t]                   # "kent" (city)
+core_vocabulary_average_syllables: 1.45  # hand-counted across this project's own CORE_MEANINGS glosses -- illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, m, n, s, l, r, b]
+  common: [d, g, f, v, h, j, z, p]
+  uncommon: ["ʃ", "tʃ", "dʒ", "ʒ", "ɣ"]
+  rare: []
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [e, u]
+  uncommon: ["ɯ", o]
+  rare: [y, "ø"]
+coda_frequency_tiers:
+  # coda_devoicing above already excludes every voiced obstruent
+  # (b/d/g/dʒ/v/z/ʒ/ɣ) from legal coda position at generation time --
+  # they're never actually consulted (phonology_gen.py's own
+  # "unrestricted" branch removes them from the legal coda set before
+  # this table is ever queried), same dead-data-but-harmless status
+  # Dutch's/Polish's own coda_frequency_tiers already have for their own
+  # devoiced entries -- kept here so this table still exactly partitions
+  # the full consonant set, matching that existing precedent.
+  very_common: [t, n, s, r, l]
+  common: [k, m, p, f, j]
+  uncommon: ["ʃ", "tʃ", h]
+  rare: [b, d, g, "dʒ", v, z, "ʒ", "ɣ"]
+stress_pattern: final  # real Turkish: robustly word-final by default
+stress_deviation_rate: 0.18  # illustrative -- real, systematic exceptions exist (place names default penultimate; certain suffixes are lexically "stress-neutral"), narrower than Hebrew's own deviation class
+stress_driven_vowel_reduction: false  # real Turkish: keeps comparatively full vowel quality regardless of stress

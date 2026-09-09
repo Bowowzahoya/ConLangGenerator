@@ -185,21 +185,29 @@ def generate_root(
 ) -> tuple[str, ...]:
     """``size`` consonants weighted by prevalence, with a simple OCP-style
     constraint: no two *adjacent* root consonants identical (real Semitic
-    roots avoid this). When ``structure``/``skeleton`` are given, retries
-    (bounded) until the filled root clears `_root_violates_structure` --
-    generate-and-check rather than fully-correct forward-constrained
-    generation, so it stays robust to any future template shape; falls
-    back to its last attempt if none fully clears it within the bound,
-    never blocking generation entirely (same "defensive fallback" spirit
-    as `_ensure_floor`/`_choose_nucleus` elsewhere in this codebase)."""
+    roots avoid this). Also excludes any consonant marked ``.long``
+    (Arabic's own real shadda/gemination) from the candidate pool --
+    real Semitic roots are always sequences of plain consonants; gemination
+    is a property the *template* imposes on an ordinary radical (Form II
+    verbs double the middle radical), never an inherent property of the
+    root's own letters, so a geminate consonant should never itself be
+    "the" root's third letter. When ``structure``/``skeleton`` are given,
+    retries (bounded) until the filled root clears
+    `_root_violates_structure` -- generate-and-check rather than
+    fully-correct forward-constrained generation, so it stays robust to
+    any future template shape; falls back to its last attempt if none
+    fully clears it within the bound, never blocking generation entirely
+    (same "defensive fallback" spirit as `_ensure_floor`/`_choose_nucleus`
+    elsewhere in this codebase)."""
+    plain_consonants = tuple(c for c in inventory.consonants if not c.long) or inventory.consonants
     attempts = _MAX_ROOT_ATTEMPTS if structure is not None and skeleton is not None else 1
     root: tuple[str, ...] = ()
     for _ in range(attempts):
         candidates_root: list[str] = []
         for _ in range(size):
-            candidates = tuple(c for c in inventory.consonants if not candidates_root or c.ipa != candidates_root[-1])
+            candidates = tuple(c for c in plain_consonants if not candidates_root or c.ipa != candidates_root[-1])
             if not candidates:
-                candidates = inventory.consonants
+                candidates = plain_consonants
             candidates_root.append(word_builder.weighted_choice(rng, candidates).ipa)
         root = tuple(candidates_root)
         if structure is None or skeleton is None:

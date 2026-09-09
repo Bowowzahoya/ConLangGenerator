@@ -61,6 +61,43 @@ def test_generate_root_never_repeats_an_adjacent_consonant():
         assert root[1] != root[2]
 
 
+def test_generate_root_never_includes_a_geminate_consonant():
+    # Real Semitic roots are always sequences of plain consonants --
+    # gemination (real Arabic shadda) is a property the *template*
+    # imposes on an ordinary radical (Form II verbs double the middle
+    # one), never an inherent property of the root's own letters. A
+    # geminate consonant weighted heavily enough to dominate the draw
+    # would still never show up as a root member if this holds.
+    inventory = PhonemeInventory(
+        consonants=(
+            Consonant(ipa="k", place=Place.VELAR, manner=Manner.STOP, voiced=False, prevalence=0.1),
+            Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, prevalence=0.1),
+            Consonant(ipa="kː", place=Place.VELAR, manner=Manner.STOP, voiced=False, long=True, prevalence=0.99),
+        ),
+        vowels=(Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=0.9),),
+    )
+    rng = random.Random(1)
+    for _ in range(200):
+        root = generate_root(rng, inventory)
+        assert "kː" not in root
+
+
+def test_generate_root_falls_back_to_all_consonants_when_every_one_is_a_geminate():
+    # Defensive-fallback guard: if a hypothetical inventory somehow had
+    # *only* geminate consonants, the plain-consonants filter would empty
+    # the pool entirely -- generate_root must fall back to the full
+    # (all-geminate) inventory rather than crash or return an empty root.
+    inventory = PhonemeInventory(
+        consonants=(
+            Consonant(ipa="kː", place=Place.VELAR, manner=Manner.STOP, voiced=False, long=True, prevalence=0.9),
+            Consonant(ipa="tː", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, long=True, prevalence=0.9),
+        ),
+        vowels=(Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=0.9),),
+    )
+    root = generate_root(random.Random(1), inventory)
+    assert len(root) == 3
+
+
 def test_generate_templates_covers_every_templatic_pos():
     inventory = _small_inventory()
     templates = generate_templates(random.Random(1), inventory)

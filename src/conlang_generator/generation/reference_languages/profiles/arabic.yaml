@@ -1,18 +1,32 @@
 name: Arabic
 aliases: [modern standard arabic]
-consonants: [t, d, k, q, "ʔ", "tʃ", m, n, s, "ʃ", x, "ɣ", z, f, h, "ħ", "ʕ", l, r, j, w, "tˤ", "dˤ", "sˤ", "ðˤ"]
-vowels: [i, a, u, "aː", "iː", "uː"]
+consonants: [b, t, d, k, q, "ʔ", "dʒ", m, n, s, "ʃ", x, "ɣ", z, f, h, "ħ", "ʕ", l, r, j, w, "θ", "ð", "tˤ", "dˤ", "sˤ", "ðˤ", "kː", "tː", "sː", "nː", "lː"]
+vowels: [i, a, u, "aː", "iː", "uː", ai, au]
 coda_profile: unrestricted
 max_onset: 1
 tonal: false
 root_and_pattern: true
-orthography_category: scholarly-macron-style
+restricted_onset_consonants: ["kː", "tː", "sː", "nː", "lː"]  # real Arabic shadda (gemination) is a medial/intervocalic phenomenon -- a word never *starts* with a geminated consonant, same fact already curated for Finnish's own geminates
+restricted_coda_consonants: [j, w]  # real Arabic coda /j//w/ (bayt "house", yawm "day") form a diphthong with the preceding vowel rather than closing the syllable as a true consonant -- same real fact already curated for English's own restricted_coda_consonants
+attested_coda_clusters:
+  # Real, common Arabic coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [l, b]                   # "qalb" (heart)
+  - [s, m]                   # "ism" (name)
+  - [r, b]                   # "ḥarb" (war)
+  - [l, m]                   # "ʕilm" (knowledge)
+  - [q, t]                   # "waqt" (time)
+  - [h, r]                   # "šahr" (month)
+orthography_category: scholarly-macron-gemination-style  # real Arabic transliteration marks both vowel length (macron) and shadda/gemination (doubled letter) in the same system -- see romanization_gen.py's own category
 orthography:
   # Real (scholarly/IJMES-style) Arabic transliteration conventions,
   # restricted to symbols this profile actually models -- illustrative,
   # not a full account. Phonemic vowel length is genuine same-quality
   # duration here (unlike Dutch's quality-shifted length marking), spelled
-  # with the standard macron convention.
+  # with the standard macron convention. Not curating "kː"/"tː"/"sː"/"nː"/"lː"
+  # here -- this profile's own category already generates a doubling
+  # rule for each structurally, same reasoning Finnish/Italian's own
+  # gemination-style profiles already give.
   - {ipa: "aː", latin: "ā"}
   - {ipa: "iː", latin: "ī"}
   - {ipa: "uː", latin: "ū"}
@@ -28,4 +42,25 @@ orthography:
   - {ipa: "ʔ", latin: "'"}
   - {ipa: x, latin: kh}
   - {ipa: "ɣ", latin: gh}
-  - {ipa: "tʃ", latin: ch}
+  - {ipa: "dʒ", latin: j}  # real MSA jīm is voiced /dʒ/ (dialects vary: Egyptian /ɡ/, Levantine /ʒ/) -- "j" is the standard IJMES-style transliteration
+  - {ipa: "θ", latin: th}  # ث
+  - {ipa: "ð", latin: dh}  # ذ
+core_vocabulary_average_syllables: 1.6  # hand-counted across this project's own CORE_MEANINGS glosses -- illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, m, n, s, l, r, b]
+  common: [d, f, h, q, w, j, z, "ʔ"]
+  uncommon: [x, "ɣ", "ʃ", "dʒ", "θ", "ð", "ħ", "ʕ"]
+  rare: ["tˤ", "dˤ", "sˤ", "ðˤ"]  # the geminate series, this position's only other candidates, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [u, "aː"]
+  uncommon: ["iː", "uː"]
+  rare: [ai, au]
+coda_frequency_tiers:
+  very_common: [t, n, m, s, r, l]
+  common: [b, d, k, q, f, h, z, "ʕ", "ħ"]
+  uncommon: [x, "ɣ", "ʃ", "dʒ", "θ", "ð", "ʔ"]
+  rare: ["tˤ", "dˤ", "sˤ", "ðˤ", "kː", "tː", "sː", "nː", "lː"]
+stress_pattern: lexical  # real Arabic stress is genuinely quantity-sensitive (heavy syllables attract stress), not a flat position -- none of this project's other four patterns capture that; modeled the same "genuinely complex, no simple flat rule" way English's own real stress system is
+stress_deviation_rate: 0.35  # illustrative -- lower than English's own 0.5 (real Arabic's heavy-syllable rule is meaningfully more predictive in practice than English's genuinely idiosyncratic system, even though neither is a flat position)
+stress_driven_vowel_reduction: false  # real Arabic: keeps comparatively full vowel quality regardless of stress, unlike English/German/Dutch
