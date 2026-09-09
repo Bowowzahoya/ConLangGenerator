@@ -147,7 +147,7 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # (a common ASCII stand-in for IPA's own "ː"), and emphatics the real
     # Arabizi (informal Arabic chat) numeral convention -- ط=6, ص=9,
     # ض=9', ظ=6'.
-    "ɣ": "gh", "pʰ": "pH", "tʰ": "tH", "kʰ": "kH",
+    "ɣ": "gh", "pʰ": "pH", "tʰ": "tH", "kʰ": "kH", "tsʰ": "tsH",
     "tˤ": "6", "dˤ": "9'", "sˤ": "9", "ðˤ": "6'",
     "aː": "a:", "iː": "i:", "uː": "u:", "eː": "e:", "oː": "o:",
     # Palatalization: a trailing "y" (Hungarian's own real ny/ty digraphs
@@ -231,7 +231,7 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # this avoids colliding with the retroflex series' ṭ/ḍ/ṣ/ẓ above. Long
     # vowels use the standard scholarly macron convention (ā ī ū ē ō --
     # Latin, Japanese romaji, Hawaiian, Arabic transliteration all use this).
-    "ɣ": "ğ", "pʰ": "pʰ", "tʰ": "tʰ", "kʰ": "kʰ",
+    "ɣ": "ğ", "pʰ": "pʰ", "tʰ": "tʰ", "kʰ": "kʰ", "tsʰ": "tsʰ",
     "tˤ": "tˤ", "dˤ": "dˤ", "sˤ": "sˤ", "ðˤ": "ðˤ",
     "aː": "ā", "iː": "ī", "uː": "ū", "eː": "ē", "oː": "ō",
     # Palatalization keeps its own IPA modifier letter (ʲ) as-is, same
@@ -298,7 +298,7 @@ _MONOLETTER_TABLE: dict[str, str] = {
     "ǀ": "c", "ǃ": "q", "ǂ": "x", "ǁ": "z",
     "ɓ": "b", "ɗ": "d", "ʄ": "j", "ɠ": "g",
     "ɪ": "i", "ʊ": "u", "æ": "e", "ɐ": "a", "ɑ": "a", "ø": "o", "œ": "o",
-    "ɣ": "g", "pʰ": "p", "tʰ": "t", "kʰ": "k",
+    "ɣ": "g", "pʰ": "p", "tʰ": "t", "kʰ": "k", "tsʰ": "c",
     "tˤ": "t", "dˤ": "d", "sˤ": "s", "ðˤ": "d",
     "aː": "a", "iː": "i", "uː": "u", "eː": "e", "oː": "o",
     # Palatalization dropped entirely (merged with the plain consonant),

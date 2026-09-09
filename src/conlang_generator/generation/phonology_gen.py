@@ -113,6 +113,11 @@ _ASPIRATED_GROUP = (
     Consonant(ipa="pʰ", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.35),
     Consonant(ipa="tʰ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.35),
     Consonant(ipa="kʰ", place=Place.VELAR, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.35),
+    # Real Cantonese's own aspirated affricate (真 zan1 vs. 陳 can4 -- a
+    # genuine ts/tsʰ contrast, the same real aspiration feature this
+    # group already models for stops, just on the one affricate this
+    # pool already has a plain counterpart for).
+    Consonant(ipa="tsʰ", place=Place.ALVEOLAR, manner=Manner.AFFRICATE, voiced=False, aspirated=True, prevalence=0.15),
 )
 _ASPIRATED_GROUP_BASE_RATE = 0.10
 
@@ -359,6 +364,12 @@ _TONE_LEVEL_SETS = (
     (ToneLevel.LOW, ToneLevel.HIGH),
     (ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH),
     (ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH, ToneLevel.FALLING),
+    # Real Cantonese's own 6 tones (purely pitch-based: register height x
+    # contour) map cleanly onto all 6 `ToneLevel` members at once; real
+    # Vietnamese's own 6 tones reuse the same set, with its 2 creaky/
+    # glottalized tones (ngã, nặng) approximated as ordinary pitch --
+    # see `core.phonology.ToneLevel.DIPPING`'s own docstring.
+    (ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.FALLING, ToneLevel.DIPPING),
 )
 
 _VOWEL_HARMONY_BASE_RATE = 0.22
@@ -465,6 +476,47 @@ def _reference_clamp(
     if strictness <= 0.0:
         return soft_probability
     return biased_probability(soft_probability, strictness if any_true else -strictness)
+
+
+def _choose_tone_levels(
+    rng: random.Random,
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    strictness: float,
+) -> tuple:
+    """Which of `_TONE_LEVEL_SETS` this tonal language actually gets --
+    reference-biased the same way `coda_profile`'s own selection just
+    above in `generate_phonology` already is (weight the matching entry
+    4x, then let `strictness` pull further via `biased_probability`): a
+    matched profile's own real `ReferenceLanguageProfile.tone_level_count`
+    (e.g. Cantonese/Vietnamese's own real 6, Mandarin's own real 4,
+    Tibetan's own real 2) boosts whichever `_TONE_LEVEL_SETS` entry has
+    that many levels, so a strongly source-biased run actually lands on
+    that language's real tone count more often -- not a uniform pick
+    among the sets regardless of which language matched, which is what
+    this function replaces. No matched profile (or none with
+    `tone_level_count` curated) falls back to a uniform pick, unchanged
+    from the prior behavior."""
+    tone_level_weights = [1] * len(_TONE_LEVEL_SETS)
+    reference_tone_counts = {p.tone_level_count for p in reference_profiles if p.tone_level_count is not None}
+    # Unlike `coda_profile` above (a required field every profile always
+    # has a real value for), `tone_level_count` is optional -- reference
+    # profiles can be present with *none* of them curating it, which
+    # must fall all the way back to a uniform pick rather than pushing
+    # every entry's weight toward zero (every entry would otherwise get
+    # the "not the matched count" negative pull, with nothing on the
+    # positive side to balance it).
+    if reference_tone_counts:
+        tone_level_weights = [
+            w * 4 if len(levels) in reference_tone_counts else w
+            for levels, w in zip(_TONE_LEVEL_SETS, tone_level_weights)
+        ]
+        if strictness > 0.0:
+            total = sum(tone_level_weights)
+            tone_level_weights = [
+                total * biased_probability(w / total, strictness if len(levels) in reference_tone_counts else -strictness)
+                for levels, w in zip(_TONE_LEVEL_SETS, tone_level_weights)
+            ]
+    return rng.choices(_TONE_LEVEL_SETS, weights=tone_level_weights)[0]
 
 
 def _strict_group_members(
@@ -1032,7 +1084,7 @@ def generate_phonology(
     if not spec.force_tonal:
         tonal_probability = _reference_clamp(tonal_probability, reference_profiles, "tonal", strictness)
     if rng.random() < tonal_probability:
-        levels = rng.choice(_TONE_LEVEL_SETS)
+        levels = _choose_tone_levels(rng, reference_profiles, strictness)
         tone_system = ToneSystem(enabled=True, levels=levels)
     else:
         tone_system = ToneSystem(enabled=False)

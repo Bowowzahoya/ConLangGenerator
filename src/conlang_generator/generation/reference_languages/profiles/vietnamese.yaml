@@ -1,0 +1,93 @@
+name: Vietnamese
+aliases: ["tiếng việt"]
+consonants: [p, b, t, "tʰ", d, k, g, f, v, s, z, "ʃ", "ʒ", x, h, m, n, "ɲ", "ŋ", l, w, j]
+vowels: [i, e, "ɛ", a, "ɔ", o, u, "ɯ", "ə"]
+coda_profile: unrestricted
+max_onset: 1
+tonal: true
+tone_level_count: 6  # real Vietnamese's own genuine 6-tone system (ngang, huyền, sắc, hỏi, ngã, nặng)
+orthography_category: diacritic-style
+restricted_onset_consonants: [p]
+# Real Vietnamese /p/ never opens a native syllable -- it only ever
+# closes one (an asymmetry the reverse of most languages' own onset/coda
+# restrictions).
+restricted_coda_consonants: [b, "tʰ", d, g, f, v, s, z, "ʃ", "ʒ", x, h, "ɲ", l]
+# Real native Vietnamese syllables are strictly (C)V(G|C) -- no
+# tautosyllabic onset *or* coda clusters (max_onset: 1 above, and a
+# single coda slot) -- and the coda itself is restricted to exactly
+# /p t k m n ŋ/ plus the /j/ /w/ offglides that close a diphthong;
+# nothing else genuinely ends a native word.
+#
+# A real, genuinely distinctive fact stays deliberately unmodeled: real
+# Vietnamese tone x coda co-occurrence is restricted -- a syllable
+# closed by an oral stop (p/t/k) can only carry 2 of the 6 tones (sắc or
+# nặng), never the other 4. This project's own tone assignment has no
+# coda-awareness at all today; building that interaction would be a
+# separate, larger piece of architecture, the same "real but not
+# currently rule-capturable by the existing architecture" reasoning that
+# already keeps Mandarin's own neutral tone and Tibetan's own word-level
+# (not syllable-level) tone culmination out of scope.
+orthography:
+  # Real Quốc Ngữ (Vietnamese Latin orthography) conventions, restricted
+  # to symbols this profile actually models -- illustrative, not a full
+  # account (real tone diacritics -- the six marks ngang/huyền/sắc/hỏi/
+  # ngã/nặng use -- aren't modeled here; this project's own generic
+  # per-syllable tone marking is a separate, already-existing mechanism,
+  # not this language's own specific diacritic set).
+  #
+  # Real Quốc Ngữ's own famous "letter doesn't mean what you'd expect"
+  # facts: plain "d" spells /z/ (not /d/); "đ" (d with a bar, our closest
+  # available approximation is plain "đ" here) spells the real stop /d/;
+  # plain "s"/"x" are swapped from a naive IPA-letter reading too.
+  - {ipa: d, latin: "đ"}
+  - {ipa: z, latin: d}
+  - {ipa: s, latin: x}
+  - {ipa: "ʃ", latin: s}
+  - {ipa: "ʒ", latin: gi}
+  - {ipa: x, latin: kh}
+  - {ipa: "tʰ", latin: th}
+  - {ipa: f, latin: ph}
+  - {ipa: "ɲ", latin: nh}
+  - {ipa: w, latin: u}
+  - {ipa: j, latin: y}
+  # /k/ and /g/ both real-Vietnamese-style lengthen/change before a front
+  # vowel (k -> k elsewhere is "c"; g -> gh before a front vowel, plain
+  # "g" elsewhere) -- the same "digraph conditioned by a following front
+  # vowel" shape this project's own Italian profile already uses for its
+  # own ch/gh.
+  - {ipa: k, latin: k, following: [front_vowel]}
+  - {ipa: k, latin: c}
+  - {ipa: g, latin: gh, following: [front_vowel]}
+  - {ipa: g, latin: g}
+  - {ipa: "ŋ", latin: ngh, following: [front_vowel]}
+  - {ipa: "ŋ", latin: ng}
+  # Real Quốc Ngữ vowel letters -- note the real "e"/"ê" and "o"/"ô"
+  # reversals from a naive IPA-letter reading (the open vowel gets the
+  # plain letter, the close one gets the circumflex).
+  - {ipa: e, latin: "ê"}
+  - {ipa: "ɛ", latin: e}
+  - {ipa: "ɔ", latin: o}
+  - {ipa: o, latin: "ô"}
+  - {ipa: "ɯ", latin: "ư"}
+  - {ipa: "ə", latin: "ơ"}
+core_vocabulary_average_syllables: 1.12  # hand-counted across this project's own CORE_MEANINGS glosses, at the word level -- real Vietnamese is famously monosyllabic even more strongly than Mandarin's own word-level count, reflecting genuinely fewer disyllabic compounds in basic vocabulary; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, m, n, s, h]
+  common: [b, d, "tʰ", g, v, l, "ɲ", "ŋ"]
+  uncommon: [f, z, "ʃ", "ʒ", x]
+  rare: [w, j]  # /p/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [e, o, u]
+  uncommon: ["ɛ", "ɔ", "ɯ"]
+  rare: ["ə"]
+coda_frequency_tiers:
+  very_common: [n, k, "ŋ"]
+  common: [t, m, p]
+  uncommon: [j, w]
+  rare: []  # coda_profile: unrestricted (not "sonorant") means restricted_coda_consonants
+  # above *does* directly narrow this profile's own legal coda set (unlike the
+  # sonorant-profile languages, where padding excluded symbols in here as
+  # harmless "dead data" is fine) -- every legal coda symbol is already
+  # covered by the three tiers above, so this one stays empty rather than
+  # listing the restricted set here.

@@ -5,6 +5,7 @@ vowels: [i, a, u, e, o, y]
 coda_profile: sonorant
 max_onset: 1
 tonal: true
+tone_level_count: 4  # real Standard Mandarin's own 4 lexical tones (阴平/阳平/上声/去声) -- the neutral tone (轻声) is a genuine 5th prosodic category but is lexically/grammatically conditioned rather than a flat 5th tone slot, see this profile's own note on it above
 orthography_category: wade-giles-style
 restricted_onset_consonants: ["ŋ"]  # real Mandarin /ŋ/ (ng) is coda-only -- no native syllable ever begins with it
 restricted_coda_consonants: [m, l, j, w]

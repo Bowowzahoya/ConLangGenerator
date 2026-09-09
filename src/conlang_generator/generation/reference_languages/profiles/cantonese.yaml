@@ -1,0 +1,77 @@
+name: Cantonese
+aliases: ["gwongdungwaa", "jyutjyu"]
+consonants: [p, "pʰ", t, "tʰ", k, "kʰ", f, s, h, ts, "tsʰ", m, n, "ŋ", l, w, j]
+# Real Cantonese has no voicing contrast at all -- every stop/affricate
+# series is plain-unaspirated vs. aspirated (p/pʰ, t/tʰ, k/kʰ, ts/tsʰ),
+# never a real voiced series (no b/d/g/dz as real phonemes) -- and no
+# real /r/ either.
+vowels: [a, "aː", i, "iː", u, "uː", e, "eː", o, "oː", "ɐ", "ə"]
+# Real Cantonese vowel length is genuinely contrastive (an 11-vowel
+# system with real long/short pairs, e.g. /aː/ vs /ɐ/-ish short a) --
+# reuses this project's own existing long-vowel pool members rather than
+# any new mechanism.
+coda_profile: unrestricted
+max_onset: 1
+tonal: true
+tone_level_count: 6  # real Cantonese's own genuine 6-tone system (purely pitch-based: register height x contour), the modern standard count -- the historically-cited "9" is just tones 1/3/6 duplicated onto checked (stop-final) syllables, not a separate phonemic contrast
+orthography_category: diacritic-style
+restricted_coda_consonants: ["pʰ", "tʰ", "kʰ", f, s, h, ts, "tsʰ", l, w, j]
+# coda_profile: unrestricted (not "sonorant") is the right choice here,
+# unlike Mandarin/Japanese -- real Cantonese genuinely retains stop codas
+# Mandarin lost entirely (a real, citable typological contrast between
+# the two closely related languages), so codas need an explicit
+# restriction down to the real legal set -- p, t, k, m, n, ŋ -- rather
+# than a sonority-based filter that would incorrectly exclude the real
+# stop codas. Aspirated stops never close a syllable (the aspiration
+# contrast is neutralized in coda position, the same real fact already
+# curated for Korean's own coda system). No attested_coda_clusters --
+# real Cantonese, like Mandarin/Vietnamese, has no tautosyllabic coda
+# clusters at all.
+attested_onset_clusters:
+  # Real Cantonese kw-/gw- (kwan1-type words, 國 gwok3 "country") is
+  # phonologically a single labialized velar segment, not a true
+  # two-consonant cluster (and even that contrast is actively eroding
+  # toward plain k/g in real speech) -- modeled here with the existing
+  # k/kʰ + w glide-sequence machinery already used elsewhere in this
+  # project, not a new phoneme. Composes for free with this profile's
+  # own k -> g / kʰ -> k orthography rules below (see their own comment)
+  # to spell correctly as "gw"/"kw".
+  - [k, w]
+  - ["kʰ", w]
+orthography:
+  # Real Cantonese romanization (Jyutping) has one famously
+  # counterintuitive convention this profile models directly: letters
+  # that look "voiced" (b/d/g/z) actually spell the *plain, unaspirated*
+  # series, while the "voiceless-looking" letters (p/t/k/c) spell the
+  # *aspirated* series -- the reverse of a naive IPA-letter reading, and
+  # the same real fact (not gemination, not true voicing) already
+  # curated for Korean's own plain/aspirated system in an earlier batch.
+  - {ipa: p, latin: b}
+  - {ipa: "pʰ", latin: p}
+  - {ipa: t, latin: d}
+  - {ipa: "tʰ", latin: t}
+  - {ipa: k, latin: g}
+  - {ipa: "kʰ", latin: k}
+  - {ipa: ts, latin: z}
+  - {ipa: "tsʰ", latin: c}
+  - {ipa: "ŋ", latin: ng}
+core_vocabulary_average_syllables: 1.29  # hand-counted across this project's own CORE_MEANINGS glosses, at the word level -- includes real kinship reduplication (媽媽 maa1maa1 "mother", 爸爸 baa4baa1 "father"); illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, s, m, n, "ŋ"]
+  common: [p, f, h, ts, l, j, w]
+  uncommon: ["pʰ", "tʰ", "kʰ", "tsʰ"]
+  rare: []  # this profile's own consonant set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has
+nucleus_frequency_tiers:
+  very_common: [a, i, u]
+  common: ["aː", "iː", "uː"]
+  uncommon: [e, o, "ɐ"]
+  rare: ["eː", "oː", "ə"]
+coda_frequency_tiers:
+  very_common: [n, k, "ŋ"]
+  common: [t, m, p]
+  uncommon: []
+  rare: []  # coda_profile: unrestricted means restricted_coda_consonants above
+  # directly narrows this profile's own legal coda set (unlike the
+  # sonorant-profile languages, where padding excluded symbols in here is
+  # harmless "dead data") -- every legal coda symbol is already covered by
+  # the two tiers above, so this one stays empty.

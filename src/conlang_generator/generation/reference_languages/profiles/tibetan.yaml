@@ -4,7 +4,31 @@ vowels: [a, e, i, o, u, "ə", "ã", "ĩ", "ũ"]
 coda_profile: sonorant
 max_onset: 1
 tonal: true
+tone_level_count: 2  # real Lhasa Tibetan tone is genuinely contested in the literature (some analyses cite 2, others 4 or 6), but the most robust, widely-agreed core claim is a 2-way High/Low register contrast -- the safe number to curate, not the richer subdivisions some fuller phonetic treatments fold in from rhyme-conditioned variants
 orthography_category: diacritic-style
+restricted_coda_consonants: ["ɲ", w, j]
+# coda_profile: sonorant above already limits codas to the sonority-based
+# sonorant class (m/n/ŋ/ɲ/l/r/w/j here), but real modern (colloquial
+# Lhasa) codas are restricted further still, to nasals and liquids --
+# m/n/ŋ/l/r -- not ɲ (onset-only) or the glides w/j (which pattern as
+# diphthong components, not independent codas, the same real fact
+# already curated for several other languages this project models). No
+# attested_onset_clusters -- max_onset: 1 is accurate for colloquial
+# speech (see this profile's own orthography note below on written
+# Tibetan's own, much richer, clusters). Unlike several other tonal
+# languages this project curates, real Tibetan /ŋ/ genuinely does open a
+# native syllable (ང nga "I") -- no onset restriction for it here.
+#
+# Real Tibetan tone is also *culminative at the word level* (one toneme
+# per prosodic word, not one tone per syllable the way this project's
+# own `ToneSystem` assigns it) -- a genuine structural mismatch with the
+# existing per-syllable architecture, left unmodeled (the same "real but
+# not currently rule-capturable by the existing architecture" reasoning
+# that already keeps Mandarin's own neutral tone out of scope). Real
+# diachronic coda-reduction dynamics (coda /r/ dropping with
+# compensatory vowel lengthening, coda /ŋ/ triggering nasalization) are
+# likewise left unmodeled -- this profile curates the synchronic legal-
+# coda fact only, not the historical process behind it.
 orthography:
   # Real (simplified, phonetic-transcription-style) Tibetan spelling
   # conventions, restricted to symbols this profile actually models --
@@ -20,3 +44,19 @@ orthography:
   - {ipa: "ã", latin: an}
   - {ipa: "ĩ", latin: in}
   - {ipa: "ũ", latin: un}
+core_vocabulary_average_syllables: 1.37  # hand-counted across this project's own CORE_MEANINGS glosses, at the word level -- real Tibetan skews a bit more polysyllabic than Vietnamese/Cantonese's own counts, consistent with its own real productive adjective-forming suffixes (yag-po "good", chen-po "big"); illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, m, n, s, l, "ŋ"]
+  common: [p, b, d, g, "tʃ", r, j, h]
+  uncommon: ["pʰ", "tʰ", "kʰ", "dʒ", "ʃ", "ɲ"]
+  rare: [w]
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [o, u, e]
+  uncommon: ["ə"]
+  rare: ["ã", "ĩ", "ũ"]
+# No coda_frequency_tiers -- coda_profile: sonorant means the true legal
+# coda set is narrower than consonants-minus-restricted (sonority
+# filtering isn't expressible via restricted_coda_consonants alone), the
+# same real reason Italian's/Tamil's/Mandarin's/Japanese's own perfected
+# profiles leave this field uncurated too.

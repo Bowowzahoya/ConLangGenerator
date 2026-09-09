@@ -639,6 +639,101 @@ def test_mandarin_japanese_korean_mongolian_declare_a_real_average_syllable_coun
         assert by_name[name].core_vocabulary_average_syllables is not None
 
 
+def test_vietnamese_cantonese_tibetan_declare_a_real_average_syllable_count():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in ("Vietnamese", "Cantonese", "Tibetan"):
+        assert by_name[name].core_vocabulary_average_syllables is not None
+
+
+def test_mandarin_vietnamese_cantonese_tibetan_declare_their_real_tone_level_counts():
+    # Mandarin's own real 4 lexical tones, Vietnamese's and Cantonese's own
+    # real 6-tone systems (the reason `_TONE_LEVEL_SETS` needed a 6-level
+    # entry at all this batch), and Tibetan's own real 2-way register
+    # contrast (no architecture extension needed there).
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["Mandarin"].tone_level_count == 4
+    assert by_name["Vietnamese"].tone_level_count == 6
+    assert by_name["Cantonese"].tone_level_count == 6
+    assert by_name["Tibetan"].tone_level_count == 2
+
+
+def test_vietnamese_declares_the_real_p_onset_restriction_and_coda_set():
+    # Real Vietnamese /p/ never opens a native syllable -- the reverse of
+    # most languages' own onset/coda asymmetries -- and codas are
+    # restricted to exactly /p t k m n ŋ/ plus the /j/ /w/ offglides.
+    vietnamese = next(p for p in REFERENCE_LANGUAGES if p.name == "Vietnamese")
+    assert vietnamese.restricted_onset_consonants == ("p",)
+    legal_codas = set(vietnamese.consonants) - set(vietnamese.restricted_coda_consonants)
+    assert legal_codas == {"p", "t", "k", "m", "n", "ŋ", "j", "w"}
+    assert vietnamese.max_onset == 1  # no native onset clusters at all
+
+
+def test_vietnamese_quoc_ngu_letter_swaps_romanize_correctly():
+    # Real Quốc Ngữ's own famous "letter doesn't mean what you'd expect"
+    # facts: plain "d" spells /z/, "đ" spells the real stop /d/, and
+    # "s"/"x" are swapped from a naive IPA-letter reading.
+    vietnamese = next(p for p in REFERENCE_LANGUAGES if p.name == "Vietnamese")
+    inventory = _inventory_for(vietnamese)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Vietnamese",),
+        requested_orthography_style=vietnamese.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("d") == "đ"
+    assert scheme.apply("z") == "d"
+    assert scheme.apply("s") == "x"
+
+
+def test_cantonese_declares_no_voicing_contrast_and_the_real_coda_set():
+    # Real Cantonese has no voiced stop/affricate series at all -- every
+    # series is plain-unaspirated vs. aspirated -- and, unlike Mandarin,
+    # genuinely retains stop codas: legal codas are exactly /p t k m n ŋ/.
+    cantonese = next(p for p in REFERENCE_LANGUAGES if p.name == "Cantonese")
+    assert not ({"b", "d", "g", "dz"} & set(cantonese.consonants))
+    assert cantonese.coda_profile == "unrestricted"
+    legal_codas = set(cantonese.consonants) - set(cantonese.restricted_coda_consonants)
+    assert legal_codas == {"p", "t", "k", "m", "n", "ŋ"}
+
+
+def test_cantonese_declares_its_own_plain_aspirated_letter_swap():
+    # Real Jyutping's own counterintuitive convention: "voiced-looking"
+    # letters (b/d/g/z) spell the plain/unaspirated series, and
+    # "voiceless-looking" letters (p/t/k/c) spell the aspirated series --
+    # the mirror image of Korean's own plain/aspirated convention from an
+    # earlier batch.
+    cantonese = next(p for p in REFERENCE_LANGUAGES if p.name == "Cantonese")
+    inventory = _inventory_for(cantonese)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Cantonese",),
+        requested_orthography_style=cantonese.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("p") == "b"
+    assert scheme.apply("pʰ") == "p"
+    assert scheme.apply("t") == "d"
+    assert scheme.apply("tʰ") == "t"
+    assert scheme.apply("k") == "g"
+    assert scheme.apply("kʰ") == "k"
+    assert scheme.apply("ts") == "z"
+    assert scheme.apply("tsʰ") == "c"
+
+
+def test_cantonese_kw_gw_uses_the_existing_glide_machinery():
+    # Real kwan1-type kw-/gw- is phonologically a single labialized velar
+    # segment, modeled here with the existing k/kʰ + w glide-sequence
+    # machinery rather than any new phoneme.
+    cantonese = next(p for p in REFERENCE_LANGUAGES if p.name == "Cantonese")
+    assert ("k", "w") in cantonese.attested_onset_clusters
+    assert ("kʰ", "w") in cantonese.attested_onset_clusters
+
+
+def test_tibetan_declares_its_own_coda_restriction():
+    # Real colloquial Lhasa Tibetan codas are restricted to m/n/ŋ/l/r;
+    # ɲ is onset-only, and w/j pattern as diphthong components rather
+    # than true codas.
+    tibetan = next(p for p in REFERENCE_LANGUAGES if p.name == "Tibetan")
+    assert "ɲ" in tibetan.restricted_coda_consonants
+    assert {"w", "j"} <= set(tibetan.restricted_coda_consonants)
+
+
 def test_arabic_source_language_biases_toward_root_and_pattern_and_fusional():
     def _rates(source_languages: tuple[str, ...]) -> tuple[float, float]:
         root_and_pattern_hits = 0
@@ -718,6 +813,7 @@ def test_most_profiles_leave_average_syllables_uncurated():
         "Russian", "Portuguese", "Serbo-Croatian",
         "Hindi", "Tamil", "Persian",
         "Mandarin", "Japanese", "Korean", "Mongolian",
+        "Vietnamese", "Cantonese", "Tibetan",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -764,9 +860,10 @@ _PERFECTED_LANGUAGES = (
     "Russian", "Portuguese", "Serbo-Croatian",
     "Hindi", "Persian",
     "Korean", "Mongolian",
-    # Tamil, Mandarin, and Japanese are deliberately left out of this list
-    # too, for the exact same "sonorant" coda_profile reason as Italian
-    # above -- checked separately.
+    "Vietnamese", "Cantonese",
+    # Tamil, Mandarin, Japanese, and Tibetan are deliberately left out of
+    # this list too, for the exact same "sonorant" coda_profile reason as
+    # Italian above -- checked separately.
 )
 _TIER_NAMES = {"very_common", "common", "uncommon", "rare"}
 
@@ -812,7 +909,7 @@ def test_english_ð_is_onset_rare_despite_high_token_frequency():
 
 def test_non_perfected_profiles_leave_frequency_tiers_uncurated():
     for profile in REFERENCE_LANGUAGES:
-        if profile.name not in _PERFECTED_LANGUAGES and profile.name not in ("Italian", "Tamil", "Mandarin", "Japanese"):
+        if profile.name not in _PERFECTED_LANGUAGES and profile.name not in ("Italian", "Tamil", "Mandarin", "Japanese", "Tibetan"):
             assert profile.onset_frequency_tiers == {}
             assert profile.nucleus_frequency_tiers == {}
             assert profile.coda_frequency_tiers == {}
@@ -877,6 +974,21 @@ def test_japanese_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols(
         assert len(tiered) == len(set(tiered)), position
         assert set(tiered) == _legal_symbols(japanese, position), position
     assert japanese.coda_frequency_tiers == {}
+
+
+def test_tibetan_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    # Same "sonorant" coda_profile situation as Italian/Tamil/Mandarin/
+    # Japanese above.
+    tibetan = next(p for p in REFERENCE_LANGUAGES if p.name == "Tibetan")
+    for position, field in (
+        ("onset", tibetan.onset_frequency_tiers),
+        ("nucleus", tibetan.nucleus_frequency_tiers),
+    ):
+        assert set(field.keys()) == _TIER_NAMES, position
+        tiered = [symbol for members in field.values() for symbol in members]
+        assert len(tiered) == len(set(tiered)), position
+        assert set(tiered) == _legal_symbols(tibetan, position), position
+    assert tibetan.coda_frequency_tiers == {}
 
 
 # --- Probabilistic, richer French/English romanization ---

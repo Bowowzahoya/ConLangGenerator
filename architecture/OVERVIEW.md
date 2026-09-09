@@ -1672,3 +1672,127 @@ reading code or one-off ad hoc scripts.
 - No idiom generation/matching yet, though `Lexicon.idioms` and
   `Language.with_new_idiom()` already exist for it.
 - No custom font generation (long-term idea, explicitly deferred).
+- **The Vietnamese/Cantonese/Tibetan batch** brought an eighth reference-
+  profile batch to full curation depth (Vietnamese and Cantonese are
+  brand-new profiles; Tibetan previously had only a phoneme inventory +
+  romanization rules). Research into all three languages' real tone
+  systems surfaced a genuine architecture gap this batch fixed as a
+  general capability first (approved via direct question, the same "ask
+  before major work" pattern as every prior major extension): this
+  project's tone system capped at 4 distinct tone categories per
+  language (`ToneLevel` had 5 members -- `LOW`/`MID`/`HIGH`/`RISING`/
+  `FALLING` -- but `RISING` was defined and never actually reachable,
+  since `_TONE_LEVEL_SETS`'s richest entry only ever used 4 of them),
+  while real Cantonese and real Vietnamese both have genuine 6-tone
+  systems (Cantonese: purely pitch-based, register height x contour;
+  Vietnamese: also mapped 1:1 here, with 2 of its 6 tones -- ngã, nặng --
+  thereby approximated as ordinary pitch, since real glottalization/
+  creaky voice isn't a feature this project models at all -- flagged
+  honestly in `vietnamese.yaml`'s own comments, not silently smoothed
+  over).
+  - `core/phonology.py`'s `ToneLevel` gained a 6th member, `DIPPING`
+    (real Cantonese's own low-rising tone; also the standard English
+    name for real Vietnamese's hỏi, whose own real orthographic
+    diacritic -- combining hook above, U+0309 -- `TONE_DIACRITICS`
+    reuses directly, since combining tilde was already spoken for by
+    this project's own nasalized vowels). `phonology_gen.py` gained a
+    4th `_TONE_LEVEL_SETS` entry using all 6 members.
+  - Which tone-level set a tonal language actually gets was, until now,
+    a uniform `rng.choice` among the sets regardless of which reference
+    language matched -- even a strongly Cantonese-biased run had no
+    better than a 1-in-4 chance of landing on the richest set at all.
+    New `ReferenceLanguageProfile.tone_level_count: int | None` field
+    (Mandarin=4, Vietnamese=6, Cantonese=6, Tibetan=2) drives a new
+    `_choose_tone_levels(rng, reference_profiles, strictness)` function
+    that reference-biases the selection the exact same shape
+    `coda_profile`'s own selection already used just above it in
+    `generate_phonology` (weight the matching entry 4x, then let
+    `strictness` pull further via `biased_probability`) -- a real,
+    general improvement to every tonal profile's own reference-bias
+    fidelity, not just the three profiles this batch added. One real
+    divergence from the `coda_profile` precedent it's modeled on, found
+    by a unit test failing before it could ever manifest in real
+    generation: `coda_profile` is a *required* field every profile
+    always has a real value for, so its own analogous "no reference
+    profiles matched" guard (`if reference_profiles:`) can never see an
+    empty match set while also being non-empty overall -- but
+    `tone_level_count` is *optional*, so a real edge case exists
+    (reference profiles present, but none of them curate
+    `tone_level_count`), where that same guard shape left every
+    `_TONE_LEVEL_SETS` entry's weight pulled toward zero with nothing on
+    the positive side to balance it, crashing `rng.choices` with "total
+    of weights must be greater than zero" at high strictness. Fixed by
+    guarding on `if reference_tone_counts:` (the actually-matched set)
+    instead.
+  - A new shared-pool consonant, `/tsʰ/`, was added alongside the
+    pre-existing plain `/ts/` (real Cantonese ts/tsʰ contrast, e.g. 真
+    zan1 vs. 陳 can4-style minimal pairs), with fallback spellings added
+    to all three exotic romanization styles.
+  - Real Cantonese's kw-/gw- (國 gwok3 "country") is phonologically a
+    single labialized velar segment, not a true two-consonant cluster --
+    modeled with the *existing* k/kʰ + w glide-sequence machinery
+    (`attested_onset_clusters`) rather than any new phoneme.
+  - Real Quốc Ngữ's (Vietnamese) and Jyutping's (Cantonese) own famous
+    "letter doesn't mean what you'd expect" facts are now curated as
+    orthography rules, the same theme as Korean's plain/aspirated
+    convention from the prior batch: Quốc Ngữ's plain "d" spells /z/
+    (not /d/) while "đ" spells the real stop /d/, "s"/"x" are similarly
+    swapped, and "e"/"ê"/"o"/"ô" reverse the naive open/close vowel-
+    letter reading; Jyutping's "voiced-looking" letters (b/d/g/z) spell
+    the plain/unaspirated series and "voiceless-looking" letters
+    (p/t/k/c) spell the aspirated one -- the mirror image of Korean's
+    own convention, not gemination or true voicing either.
+  - Real phonotactic facts curated per language: Vietnamese has no
+    native onset clusters at all and /p/ never opens a syllable (the
+    reverse of most languages' own onset/coda asymmetries) though it
+    freely closes one; Cantonese likewise has no native onset clusters
+    (aside from kw-/gw- above) and, unlike Mandarin, genuinely retains
+    stop codas (a real, citable typological contrast between the two
+    closely related languages) -- both restricted down to the real
+    legal coda set `/p t k m n ŋ/` (plus Vietnamese's /j//w/ diphthong
+    offglides) via `restricted_coda_consonants`, `coda_profile:
+    unrestricted` rather than Mandarin/Japanese's `sonorant`, since a
+    sonority filter would incorrectly exclude the real stop codas.
+    Cantonese's vowel length is genuinely contrastive (an 11-vowel
+    system with real long/short pairs) -- reuses the existing long-
+    vowel pool members rather than any new mechanism. Tibetan's real
+    colloquial Lhasa codas are restricted to m/n/ŋ/l/r (ɲ is onset-only;
+    w/j pattern as diphthong components, not true codas); real Tibetan
+    /ŋ/, unlike every other tonal language modeled so far, genuinely
+    does open a syllable, so it's absent from Tibetan's own
+    `restricted_onset_consonants`.
+  - Because a `coda_profile: unrestricted` (not `sonorant`) profile's
+    `coda_frequency_tiers` *is* directly checked against
+    `restricted_coda_consonants` by this project's own test suite
+    (unlike the `sonorant` profiles, where padding excluded symbols in
+    as harmless "dead data" is fine), an early draft of both Vietnamese's
+    and Cantonese's profiles made the same mistake this project has now
+    caught three times across three separate batches: padding restricted
+    (illegal) coda symbols into a `rare` tier as if they were harmless.
+    Caught by the test suite itself before commit and fixed by leaving
+    those tiers empty, since the real legal coda set was already fully
+    covered by the tiers above.
+  - Real, deliberately-unmodeled facts, each flagged in the relevant
+    profile's own comments rather than silently smoothed over: real
+    Vietnamese tone x coda co-occurrence (a syllable closed by an oral
+    stop can only carry 2 of the 6 tones, sắc or nặng) -- this project's
+    tone assignment has no coda-awareness at all; real Tibetan word-level
+    (not syllable-level) tone culmination and its diachronic coda-
+    reduction dynamics -- modeled only as a static synchronic coda
+    restriction. Both are the same "real but not currently
+    rule-capturable by the existing architecture" reasoning that already
+    keeps Mandarin's neutral tone and Hindi's schwa deletion out of
+    scope.
+  - Word length counted at the *word* level, not the morpheme level, the
+    same convention Mandarin's own count already established: Vietnamese
+    (1.12) is famously monosyllabic even more strongly than Mandarin at
+    the word level; Cantonese (1.29) includes real kinship reduplication
+    (媽媽 maa1maa1 "mother"); Tibetan (1.37).
+  - Vietnamese, Cantonese, and (now) Tibetan all curate onset/nucleus
+    frequency tiers but deliberately leave `coda_frequency_tiers`
+    uncurated where `coda_profile: sonorant` applies (Tibetan only --
+    Vietnamese and Cantonese use `unrestricted` and do curate coda
+    tiers) -- same "true legal coda set is narrower than what the test's
+    own naive computation sees" reasoning as Italian/Tamil/Mandarin/
+    Japanese, so Tibetan stays out of `_PERFECTED_LANGUAGES` too, checked
+    by its own dedicated test instead.

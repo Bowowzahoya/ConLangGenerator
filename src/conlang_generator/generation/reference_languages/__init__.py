@@ -32,6 +32,7 @@ vowels: [i, "ɪ", e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə"]
 coda_profile: unrestricted      # "none" | "sonorant" | "unrestricted"
 max_onset: 2
 tonal: false
+tone_level_count: null          # optional, defaults null -- only meaningful when tonal: true, e.g. 6
 vowel_harmony: false            # optional, defaults false
 root_and_pattern: false         # optional, defaults false -- see the field's own docstring
 coda_devoicing: false           # optional, defaults false -- see the field's own docstring
@@ -101,6 +102,17 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     coda_profile: str  # "none" | "sonorant" | "unrestricted"
     max_onset: int
     tonal: bool
+    tone_level_count: int | None = None
+    """Only meaningful when `tonal` is true: this language's own real
+    number of distinct tone categories (Mandarin=4, Cantonese=6,
+    Vietnamese=6, Tibetan=2). Biases `phonology_gen.generate_phonology`'s
+    own choice among `_TONE_LEVEL_SETS` toward whichever entry has this
+    many levels, the same reference-bias shape `coda_profile` already
+    gets -- without this, a matched language's own real tone count has
+    no effect on which tone-level set a generated language actually
+    receives, even at full strictness. `None` (the common case) means
+    not curated -- abstains, same convention as every other curated
+    field here."""
     vowel_harmony: bool = False
     root_and_pattern: bool = False
     """Whether this language uses Semitic-style root-and-pattern

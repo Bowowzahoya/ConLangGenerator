@@ -638,6 +638,53 @@ def _synthetic_profile(name: str, **kwargs) -> ReferenceLanguageProfile:
     )
 
 
+# --- The 6-level tone system and its reference-biased set selection ---
+
+
+def test_tone_level_sets_richest_entry_covers_all_six_levels():
+    from conlang_generator.core.phonology import ToneLevel
+
+    richest = max(phonology_gen._TONE_LEVEL_SETS, key=len)
+    assert set(richest) == set(ToneLevel)
+    assert len(richest) == 6
+
+
+def test_choose_tone_levels_with_no_reference_profiles_can_reach_every_set_length():
+    # Unbiased baseline: over enough draws, every one of the existing
+    # set lengths (2, 3, 4, 6) should turn up.
+    rng = random.Random(0)
+    lengths = {len(phonology_gen._choose_tone_levels(rng, (), 0.0)) for _ in range(500)}
+    assert lengths == {len(levels) for levels in phonology_gen._TONE_LEVEL_SETS}
+
+
+def test_choose_tone_levels_biases_toward_the_matched_profiles_own_tone_count():
+    # A profile curating tone_level_count=6 (Cantonese/Vietnamese's own
+    # real count) should make the 6-level set come up far more than a
+    # 1-in-4 uniform pick would, at full strictness -- confirming the
+    # reference-bias actually has an effect, not just that the set exists.
+    cantonese_like = _synthetic_profile("C", tone_level_count=6)
+    rng = random.Random(0)
+    hits = sum(
+        1
+        for _ in range(500)
+        if len(phonology_gen._choose_tone_levels(rng, (cantonese_like,), 1.0)) == 6
+    )
+    assert hits > 450
+
+
+def test_choose_tone_levels_ignores_a_profile_with_no_tone_level_count_curated():
+    # tonal=True alone (no tone_level_count) must not bias the set choice
+    # at all -- same "abstain when uncurated" convention as every other
+    # optional field.
+    uncurated = _synthetic_profile("U")
+    rng = random.Random(0)
+    lengths = [len(phonology_gen._choose_tone_levels(rng, (uncurated,), 1.0)) for _ in range(500)]
+    counts = {n: lengths.count(n) for n in {len(levels) for levels in phonology_gen._TONE_LEVEL_SETS}}
+    # Roughly uniform -- no single length should dominate the way the
+    # biased test above shows for a curated profile.
+    assert max(counts.values()) < 300
+
+
 def test_resolve_onset_nucleus_restriction_intersects_two_blacklists():
     # A pair only stays forbidden if *every* blacklist-mode source
     # forbids it -- what's legal in either becomes legal in the

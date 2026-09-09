@@ -126,6 +126,17 @@ class ToneLevel(str, Enum):
     HIGH = "high"
     RISING = "rising"
     FALLING = "falling"
+    DIPPING = "dipping"
+    """A low tone that dips before rising again -- real Cantonese's own
+    low-rising tone, and the standard English name for real Vietnamese's
+    hỏi (whose own real orthographic diacritic, hook above, this
+    project's own ``TONE_DIACRITICS[DIPPING]`` reuses directly). The 6th
+    ``ToneLevel`` member, added specifically so a real 6-tone language
+    (Cantonese, purely pitch-based; Vietnamese, with 2 of its 6 real
+    tones approximated as ordinary pitch here since real glottalization/
+    creaky voice isn't modeled) can be assigned its own full, real tone
+    count -- see ``generation.phonology_gen``'s own 6-level
+    ``_TONE_LEVEL_SETS`` entry."""
 
 
 TONE_DIACRITICS: dict[ToneLevel, str] = {
@@ -134,6 +145,7 @@ TONE_DIACRITICS: dict[ToneLevel, str] = {
     ToneLevel.HIGH: "́",  # combining acute
     ToneLevel.RISING: "̌",  # combining caron
     ToneLevel.FALLING: "̂",  # combining circumflex
+    ToneLevel.DIPPING: "̉",  # combining hook above -- real Vietnamese hỏi's own diacritic; distinct from combining tilde (already spoken for by this project's own nasalized vowels), which is why hỏi's mark, not ngã's, is the one reused here
 }
 """Public (not just an implementation detail of `ToneSystem.mark`) because
 `generation.romanization_gen` also needs these exact mark characters to
