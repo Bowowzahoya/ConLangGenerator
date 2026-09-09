@@ -41,6 +41,15 @@ orthography:
                                # real Portuguese's own uvular/guttural r
   - {ipa: "ə", latin: e}      # unstressed final "e", real European
                                # Portuguese reduction
+  # Real Portuguese doesn't orthographically distinguish open-mid from
+  # close-mid vowel quality outside of a written stress accent (café's
+  # é, avô's ô) -- that's already handled separately by this profile's
+  # own `stress_accent_marking: irregular_only`. Left uncurated, these
+  # would otherwise leak this style's own generic diaeresis fallback
+  # (ɛ->ë, ɔ->ö), a spelling real Portuguese never uses -- same real fact
+  # and same fix shape Italian's own ɛ/ɔ curation already has.
+  - {ipa: "ɛ", latin: e}
+  - {ipa: "ɔ", latin: o}
   # Nasalized vowels -- real Portuguese conventions (a nasal vowel before
   # a consonant is usually spelled with a following "m"/"n"; word-finally
   # or in a stressed nasal diphthong it takes the tilde directly).

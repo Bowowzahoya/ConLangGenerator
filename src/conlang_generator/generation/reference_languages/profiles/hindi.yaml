@@ -15,6 +15,12 @@ orthography:
   - {ipa: "aː", latin: "ā"}
   - {ipa: "iː", latin: "ī"}
   - {ipa: "uː", latin: "ū"}
+  # Real Hindi's historically diphthong-derived front/back mid vowels
+  # (ऐ/ऑ) -- standard IAST spells these "ai"/"au", not with a diaeresis
+  # (this style's own generic ɛ->ë/ɔ->ö fallback, which real Hindi
+  # transliteration never uses).
+  - {ipa: "ɛ", latin: ai}
+  - {ipa: "ɔ", latin: au}
   # Retroflex series -- the classic dot-under transliteration, same
   # convention Arabic's own emphatic consonants already use.
   - {ipa: "ʈ", latin: "ṭ"}
