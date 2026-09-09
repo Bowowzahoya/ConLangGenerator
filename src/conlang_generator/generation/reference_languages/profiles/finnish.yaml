@@ -1,19 +1,60 @@
 name: Finnish
 # "kː" (real: kukka/kuka -- phonemic consonant length) is what Finnish is
 # the textbook example for; see orthography_category below.
-consonants: [p, t, k, "kː", d, m, n, "ŋ", s, h, l, r, j, v]
-vowels: [i, a, u, e, o, y, "ø", "æ"]
+consonants: [p, t, k, "kː", "tː", "pː", d, m, n, "ŋ", s, "sː", h, l, "lː", r, j, v]
+vowels: [i, a, u, e, o, y, "ø", "æ", "aː", "eː", "iː", "oː", "uː", "æː", "øː", "yː", ai, au, ei]
 coda_profile: unrestricted
-max_onset: 1
+max_onset: 1  # real Finnish: native words are essentially single-onset-consonant only; clusters are loanword-only
 tonal: false
 vowel_harmony: true
 orthography_category: gemination-style
 orthography:
-  # Finnish's own real vowel letters. Not curating "kː" here -- this
-  # profile's own gemination-style category already generates a doubling
-  # rule for it structurally (`_generate_gemination_rules`), so a
-  # reference entry would be redundant with, and could conflict with, the
-  # inventory-driven one.
+  # Finnish's own real vowel letters. Not curating "kː"/"tː"/"pː"/"sː"/"lː"
+  # here -- this profile's own gemination-style category already
+  # generates a doubling rule for each structurally
+  # (`_generate_gemination_rules`), so a reference entry would be
+  # redundant with, and could conflict with, the inventory-driven one.
   - {ipa: "ø", latin: "ö"}
   - {ipa: "æ", latin: "ä"}
   - {ipa: "ŋ", latin: ng}
+  # Real Finnish long vowels double their own letter -- but, unlike
+  # `VowelLengthStrategy.DOUBLING` (Dutch's own syllable-conditioned
+  # convention: single letter in an open syllable, doubled only in a
+  # closed one), real Finnish doubles *unconditionally* regardless of
+  # syllable shape ("maa" is a single open monosyllable, still doubled).
+  # No unconditioned-doubling strategy exists in this project yet, so
+  # these are hand-curated directly rather than left to the category's
+  # own axis (see romanization_gen.py's own comment on gemination-style
+  # for why setting DOUBLING there would be wrong).
+  - {ipa: "aː", latin: aa}
+  - {ipa: "eː", latin: ee}
+  - {ipa: "iː", latin: ii}
+  - {ipa: "oː", latin: oo}
+  - {ipa: "uː", latin: uu}
+  - {ipa: "æː", latin: "ää"}
+  - {ipa: "øː", latin: "öö"}
+  - {ipa: "yː", latin: yy}
+restricted_onset_consonants: ["ŋ", "kː", "tː", "pː", "sː", "lː"]  # /ŋ/: real Finnish is coda/medial-only (spelled "ng"/"nk"), never opens a syllable, same fact already curated for the Germanic profiles. Geminates: real Finnish gemination is a medial/intervocalic phenomenon (kukka) -- a word never *starts* with a geminate; this project has no ambisyllabic modeling, so the coda-position half of a real geminate is what stays legal below
+core_vocabulary_average_syllables: 1.65  # hand-counted across this project's own CORE_MEANINGS glosses -- Finnish's own agglutinative morphology means core root vocabulary is still comparatively short even though grammatical word-forms get long; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [k, s, t, m, p]
+  common: [v, l, n, j, h]
+  uncommon: [r, d]
+  rare: []  # /ŋ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [e, u, "æ"]
+  uncommon: [o, y, "ø"]
+  rare: ["aː", "eː", "iː", "oː", "uː", "æː", "øː", "yː", ai, au, ei]
+coda_frequency_tiers:
+  # Geminates are placed here, not in onset (see restricted_onset_consonants
+  # above) -- the coda-position half of a real Finnish geminate
+  # (kukka/kuka) is the only half this project's non-ambisyllabic model
+  # can represent.
+  very_common: [n, t, s]
+  common: [k, l, r, m, "kː", "tː"]
+  uncommon: ["ŋ", h, v, j, "sː", "lː"]
+  rare: [p, d, "pː"]
+stress_pattern: initial  # real Finnish: always the word's first syllable
+stress_deviation_rate: 0.05  # illustrative -- real Finnish initial stress is famously rigid, close to exceptionless
+stress_driven_vowel_reduction: false  # real Finnish: a syllable-timed language that keeps full vowel quality regardless of stress -- no schwa-style reduction at all

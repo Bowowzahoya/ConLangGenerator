@@ -182,11 +182,12 @@ def test_orthography_category_round_trips_from_yaml_for_dutch_and_mandarin():
 
 
 def test_only_the_real_final_devoicing_languages_declare_coda_devoicing():
-    # Real final-obstruent devoicing -- Dutch, German, Russian, and
-    # Turkish are all genuine, textbook cases (German "Rad"/"Tag";
-    # Russian "друг" [druk]; Turkish kitab->kitap); none of the other
-    # profiles categorically neutralize final obstruent voicing.
-    expected = {"Dutch", "German", "Russian", "Turkish"}
+    # Real final-obstruent devoicing -- Dutch, German, Russian, Turkish,
+    # and Polish are all genuine, textbook cases (German "Rad"/"Tag";
+    # Russian "друг" [druk]; Turkish kitab->kitap; Polish "chleb" [xlep]);
+    # none of the other profiles categorically neutralize final obstruent
+    # voicing.
+    expected = {"Dutch", "German", "Russian", "Turkish", "Polish"}
     actual = {p.name for p in REFERENCE_LANGUAGES if p.coda_devoicing}
     assert actual == expected
 
@@ -271,6 +272,74 @@ def test_finnish_orthography_category_and_geminate_symbol_round_trip_from_yaml()
     finnish = next(p for p in REFERENCE_LANGUAGES if p.name == "Finnish")
     assert finnish.orthography_category == "gemination-style"
     assert "kː" in finnish.consonants
+
+
+def test_the_new_affricates_and_long_vowels_are_in_the_shared_pool():
+    # Architecture extension for the Finnish/Hungarian/Polish batch: a
+    # plain alveolar affricate pair, an alveolo-palatal affricate pair,
+    # and three long front-rounded/long-æ vowels, all added to the
+    # shared phonology_gen.py pool (not just these three profiles) --
+    # see phonology_gen.py's own comments for the real languages that
+    # motivated each.
+    consonant_symbols = {c.ipa for c in ALL_CONSONANTS}
+    vowel_symbols = {v.ipa for v in ALL_VOWELS}
+    assert {"ts", "dz", "tɕ", "dʑ"} <= consonant_symbols
+    assert {"æː", "øː", "yː"} <= vowel_symbols
+
+
+def test_hungarian_and_polish_profiles_exist_with_their_own_real_phonemes():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    hungarian = by_name["Hungarian"]
+    assert "c" in hungarian.consonants and "ɟ" in hungarian.consonants  # real ty/gy palatal stops
+    assert "ts" in hungarian.consonants and "dz" in hungarian.consonants
+    polish = by_name["Polish"]
+    assert "w" in polish.consonants  # real Polish "ł" -- a genuine /w/, not a dark l
+    assert {"tɕ", "dʑ"} <= set(polish.consonants)  # real ć/dź, distinct from cz/dż
+    assert polish.coda_devoicing is True
+
+
+def test_finnish_hungarian_polish_declare_a_real_stress_pattern():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["Finnish"].stress_pattern == "initial"
+    assert by_name["Hungarian"].stress_pattern == "initial"
+    assert by_name["Polish"].stress_pattern == "penultimate"
+    for name in ("Finnish", "Hungarian", "Polish"):
+        assert by_name[name].stress_deviation_rate is not None
+        assert by_name[name].stress_driven_vowel_reduction is False
+    # Real Hungarian stress is described as more rigidly exceptionless
+    # than Finnish's own already-strong initial default.
+    assert by_name["Hungarian"].stress_deviation_rate < by_name["Finnish"].stress_deviation_rate
+
+
+def test_finnish_hungarian_polish_declare_a_real_average_syllable_count():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in ("Finnish", "Hungarian", "Polish"):
+        assert by_name[name].core_vocabulary_average_syllables is not None
+
+
+def test_hungarian_reverses_s_and_sz_spelling():
+    # The famous real Hungarian convention: the letter "s" spells /ʃ/,
+    # and plain /s/ is spelled "sz" -- the reverse of the naive
+    # letter-to-sound mapping.
+    hungarian = next(p for p in REFERENCE_LANGUAGES if p.name == "Hungarian")
+    inventory = _inventory_for(hungarian)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Hungarian",),
+        requested_orthography_style=hungarian.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("s") == "sz"
+    assert scheme.apply("ʃ") == "s"
+
+
+def test_polish_spells_the_w_sound_as_l_with_stroke_and_the_v_sound_as_w():
+    polish = next(p for p in REFERENCE_LANGUAGES if p.name == "Polish")
+    inventory = _inventory_for(polish)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Polish",),
+        requested_orthography_style=polish.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("v") == "w"    # real Polish "w" letter is pronounced /v/
+    assert scheme.apply("w") == "ł"    # the real *sound* /w/ is spelled "ł"
 
 
 def test_dutch_diphthongs_and_their_spellings_round_trip_from_yaml():
@@ -362,6 +431,7 @@ def test_most_profiles_leave_average_syllables_uncurated():
     curated = {
         "English", "German", "French", "Dutch", "Italian", "Spanish",
         "Danish", "Swedish", "Norwegian", "Icelandic",
+        "Finnish", "Hungarian", "Polish",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -403,6 +473,7 @@ def test_italian_and_spanish_declare_a_real_average_syllable_count():
 _PERFECTED_LANGUAGES = (
     "English", "German", "French", "Dutch", "Spanish",
     "Danish", "Swedish", "Norwegian", "Icelandic",
+    "Finnish", "Hungarian", "Polish",
 )
 _TIER_NAMES = {"very_common", "common", "uncommon", "rare"}
 
@@ -918,6 +989,7 @@ def test_most_profiles_leave_stress_pattern_uncurated():
     curated = {
         "French", "Spanish", "Italian", "German", "Dutch", "English",
         "Danish", "Swedish", "Norwegian", "Icelandic",
+        "Finnish", "Hungarian", "Polish",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:

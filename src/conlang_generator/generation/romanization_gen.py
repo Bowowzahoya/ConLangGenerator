@@ -181,6 +181,18 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # Turkish's own dotless-ı vowel -- merges with plain /i/ in this
     # ASCII-only style (diacritic style below uses the real letter).
     "ɯ": "i",
+    # Plain alveolar affricate (real Hungarian/Polish "c"/"dz") -- both
+    # letters spelled plain, no digraph tradition needed since they're
+    # already unambiguous.
+    "ts": "ts", "dz": "dz",
+    # Alveolo-palatal affricate (real Polish "ć"/"dź") -- trailing "y"
+    # palatalization, the same convention this table already uses for
+    # tʲ/dʲ above.
+    "tɕ": "tsy", "dʑ": "dzy",
+    # Long front-rounded/long-æ vowels -- each existing short symbol's
+    # own digraph value (see above: "ae", "eu") plus the same trailing
+    # colon aː/iː/etc. already use for length.
+    "æː": "ae:", "øː": "eu:", "yː": "y:",
 }
 _DIACRITIC_TABLE: dict[str, str] = {
     "ʃ": "š", "ʒ": "ž", "tʃ": "č", "dʒ": "ǯ", "ŋ": "ṅ",
@@ -232,6 +244,18 @@ _DIACRITIC_TABLE: dict[str, str] = {
     "ʰp": "ʰp", "ʰt": "ʰt", "ʰk": "ʰk",
     # Turkish's own real dotless-ı letter.
     "ɯ": "ı",
+    # Real, historically-attested single-character IPA ligatures for
+    # exactly these four affricates (U+02A6/02A3/02A8/02A5) -- a genuine
+    # precedent for "one Latin-Extended letter, no digraph" this style's
+    # own promise wants, not an invented stand-in.
+    "ts": "ʦ", "dz": "ʣ", "tɕ": "ʨ", "dʑ": "ʥ",
+    # Macron-marked long counterparts of æ/ø/y. "ǣ" is a real Old
+    # English/Old Norse scholarly transliteration letter (U+01E3); "ȳ" is
+    # a real Latin-transliteration macron-y (U+0233); "ø" has no
+    # precomposed macron letter in Unicode, so this one combines the
+    # plain letter with a combining macron instead (renders as one
+    # visual grapheme, same as every other precomposed entry here).
+    "æː": "ǣ", "øː": "ø̄", "yː": "ȳ",
 }
 # A "shallow"/phonemic system in the spirit of Finnish, Swahili, or
 # informal Georgian transliteration -- one ASCII letter per sound, even at
@@ -273,6 +297,14 @@ _MONOLETTER_TABLE: dict[str, str] = {
     # Pre-aspiration dropped, merges with the plain voiceless stop.
     "ʰp": "p", "ʰt": "t", "ʰk": "k",
     "ɯ": "i",
+    # Both affricate pairs merge down to the same plain letter, same
+    # aggressive-merging philosophy as every other marked feature above
+    # (real Polish/Hungarian precedent for "c" as the ts/tɕ merge point).
+    "ts": "c", "dz": "z", "tɕ": "c", "dʑ": "z",
+    # Long front-rounded/long-æ vowels merge into their own short
+    # counterparts' existing monoletter values, same "aː" -> "a" pattern
+    # every other long vowel already uses here.
+    "æː": "e", "øː": "o", "yː": "y",
 }
 
 # Digit/letter markers a postposed-tone category maps `core.phonology`'s
@@ -367,6 +399,16 @@ _GEMINATION_CATEGORY = OrthographyCategory(
     exotic_style=_DIACRITIC_TABLE,
     exotic_symbol_style=ExoticSymbolStyle.DIACRITIC,
     consonant_gemination_marked=True,
+    # Real Finnish/Japanese also double a long *vowel*'s own letter
+    # (maa/pää), but unconditionally -- unlike `VowelLengthStrategy.DOUBLING`,
+    # which is syllable-conditioned (Dutch's own real "vuur"/"vuren"
+    # convention: single letter when the syllable is open, doubled only
+    # when closed). Real Finnish doubles "maa" even though it's a single
+    # open monosyllable -- setting DOUBLING here would silently apply
+    # the wrong (Dutch) convention. No unconditioned-doubling strategy
+    # exists yet, so this stays NONE at the category level; Finnish's own
+    # profile hand-curates each long vowel's real doubled spelling
+    # directly instead (see finnish.yaml).
 )
 _CATEGORIES = (
     _DIGRAPH_CATEGORY,

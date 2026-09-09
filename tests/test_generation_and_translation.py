@@ -83,11 +83,15 @@ def test_cache_hit_is_not_billed_again(tmp_path: Path):
 
 
 def test_german_biased_language_capitalizes_its_noun_entries():
-    # seed 0 rolls capitalized_pos=(NOUN,) for a German-contact language
+    # seed 2 rolls capitalized_pos=(NOUN,) for a German-contact language
     # (see romanization_gen.py's grammatical-spelling roll) -- an
     # empirically-found seed, same "search for a working seed" convention
-    # this project already uses elsewhere (test_sound_change.py).
-    spec = GenerationSpec(prompt="test", seed=0, traits=TraitProfile(source_languages=("German",)))
+    # this project already uses elsewhere (test_sound_change.py). (Re-found
+    # against seed=0 after the ts/dz/alveolo-palatal-affricate/long-vowel
+    # pool extension added new rng draws to consonant/vowel selection,
+    # shifting downstream results -- same "seed-shift from new content"
+    # pattern documented throughout this project's history.)
+    spec = GenerationSpec(prompt="test", seed=2, traits=TraitProfile(source_languages=("German",)))
     language = generate_language("Test", spec, FakeLLMClient())
     assert PartOfSpeech.NOUN in language.romanization.grammatical_spelling.capitalized_pos
     nouns = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.NOUN]
@@ -116,7 +120,9 @@ def test_french_biased_language_gives_its_verb_entries_a_silent_r():
 
 
 def test_grammatical_spelling_convention_survives_evolution_with_no_new_source_language():
-    spec = GenerationSpec(prompt="test", seed=0, traits=TraitProfile(source_languages=("German",)))
+    # seed=2 -- see test_german_biased_language_capitalizes_its_noun_entries's
+    # own comment for why this moved from seed=0.
+    spec = GenerationSpec(prompt="test", seed=2, traits=TraitProfile(source_languages=("German",)))
     base = generate_language("Base", spec, FakeLLMClient())
     assert PartOfSpeech.NOUN in base.romanization.grammatical_spelling.capitalized_pos
 

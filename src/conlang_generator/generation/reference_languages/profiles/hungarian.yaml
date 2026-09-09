@@ -1,0 +1,89 @@
+name: Hungarian
+aliases: [magyar]
+consonants: [p, b, t, d, k, g, c, "ɟ", ts, dz, "tʃ", "dʒ", f, v, s, "ʃ", z, "ʒ", h, m, n, "ɲ", l, r, j]
+vowels: [i, a, "ɛ", o, u, y, "ø", "aː", "eː", "iː", "oː", "uː", "øː", "yː"]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+vowel_harmony: true
+orthography_category: diacritic-style
+orthography:
+  # Real Hungarian spelling conventions, restricted to symbols this
+  # profile actually models -- illustrative, not a full account. Real
+  # Hungarian orthography is famously regular/phonemic, so most of these
+  # are exact, verifiable digraph correspondences.
+  - {ipa: "ʃ", latin: s}    # the real, famous "reversed" Hungarian
+                            # convention -- what looks like "s" is /ʃ/
+  - {ipa: s, latin: sz}     # ...and plain /s/ is spelled "sz"
+  - {ipa: "ɟ", latin: gy}   # real Hungarian "gy" -- a genuine palatal
+                            # stop, not just a palatalized /d/
+  - {ipa: c, latin: ty}     # real Hungarian "ty" -- a genuine palatal
+                            # stop, not just a palatalized /t/
+  - {ipa: ts, latin: c}
+  - {ipa: dz, latin: dz}
+  - {ipa: "tʃ", latin: cs}
+  - {ipa: "dʒ", latin: dzs}
+  - {ipa: "ɲ", latin: ny}
+  - {ipa: "ʒ", latin: zs}
+  - {ipa: y, latin: "ü"}
+  - {ipa: "yː", latin: "ű"}
+  - {ipa: "ø", latin: "ö"}
+  - {ipa: "øː", latin: "ő"}
+  - {ipa: "ɛ", latin: e}    # real Hungarian has no plain short /e/ distinct
+                            # from /ɛ/ -- the letter "e" *is* short ɛ; "é"
+                            # is the long mid vowel below, a genuine
+                            # quality shift (not just length), the same
+                            # real fact as "a"/"á"
+  - {ipa: "aː", latin: "á"}
+  - {ipa: "eː", latin: "é"}
+  - {ipa: "iː", latin: "í"}
+  - {ipa: "oː", latin: "ó"}
+  - {ipa: "uː", latin: "ú"}
+  # Real Hungarian spells /j/ two genuinely different ways depending on
+  # etymology -- "j" (the regular spelling) or the historical "ly" (real
+  # Hungarian words: "lyuk", "mosoly") -- fully merged in modern
+  # pronunciation, so this is a real, unconditioned weighted alternative
+  # for the very same sound, the same shape French's own "o"/"au"/"eau"
+  # already uses.
+  - {ipa: j, latin: j, weight: 0.75}
+  - {ipa: j, latin: ly, weight: 0.25}
+restricted_onset_consonants: ["ɲ"]  # a palatal nasal is cross-linguistically onset-only, same fact already curated for the Germanic profiles' /ŋ/
+attested_onset_clusters:
+  # Real, common Hungarian onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive. Real Hungarian native
+  # phonotactics lean strongly CV, so this stays modest -- these are the
+  # robustly-attested, fully-nativized Cr clusters. sp/st/sk excluded --
+  # already covered by sonority's own generic s+voiceless-stop exception.
+  - [p, r]                   # "prém"
+  - [t, r]                   # "tréfa"
+  - [k, r]                   # "krém"
+  - [f, r]                   # "friss"
+  - [d, r]                   # "dráma"
+  - [g, r]                   # "gramm"
+attested_coda_clusters:
+  # Real, common Hungarian coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [s, t]                   # "paraszt"
+  - [r, t]                   # "part"
+  - [l, t]                   # "olt"
+  - [n, t]                   # "kant"-adjacent, illustrative
+  - [n, k]                   # "bank"
+core_vocabulary_average_syllables: 1.55  # hand-counted across this project's own CORE_MEANINGS glosses -- Hungarian's own agglutinative morphology means core root vocabulary is still comparatively short even though grammatical word-forms get long; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [p, t, k, s, v, m]
+  common: [b, d, g, f, n, r, h, j]
+  uncommon: [c, "ɟ", ts, "ʃ", z, l]
+  rare: [dz, "tʃ", "dʒ", "ʒ"]  # /ɲ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+nucleus_frequency_tiers:
+  very_common: [a, "ɛ"]
+  common: [i, o, u]
+  uncommon: [y, "ø", "aː", "eː"]
+  rare: ["iː", "oː", "uː", "øː", "yː"]
+coda_frequency_tiers:
+  very_common: [t, k, n, s]
+  common: [r, l, m, "ʃ", z]
+  uncommon: [p, b, d, g, v, j, "ɲ"]
+  rare: [c, "ɟ", ts, dz, "tʃ", "dʒ", "ʒ", h, f]
+stress_pattern: initial  # real Hungarian: essentially exceptionless -- always the word's first syllable, even more rigidly than German/Dutch's own initial default
+stress_deviation_rate: 0.03  # illustrative -- real Hungarian stress is famously the most rigidly initial of any commonly-cited European language
+stress_driven_vowel_reduction: false  # real Hungarian: a conservative, syllable-timed language that keeps full vowel quality regardless of stress

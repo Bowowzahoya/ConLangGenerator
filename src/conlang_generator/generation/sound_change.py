@@ -103,7 +103,7 @@ from conlang_generator.generation import (
 )
 
 _VOICELESS_TO_VOICED: dict[str, str] = {
-    "p": "b", "t": "d", "k": "g", "ʈ": "ɖ", "c": "ɟ", "tʃ": "dʒ",
+    "p": "b", "t": "d", "k": "g", "ʈ": "ɖ", "c": "ɟ", "tʃ": "dʒ", "ts": "dz", "tɕ": "dʑ",
     "s": "z", "f": "v", "ʃ": "ʒ", "ʂ": "ʐ", "θ": "ð", "ç": "ʝ", "χ": "ʁ", "x": "ɣ",
 }
 _VOICED_TO_VOICELESS: dict[str, str] = {voiced: voiceless for voiceless, voiced in _VOICELESS_TO_VOICED.items()}

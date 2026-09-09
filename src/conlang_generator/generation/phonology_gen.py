@@ -75,9 +75,16 @@ _c = Consonant(ipa="c", place=Place.PALATAL, manner=Manner.STOP, voiced=False, p
 _ff = Consonant(ipa="ɟ", place=Place.PALATAL, manner=Manner.STOP, voiced=True, prevalence=0.10)
 _tsh = Consonant(ipa="tʃ", place=Place.POSTALVEOLAR, manner=Manner.AFFRICATE, voiced=False, prevalence=0.40)
 _dzh = Consonant(ipa="dʒ", place=Place.POSTALVEOLAR, manner=Manner.AFFRICATE, voiced=True, prevalence=0.28)
+# Real Hungarian/Polish "c"/"dz" -- a plain alveolar affricate, common
+# enough cross-linguistically (also German/Italian "z", Japanese "tsu")
+# to sit in the unconditional pairs list alongside tʃ/dʒ rather than a
+# gated group, the same "ordinary enough to always be in the draw pool"
+# status every other member here already has.
+_ts = Consonant(ipa="ts", place=Place.ALVEOLAR, manner=Manner.AFFRICATE, voiced=False, prevalence=0.30)
+_dz = Consonant(ipa="dz", place=Place.ALVEOLAR, manner=Manner.AFFRICATE, voiced=True, prevalence=0.18)
 
 _STOP_AND_AFFRICATE_PAIRS: tuple[tuple[Consonant, Consonant], ...] = (
-    (_p, _b), (_t, _d), (_k, _g), (_tt, _dd), (_c, _ff), (_tsh, _dzh),
+    (_p, _b), (_t, _d), (_k, _g), (_tt, _dd), (_c, _ff), (_tsh, _dzh), (_ts, _dz),
 )
 
 _GLOTTAL_STOP = Consonant(ipa="ʔ", place=Place.GLOTTAL, manner=Manner.STOP, voiced=False, prevalence=0.60)
@@ -144,6 +151,19 @@ _PALATALIZED_GROUP = (
     Consonant(ipa="lʲ", place=Place.ALVEOLAR, manner=Manner.LATERAL_APPROXIMANT, voiced=True, palatalized=True, prevalence=0.08),
 )
 _PALATALIZED_GROUP_BASE_RATE = 0.08
+
+# Alveolo-palatal affricates (real Polish "ć"/"dź", Mandarin "j"/"q"-ish,
+# Japanese's own affricate before /i/) -- typologically rarer than the
+# plain alveolar `ts`/`dz` pair above (concentrated in a handful of
+# language families rather than broadly common), so this stays a gated
+# group, the same "marked enough to need its own base rate" status
+# aspiration/pharyngealization/palatalization already have, rather than
+# joining the unconditional pairs list.
+_ALVEOLO_PALATAL_GROUP = (
+    Consonant(ipa="tɕ", place=Place.PALATAL, manner=Manner.AFFRICATE, voiced=False, prevalence=0.10),
+    Consonant(ipa="dʑ", place=Place.PALATAL, manner=Manner.AFFRICATE, voiced=True, prevalence=0.07),
+)
+_ALVEOLO_PALATAL_GROUP_BASE_RATE = 0.08
 
 # Murmured/breathy voice (Hindi/Bengali's 4th stop series alongside plain
 # voiceless/voiceless-aspirated/plain-voiced) -- same "no obvious trait
@@ -263,6 +283,15 @@ _VOWEL_EXTRAS = (
     Vowel(ipa="uː", height=VowelHeight.CLOSE, backness=VowelBackness.BACK, rounded=True, long=True, prevalence=0.09),
     Vowel(ipa="eː", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, long=True, prevalence=0.05),
     Vowel(ipa="oː", height=VowelHeight.CLOSE_MID, backness=VowelBackness.BACK, rounded=True, long=True, prevalence=0.05),
+    # Long front-rounded/long-æ counterparts (real Hungarian "ő"/"ű",
+    # Finnish's own long "ä"/"ö"/"y") -- same same-quality length-pair
+    # strategy as aː/iː/uː/eː/oː above, each sharing its short
+    # counterpart's exact height/backness/rounded so
+    # romanization_gen._short_counterpart's existing matching pairs them
+    # up automatically, no new code needed on that side.
+    Vowel(ipa="æː", height=VowelHeight.NEAR_OPEN, backness=VowelBackness.FRONT, rounded=False, long=True, prevalence=0.04),
+    Vowel(ipa="øː", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=True, long=True, prevalence=0.03),
+    Vowel(ipa="yː", height=VowelHeight.CLOSE, backness=VowelBackness.FRONT, rounded=True, long=True, prevalence=0.03),
     # Diphthongs -- each its own atomic, multi-character symbol (same
     # pattern as the long vowels just above), classified by its *onset*
     # quality (the standard way to give a diphthong one height/backness/
@@ -313,6 +342,7 @@ ALL_CONSONANTS: tuple[Consonant, ...] = (
     tuple(x for pair in _STOP_AND_AFFRICATE_PAIRS for x in pair)
     + (_GLOTTAL_STOP,) + _EJECTIVES + _UVULAR_GROUP
     + _ASPIRATED_GROUP + _PHARYNGEALIZED_GROUP + _GEMINATE_GROUP + _PALATALIZED_GROUP
+    + _ALVEOLO_PALATAL_GROUP
     + _NASAL_POOL + _FRICATIVE_POOL + _APPROXIMANT_POOL + _EXOTIC_POOL
     + _BREATHY_GROUP + _PRE_ASPIRATED_GROUP
 )
@@ -541,6 +571,12 @@ def _select_consonants(
     )
     if rng.random() < palatalized_probability:
         consonants.extend(_strict_group_members(rng, _PALATALIZED_GROUP, reference_symbols, strictness))
+
+    alveolo_palatal_probability = _group_reference_bias(
+        _ALVEOLO_PALATAL_GROUP_BASE_RATE, tuple(c.ipa for c in _ALVEOLO_PALATAL_GROUP), reference_symbols, strictness
+    )
+    if rng.random() < alveolo_palatal_probability:
+        consonants.extend(_strict_group_members(rng, _ALVEOLO_PALATAL_GROUP, reference_symbols, strictness))
 
     for nasal in _NASAL_POOL:
         rate = biased_probability(nasal.prevalence, -traits.aesthetic_harshness) if nasal is _ng else nasal.prevalence

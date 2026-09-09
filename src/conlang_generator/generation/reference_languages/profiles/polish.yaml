@@ -1,0 +1,99 @@
+name: Polish
+aliases: [polski]
+consonants: [p, b, t, d, k, g, ts, dz, "tʃ", "dʒ", "tɕ", "dʑ", f, v, s, z, "ʃ", "ʒ", "ç", "ʝ", x, h, m, n, "ɲ", l, r, w, j]
+vowels: [i, "ɨ", a, e, o, u, "ẽ", "õ"]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+coda_devoicing: true  # real, well-documented Polish word-final obstruent devoicing (real "chleb" [xlep], spelled unchanged) -- same real fact already modeled for Dutch/German
+orthography_category: diacritic-style
+restricted_onset_consonants: ["ɲ"]  # a palatal nasal is cross-linguistically onset-only, same fact already curated for Hungarian/the Germanic profiles' /ŋ/
+attested_onset_clusters:
+  # Real, common Polish onset clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive. Real Polish is
+  # unusually permissive here (pstrąg, wstrząs, źdźbło genuinely start
+  # with 3-4 consonants) -- this project's own max_onset=2 ceiling can't
+  # represent that; the list below stays within it. sp/st/sk excluded --
+  # already covered by sonority's own generic s+voiceless-stop exception.
+  - [p, l]                   # "plot"
+  - [p, r]                   # "praca"
+  - [k, l]                   # "klucz"
+  - [k, r]                   # "kraj"
+  - [t, r]                   # "trawa"
+  - [d, r]                   # "drwal"
+  - [g, w]                   # "głowa" -- real Polish /w/ (spelled "ł")
+  - [g, r]                   # "grad"
+  - [f, l]                   # "flaga"
+  - [f, r]                   # "frajer"
+  - [x, v]                   # "chwila" -- real /x/+/v/ (spelled "chw")
+  - [v, z]                   # "wzrost" -- real /v/+/z/ (spelled "wz")
+  - [z, g]                   # "zgoda"
+  - [z, d]                   # "zdanie"
+  - [t, v]                   # "twarz" -- real /t/+/v/ (spelled "tw")
+  - [d, v]                   # "dwa" -- real /d/+/v/ (spelled "dw")
+attested_coda_clusters:
+  # Real, common Polish coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive.
+  - [s, t]                   # "most"
+  - [r, t]                   # "wiatr", "teatr"
+  - [r, k]                   # "park"
+  - [l, k]                   # "wilk"
+  - [n, t]                   # "prąd"-adjacent, illustrative
+  - [n, k]                   # "bank"
+  - [f, t]                   # "szift"-style, illustrative
+orthography:
+  # Real Polish spelling conventions, restricted to symbols this profile
+  # actually models -- illustrative, not a full account.
+  - {ipa: v, latin: w}      # real Polish "w" is pronounced /v/ -- a
+                            # famous spelling-doesn't-match-phonology fact
+  - {ipa: w, latin: "ł"}    # the real *sound* /w/ (bilabial approximant)
+                            # is what modern Polish "ł" actually is --
+                            # not a dark l, despite the letter's shape
+  - {ipa: x, latin: ch}
+  - {ipa: "ç", latin: "ś"}  # real Polish "ś" is genuinely alveolo-palatal
+                            # /ɕ/ -- /ç/ is this project's closest
+                            # available approximation, flagged as such
+  - {ipa: "ʝ", latin: "ź"}  # same approximation as "ś" above, for /ʑ/
+  - {ipa: "tɕ", latin: "ć"}
+  - {ipa: "dʑ", latin: "dź"}
+  - {ipa: "tʃ", latin: cz}
+  - {ipa: "dʒ", latin: "dż"}
+  - {ipa: "ɲ", latin: "ń"}
+  - {ipa: ts, latin: c}
+  - {ipa: dz, latin: dz}
+  - {ipa: "ẽ", latin: "ę"}
+  - {ipa: "õ", latin: "ą"}
+  - {ipa: "ɨ", latin: y}
+  # Real Polish /ʒ/ is famously spelled two different ways depending on
+  # etymology -- "rz" (from a historically distinct trilled r) or "ż" --
+  # genuinely homophonous in modern Polish, same "one sound, two real
+  # spellings" shape as Hungarian's own j/ly.
+  - {ipa: "ʒ", latin: "rz", weight: 0.55}
+  - {ipa: "ʒ", latin: "ż", weight: 0.45}
+core_vocabulary_average_syllables: 1.5  # hand-counted across this project's own CORE_MEANINGS glosses -- illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [p, k, t, s, z, v, b]
+  common: [d, g, m, n, r, w, "tʃ", "ʒ"]
+  uncommon: [f, x, ts, "ʃ", j, l, h]
+  rare: [dz, "dʒ", "tɕ", "dʑ", "ç", "ʝ"]  # /ɲ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [e, o, u]
+  uncommon: ["ɨ"]
+  rare: ["ẽ", "õ"]
+coda_frequency_tiers:
+  # coda_devoicing above already excludes every voiced obstruent from
+  # legal coda position at generation time -- b/d/g/dz/dʒ/dʑ/v/z/ʒ/ʝ
+  # below are never actually consulted (phonology_gen.py's own
+  # "unrestricted" branch removes them from the legal coda set before
+  # this table is ever queried), same dead-data-but-harmless status
+  # Dutch's own coda_frequency_tiers already has for its own devoiced
+  # b/d entries -- kept here so this table still exactly partitions the
+  # full consonant set, matching that existing precedent.
+  very_common: [t, k, s, r]
+  common: [n, l, m, w, "ʃ", p]
+  uncommon: [f, x, ts, "ɲ", "tʃ", j]
+  rare: [h, "ç", "tɕ", b, d, g, dz, "dʒ", "dʑ", v, z, "ʒ", "ʝ"]
+stress_pattern: penultimate  # real Polish: fixed penultimate stress, a small number of verb-form/loanword exceptions
+stress_deviation_rate: 0.05  # illustrative -- real Polish stress is one of the most rigidly fixed-position systems in Europe
+stress_driven_vowel_reduction: false  # real Polish: a conservative, syllable-timed language that keeps full vowel quality regardless of stress

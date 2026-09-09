@@ -967,12 +967,12 @@ reading code or one-off ad hoc scripts.
   `phonology_gen.py`/`grammar_gen.py`, and the reference-language sketches
   in `reference_languages/profiles/`, are illustrative approximations, not
   a typological database (e.g. PHOIBLE) or authoritative descriptions.
-- `reference_languages/profiles/` covers 33 languages (Arabic, Arawakan,
+- `reference_languages/profiles/` covers 35 languages (Arabic, Arawakan,
   Bengali, Danish, Dutch, English, Finnish, French, Georgian, German,
-  Hawaiian, Hebrew, Hindi, Icelandic, Indonesian, Italian, Japanese,
-  Korean, Mandarin, Mongolian, Nahuatl, Norwegian, Pama-Nyungan, Persian,
-  Portuguese, Quechua, Russian, Spanish, Swedish, Tamil, Tibetan, Turkish,
-  Xhosa), chosen for
+  Hawaiian, Hebrew, Hindi, Hungarian, Icelandic, Indonesian, Italian,
+  Japanese, Korean, Mandarin, Mongolian, Nahuatl, Norwegian, Pama-Nyungan,
+  Persian, Polish, Portuguese, Quechua, Russian, Spanish, Swedish, Tamil,
+  Tibetan, Turkish, Xhosa), chosen for
   typological/cultural spread (several -- Icelandic, Nahuatl, Tibetan,
   Mongolian, Arawakan, Pama-Nyungan, Quechua, Hebrew -- picked as much
   for real-world "vibe" association with popular fantasy settings as
@@ -1111,6 +1111,69 @@ reading code or one-off ad hoc scripts.
   - Curated for Danish (`glottalization`/`monosyllabic_heavy`), Swedish
     and Norwegian (`pitch`/`underived_monosyllable`) -- Icelandic
     untouched (no stød/pitch accent in real Icelandic).
+- **The Finnish/Hungarian/Polish batch** brought a third trio to the same
+  curation depth as the perfected profiles -- Finnish already had a real
+  (if bare) profile (`kː` gemination, `vowel_harmony: true`); Hungarian
+  and Polish were created from scratch. Researching their real phoneme
+  inventories surfaced a genuine, shared gap in `phonology_gen.py`'s
+  pool -- fixed there directly (not worked around), so every future
+  language benefits:
+  - A plain alveolar affricate pair `ts`/`dz` (real Hungarian/Polish
+    "c"/"dz") joined `_STOP_AND_AFFRICATE_PAIRS` unconditionally (common
+    enough cross-linguistically, same status as `tʃ`/`dʒ`); a new gated
+    `_ALVEOLO_PALATAL_GROUP` (`tɕ`/`dʑ`, real Polish "ć"/"dź", genuinely
+    distinct from "cz"/"dż") mirrors `_PALATALIZED_GROUP`'s own shape --
+    typologically rarer, so it keeps its own base rate rather than
+    joining the unconditional list. Three new long vowels `æː`/`øː`/`yː`
+    (real Hungarian "ő"/"ű", Finnish's own long "ä"/"ö"/"y") joined
+    `_VOWEL_EXTRAS`, each sharing its short counterpart's exact
+    height/backness/rounded so `romanization_gen._short_counterpart`'s
+    existing matching pairs them up with zero new code. All four
+    consonants + three vowels needed entries added to `romanization_gen.py`'s
+    three exhaustive fallback tables (`_DIGRAPH_TABLE`/`_DIACRITIC_TABLE`/
+    `_MONOLETTER_TABLE`) -- every symbol in the shared pool must have one
+    or it leaks as a raw IPA glyph; the diacritic table's entries reuse
+    real, historically-attested single-Unicode-character IPA ligatures
+    (ʦ/ʣ/ʨ/ʥ) for the four affricates. `sound_change.py`'s
+    `_VOICELESS_TO_VOICED` gained `ts`->`dz` (and, via its own reverse-
+    construction, `tɕ`->`dʑ`) so intervocalic lenition reaches them the
+    same way it already reaches `tʃ`->`dʒ`.
+  - A real bug surfaced while curating Finnish: the `gemination-style`
+    `OrthographyCategory` only ever set `consonant_gemination_marked`,
+    never `vowel_length_strategy` -- so Finnish's own long vowels fell
+    through to the generic diacritic-style macron fallback (`aː`->`ā`)
+    instead of real Finnish's own doubling convention (`aː`->`aa`).
+    Setting the category's `vowel_length_strategy` to the existing
+    `DOUBLING` value turned out to be a *different* real bug, not a fix:
+    `VowelLengthStrategy.DOUBLING`'s actual implementation
+    (`_generate_length_rules`) is syllable-conditioned, the same way
+    real Dutch/German doubling genuinely is (single letter in an open
+    syllable, doubled only in a closed one) -- but real Finnish doubles
+    a long vowel *unconditionally* regardless of syllable shape ("maa"
+    is a single open monosyllable, still doubled). No unconditioned-
+    doubling strategy exists in this project yet, so the category was
+    reverted to leaving `vowel_length_strategy` unset, and Finnish's own
+    profile hand-curates each long vowel's real doubled spelling
+    directly (`orthography: [{ipa: aː, latin: aa}, ...]`) instead --
+    lower-risk than adding a new shared strategy variant for a single
+    profile's real need.
+  - Real, specific spelling facts curated: Hungarian's famous "reversed"
+    convention (the letter "s" spells /ʃ/, plain /s/ is spelled "sz");
+    real "ty"/"gy" mapped to the pool's own genuine palatal stops `c`/`ɟ`
+    (not just palatalized alveolars); a real "j"/"ly" weighted spelling
+    alternative for the same, historically-merged /j/ sound. Polish's
+    real "w" letter (pronounced /v/) vs. the real *sound* /w/ (spelled
+    "ł", not a dark l); a real "rz"/"ż" weighted alternative for the
+    same, etymologically-split /ʒ/ sound; `coda_devoicing: true` (real,
+    well-documented Polish word-final obstruent devoicing, same fact
+    already modeled for Dutch/German) -- its own coda frequency tiers
+    keep the devoiced-excluded voiced obstruents as harmless dead data,
+    matching an existing precedent already in Dutch's own tiers rather
+    than introducing a new pattern. Polish is also the first profile to
+    curate `stress_pattern: "penultimate"` outright (real, robust fixed-
+    penultimate Polish stress) -- already `predict_default_stress`'s own
+    generic fallback, so this needed zero new logic, only a data
+    addition.
 - Dutch's `g`/`ch` distinction is now modeled: /ɣ/ (voiced velar
   fricative -- what Dutch `g` actually represents; Dutch has no native
   /g/ stop) is a real phoneme in `phonology_gen.py`'s shared pool, Dutch's
