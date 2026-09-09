@@ -834,12 +834,13 @@ class RomanizationScheme(BaseModel, frozen=True):
         # Stress-accent bookkeeping, computed once up front the same way
         # `rules_by_ipa`/`tone_marker_map` are -- `actual_stress_syllable`
         # is which syllable (0-based, by vowel count) `stress_before`
-        # falls on, `final_coda_symbols` is the word's own last syllable's
-        # coda (both feed `stress_accent_marking`'s "irregular_only" check
-        # below, which needs to know the same thing `stress_gen.assign_stress`
-        # knew at build time -- but re-derived from the tokenized string
-        # itself, not threaded through, since `apply()` never receives a
-        # word's original per-syllable structure, only its flat IPA).
+        # falls on, `final_coda_symbols`/`final_nucleus_symbol` are the
+        # word's own last syllable's coda and nucleus (all three feed
+        # `stress_accent_marking`'s "irregular_only" check below, which
+        # needs to know the same thing `stress_gen.assign_stress` knew at
+        # build time -- but re-derived from the tokenized string itself,
+        # not threaded through, since `apply()` never receives a word's
+        # original per-syllable structure, only its flat IPA).
         vowel_indices = [i for i, t in enumerate(tokens) if t[0] in self.vowel_symbols]
         num_syllables = len(vowel_indices)
         actual_stress_syllable = (
@@ -848,6 +849,7 @@ class RomanizationScheme(BaseModel, frozen=True):
         final_coda_symbols = (
             tuple(t[0] for t in tokens[vowel_indices[-1] + 1 :] if t[0] is not None) if vowel_indices else ()
         )
+        final_nucleus_symbol = tokens[vowel_indices[-1]][0] if vowel_indices else ""
         stress_pending = False
 
         pending_markers: dict[int, list[str]] = {}
@@ -951,7 +953,7 @@ class RomanizationScheme(BaseModel, frozen=True):
                 should_mark = (self.stress_accent_marking == "final_only" and is_final_syllable) or (
                     self.stress_accent_marking == "irregular_only"
                     and actual_stress_syllable
-                    != predict_default_stress(num_syllables, self.stress_pattern, final_coda_symbols)
+                    != predict_default_stress(num_syllables, self.stress_pattern, final_coda_symbols, final_nucleus_symbol)
                 )
                 if should_mark:
                     accented = _STRESS_ACCENT_MAP.get(latin[:1])

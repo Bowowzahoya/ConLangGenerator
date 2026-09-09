@@ -1285,7 +1285,23 @@ reading code or one-off ad hoc scripts.
     `word_builder.build_word`/`build_reduplicated_word` -- both "ends in
     a/e/o" and "ends in i/u" have an *empty* `final_coda` alike (both are
     vowel-final), so the coda alone genuinely can't distinguish real
-    Portuguese's two cases the way it can for Spanish.
+    Portuguese's two cases the way it can for Spanish. Scanning generated
+    example tables surfaced a real bug this same gap caused: `apply()`'s
+    own `"irregular_only"` stress-accent rendering (real Spanish's á/é/
+    í/ó/ú -- marks a word only when its actual stress deviates from the
+    predicted default) calls `predict_default_stress` directly too, and
+    that call site was missed when `final_nucleus` was added -- it always
+    passed an empty string, so Portuguese's own accent-marking silently
+    always predicted "final" stress regardless of the word's real final
+    vowel, both over- and under-marking words depending on which way the
+    real default actually went. Fixed by deriving a `final_nucleus_symbol`
+    in `apply()` the same way it already derives `final_coda_symbols` (the
+    last vowel token in the word's own tokenized IPA) and threading it
+    through; a new regression test
+    (`test_irregular_only_marking_uses_the_words_own_final_nucleus_not_just_its_coda`
+    in `test_romanization.py`) locks in both directions of the fix, since
+    no existing test exercised `apply()`'s `"irregular_only"` path at all
+    before this batch.
   - **Real Serbo-Croatian syllabic /r/** (vrt "garden", trg "square", Krk,
     prst "finger" -- a whole syllable with no vowel at all, /r/ itself
     carrying the nucleus) turned out to need *no* new core-engine

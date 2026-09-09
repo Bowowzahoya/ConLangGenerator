@@ -1,6 +1,7 @@
 import unicodedata
 
 from conlang_generator.core.romanization import (
+    STRESS_MARK,
     JointSpelling,
     RomanizationRule,
     RomanizationScheme,
@@ -504,3 +505,33 @@ def test_consumed_position_still_runs_its_own_tone_and_hiatus_logic():
 def test_no_joint_spellings_is_byte_identical_to_before_this_feature():
     scheme = _joint_scheme()
     assert scheme.apply("mwat") == "mouat"  # every symbol spelled independently, as before
+
+
+_STRESS_RULES = (
+    RomanizationRule(ipa="k", latin="k"),
+    RomanizationRule(ipa="f", latin="f"),
+    RomanizationRule(ipa="a", latin="a"),
+    RomanizationRule(ipa="e", latin="e"),
+)
+
+
+def test_irregular_only_marking_uses_the_words_own_final_nucleus_not_just_its_coda():
+    # Real Portuguese default stress ("final_unless_unstressed_vowel") is
+    # penultimate only if the word ends in an unstressed a/e/o, final
+    # otherwise -- both "ends in a/e/o" and "ends in i/u" alike have an
+    # *empty* coda, so this check must read the word's own actual final
+    # vowel, not just its coda, to predict the right default and decide
+    # whether "irregular_only" marking is warranted.
+    scheme = RomanizationScheme(
+        rules=_STRESS_RULES, vowel_symbols=("a", "e"),
+        stress_accent_marking="irregular_only", stress_pattern="final_unless_unstressed_vowel",
+    )
+    # "kasa" ends in unstressed "a" -> predicted default is penultimate
+    # (the first syllable) -- actual stress lands there too, so this is
+    # the predictable case and gets no written accent.
+    assert scheme.apply(STRESS_MARK + "kasa") == "kasa"
+    # "kafe" also ends in "e" (predicted penultimate, the first syllable)
+    # but is actually stressed on its own final syllable -- a genuine
+    # deviation from the predicted default, so it does get marked
+    # (café-shaped).
+    assert scheme.apply("ka" + STRESS_MARK + "fe") == "kafé"
