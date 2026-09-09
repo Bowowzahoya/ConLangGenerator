@@ -8,6 +8,17 @@ tonal: true
 orthography_category: wade-giles-style
 restricted_onset_consonants: ["ŋ"]  # real Mandarin /ŋ/ (ng) is coda-only -- no native syllable ever begins with it
 restricted_coda_consonants: [m, l, j, w]
+restricted_onset_nucleus_pairs:
+  # Real Mandarin /ɕ/ (pinyin x, this profile's own "ʃ") is in
+  # complementary distribution with the retroflex/alveolar sibilant
+  # series -- it only ever occurs before /i/ or /y/ (ü): real "xi"/"xu"
+  # (ü-spelled) exist, but "xa"/"xe"/"xo"/"xu" (plain u) don't -- there's
+  # no real pinyin syllable like "xang". Blacklist mode, so /i/ and /y/
+  # stay legal by omission.
+  - ["ʃ", a]
+  - ["ʃ", u]
+  - ["ʃ", o]
+  - ["ʃ", e]
 # coda_profile: sonorant above already limits codas to the sonority-based
 # sonorant class (m/n/ŋ/l/j/w here), but real Standard Mandarin only ever
 # closes a syllable in /n/ or /ŋ/ (pinyin -n/-ng) -- no native syllable
@@ -58,6 +69,10 @@ orthography:
   - {ipa: "ʃ", latin: x}
   - {ipa: "ŋ", latin: ng}
   - {ipa: x, latin: h}
+  # Real pinyin spells the /u/+/ŋ/ rime "ong" (long, dong, hong...), not
+  # "ung" -- a real, specific pinyin orthographic convention, not just
+  # this profile's own default identity spelling for "u" elsewhere.
+  - {ipa: u, latin: o, following: ["ŋ"]}
 core_vocabulary_average_syllables: 1.24  # hand-counted across this project's own CORE_MEANINGS glosses, at the *word* level (太阳/tàiyáng "sun", 妈妈/māma "mother"), not the morpheme level -- real Mandarin is famously monosyllabic at the *morpheme* root (each syllable independently meaningful and tonally specified), but many everyday words are disyllabic compounds, so a word-level count lands much closer to Danish/Swedish's own figures than the "monosyllabic language" reputation would suggest; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
 onset_frequency_tiers:
   very_common: [t, k, m, n, l, s]

@@ -1556,6 +1556,35 @@ reading code or one-off ad hoc scripts.
     profile in this project counts (real infinitives for Russian/
     Portuguese/Hindi), even though this pushes the figure noticeably
     higher than a bare-stem count would.
+  - Two real gaps surfaced from scanning generated example tables (the
+    Mandarin/Korean batch's own equivalent of the Portuguese
+    `irregular_only` bug found the same way in an earlier batch), both
+    fixed directly:
+    - Real Mandarin /ɕ/ (pinyin `x`, this project's own `"ʃ"` stand-in)
+      is in complementary distribution with the retroflex/alveolar
+      sibilant series -- it only ever precedes /i/ or /y/ (ü); there's no
+      real pinyin syllable like "xang". `mandarin.yaml` now curates
+      `restricted_onset_nucleus_pairs` blacklisting `ʃ` against
+      a/u/o/e (the existing English `w`+rounded-vowel mechanism, already
+      built for exactly this shape, just never used by this profile
+      before). A second, unrelated pinyin-spelling gap surfaced
+      alongside it: real pinyin spells the /u/+/ŋ/ rime "ong" (dong,
+      long, hong...), not "ung" -- a genuine, specific orthographic
+      convention, not this profile's own default identity spelling for
+      "u" elsewhere -- fixed with a `following: ["ŋ"]`-conditioned
+      orthography rule.
+    - Real Korean Revised Romanization spells its plain/lax stop series
+      with a position-conditioned letter -- b/d/g in onset, p/t/k in
+      coda (바 ba vs. 밥 bap, 다 da vs. 몯 mot) -- not one fixed letter
+      regardless of position; the aspirated series, by contrast, is
+      spelled p/t/k uniformly. `korean.yaml` previously curated neither,
+      so the plain series fell through to plain-letter identity spelling
+      and the aspirated series fell through to `digraph-style`'s own
+      generic capital-H fallback (`pH`/`tH`/`kH`) -- not a real Korean
+      convention at all. Fixed with the existing `following: [vowel]` /
+      `following: [consonant, boundary]` neighbor-tag mechanism (already
+      used elsewhere for onset-vs-coda-conditioned spelling) for the
+      plain series, and three unconditional rules for the aspirated one.
 - Dutch's `g`/`ch` distinction is now modeled: /ɣ/ (voiced velar
   fricative -- what Dutch `g` actually represents; Dutch has no native
   /g/ stop) is a real phoneme in `phonology_gen.py`'s shared pool, Dutch's

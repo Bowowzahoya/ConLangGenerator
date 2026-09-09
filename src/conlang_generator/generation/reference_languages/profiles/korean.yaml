@@ -44,6 +44,25 @@ orthography:
   - {ipa: "kʼ", latin: kk}
   - {ipa: "tʃ", latin: j}
   - {ipa: "ŋ", latin: ng}
+  # Real Revised Romanization spells the *plain/lax* series with the
+  # "voiced-looking" letter (b/d/g) in onset position and the "voiceless-
+  # looking" one (p/t/k) in coda position -- e.g. 바 ba vs. 밥 bap, 다 da
+  # vs. 몯 mot, 가 ga vs. 각 gak -- not a single fixed letter regardless
+  # of position. The *aspirated* series, by contrast, is spelled p/t/k
+  # uniformly (largely onset-only here anyway, since it's already
+  # excluded from coda by restricted_coda_consonants above) -- this is
+  # what real Revised Romanization actually does; a generic capital-H
+  # digraph ("pH"/"tH"/"kH", this style's own fallback for an uncurated
+  # symbol) is not the real Korean convention at all.
+  - {ipa: p, latin: b, following: [vowel]}
+  - {ipa: p, latin: p, following: [consonant, boundary]}
+  - {ipa: t, latin: d, following: [vowel]}
+  - {ipa: t, latin: t, following: [consonant, boundary]}
+  - {ipa: k, latin: g, following: [vowel]}
+  - {ipa: k, latin: k, following: [consonant, boundary]}
+  - {ipa: "pʰ", latin: p}
+  - {ipa: "tʰ", latin: t}
+  - {ipa: "kʰ", latin: k}
 core_vocabulary_average_syllables: 1.88  # hand-counted across this project's own CORE_MEANINGS glosses, using full dictionary citation forms (verb/adjective stems plus the real -다 -da suffix, e.g. 크다 keuda "big", 가다 gada "go") rather than bare stems -- consistent with how every other profile in this project counts (e.g. real infinitives for Russian/Portuguese/Hindi), even though this pushes the figure noticeably higher than a stem-only count would (roughly 19 of the 49 glosses are verbs/adjectives, each gaining a syllable from the citation suffix); illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
 onset_frequency_tiers:
   very_common: [k, t, s, n, m, h]

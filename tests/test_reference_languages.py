@@ -546,10 +546,60 @@ def test_mandarin_only_closes_a_syllable_in_n_or_ng():
     assert set(mandarin.restricted_coda_consonants) == {"m", "l", "j", "w"}
 
 
+def test_mandarin_x_only_combines_with_front_vowels():
+    # Real pinyin /ɕ/ (x, this project's own "ʃ") is in complementary
+    # distribution with the retroflex/alveolar sibilants -- it only ever
+    # precedes i/y (ü); "xang"/"xu"(plain u)/"xo"/"xe" aren't real pinyin
+    # syllables, unlike "xi"/"xu"(ü-spelled).
+    mandarin = next(p for p in REFERENCE_LANGUAGES if p.name == "Mandarin")
+    assert set(mandarin.restricted_onset_nucleus_pairs) == {("ʃ", "a"), ("ʃ", "u"), ("ʃ", "o"), ("ʃ", "e")}
+
+
+def test_mandarin_u_before_the_velar_nasal_spells_as_ong_not_ung():
+    # Real pinyin: dong/long/hong, never dung/lung/hung. Checked as a
+    # substring rather than the full apply() result, since this
+    # profile's own tone-marking style (Wade-Giles digit vs. Pinyin
+    # diacritic) is itself a probabilistic per-scheme roll, independent
+    # of the vowel-spelling rule under test here.
+    mandarin = next(p for p in REFERENCE_LANGUAGES if p.name == "Mandarin")
+    inventory = _inventory_for(mandarin)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Mandarin",),
+        requested_orthography_style=mandarin.orthography_category, strictness=1.0,
+    )
+    result = scheme.apply("luŋ")
+    assert "ong" in result
+    assert "ung" not in result
+
+
 def test_korean_coda_neutralizes_to_the_real_seven_consonant_inventory():
     korean = next(p for p in REFERENCE_LANGUAGES if p.name == "Korean")
     legal_codas = set(korean.consonants) - set(korean.restricted_coda_consonants)
     assert legal_codas == {"p", "t", "k", "m", "n", "ŋ", "l"}
+
+
+def test_korean_plain_stops_spell_by_position_and_aspirated_stops_spell_plain():
+    # Real Revised Romanization: the plain/lax series is spelled with a
+    # different letter in onset (바 ba, 다 da, 가 ga) vs. coda (밥 bap, 몯
+    # mot, 각 gak) position; the aspirated series is spelled p/t/k
+    # uniformly, not with this style's own generic "pH"/"tH"/"kH"
+    # capital-H fallback (real Revised Romanization doesn't do that at
+    # all).
+    korean = next(p for p in REFERENCE_LANGUAGES if p.name == "Korean")
+    inventory = _inventory_for(korean)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Korean",),
+        requested_orthography_style=korean.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("pa") == "ba"      # onset -> b
+    assert scheme.apply("ap") == "ap"      # coda -> p
+    assert scheme.apply("ta") == "da"      # onset -> d
+    assert scheme.apply("at") == "at"      # coda -> t
+    assert scheme.apply("ka") == "ga"      # onset -> g
+    assert scheme.apply("ak") == "ak"      # coda -> k
+    assert scheme.apply("pʰa") == "pa"
+    assert scheme.apply("tʰa") == "ta"
+    assert scheme.apply("kʰa") == "ka"
 
 
 def test_japanese_has_no_phonemic_glottal_stop():
