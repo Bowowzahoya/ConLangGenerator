@@ -467,6 +467,64 @@ def test_russian_portuguese_serbo_croatian_declare_a_real_average_syllable_count
         assert by_name[name].core_vocabulary_average_syllables is not None
 
 
+def test_hindi_tamil_persian_declare_a_real_stress_pattern():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    # Real Hindi stress is genuinely quantity-sensitive, not a flat
+    # position -- modeled as "lexical", the same catch-all Arabic's own
+    # quantity-sensitive stress already uses.
+    assert by_name["Hindi"].stress_pattern == "lexical"
+    # Real Tamil is robustly word-initial.
+    assert by_name["Tamil"].stress_pattern == "initial"
+    # Real Persian is robustly word-final by default.
+    assert by_name["Persian"].stress_pattern == "final"
+    for name in ("Hindi", "Tamil", "Persian"):
+        assert by_name[name].stress_deviation_rate is not None
+        assert by_name[name].stress_driven_vowel_reduction is False
+    # Tamil's real exception (a narrow, mechanical vowel-length-conditioned
+    # shift) is meaningfully rarer than Hindi's own genuinely contested,
+    # quantity-sensitive system.
+    assert by_name["Tamil"].stress_deviation_rate < by_name["Hindi"].stress_deviation_rate
+
+
+def test_hindi_tamil_persian_declare_a_real_average_syllable_count():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in ("Hindi", "Tamil", "Persian"):
+        assert by_name[name].core_vocabulary_average_syllables is not None
+
+
+def test_tamil_declares_the_retroflex_approximant_and_restricts_it_from_onset():
+    # Real Tamil /ɻ/ (ழ) -- distinct from both the tap /ɾ/ and trill /r/
+    # already modeled -- is genuine and common, but (like the other
+    # retroflex consonants and /ŋ/) never opens a native word.
+    tamil = next(p for p in REFERENCE_LANGUAGES if p.name == "Tamil")
+    assert "ɻ" in tamil.consonants
+    assert "ɻ" in tamil.restricted_onset_consonants
+    assert tamil.coda_profile == "sonorant"
+
+
+def test_tamil_retroflex_approximant_romanizes_as_the_real_scholarly_letter():
+    # Real ISO 15919/scholarly Tamil transliteration: ழ -> ḻ, the same
+    # retroflex dot-under convention ṭ/ṇ already use in this profile.
+    tamil = next(p for p in REFERENCE_LANGUAGES if p.name == "Tamil")
+    inventory = _inventory_for(tamil)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Tamil",),
+        requested_orthography_style=tamil.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("ɻ") == "ḻ"
+
+
+def test_hindi_and_persian_declare_real_attested_clusters():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    hindi = by_name["Hindi"]
+    assert ("p", "r") in hindi.attested_onset_clusters  # "prem"
+    assert ("r", "m") in hindi.attested_coda_clusters  # "dharm"
+    assert "ɳ" in hindi.restricted_onset_consonants  # real Hindi retroflex ɳ never opens a native word
+    persian = by_name["Persian"]
+    assert persian.attested_onset_clusters == ()  # real Persian has no native onset clusters at all
+    assert ("s", "t") in persian.attested_coda_clusters  # "dast"
+
+
 def test_arabic_source_language_biases_toward_root_and_pattern_and_fusional():
     def _rates(source_languages: tuple[str, ...]) -> tuple[float, float]:
         root_and_pattern_hits = 0
@@ -544,6 +602,7 @@ def test_most_profiles_leave_average_syllables_uncurated():
         "Finnish", "Hungarian", "Polish",
         "Arabic", "Hebrew", "Turkish",
         "Russian", "Portuguese", "Serbo-Croatian",
+        "Hindi", "Tamil", "Persian",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -588,6 +647,10 @@ _PERFECTED_LANGUAGES = (
     "Finnish", "Hungarian", "Polish",
     "Arabic", "Hebrew", "Turkish",
     "Russian", "Portuguese", "Serbo-Croatian",
+    "Hindi", "Persian",
+    # Tamil is deliberately left out of this list too, for the exact same
+    # "sonorant" coda_profile reason as Italian above -- checked
+    # separately.
 )
 _TIER_NAMES = {"very_common", "common", "uncommon", "rare"}
 
@@ -633,7 +696,7 @@ def test_english_ð_is_onset_rare_despite_high_token_frequency():
 
 def test_non_perfected_profiles_leave_frequency_tiers_uncurated():
     for profile in REFERENCE_LANGUAGES:
-        if profile.name not in _PERFECTED_LANGUAGES and profile.name != "Italian":
+        if profile.name not in _PERFECTED_LANGUAGES and profile.name not in ("Italian", "Tamil"):
             assert profile.onset_frequency_tiers == {}
             assert profile.nucleus_frequency_tiers == {}
             assert profile.coda_frequency_tiers == {}
@@ -653,6 +716,22 @@ def test_italian_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols()
         assert len(tiered) == len(set(tiered)), position
         assert set(tiered) == _legal_symbols(italian, position), position
     assert italian.coda_frequency_tiers == {}
+
+
+def test_tamil_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    # Same "sonorant" coda_profile situation as Italian above -- Tamil
+    # curates onset/nucleus tiers but deliberately leaves
+    # coda_frequency_tiers uncurated.
+    tamil = next(p for p in REFERENCE_LANGUAGES if p.name == "Tamil")
+    for position, field in (
+        ("onset", tamil.onset_frequency_tiers),
+        ("nucleus", tamil.nucleus_frequency_tiers),
+    ):
+        assert set(field.keys()) == _TIER_NAMES, position
+        tiered = [symbol for members in field.values() for symbol in members]
+        assert len(tiered) == len(set(tiered)), position
+        assert set(tiered) == _legal_symbols(tamil, position), position
+    assert tamil.coda_frequency_tiers == {}
 
 
 # --- Probabilistic, richer French/English romanization ---
@@ -1106,6 +1185,7 @@ def test_most_profiles_leave_stress_pattern_uncurated():
         "Finnish", "Hungarian", "Polish",
         "Arabic", "Hebrew", "Turkish",
         "Russian", "Portuguese", "Serbo-Croatian",
+        "Hindi", "Tamil", "Persian",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:

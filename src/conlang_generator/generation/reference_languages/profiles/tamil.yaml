@@ -1,10 +1,28 @@
 name: Tamil
-consonants: [p, t, "ʈ", k, "tʃ", m, n, "ɳ", "ɲ", "ŋ", l, r, "ɾ", v, j]
+consonants: [p, t, "ʈ", k, "tʃ", m, n, "ɳ", "ɲ", "ŋ", l, r, "ɾ", v, j, "ɻ"]
 vowels: [a, "aː", i, "iː", u, "uː", e, "eː", o, "oː"]
-coda_profile: unrestricted
+coda_profile: sonorant  # real Tamil codas are restricted to nasals, liquids, and the glide /j/ -- same real fact and same fix Italian's own perfected profile already curates for its own coda set
 max_onset: 1
 tonal: false
 orthography_category: scholarly-macron-style
+restricted_onset_consonants: ["ʈ", "ɳ", "ŋ", "ɻ"]
+# Real Tamil: retroflex ʈ/ɳ, velar ŋ, and the retroflex approximant ɻ
+# categorically never open a native word -- they're medial/final only
+# (a well-documented fact of Tamil phonotactics, the same "certain places
+# of articulation are onset-restricted" shape English's own ŋ or
+# Hungarian/Polish's own ɲ restrictions already use).
+# No attested_onset_clusters -- real Tamil genuinely has no tautosyllabic
+# onset clusters at all (max_onset: 1 above is the accurate ceiling; a
+# loanword like English "school" surfaces with vowel epenthesis, "iskūl",
+# rather than a true native cluster).
+# No attested_coda_clusters either -- coda_profile is already "sonorant",
+# which hardcodes max_coda=1/no clusters regardless of any curated list
+# (see generation/phonology_gen.py), the same "this field would be dead
+# data" status Italian's own profile already documents for the same
+# coda_profile value. Real Tamil's own actual medial clusters (homorganic
+# nasal+stop: taṅkam "gold", tampi "younger brother"; liquid+stop: tīrppu
+# "verdict") are cross-syllable, not tautosyllabic, and already emerge for
+# free from a sonorant-only coda meeting an unrestricted next onset.
 orthography:
   # Real scholarly Tamil transliteration conventions, restricted to
   # symbols this profile actually models -- illustrative, not a full
@@ -22,3 +40,31 @@ orthography:
   - {ipa: "ŋ", latin: "ṅ"}
   - {ipa: "tʃ", latin: c}    # real Tamil transliteration uses plain "c",
                               # not "ch"
+  # Real ISO 15919/scholarly transliteration for /ɻ/ (ழ) -- the same
+  # retroflex dot-under convention ṭ/ṇ above already use. Iconic enough to
+  # be in the language's own name: தமிழ் "tamiḻ".
+  - {ipa: "ɻ", latin: "ḻ"}
+core_vocabulary_average_syllables: 2.20  # hand-counted across this project's own CORE_MEANINGS glosses, citation/infinitive forms -- the longest of the profiles curated so far, reflecting Tamil's own richly suffixed citation forms; the softest of this batch's three estimates (more counting/syllabification uncertainty than Hindi or Persian), same caveat as every newly-curated language
+onset_frequency_tiers:
+  # ʈ/ɳ/ŋ/ɻ are excluded from onset entirely (see restricted_onset_consonants
+  # above) -- not included here at all, same "nothing legal left for that
+  # slot" convention Polish's own excluded /ɲ/ already uses, rather than
+  # padded in as dead data (contrast coda_frequency_tiers below, which is
+  # left uncurated for a different reason -- see this project's own
+  # established Italian precedent for "sonorant" coda_profile).
+  very_common: [p, t, k, m, n, v]
+  common: ["tʃ", l, j]
+  uncommon: [r, "ɾ"]
+  rare: ["ɲ"]
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [u, e, o]
+  uncommon: ["aː", "iː"]
+  rare: ["uː", "eː", "oː"]
+# No coda_frequency_tiers -- coda_profile: sonorant means the true legal
+# coda set is narrower than consonants-minus-restricted (sonority
+# filtering isn't expressible via restricted_coda_consonants alone), the
+# same real reason Italian's own perfected profile leaves this field
+# uncurated too.
+stress_pattern: initial  # real Tamil: fixed word-initial, with a documented but narrow refinement -- stress shifts to the second syllable specifically when the first syllable has a short vowel
+stress_deviation_rate: 0.10  # illustrative -- a real, if narrow and mechanical, exception class, so a bit above Finnish's own famously rigid 0.05 but still low

@@ -133,6 +133,8 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # glyph. ASCII-only, per this style's own promise.
     "ʈ": "tr", "ɖ": "dr", "ɟ": "gy", "ɢ": "gg", "ʁ": "rh",
     "ɳ": "nr", "ɲ": "ny", "ʂ": "sr", "ʐ": "zr", "ɬ": "lh",
+    # Real Tamil /ɻ/'s own popular informal transliteration (Tamizh).
+    "ɻ": "zh",
     "ħ": "hh", "ʕ": "3", "θ": "th", "ð": "dh", "ç": "hy", "ʝ": "jh",
     "ǀ": "c", "ǃ": "q", "ǂ": "tc", "ǁ": "xh",
     "ɓ": "bh", "ɗ": "d'", "ʄ": "j'", "ɠ": "gh",
@@ -214,6 +216,9 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # they reuse the same plain-letter convention as the digraph style.
     "ʈ": "ṭ", "ɖ": "ḍ", "ɟ": "ď", "ɢ": "ġ", "ʁ": "ř",
     "ɳ": "ṇ", "ɲ": "ň", "ʂ": "ṣ", "ʐ": "ẓ", "ɬ": "ł",
+    # Real ISO 15919/scholarly Tamil transliteration for /ɻ/ (ழ) -- the
+    # same retroflex dot-under convention ʈ/ɖ/ɳ above already use.
+    "ɻ": "ḻ",
     "ħ": "ḫ", "ʕ": "ʿ", "θ": "ŧ", "ð": "đ", "ç": "ç", "ʝ": "ĵ",
     "ǀ": "c", "ǃ": "q", "ǂ": "tc", "ǁ": "xh",
     "ɓ": "bh", "ɗ": "dh", "ʄ": "jh", "ɠ": "gh",
@@ -286,6 +291,9 @@ _MONOLETTER_TABLE: dict[str, str] = {
     "ɛ": "e", "ɔ": "o", "ə": "a", "ɨ": "i",
     "ʈ": "t", "ɖ": "d", "ɟ": "j", "ɢ": "g", "ʁ": "r",
     "ɳ": "n", "ɲ": "n", "ʂ": "s", "ʐ": "z", "ɬ": "l",
+    # Merges with plain "r", same "shallow style accepts some merging"
+    # precedent every other marked feature above already has.
+    "ɻ": "r",
     "ħ": "h", "ʕ": "a", "θ": "t", "ð": "d", "ç": "h", "ʝ": "y",
     "ǀ": "c", "ǃ": "q", "ǂ": "x", "ǁ": "z",
     "ɓ": "b", "ɗ": "d", "ʄ": "j", "ɠ": "g",

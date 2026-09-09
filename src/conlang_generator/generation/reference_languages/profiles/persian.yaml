@@ -6,6 +6,21 @@ coda_profile: unrestricted
 max_onset: 1
 tonal: false
 orthography_category: diacritic-style
+# No attested_onset_clusters -- real Persian genuinely has no native
+# syllable-initial consonant clusters at all (max_onset: 1 above is the
+# accurate ceiling; loanword clusters get an epenthetic vowel to break
+# them up), the same real fact and same "nothing to curate" shape Tamil's
+# own profile documents for its own onset restriction.
+attested_coda_clusters:
+  # Real, common Persian coda clusters, restricted to symbols this
+  # profile models -- illustrative, not exhaustive. Unlike onsets, up to
+  # two coda consonants are genuinely native and common.
+  - [s, t]                   # "dast" (hand), "mast" (drunk)
+  - [x, t]                   # "sæxt" (hard), "deræxt" (tree)
+  - [n, d]                   # "bolænd" (tall)
+  - [r, d]                   # "særd" (cold)
+  - [f, t]                   # "goft" (said)
+  - [n, "dʒ"]                 # "gænj" (treasure)
 orthography:
   # Real Persian transliteration conventions, restricted to symbols this
   # profile actually models -- illustrative, not a full account.
@@ -18,3 +33,21 @@ orthography:
   - {ipa: q, latin: gh}      # real modern Persian pronunciation
                               # genuinely merges ق and غ
   - {ipa: "aː", latin: a}
+core_vocabulary_average_syllables: 1.61  # hand-counted across this project's own CORE_MEANINGS glosses, infinitive forms for verbs -- illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [p, t, k, b, d, s, m, n]
+  common: [g, f, v, z, "ʃ", h, l, r, j]
+  uncommon: ["tʃ", "dʒ", x]
+  rare: [q, "ɣ", "ʒ"]
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [e, o, u]
+  uncommon: ["aː"]
+  rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Danish's own onset table already has
+coda_frequency_tiers:
+  very_common: [t, d, n, r]
+  common: [s, m, k, g, l, b]
+  uncommon: [z, "ʃ", x, f, v, h, j]
+  rare: [p, q, "tʃ", "dʒ", "ɣ", "ʒ"]
+stress_pattern: final  # real Persian: robustly word-final by default for nouns/adjectives/prepositions/adverbs
+stress_deviation_rate: 0.20  # illustrative -- the real, systematic exception is the whole verb word-class (personal suffixes never stressed; the negative prefix pulls stress to the initial syllable instead), comparable order of magnitude to Turkish's own 0.18 systematic-exception rate

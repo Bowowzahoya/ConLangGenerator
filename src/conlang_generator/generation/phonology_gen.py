@@ -245,6 +245,13 @@ _APPROXIMANT_POOL = (
     Consonant(ipa="r", place=Place.ALVEOLAR, manner=Manner.TRILL, voiced=True, prevalence=0.35),
     Consonant(ipa="j", place=Place.PALATAL, manner=Manner.APPROXIMANT, voiced=True, prevalence=0.72),
     Consonant(ipa="w", place=Place.BILABIAL, manner=Manner.APPROXIMANT, voiced=True, prevalence=0.70),
+    # Real Tamil /ɻ/ (ழ) -- a retroflex approximant genuinely distinct from
+    # both the tap /ɾ/ (ர) and trill /r/ (ற) already above, and common
+    # enough to be in the language's own name (தமிழ் "tamiḻ" /t̪amiɻ/).
+    # Low prevalence since it's typologically rare cross-linguistically
+    # (a handful of language families), matching this pool's own "rare
+    # but real" rate for other typologically marked segments (e.g. ʐ).
+    Consonant(ipa="ɻ", place=Place.RETROFLEX, manner=Manner.APPROXIMANT, voiced=True, prevalence=0.06),
 )
 
 # Very low-prevalence "exotic" extras -- non-pulmonic consonants, areally

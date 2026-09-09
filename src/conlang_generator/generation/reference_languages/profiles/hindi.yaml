@@ -6,6 +6,35 @@ coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: scholarly-macron-style
+restricted_onset_consonants: ["ɳ"]  # real Hindi retroflex ɳ never opens a native word -- medial/final only, the same real fact already curated for Tamil's own ɳ
+attested_onset_clusters:
+  # Real, common Hindi onset clusters -- mostly Sanskrit-derived tatsam
+  # vocabulary, restricted to symbols this profile models -- illustrative,
+  # not exhaustive. st excluded -- already covered by sonority's own
+  # generic s+voiceless-stop exception, same convention every other
+  # profile uses.
+  - [p, r]                   # "prem" (love)
+  - [k, r]                   # "kram"/"krodh" (order/anger)
+  - [g, r]                   # "grām"/"grah" (village/planet)
+  - [d, v]                   # "dvār" (door)
+  - [s, v]                   # "svar"/"svasth" (vowel-tone/healthy)
+  - ["ʃ", r]                  # "śrī"/"śram" (honorific/labor)
+  - ["bʱ", r]                 # "bhram" (illusion)
+attested_coda_clusters:
+  # Real Hindi coda clusters, restricted to symbols this profile models --
+  # illustrative, not exhaustive. Driven by real, productive schwa
+  # deletion/syncope: Hindi's Devanagari orthography implies open CV
+  # syllables, but the spoken language is full of closed CVC ones because
+  # an orthographic short "a" is regularly not pronounced.
+  - [r, m]                   # "dharm" (duty/religion)
+  - [r, v]                   # "garv" (pride)
+  - [r, "tʰ"]                 # "arth" (meaning)
+  - [r, "ɳ"]                  # "karṇ" (ear)
+  - [n, t]                   # "ant" (end)
+  - [s, t]                   # "mast" (carefree)
+  - [k, t]                   # "bhakt" (devotee)
+  - [p, t]                   # "gupt" (secret)
+  - [t, r]                   # "mitr"/"patr" (friend/letter)
 orthography:
   # Real IAST (International Alphabet of Sanskrit Transliteration)
   # conventions, restricted to symbols this profile actually models --
@@ -41,3 +70,21 @@ orthography:
   - {ipa: "ã", latin: "aṃ"}
   - {ipa: "ĩ", latin: "iṃ"}
   - {ipa: "ũ", latin: "uṃ"}
+core_vocabulary_average_syllables: 1.69  # hand-counted across this project's own CORE_MEANINGS glosses, counting real *pronounced* syllables post-schwa-deletion (e.g. "ādmī", not the orthographic "ādamī") rather than orthographic akṣaras -- illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [k, p, t, d, s, m, n, h]
+  common: [b, g, "tʃ", "dʒ", j, v, l, r]
+  uncommon: ["ʃ", "pʰ", "tʰ", "kʰ", "ʈ", "ɖ"]
+  rare: ["bʱ", "dʱ", "ɡʱ"]  # /ɳ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+nucleus_frequency_tiers:
+  very_common: [a, i, u]
+  common: ["aː", "iː", "uː", e, o]
+  uncommon: ["ə", "ɛ", "ɔ"]
+  rare: ["ã", "ĩ", "ũ"]
+coda_frequency_tiers:
+  very_common: [n, t, r, m]
+  common: [k, s, l, h, "ʈ"]
+  uncommon: [p, d, g, v, j, "ɳ", "ɖ"]
+  rare: [b, "tʃ", "dʒ", "ʃ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ"]  # the aspirated/breathy series is real but meaningfully rarer as a coda than as an onset
+stress_pattern: lexical  # real Hindi is genuinely quantity-sensitive (heaviest syllable within a 3-syllable window from the right edge, default penult when all light) -- none of this project's flat-position patterns capture that, modeled the same "genuinely complex, no simple flat rule" way Arabic's own quantity-sensitive stress already is
+stress_deviation_rate: 0.40  # illustrative -- a bit above Arabic's own 0.35, reflecting a genuine, unresolved dispute in the literature (Dyrud 2001) over whether Hindi "stress" is even a phonetically robust category, on top of the quantity-sensitive rule's own real exceptions

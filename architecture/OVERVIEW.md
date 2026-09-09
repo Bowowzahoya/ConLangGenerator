@@ -1349,6 +1349,77 @@ reading code or one-off ad hoc scripts.
     -> 3) and `test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved`
     (8 -> 14), same "seed-shift from new content" pattern documented
     elsewhere in this history, not a functional regression.
+- **The Hindi/Tamil/Persian batch** brought a sixth trio to the same
+  curation depth -- the first of these batches needing *no* new
+  architecture at all: research into each language's real stress
+  confirmed all three reuse an *existing* `stress_pattern` bucket. Real
+  Hindi stress is genuinely quantity-sensitive (heaviest syllable in a
+  3-syllable window from the right edge, default penult when all light,
+  with a real, unresolved dispute in the literature over whether it's even
+  phonetically robust) -- modeled as `"lexical"`, the same catch-all
+  Arabic's own quantity-sensitive stress already uses, with a deviation
+  rate (0.40) a touch above Arabic's own 0.35. Real Tamil is fixed
+  word-initial with a narrow, mechanical exception (shifts to syllable 2
+  when syllable 1 has a short vowel) -- `"initial"`, deviation 0.10. Real
+  Persian is robustly word-final, with a real, systematic (not scattered)
+  exception -- the whole verb word-class, personal suffixes never
+  stressed, the negative prefix pulling stress to the initial syllable
+  instead -- `"final"`, deviation 0.20, comparable order of magnitude to
+  Turkish's own 0.18. None of the three has lexical tone or phonemic pitch
+  accent -- `word_accent` stays uncurated for all three.
+  - One non-major shared-pool addition rode along: real Tamil /ɻ/ (ழ), a
+    retroflex approximant genuinely distinct from both the tap /ɾ/ and
+    trill /r/ already modeled, and common enough to be in the language's
+    own name (தமிழ் "tamiḻ"). Added to `phonology_gen.py`'s
+    `_APPROXIMANT_POOL` (opt-in pool data, same shape as every prior
+    batch's shared-pool additions), with fallback entries in all three of
+    `romanization_gen.py`'s exotic-style tables and Tamil's own explicit
+    `{ipa: "ɻ", latin: "ḻ"}` orthography rule (real ISO 15919/scholarly
+    transliteration, the same retroflex dot-under convention `ʈ`/`ɳ`
+    already use).
+  - Real Tamil genuinely has no tautosyllabic consonant clusters at all
+    (`max_onset: 1`, already accurate) and codas restricted to nasals/
+    liquids/the glide /j/ -- fixed `coda_profile` from `unrestricted` to
+    `sonorant` (well precedented: Italian already uses this value). Real
+    Tamil retroflex `ʈ`/`ɳ`, velar `ŋ`, and the new `ɻ` also categorically
+    never open a native word -- `restricted_onset_consonants`. This
+    surfaced a real bug in this batch's own first draft: a symbol placed
+    in `restricted_onset_consonants` must NOT also appear anywhere in
+    `onset_frequency_tiers` (that field's own legal-symbol set is computed
+    as `consonants - restricted_onset_consonants`, the same rule Polish's
+    own excluded `ɲ` already establishes) -- caught by inspection before
+    committing, since the initial draft had copied the "nothing legal left
+    for that slot" comment from Polish's precedent without actually
+    removing the restricted symbols from the tier list itself (the same
+    mistake was independently made and fixed in Hindi's own `ɳ`
+    restriction). Distinct from `coda_devoicing`/`coda_profile: sonorant`
+    exclusions (Russian/Polish/Serbo-Croatian's coda-devoiced consonants,
+    Tamil's own sonority-filtered obstruents), which aren't reflected in
+    that computed legal-symbol set at all and so *are* correctly left in
+    their tiers as harmless "dead data," the same precedent those
+    profiles already established. With `coda_profile: sonorant`, Tamil
+    also follows Italian's own established precedent of leaving
+    `coda_frequency_tiers` uncurated entirely (checked via its own
+    dedicated test, mirroring Italian's) rather than building a
+    same-shaped table, since the true legal coda set (after sonority
+    filtering) isn't fully expressible through `restricted_coda_consonants`
+    alone. Real Tamil's own actual medial clusters (homorganic nasal+stop:
+    taṅkam "gold"; liquid+stop: tīrppu "verdict") are cross-syllable, not
+    tautosyllabic, and already emerge for free from a sonorant-only coda
+    meeting an unrestricted next-syllable onset, needing no
+    `attested_coda_onset_pairs` curation either.
+  - Real Hindi has genuine onset clusters (mostly Sanskrit-derived tatsam
+    vocabulary: prem, kram, grām, dvār, svar, śrī, bhram) and rich coda
+    clusters driven by real, productive schwa deletion/syncope -- Hindi's
+    Devanagari orthography implies open CV syllables, but the spoken
+    language is full of closed CVC ones because an orthographic short "a"
+    is regularly not pronounced (dharm, garv, arth, karṇ, ant, mast,
+    bhakt, gupt, mitr) -- the hand-counted average-syllable-length figure
+    was counted on these *pronounced* forms, not the orthographic akṣaras,
+    to avoid making the language look artificially longer/more open than
+    it actually is. Real Persian has no native onset clusters at all
+    (`max_onset: 1`, loanword clusters get an epenthetic vowel) but real,
+    common 2-consonant codas (dast, sæxt, bolænd, særd, goft, gænj).
 - Dutch's `g`/`ch` distinction is now modeled: /ɣ/ (voiced velar
   fricative -- what Dutch `g` actually represents; Dutch has no native
   /g/ stop) is a real phoneme in `phonology_gen.py`'s shared pool, Dutch's
