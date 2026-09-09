@@ -293,3 +293,77 @@ def test_apply_never_leaks_the_new_tone_length_marks_into_latin_output():
     assert scheme.apply("hu" + _ACCENT_1_SHORT + "n") == "hun"
     assert scheme.apply("hu" + _ACCENT_2_LONG + "n") == "hun"
     assert scheme.apply("hu" + _ACCENT_2_SHORT + "n") == "hun"
+
+
+# --- Positional pitch accent (real Japanese) ---
+
+_HIGH = TONE_DIACRITICS[ToneLevel.HIGH]
+_LOW = TONE_DIACRITICS[ToneLevel.LOW]
+
+
+def test_assign_positional_pitch_accent_at_zero_strictness_always_returns_none():
+    rng = random.Random(0)
+    for _ in range(50):
+        assert word_accent_gen.assign_positional_pitch_accent(rng, 3, 0.0) is None
+
+
+def test_assign_positional_pitch_accent_at_full_strictness_covers_every_real_pattern():
+    # An n-syllable word has n+1 real patterns (kernel on syllable 0..n-1,
+    # or unaccented) -- over enough draws, every one of them should turn
+    # up, confirming this isn't silently collapsing to a narrower set.
+    rng = random.Random(0)
+    seen = {word_accent_gen.assign_positional_pitch_accent(rng, 3, 1.0) for _ in range(500)}
+    assert seen == {None, 0, 1, 2}
+
+
+def test_mark_positional_pitch_accent_unaccented_is_low_then_high_with_no_drop():
+    assert word_accent_gen.mark_positional_pitch_accent(None, 3) == (_LOW, _HIGH, _HIGH)
+
+
+def test_mark_positional_pitch_accent_kernel_on_first_syllable_is_high_then_low():
+    # Real "hashi" (chopsticks): HL.
+    assert word_accent_gen.mark_positional_pitch_accent(0, 2) == (_HIGH, _LOW)
+
+
+def test_mark_positional_pitch_accent_kernel_mid_word_rises_then_drops():
+    assert word_accent_gen.mark_positional_pitch_accent(1, 4) == (_LOW, _HIGH, _LOW, _LOW)
+    assert word_accent_gen.mark_positional_pitch_accent(2, 4) == (_LOW, _HIGH, _HIGH, _LOW)
+
+
+def test_mark_positional_pitch_accent_monosyllable():
+    assert word_accent_gen.mark_positional_pitch_accent(0, 1) == (_HIGH,)
+    assert word_accent_gen.mark_positional_pitch_accent(None, 1) == (_LOW,)
+
+
+def test_mark_stress_and_word_accent_positional_pitch_accent_marks_every_syllable():
+    # A real stress mark still lands independently (this function always
+    # resolves stress for a multi-syllable word, same as every other
+    # realization) -- the point here is that pitch-accent marking doesn't
+    # key off where it landed the way every other realization's
+    # accented-syllable selection does: every nucleus gets its own H/L
+    # mark, not just the stressed one.
+    rng = random.Random(1)
+    symbols = ("k", "a", "t", "a", "b", "a")
+    result = word_accent_gen.mark_stress_and_word_accent(
+        rng, symbols, frozenset("a"), "final", 0.0, 1.0,
+        word_accent_realization="positional_pitch_accent", word_accent_pattern="lexical",
+    )
+    assert result.count(_HIGH) + result.count(_LOW) == 3
+
+
+def test_build_word_positional_pitch_accent_marks_every_syllable_not_just_the_stressed_one():
+    inventory = PhonemeInventory(consonants=(_H, _N), vowels=(_U,))
+    structure = SyllableStructure(max_onset=1, max_coda=1, allowed_coda_consonants=("n",), excluded_onset_consonants=("n",))
+    rng = random.Random(2)
+    word = word_builder.build_word(
+        rng, inventory, structure, 3,
+        word_accent_realization="positional_pitch_accent", word_accent_pattern="lexical",
+        word_accent_strictness=1.0,
+    )
+    assert word.count(_HIGH) + word.count(_LOW) == 3
+
+
+def test_apply_never_leaks_positional_pitch_accent_marks_into_latin_output():
+    scheme = RomanizationScheme(rules=_RULES, vowel_symbols=("u",), word_accent_realization="positional_pitch_accent")
+    assert scheme.apply("hu" + _HIGH + "n") == "hun"
+    assert scheme.apply("hu" + _LOW + "n") == "hun"

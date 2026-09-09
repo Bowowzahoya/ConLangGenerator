@@ -72,6 +72,21 @@ def syllable_onset_starts(symbols: tuple[str, ...], vowel_symbols: frozenset[str
     return tuple(starts)
 
 
+def first_long_vowel_index(syllable_nuclei: tuple[str, ...]) -> int | None:
+    """The index of the first syllable (0-based, left to right) whose own
+    nucleus is long, or ``None`` if none of them are -- feeds
+    ``predict_default_stress``'s own ``"first_long_vowel_else_initial"``
+    pattern (real Mongolian). A nucleus symbol "is long" by containing the
+    ``"ː"`` character, the same convention every long-vowel pool symbol
+    (``aː``/``iː``/``uː``/``eː``/``oː``/etc.) already uses project-wide --
+    this needs no dependency on ``core.phonology.Vowel`` itself, keeping
+    this module's own pure-string design."""
+    for i, nucleus in enumerate(syllable_nuclei):
+        if "ː" in nucleus:
+            return i
+    return None
+
+
 def mark_stress(
     rng: random.Random,
     filled_symbols: tuple[str, ...],
@@ -96,7 +111,11 @@ def mark_stress(
     vowel_indices = [i for i, s in enumerate(filled_symbols) if s in vowel_symbols]
     final_coda = tuple(filled_symbols[vowel_indices[-1] + 1 :]) if vowel_indices else ()
     final_nucleus = filled_symbols[vowel_indices[-1]] if vowel_indices else ""
-    stress_index = assign_stress(rng, num_syllables, final_coda, pattern, deviation_rate, strictness, final_nucleus)
+    syllable_nuclei = tuple(filled_symbols[i] for i in vowel_indices)
+    first_long_syllable = first_long_vowel_index(syllable_nuclei)
+    stress_index = assign_stress(
+        rng, num_syllables, final_coda, pattern, deviation_rate, strictness, final_nucleus, first_long_syllable
+    )
     insert_at = starts[stress_index]
     return "".join(
         (STRESS_MARK if i == insert_at else "") + symbol for i, symbol in enumerate(filled_symbols)
@@ -111,6 +130,7 @@ def assign_stress(
     deviation_rate: float | None,
     strictness: float,
     final_nucleus: str = "",
+    first_long_syllable: int | None = None,
 ) -> int:
     """Picks the actual stressed syllable for one word: the
     ``pattern``-predicted default, occasionally overridden by a real
@@ -128,7 +148,10 @@ def assign_stress(
     ``predict_default_stress`` -- only ``"final_unless_unstressed_vowel"``
     (real Portuguese) reads it, every other pattern ignores it, same
     "only the pattern that needs an axis reads it" convention
-    ``final_coda`` already has.
+    ``final_coda`` already has. ``first_long_syllable`` (see
+    ``first_long_vowel_index`` above) is likewise passed straight
+    through -- only ``"first_long_vowel_else_initial"`` (real Mongolian)
+    reads it.
 
     ``strictness`` gates whether *this word* uses the curated pattern's
     own default+deviation-rate at all, rather than partially blending
@@ -143,10 +166,10 @@ def assign_stress(
         return 0
     strictness = max(0.0, min(1.0, strictness))
     if pattern and rng.random() < strictness:
-        default = predict_default_stress(num_syllables, pattern, final_coda, final_nucleus)
+        default = predict_default_stress(num_syllables, pattern, final_coda, final_nucleus, first_long_syllable)
         rate = deviation_rate if deviation_rate is not None else _GENERIC_STRESS_DEVIATION_RATE
     else:
-        default = predict_default_stress(num_syllables, "", final_coda, final_nucleus)
+        default = predict_default_stress(num_syllables, "", final_coda, final_nucleus, first_long_syllable)
         rate = _GENERIC_STRESS_DEVIATION_RATE
     if rng.random() < rate:
         alternatives = [i for i in range(num_syllables) if i != default]

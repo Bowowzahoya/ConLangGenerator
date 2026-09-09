@@ -209,6 +209,62 @@ def mark_word_accent_with_length(accent: tuple[WordAccentCategory, bool] | None)
     return _TONE_LENGTH_DIACRITICS[accent]
 
 
+def assign_positional_pitch_accent(rng: random.Random, num_syllables: int, strictness: float) -> int | None:
+    """Real Japanese pitch accent, unlike every other realization above,
+    isn't "predict a default from shape, then occasionally deviate" --
+    real accent-kernel placement is genuinely lexically arbitrary, not
+    predictable from a word's own shape. So this picks uniformly among
+    the ``num_syllables + 1`` real patterns a word of this length can
+    carry: the kernel falling after syllable 0, 1, ..., ``num_syllables -
+    1`` (returned as that 0-based index), or ``None`` for "unaccented"
+    (heiban -- a real, common pattern, not a residual category). Uniform,
+    not weighted toward any particular position -- this project has no
+    solid cross-linguistic frequency data to justify skewing one way,
+    same "illustrative, not exhaustive" honesty standard every other
+    curated rate here already follows.
+
+    Deliberate, documented simplification: real Japanese pitch accent is
+    per-*mora* (a long vowel or the moraic-nasal coda adds a mora without
+    adding a syllable) -- this project's stress/tone/word-accent
+    machinery is built on syllable-counting throughout, and this function
+    keeps that same unit rather than introducing mora-counting just for
+    this one language.
+
+    Strictness-gated the same shape as ``assign_word_accent`` -- when the
+    roll doesn't gate in, this word simply carries no marked pitch-accent
+    pattern this run."""
+    strictness = max(0.0, min(1.0, strictness))
+    if rng.random() >= strictness:
+        return None
+    return rng.choice([None, *range(num_syllables)])
+
+
+def mark_positional_pitch_accent(kernel_index: int | None, num_syllables: int) -> tuple[str, ...]:
+    """The real Tokyo-dialect H/L rule, applied to every syllable at
+    once (unlike every other ``mark_*`` function above, which returns one
+    mark for one syllable) -- reuses the same two ``_PITCH_DIACRITICS``
+    characters ``"pitch"`` already reuses from ``TONE_DIACRITICS``, so no
+    new Unicode characters are introduced by this realization at all.
+
+    ``kernel_index is None`` (unaccented/heiban): syllable 0 is Low,
+    every syllable after it is High, with no drop at all. Otherwise
+    (accent kernel on syllable ``kernel_index``): syllable 0 is Low
+    unless the kernel *is* syllable 0 (then High); syllables 1 through
+    ``kernel_index`` are High; every syllable after the kernel is Low."""
+    high = TONE_DIACRITICS[ToneLevel.HIGH]
+    low = TONE_DIACRITICS[ToneLevel.LOW]
+    if kernel_index is None:
+        return tuple(low if i == 0 else high for i in range(num_syllables))
+    marks = []
+    for i in range(num_syllables):
+        # Syllable 0 is High only when the kernel itself sits there;
+        # every other syllable is High while it's still at or before the
+        # kernel, Low once the drop has happened.
+        is_high = (kernel_index == 0) if i == 0 else (i <= kernel_index)
+        marks.append(high if is_high else low)
+    return tuple(marks)
+
+
 def mark_stress_and_word_accent(
     rng: random.Random,
     filled_symbols: tuple[str, ...],
@@ -243,37 +299,55 @@ def mark_stress_and_word_accent(
     if num_syllables > 1:
         final_coda = tuple(filled_symbols[vowel_indices[-1] + 1 :]) if vowel_indices else ()
         final_nucleus = filled_symbols[vowel_indices[-1]] if vowel_indices else ""
+        syllable_nuclei = tuple(filled_symbols[i] for i in vowel_indices)
+        first_long_syllable = stress_gen.first_long_vowel_index(syllable_nuclei)
         stress_index = stress_gen.assign_stress(
-            rng, num_syllables, final_coda, stress_pattern, stress_deviation_rate, stress_strictness, final_nucleus
+            rng, num_syllables, final_coda, stress_pattern, stress_deviation_rate, stress_strictness,
+            final_nucleus, first_long_syllable,
         )
         insert_at = starts[stress_index]
+
+    def _nucleus_index_for(syllable: int) -> int:
+        syllable_start = starts[syllable]
+        syllable_end = starts[syllable + 1] if syllable + 1 < num_syllables else len(filled_symbols)
+        return next(i for i in vowel_indices if syllable_start <= i < syllable_end)
 
     mark_before: dict[int, str] = {insert_at: STRESS_MARK} if insert_at is not None else {}
     mark_after: dict[int, str] = {}
     if word_accent_pattern:
-        accented_syllable = stress_index if stress_index is not None else 0
-        syllable_start = starts[accented_syllable]
-        syllable_end = starts[accented_syllable + 1] if accented_syllable + 1 < num_syllables else len(filled_symbols)
-        nucleus_index = next(i for i in vowel_indices if syllable_start <= i < syllable_end)
-        accented_nucleus = filled_symbols[nucleus_index]
-        accented_coda = filled_symbols[nucleus_index + 1 : syllable_end]
-        if word_accent_realization == "pitch_and_length":
-            accent = assign_word_accent_with_length(
-                rng, num_syllables, accented_syllable,
-                word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate, stress_strictness,
-            )
-            accent_mark = mark_word_accent_with_length(accent)
+        if word_accent_realization == "positional_pitch_accent":
+            # Unlike every other realization below, this one marks
+            # potentially *every* syllable (not just one), entirely
+            # independent of stress -- see `assign_positional_pitch_accent`'s
+            # own docstring for why real Japanese kernel placement has no
+            # shape-based default to compute here at all.
+            kernel_index = assign_positional_pitch_accent(rng, num_syllables, stress_strictness)
+            for syllable, mark in enumerate(mark_positional_pitch_accent(kernel_index, num_syllables)):
+                if mark:
+                    mark_after[_nucleus_index_for(syllable)] = mark
         else:
-            accent_category = assign_word_accent(
-                rng, num_syllables, accented_nucleus, accented_coda,
-                word_accent_pattern, word_accent_deviation_rate, stress_strictness,
-            )
-            accent_mark = mark_word_accent(accent_category, word_accent_realization)
-        if accent_mark:
-            # Glottalization marks the whole rime -- after its last
-            # symbol (the nucleus itself when there's no coda). Pitch is a
-            # combining diacritic -- it needs to ride the nucleus directly.
-            mark_after[syllable_end - 1 if word_accent_realization == "glottalization" else nucleus_index] = accent_mark
+            accented_syllable = stress_index if stress_index is not None else 0
+            syllable_end = starts[accented_syllable + 1] if accented_syllable + 1 < num_syllables else len(filled_symbols)
+            nucleus_index = _nucleus_index_for(accented_syllable)
+            accented_nucleus = filled_symbols[nucleus_index]
+            accented_coda = filled_symbols[nucleus_index + 1 : syllable_end]
+            if word_accent_realization == "pitch_and_length":
+                accent = assign_word_accent_with_length(
+                    rng, num_syllables, accented_syllable,
+                    word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate, stress_strictness,
+                )
+                accent_mark = mark_word_accent_with_length(accent)
+            else:
+                accent_category = assign_word_accent(
+                    rng, num_syllables, accented_nucleus, accented_coda,
+                    word_accent_pattern, word_accent_deviation_rate, stress_strictness,
+                )
+                accent_mark = mark_word_accent(accent_category, word_accent_realization)
+            if accent_mark:
+                # Glottalization marks the whole rime -- after its last
+                # symbol (the nucleus itself when there's no coda). Pitch is a
+                # combining diacritic -- it needs to ride the nucleus directly.
+                mark_after[syllable_end - 1 if word_accent_realization == "glottalization" else nucleus_index] = accent_mark
 
     return "".join(
         mark_before.get(i, "") + symbol + mark_after.get(i, "") for i, symbol in enumerate(filled_symbols)

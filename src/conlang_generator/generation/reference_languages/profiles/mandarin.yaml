@@ -6,6 +6,25 @@ coda_profile: sonorant
 max_onset: 1
 tonal: true
 orthography_category: wade-giles-style
+restricted_onset_consonants: ["ŋ"]  # real Mandarin /ŋ/ (ng) is coda-only -- no native syllable ever begins with it
+restricted_coda_consonants: [m, l, j, w]
+# coda_profile: sonorant above already limits codas to the sonority-based
+# sonorant class (m/n/ŋ/l/j/w here), but real Standard Mandarin only ever
+# closes a syllable in /n/ or /ŋ/ (pinyin -n/-ng) -- no native syllable
+# ends in m, l, w, or a glide. No attested_onset_clusters/coda_clusters --
+# real Mandarin syllables are strictly (C)(G)V(V)(n/ng), with no
+# tautosyllabic consonant clusters at either edge.
+#
+# Real Mandarin also has a genuine, well-documented "neutral tone"
+# (轻声) phenomenon that plays a stress-like prosodic role -- but it's
+# lexically/grammatically conditioned (near-obligatory on a closed class
+# of function morphemes like 的/了/吗; otherwise a lexical property of
+# specific disyllabic words like 妈妈/意思, not predictable from shape),
+# not a flat positional rule a phonologist would encode safely. Left
+# unmodeled, same "real but not rule-capturable" reasoning that already
+# keeps Hindi's own schwa deletion out of scope -- stress_pattern stays
+# uncurated (Mandarin's own tone system, already `tonal: true`, is this
+# language's real prosodic axis).
 # Real Mandarin has (at least) two well-known romanizations that disagree
 # specifically on tone marking: Pinyin marks it as a diacritic over the
 # vowel (ā á ǎ à -- this project's own RomanizationScheme.apply() default,
@@ -39,3 +58,19 @@ orthography:
   - {ipa: "ʃ", latin: x}
   - {ipa: "ŋ", latin: ng}
   - {ipa: x, latin: h}
+core_vocabulary_average_syllables: 1.24  # hand-counted across this project's own CORE_MEANINGS glosses, at the *word* level (太阳/tàiyáng "sun", 妈妈/māma "mother"), not the morpheme level -- real Mandarin is famously monosyllabic at the *morpheme* root (each syllable independently meaningful and tonally specified), but many everyday words are disyllabic compounds, so a word-level count lands much closer to Danish/Swedish's own figures than the "monosyllabic language" reputation would suggest; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, m, n, l, s]
+  common: [p, f, x, j, w, "ʃ"]
+  uncommon: ["tʃ", "ʈ", "ʂ"]
+  rare: ["ʐ"]  # /ŋ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+nucleus_frequency_tiers:
+  very_common: [a, i, u]
+  common: [e, o]
+  uncommon: [y]
+  rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has
+# No coda_frequency_tiers -- coda_profile: sonorant means the true legal
+# coda set is narrower than consonants-minus-restricted (sonority
+# filtering isn't expressible via restricted_coda_consonants alone), the
+# same real reason Italian's/Tamil's own perfected profiles leave this
+# field uncurated too.

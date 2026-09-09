@@ -162,11 +162,17 @@ class WordAccentCategory(str, Enum):
     language has exactly one contrast, tied to the stressed syllable --
     typologically distinct categories that a real language never
     simultaneously belongs to (see ``generation.phonology_gen``'s mutual-
-    exclusivity guard). Binary by design, matching what every currently
-    curated language actually needs -- a genuinely 4-way system (Serbo-
-    Croatian's tone-and-length contrast) or a positional one (Japanese's
-    pitch-drop point) would be a real, larger extension, not attempted
-    here."""
+    exclusivity guard). Binary by design, matching what the original two
+    curated languages needed -- two later, larger extensions build on top
+    of it rather than replacing it: real Serbo-Croatian's genuine 4-way
+    tone-and-length contrast reuses this same enum for its *tone* axis
+    only, with length as an orthogonal ``bool`` (see
+    ``generation.word_accent_gen``'s own ``assign_word_accent_with_length``);
+    real Japanese's positional pitch-drop system doesn't use this enum at
+    all -- it's a genuinely different shape (which syllable, if any, not
+    which of a fixed few categories), handled by its own
+    ``assign_positional_pitch_accent``/``mark_positional_pitch_accent``
+    pair instead."""
 
     ACCENT_1 = "accent_1"
     """Historically the ex-monosyllabic-shaped member of the contrast --
@@ -180,12 +186,21 @@ class WordAccentSystem(BaseModel, frozen=True):
     """A per-language systemic property, decided once at generation time
     (mirroring ``ToneSystem.enabled`` -- not a per-word roll). ``realization``
     is ``""`` (not this language), ``"glottalization"`` (Danish-style, marked
-    with ``core.romanization.WORD_ACCENT_MARK``), or ``"pitch"``
+    with ``core.romanization.WORD_ACCENT_MARK``), ``"pitch"``
     (Swedish/Norwegian-style, marked with one of two ``TONE_DIACRITICS``
-    characters reused directly -- see ``generation.word_accent_gen.mark_word_accent``).
-    No ``mark()`` method of its own (unlike ``ToneSystem``): the two
-    realizations render too differently (a non-combining rime-final mark
-    vs. a combining nucleus diacritic) to share one call shape."""
+    characters reused directly), ``"pitch_and_length"`` (Serbo-Croatian's
+    genuine 4-way tone+length contrast, reusing ``WordAccentCategory`` for
+    tone only), or ``"positional_pitch_accent"`` (Japanese's own real
+    pitch-drop-position system -- structurally different from the other
+    three: it marks potentially every syllable, not one, and has no
+    "predict a default from shape" step at all, since real accent-kernel
+    placement is genuinely lexically arbitrary) -- see
+    ``generation.word_accent_gen`` for all four realizations' own
+    assign/mark functions. No ``mark()`` method of its own (unlike
+    ``ToneSystem``): the four realizations render too differently (a
+    non-combining rime-final mark; a combining nucleus diacritic; a
+    combining diacritic plus an independent length bit; a full per-
+    syllable melody) to share one call shape."""
 
     enabled: bool = False
     realization: str = ""

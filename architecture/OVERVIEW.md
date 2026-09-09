@@ -1420,6 +1420,142 @@ reading code or one-off ad hoc scripts.
     it actually is. Real Persian has no native onset clusters at all
     (`max_onset: 1`, loanword clusters get an epenthetic vowel) but real,
     common 2-consonant codas (dast, sæxt, bolænd, særd, goft, gænj).
+- **The Mandarin/Japanese/Korean/Mongolian batch** brought a seventh
+  quartet to the same curation depth. Unlike every prior batch, one of
+  its architecture pieces was explicitly approved as a *major* extension
+  up front (asked via direct question, per this whole session's own
+  "ask before major work" pattern): real Japanese has a lexical pitch
+  accent, but it's a genuinely different kind of system from every
+  word-accent mechanism this project had built (Danish stød, Swedish/
+  Norwegian pitch, even Serbo-Croatian's own 4-way tone+length) -- those
+  all pick *one of a fixed number of categories* for the whole word;
+  real Japanese instead contrasts words by *where* (if anywhere) a
+  single pitch drop falls, with up to n+1 real patterns for an
+  n-syllable word. `WordAccentCategory`'s own docstring had explicitly
+  named this as a separate, bigger extension "not attempted here" (and,
+  found while touching that docstring, was already stale from the
+  Serbo-Croatian batch -- still said "binary by design... not attempted
+  here" despite `pitch_and_length` having already shipped; both
+  `WordAccentCategory` and `WordAccentSystem`'s docstrings are fixed
+  here to correctly list all four realizations).
+  - **`generation/word_accent_gen.py`**: new
+    `assign_positional_pitch_accent(rng, num_syllables, strictness) ->
+    int | None` and `mark_positional_pitch_accent(kernel_index,
+    num_syllables) -> tuple[str, ...]`. A real, deliberate simplification
+    versus every prior word-accent extension: real Japanese kernel
+    placement is genuinely lexically arbitrary (not predictable from
+    shape the way stress/stød/pitch all are), so there's no "predict a
+    default, then deviate" step at all -- just a uniform random pick
+    among the real n+1 patterns (honestly uniform, not weighted, since
+    this project has no solid frequency data to justify any particular
+    skew). The mark function implements the real Tokyo-dialect H/L rule
+    (syllable 0 is Low unless the kernel *is* syllable 0; syllables 1
+    through the kernel are High; everything after is Low; unaccented
+    words are Low-then-High-forever with no drop), reusing the exact
+    same two `TONE_DIACRITICS` characters `"pitch"` already reuses -- no
+    new Unicode characters introduced by this realization at all. A
+    second, explicitly documented simplification: real Japanese pitch
+    accent is per-*mora* (a long vowel or the moraic-nasal coda adds a
+    mora without adding a syllable); this project's entire stress/tone/
+    word-accent machinery is syllable-counted throughout, and redefining
+    the counting unit project-wide was judged out of scope for this
+    batch -- modeled per-syllable instead, flagged as an approximation
+    in the new functions' own docstrings.
+  - Marks potentially *every* syllable, not one -- a real structural
+    difference from every prior realization, which all compute exactly
+    one mark and place it on one syllable (`accented_index`). Required
+    reshaping `word_builder.build_word`/`build_reduplicated_word` and
+    `word_accent_gen.mark_stress_and_word_accent`'s own mark-placement
+    step from a single `accent_mark`/`accented_index` pair into a
+    uniform per-syllable `accent_marks` array -- byte-identical behavior
+    for every existing realization (just reshaped: `accent_mark if i ==
+    accented_index else ""`), with the new realization filling the whole
+    array directly instead.
+  - A second, non-major architecture piece rode along: real Mongolian
+    stress (Svantesson et al.) falls on the first syllable with a long
+    vowel/diphthong, else the initial syllable -- none of the existing
+    `stress_pattern` buckets capture that, and unlike every prior new-
+    pattern addition it needs to know about *every* syllable's own
+    nucleus, not just the final one. New `predict_default_stress`
+    pattern `"first_long_vowel_else_initial"` plus a new
+    `first_long_syllable: int | None` parameter, fed by a new
+    `stress_gen.first_long_vowel_index` helper (checks for the `"ː"`
+    character, the same convention every long-vowel pool symbol already
+    uses, so no dependency on `core.phonology.Vowel` itself) -- threaded
+    through `assign_stress`/`mark_stress` and every call site, plus
+    `apply()`'s own `"irregular_only"` re-derivation (proactively, this
+    time, having already found and fixed the identical *missed* call
+    site for `final_nucleus` in the Russian/Serbo-Croatian/Portuguese
+    batch). This pattern only has any effect if the target language's
+    own vowel inventory actually includes long vowels -- Mongolian's
+    profile previously had none at all, despite real Mongolian vowel
+    length being phonemic and highly productive (уул uul "mountain",
+    чулуу chuluu "stone"), so `aː`/`eː`/`iː`/`oː`/`uː` were added
+    there too, reusing the existing shared pool.
+  - Real Japanese gemination (sokuon っ, real Hepburn doubled-letter
+    spelling: がっこう gakkō, きって kitte) needed zero new architecture:
+    the shared geminate pool already has `kː`/`tː`/`pː`/`sː`, and
+    `scholarly-macron-gemination-style` (built for Arabic, combining
+    macron vowel-length with doubled-letter gemination) is an *existing*
+    category that's exactly the real Hepburn shape Japanese needs -- pure
+    profile-level curation. Real Japanese long vowels (chōon: お母さん
+    okāsan, 東京 Tōkyō) were added alongside gemination for the same
+    reason Mongolian's were -- it would be an incomplete account of real
+    Japanese phonology, and of a category built to mark both together, to
+    model one without the other. A genuine pre-existing correction
+    surfaced while reviewing Japanese's own inventory: `"ʔ"` (glottal
+    stop) was in its consonant list, but real Japanese has no phonemic
+    glottal stop -- removed.
+  - Real coda restrictions curated for three of the four, each a
+    genuine, well-documented fact: Mandarin only ever closes a syllable
+    in /n/ or /ŋ/ (never m/l/j/w, all otherwise legal under its own
+    `coda_profile: sonorant`); Japanese only in the moraic nasal (spelled
+    "n") or a geminate's own first half; Korean's real "seven-consonant
+    rule" neutralizes its whole aspirated/tense/ affricate/fricative
+    series down to a plain unreleased stop in coda position, leaving
+    exactly p/t/k/m/n/ŋ/l legal (with j/w excluded outright -- they form
+    diphthong nuclei in Korean, never a true coda). Mandarin and Korean's
+    own /ŋ/ also got a matching *onset* restriction -- real /ŋ/ never
+    opens a native syllable in either language. A real correctness bug
+    surfaced and was fixed while curating these: a symbol placed in
+    `restricted_onset_consonants` must never also appear in
+    `onset_frequency_tiers` (that field's own legal-symbol set is
+    computed as consonants-minus-restricted, the same rule Polish's own
+    excluded `ɲ` already establishes) -- caught in both Korean's and (a
+    second, independently-made instance of the identical mistake)
+    Hindi's earlier `ɳ` restriction, both fixed.
+  - Mandarin and Japanese's own `coda_profile: sonorant` meant
+    `coda_frequency_tiers` had to stay uncurated for both, checked
+    separately from `onset`/`nucleus`, the same established Italian/
+    Tamil precedent (the true legal coda set under sonority filtering
+    isn't fully expressible through `restricted_coda_consonants` alone).
+    Korean, by contrast, uses `coda_profile: unrestricted` plus an
+    explicit `restricted_coda_consonants` list that exactly matches its
+    own real 7-consonant surface inventory, so its `coda_frequency_tiers`
+    was safely curated in full, English's own `restricted_coda_consonants:
+    [j, w]` precedent confirming the "excluded symbols don't appear in
+    the tiers at all" rule for this specific mechanism.
+  - Real Mandarin has a genuine, well-documented "neutral tone" (轻声)
+    phenomenon that plays a stress-like prosodic role, and real Korean
+    genuinely has neither phonemic stress nor tone in the standard (Seoul)
+    dialect -- neither is modeled: Mandarin's neutral tone is lexically/
+    grammatically conditioned (obligatory on a closed class of function
+    morphemes, otherwise a lexical property of specific words), not a
+    flat rule a phonologist would encode safely, the same "real but not
+    rule-capturable" reasoning that already keeps Hindi's own schwa
+    deletion out of scope; Korean's own `stress_pattern`/`word_accent`
+    both stay honestly uncurated.
+  - Word-length counting conventions were made explicit per language,
+    the same caveat this project already gives every prior batch's own
+    counting choices: Mandarin counted at the *word* level (太阳 tàiyáng
+    "sun"), not the morpheme level, since Mandarin's famous
+    "monosyllabic" reputation is really about morphemes, not everyday
+    words (landing close to Danish/Swedish's own figures, not near 1.0);
+    Korean counted using full dictionary citation forms (stem + real -다
+    -da suffix, e.g. 크다 keuda "big"), consistent with how every other
+    profile in this project counts (real infinitives for Russian/
+    Portuguese/Hindi), even though this pushes the figure noticeably
+    higher than a bare-stem count would.
 - Dutch's `g`/`ch` distinction is now modeled: /ɣ/ (voiced velar
   fricative -- what Dutch `g` actually represents; Dutch has no native
   /g/ stop) is a real phoneme in `phonology_gen.py`'s shared pool, Dutch's

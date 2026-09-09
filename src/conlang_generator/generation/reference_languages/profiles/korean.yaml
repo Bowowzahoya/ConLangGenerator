@@ -5,6 +5,26 @@ coda_profile: unrestricted
 max_onset: 1
 tonal: false
 orthography_category: digraph-style
+restricted_onset_consonants: ["ŋ"]  # real Korean /ŋ/ (ㅇ) is a null/zero marker word-initially, never a real onset -- only ever realized as /ŋ/ in coda position
+restricted_coda_consonants: ["pʰ", "pʼ", "tʰ", "tʼ", "kʰ", "kʼ", "tʃ", s, h, j, w]
+# Real Korean coda neutralization collapses the aspirated/tense stop
+# series and /tʃ, s, h/ down to their plain unreleased counterpart (옷
+# ot "clothes" surfaces coda as [t] not [s]; 꽃 kkot "flower" as [t] not
+# [tʃʰ]) -- the well-known "seven-consonant rule." /j, w/ don't function
+# as codas at all (they form diphthong nuclei instead, not a coda
+# consonant). This leaves exactly the real 7-consonant surface coda
+# inventory legal: p, t, k, m, n, ŋ, l. No attested_onset_clusters/coda_clusters
+# -- max_onset: 1 is accurate (no tautosyllabic clusters; "double
+# batchim" -- e.g. ㄳ, ㄺ -- looks like a two-consonant coda in the
+# *script* but only one consonant ever surfaces phonetically, a
+# script/morphophonology artifact, not a real coda cluster).
+#
+# Real standard Seoul Korean has neither phonemic word stress nor
+# lexical tone/pitch accent (unlike some non-standard dialects, e.g.
+# Gyeongsang, which do retain a lexical pitch-accent system from Middle
+# Korean) -- stress_pattern/word_accent both stay uncurated, the same
+# honest "genuinely doesn't have this feature" convention every other
+# non-stressed/non-accented profile already uses.
 orthography:
   # Real Revised Romanization (the current official South Korean
   # standard) conventions, restricted to symbols this profile actually
@@ -24,3 +44,24 @@ orthography:
   - {ipa: "kʼ", latin: kk}
   - {ipa: "tʃ", latin: j}
   - {ipa: "ŋ", latin: ng}
+core_vocabulary_average_syllables: 1.88  # hand-counted across this project's own CORE_MEANINGS glosses, using full dictionary citation forms (verb/adjective stems plus the real -다 -da suffix, e.g. 크다 keuda "big", 가다 gada "go") rather than bare stems -- consistent with how every other profile in this project counts (e.g. real infinitives for Russian/Portuguese/Hindi), even though this pushes the figure noticeably higher than a stem-only count would (roughly 19 of the 49 glosses are verbs/adjectives, each gaining a syllable from the citation suffix); illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [k, t, s, n, m, h]
+  common: [p, "tʃ", l, j, w, "kʰ"]
+  uncommon: ["pʰ", "tʰ", "kʼ", "tʼ"]
+  rare: ["pʼ"]  # /ŋ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [o, u, "ɔ"]
+  uncommon: [e, "ɯ"]
+  rare: ["ɛ"]
+coda_frequency_tiers:
+  # Only the real 7-consonant surface coda inventory (see
+  # restricted_coda_consonants above) appears here -- every other
+  # consonant is excluded from coda entirely, not padded in as dead
+  # data, the same "exact partition of the real legal set" rule
+  # English's own restricted j/w already follow for this exact field.
+  very_common: [n, k]
+  common: [t, l]
+  uncommon: [m, "ŋ"]
+  rare: [p]

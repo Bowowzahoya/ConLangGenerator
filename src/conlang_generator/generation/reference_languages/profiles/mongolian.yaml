@@ -1,11 +1,29 @@
 name: Mongolian
 consonants: [p, b, t, d, k, g, q, "ɢ", "tʃ", "dʒ", s, "ʃ", x, "ɣ", m, n, "ŋ", l, r, j, w]
-vowels: [a, e, i, o, u, "ɔ", "ʊ", "ə"]
+vowels: [a, e, i, o, u, "ɔ", "ʊ", "ə", "aː", "eː", "iː", "oː", "uː"]
+# Real Mongolian vowel length is phonemic and highly productive (уул uul
+# "mountain", чулуу chuluu "stone", халуун khaluun "hot" all have a real
+# long vowel) -- added here because the new stress pattern below (real
+# Mongolian: stress falls on the first syllable with a long vowel, else
+# the initial syllable) depends on long vowels actually existing in this
+# profile's own inventory to have any effect at all; without them this
+# pattern would silently degrade to plain "initial" every time.
 coda_profile: unrestricted
 max_onset: 1
 tonal: false
 vowel_harmony: true
 orthography_category: digraph-style
+attested_coda_clusters:
+  # Real Mongolian coda clusters, restricted to symbols this profile
+  # models -- illustrative, not exhaustive, and deliberately narrow: real
+  # Mongolian clusters mostly arise from historical/synchronic deletion
+  # of a short non-initial vowel (Svantesson et al.), and only the
+  # clearest, unambiguous word-final examples are curated here (the
+  # medial ones, e.g. мөнгө "money"'s own /ŋg/, are left out since their
+  # syllabification -- same-syllable coda cluster vs. a cross-syllable
+  # pair -- isn't cleanly resolvable without deeper sourcing).
+  - [d, n]                   # гадна "gadn" (outside)
+  - [l, d]                   # далд "dald" (hidden/secret)
 orthography:
   # Real (scientific, Cyrillic-derived) Mongolian transliteration
   # conventions, restricted to symbols this profile actually models --
@@ -20,3 +38,31 @@ orthography:
                               # sounds in most romanizations
   - {ipa: "ɢ", latin: g}
   - {ipa: "ə", latin: e}
+  # Real Mongolian scientific transliteration doubles the letter for a
+  # long vowel (уул -> uul, чулуу -> chuluu, халуун -> khaluun) --
+  # overrides this style's own generic colon-based long-vowel fallback
+  # ("a:"/"i:"/etc., digraph-style's default for a symbol with no
+  # explicit rule) with the real Mongolian convention.
+  - {ipa: "aː", latin: aa}
+  - {ipa: "eː", latin: ee}
+  - {ipa: "iː", latin: ii}
+  - {ipa: "oː", latin: oo}
+  - {ipa: "uː", latin: uu}
+core_vocabulary_average_syllables: 1.51  # hand-counted across this project's own CORE_MEANINGS glosses, using full infinitive citation forms for verbs (-ах/-эх, e.g. явах yavakh "go") -- illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, g, m, n, s]
+  common: [b, d, "tʃ", "dʒ", l, r]
+  uncommon: [x, "ɣ", "ʃ", j, w]
+  rare: [p, q, "ɢ", "ŋ"]
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [e, o, u]
+  uncommon: ["ɔ", "ʊ", "ə"]
+  rare: ["aː", "eː", "iː", "oː", "uː"]
+coda_frequency_tiers:
+  very_common: [n, g, l, r]
+  common: [t, k, m, s]
+  uncommon: [b, d, x, "ɣ", "ŋ"]
+  rare: [p, q, "ɢ", "tʃ", "dʒ", "ʃ", j, w]
+stress_pattern: first_long_vowel_else_initial  # real Mongolian (Svantesson et al.): stress falls on the first syllable with a long vowel or diphthong, else the initial syllable -- a defensible first-order approximation of a genuinely more complex real system (some analyses describe Khalkha stress as one of the most complex regularly-stressed systems in the world, with real weight-sensitivity and directionality interactions beyond this flat rule)
+stress_deviation_rate: 0.25  # illustrative -- reflects the real complexity beyond the simple "first long vowel" statement, without treating it as fully unpredictable the way a genuinely lexical system would be

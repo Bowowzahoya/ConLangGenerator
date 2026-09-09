@@ -39,6 +39,22 @@ def test_predict_default_stress_spanish_style_coda_conditioning():
     assert stress_gen.predict_default_stress(3, pattern, final_coda=("d",)) == 2
 
 
+def test_predict_default_stress_mongolian_style_first_long_vowel():
+    # Real Mongolian: stress falls on the first syllable with a long
+    # vowel/diphthong, else the initial syllable.
+    pattern = "first_long_vowel_else_initial"
+    assert stress_gen.predict_default_stress(4, pattern, first_long_syllable=2) == 2
+    assert stress_gen.predict_default_stress(4, pattern, first_long_syllable=None) == 0
+    assert stress_gen.predict_default_stress(4, pattern) == 0  # default-safe when omitted
+
+
+def test_first_long_vowel_index_finds_the_first_long_nucleus():
+    assert stress_gen.first_long_vowel_index(("a", "e", "aː", "u")) == 2
+    assert stress_gen.first_long_vowel_index(("a", "e", "u")) is None
+    assert stress_gen.first_long_vowel_index(()) is None
+    assert stress_gen.first_long_vowel_index(("aː", "eː")) == 0  # first, not just any
+
+
 def test_resolve_stress_pattern_first_matched_profile_wins():
     class _Fake:
         def __init__(self, pattern, rate):
@@ -79,6 +95,19 @@ def test_assign_stress_at_zero_strictness_uses_the_generic_baseline_regardless_o
     assert counts[1] > counts[0]
 
 
+def test_assign_stress_threads_first_long_syllable_through_to_the_mongolian_pattern():
+    rng = random.Random(0)
+    hits = sum(
+        1
+        for _ in range(500)
+        if stress_gen.assign_stress(
+            rng, 3, (), "first_long_vowel_else_initial", 0.02, 1.0, first_long_syllable=1
+        )
+        == 1
+    )
+    assert hits > 450  # ~2% deviation rate -> overwhelmingly matches the long-vowel syllable
+
+
 def test_assign_stress_never_deviates_for_a_monosyllable():
     rng = random.Random(0)
     for _ in range(50):
@@ -102,6 +131,13 @@ def test_mark_stress_places_the_mark_at_the_default_syllable_for_a_deterministic
     symbols = ("k", "a", "t", "a", "b")
     result = stress_gen.mark_stress(rng, symbols, frozenset("a"), "final", 0.0, 1.0)
     assert result == "ka" + STRESS_MARK + "tab"
+
+
+def test_mark_stress_places_the_mark_on_the_first_long_vowel_syllable_mongolian_style():
+    rng = random.Random(0)
+    symbols = ("k", "a", "t", "aː", "n")
+    result = stress_gen.mark_stress(rng, symbols, frozenset({"a", "aː"}), "first_long_vowel_else_initial", 0.0, 1.0)
+    assert result == "ka" + STRESS_MARK + "taːn"
 
 
 def test_mark_stress_omits_the_mark_for_a_monosyllable():

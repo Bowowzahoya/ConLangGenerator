@@ -310,7 +310,11 @@ def build_word(
     ``word_accent_pattern`` (the common case -- most languages don't have
     this feature) makes this whole block a no-op, mirroring how an empty
     ``stress_pattern`` already falls through to a generic default rather
-    than raising."""
+    than raising. ``"positional_pitch_accent"`` (real Japanese) is the one
+    exception to "marks the accented syllable" above -- it marks every
+    syllable at once, entirely independent of stress, via its own
+    ``accent_marks`` array rather than the single ``accented_index`` this
+    paragraph otherwise describes."""
     marks = tone_marks or ("",) * num_syllables
     harmony_class: VowelBackness | None = None
     if structure.vowel_harmony:
@@ -328,27 +332,38 @@ def build_word(
     stress_index = (
         stress_gen.assign_stress(
             rng, num_syllables, syllables[-1][2], stress_pattern, stress_deviation_rate, stress_strictness,
-            syllables[-1][1],
+            syllables[-1][1], stress_gen.first_long_vowel_index(tuple(s[1] for s in syllables)),
         )
         if num_syllables > 1
         else None
     )
     accented_index = stress_index if stress_index is not None else 0
-    accent_mark = ""
+    accent_marks: tuple[str, ...] = ("",) * num_syllables
     if word_accent_pattern:
-        accented_nucleus, accented_coda = syllables[accented_index][1], syllables[accented_index][2]
-        if word_accent_realization == "pitch_and_length":
-            accent = word_accent_gen.assign_word_accent_with_length(
-                rng, num_syllables, accented_index,
-                word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate, word_accent_strictness,
-            )
-            accent_mark = word_accent_gen.mark_word_accent_with_length(accent)
+        if word_accent_realization == "positional_pitch_accent":
+            # Unlike every other realization below, this one marks
+            # potentially *every* syllable (not just the accented/stressed
+            # one), entirely independent of stress -- see
+            # `word_accent_gen.assign_positional_pitch_accent`'s own
+            # docstring for why real Japanese kernel placement has no
+            # shape-based default to compute here at all.
+            kernel_index = word_accent_gen.assign_positional_pitch_accent(rng, num_syllables, word_accent_strictness)
+            accent_marks = word_accent_gen.mark_positional_pitch_accent(kernel_index, num_syllables)
         else:
-            accent_category = word_accent_gen.assign_word_accent(
-                rng, num_syllables, accented_nucleus, accented_coda,
-                word_accent_pattern, word_accent_deviation_rate, word_accent_strictness,
-            )
-            accent_mark = word_accent_gen.mark_word_accent(accent_category, word_accent_realization)
+            accented_nucleus, accented_coda = syllables[accented_index][1], syllables[accented_index][2]
+            if word_accent_realization == "pitch_and_length":
+                accent = word_accent_gen.assign_word_accent_with_length(
+                    rng, num_syllables, accented_index,
+                    word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate, word_accent_strictness,
+                )
+                accent_mark = word_accent_gen.mark_word_accent_with_length(accent)
+            else:
+                accent_category = word_accent_gen.assign_word_accent(
+                    rng, num_syllables, accented_nucleus, accented_coda,
+                    word_accent_pattern, word_accent_deviation_rate, word_accent_strictness,
+                )
+                accent_mark = word_accent_gen.mark_word_accent(accent_category, word_accent_realization)
+            accent_marks = tuple(accent_mark if i == accented_index else "" for i in range(num_syllables))
     if reduce_unstressed_vowels and num_syllables > 1 and "ə" in inventory.vowel_symbols():
         reduction_rate = _STRESS_REDUCTION_RATE * max(0.0, min(1.0, stress_strictness))
         for i, (onset, nucleus, coda) in enumerate(syllables):
@@ -359,7 +374,7 @@ def build_word(
     parts: list[str] = []
     for i, (onset, nucleus, coda) in enumerate(syllables):
         prefix = stress_gen.STRESS_MARK if i == stress_index else ""
-        this_accent_mark = accent_mark if i == accented_index else ""
+        this_accent_mark = accent_marks[i]
         if word_accent_realization == "glottalization":
             # Stød marks the whole rime, not just the vowel -- appended
             # after the coda rather than riding the nucleus.
@@ -432,21 +447,30 @@ def build_reduplicated_word(
     open_vowels = tuple(v for v in simple_vowels if v.height in _OPEN_HEIGHTS)
     vowel = weighted_choice(rng, open_vowels or simple_vowels or inventory.vowels)
     syllable = consonant.ipa + vowel.ipa + tone_mark
-    stress_index = stress_gen.assign_stress(rng, 2, (), stress_pattern, stress_deviation_rate, stress_strictness, vowel.ipa)
-    accent_mark = ""
+    reduplicated_first_long = stress_gen.first_long_vowel_index((vowel.ipa, vowel.ipa))
+    stress_index = stress_gen.assign_stress(
+        rng, 2, (), stress_pattern, stress_deviation_rate, stress_strictness, vowel.ipa, reduplicated_first_long
+    )
+    accent_marks: tuple[str, str] = ("", "")
     if word_accent_pattern:
-        if word_accent_realization == "pitch_and_length":
+        if word_accent_realization == "positional_pitch_accent":
+            kernel_index = word_accent_gen.assign_positional_pitch_accent(rng, 2, word_accent_strictness)
+            accent_marks = word_accent_gen.mark_positional_pitch_accent(kernel_index, 2)
+        elif word_accent_realization == "pitch_and_length":
             accent = word_accent_gen.assign_word_accent_with_length(
                 rng, 2, stress_index,
                 word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate, word_accent_strictness,
             )
             accent_mark = word_accent_gen.mark_word_accent_with_length(accent)
+            accent_marks = (accent_mark if stress_index == 0 else "", accent_mark if stress_index == 1 else "")
         else:
             accent_category = word_accent_gen.assign_word_accent(
                 rng, 2, vowel.ipa, (), word_accent_pattern, word_accent_deviation_rate, word_accent_strictness,
             )
             accent_mark = word_accent_gen.mark_word_accent(accent_category, word_accent_realization)
-    accented_syllable = syllable + accent_mark
-    first = (stress_gen.STRESS_MARK if stress_index == 0 else "") + (accented_syllable if stress_index == 0 else syllable)
-    second = (stress_gen.STRESS_MARK if stress_index == 1 else "") + (accented_syllable if stress_index == 1 else syllable)
+            accent_marks = (accent_mark if stress_index == 0 else "", accent_mark if stress_index == 1 else "")
+    first_syllable = syllable + accent_marks[0]
+    second_syllable = syllable + accent_marks[1]
+    first = (stress_gen.STRESS_MARK if stress_index == 0 else "") + first_syllable
+    second = (stress_gen.STRESS_MARK if stress_index == 1 else "") + second_syllable
     return first + second

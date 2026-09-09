@@ -105,7 +105,11 @@ reusing the trailing-combining-mark slurp tone diacritics ride on."""
 
 
 def predict_default_stress(
-    num_syllables: int, pattern: str, final_coda: tuple[str, ...] = (), final_nucleus: str = ""
+    num_syllables: int,
+    pattern: str,
+    final_coda: tuple[str, ...] = (),
+    final_nucleus: str = "",
+    first_long_syllable: int | None = None,
 ) -> int:
     """The syllable index (0-based) ``pattern`` alone would predict, with
     no per-word randomness. Lives here (not in ``generation.stress_gen``,
@@ -124,10 +128,22 @@ def predict_default_stress(
     it needs the vowel's own identity rather than just the coda: both
     "ends in a/e/o" and "ends in i/u" alike have an empty ``final_coda``,
     so the coda alone can't distinguish real Portuguese's two cases).
-    Every pattern not named above ignores both. Unrecognized or empty
-    ``pattern`` falls back to plain penultimate -- one of the
-    cross-linguistically most common unmarked defaults, the same role
-    ``"penultimate"`` itself plays when explicitly curated."""
+    ``first_long_syllable`` -- the index of the *first* syllable (from the
+    left) whose own nucleus is long, or ``None`` if the word has no long
+    nucleus at all -- is a different kind of parameter from the other
+    three: it needs to know about *every* syllable's own nucleus, not
+    just the final one, so it's precomputed by the caller (see
+    ``generation.stress_gen.first_long_vowel_index``) rather than derived
+    here. Only consulted by ``"first_long_vowel_else_initial"`` (real
+    Mongolian: stress falls on the first syllable with a long vowel or
+    diphthong, else the initial syllable -- a defensible first-order
+    approximation of a genuinely more complex real system, the same
+    "not the full picture, but the right curation depth" caveat this
+    project already gives comparably complex systems). Every pattern not
+    named above ignores all three. Unrecognized or empty ``pattern``
+    falls back to plain penultimate -- one of the cross-linguistically
+    most common unmarked defaults, the same role ``"penultimate"`` itself
+    plays when explicitly curated."""
     if num_syllables <= 1:
         return 0
     if pattern == "final":
@@ -142,6 +158,8 @@ def predict_default_stress(
         if final_nucleus in ("a", "e", "o"):
             return num_syllables - 2
         return num_syllables - 1
+    if pattern == "first_long_vowel_else_initial":
+        return first_long_syllable if first_long_syllable is not None else 0
     return num_syllables - 2  # "penultimate", "lexical", and the generic fallback
 
 
@@ -834,13 +852,15 @@ class RomanizationScheme(BaseModel, frozen=True):
         # Stress-accent bookkeeping, computed once up front the same way
         # `rules_by_ipa`/`tone_marker_map` are -- `actual_stress_syllable`
         # is which syllable (0-based, by vowel count) `stress_before`
-        # falls on, `final_coda_symbols`/`final_nucleus_symbol` are the
-        # word's own last syllable's coda and nucleus (all three feed
-        # `stress_accent_marking`'s "irregular_only" check below, which
-        # needs to know the same thing `stress_gen.assign_stress` knew at
-        # build time -- but re-derived from the tokenized string itself,
-        # not threaded through, since `apply()` never receives a word's
-        # original per-syllable structure, only its flat IPA).
+        # falls on, `final_coda_symbols`/`final_nucleus_symbol`/
+        # `first_long_syllable_symbol` are the word's own last syllable's
+        # coda and nucleus and the index of its first long-nucleus
+        # syllable if any (all four feed `stress_accent_marking`'s
+        # "irregular_only" check below, which needs to know the same
+        # thing `stress_gen.assign_stress` knew at build time -- but
+        # re-derived from the tokenized string itself, not threaded
+        # through, since `apply()` never receives a word's original
+        # per-syllable structure, only its flat IPA).
         vowel_indices = [i for i, t in enumerate(tokens) if t[0] in self.vowel_symbols]
         num_syllables = len(vowel_indices)
         actual_stress_syllable = (
@@ -850,6 +870,9 @@ class RomanizationScheme(BaseModel, frozen=True):
             tuple(t[0] for t in tokens[vowel_indices[-1] + 1 :] if t[0] is not None) if vowel_indices else ()
         )
         final_nucleus_symbol = tokens[vowel_indices[-1]][0] if vowel_indices else ""
+        first_long_syllable_symbol = next(
+            (i for i, vi in enumerate(vowel_indices) if tokens[vi][0] and "ː" in tokens[vi][0]), None
+        )
         stress_pending = False
 
         pending_markers: dict[int, list[str]] = {}
@@ -902,14 +925,17 @@ class RomanizationScheme(BaseModel, frozen=True):
 
             if (
                 deco
-                and self.word_accent_realization in ("pitch", "pitch_and_length")
+                and self.word_accent_realization in ("pitch", "pitch_and_length", "positional_pitch_accent")
                 and self.word_accent_marking == ""
             ):
                 # These characters are reused `TONE_DIACRITICS` (or, for
                 # `"pitch_and_length"`, the two additional real Slavistic
-                # marks -- see `word_accent_gen._TONE_LENGTH_DIACRITICS`),
-                # not real tone -- strip them before the tone-decoration
-                # logic below gets a chance to treat them as such. Safe
+                # marks -- see `word_accent_gen._TONE_LENGTH_DIACRITICS`;
+                # `"positional_pitch_accent"` reuses the same two
+                # `TONE_DIACRITICS` characters as `"pitch"`, just
+                # potentially on every syllable instead of one), not real
+                # tone -- strip them before the tone-decoration logic
+                # below gets a chance to treat them as such. Safe
                 # unconditionally: a word-accented language is never
                 # simultaneously tonal.
                 deco = "".join(ch for ch in deco if ch not in _PITCH_WORD_ACCENT_CHARS)
@@ -953,7 +979,9 @@ class RomanizationScheme(BaseModel, frozen=True):
                 should_mark = (self.stress_accent_marking == "final_only" and is_final_syllable) or (
                     self.stress_accent_marking == "irregular_only"
                     and actual_stress_syllable
-                    != predict_default_stress(num_syllables, self.stress_pattern, final_coda_symbols, final_nucleus_symbol)
+                    != predict_default_stress(
+                        num_syllables, self.stress_pattern, final_coda_symbols, final_nucleus_symbol, first_long_syllable_symbol
+                    )
                 )
                 if should_mark:
                     accented = _STRESS_ACCENT_MAP.get(latin[:1])

@@ -192,11 +192,18 @@ def test_only_the_real_final_devoicing_languages_declare_coda_devoicing():
     assert actual == expected
 
 
-def test_orthography_category_round_trips_from_yaml_for_japanese_and_hawaiian():
-    japanese = next(p for p in REFERENCE_LANGUAGES if p.name == "Japanese")
+def test_orthography_category_round_trips_from_yaml_for_hawaiian():
     hawaiian = next(p for p in REFERENCE_LANGUAGES if p.name == "Hawaiian")
-    assert japanese.orthography_category == "scholarly-macron-style"
     assert hawaiian.orthography_category == "scholarly-macron-style"
+
+
+def test_japanese_uses_the_macron_gemination_category():
+    # Real Japanese needs both real vowel length (macron) and real sokuon
+    # gemination (doubled letter) -- the same combined category built for
+    # Arabic, not the macron-only style Hawaiian/Hindi/Tamil use (none of
+    # those have productive gemination).
+    japanese = next(p for p in REFERENCE_LANGUAGES if p.name == "Japanese")
+    assert japanese.orthography_category == "scholarly-macron-gemination-style"
 
 
 def test_orthography_category_round_trips_from_yaml_for_the_phase_b_languages():
@@ -525,6 +532,63 @@ def test_hindi_and_persian_declare_real_attested_clusters():
     assert ("s", "t") in persian.attested_coda_clusters  # "dast"
 
 
+def test_mandarin_and_korean_restrict_the_velar_nasal_from_onset():
+    # Real Mandarin /ŋ/ (ng) and Korean /ŋ/ (ㅇ) are both coda-only --
+    # neither ever opens a native syllable.
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert "ŋ" in by_name["Mandarin"].restricted_onset_consonants
+    assert "ŋ" in by_name["Korean"].restricted_onset_consonants
+
+
+def test_mandarin_only_closes_a_syllable_in_n_or_ng():
+    mandarin = next(p for p in REFERENCE_LANGUAGES if p.name == "Mandarin")
+    assert mandarin.coda_profile == "sonorant"
+    assert set(mandarin.restricted_coda_consonants) == {"m", "l", "j", "w"}
+
+
+def test_korean_coda_neutralizes_to_the_real_seven_consonant_inventory():
+    korean = next(p for p in REFERENCE_LANGUAGES if p.name == "Korean")
+    legal_codas = set(korean.consonants) - set(korean.restricted_coda_consonants)
+    assert legal_codas == {"p", "t", "k", "m", "n", "ŋ", "l"}
+
+
+def test_japanese_has_no_phonemic_glottal_stop():
+    # "ʔ" was a genuine pre-existing modeling error -- real Japanese has
+    # no phonemic glottal stop.
+    japanese = next(p for p in REFERENCE_LANGUAGES if p.name == "Japanese")
+    assert "ʔ" not in japanese.consonants
+
+
+def test_japanese_declares_real_gemination_and_long_vowels():
+    japanese = next(p for p in REFERENCE_LANGUAGES if p.name == "Japanese")
+    assert {"kː", "tː", "pː", "sː"} <= set(japanese.consonants)
+    assert {"aː", "iː", "uː", "eː", "oː"} <= set(japanese.vowels)
+    assert set(japanese.restricted_onset_consonants) >= {"kː", "tː", "pː", "sː"}  # real gemination is never word-initial
+    assert set(japanese.restricted_coda_consonants) == {"m", "ɾ", "j", "w"}  # only the moraic nasal (n) and a geminate's own first half genuinely close a native syllable
+
+
+def test_japanese_declares_the_positional_pitch_accent_and_no_stress():
+    japanese = next(p for p in REFERENCE_LANGUAGES if p.name == "Japanese")
+    assert japanese.word_accent_realization == "positional_pitch_accent"
+    assert japanese.word_accent_pattern == "lexical"
+    assert japanese.stress_pattern == ""  # Japanese's own real prosodic axis is pitch accent, not stress
+
+
+def test_mongolian_declares_long_vowels_and_its_own_stress_pattern():
+    mongolian = next(p for p in REFERENCE_LANGUAGES if p.name == "Mongolian")
+    assert {"aː", "eː", "iː", "oː", "uː"} <= set(mongolian.vowels)
+    assert mongolian.stress_pattern == "first_long_vowel_else_initial"
+    assert mongolian.stress_deviation_rate is not None
+    assert ("d", "n") in mongolian.attested_coda_clusters  # "gadn"
+    assert ("l", "d") in mongolian.attested_coda_clusters  # "dald"
+
+
+def test_mandarin_japanese_korean_mongolian_declare_a_real_average_syllable_count():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in ("Mandarin", "Japanese", "Korean", "Mongolian"):
+        assert by_name[name].core_vocabulary_average_syllables is not None
+
+
 def test_arabic_source_language_biases_toward_root_and_pattern_and_fusional():
     def _rates(source_languages: tuple[str, ...]) -> tuple[float, float]:
         root_and_pattern_hits = 0
@@ -603,6 +667,7 @@ def test_most_profiles_leave_average_syllables_uncurated():
         "Arabic", "Hebrew", "Turkish",
         "Russian", "Portuguese", "Serbo-Croatian",
         "Hindi", "Tamil", "Persian",
+        "Mandarin", "Japanese", "Korean", "Mongolian",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -648,9 +713,10 @@ _PERFECTED_LANGUAGES = (
     "Arabic", "Hebrew", "Turkish",
     "Russian", "Portuguese", "Serbo-Croatian",
     "Hindi", "Persian",
-    # Tamil is deliberately left out of this list too, for the exact same
-    # "sonorant" coda_profile reason as Italian above -- checked
-    # separately.
+    "Korean", "Mongolian",
+    # Tamil, Mandarin, and Japanese are deliberately left out of this list
+    # too, for the exact same "sonorant" coda_profile reason as Italian
+    # above -- checked separately.
 )
 _TIER_NAMES = {"very_common", "common", "uncommon", "rare"}
 
@@ -696,7 +762,7 @@ def test_english_ð_is_onset_rare_despite_high_token_frequency():
 
 def test_non_perfected_profiles_leave_frequency_tiers_uncurated():
     for profile in REFERENCE_LANGUAGES:
-        if profile.name not in _PERFECTED_LANGUAGES and profile.name not in ("Italian", "Tamil"):
+        if profile.name not in _PERFECTED_LANGUAGES and profile.name not in ("Italian", "Tamil", "Mandarin", "Japanese"):
             assert profile.onset_frequency_tiers == {}
             assert profile.nucleus_frequency_tiers == {}
             assert profile.coda_frequency_tiers == {}
@@ -732,6 +798,35 @@ def test_tamil_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
         assert len(tiered) == len(set(tiered)), position
         assert set(tiered) == _legal_symbols(tamil, position), position
     assert tamil.coda_frequency_tiers == {}
+
+
+def test_mandarin_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    # Same "sonorant" coda_profile situation as Italian/Tamil above.
+    mandarin = next(p for p in REFERENCE_LANGUAGES if p.name == "Mandarin")
+    for position, field in (
+        ("onset", mandarin.onset_frequency_tiers),
+        ("nucleus", mandarin.nucleus_frequency_tiers),
+    ):
+        assert set(field.keys()) == _TIER_NAMES, position
+        tiered = [symbol for members in field.values() for symbol in members]
+        assert len(tiered) == len(set(tiered)), position
+        assert set(tiered) == _legal_symbols(mandarin, position), position
+    assert mandarin.coda_frequency_tiers == {}
+
+
+def test_japanese_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    # Same "sonorant" coda_profile situation as Italian/Tamil/Mandarin
+    # above.
+    japanese = next(p for p in REFERENCE_LANGUAGES if p.name == "Japanese")
+    for position, field in (
+        ("onset", japanese.onset_frequency_tiers),
+        ("nucleus", japanese.nucleus_frequency_tiers),
+    ):
+        assert set(field.keys()) == _TIER_NAMES, position
+        tiered = [symbol for members in field.values() for symbol in members]
+        assert len(tiered) == len(set(tiered)), position
+        assert set(tiered) == _legal_symbols(japanese, position), position
+    assert japanese.coda_frequency_tiers == {}
 
 
 # --- Probabilistic, richer French/English romanization ---
@@ -1186,6 +1281,12 @@ def test_most_profiles_leave_stress_pattern_uncurated():
         "Arabic", "Hebrew", "Turkish",
         "Russian", "Portuguese", "Serbo-Croatian",
         "Hindi", "Tamil", "Persian",
+        "Mongolian",
+        # Mandarin, Japanese, and Korean deliberately don't curate stress
+        # -- Mandarin's real prosodic axis is its tone system (already
+        # `tonal: true`); Japanese's is its own positional pitch accent
+        # (curated separately, see word_accent below); Korean genuinely
+        # has neither stress nor tone in the standard dialect.
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -1247,8 +1348,9 @@ def test_icelandic_and_the_six_perfected_languages_leave_word_accent_uncurated()
     # Real Icelandic has no stød/pitch accent; the six perfected profiles
     # are unrelated languages that don't have this feature either. Real
     # Russian/Portuguese also lack a lexical tone/pitch-accent contrast --
-    # only Serbo-Croatian's own genuine 4-way tone+length system is curated.
-    curated = {"Danish", "Swedish", "Norwegian", "Serbo-Croatian"}
+    # only Serbo-Croatian's own genuine 4-way tone+length system and
+    # Japanese's own positional pitch accent are curated.
+    curated = {"Danish", "Swedish", "Norwegian", "Serbo-Croatian", "Japanese"}
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
             assert profile.word_accent_realization == ""

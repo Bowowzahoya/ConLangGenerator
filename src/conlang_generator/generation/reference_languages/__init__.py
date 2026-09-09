@@ -9,9 +9,8 @@ pools (so matching against a generated inventory is a plain set
 intersection). These are illustrative typological sketches for flavor, not
 authoritative phonological descriptions -- real language phonology is far
 richer than what our own symbol pool and phonotactic model can represent
-(no consonant length/gemination as a phonemic feature; no noun-class
-morphology; root-and-pattern morphology models word-*shape* only, not
-derivational relatedness between words -- see
+(no noun-class morphology; root-and-pattern morphology models word-*shape*
+only, not derivational relatedness between words -- see
 ``generation/root_pattern.py``). ``orthography`` rules are similarly
 illustrative -- see ``core/romanization.py``'s module docstring for what
 they can and can't express (local adjacency conditions; not stress,

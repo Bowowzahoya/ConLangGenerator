@@ -1,10 +1,42 @@
 name: Japanese
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʔ", m, n, s, "ʃ", h, z, "ɾ", j, w]
-vowels: [i, a, u, e, o]
+# Real Japanese has no phonemic glottal stop -- "ʔ" (previously in this
+# list) doesn't belong in its consonant inventory the way it does in,
+# say, Arabic or Hawaiian; removed as a genuine correction, not a
+# stylistic change.
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", m, n, s, "ʃ", h, z, "ɾ", j, w, "kː", "tː", "pː", "sː"]
+# Real Japanese sokuon (っ) productively geminates a following voiceless
+# obstruent (がっこう "gakkō" school, きって "kitte" stamp) -- the shared
+# `kː`/`tː`/`pː`/`sː` geminate pool, real and solidly attested for these
+# four (the classic sokuon-eligible series); no new architecture needed,
+# this reuses phonology_gen.py's existing `_GEMINATE_GROUP`.
+vowels: [i, a, u, e, o, "aː", "iː", "uː", "eː", "oː"]
+# Real Japanese long vowels (chōon, お母さん okāsan, 東京 Tōkyō, ラーメン
+# rāmen) are equally productive and central as gemination -- added
+# alongside it since `scholarly-macron-gemination-style` below is built
+# to mark both together, and it would be an incomplete account of real
+# Japanese phonology to model one without the other.
 coda_profile: sonorant
 max_onset: 1
 tonal: false
-orthography_category: scholarly-macron-style
+orthography_category: scholarly-macron-gemination-style
+# Real Hepburn: long vowels via macron (ā/ī/ū/ē/ō), sokuon via a doubled
+# consonant letter -- both already the exact real convention this
+# existing category (built for Arabic) already marks; no new
+# architecture needed here either.
+restricted_onset_consonants: ["kː", "tː", "pː", "sː"]  # real Japanese gemination is never word-initial, the same real fact and same fix shape Italian's own geminate restriction already has
+restricted_coda_consonants: [m, "ɾ", j, w]
+# coda_profile: sonorant above already limits codas to the sonority-based
+# sonorant class, but real native Japanese codas are only the moraic
+# nasal (spelled "n", already how this profile's own /n/ romanizes) and
+# the first half of a geminate (modeled above as its own atomic long
+# consonant, not an ordinary coda symbol at all) -- no other sonorant
+# (m, ɾ, j, w) genuinely closes a native syllable. No
+# attested_onset_clusters/coda_clusters -- max_onset: 1 is accurate (true
+# consonant clusters don't occur natively; the only apparent "clusters"
+# are palatalized Cy onsets like きゃ kya, standardly analyzed as one
+# complex onset, not two consonants -- this profile's own consonant
+# symbols already suffice to represent the ones it models, e.g. "tʃ" for
+# ちゃ-series).
 orthography:
   # Real Hepburn-romaji conventions, restricted to symbols this profile
   # actually models.
@@ -12,3 +44,27 @@ orthography:
   - {ipa: "dʒ", latin: j}
   - {ipa: "ʃ", latin: sh}
   - {ipa: "ɾ", latin: r}
+core_vocabulary_average_syllables: 2.39  # hand-counted across this project's own CORE_MEANINGS glosses, counting real *syllables* (this project's own nucleus-per-syllable model), not morae -- real Japanese long vowels are famously 2 morae but this project's own generator (like every other profile) counts one syllable per nucleus symbol regardless of length, so this number is deliberately syllable-based, not the higher mora-based figure a mora-timed description of Japanese would otherwise cite; still clearly higher than Mandarin/Danish/Swedish, matching Japanese's own real reputation for comparatively polysyllabic words given its simple CV(N) syllable canon; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [k, t, s, n, m, h]
+  common: [b, d, g, "ɾ", j, w, z]
+  uncommon: ["tʃ", "dʒ", "ʃ"]
+  rare: [p]  # real Japanese /p/ is famously rare word-initially in native vocabulary (largely loanwords/mimetic words) -- historically shifted to /h/ in most positions. The geminate series is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+nucleus_frequency_tiers:
+  very_common: [a, i, u]
+  common: [e, o]
+  uncommon: ["aː", "oː"]
+  rare: ["iː", "uː", "eː"]
+# No coda_frequency_tiers -- coda_profile: sonorant means the true legal
+# coda set is narrower than consonants-minus-restricted (sonority
+# filtering isn't expressible via restricted_coda_consonants alone), the
+# same real reason Italian's/Tamil's own perfected profiles leave this
+# field uncurated too.
+word_accent_realization: positional_pitch_accent  # real Japanese lexical pitch accent -- structurally a positional system (which syllable, if any, carries the pitch-drop kernel), not a fixed small category set the way Danish/Swedish/Serbo-Croatian's own word accent is
+word_accent_pattern: lexical  # a sentinel, not a shape rule -- real Japanese accent-kernel placement is genuinely lexically arbitrary, so only this field's truthiness (gating the feature on) is consulted for this realization, never its value; see generation/word_accent_gen.py's own assign_positional_pitch_accent docstring
+# word_accent_marking stays "" (unset) -- real standard Japanese
+# orthography (kana or romaji) doesn't write pitch accent either, only
+# specialized accent dictionaries do, with their own conventions this
+# project doesn't model. stress_pattern also stays uncurated -- Japanese
+# doesn't have contrastive lexical stress the way European languages do;
+# its own real prosodic system is the pitch accent curated above.
