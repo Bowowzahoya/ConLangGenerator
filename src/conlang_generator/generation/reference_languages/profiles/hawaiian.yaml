@@ -1,11 +1,37 @@
 name: Hawaiian
 consonants: [p, k, "ʔ", h, m, n, l, w]
-vowels: [i, a, u, e, o]
+vowels: [i, a, u, e, o, "iː", "aː", "uː", "eː", "oː"]
+# Real, major gap this batch fixes: Hawaiian is one of the most-cited
+# phonemic-vowel-length languages in introductory linguistics (kane
+# "husband-ish" vs. kāne "man"), and this profile previously had none
+# curated at all. The shared long-vowel pool (aː/iː/uː/eː/oː) already
+# covers exactly Hawaiian's own five long vowels -- no new phonemes
+# needed, just adding them here and the real macron spelling below.
 coda_profile: none
 max_onset: 1
 tonal: false
+stress_pattern: lexical
+stress_deviation_rate: 0.18  # illustrative -- real Hawaiian stress is weight-sensitive (a long vowel or diphthong reliably attracts it, building a moraic-trochee pattern right-to-left) rather than a simple fixed position, the same "quantity-sensitive, no flat rule" shape this project's own Arabic/Hindi profiles already use -- but noticeably lower than Hindi's own 0.40, since Hawaiian's own weight-sensitivity is considerably more mechanically regular once vowel length is known
 orthography_category: scholarly-macron-style
 orthography:
   # The real ʻokina character (U+02BB MODIFIER LETTER TURNED COMMA), not
   # a plain apostrophe.
   - {ipa: "ʔ", latin: "ʻ"}
+  # Real kahakō (macron) vowel-length spelling -- the same convention
+  # this project's own Nahuatl profile already curates.
+  - {ipa: "aː", latin: "ā"}
+  - {ipa: "iː", latin: "ī"}
+  - {ipa: "uː", latin: "ū"}
+  - {ipa: "eː", latin: "ē"}
+  - {ipa: "oː", latin: "ō"}
+core_vocabulary_average_syllables: 2.45  # hand-counted across this project's own CORE_MEANINGS glosses (wai "water"=2, ahi "fire"=2, kanaka "person"=3, makuahine "mother"=4) -- a real, strictly-CV-only language with no clusters or codas at all ever needs more syllables to encode the same information, running longer than most Eurasian languages already curated; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [m, n, l, k]
+  common: [p, w, h]
+  uncommon: ["ʔ"]
+  rare: []  # this profile's own tiny 8-consonant inventory has nothing left for this tier
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [u, e, "aː"]
+  uncommon: [o, "iː", "uː"]
+  rare: ["eː", "oː"]

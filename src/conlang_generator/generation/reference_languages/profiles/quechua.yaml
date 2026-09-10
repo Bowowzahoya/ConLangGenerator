@@ -5,7 +5,13 @@ vowels: [a, i, u]
 coda_profile: unrestricted
 max_onset: 1
 max_coda: 1  # real Quechua's syllable template is maximally (C)V(C) -- coda position never holds more than one consonant
+restricted_coda_consonants: ["pʼ", "tʼ", "kʼ", "pʰ", "tʰ", "kʰ"]
+# Real, citable coda restriction: the whole ejective/aspirated series is
+# onset-only in Quechua -- it never closes a syllable, distinct from
+# the plain series (p/t/k), which freely does.
 tonal: false
+stress_pattern: penultimate
+stress_deviation_rate: 0.06  # illustrative -- real Quechua has famously near-fixed penultimate stress, one of the most standard facts in Andean-language typology, with very few (mostly loanword) exceptions
 orthography_category: diacritic-style
 orthography:
   # Real modern Quechua orthography already uses exactly these
@@ -22,3 +28,19 @@ orthography:
   - {ipa: "lʲ", latin: ll}   # real Quechua lateral palatal /ʎ/,
                               # approximated by this project's secondary-
                               # palatalization symbol
+core_vocabulary_average_syllables: 2.05  # hand-counted across this project's own CORE_MEANINGS glosses (yaku "water"=2, nina "fire"=2, huk "one"=1, runa "person"=2, wawa "child"=2) -- illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [k, t, m, n, s, r, w]
+  common: [p, q, "tʃ", l, j, h]
+  uncommon: ["pʰ", "tʰ", "kʰ", "ɲ", "lʲ"]
+  rare: ["pʼ", "tʼ", "kʼ", "ʃ"]
+nucleus_frequency_tiers:
+  very_common: [a]
+  common: [i]
+  uncommon: [u]
+  rare: []  # this profile's own 3-vowel system has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has
+coda_frequency_tiers:
+  very_common: [n, k, s, q, r]
+  common: [m, t, l, w, j]
+  uncommon: [p, "tʃ", h, "ɲ"]
+  rare: ["ʃ", "lʲ"]

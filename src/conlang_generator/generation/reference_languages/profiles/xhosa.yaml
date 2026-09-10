@@ -9,21 +9,76 @@ aliases: [click language]
 # so Zulu now has its own profile (see zulu.yaml). "nguni" (the
 # language-family name covering Zulu/Xhosa/Swati/Ndebele) is dropped
 # too for the same reason -- it's not specifically Xhosa either.
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʔ", m, n, "ŋ", s, "ʃ", h, z, l, j, w, "ǀ", "ǃ", "ǂ", "ǁ"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʔ", m, n, "ŋ", s, "ʃ", h, z, l, j, w, "ǀ", "ǃ", "ǁ", "ǀʰ", "ǃʰ", "ǁʰ", "ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ"]
+# The real click-accompaniment series Zulu's own profile curates this
+# same session -- aspirated, voiced/breathy "depressor", and nasalized
+# -- applies the same real Nguni-wide way to Xhosa's own three click
+# places (dental ǀ, postalveolar ǃ, lateral ǁ), using the exact symbols
+# already added to the shared pool for Zulu; no new phonemes needed.
+# The real palatoalveolar click (ǂ) has no standard letter in either
+# Nguni language and was previously (inconsistently) left in this
+# profile's own consonant list despite that -- dropped here to match
+# Zulu's own choice.
+#
+# Xhosa's own plain stop series (b/d/g vs. p/t/k, a genuine 2-way
+# voiced/voiceless contrast) stays as originally curated here, distinct
+# from Zulu's own real 3-way plain/aspirated/breathy-depressor system
+# -- research for this batch didn't confirm Xhosa's stops work
+# identically to Zulu's, so this isn't force-matched to Zulu's own
+# shape.
 vowels: [i, a, u, e, o]
-coda_profile: sonorant
+coda_profile: none
+# Corrected from "sonorant": Zulu (Xhosa's closest sister, curated
+# earlier this session) is a real, well-documented open-syllable
+# (CV-only) Bantu-wide-canon language, and that same real fact applies
+# to Xhosa -- the same real syllabic-nasal-prefix exception noted in
+# Zulu's own comment applies identically here too, and stays out of
+# scope for the same reason.
 max_onset: 1
 tonal: true
-orthography_category: monoletter-style
+tone_level_count: 2
+# Same real 2-level H/L register system standard Nguni tonology already
+# gives Zulu -- Xhosa tonology is analyzed the same way.
+orthography_category: digraph-style
+# Corrected from "monoletter-style", for the exact same reason Zulu's
+# own profile already made this call: the real aspirated-click/
+# aspirated-stop convention needs a genuine h-suffix digraph treatment
+# that monoletter-style's own generic default would otherwise collapse.
 orthography:
   # The three real Xhosa click letters -- c (dental), q (postalveolar),
-  # x (lateral). "ǂ" (palatoalveolar) has no standard distinct Xhosa
-  # letter of its own, so it's deliberately left uncurated here rather
-  # than forcing an invented one -- falls to the generic table.
+  # x (lateral) -- single ASCII letters, overriding this category's own
+  # generic digraph default (which would otherwise spell ǁ "xh", not
+  # "x").
   - {ipa: "ǀ", latin: c}
   - {ipa: "ǃ", latin: q}
   - {ipa: "ǁ", latin: x}
+  # Real Nguni click-accompaniment conventions, the same ones Zulu's own
+  # profile curates: voiced/depressor clicks prefix "g", nasal clicks
+  # prefix "n". Aspirated clicks modeled as an "h" suffix on the plain
+  # click letter, by analogy with the aspirated-stop convention below --
+  # inferred, not directly confirmed by a source giving this exact
+  # spelling, same honesty flag Zulu's own profile already carries.
+  - {ipa: "ǀʰ", latin: ch}
+  - {ipa: "ǃʰ", latin: qh}
+  - {ipa: "ǁʰ", latin: xh}
+  - {ipa: "ɡǀ", latin: gc}
+  - {ipa: "ɡǃ", latin: gq}
+  - {ipa: "ɡǁ", latin: gx}
+  - {ipa: "ŋǀ", latin: nc}
+  - {ipa: "ŋǃ", latin: nq}
+  - {ipa: "ŋǁ", latin: nx}
   - {ipa: "ŋ", latin: ng}
   - {ipa: "ʃ", latin: sh}
   - {ipa: "tʃ", latin: ch}
   - {ipa: "dʒ", latin: j}
+core_vocabulary_average_syllables: 2.18  # hand-counted across this project's own CORE_MEANINGS glosses at citation form (root + real noun-class prefix, e.g. amanzi "water", umntu "person") -- close to but not identical to this project's own already-curated Zulu figure (2.22), reflecting the same shared Nguni prefix system rather than a genuinely different typology; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [m, n, l, k, t, w, j, s]
+  common: [p, b, d, g, z, h, "ŋ", "ǀ", "ǃ", "ǁ"]
+  uncommon: ["tʃ", "dʒ", "ʃ", "ʔ", "ǀʰ", "ǃʰ", "ǁʰ"]
+  rare: ["ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ"]
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [u, e]
+  uncommon: [o]
+  rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has

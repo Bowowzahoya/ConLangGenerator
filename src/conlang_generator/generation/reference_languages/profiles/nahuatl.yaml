@@ -4,7 +4,16 @@ consonants: [p, t, k, "tʃ", "tɬ", s, "ʃ", h, m, n, l, w, j, "ʔ"]
 vowels: [a, e, i, o, "aː", "eː", "iː", "oː"]
 coda_profile: sonorant
 max_onset: 1
+restricted_coda_consonants: [m, n]
+# The generic "sonorant" coda_profile's own sonority filter (see
+# phonology_gen.py's _sonorant_or_glottal_symbols) would otherwise
+# legalize m/n/l/w/j/ʔ all as codas -- real Classical Nahuatl codas are
+# narrower, restricted to /l w j ʔ/ (Andrews; Karttunen); the nasals
+# m/n genuinely don't close a native syllable, so they're excluded here
+# even though they're sonority-legal in the abstract.
 tonal: false
+stress_pattern: penultimate
+stress_deviation_rate: 0.06  # illustrative -- real Classical Nahuatl has famously near-fixed penultimate stress (Andrews; Karttunen), with very few exceptions (vocative forms shift stress to the final syllable)
 orthography_category: digraph-style
 orthography:
   # Real Classical Nahuatl (colonial-era, Spanish-influenced) spelling
@@ -21,8 +30,27 @@ orthography:
                                # per-symbol, exception this project's rule
                                # system can't capture (same category of
                                # gap as Dutch's own au/ou); "c" picked as
-                               # the modeled default.
+                               # the modeled default. A second, related
+                               # real per-word wrinkle in the same
+                               # category: intervocalic /w/ is often
+                               # spelled "hu" and syllable-final /w/ as
+                               # "uh" in colonial orthography (e.g.
+                               # āhuacatl "avocado") -- not modeled for
+                               # the same reason, this profile's own
+                               # identity spelling for w stays the
+                               # modeled default.
   - {ipa: "aː", latin: "ā"}
   - {ipa: "eː", latin: "ē"}
   - {ipa: "iː", latin: "ī"}
   - {ipa: "oː", latin: "ō"}
+core_vocabulary_average_syllables: 2.15  # hand-counted across this project's own CORE_MEANINGS glosses (ātl "water"=1, tletl "fire"=1, nāntli "mother"=2, tlācatl "person"=2, tepētl "mountain"=2) -- runs longer than the bare root alone thanks to the real, obligatory absolutive suffix (-tl/-tli/-in) most citation-form nouns carry; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, m, n, l]
+  common: [p, s, w, j, h]
+  uncommon: ["tʃ", "ʃ", "tɬ"]
+  rare: ["ʔ"]
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [e, o]
+  uncommon: ["aː", "iː"]
+  rare: ["eː", "oː"]

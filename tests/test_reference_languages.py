@@ -919,6 +919,8 @@ def test_most_profiles_leave_average_syllables_uncurated():
         "Vietnamese", "Cantonese", "Tibetan",
         "Thai", "Indonesian", "Malay",
         "Swahili", "Zulu", "Yoruba",
+        "Arawakan", "Pama-Nyungan", "Bengali", "Georgian",
+        "Hawaiian", "Nahuatl", "Quechua", "Xhosa",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -967,6 +969,7 @@ _PERFECTED_LANGUAGES = (
     "Korean", "Mongolian",
     "Vietnamese", "Cantonese",
     "Thai", "Indonesian", "Malay",
+    "Bengali", "Georgian", "Quechua",
     # Tamil, Mandarin, Japanese, and Tibetan are deliberately left out of
     # this list too, for the exact same "sonorant" coda_profile reason as
     # Italian above -- checked separately. Swahili, Zulu, and Yoruba are
@@ -1018,7 +1021,7 @@ def test_english_ð_is_onset_rare_despite_high_token_frequency():
 
 def test_non_perfected_profiles_leave_frequency_tiers_uncurated():
     for profile in REFERENCE_LANGUAGES:
-        if profile.name not in _PERFECTED_LANGUAGES and profile.name not in ("Italian", "Tamil", "Mandarin", "Japanese", "Tibetan", "Swahili", "Zulu", "Yoruba"):
+        if profile.name not in _PERFECTED_LANGUAGES and profile.name not in ("Italian", "Tamil", "Mandarin", "Japanese", "Tibetan", "Swahili", "Zulu", "Yoruba", "Arawakan", "Pama-Nyungan", "Nahuatl", "Hawaiian", "Xhosa"):
             assert profile.onset_frequency_tiers == {}
             assert profile.nucleus_frequency_tiers == {}
             assert profile.coda_frequency_tiers == {}
@@ -1100,11 +1103,11 @@ def test_tibetan_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols()
     assert tibetan.coda_frequency_tiers == {}
 
 
-def _assert_onset_nucleus_only(name: str):
-    # Same "coda_profile: none" situation for all three of this batch's
-    # profiles -- no native syllable ever closes, so coda_frequency_tiers
-    # stays empty outright, same shape as the "sonorant" exceptions
-    # above but with an even narrower (in fact empty) true legal coda set.
+def _assert_onset_nucleus_only(name: str, coda_profile: str = "none"):
+    # "none" (no native syllable ever closes) or "sonorant" (the true
+    # legal coda set, after the engine's own sonority filter, is
+    # narrower than this test's own naive consonants-minus-restricted
+    # computation) -- either way coda_frequency_tiers stays uncurated.
     profile = next(p for p in REFERENCE_LANGUAGES if p.name == name)
     for position, field in (
         ("onset", profile.onset_frequency_tiers),
@@ -1115,7 +1118,7 @@ def _assert_onset_nucleus_only(name: str):
         assert len(tiered) == len(set(tiered)), position
         assert set(tiered) == _legal_symbols(profile, position), position
     assert profile.coda_frequency_tiers == {}
-    assert profile.coda_profile == "none"
+    assert profile.coda_profile == coda_profile
 
 
 def test_swahili_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
@@ -1224,6 +1227,125 @@ def test_yoruba_j_y_swap_and_subdot_vowels_romanize_correctly():
     assert scheme.apply("ʃ") == "ṣ"
     assert scheme.apply("ɛ") == "ẹ"
     assert scheme.apply("ɔ") == "ọ"
+
+
+def test_arawakan_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    _assert_onset_nucleus_only("Arawakan", coda_profile="sonorant")
+
+
+def test_arawakan_declares_the_real_narrow_coda_set_and_the_real_sixth_vowel():
+    # Real attested Lokono/Garifuna finals are essentially just /m n/,
+    # narrower than the generic "sonorant" sonority filter (which would
+    # also legalize l/r/w/j) -- and the real 6th vowel is /ɨ/, not the
+    # schwa this profile previously modeled.
+    arawakan = next(p for p in REFERENCE_LANGUAGES if p.name == "Arawakan")
+    legal_codas = set(arawakan.consonants) - set(arawakan.restricted_coda_consonants)
+    assert legal_codas & {"m", "n"} == {"m", "n"}
+    assert legal_codas & {"l", "r", "w", "j"} == set()
+    assert "ɨ" in arawakan.vowels
+    assert "ə" not in arawakan.vowels
+    assert arawakan.stress_pattern == ""  # genuinely disputed across sources -- deliberately left uncurated rather than guessed
+
+
+def test_pama_nyungan_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    _assert_onset_nucleus_only("Pama-Nyungan", coda_profile="sonorant")
+
+
+def test_pama_nyungan_restricts_the_real_onset_initial_consonants():
+    # One of the most-cited Australianist generalizations (Dixon 1980):
+    # no Australian language has word-initial /ŋ/, and initial rhotics
+    # and /l/ are likewise systematically rare to absent.
+    pama_nyungan = next(p for p in REFERENCE_LANGUAGES if p.name == "Pama-Nyungan")
+    assert {"ŋ", "r", "ɾ", "l"} <= set(pama_nyungan.restricted_onset_consonants)
+    assert pama_nyungan.stress_pattern == "initial"
+    assert {"aː", "iː", "uː"} <= set(pama_nyungan.vowels)
+
+
+def test_bengali_declares_the_real_aspirate_coda_restriction_and_loan_clusters():
+    bengali = next(p for p in REFERENCE_LANGUAGES if p.name == "Bengali")
+    legal_codas = set(bengali.consonants) - set(bengali.restricted_coda_consonants)
+    assert legal_codas & {"pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ"} == set()
+    assert ("p", "r") in bengali.attested_onset_clusters
+    assert bengali.stress_pattern == "initial"
+
+
+def test_georgian_declares_real_extreme_initial_clusters_and_disputed_stress():
+    georgian = next(p for p in REFERENCE_LANGUAGES if p.name == "Georgian")
+    assert {("m", "d"), ("s", "x")} <= set(georgian.attested_onset_clusters)
+    assert georgian.restricted_coda_consonants == ()  # purely a structural cap (max_coda), not a featural restriction
+    assert georgian.stress_pattern == "lexical"
+    assert georgian.stress_deviation_rate is not None and georgian.stress_deviation_rate > 0.4
+
+
+def test_hawaiian_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    _assert_onset_nucleus_only("Hawaiian", coda_profile="none")
+
+
+def test_hawaiian_declares_real_phonemic_vowel_length_with_macron_spelling():
+    hawaiian = next(p for p in REFERENCE_LANGUAGES if p.name == "Hawaiian")
+    assert {"aː", "iː", "uː", "eː", "oː"} <= set(hawaiian.vowels)
+    inventory = _inventory_for(hawaiian)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Hawaiian",),
+        requested_orthography_style=hawaiian.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("aː") == "ā"
+    assert scheme.apply("ʔ") == "ʻ"
+    assert hawaiian.stress_pattern == "lexical"  # weight-sensitive, not a flat position
+
+
+def test_nahuatl_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    _assert_onset_nucleus_only("Nahuatl", coda_profile="sonorant")
+
+
+def test_nahuatl_narrows_the_sonorant_coda_set_and_declares_penultimate_stress():
+    # The generic "sonorant" filter would also legalize m/n as codas --
+    # real Classical Nahuatl codas are narrower, restricted to /l w j ʔ/.
+    nahuatl = next(p for p in REFERENCE_LANGUAGES if p.name == "Nahuatl")
+    legal_codas = set(nahuatl.consonants) - set(nahuatl.restricted_coda_consonants)
+    assert legal_codas & {"m", "n"} == set()
+    assert legal_codas & {"l", "w", "j", "ʔ"} == {"l", "w", "j", "ʔ"}
+    assert nahuatl.stress_pattern == "penultimate"
+
+
+def test_quechua_declares_the_real_ejective_aspirated_onset_only_restriction():
+    quechua = next(p for p in REFERENCE_LANGUAGES if p.name == "Quechua")
+    legal_codas = set(quechua.consonants) - set(quechua.restricted_coda_consonants)
+    assert legal_codas & {"pʼ", "tʼ", "kʼ", "pʰ", "tʰ", "kʰ"} == set()
+    assert "p" in legal_codas  # the plain series, unlike ejective/aspirated, freely closes a syllable
+    assert quechua.stress_pattern == "penultimate"
+
+
+def test_xhosa_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    _assert_onset_nucleus_only("Xhosa", coda_profile="none")
+
+
+def test_xhosa_matches_zulus_real_open_syllable_canon_and_tone_and_clicks():
+    # Corrected from coda_profile: sonorant -- Xhosa (Zulu's closest
+    # sister) shares the same real Bantu-wide open-syllable canon.
+    xhosa = next(p for p in REFERENCE_LANGUAGES if p.name == "Xhosa")
+    assert xhosa.tone_level_count == 2
+    assert "ǂ" not in xhosa.consonants  # no standard Nguni letter for this click, dropped to match Zulu's own choice
+    assert {"ǀʰ", "ɡǀ", "ŋǀ"} <= set(xhosa.consonants)  # a full click-accompaniment series exists for at least one place
+    inventory = _inventory_for(xhosa)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Xhosa",),
+        requested_orthography_style=xhosa.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("ǁ") == "x"
+    assert scheme.apply("ɡǃ") == "gq"
+    assert scheme.apply("ŋǁ") == "nx"
+
+
+def test_the_eight_completed_stub_profiles_declare_a_real_average_syllable_count():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in ("Arawakan", "Pama-Nyungan", "Bengali", "Georgian", "Hawaiian", "Nahuatl", "Quechua", "Xhosa"):
+        assert by_name[name].core_vocabulary_average_syllables is not None
+    # Real, near-exceptionless Australianist fact: no monosyllabic
+    # content words at all -- Pama-Nyungan's own hand count should sit
+    # well above every disyllabic-leaning language in this same batch.
+    assert by_name["Pama-Nyungan"].core_vocabulary_average_syllables > by_name["Bengali"].core_vocabulary_average_syllables
+    assert by_name["Pama-Nyungan"].core_vocabulary_average_syllables > by_name["Georgian"].core_vocabulary_average_syllables
 
 
 # --- Probabilistic, richer French/English romanization ---
@@ -1681,13 +1803,18 @@ def test_most_profiles_leave_stress_pattern_uncurated():
         "Mongolian",
         "Indonesian", "Malay",
         "Swahili",
+        "Pama-Nyungan", "Bengali", "Georgian", "Nahuatl", "Quechua", "Hawaiian",
         # Mandarin, Japanese, Korean, Vietnamese, Cantonese, Thai,
         # Tibetan, Zulu, and Yoruba deliberately don't curate stress --
         # each tonal profile's real prosodic axis is its own tone system
         # (already `tonal: true`); Japanese's is its own positional
         # pitch accent (curated separately, see word_accent below);
         # Korean genuinely has neither stress nor tone in the standard
-        # dialect.
+        # dialect. Arawakan and Xhosa also deliberately don't curate
+        # stress -- Arawakan's own real prosody is a genuine, disputed
+        # question across sources this profile can't responsibly pick a
+        # side on (see its own comment); Xhosa, like Zulu, has no
+        # independent stress system at all, tone governs prominence.
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:

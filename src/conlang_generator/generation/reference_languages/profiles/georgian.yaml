@@ -4,7 +4,33 @@ vowels: [i, a, u, e, o]
 coda_profile: unrestricted
 max_onset: 2
 max_coda: 1  # real Georgian's famous multi-consonant sequences (up to 5-6 members) are word/stem-*initial* onsets -- underived words have no coda clusters at all
+# No restricted_coda_consonants: real Georgian's own coda restriction is
+# purely structural (never more than one consonant), not featural --
+# essentially any of this profile's own consonants can close a
+# syllable, unlike e.g. this batch's own Bengali or Quechua, where a
+# specific series (aspirated/ejective) is coda-restricted by *identity*.
+attested_onset_clusters:
+  # Real, famous, well-documented Georgian initial clusters (Aronson;
+  # Butskhrikidze) -- illustrative, not exhaustive, restricted to
+  # 2-member combinations this profile's own modeled phonemes can
+  # express. mdivani "secretary" (m,d); real material behind gvbrdgvni-
+  # type words (g,v); sxva "other" (s,x); mtieri-type "mountain-
+  # dweller" material (m,t); brma "blind" (b,r); tqven "you(pl)" (t,k,
+  # approximating the real uvular-adjacent tq).
+  - [m, d]
+  - [g, v]
+  - [s, x]
+  - [m, t]
+  - [b, r]
+  - [t, k]
 tonal: false
+stress_pattern: lexical
+stress_deviation_rate: 0.48  # illustrative -- Georgian stress is a genuine, live dispute over whether it's even phonetically real at all (Aronson describes it as barely perceptible; others argue prominence is purely phrase-level/intonational), modeled the same "disputed, no simple flat rule" way this project's own Indonesian profile already is, at a comparably high rate
+# Real, genuinely distinctive fact that stays out of scope rather than
+# modeled: Georgian's own native script (Mkhedruli) has no uppercase/
+# lowercase distinction at all -- but that's a fact about Georgian's own
+# writing system, not about this project's Latin romanization output,
+# which uses case normally regardless. Real but not applicable here.
 orthography_category: digraph-style
 orthography:
   # The real Georgian National System's apostrophe-for-ejectives
@@ -17,3 +43,19 @@ orthography:
   - {ipa: "kʼ", latin: "k'"}
   - {ipa: "tʃ", latin: ch}
   - {ipa: "dʒ", latin: j}
+core_vocabulary_average_syllables: 1.85  # hand-counted across this project's own CORE_MEANINGS glosses (deda "mother"=2, ertʼi "one"=2, mta "mountain"=1, kheli "hand"=2, tvali "eye"=2) -- monosyllabic-to-disyllabic-leaning, roughly comparable to this project's own Hindi/Indonesian territory rather than the very short Sino-Tibetan/Thai end; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [m, t, k, s, d, r]
+  common: [p, b, g, n, l, v, j]
+  uncommon: ["tʃ", "dʒ", "ʃ", x, z, "ʒ", w]
+  rare: ["pʼ", "tʼ", "kʼ", q]
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [u, e]
+  uncommon: [o]
+  rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has
+coda_frequency_tiers:
+  very_common: [n, t, r, s]
+  common: [m, k, l, d, v]
+  uncommon: [b, g, z, "ʃ", j]
+  rare: [p, "tʃ", "dʒ", "pʼ", "tʼ", "kʼ", q, x, "ʒ", w]

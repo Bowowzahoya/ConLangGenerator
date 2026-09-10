@@ -7,10 +7,47 @@ name: Arawakan
 # family specifically.
 aliases: [garifuna, lokono]
 consonants: [p, b, t, d, k, "tʃ", f, s, h, m, n, l, r, w, j]
-vowels: [a, e, i, o, u, "ə"]
+vowels: [a, e, i, o, u, "ɨ"]
+# The 6th vowel here was previously modeled as schwa ("ə") -- real
+# Garifuna/Lokono sources (Taylor, Munro, Haurholm-Larsen 2016) analyze
+# it as a high central unrounded vowel /ɨ/ instead, spelled "ü" in the
+# real standard Belize/Honduras practical orthography -- corrected here
+# rather than left as a schwa-suggestive approximation.
 coda_profile: sonorant
 max_onset: 1
+restricted_coda_consonants: [l, r, w, j]
+# Real attested word-final consonants in both Lokono (Pet 2011) and
+# Garifuna (Taylor 1977) are overwhelmingly just /m n/ -- /l r w j/
+# closing a syllable isn't well attested for either language, despite
+# all four being sonority-legal codas under the generic "sonorant"
+# profile. No native onset or coda clusters are documented for either
+# language; clusters that do appear are contact-vocabulary loans
+# (Spanish/English/French-Creole), not a native pattern.
 tonal: false
+# Real Arawakan-family prosody is a genuine, unresolved question across
+# sources this profile can't responsibly pick a side on: recent work
+# (Haurholm-Larsen 2016) re-analyzes Garifuna prosody as a lexical
+# pitch-accent system (structurally closer to this project's own
+# Japanese profile than to ordinary stress), while older descriptions
+# (Taylor 1977) describe looser, exception-riddled "stress," and Lokono
+# is separately described as more simply penultimate (Pet). Given this
+# family's own already-acknowledged thinner documentation base,
+# stress_pattern stays deliberately uncurated rather than guessing
+# which source to follow -- the same "abstain when the evidence doesn't
+# support confident curation" honesty this project's other axes already
+# practice.
 orthography_category: monoletter-style
 orthography:
   - {ipa: "tʃ", latin: ch}
+  - {ipa: "ɨ", latin: "ü"}
+core_vocabulary_average_syllables: 2.2  # hand-counted across this project's own CORE_MEANINGS glosses, informed by real attested basics (tuna "water"=2, aban "one"=2, biama "two"=3, wügüri "person"=3) rather than a full primary wordlist -- illustrative, with meaningfully more counting uncertainty than even the other newly-added profiles, given this family's own thinner documentation base
+onset_frequency_tiers:
+  very_common: [m, n, w, j, t, k]
+  common: [p, b, d, s, l, r]
+  uncommon: ["tʃ", f]
+  rare: [h]
+nucleus_frequency_tiers:
+  very_common: [a, i, u]
+  common: [e, o]
+  uncommon: ["ɨ"]
+  rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has

@@ -9,10 +9,27 @@ name: Pama-Nyungan
 # about this family, not a simplification of convenience.
 aliases: [pitjantjatjara, western desert, aboriginal]
 consonants: [p, t, "ʈ", c, k, m, n, "ɳ", "ɲ", "ŋ", l, r, "ɾ", w, j]
-vowels: [a, i, u]
+vowels: [a, i, u, "aː", "iː", "uː"]
+# Real contrastive vowel length exists across Western Desert varieties,
+# spelled with a doubled letter (aa/ii/uu) in real practical
+# orthographies -- see the length rules below.
 coda_profile: sonorant
 max_onset: 1
+restricted_onset_consonants: ["ŋ", r, "ɾ", l, "ʈ", "ɳ"]
+# One of the most-cited generalizations in Australianist phonology
+# (Dixon 1980): no Australian language has word-initial /ŋ/, and
+# initial /r/-type rhotics and /l/ are likewise systematically rare to
+# absent. A second, moderately-well-cited fact (general Australianist
+# consensus): the apical retroflex/alveolar contrast (ʈ/ɳ vs. plain
+# t/n) neutralizes word-initially in many Western Desert-type
+# languages, unlike medially -- so ʈ/ɳ are restricted from onset here
+# too, though with somewhat lower confidence than the ŋ/r/ɾ/l facts.
+# No native onset or coda clusters are documented -- real clusters in
+# this family are medial/heterosyllabic only (homorganic nasal+stop,
+# lateral+stop), never word-initial or word-final.
 tonal: false
+stress_pattern: initial
+stress_deviation_rate: 0.05  # illustrative -- Goddard (1985) and the general Pama-Nyungan literature describe reliable word-initial stress, one of the more solid, low-controversy facts available for this family, the same "famously rigid" territory as Finnish/Hungarian's own initial stress
 orthography_category: monoletter-style
 orthography:
   # Real conventions common to practical orthographies for this
@@ -24,3 +41,18 @@ orthography:
   - {ipa: "ɲ", latin: ny}
   - {ipa: "ŋ", latin: ng}
   - {ipa: "ɾ", latin: rr}
+  # Real doubled-letter vowel-length spelling.
+  - {ipa: "aː", latin: aa}
+  - {ipa: "iː", latin: ii}
+  - {ipa: "uː", latin: uu}
+core_vocabulary_average_syllables: 2.55  # hand-counted across this project's own CORE_MEANINGS glosses, informed by real attested basics (kapi "water"=2, kutjara "two"=3, anangu "person"=3) -- real Australian languages are famously described (Dixon 1980) as having no monosyllabic content words at all, a near-exceptionless typological fact; this project's own word-length model only biases toward an average rather than enforcing a hard floor, so an occasional monosyllabic output stays a real, below-this-project's-modeled-granularity gap, the same status several other real facts elsewhere in this batch get
+onset_frequency_tiers:
+  very_common: [p, t, k, m, n]
+  common: [w, j, c]
+  uncommon: ["ɲ"]
+  rare: []  # ŋ/r/ɾ/l/ʈ/ɳ, this position's only other candidates, are excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that tier
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [u, "aː"]
+  uncommon: ["iː", "uː"]
+  rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has

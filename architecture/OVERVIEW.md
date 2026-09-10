@@ -2075,3 +2075,112 @@ reading code or one-off ad hoc scripts.
     "checked separately, not `_PERFECTED_LANGUAGES`" exception list
     rather than being added to it, with their own dedicated tests
     mirroring Hawaiian's own pre-existing `coda_profile: none` stub.
+- **The eight-stub-completion batch** brought the last 8 bare-stub
+  profiles (Arawakan, Bengali, Georgian, Hawaiian, Nahuatl, Pama-
+  Nyungan, Quechua, Xhosa) to full curation depth, finishing the full
+  set of 45 reference profiles. Unlike every recent batch, this one
+  needed **zero new phonemes and zero new architecture** -- every real
+  fact research surfaced was already expressible with existing pool
+  symbols and existing `core/romanization.py` mechanisms, confirmed
+  before starting so no `phonology_gen.py`/`romanization_gen.py` changes
+  were needed at all. Purely YAML-level curation, the same shape of
+  work as every prior batch's own phonotactics/word-length/frequency-
+  tier pass, across 8 files at once.
+  - Two profiles also got a small, well-grounded *correction* to a
+    stale simplification, the same shape as Vietnamese/Cantonese's own
+    coda-cluster bug or Indonesian's own stale-alias fix in earlier
+    batches. **Arawakan**'s 6th vowel was modeled as schwa ("ə"); real
+    Garifuna/Lokono sources (Taylor, Munro, Haurholm-Larsen 2016)
+    analyze it as `/ɨ/` (high central unrounded, spelled "ü") --
+    corrected using the pool's own pre-existing `ɨ` symbol. **Xhosa**'s
+    `coda_profile: sonorant` predated this session's own Zulu work;
+    Zulu (Xhosa's closest sister, same real Bantu-wide open-syllable
+    canon) was correctly curated as `coda_profile: none` two batches
+    ago, and research confirmed Xhosa should match -- also gaining the
+    same real click-accompaniment series (aspirated/voiced-depressor/
+    nasalized) Zulu's own profile introduced to the shared pool, using
+    those exact already-existing symbols, plus `tone_level_count: 2`
+    (same real 2-level H/L register Zulu already has) and a switch from
+    `monoletter-style` to `digraph-style` for the same real reason
+    Zulu's own profile already made that call (the aspirated series
+    needs a genuine h-suffix digraph convention monoletter-style's own
+    generic default would collapse). Xhosa's own existing 2-way plain
+    stop series (distinct from Zulu's own real 3-way plain/aspirated/
+    breathy system) stayed unchanged -- research didn't confirm Xhosa's
+    stops work identically to Zulu's, so this wasn't force-matched.
+  - Real, citable coda restrictions newly curated: **Bengali**'s
+    aspirated/breathy series (`pʰ tʰ kʰ bʱ dʱ ɡʱ`) essentially never
+    closes a native syllable; **Quechua**'s ejective/aspirated series
+    (`pʼ tʼ kʼ pʰ tʰ kʰ`) is onset-only, composing with its own already-
+    curated `max_coda: 1`; **Arawakan**'s real attested finals are
+    narrower than the generic "sonorant" sonority filter would allow
+    (just `/m n/`, not `/l r w j/` too); **Nahuatl**'s own real coda set
+    is `/l w j ʔ/` specifically, narrower than sonority alone would
+    give (excluding the nasals `/m n/`, which the generic filter would
+    otherwise legalize). **Georgian** was confirmed to need no coda
+    restriction beyond its own already-curated `max_coda: 1` -- a real
+    asymmetry worth documenting: Georgian's coda restriction is purely
+    structural (never more than one consonant), not featural (which
+    consonants), unlike Bengali/Quechua/Arawakan/Nahuatl's own identity-
+    based restrictions.
+  - Real, citable onset facts: **Georgian**'s own famous extreme
+    initial clusters get an illustrative `attested_onset_clusters` set
+    drawn from real words (mdivani, sxva, mtieri-type material);
+    **Bengali**'s real onset clusters are Sanskrit-loan (tatsama)
+    material only, the same "loanword-derived, biasing not exhaustive"
+    shape this project's own Hindi profile already models. **Pama-
+    Nyungan** gained a real, well-documented, near-exceptionless
+    Australianist restriction (Dixon 1980): no Australian language has
+    word-initial `/ŋ/`, and initial rhotics/`/l/` and the apical
+    retroflex/alveolar contrast are likewise restricted or neutralized
+    onset-initially -- curated via `restricted_onset_consonants`, the
+    first profile in this batch to restrict onset rather than coda.
+  - **Hawaiian** had a real, major gap: one of the most-cited phonemic-
+    vowel-length languages in introductory linguistics, previously
+    curated with none at all. The shared long-vowel pool (`aː iː uː eː
+    oː`) already covered exactly Hawaiian's own five long vowels -- just
+    added to its vowel list with the same real macron spelling
+    convention (`ā ī ū ē ō`) already curated for Nahuatl. Its own real
+    stress is weight-sensitive (a long vowel/diphthong reliably attracts
+    it) rather than a flat position, modeled as `stress_pattern:
+    lexical`, the same "quantity-sensitive, no flat rule" shape Arabic/
+    Hindi already use, at a lower deviation rate since Hawaiian's own
+    weight-sensitivity is more mechanically regular. **Pama-Nyungan**
+    also gained real contrastive vowel length (`aː iː uː`), spelled with
+    the real doubled-letter convention (aa/ii/uu) actual Western Desert
+    practical orthographies use.
+  - Real, reliable stress facts newly curated: **Bengali**'s fixed
+    word-initial stress (more reliable than Hindi's own quantity-
+    sensitive system -- genuine consensus, not a live dispute);
+    **Pama-Nyungan**'s reliable word-initial stress (Goddard 1985), the
+    same "famously rigid" territory as Finnish/Hungarian; **Nahuatl**'s
+    and **Quechua**'s own real, famous, near-fixed penultimate stress.
+    **Georgian**'s own stress is a genuine, live dispute over whether
+    it's even phonetically real at all -- modeled the same "disputed, no
+    simple flat rule" way this project's own Indonesian profile already
+    is. **Arawakan**'s own real prosody is a genuine, unresolved
+    question across sources (recent work re-analyzes Garifuna as a
+    lexical pitch-accent system, closer to this project's own Japanese
+    profile than to ordinary stress, while older sources describe
+    looser "stress" and Lokono is separately described as more simply
+    penultimate) -- given this family's own already-acknowledged
+    thinner documentation base, `stress_pattern` stays deliberately
+    uncurated rather than guessing which source to follow, the same
+    "abstain when the evidence doesn't support confident curation"
+    honesty this project's other axes already practice.
+  - Word length counted at the *word* level, citation form where a real
+    obligatory affix exists (Nahuatl's own absolutive suffix, Xhosa's
+    own noun-class prefix): Bengali (1.67, close to but a bit above this
+    project's own Hindi figure), Georgian (1.85), Quechua (2.05),
+    Nahuatl (2.15), Xhosa (2.18, close to but not identical to Zulu's
+    own 2.22), Arawakan (~2.2, flagged with meaningfully more counting
+    uncertainty than even the other newly-added profiles given this
+    family's own thinner documentation base), Hawaiian (2.45, running
+    long for a real CV-only language with no clusters or codas ever),
+    and Pama-Nyungan (2.55) -- confirmed by a dedicated test to sit
+    above every other profile in this batch, reflecting the real, near-
+    exceptionless Australianist fact that content words are never
+    monosyllabic (this project's own word-length model only biases
+    toward an average rather than enforcing a hard floor, so this stays
+    a real, below-this-project's-modeled-granularity gap rather than a
+    guaranteed constraint).
