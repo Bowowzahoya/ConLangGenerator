@@ -3,6 +3,7 @@ consonants: [p, "pʰ", "pʼ", t, "tʰ", "tʼ", k, "kʰ", "kʼ", "tʃ", s, h, m, 
 vowels: [i, e, "ɛ", a, "ɔ", o, u, "ɯ"]
 coda_profile: unrestricted
 max_onset: 1
+max_coda: 1  # see the seven-consonant-rule comment below -- real Korean has no tautosyllabic coda clusters at all
 tonal: false
 orthography_category: digraph-style
 restricted_onset_consonants: ["ŋ"]  # real Korean /ŋ/ (ㅇ) is a null/zero marker word-initially, never a real onset -- only ever realized as /ŋ/ in coda position
@@ -14,10 +15,14 @@ restricted_coda_consonants: ["pʰ", "pʼ", "tʰ", "tʼ", "kʰ", "kʼ", "tʃ", s,
 # as codas at all (they form diphthong nuclei instead, not a coda
 # consonant). This leaves exactly the real 7-consonant surface coda
 # inventory legal: p, t, k, m, n, ŋ, l. No attested_onset_clusters/coda_clusters
-# -- max_onset: 1 is accurate (no tautosyllabic clusters; "double
-# batchim" -- e.g. ㄳ, ㄺ -- looks like a two-consonant coda in the
-# *script* but only one consonant ever surfaces phonetically, a
-# script/morphophonology artifact, not a real coda cluster).
+# -- max_onset: 1 and max_coda: 1 above are both accurate (no tautosyllabic
+# clusters in either position; "double batchim" -- e.g. ㄳ, ㄺ -- looks
+# like a two-consonant coda in the *script* but only one consonant ever
+# surfaces phonetically, a script/morphophonology artifact, not a real
+# coda cluster). max_coda: 1 now actually enforces this at the syllable-
+# structure level too -- the same retroactive fix Cantonese/Vietnamese's
+# own profiles needed once the coda-cluster roll gained the max_coda-
+# biased mechanism.
 #
 # Real standard Seoul Korean has neither phonemic word stress nor
 # lexical tone/pitch accent (unlike some non-standard dialects, e.g.

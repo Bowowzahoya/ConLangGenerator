@@ -659,6 +659,24 @@ def test_a_curated_max_coda_of_one_suppresses_coda_clusters_at_high_strictness()
     assert hits == 0
 
 
+def test_a_retroactively_curated_max_coda_of_one_suppresses_coda_clusters_too():
+    # Same confirmation as the Thai test above, but for a profile that
+    # predated ReferenceLanguageProfile.max_coda and only got it added
+    # retroactively (korean.yaml's own comment already asserted "no
+    # tautosyllabic clusters" in prose well before this field existed to
+    # actually enforce it -- confirm the retroactive fix closes that gap
+    # for real Korean's well-known seven-consonant-rule coda, not just
+    # for newly-added profiles like Thai's).
+    hits = 0
+    for seed in range(200):
+        traits = TraitProfile(source_languages=("Korean",), source_language_strictness=1.0)
+        spec = GenerationSpec(prompt="Korean", seed=seed, traits=traits, seed_examples=())
+        _, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        if structure.max_coda >= 2:
+            hits += 1
+    assert hits == 0
+
+
 def test_an_uncurated_max_coda_keeps_the_original_flat_baseline_rate():
     # A profile that doesn't curate max_coda (the common case for every
     # profile predating this field) must keep behaving exactly as it did

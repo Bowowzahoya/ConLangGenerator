@@ -4,6 +4,7 @@ consonants: [p, "pʰ", "pʼ", t, "tʰ", "tʼ", k, "kʰ", "kʼ", q, "tʃ", s, "ʃ
 vowels: [a, i, u]
 coda_profile: unrestricted
 max_onset: 1
+max_coda: 1  # real Quechua's syllable template is maximally (C)V(C) -- coda position never holds more than one consonant
 tonal: false
 orthography_category: diacritic-style
 orthography:

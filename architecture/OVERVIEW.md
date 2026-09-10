@@ -1928,3 +1928,42 @@ reading code or one-off ad hoc scripts.
     older `coda_profile: unrestricted` profiles (Korean, Mongolian,
     Hindi, Bengali, Georgian, etc.) for their own real coda-cluster
     facts is flagged as a follow-up, not done as part of this batch.
+- **The `max_coda` audit follow-up** went through the remaining 25
+  pre-existing `coda_profile: unrestricted` profiles for their own real
+  coda-cluster facts and curated `max_coda: 1` on six where real native
+  phonology has no genuine tautosyllabic coda cluster at all: Korean
+  (the "seven-consonant rule" coda already documented in its own
+  comments, predating this field), Finnish (native phonotactics cap
+  codas at one consonant; clusters are loanword-marginal at best),
+  Georgian (the language's famous multi-consonant sequences are
+  word/stem-*initial* onsets, not codas), Hebrew (the "segolate" noun
+  pattern historically broke up CVCC with epenthesis specifically to
+  avoid real coda clusters), Portuguese (codas restricted to a small
+  single-consonant set -- `s`/`z`/`ʃ`/`l`/`ɾ`/`ʁ`/`m`/`n` -- true
+  clusters essentially absent natively), and Quechua ((C)V(C) is the
+  real maximal syllable template). The other 19 (Arabic, Bengali,
+  Danish, Dutch, English, French, German, Hindi, Hungarian, Icelandic,
+  Mongolian, Norwegian, Persian, Polish, Russian, Serbo-Croatian,
+  Spanish, Swedish, Turkish) were left uncurated (abstain), for two
+  distinct real reasons rather than one: most (Danish, Dutch, English,
+  French, German, Hungarian, Icelandic, Mongolian, Norwegian, Persian,
+  Polish, Russian, Serbo-Croatian, Swedish) genuinely *do* have real
+  coda clusters (e.g. English "text", German "Herbst", Hungarian
+  "kert") and curating `max_coda: 2` wasn't judged necessary to fix the
+  specific bug this field targets (a language with *zero* real coda
+  clusters still getting a nonzero roll) -- leaving them uncurated
+  keeps the original flat ~30% baseline, a defensible default the
+  `max_coda` field's own docstring already sanctions. The rest (Arabic,
+  Bengali, Hindi, Turkish) are genuinely register-stratified: native/
+  core vocabulary avoids coda clusters but a highly productive loan or
+  formal register (Sanskrit tatsama for Hindi/Bengali, Arabic's own
+  pausal CVCC forms feeding Turkish borrowings) carries real ones too
+  well-established to call "no clusters," so neither `1` nor `2` would
+  honestly capture the mixed reality. Spanish was deliberately *not*
+  added to the `max_coda: 1` list despite surface similarity to
+  Portuguese/Quechua: `spanish.yaml` already curates real (if
+  marginal/learned-register) `attested_coda_clusters` -- `[s, t]`
+  ("estar"/"texto"), `[k, s]` ("extra"), `[n, s]` ("instante") --
+  predating this audit, and `max_coda: 1` would have silently
+  contradicted that existing, more specific curation rather than
+  refining it.

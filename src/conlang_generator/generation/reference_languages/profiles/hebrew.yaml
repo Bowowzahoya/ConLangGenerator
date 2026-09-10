@@ -4,6 +4,7 @@ consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", x, h, m, n, l, "ʁ", j, w, "ʔ"
 vowels: [a, e, i, o, u, "aː", "eː", "iː", "oː", "uː"]
 coda_profile: unrestricted
 max_onset: 1
+max_coda: 1  # see the segolate comment below -- real native Hebrew coda clusters are rare/avoided, not a productive modern pattern
 tonal: false
 root_and_pattern: true
 orthography_category: scholarly-macron-style
@@ -35,7 +36,10 @@ orthography:
 # historically broke up real CVCC coda clusters with an epenthetic vowel
 # specifically to avoid them (*malk > "melekh"), leaving genuine native
 # coda clusters comparatively rare in the modern core lexicon, unlike
-# Arabic's own real ones.
+# Arabic's own real ones. max_coda: 1 above now actually enforces this at
+# the syllable-structure level too -- the same retroactive fix Cantonese/
+# Vietnamese's own profiles needed once the coda-cluster roll gained the
+# max_coda-biased mechanism.
 core_vocabulary_average_syllables: 1.5  # hand-counted across this project's own CORE_MEANINGS glosses -- illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
 onset_frequency_tiers:
   very_common: [t, k, m, n, s, l, b, "ʁ"]

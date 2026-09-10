@@ -5,6 +5,7 @@ consonants: [p, t, k, "kː", "tː", "pː", d, m, n, "ŋ", s, "sː", h, l, "lː",
 vowels: [i, a, u, e, o, y, "ø", "æ", "aː", "eː", "iː", "oː", "uː", "æː", "øː", "yː", ai, au, ei]
 coda_profile: unrestricted
 max_onset: 1  # real Finnish: native words are essentially single-onset-consonant only; clusters are loanword-only
+max_coda: 1  # same real fact, coda-side: native Finnish phonotactics cap codas at one consonant -- genuine tautosyllabic coda clusters are loanword-marginal at best (e.g. "sfinksi"), not a native pattern
 tonal: false
 vowel_harmony: true
 orthography_category: gemination-style

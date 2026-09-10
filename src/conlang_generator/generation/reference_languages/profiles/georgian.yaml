@@ -3,6 +3,7 @@ consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "pʼ", "tʼ", "kʼ", q, m, n, s, "�
 vowels: [i, a, u, e, o]
 coda_profile: unrestricted
 max_onset: 2
+max_coda: 1  # real Georgian's famous multi-consonant sequences (up to 5-6 members) are word/stem-*initial* onsets -- underived words have no coda clusters at all
 tonal: false
 orthography_category: digraph-style
 orthography:

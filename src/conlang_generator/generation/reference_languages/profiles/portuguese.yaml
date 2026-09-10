@@ -4,6 +4,7 @@ consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ʒ", m, n, "ɲ", l, "lʲ", "ɾ
 vowels: [i, e, "ɛ", a, "ɔ", o, u, "ə", "ã", "ẽ", "ĩ", "õ", "ũ"]
 coda_profile: unrestricted
 max_onset: 2
+max_coda: 1  # see the coda-cluster comment below -- true coda clusters are essentially absent from native Portuguese vocabulary
 tonal: false
 orthography_category: diacritic-style
 attested_onset_clusters:
@@ -26,7 +27,10 @@ attested_onset_clusters:
 # coda *clusters* are essentially absent from native vocabulary --
 # attested_coda_clusters is left uncurated (abstain) for that real
 # reason, same "genuinely doesn't have this" honesty standard already
-# applied to word_accent for this profile.
+# applied to word_accent for this profile. max_coda: 1 above now actually
+# enforces the same real fact at the syllable-structure level, the same
+# retroactive fix Cantonese/Vietnamese's own profiles needed once the
+# coda-cluster roll gained the max_coda-biased mechanism.
 orthography:
   # Real Portuguese spelling conventions, restricted to symbols this
   # profile actually models -- illustrative, not a full account.
