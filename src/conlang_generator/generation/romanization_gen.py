@@ -200,10 +200,25 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # palatalization, the same convention this table already uses for
     # tʲ/dʲ above.
     "tɕ": "tsy", "dʑ": "dzy",
+    # Real Thai's own aspirated palatal affricate -- tɕ's own digraph
+    # ("tsy") plus the same capital-H aspiration suffix pʰ/tʰ/kʰ/tsʰ
+    # already use above.
+    "tɕʰ": "tsyH",
     # Long front-rounded/long-æ vowels -- each existing short symbol's
     # own digraph value (see above: "ae", "eu") plus the same trailing
     # colon aː/iː/etc. already use for length.
     "æː": "ae:", "øː": "eu:", "yː": "y:",
+    # Real Thai's own close-mid back unrounded vowel -- "oe" happens to
+    # also be the real RTGS spelling, though this table's own entry is
+    # just the generic ASCII fallback (Thai's own profile curates this
+    # directly rather than relying on it).
+    "ɤ": "oe",
+    # Thai's own remaining long-vowel qualities -- deliberately distinct
+    # combinations rather than each short counterpart's own digraph value
+    # plus colon (which would collide with the existing eː/oː/iː entries
+    # above), unlike the plain formula the other long vowels in this
+    # table use.
+    "ɛː": "ea:", "ɔː": "au:", "ɯː": "ii:", "ɤː": "oe:",
 }
 _DIACRITIC_TABLE: dict[str, str] = {
     "ʃ": "š", "ʒ": "ž", "tʃ": "č", "dʒ": "ǯ", "ŋ": "ṅ",
@@ -270,6 +285,10 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # precedent for "one Latin-Extended letter, no digraph" this style's
     # own promise wants, not an invented stand-in.
     "ts": "ʦ", "dz": "ʣ", "tɕ": "ʨ", "dʑ": "ʥ",
+    # Real Thai's own aspirated palatal affricate -- tɕ's own ligature
+    # plus the aspiration modifier letter, identity treatment matching
+    # pʰ/tʰ/kʰ/tsʰ above.
+    "tɕʰ": "ʨʰ",
     # Macron-marked long counterparts of æ/ø/y. "ǣ" is a real Old
     # English/Old Norse scholarly transliteration letter (U+01E3); "ȳ" is
     # a real Latin-transliteration macron-y (U+0233); "ø" has no
@@ -277,6 +296,16 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # plain letter with a combining macron instead (renders as one
     # visual grapheme, same as every other precomposed entry here).
     "æː": "ǣ", "øː": "ø̄", "yː": "ȳ",
+    # Real Thai's own close-mid back unrounded vowel -- no real
+    # transliteration convention borrows a specific letter for this one,
+    # so this stays identity (already a legitimate single Latin-Extended
+    # character), same treatment æ/ø/œ get above.
+    "ɤ": "ɤ",
+    # Thai's own remaining long-vowel qualities -- the bare IPA vowel
+    # letter plus a combining macron, the same "no precomposed letter
+    # exists" treatment øː gets above (real scholarly Thai transcription
+    # does write ɛ̄/ɔ̄ this way).
+    "ɛː": "ɛ̄", "ɔː": "ɔ̄", "ɯː": "ɯ̄", "ɤː": "ɤ̄",
 }
 # A "shallow"/phonemic system in the spirit of Finnish, Swahili, or
 # informal Georgian transliteration -- one ASCII letter per sound, even at
@@ -331,10 +360,21 @@ _MONOLETTER_TABLE: dict[str, str] = {
     # aggressive-merging philosophy as every other marked feature above
     # (real Polish/Hungarian precedent for "c" as the ts/tɕ merge point).
     "ts": "c", "dz": "z", "tɕ": "c", "dʑ": "z",
+    # Real Thai's own aspirated palatal affricate merges with its plain
+    # counterpart, same aggressive-merging treatment as ts/tɕ above.
+    "tɕʰ": "c",
     # Long front-rounded/long-æ vowels merge into their own short
     # counterparts' existing monoletter values, same "aː" -> "a" pattern
     # every other long vowel already uses here.
     "æː": "e", "øː": "o", "yː": "y",
+    # Real Thai's own close-mid back unrounded vowel -- merges with the
+    # closest already-used back-ish vowel letter, same "shallow style
+    # accepts merging" precedent every other marked feature here uses.
+    "ɤ": "o",
+    # Thai's own remaining long-vowel qualities merge into their own
+    # short counterparts' existing monoletter values, same pattern as
+    # aː/iː/uː/eː/oː above.
+    "ɛː": "e", "ɔː": "o", "ɯː": "i", "ɤː": "o",
 }
 
 # Digit/letter markers a postposed-tone category maps `core.phonology`'s
@@ -448,6 +488,14 @@ _SCHOLARLY_MACRON_GEMINATION_CATEGORY = OrthographyCategory(
     vowel_length_strategy=VowelLengthStrategy.MACRON,
     consonant_gemination_marked=True,
 )
+_RTGS_CATEGORY = OrthographyCategory(
+    name="rtgs-style",
+    description="Royal Thai General System-like: tone isn't written at all, and vowel length isn't marked either -- both axes this project already has (UNMARKED/NONE) but no other named category has ever actually combined until now.",
+    exotic_style=_DIGRAPH_TABLE,
+    exotic_symbol_style=ExoticSymbolStyle.DIGRAPH,
+    tone_strategy=ToneMarkingStrategy.UNMARKED,
+    vowel_length_strategy=VowelLengthStrategy.NONE,
+)
 _CATEGORIES = (
     _DIGRAPH_CATEGORY,
     _DIACRITIC_CATEGORY,
@@ -460,6 +508,7 @@ _CATEGORIES = (
     _PINYIN_CATEGORY,
     _SILENT_E_CATEGORY,
     _GEMINATION_CATEGORY,
+    _RTGS_CATEGORY,
 )
 _CATEGORIES_BY_NAME = {category.name: category for category in _CATEGORIES}
 ORTHOGRAPHY_STYLE_NAMES: tuple[str, ...] = tuple(_CATEGORIES_BY_NAME)

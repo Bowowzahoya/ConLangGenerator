@@ -116,7 +116,9 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
     # draws during word building -- see stress_gen.py -- shifting this
     # fixed seed's downstream results; re-found again against that same
     # seed=0 after the ts/dz/alveolo-palatal-affricate/long-vowel pool
-    # extension added new rng draws to consonant/vowel selection.)
+    # extension added new rng draws to consonant/vowel selection; re-found
+    # again against evolve seed=0 after the Thai/Indonesian/Malay batch's
+    # own new phoneme-pool content shifted downstream rng draws once more.)
     base = generate_language(
         "Dutch",
         GenerationSpec(
@@ -127,7 +129,7 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
         ),
         FakeLLMClient(),
     )
-    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=2)
+    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=0)
     x_rules = [r for r in evolved.romanization.rules if r.ipa == "x"]
     assert x_rules and all(r.latin == "ch" for r in x_rules)
 
@@ -188,11 +190,15 @@ def test_evolved_onset_clusters_stay_a_thinned_subset_of_the_sonority_legal_clos
     # Post-evolution recomputation must apply the same cluster thinning as
     # initial generation, not silently un-thin back to the full closure --
     # this is the exact consistency risk cluster-thinning could introduce
-    # if phonology_gen.py and sound_change.py ever drifted apart. Seed 2
+    # if phonology_gen.py and sound_change.py ever drifted apart. Seed 1
     # is picked because its base language actually rolls max_onset=2 (most
     # seeds don't, and evolution never re-rolls max_onset -- only its
     # cluster pool -- so a seed without it would make this test vacuous).
-    base = generate_language("Base", GenerationSpec(prompt="base", seed=2), FakeLLMClient())
+    # (Re-found against seed=1 after the Thai/Indonesian/Malay batch's own
+    # new phoneme-pool content shifted downstream rng draws enough that
+    # seed=2 stopped rolling max_onset=2 -- same "seed-shift from new
+    # content" pattern documented elsewhere in this project's history.)
+    base = generate_language("Base", GenerationSpec(prompt="base", seed=1), FakeLLMClient())
     assert base.syllable_structure.max_onset >= 2
     any_max_onset_2 = False
     for seed in range(30):
@@ -412,13 +418,13 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # even one whose own pronunciation didn't shift this run at all. Fixed
     # seed known to reform at least one word while its IPA stays
     # byte-identical to the base. (Re-found repeatedly as downstream rng
-    # draws shift -- most recently against seed=7 after the 6-level tone
-    # architecture changed the tonal-language branch's own draw sequence
-    # (a new `_TONE_LEVEL_SETS` entry, and `rng.choice` -> `rng.choices`
-    # for the now reference-biased selection), same "seed-shift from new
-    # content" pattern documented elsewhere in this project's history.)
+    # draws shift -- most recently against seed=2 after the Thai/
+    # Indonesian/Malay batch's own new phoneme-pool content (tɕʰ, ɤ, and
+    # the ɛː/ɔː/ɯː/ɤː long vowels) shifted downstream rng draws once more,
+    # same "seed-shift from new content" pattern documented elsewhere in
+    # this project's history.)
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=7)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=2)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)

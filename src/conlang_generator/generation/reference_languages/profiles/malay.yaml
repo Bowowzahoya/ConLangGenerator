@@ -1,0 +1,70 @@
+name: Malay
+aliases: ["bahasa melayu", malaysian]
+# Real, well-documented fact, not a curation shortcut: since the 1972
+# joint Malaysia-Indonesia spelling reform (Malaysia's own Ejaan Rumi
+# Baharu, alongside Indonesia's EYD), the phoneme-to-letter mapping
+# converged to be essentially identical to Indonesian's own (see
+# indonesian.yaml) -- same phonotactics, same coda restriction, same
+# digraph conventions, even the same real, unresolved academic dispute
+# over whether word stress is phonemic at all (Cohn 1989, Odé 1994 --
+# a language-family-level issue, not specific to either standard).
+# Differentiated here by its own independently hand-counted word length
+# (real word *choice* differs even where the spelling rules don't --
+# pokok vs Indonesian pohon "tree", haiwan vs hewan "animal", sejuk vs
+# dingin "cold", cakap vs bilang/kata "say") and its own aliases, not by
+# inventing a phonological difference that isn't actually there.
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, s, z, "ʃ", h, m, n, "ɲ", "ŋ", l, r, j, w]
+vowels: [i, e, "ə", a, o, u]
+coda_profile: unrestricted
+max_onset: 2
+tonal: false
+orthography_category: digraph-style
+restricted_coda_consonants: [b, d, g, "tʃ", "dʒ", f, z, "ʃ", "ɲ", j, w]
+# Same real coda facts as Indonesian's own profile -- native/settled
+# Malay codas restricted to roughly /p t k s m n ŋ l r h/, with word-
+# final /k/ commonly realized as [ʔ] in casual speech (tidak -> [tidaʔ]),
+# a phonetic detail below this project's modeled granularity.
+attested_onset_clusters:
+  # Same real fact as Indonesian's own profile -- essentially no native-
+  # root onset clusters, these are all loanword-derived (Sanskrit,
+  # Arabic, Portuguese, Dutch, English).
+  - [p, r]
+  - [t, r]
+  - [k, r]
+  - [b, l]
+  - [g, r]
+  - [s, p]
+  - [s, t]
+  - [s, k]
+stress_pattern: lexical
+stress_deviation_rate: 0.45  # same real, disputed-stress status as Indonesian's own profile -- see its own comment for the Cohn/Odé citation
+orthography:
+  # Post-1972 Ejaan Rumi Baharu -- the same real digraph conventions
+  # Indonesian's own EYD reform converged on the same year (see
+  # indonesian.yaml's own comment). Pre-reform British-Malaya spelling
+  # (real "ch" for today's c, English-style rather than Indonesian's own
+  # pre-reform Dutch-style "tj") is a diachronic aside, not modeled.
+  - {ipa: "tʃ", latin: c}
+  - {ipa: "dʒ", latin: j}
+  - {ipa: "ɲ", latin: ny}
+  - {ipa: "ŋ", latin: ng}
+  - {ipa: "ʃ", latin: sy}
+  - {ipa: "ə", latin: e}     # real Malay spells both /e/ and /ə/ with
+                              # the same letter "e", same real fact as
+                              # Indonesian's own orthography
+core_vocabulary_average_syllables: 2.02  # hand-counted across this project's own CORE_MEANINGS glosses, using Malay's own real word choices where they diverge from Indonesian's (pokok, haiwan, sejuk, cakap, awak...) -- lands at essentially the same figure as Indonesian's own count, itself the honest finding given the real shared Austronesian disyllabic-root typology, not a copy-paste; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, m, n, s, b, d]
+  common: [p, g, l, r, h, j, w]
+  uncommon: ["tʃ", "dʒ", "ɲ", "ŋ", z]
+  rare: [f, "ʃ"]
+nucleus_frequency_tiers:
+  very_common: [a, i, u]
+  common: [e, "ə"]
+  uncommon: [o]
+  rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has
+coda_frequency_tiers:
+  very_common: [n, k, t]
+  common: [s, m, "ŋ", r]
+  uncommon: [p, l]
+  rare: [h]

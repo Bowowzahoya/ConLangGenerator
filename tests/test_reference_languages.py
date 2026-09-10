@@ -734,6 +734,109 @@ def test_tibetan_declares_its_own_coda_restriction():
     assert {"w", "j"} <= set(tibetan.restricted_coda_consonants)
 
 
+def test_thai_indonesian_malay_declare_a_real_average_syllable_count():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in ("Thai", "Indonesian", "Malay"):
+        assert by_name[name].core_vocabulary_average_syllables is not None
+    # Real Austronesian disyllabic-root typology (Indonesian/Malay) vs.
+    # Thai's own strongly monosyllabic-leaning lexicon -- a genuine,
+    # citable word-length contrast, not just noise between two
+    # independent hand counts.
+    assert by_name["Indonesian"].core_vocabulary_average_syllables > by_name["Thai"].core_vocabulary_average_syllables
+    assert by_name["Malay"].core_vocabulary_average_syllables > by_name["Thai"].core_vocabulary_average_syllables
+
+
+def test_thai_declares_its_own_five_tone_level_count():
+    # Real Thai's own 5 tones (mid/low/falling/high/rising) -- see
+    # phonology_gen.py's own new 5-level _TONE_LEVEL_SETS entry.
+    thai = next(p for p in REFERENCE_LANGUAGES if p.name == "Thai")
+    assert thai.tone_level_count == 5
+    assert thai.orthography_category == "rtgs-style"
+
+
+def test_thai_declares_the_real_three_way_stop_series_and_coda_restriction():
+    # Real Thai has no voiced velar /g/ -- the 3-way contrast (voiced/
+    # plain-voiceless/aspirated-voiceless) exists only at bilabial and
+    # dental. Real codas are restricted to exactly /p t k m n ŋ j w/ --
+    # neither /l/ nor /r/ closes a native syllable, and the whole 3-way
+    # onset contrast neutralizes (aspirated/voiced stops never appear in
+    # coda position).
+    thai = next(p for p in REFERENCE_LANGUAGES if p.name == "Thai")
+    assert "g" not in thai.consonants
+    legal_codas = set(thai.consonants) - set(thai.restricted_coda_consonants)
+    assert legal_codas == {"p", "t", "k", "m", "n", "ŋ", "j", "w"}
+    assert {"l", "r", "pʰ", "tʰ", "kʰ", "b", "d"} <= set(thai.restricted_coda_consonants)
+
+
+def test_thai_onset_clusters_are_the_real_native_set_with_no_tr():
+    # Real native Thai onset clusters always have r/l/w as the second
+    # member -- genuinely no native "tr" (loanword-only).
+    thai = next(p for p in REFERENCE_LANGUAGES if p.name == "Thai")
+    assert ("t", "r") not in thai.attested_onset_clusters
+    assert {("k", "r"), ("p", "r"), ("k", "w")} <= set(thai.attested_onset_clusters)
+
+
+def test_thai_rtgs_romanization_marks_neither_tone_nor_length_and_merges_real_ambiguities():
+    # Real RTGS: aspiration spelled with a trailing h, tɕ/tɕʰ collapse to
+    # the same "ch" spelling, ɔ/o collapse to the same "o" spelling, and
+    # a long vowel spells identically to its short counterpart (no length
+    # marking at all) -- all genuine, documented RTGS facts, not
+    # simplifications invented for this project.
+    thai = next(p for p in REFERENCE_LANGUAGES if p.name == "Thai")
+    inventory = _inventory_for(thai)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Thai",),
+        requested_orthography_style=thai.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("pʰ") == "ph"
+    assert scheme.apply("tɕ") == scheme.apply("tɕʰ") == "ch"
+    assert scheme.apply("ɔ") == scheme.apply("o") == "o"
+    assert scheme.apply("a") == scheme.apply("aː")
+    assert scheme.apply("ɛ") == scheme.apply("ɛː")
+    # No tone diacritic survives into the romanization at all.
+    from conlang_generator.core.phonology import TONE_DIACRITICS
+
+    for diacritic in TONE_DIACRITICS.values():
+        assert diacritic not in scheme.apply("a" + diacritic)
+
+
+def test_indonesian_and_malay_restrict_the_same_real_coda_set():
+    # Real native/settled Indonesian and Malay codas are both restricted
+    # to roughly /p t k s m n ŋ l r h/ -- voiced stops, affricates, and
+    # the loan fricatives never close a native syllable in either.
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in ("Indonesian", "Malay"):
+        profile = by_name[name]
+        legal_codas = set(profile.consonants) - set(profile.restricted_coda_consonants)
+        assert legal_codas == {"p", "t", "k", "s", "m", "n", "ŋ", "l", "r", "h"}
+
+
+def test_indonesian_and_malay_declare_the_same_real_disputed_stress():
+    # Real, unresolved academic dispute (Cohn 1989, Odé 1994) over
+    # whether Indonesian/Malay have phonemic word stress at all -- same
+    # "genuinely complex/disputed, no simple flat rule" modeling Hindi's
+    # own stress dispute already gets, with an even higher deviation
+    # rate reflecting the deeper uncertainty (whether the category exists
+    # at all, not just which rule best predicts it).
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in ("Indonesian", "Malay"):
+        profile = by_name[name]
+        assert profile.stress_pattern == "lexical"
+        assert profile.stress_deviation_rate is not None
+        assert profile.stress_deviation_rate > by_name["Hindi"].stress_deviation_rate
+
+
+def test_malay_has_its_own_profile_separate_from_indonesian():
+    # "malay"/"bahasa" used to be bare aliases on Indonesian's own
+    # profile -- a pre-existing conflation this batch corrects. Malay is
+    # now its own real profile, and Indonesian no longer claims its name.
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["Malay"] is not by_name["Indonesian"]
+    assert "malay" not in by_name["Indonesian"].aliases
+    matched = match_profiles(("malay",))
+    assert len(matched) == 1 and matched[0].name == "Malay"
+
+
 def test_arabic_source_language_biases_toward_root_and_pattern_and_fusional():
     def _rates(source_languages: tuple[str, ...]) -> tuple[float, float]:
         root_and_pattern_hits = 0
@@ -814,6 +917,7 @@ def test_most_profiles_leave_average_syllables_uncurated():
         "Hindi", "Tamil", "Persian",
         "Mandarin", "Japanese", "Korean", "Mongolian",
         "Vietnamese", "Cantonese", "Tibetan",
+        "Thai", "Indonesian", "Malay",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -861,6 +965,7 @@ _PERFECTED_LANGUAGES = (
     "Hindi", "Persian",
     "Korean", "Mongolian",
     "Vietnamese", "Cantonese",
+    "Thai", "Indonesian", "Malay",
     # Tamil, Mandarin, Japanese, and Tibetan are deliberately left out of
     # this list too, for the exact same "sonorant" coda_profile reason as
     # Italian above -- checked separately.
@@ -1444,8 +1549,10 @@ def test_most_profiles_leave_stress_pattern_uncurated():
         "Russian", "Portuguese", "Serbo-Croatian",
         "Hindi", "Tamil", "Persian",
         "Mongolian",
-        # Mandarin, Japanese, and Korean deliberately don't curate stress
-        # -- Mandarin's real prosodic axis is its tone system (already
+        "Indonesian", "Malay",
+        # Mandarin, Japanese, Korean, Vietnamese, Cantonese, Thai, and
+        # Tibetan deliberately don't curate stress -- each tonal
+        # profile's real prosodic axis is its own tone system (already
         # `tonal: true`); Japanese's is its own positional pitch accent
         # (curated separately, see word_accent below); Korean genuinely
         # has neither stress nor tone in the standard dialect.

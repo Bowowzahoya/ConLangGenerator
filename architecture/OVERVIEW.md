@@ -1796,3 +1796,107 @@ reading code or one-off ad hoc scripts.
     own naive computation sees" reasoning as Italian/Tamil/Mandarin/
     Japanese, so Tibetan stays out of `_PERFECTED_LANGUAGES` too, checked
     by its own dedicated test instead.
+- **The Thai/Indonesian/Malay batch** brought a ninth reference-profile
+  batch to full curation depth (Thai and Malay are brand-new profiles;
+  Indonesian previously had only a phoneme inventory + a handful of
+  orthography rules, no phonotactics/frequency tiers/word length).
+  Unlike the two prior batches, nothing here needed a new *architecture*
+  capability -- every piece was the same shape of per-profile curation
+  work (new phonemes filling out an existing pool pattern, a new named
+  `OrthographyCategory` composing already-general axes) this project has
+  done autonomously in every batch so far, so this one proceeded straight
+  from research to an approved plan with no `AskUserQuestion` gate.
+  - Real Thai's own tɕ/tɕʰ palatal affricate contrast added `tɕʰ` to
+    `phonology_gen.py`'s `_ASPIRATED_GROUP` (alongside the pre-existing
+    plain `tɕ`, already used by Polish/Serbo-Croatian's own ć), with
+    fallback spellings added to all three exotic romanization styles,
+    the same shape as `tsʰ`'s own addition last batch. Real Thai's own
+    9-quality vowel system x fully phonemic length (mit vs. miːt) needed
+    a new short vowel (`ɤ`, close-mid back unrounded -- the pool
+    previously had close-mid front/back rounded and close back unrounded
+    but not this one) and 4 new long vowels (`ɛː`/`ɔː`/`ɯː`/`ɤː`,
+    alongside the pre-existing `aː`/`iː`/`uː`/`eː`/`oː`), each sharing
+    its short counterpart's exact height/backness/rounded so
+    `romanization_gen._short_counterpart` (matches purely on those three
+    fields) pairs them up automatically -- zero new code on that side,
+    the same guarantee already documented for `æː`/`øː`/`yː`.
+  - A new named `OrthographyCategory`, `"rtgs-style"` (Royal Thai General
+    System), composes two axes that already existed in
+    `core/romanization.py` -- `ToneMarkingStrategy.UNMARKED` and
+    `VowelLengthStrategy.NONE` -- but had never actually been combined
+    into a named anchor or exercised by any real profile before now (both
+    were already implemented and unit-tested in isolation, just dormant
+    the same way `ToneLevel.RISING` was dormant before the 6-level tone
+    batch). No new enum members, no new `apply()` branches -- the exact
+    same "compose existing independent axes into a new named anchor"
+    shape `wade-giles-style`/`zhuang-style`/`pinyin-style` already are.
+    Because `vowel_length_strategy: NONE` means `_generate_length_rules`
+    generates nothing for a long vowel (it falls through to the generic
+    `exotic_style` table's own flat entry for that exact symbol, e.g. a
+    colon suffix -- not actually "unmarked"), `thai.yaml`'s own
+    orthography rules give each long vowel an *explicit* rule mapping it
+    to its short counterpart's own real RTGS spelling, achieving the
+    real "length simply isn't written" behavior precisely rather than
+    approximately.
+  - A new 5-level `_TONE_LEVEL_SETS` entry, `(LOW, MID, HIGH, RISING,
+    FALLING)` -- real Thai's own 5 tones (mid/low/falling/high/rising, a
+    register+contour system, historically split from an older 3-tone
+    system conditioned by onset-consonant voicing) map cleanly onto all
+    5 non-`DIPPING` `ToneLevel` members at once. Unlike `DIPPING` last
+    batch, this needed no new `ToneLevel` member or diacritic -- just a
+    new combination filling a real gap between the existing 4-level and
+    6-level sets. `tone_level_count: 5` on Thai's own profile drives the
+    existing reference-bias machinery (`_choose_tone_levels`, already
+    generic over set length) toward it for a Thai-biased run with zero
+    changes to that function itself.
+  - Real Thai facts curated directly: the 3-way stop series exists only
+    at bilabial/dental (no real /g/); real /ŋ/ genuinely opens a native
+    syllable (nguu "snake"), unlike Mandarin/Korean's own coda-only /ŋ/
+    from an earlier batch; codas restrict to exactly `/p t k m n ŋ j w/`
+    (neither /l/ nor /r/ ever closes a native syllable, and the whole
+    3-way onset contrast neutralizes in coda position -- real Thai
+    phonetically realizes coda stops as unreleased [p̚ t̚ k̚], a fact
+    left as a "below this project's modeled granularity" aside, the same
+    status the tone/onset-voicing historical link gets); onset clusters
+    restricted to the real native kr/khr/pr/phr/pl/phl/kl/khl/kw/khw set
+    (deliberately no native "tr"). RTGS's own two well-documented, often-
+    criticized real spelling ambiguities are curated as genuine facts,
+    not invented simplifications: `tɕ`/`tɕʰ` both spell "ch", and `ɔ`/`o`
+    both spell "o".
+  - Indonesian's stub had `malay`/`bahasa` as bare *aliases* on its own
+    profile -- a pre-existing conflation this batch corrects. Indonesian
+    and Malay are separately standardized languages (ISO `ind` vs `zsm`),
+    not a single pluricentric language the way this project's own
+    Serbo-Croatian profile deliberately stays unified, so Malay now has
+    its own real profile and Indonesian no longer claims its name.
+    Research confirmed the two are phonotactically/orthographically
+    near-identical today, a real, well-documented fact (the 1972 joint
+    Malaysia-Indonesia spelling reform converged both on the same
+    c/j/y/ny/sy/kh conventions) rather than a curation shortcut -- both
+    profiles share the same consonant/vowel inventory, the same real
+    coda restriction (`/p t k s m n ŋ l r h/`, voiced stops/affricates/
+    loan-fricatives never closing a native syllable), and the same
+    loanword-only onset clusters (pr/tr/kr/bl/gr/sp/st/sk -- native
+    Austronesian roots have no onset clusters at all), differentiated
+    only by independently hand-counted word length/frequency tiers and
+    each profile's own real aliases (`bahasa melayu`/`malaysian` for
+    Malay).
+  - Indonesian/Malay's `stress_pattern: lexical` models a genuine,
+    unresolved academic dispute (Cohn 1989, Odé 1994) over whether either
+    language has phonemic word stress at all, not just a "weak" one --
+    the same "genuinely complex, no simple flat rule" modeling shape
+    Hindi's own disputed stress already uses, with an even higher
+    `stress_deviation_rate` (0.45 vs. Hindi's 0.40) reflecting that the
+    dispute here is over whether the category exists at all.
+  - Word length counted at the *word* level: Thai (1.06) lands among the
+    most strongly monosyllabic-leaning of this project's curated
+    languages; Indonesian and Malay both land at 2.02, reflecting the
+    real Austronesian disyllabic-root typology (air, api, makan, satu,
+    dua) -- a genuine, citable word-length contrast with Thai, confirmed
+    by a dedicated test comparing the two hand counts directly rather
+    than just checking both are curated.
+  - All three use `coda_profile: unrestricted` (not `sonorant`), so all
+    three curate real `coda_frequency_tiers` and join
+    `_PERFECTED_LANGUAGES` outright -- unlike Tibetan/Tamil/Mandarin/
+    Japanese from earlier batches, no separate "onset/nucleus only" test
+    was needed for any of the three.

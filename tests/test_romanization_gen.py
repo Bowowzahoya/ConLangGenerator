@@ -512,6 +512,24 @@ def test_forced_style_reproduces_exact_axis_values_across_seeds():
         assert scheme.exotic_symbol_style == anchor.exotic_symbol_style
 
 
+def test_rtgs_style_marks_neither_tone_nor_vowel_length():
+    # The new rtgs-style category composes two axes (UNMARKED/NONE) that
+    # already existed but had never been combined into a named anchor
+    # before Thai -- confirm the combination actually holds, not just
+    # that the category is registered.
+    inventory = _dutch_flavored_inventory()
+    anchor = _CATEGORIES_BY_NAME["rtgs-style"]
+    assert anchor.tone_strategy == ToneMarkingStrategy.UNMARKED
+    assert anchor.vowel_length_strategy == VowelLengthStrategy.NONE
+    for seed in range(10):
+        scheme = generate_romanization(
+            random.Random(seed), inventory, forced_orthography=OrthographyForce(style="rtgs-style")
+        )
+        assert scheme.category_name == anchor.name
+        assert scheme.tone_strategy == ToneMarkingStrategy.UNMARKED
+        assert scheme.vowel_length_strategy == VowelLengthStrategy.NONE
+
+
 def test_forced_style_composes_with_a_forced_axis_override():
     # The motivating example: Dutch/German-style doubling forced together
     # with Wade-Giles-style postposed-digit tone marking -- a combination

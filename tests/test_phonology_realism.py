@@ -649,6 +649,31 @@ def test_tone_level_sets_richest_entry_covers_all_six_levels():
     assert len(richest) == 6
 
 
+def test_tone_level_sets_has_a_five_level_entry_with_no_dipping():
+    # Real Thai's own 5 tones (mid/low/falling/high/rising) map onto all
+    # 5 non-DIPPING ToneLevel members -- unlike the 6-level entry, this
+    # needed no new ToneLevel member, just a new combination of ones that
+    # already existed.
+    from conlang_generator.core.phonology import ToneLevel
+
+    five_level = next(levels for levels in phonology_gen._TONE_LEVEL_SETS if len(levels) == 5)
+    assert set(five_level) == set(ToneLevel) - {ToneLevel.DIPPING}
+
+
+def test_choose_tone_levels_biases_toward_a_five_tone_profile_too():
+    # Same reference-bias confirmation as the 6-level test below, but for
+    # Thai's own real tone_level_count=5 -- the new set is actually
+    # reachable via the bias mechanism, not just present in the tuple.
+    thai_like = _synthetic_profile("T", tone_level_count=5)
+    rng = random.Random(0)
+    hits = sum(
+        1
+        for _ in range(500)
+        if len(phonology_gen._choose_tone_levels(rng, (thai_like,), 1.0)) == 5
+    )
+    assert hits > 450
+
+
 def test_choose_tone_levels_with_no_reference_profiles_can_reach_every_set_length():
     # Unbiased baseline: over enough draws, every one of the existing
     # set lengths (2, 3, 4, 6) should turn up.

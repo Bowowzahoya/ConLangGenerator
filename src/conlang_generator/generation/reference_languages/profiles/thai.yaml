@@ -1,0 +1,103 @@
+name: Thai
+aliases: ["ภาษาไทย", siamese]
+consonants: [p, "pʰ", b, t, "tʰ", d, k, "kʰ", "ʔ", "tɕ", "tɕʰ", f, s, h, m, n, "ŋ", l, r, w, j]
+# Real Thai's own 3-way stop series exists only at bilabial and dental
+# (p/pʰ/b, t/tʰ/d) -- no real voiced /g/, velar is only k/kʰ. Real /ŋ/
+# genuinely opens a native syllable here (งู nguu "snake"), unlike
+# Mandarin/Korean's own coda-only /ŋ/ from an earlier batch.
+vowels: [i, e, "ɛ", a, "ɯ", "ɤ", u, o, "ɔ", "iː", "eː", "ɛː", "aː", "ɯː", "ɤː", "uː", "oː", "ɔː"]
+# Real Thai's own 9-quality vowel system x fully phonemic length (mit
+# vs. miːt) -- every quality has a real long counterpart, not just a
+# handful; see phonology_gen.py's own newly-added ɤ/ɛː/ɔː/ɯː/ɤː symbols.
+coda_profile: unrestricted
+max_onset: 2
+tonal: true
+tone_level_count: 5
+orthography_category: rtgs-style
+restricted_coda_consonants: ["pʰ", b, "tʰ", d, "kʰ", "ʔ", "tɕ", "tɕʰ", f, s, h, l, r]
+# Real Thai codas are restricted to exactly /p t k m n ŋ j w/ -- the
+# whole 3-way onset stop contrast neutralizes to unreleased, unaspirated
+# [p̚ t̚ k̚] in coda position (a real fact this project doesn't model at
+# the phonetic-realization level -- coda p/t/k stay spelled plainly,
+# same "real but below this project's modeled granularity" status the
+# historical tone/onset-voicing split below gets), and neither /l/ nor
+# /r/ ever closes a native syllable, unlike many of this project's other
+# curated languages.
+#
+# A real, genuinely distinctive fact stays deliberately unmodeled: Thai's
+# own 5 tones historically split from an older 3-tone system conditioned
+# by onset-consonant voicing -- exactly why the 3-way stop series and the
+# tone count are historically linked. This project's tone assignment has
+# no onset-voicing-awareness at all today; modeling that interaction
+# would be a separate, larger piece of architecture, the same "real but
+# not currently rule-capturable by the existing architecture" reasoning
+# that already keeps Vietnamese's own tone x coda restriction and
+# Mandarin's neutral tone out of scope.
+attested_onset_clusters:
+  # Real native Thai onset clusters -- second member always r/l/w.
+  # Genuinely no native "tr" (loanword-only, often reduced to plain t in
+  # casual speech).
+  - [k, r]
+  - ["kʰ", r]
+  - [p, r]
+  - ["pʰ", r]
+  - [p, l]
+  - ["pʰ", l]
+  - [k, l]
+  - ["kʰ", l]
+  - [k, w]
+  - ["kʰ", w]
+orthography:
+  # Real RTGS (Royal Thai General System of Transcription) conventions.
+  # The aspirated series is spelled with a trailing "h" -- ph/th/kh mean
+  # aspirated, not fricatives, unlike an English-reading naive guess.
+  - {ipa: "pʰ", latin: ph}
+  - {ipa: "tʰ", latin: th}
+  - {ipa: "kʰ", latin: kh}
+  # Real RTGS's own well-documented ambiguity: both the plain and
+  # aspirated palatal affricate spell identically as "ch" -- a genuine
+  # phonemic contrast RTGS simply doesn't distinguish in writing (the
+  # same real "letter doesn't tell the whole story" theme as Mandarin's
+  # own u+ŋ->ong rule or Cantonese's plain/aspirated swap).
+  - {ipa: "tɕ", latin: ch}
+  - {ipa: "tɕʰ", latin: ch}
+  - {ipa: "ŋ", latin: ng}
+  - {ipa: "ɛ", latin: ae}
+  - {ipa: "ɯ", latin: ue}
+  - {ipa: "ɤ", latin: oe}
+  # Real RTGS's second well-documented ambiguity: /ɔ/ merges into the
+  # same "o" spelling /o/ already uses -- another genuine, often-
+  # criticized real RTGS collapse, not an invented one.
+  - {ipa: "ɔ", latin: o}
+  # rtgs-style's own vowel_length_strategy is NONE (real RTGS marks no
+  # vowel length at all), which means a long vowel would otherwise fall
+  # through to romanization_gen.py's generic digraph-table fallback (a
+  # colon suffix, e.g. "a:") rather than actually reading as unmarked --
+  # these explicit rules give each long vowel its short counterpart's
+  # own real RTGS spelling directly, achieving the real "length simply
+  # isn't written" behavior precisely rather than approximately.
+  - {ipa: "aː", latin: a}
+  - {ipa: "iː", latin: i}
+  - {ipa: "uː", latin: u}
+  - {ipa: "eː", latin: e}
+  - {ipa: "ɛː", latin: ae}
+  - {ipa: "ɯː", latin: ue}
+  - {ipa: "ɤː", latin: oe}
+  - {ipa: "oː", latin: o}
+  - {ipa: "ɔː", latin: o}
+core_vocabulary_average_syllables: 1.06  # hand-counted across this project's own CORE_MEANINGS glosses (ฉัน chan, น้ำ naam, ไฟ fai, ตะวัน tawan...) -- real native Thai lexicon is strongly monosyllabic, among the most monosyllabic-leaning of this project's curated languages; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [k, t, p, m, n, s, "ŋ"]
+  common: [b, d, h, l, r, w, j]
+  uncommon: ["pʰ", "tʰ", "kʰ", "tɕ"]
+  rare: ["tɕʰ", f, "ʔ"]
+nucleus_frequency_tiers:
+  very_common: [a, i, "aː", "iː"]
+  common: [u, e, "uː", "eː"]
+  uncommon: ["ɛ", o, "ɛː", "oː"]
+  rare: ["ɯ", "ɤ", "ɔ", "ɯː", "ɤː", "ɔː"]
+coda_frequency_tiers:
+  very_common: [n, k, "ŋ"]
+  common: [t, m]
+  uncommon: [p, w]
+  rare: [j]

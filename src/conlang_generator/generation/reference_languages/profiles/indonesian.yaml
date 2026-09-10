@@ -1,15 +1,55 @@
 name: Indonesian
-aliases: [malay, bahasa]
+aliases: [bahasa indonesia]
+# "malay"/"bahasa" used to live here as bare aliases -- a pre-existing
+# conflation this batch corrects. Indonesian and Malay are separately
+# standardized languages (ISO ind vs zsm), not a single pluricentric
+# language the way this project's own Serbo-Croatian profile
+# deliberately stays unified -- Malay now has its own profile (see
+# malay.yaml), with its own aliases pointing there instead.
 consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, s, z, "ʃ", h, m, n, "ɲ", "ŋ", l, r, j, w]
 vowels: [i, e, "ə", a, o, u]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: digraph-style
+restricted_coda_consonants: [b, d, g, "tʃ", "dʒ", f, z, "ʃ", "ɲ", j, w]
+# Real native/settled Indonesian codas are restricted to roughly
+# /p t k s m n ŋ l r h/ -- voiced stops, affricates, and the loan
+# fricatives essentially never close a native syllable. Real word-final
+# /k/ is commonly realized as a glottal stop [ʔ] in casual speech, but
+# that's a phonetic detail below this project's modeled granularity
+# (the same "real but below this project's modeled granularity" status
+# Thai's own unreleased coda stops get) -- coda /k/ stays spelled "k".
+attested_onset_clusters:
+  # Real Indonesian has essentially no native-root onset clusters at
+  # all -- these are all loanword-derived (Sanskrit, Arabic, Dutch,
+  # English: praktik, stasiun, sistem, gratis, blok, kredit, traktor,
+  # sponsor), which is exactly why max_onset above only sometimes rolls
+  # 2 rather than always.
+  - [p, r]
+  - [t, r]
+  - [k, r]
+  - [b, l]
+  - [g, r]
+  - [s, p]
+  - [s, t]
+  - [s, k]
+stress_pattern: lexical
+# Real Indonesian stress is a genuine, unresolved academic dispute --
+# several linguists (Cohn 1989, Odé 1994) argue Indonesian has no true
+# phonemic word stress at all, not merely a "weak" one, with prominence
+# better explained at the phrase level than the word level. Modeled the
+# same "genuinely complex/disputed, no simple flat rule" way Hindi's own
+# stress dispute already is, rather than picking a flat position
+# (penultimate is the commonly-cited *tendency*, but treating it as a
+# reliable rule would overstate what's actually settled).
+stress_deviation_rate: 0.45  # illustrative -- higher than Hindi's own 0.40, reflecting that the dispute here is over whether word-level stress exists as a category at all, not just over which rule best predicts it
 orthography:
-  # Real modern Indonesian orthography -- like Turkish, these aren't
-  # invented transliteration conventions at all: Indonesian's own native
-  # Latin alphabet already spells these sounds exactly this way.
+  # Real modern Indonesian orthography (post-1972 EYD reform) -- like
+  # Turkish, these aren't invented transliteration conventions at all:
+  # Indonesian's own native Latin alphabet already spells these sounds
+  # exactly this way. Pre-reform spellings (tj/dj/j/nj/sj/ch for
+  # today's c/j/y/ny/sy/kh) are a diachronic aside, not modeled.
   - {ipa: "tʃ", latin: c}
   - {ipa: "dʒ", latin: j}
   - {ipa: "ɲ", latin: ny}
@@ -17,3 +57,19 @@ orthography:
   - {ipa: "ʃ", latin: sy}
   - {ipa: "ə", latin: e}     # real Indonesian spells both /e/ and /ə/
                               # with the same letter "e"
+core_vocabulary_average_syllables: 2.02  # hand-counted across this project's own CORE_MEANINGS glosses (saya, kamu, dia, air, api, matahari, gunung...) -- real Austronesian roots are canonically disyllabic (unlike the monosyllabic-leaning East/Southeast Asian languages already curated), a genuine, meaningful word-length contrast; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, m, n, s, b, d]
+  common: [p, g, l, r, h, j, w]
+  uncommon: ["tʃ", "dʒ", "ɲ", "ŋ", z]
+  rare: [f, "ʃ"]
+nucleus_frequency_tiers:
+  very_common: [a, i, u]
+  common: [e, "ə"]
+  uncommon: [o]
+  rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has
+coda_frequency_tiers:
+  very_common: [n, k, t]
+  common: [s, m, "ŋ", r]
+  uncommon: [p, l]
+  rare: [h]

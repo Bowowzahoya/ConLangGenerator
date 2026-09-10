@@ -118,6 +118,13 @@ _ASPIRATED_GROUP = (
     # group already models for stops, just on the one affricate this
     # pool already has a plain counterpart for).
     Consonant(ipa="tsʰ", place=Place.ALVEOLAR, manner=Manner.AFFRICATE, voiced=False, aspirated=True, prevalence=0.15),
+    # Real Thai's own tɕ/tɕʰ contrast -- the same shape as tsʰ just above,
+    # on the palatal affricate ("tɕ") this pool already has a plain
+    # counterpart for (Polish/Serbo-Croatian's own real ć). RTGS spells
+    # both tɕ and tɕʰ identically as "ch" -- a real, citable romanization
+    # ambiguity curated directly in thai.yaml's own orthography rules,
+    # not papered over here.
+    Consonant(ipa="tɕʰ", place=Place.PALATAL, manner=Manner.AFFRICATE, voiced=False, aspirated=True, prevalence=0.15),
 )
 _ASPIRATED_GROUP_BASE_RATE = 0.10
 
@@ -319,6 +326,16 @@ _VOWEL_EXTRAS = (
     Vowel(ipa="æː", height=VowelHeight.NEAR_OPEN, backness=VowelBackness.FRONT, rounded=False, long=True, prevalence=0.04),
     Vowel(ipa="øː", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=True, long=True, prevalence=0.03),
     Vowel(ipa="yː", height=VowelHeight.CLOSE, backness=VowelBackness.FRONT, rounded=True, long=True, prevalence=0.03),
+    # Real Thai's own phonemic length applies across its whole 9-quality
+    # vowel system (mit vs. miːt), not just the 5 qualities aː/iː/uː/eː/oː
+    # above already cover -- these 4 fill in the rest (ɛ/ɔ/ɯ/ɤ, the
+    # latter two added specifically for Thai just above), same
+    # same-quality length-pair strategy, same automatic
+    # `_short_counterpart` pairing.
+    Vowel(ipa="ɛː", height=VowelHeight.OPEN_MID, backness=VowelBackness.FRONT, rounded=False, long=True, prevalence=0.04),
+    Vowel(ipa="ɔː", height=VowelHeight.OPEN_MID, backness=VowelBackness.BACK, rounded=True, long=True, prevalence=0.04),
+    Vowel(ipa="ɯː", height=VowelHeight.CLOSE, backness=VowelBackness.BACK, rounded=False, long=True, prevalence=0.03),
+    Vowel(ipa="ɤː", height=VowelHeight.CLOSE_MID, backness=VowelBackness.BACK, rounded=False, long=True, prevalence=0.03),
     # Diphthongs -- each its own atomic, multi-character symbol (same
     # pattern as the long vowels just above), classified by its *onset*
     # quality (the standard way to give a diphthong one height/backness/
@@ -344,6 +361,11 @@ _VOWEL_EXTRAS = (
     # are front unrounded (i), back/front rounded (u/y), and central
     # unrounded (ɨ), but no close *back* unrounded vowel until now.
     Vowel(ipa="ɯ", height=VowelHeight.CLOSE, backness=VowelBackness.BACK, rounded=False, prevalence=0.12),
+    # Real Thai's own close-mid back unrounded vowel -- the pool already
+    # has close-mid front/back rounded (e/o) and close back unrounded
+    # (ɯ, just above) but no close-*mid* back unrounded vowel until now;
+    # completes Thai's real 9-quality system (i/e/ɛ/a/ɯ/ɤ/u/o/ɔ).
+    Vowel(ipa="ɤ", height=VowelHeight.CLOSE_MID, backness=VowelBackness.BACK, rounded=False, prevalence=0.10),
     # Real Serbo-Croatian syllabic /r/ (vrt "garden", trg "square", Krk)
     # -- a whole syllable with no vowel at all, /r/ itself carrying the
     # nucleus. Modeled as one more `Vowel` pool member (U+0329 COMBINING
@@ -364,6 +386,12 @@ _TONE_LEVEL_SETS = (
     (ToneLevel.LOW, ToneLevel.HIGH),
     (ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH),
     (ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH, ToneLevel.FALLING),
+    # Real Thai's own 5 tones (mid/low/falling/high/rising -- a
+    # register+contour system, historically split from an older 3-tone
+    # system conditioned by onset-consonant voicing) map cleanly onto
+    # all 5 non-DIPPING `ToneLevel` members at once -- no new member
+    # needed here, unlike Cantonese/Vietnamese's own 6-tone set below.
+    (ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.FALLING),
     # Real Cantonese's own 6 tones (purely pitch-based: register height x
     # contour) map cleanly onto all 6 `ToneLevel` members at once; real
     # Vietnamese's own 6 tones reuse the same set, with its 2 creaky/
