@@ -31,6 +31,7 @@ consonants: [p, b, t, d, k, f, v, s, z, x, h, m, n, "ŋ", l, r, w, j]
 vowels: [i, "ɪ", e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə"]
 coda_profile: unrestricted      # "none" | "sonorant" | "unrestricted"
 max_onset: 2
+max_coda: null                  # optional, defaults null -- only meaningful when coda_profile: unrestricted, e.g. 1
 tonal: false
 tone_level_count: null          # optional, defaults null -- only meaningful when tonal: true, e.g. 6
 vowel_harmony: false            # optional, defaults false
@@ -101,6 +102,25 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     vowels: tuple[str, ...]
     coda_profile: str  # "none" | "sonorant" | "unrestricted"
     max_onset: int
+    max_coda: int | None = None
+    """This language's own real max coda size -- 1 (no tautosyllabic coda
+    clusters, e.g. real Thai/Vietnamese/Cantonese/Indonesian/Malay) or 2
+    (real coda clusters exist, e.g. English "text"). Only meaningful when
+    `coda_profile == "unrestricted"` -- `"sonorant"` and `"none"` already
+    force `max_coda` to 1/0 unconditionally in `phonology_gen.py`, no
+    bias needed there. Biases `generate_phonology`'s own coda-cluster
+    roll the exact same shape `max_onset` already biases the onset-
+    cluster roll (`0.85`/`0.1` base rate by whether any matched profile
+    allows clusters, further pulled by `strictness` via
+    `biased_probability`) -- without this, `coda_profile: unrestricted`
+    always uses a flat, uncurated 30% roll regardless of whether real
+    coda clusters exist in the matched language, which is exactly why
+    Thai (and retroactively Vietnamese/Cantonese, an earlier batch's own
+    latent gap only surfaced once Thai's own generation was checked)
+    could roll a coda cluster like "-np-" that no real Thai syllable
+    ever has. `None` (the common case for the many profiles predating
+    this field) means not curated -- abstains, same convention as every
+    other optional field here."""
     tonal: bool
     tone_level_count: int | None = None
     """Only meaningful when `tonal` is true: this language's own real

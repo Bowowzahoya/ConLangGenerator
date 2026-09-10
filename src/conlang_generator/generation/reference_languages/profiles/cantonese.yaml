@@ -12,6 +12,7 @@ vowels: [a, "aː", i, "iː", u, "uː", e, "eː", o, "oː", "ɐ", "ə"]
 # any new mechanism.
 coda_profile: unrestricted
 max_onset: 1
+max_coda: 1  # real Cantonese has no tautosyllabic coda clusters at all -- retroactively curated once phonology_gen.py's own coda-cluster roll gained the max_coda-biased mechanism (previously a flat, uncurated 30% roll this profile's own comments below already claimed didn't apply, but nothing actually enforced)
 tonal: true
 tone_level_count: 6  # real Cantonese's own genuine 6-tone system (purely pitch-based: register height x contour), the modern standard count -- the historically-cited "9" is just tones 1/3/6 duplicated onto checked (stop-final) syllables, not a separate phonemic contrast
 orthography_category: diacritic-style

@@ -638,6 +638,42 @@ def _synthetic_profile(name: str, **kwargs) -> ReferenceLanguageProfile:
     )
 
 
+# --- max_coda reference-biased coda-cluster probability ---
+
+
+def test_a_curated_max_coda_of_one_suppresses_coda_clusters_at_high_strictness():
+    # Real Thai has no tautosyllabic coda clusters at all -- before
+    # ReferenceLanguageProfile.max_coda existed, coda_profile:
+    # unrestricted always rolled a flat, uncurated 30% chance of a real
+    # coda cluster regardless of the matched language, which is exactly
+    # how a Thai-biased run could get a coda cluster no real Thai
+    # syllable has. thai.yaml curates max_coda: 1 -- confirm it actually
+    # suppresses clusters now, not just that the field exists.
+    hits = 0
+    for seed in range(200):
+        traits = TraitProfile(source_languages=("Thai",), source_language_strictness=1.0)
+        spec = GenerationSpec(prompt="Thai", seed=seed, traits=traits, seed_examples=())
+        _, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        if structure.max_coda >= 2:
+            hits += 1
+    assert hits == 0
+
+
+def test_an_uncurated_max_coda_keeps_the_original_flat_baseline_rate():
+    # A profile that doesn't curate max_coda (the common case for every
+    # profile predating this field) must keep behaving exactly as it did
+    # before -- the flat, uncurated ~30% roll, not silently shifted
+    # toward either extreme.
+    hits = 0
+    for seed in range(1, 301):
+        traits = TraitProfile(source_languages=("Dutch",), source_language_strictness=1.0)
+        spec = GenerationSpec(prompt="Dutch", seed=seed, traits=traits, seed_examples=())
+        _, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        if structure.max_coda >= 2:
+            hits += 1
+    assert 60 < hits < 130  # roughly 20%-43%, comfortably around the flat 30% baseline
+
+
 # --- The 6-level tone system and its reference-biased set selection ---
 
 

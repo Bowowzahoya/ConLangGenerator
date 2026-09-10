@@ -1053,7 +1053,22 @@ def generate_phonology(
         if reference_profiles and strictness > 0.0:
             attested_coda_clusters = frozenset().union(*(p.attested_coda_clusters for p in reference_profiles))
             coda_pairs = sonority.grade_against_attested(rng, coda_pairs, tuple(attested_coda_clusters), strictness)
-        if coda_pairs and rng.random() < 0.3:
+        # Reference-biased the same shape onset_cluster_probability above
+        # already is, keyed on max_coda instead of max_onset -- without
+        # this, the roll below stays a flat, uncurated 0.3 regardless of
+        # whether any matched profile's own max_coda says real coda
+        # clusters exist at all (see ReferenceLanguageProfile.max_coda's
+        # own docstring for the real Thai bug this fixes).
+        coda_cluster_probability = 0.3
+        curated_max_coda = [p.max_coda for p in reference_profiles if p.max_coda is not None]
+        if curated_max_coda:
+            allows_coda_cluster = any(m >= 2 for m in curated_max_coda)
+            coda_cluster_probability = 0.85 if allows_coda_cluster else 0.1
+            if strictness > 0.0:
+                coda_cluster_probability = biased_probability(
+                    coda_cluster_probability, strictness if allows_coda_cluster else -strictness
+                )
+        if coda_pairs and rng.random() < coda_cluster_probability:
             max_coda, allowed_coda_consonants, allowed_coda_clusters = (
                 2, None, sonority.thin_cluster_pairs(rng, coda_pairs, traits.contact_intensity),
             )

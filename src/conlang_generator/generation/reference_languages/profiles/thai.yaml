@@ -11,6 +11,7 @@ vowels: [i, e, "ɛ", a, "ɯ", "ɤ", u, o, "ɔ", "iː", "eː", "ɛː", "aː", "ɯ
 # handful; see phonology_gen.py's own newly-added ɤ/ɛː/ɔː/ɯː/ɤː symbols.
 coda_profile: unrestricted
 max_onset: 2
+max_coda: 1  # real Thai has no tautosyllabic coda clusters at all
 tonal: true
 tone_level_count: 5
 orthography_category: rtgs-style

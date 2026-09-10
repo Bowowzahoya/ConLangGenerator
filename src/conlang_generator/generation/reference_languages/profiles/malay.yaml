@@ -17,6 +17,7 @@ consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, s, z, "ʃ", h, m, n, "ɲ", "ŋ",
 vowels: [i, e, "ə", a, o, u]
 coda_profile: unrestricted
 max_onset: 2
+max_coda: 1  # same real fact as Indonesian's own profile -- no tautosyllabic coda clusters at all
 tonal: false
 orthography_category: digraph-style
 restricted_coda_consonants: [b, d, g, "tʃ", "dʒ", f, z, "ʃ", "ɲ", j, w]

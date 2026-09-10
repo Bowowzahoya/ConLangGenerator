@@ -1900,3 +1900,31 @@ reading code or one-off ad hoc scripts.
     `_PERFECTED_LANGUAGES` outright -- unlike Tibetan/Tamil/Mandarin/
     Japanese from earlier batches, no separate "onset/nucleus only" test
     was needed for any of the three.
+  - Manually scanning Thai's own generated output surfaced a real,
+    previously-latent bug this batch fixed at the architecture level:
+    `coda_profile: unrestricted` languages had a flat, uncurated 30%
+    chance of getting a genuine tautosyllabic coda *cluster* on every
+    generation, completely independent of whether the matched reference
+    language actually has one -- unlike the onset side, where
+    `ReferenceLanguageProfile.max_onset` already reference-biases the
+    equivalent onset-cluster roll (`0.85`/`0.1` base rate, further pulled
+    by `strictness`). The coda side had no analogous field or bias at
+    all, which is exactly how a Thai-biased run could roll a coda
+    cluster like "-np-" that no real Thai syllable has, even though
+    `thai.yaml`'s own comments (and Vietnamese's/Cantonese's own from
+    the prior batch) already correctly stated the real "no coda
+    clusters" fact -- the profile said the right thing, but nothing in
+    `phonology_gen.py` actually enforced it. Fixed with a new
+    `ReferenceLanguageProfile.max_coda: int | None` field and the exact
+    same reference-bias shape `max_onset` already has, now curated as
+    `max_coda: 1` on Thai, Indonesian, and Malay (this batch) and
+    retroactively on Vietnamese and Cantonese (an already-shipped
+    batch's own latent exposure to the same gap, only surfaced once
+    Thai's own generation was checked) -- confirmed by script to drop
+    the coda-cluster roll rate from ~23-31% to 0/100 seeds at full
+    strictness for all five, while a profile that still doesn't curate
+    `max_coda` (the common case for every profile predating this field)
+    keeps the original flat ~30% rate unchanged. A broader audit of
+    older `coda_profile: unrestricted` profiles (Korean, Mongolian,
+    Hindi, Bengali, Georgian, etc.) for their own real coda-cluster
+    facts is flagged as a follow-up, not done as part of this batch.

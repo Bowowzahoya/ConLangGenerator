@@ -4,6 +4,7 @@ consonants: [p, b, t, "tʰ", d, k, g, f, v, s, z, "ʃ", "ʒ", x, h, m, n, "ɲ", 
 vowels: [i, e, "ɛ", a, "ɔ", o, u, "ɯ", "ə"]
 coda_profile: unrestricted
 max_onset: 1
+max_coda: 1  # real Vietnamese has no tautosyllabic coda clusters at all -- retroactively curated once phonology_gen.py's own coda-cluster roll gained the max_coda-biased mechanism (previously a flat, uncurated 30% roll this profile's own comments below already claimed didn't apply, but nothing actually enforced)
 tonal: true
 tone_level_count: 6  # real Vietnamese's own genuine 6-tone system (ngang, huyền, sắc, hỏi, ngã, nặng)
 orthography_category: diacritic-style
