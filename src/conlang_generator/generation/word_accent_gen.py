@@ -74,19 +74,20 @@ circumflex (U+0302, new), short falling = double grave (U+030F, new)."""
 
 def resolve_word_accent(
     reference_profiles: tuple["ReferenceLanguageProfile", ...],
-) -> tuple[str, str, float | None, float | None]:
+) -> tuple[str, str, float | None, float | None, int | None]:
     """The first matched profile that has curated
     ``word_accent_realization`` wins outright -- same first-match, no-
     blending rule ``stress_gen.resolve_stress_pattern`` uses, for the same
     reason (there's no meaningful "halfway between glottalization and
-    pitch"). ``("", "", None, None)`` when none have -- callers treat an
-    empty ``realization`` as "this run's language doesn't have this
-    feature", never attempting ``assign_word_accent``/
-    ``assign_word_accent_with_length`` at all. ``length_rate`` (the new
-    4th element) is only ever meaningful for ``"pitch_and_length"``
-    profiles -- every binary-realization profile simply leaves
-    ``word_accent_length_rate`` uncurated (``None``), and callers never
-    read it in that case."""
+    pitch"). ``("", "", None, None, None)`` when none have -- callers
+    treat an empty ``realization`` as "this run's language doesn't have
+    this feature", never attempting ``assign_word_accent``/
+    ``assign_word_accent_with_length`` at all. ``length_rate`` (the 4th
+    element) is only ever meaningful for ``"pitch_and_length"`` profiles;
+    ``window`` (the 5th, new) only for ``"positional_pitch_accent"``
+    profiles restricting the kernel to a syllable window (real Ancient
+    Greek) -- every other profile simply leaves the corresponding field
+    uncurated (``None``), and callers never read it in that case."""
     for profile in reference_profiles:
         if profile.word_accent_realization:
             return (
@@ -94,8 +95,9 @@ def resolve_word_accent(
                 profile.word_accent_pattern,
                 profile.word_accent_deviation_rate,
                 profile.word_accent_length_rate,
+                profile.word_accent_window,
             )
-    return "", "", None, None
+    return "", "", None, None, None
 
 
 def assign_word_accent(
@@ -209,7 +211,9 @@ def mark_word_accent_with_length(accent: tuple[WordAccentCategory, bool] | None)
     return _TONE_LENGTH_DIACRITICS[accent]
 
 
-def assign_positional_pitch_accent(rng: random.Random, num_syllables: int, strictness: float) -> int | None:
+def assign_positional_pitch_accent(
+    rng: random.Random, num_syllables: int, strictness: float, window: int | None = None
+) -> int | None:
     """Real Japanese pitch accent, unlike every other realization above,
     isn't "predict a default from shape, then occasionally deviate" --
     real accent-kernel placement is genuinely lexically arbitrary, not
@@ -222,6 +226,15 @@ def assign_positional_pitch_accent(rng: random.Random, num_syllables: int, stric
     solid cross-linguistic frequency data to justify skewing one way,
     same "illustrative, not exhaustive" honesty standard every other
     curated rate here already follows.
+
+    ``window`` (new): real Attic Greek accent is also lexically arbitrary
+    but restricted to one of the last ``window`` syllables (the classical
+    "trimoric law" -- Greek's own real cap is 3), unlike Japanese's own
+    unrestricted placement. ``None`` (the default) preserves the original
+    whole-word behavior exactly, so Japanese's own generation is
+    untouched by this parameter's existence. When set, candidates are
+    ``max(0, num_syllables - window)`` through ``num_syllables - 1`` --
+    i.e. still every syllable for a word shorter than the window.
 
     Deliberate, documented simplification: real Japanese pitch accent is
     per-*mora* (a long vowel or the moraic-nasal coda adds a mora without
@@ -236,10 +249,13 @@ def assign_positional_pitch_accent(rng: random.Random, num_syllables: int, stric
     strictness = max(0.0, min(1.0, strictness))
     if rng.random() >= strictness:
         return None
-    return rng.choice([None, *range(num_syllables)])
+    candidates = range(num_syllables) if window is None else range(max(0, num_syllables - window), num_syllables)
+    return rng.choice([None, *candidates])
 
 
-def mark_positional_pitch_accent(kernel_index: int | None, num_syllables: int) -> tuple[str, ...]:
+def mark_positional_pitch_accent(
+    kernel_index: int | None, num_syllables: int, long_nucleus_at_kernel: bool = False
+) -> tuple[str, ...]:
     """The real Tokyo-dialect H/L rule, applied to every syllable at
     once (unlike every other ``mark_*`` function above, which returns one
     mark for one syllable) -- reuses the same two ``_PITCH_DIACRITICS``
@@ -250,18 +266,32 @@ def mark_positional_pitch_accent(kernel_index: int | None, num_syllables: int) -
     every syllable after it is High, with no drop at all. Otherwise
     (accent kernel on syllable ``kernel_index``): syllable 0 is Low
     unless the kernel *is* syllable 0 (then High); syllables 1 through
-    ``kernel_index`` are High; every syllable after the kernel is Low."""
+    ``kernel_index`` are High; every syllable after the kernel is Low.
+
+    ``long_nucleus_at_kernel`` (new): real Attic Greek's own acute-vs-
+    circumflex rule -- the kernel syllable's mark becomes the falling
+    (circumflex) tone diacritic instead of plain High specifically when
+    its own nucleus is long, mechanically, not lexically. ``False`` (the
+    default) preserves the original plain-High-at-the-kernel behavior
+    exactly, so Japanese's own generation (never long-nucleus-sensitive)
+    is untouched by this parameter's existence."""
     high = TONE_DIACRITICS[ToneLevel.HIGH]
     low = TONE_DIACRITICS[ToneLevel.LOW]
+    kernel_high = TONE_DIACRITICS[ToneLevel.FALLING] if long_nucleus_at_kernel else high
     if kernel_index is None:
         return tuple(low if i == 0 else high for i in range(num_syllables))
     marks = []
     for i in range(num_syllables):
         # Syllable 0 is High only when the kernel itself sits there;
         # every other syllable is High while it's still at or before the
-        # kernel, Low once the drop has happened.
-        is_high = (kernel_index == 0) if i == 0 else (i <= kernel_index)
-        marks.append(high if is_high else low)
+        # kernel, Low once the drop has happened. The kernel syllable
+        # itself specifically gets `kernel_high` (circumflex when its
+        # nucleus is long, plain High otherwise).
+        if i == kernel_index:
+            marks.append(kernel_high)
+        else:
+            is_high = (kernel_index == 0) if i == 0 else (i <= kernel_index)
+            marks.append(high if is_high else low)
     return tuple(marks)
 
 
@@ -276,6 +306,7 @@ def mark_stress_and_word_accent(
     word_accent_pattern: str = "",
     word_accent_deviation_rate: float | None = None,
     word_accent_length_rate: float | None = None,
+    word_accent_window: int | None = None,
 ) -> str:
     """The templatic-word-formation counterpart of
     ``word_builder.build_word``'s own combined stress+word-accent handling,
@@ -321,8 +352,13 @@ def mark_stress_and_word_accent(
             # independent of stress -- see `assign_positional_pitch_accent`'s
             # own docstring for why real Japanese kernel placement has no
             # shape-based default to compute here at all.
-            kernel_index = assign_positional_pitch_accent(rng, num_syllables, stress_strictness)
-            for syllable, mark in enumerate(mark_positional_pitch_accent(kernel_index, num_syllables)):
+            kernel_index = assign_positional_pitch_accent(rng, num_syllables, stress_strictness, word_accent_window)
+            long_nucleus_at_kernel = (
+                kernel_index is not None
+                and filled_symbols[_nucleus_index_for(kernel_index)].endswith("ː")
+            )
+            marks = mark_positional_pitch_accent(kernel_index, num_syllables, long_nucleus_at_kernel)
+            for syllable, mark in enumerate(marks):
                 if mark:
                     mark_after[_nucleus_index_for(syllable)] = mark
         else:

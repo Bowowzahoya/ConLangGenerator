@@ -1,0 +1,85 @@
+name: Navajo
+aliases: ["diné bizaad"]
+consonants: [b, t, "tʰ", "tʼ", k, "kʰ", "kʼ", "ʔ", ts, "tsʰ", "tsʼ", "tʃ", "tʃʰ", "tʃʼ", "tɬ", "tɬʰ", "tɬʼ", s, z, "ʃ", "ʒ", "ɬ", l, h, "ɣ", m, n, w, j]
+# Real Navajo's own famous 3-way stop/affricate contrast (unaspirated /
+# aspirated / ejective) across every place this pool models a fricative-
+# affricate pair for -- alveolar stop, velar stop, alveolar affricate,
+# postalveolar affricate, lateral affricate -- mapped directly onto this
+# pool's own plain/aspirated/ejective trait combination at each place.
+# Real Navajo has no bilabial aspirated/ejective counterpart at all --
+# /b/ sits alone, a single labial stop with no 3-way series (unlike
+# every other place here), so this profile deliberately doesn't include
+# a "pʰ"/"pʼ".
+vowels: [a, e, i, o, "aː", "eː", "iː", "oː", "ã", "ẽ", "ĩ", "õ", "ãː", "ẽː", "ĩː", "õː"]
+# Real, genuine 4-way vowel contrast: oral/nasal crossed with short/long,
+# across all 4 of Navajo's own vowel qualities (no /u/ at all -- a real,
+# distinctive gap, not an omission).
+coda_profile: unrestricted
+max_onset: 1  # real Navajo syllable-internal onsets are simple; its own real complexity comes from polysynthetic prefixation across syllables, not consonant clusters within one
+max_coda: 1
+tonal: true
+tone_level_count: 2  # real Navajo: a 2-way High/Low register tone contrast
+restricted_coda_consonants: [b, t, "tʰ", "tʼ", k, "kʰ", "kʼ", ts, "tsʰ", "tsʼ", "tʃ", "tʃʰ", "tʃʼ", "tɬ", "tɬʰ", "tɬʼ", z, "ʒ", "ɬ", "ɣ", m, w, j]
+# Real attested Navajo verb-stem-final consonants are a genuinely small,
+# closed set -- n, l, the glottal stop, h, s, ʃ -- not just this pool's
+# generic sonorant class (real Navajo finals include true obstruents like
+# h/s/ʃ, which is why this profile is coda_profile: unrestricted with a
+# narrow restriction, not coda_profile: sonorant).
+orthography_category: digraph-style
+orthography:
+  # Real Navajo practical orthography (Young & Morgan), restricted to
+  # symbols this profile actually models -- illustrative, not a full
+  # account. The real, citable gotcha this convention has: the lenis
+  # (phonetically voiceless-unaspirated) series is spelled with *voiced*
+  # letters (b/d/dl/dz/dj), a historical-orthographic choice, not a claim
+  # that these are phonetically voiced -- curated directly rather than
+  # papered over.
+  - {ipa: t, latin: d}
+  - {ipa: "tʰ", latin: t}
+  - {ipa: "tʼ", latin: "t'"}
+  - {ipa: k, latin: g}
+  - {ipa: "kʰ", latin: k}
+  - {ipa: "kʼ", latin: "k'"}
+  - {ipa: ts, latin: dz}
+  - {ipa: "tsʰ", latin: ts}
+  - {ipa: "tsʼ", latin: "ts'"}
+  - {ipa: "tʃ", latin: j}
+  - {ipa: "tʃʰ", latin: ch}
+  - {ipa: "tʃʼ", latin: "ch'"}
+  - {ipa: "tɬ", latin: dl}
+  - {ipa: "tɬʰ", latin: "tł"}
+  - {ipa: "tɬʼ", latin: "tł'"}
+  - {ipa: "ʔ", latin: "ʼ"}
+  - {ipa: "ɬ", latin: "ł"}
+  - {ipa: "ɣ", latin: gh}
+  # Real Navajo ogonek convention for nasal vowels.
+  - {ipa: "ã", latin: "ą"}
+  - {ipa: "ẽ", latin: "ę"}
+  - {ipa: "ĩ", latin: "į"}
+  - {ipa: "õ", latin: "ǫ"}
+  # Real Navajo doubled-letter length convention, not macron -- long
+  # nasal vowels stack both marks, the same real spelling ("chʼįįdii").
+  - {ipa: "aː", latin: aa}
+  - {ipa: "eː", latin: ee}
+  - {ipa: "iː", latin: ii}
+  - {ipa: "oː", latin: oo}
+  - {ipa: "ãː", latin: "ąą"}
+  - {ipa: "ẽː", latin: "ęę"}
+  - {ipa: "ĩː", latin: "įį"}
+  - {ipa: "õː", latin: "ǫǫ"}
+core_vocabulary_average_syllables: 2.2  # illustrative -- real Navajo citation forms (especially verbs) carry real, productive prefixation (person/mode/aspect), running longer than a bare root would; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, "tʰ", k, "kʰ", n, s, "ʔ"]
+  common: [b, "tʃ", "tʃʰ", ts, "tsʰ", h, l, "ɣ", w, j]
+  uncommon: [z, "ʃ", "ʒ", "ɬ", "tɬ", "tɬʰ"]
+  rare: ["tʼ", "kʼ", "tsʼ", "tʃʼ", "tɬʼ", m]  # the ejective series and /m/ (real Navajo /m/ is famously marginal, mostly loanwords) are both genuinely rarer than the rest of this inventory
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [e, o, "aː", "iː"]
+  uncommon: ["eː", "oː", "ã", "ĩ"]
+  rare: ["ẽ", "õ", "ãː", "ẽː", "ĩː", "õː"]
+coda_frequency_tiers:
+  very_common: [n, "ʔ"]
+  common: [l, s]
+  uncommon: ["ʃ"]
+  rare: [h]

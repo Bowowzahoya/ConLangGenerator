@@ -1,0 +1,74 @@
+name: Old Norse
+aliases: [norse, viking, "norrœnt mál"]
+consonants: [p, b, t, d, k, g, f, v, "θ", "ð", s, h, m, n, l, r, j]
+vowels: [a, e, i, o, u, y, "æ", "ø", "aː", "eː", "iː", "oː", "uː", "yː", "æː", "øː", au, ei, "œy"]
+coda_profile: unrestricted
+max_onset: 2
+max_coda: 2  # real Old Norse coda clusters exist (land, kaldr, fyrst, bjǫrn)
+tonal: false
+restricted_coda_consonants: [v, h, j]  # real Old Norse: word-final /f/ (not /v/) is the real coda realization of this place, the general Germanic final-devoicing pattern; h and j, like every other profile here, are onset-only
+attested_onset_clusters:
+  # Real, common Old Norse initial clusters -- illustrative, not
+  # exhaustive. hl-/hn-/hr- modeled as genuine two-segment /h/+sonorant
+  # clusters (the more conservative, defensible analysis), not invented
+  # unit phonemes -- real "hlaða" (barn), "hnigin" (bowed), "hringr" (ring).
+  - [h, l]
+  - [h, n]
+  - [h, r]
+  - [k, l]   # "klettr" (cliff)
+  - [k, r]   # "kraftr" (strength)
+  - [g, r]   # "grár" (grey)
+  - [t, r]   # "tré" (tree)
+  - [d, r]   # "draumr" (dream)
+  - [f, l]   # "flagð" (troll-wife)
+  - [f, r]   # "frost" (frost)
+  - ["θ", r]  # "þrír" (three)
+  - [v, r]   # "vreiðr" (angry)
+attested_coda_clusters:
+  # Real Old Norse coda clusters, restricted to symbols this profile
+  # models -- illustrative, not exhaustive.
+  - [r, t]   # "bjart" (bright)
+  - [l, d]   # "kaldr" (cold)
+  - [n, d]   # "land" (land)
+  - [f, "θ"]  # "gift" (marriage, illustrative approximation)
+  - [s, t]   # "fyrst" (first)
+  - [r, n]   # "bjǫrn" (bear)
+stress_pattern: initial  # real Old Norse: stress is the root's first syllable, the same reliable Germanic-wide default German/Dutch/Danish/Swedish/Norwegian/Icelandic all share
+stress_deviation_rate: 0.05  # illustrative -- as rigidly initial as modern Icelandic's own descendant value
+orthography_category: diacritic-style
+orthography:
+  # Real, standard normalized Old Norse philological convention,
+  # restricted to symbols this profile actually models -- illustrative,
+  # not a full account. Vowel length uses ACUTE accents in this real
+  # convention, deliberately distinct from Latin's own real macron
+  # convention (a different scholarly tradition for a different language
+  # family) and from modern Icelandic's own diphthongized descendant
+  # values -- Old Norse itself predates that later Icelandic sound shift,
+  # so its own long vowels stay genuine same-quality length, not diphthongs.
+  - {ipa: "θ", latin: "þ"}
+  - {ipa: "ð", latin: "ð"}
+  - {ipa: "aː", latin: "á"}
+  - {ipa: "eː", latin: "é"}
+  - {ipa: "iː", latin: "í"}
+  - {ipa: "oː", latin: "ó"}
+  - {ipa: "uː", latin: "ú"}
+  - {ipa: "yː", latin: "ý"}
+  - {ipa: "æː", latin: "ǽ"}
+  - {ipa: "øː", latin: "ǿ"}
+  - {ipa: "œy", latin: ey}   # real Old Norse "ey" diphthong
+core_vocabulary_average_syllables: 1.4  # illustrative -- shorter than modern Icelandic's own already-curated 1.42, since Old Norse predates further sound change but its own monosyllabic root class already dominates the core vocabulary; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [k, t, s, m, n]
+  common: [f, v, "ð", l, r, h]
+  uncommon: [p, b, d, g, j]
+  rare: ["θ"]
+nucleus_frequency_tiers:
+  very_common: [a, i, e]
+  common: [u, o, y, "æ"]
+  uncommon: ["ø", "aː", "iː", "uː", "eː"]
+  rare: ["oː", "yː", "æː", "øː", au, ei, "œy"]
+coda_frequency_tiers:
+  very_common: [n, r, t, s]
+  common: [l, k, d, m]
+  uncommon: [p, g, f, "ð"]
+  rare: [b, "θ"]

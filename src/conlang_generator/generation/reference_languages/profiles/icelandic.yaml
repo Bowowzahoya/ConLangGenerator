@@ -1,5 +1,9 @@
 name: Icelandic
-aliases: [old norse, norse, viking, "íslenska"]
+aliases: ["íslenska"]
+# "old norse"/"norse"/"viking" used to alias here (a stand-in for the
+# unmodeled ancestor) -- now that Old Norse has its own real profile
+# (see old_norse.yaml), those aliases moved there; Icelandic is its own
+# distinct, if closely related, modern language.
 consonants: [p, "pʰ", "ʰp", t, "tʰ", "ʰt", k, "kʰ", "ʰk", f, v, s, "θ", "ð", "ɣ", h, m, n, l, r, j]
 vowels: [i, "ɪ", "ɛ", a, "ɔ", u, "ʊ", "ø", "œ", y, ai, au, ei, "ɔi"]
 coda_profile: unrestricted

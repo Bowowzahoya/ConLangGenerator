@@ -1,0 +1,47 @@
+name: Sumerian
+# An illustrative sketch, meaningfully more uncertain than even this
+# project's own Arawakan/Pama-Nyungan family sketches: Sumerian is a
+# language isolate attested only through cuneiform script over four
+# millennia old, with no living descendants and no comparative method
+# available -- every phonological claim here is indirect, reconstructed
+# from scribal spelling conventions and later Akkadian transcriptions of
+# Sumerian, not from a living speaker's own pronunciation. Treat this
+# profile as a plausible, defensible sketch for flavor, not a settled
+# phonological description.
+consonants: [b, p, d, t, g, k, z, s, "ʃ", m, n, "ŋ", r, l, h, j, w]
+# Real, live Sumerological dispute left deliberately unresolved: some
+# analyses argue for a 3-way stop contrast (plain voiceless/voiced plus a
+# geminate or "emphatic" series, by analogy with Akkadian, the language
+# Sumerian is reconstructed almost entirely through); this profile
+# resolves conservatively to the plainer, more broadly-agreed 2-way
+# voiced/voiceless contrast, the same "don't overclaim a live scholarly
+# fight" standard Georgian's own ejective-vs-aspirate note already sets.
+vowels: [a, e, i, u]
+# Real, well-agreed Sumerological claim: a simple 4-vowel system with no
+# /o/ -- genuinely distinctive among this project's own profiles, not a
+# simplification of convenience.
+coda_profile: sonorant
+max_onset: 1  # real Sumerian syllable structure is conservatively reconstructed as simple CV(C), no native onset clusters
+tonal: false
+# No stress_pattern/word_accent curated -- real Sumerian prosody isn't
+# well-established either way in the scholarly literature, the same
+# "abstain when the evidence doesn't support confident curation" honesty
+# this project's own Arawakan profile already practices for a comparable
+# reason.
+orthography_category: diacritic-style
+orthography:
+  # Real standard Assyriological transliteration conventions.
+  - {ipa: "ʃ", latin: "š"}
+  - {ipa: "ŋ", latin: "ŋ"}   # a real letter used directly in scholarly transliteration
+  - {ipa: h, latin: "ḫ"}     # real under-dot convention for this fricative
+core_vocabulary_average_syllables: 1.3  # illustrative -- Sumerian's own core vocabulary is famously described as heavily monosyllabic-root-based (e.g. "a" water, "dug" pot, "lu" person/man), among the shortest in this project's own set; meaningfully more counting uncertainty than even the other newly-added profiles, given this language's own uniquely indirect evidence base
+onset_frequency_tiers:
+  very_common: [g, d, m, n, s, l]
+  common: [b, p, t, k, r, "ŋ"]
+  uncommon: [z, "ʃ", h]
+  rare: [j, w]
+nucleus_frequency_tiers:
+  very_common: [a, u]
+  common: [i]
+  uncommon: [e]
+  rare: []  # this profile's own plain 4-vowel system has nothing left for this tier -- same legitimately-empty-tier precedent Georgian's own nucleus table already has

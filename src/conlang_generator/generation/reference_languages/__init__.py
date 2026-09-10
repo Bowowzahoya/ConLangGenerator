@@ -72,6 +72,7 @@ word_accent_realization: ""         # optional, defaults empty -- "glottalizatio
 word_accent_pattern: ""             # optional, defaults empty -- e.g. "monosyllabic_heavy"
 word_accent_deviation_rate: null    # optional, defaults null -- e.g. 0.15
 word_accent_length_rate: null       # optional, defaults null -- e.g. 0.5; only meaningful for "pitch_and_length" (real BCMS length is substantially lexical)
+word_accent_window: null            # optional, defaults null -- e.g. 3; only meaningful for "positional_pitch_accent" (real Ancient Greek's own trimoric law)
 word_accent_marking: ""             # optional, defaults empty -- e.g. "marked", for a language that writes it (none curated do)
 ```
 
@@ -410,6 +411,16 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     genuinely unpredictable systems. ``None`` (the common case, including
     every binary-realization profile) means not curated --
     ``assign_word_accent_with_length`` falls back to an even 0.5 rate."""
+    word_accent_window: int | None = None
+    """Only meaningful for ``word_accent_realization ==
+    "positional_pitch_accent"`` -- restricts the accent kernel to one of
+    the last ``word_accent_window`` syllables (real Ancient Greek's own
+    "trimoric law": the kernel can't sit further back than the
+    antepenult, so this is curated as ``3``), rather than anywhere in the
+    word the way real Japanese's own unrestricted system works. ``None``
+    (the common case, including Japanese's own profile) means not
+    curated -- ``word_accent_gen.assign_positional_pitch_accent`` falls
+    back to its original whole-word candidate range unchanged."""
     word_accent_marking: str = ""
     """Whether/how this language's real orthography writes the word-accent
     contrast itself -- ``""`` (every profile curated so far: real Danish/

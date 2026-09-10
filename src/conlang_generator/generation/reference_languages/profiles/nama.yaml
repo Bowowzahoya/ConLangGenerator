@@ -1,0 +1,64 @@
+name: Nama
+aliases: [khoekhoegowab, khoekhoe, damara]
+consonants: [p, t, k, "kʰ", "ʔ", s, h, m, n, "ŋ", w, j, "ǀ", "ǃ", "ǁ", "ǂ", "ǀʰ", "ǃʰ", "ǁʰ", "ǂʰ", "ŋǀ", "ŋǃ", "ŋǁ", "ŋǂ", "ŋǀʰ", "ŋǃʰ", "ŋǁʰ", "ŋǂʰ", "ŋǀʼ", "ŋǃʼ", "ŋǁʼ", "ŋǂʼ"]
+# A primary (not borrowed) Khoisan click language -- unlike Zulu/Xhosa,
+# whose click series is a real but contact-borrowed subsystem alongside
+# an otherwise ordinary Bantu consonant inventory, Nama's click series is
+# original to the language, at all 4 of this project's own modeled
+# places (dental/alveolar/lateral/palatal) crossed with plain/aspirated/
+# nasal/nasal-aspirated/nasal-glottalized accompaniments -- a real,
+# independently-attested accompaniment system, structurally different
+# from Zulu's own Nguni-internal voiced/breathy "depressor" innovation
+# (which Nama genuinely lacks -- see phonology_gen.py's own comment).
+vowels: [a, e, i, o, u, "aː", "eː", "iː", "oː", "uː", "ã", "ẽ", "ĩ", "õ", "ũ"]
+coda_profile: sonorant
+max_onset: 1
+tonal: true
+tone_level_count: 2  # real Khoekhoegowab: a 2-way High/Low register tone contrast
+restricted_coda_consonants: [m, "ŋ", w, j, "ŋǀ", "ŋǃ", "ŋǁ", "ŋǂ", "ŋǀʰ", "ŋǃʰ", "ŋǁʰ", "ŋǂʰ", "ŋǀʼ", "ŋǃʼ", "ŋǁʼ", "ŋǂʼ"]
+# Real Khoekhoe canon is CV/CVN -- narrower than the generic "sonorant"
+# sonority filter (which would also legalize m/ŋ/w/j and, since this
+# pool's own nasal clicks are modeled with Manner.NASAL, the nasal click
+# series too): the only real coda is the plain alveolar nasal /n/.
+orthography_category: diacritic-style
+orthography:
+  # Real Khoekhoegowab practical orthography spells its own click series
+  # with the bare click letters themselves (ǀ ǃ ǁ ǂ), not Latin c/q/x the
+  # way Zulu/Xhosa spell their own borrowed clicks -- a real, different
+  # practical-orthography tradition. Overrides this style's own shared
+  # fallback table (built around the Nguni c/q/x convention) with Nama's
+  # own real letters directly.
+  - {ipa: "ǀ", latin: "ǀ"}
+  - {ipa: "ǃ", latin: "ǃ"}
+  - {ipa: "ǁ", latin: "ǁ"}
+  - {ipa: "ǂ", latin: "ǂ"}
+  - {ipa: "ǀʰ", latin: "ǀh"}
+  - {ipa: "ǃʰ", latin: "ǃh"}
+  - {ipa: "ǁʰ", latin: "ǁh"}
+  - {ipa: "ǂʰ", latin: "ǂh"}
+  - {ipa: "ŋǀ", latin: "nǀ"}
+  - {ipa: "ŋǃ", latin: "nǃ"}
+  - {ipa: "ŋǁ", latin: "nǁ"}
+  - {ipa: "ŋǂ", latin: "nǂ"}
+  - {ipa: "ŋǀʰ", latin: "nǀh"}
+  - {ipa: "ŋǃʰ", latin: "nǃh"}
+  - {ipa: "ŋǁʰ", latin: "nǁh"}
+  - {ipa: "ŋǂʰ", latin: "nǂh"}
+  - {ipa: "ŋǀʼ", latin: "nǀʼ"}
+  - {ipa: "ŋǃʼ", latin: "nǃʼ"}
+  - {ipa: "ŋǁʼ", latin: "nǁʼ"}
+  - {ipa: "ŋǂʼ", latin: "nǂʼ"}
+  - {ipa: "kʰ", latin: kh}
+  - {ipa: "ŋ", latin: ng}
+  - {ipa: "ʔ", latin: "ʼ"}
+core_vocabulary_average_syllables: 1.7  # illustrative -- shorter than Zulu/Xhosa's own already-curated Bantu-prefix-driven figures, since Khoekhoe has no comparable noun-class prefix system; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, n, s, "ǀ", "ǃ", "ǁ"]
+  common: [p, m, h, w, j, "ǂ", "ŋ"]
+  uncommon: ["kʰ", "ʔ", "ǀʰ", "ǃʰ", "ǁʰ", "ǂʰ", "ŋǀ", "ŋǃ", "ŋǁ", "ŋǂ"]
+  rare: ["ŋǀʰ", "ŋǃʰ", "ŋǁʰ", "ŋǂʰ", "ŋǀʼ", "ŋǃʼ", "ŋǁʼ", "ŋǂʼ"]
+nucleus_frequency_tiers:
+  very_common: [a, i, u]
+  common: [e, o, "aː", "iː", "uː"]
+  uncommon: ["eː", "oː", "ã", "ũ"]
+  rare: ["ẽ", "ĩ", "õ"]

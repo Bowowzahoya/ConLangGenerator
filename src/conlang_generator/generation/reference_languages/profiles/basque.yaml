@@ -1,0 +1,47 @@
+name: Basque
+aliases: [euskara, euskera]
+consonants: [p, b, t, d, k, g, m, n, "ɲ", f, "s̺", "s̻", "ʃ", "tʃ", "t̺s̺", "t̻s̻", x, l, "ʎ", r, "ɾ", j, w]
+vowels: [a, e, i, o, u]
+# Europe's only language isolate -- no known genetic relatives, so unlike
+# every other profile here there's no wider family to lean on for
+# typological plausibility checks; every fact below is Basque-specific.
+coda_profile: unrestricted
+max_onset: 1  # real native Basque syllable structure is simple and strictly CV(C)-leaning -- onset clusters are essentially a loanword-only phenomenon (Romance contact), not modeled here
+max_coda: 1   # real native Basque codas are always a single consonant
+tonal: false
+restricted_onset_consonants: ["ɾ"]  # real Basque, like Spanish: the tap can't open a word -- only the trill r can (word-initial /r/ is always the "strong" rhotic)
+restricted_coda_consonants: ["ɲ", "ʃ", "tʃ", "t̺s̺", "t̻s̻", "ʎ", j, w, f]  # real Basque: the palatal series, affricates, and glides don't close a native syllable; f stays marginal (mostly loans) in any position
+stress_pattern: lexical  # real Basque accentuation is a genuine, live dialectal dispute (Basque-French dialects lean fixed-initial/penultimate, Basque-Spanish dialects vary, standard Batua has no single agreed rule) -- no flat position captures this honestly
+stress_deviation_rate: 0.45  # illustrative -- comparably high to this project's own disputed-accent profiles (Georgian, Indonesian), reflecting genuine unsettled variation rather than a single robust rule
+orthography_category: digraph-style
+orthography:
+  # Real standard Batua orthography, restricted to symbols this profile
+  # actually models -- illustrative, not a full account.
+  - {ipa: "s̺", latin: s}     # real Basque apical sibilant
+  - {ipa: "s̻", latin: z}     # real Basque laminal sibilant
+  - {ipa: "t̺s̺", latin: ts}   # real Basque apical affricate
+  - {ipa: "t̻s̻", latin: tz}   # real Basque laminal affricate
+  - {ipa: "tʃ", latin: tx}
+  - {ipa: "ʃ", latin: x}
+  - {ipa: "ɲ", latin: "ñ"}
+  - {ipa: "ʎ", latin: ll}
+  - {ipa: x, latin: j}       # real Batua spelling of this fricative (pronunciation varies regionally between [x]/[ʝ]/[ɟ])
+  - {ipa: r, latin: r, preceding: [boundary]}  # word-initial trill: single letter (only the trill can open a word)
+  - {ipa: r, latin: rr}      # elsewhere: doubled, contrasting with the single-letter tap
+  - {ipa: "ɾ", latin: r}     # intervocalic/coda tap: single letter
+core_vocabulary_average_syllables: 1.8  # illustrative -- Basque's own real, often agglutinative case/determiner suffixes (the famous ergative -k, absolutive -a) run somewhat longer than a bare Romance root would; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [k, t, "s̺", "s̻", m, n, l, g]
+  common: [p, b, d, "ɲ", r, j, w, x]
+  uncommon: ["ʃ", "tʃ", "ʎ", f]
+  rare: ["t̺s̺", "t̻s̻"]
+nucleus_frequency_tiers:
+  very_common: [a, e]
+  common: [i, o]
+  uncommon: [u]
+  rare: []  # this profile's own plain 5-vowel system has nothing left for this tier -- same legitimately-empty-tier precedent Georgian's own nucleus table already has
+coda_frequency_tiers:
+  very_common: [n, k, r, l]
+  common: [t, "s̺", "s̻", m]
+  uncommon: [x, "ɾ", p, d]
+  rare: [b, g]

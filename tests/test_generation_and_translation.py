@@ -86,16 +86,15 @@ def test_cache_hit_is_not_billed_again(tmp_path: Path):
 
 
 def test_german_biased_language_capitalizes_its_noun_entries():
-    # seed 0 rolls capitalized_pos=(NOUN,) for a German-contact language
+    # seed 1 rolls capitalized_pos=(NOUN,) for a German-contact language
     # (see romanization_gen.py's grammatical-spelling roll) -- an
     # empirically-found seed, same "search for a working seed" convention
     # this project already uses elsewhere (test_sound_change.py). (Re-found
-    # against seed=0 after the Thai/Indonesian/Malay batch's own new
-    # phoneme-pool content (tɕʰ, ɤ, and the ɛː/ɔː/ɯː/ɤː long vowels)
-    # shifted downstream rng draws enough that seed=2 stopped rolling this
-    # -- same "seed-shift from new content" pattern documented throughout
-    # this project's history.)
-    spec = GenerationSpec(prompt="test", seed=0, traits=TraitProfile(source_languages=("German",)))
+    # against seed=1 after the ten-language batch's own new phoneme-pool
+    # content shifted downstream rng draws enough that seed=0 stopped
+    # rolling this -- same "seed-shift from new content" pattern
+    # documented throughout this project's history.)
+    spec = GenerationSpec(prompt="test", seed=1, traits=TraitProfile(source_languages=("German",)))
     language = generate_language("Test", spec, FakeLLMClient())
     assert PartOfSpeech.NOUN in language.romanization.grammatical_spelling.capitalized_pos
     nouns = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.NOUN]
@@ -104,13 +103,14 @@ def test_german_biased_language_capitalizes_its_noun_entries():
 
 
 def test_french_biased_language_gives_its_verb_entries_a_silent_r():
-    # seed 5 rolls French's own mute_suffix_by_pos (VERB, "r") -- see the
+    # seed 0 rolls French's own mute_suffix_by_pos (VERB, "r") -- see the
     # note on the German test above for the seed-search convention.
-    # (Re-found against seed=5 after the Swahili/Zulu/Yoruba batch's own
-    # new phoneme-pool content shifted downstream rng draws enough to
-    # change which seed rolls this -- same "seed-shift from new content"
-    # pattern documented elsewhere in this project's history.)
-    spec = GenerationSpec(prompt="test", seed=5, traits=TraitProfile(source_languages=("French",)))
+    # (Re-found against seed=0 after the ten-language batch's own new
+    # phoneme-pool content shifted downstream rng draws enough (twice,
+    # as new phonemes kept being added through the batch) to change
+    # which seed rolls this -- same "seed-shift from new content" pattern
+    # documented elsewhere in this project's history.)
+    spec = GenerationSpec(prompt="test", seed=0, traits=TraitProfile(source_languages=("French",)))
     language = generate_language("Test", spec, FakeLLMClient())
     rule = next(
         (r for r in language.romanization.grammatical_spelling.mute_suffix_by_pos if r.pos is PartOfSpeech.VERB), None
@@ -124,9 +124,9 @@ def test_french_biased_language_gives_its_verb_entries_a_silent_r():
 
 
 def test_grammatical_spelling_convention_survives_evolution_with_no_new_source_language():
-    # seed=0 -- see test_german_biased_language_capitalizes_its_noun_entries's
-    # own comment for why this moved from seed=2.
-    spec = GenerationSpec(prompt="test", seed=0, traits=TraitProfile(source_languages=("German",)))
+    # seed=1 -- see test_german_biased_language_capitalizes_its_noun_entries's
+    # own comment for why this moved here.
+    spec = GenerationSpec(prompt="test", seed=1, traits=TraitProfile(source_languages=("German",)))
     base = generate_language("Base", spec, FakeLLMClient())
     assert PartOfSpeech.NOUN in base.romanization.grammatical_spelling.capitalized_pos
 

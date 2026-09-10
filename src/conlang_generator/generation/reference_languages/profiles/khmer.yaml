@@ -1,0 +1,85 @@
+name: Khmer
+aliases: [cambodian, "ខ្មែរ"]
+consonants: [p, "pʰ", t, "tʰ", k, "kʰ", "tʃ", "tʃʰ", "ʔ", b, d, s, h, m, n, "ɲ", "ŋ", l, r, j, w]
+vowels: [a, "aː", i, "iː", u, "uː", e, "eː", o, "oː", "ɛ", "ɛː", "ɔ", "ɔː", "ɨ", "ɨː", "ɑ", "ɑː", "ə", ai, au, "iə", "ɨə", "uə"]
+coda_profile: unrestricted
+max_onset: 2  # real Khmer onset clusters run up to 3 members (e.g. real "st-" type); this profile models a representative 2-member subset, the same "illustrative, not exhaustive" scale this batch's own Latin/Ancient Greek profiles already use for their own richer real cluster inventories
+max_coda: 1
+tonal: false
+restricted_coda_consonants: [b, d, r, s, "pʰ", "tʰ", "kʰ", "tʃ", "tʃʰ"]  # real Khmer codas exclude the voiced stops, /r/, /s/, and the whole aspirated/affricate series -- a genuinely small, well-documented closed set
+attested_onset_clusters:
+  # Real, common Khmer initial clusters -- illustrative, not exhaustive.
+  - [k, r]
+  - [p, r]
+  - [t, r]
+  - [k, l]
+  - [p, l]
+  - ["tʃ", r]
+restricted_onset_nucleus_pairs:
+  # Real, historically-conditioned Khmer "register" system: Old Khmer's
+  # onset-consonant voicing contrast was lost, but its effect survives as
+  # a vowel-quality split -- the same vowel diacritic surfaces as one
+  # quality after a formerly-voiceless ("1st register") onset and a
+  # different quality after a formerly-voiced ("2nd register") onset.
+  # This profile demonstrates the real mechanism for one representative
+  # vowel pair (the real "a"-diacritic's own two outcomes, /ɑː/ vs. /iə/)
+  # across a few onsets from each register class, via this project's own
+  # existing onset-nucleus-pair mechanism (the same one Mandarin's real
+  # /ɕ/-only-before-i/y restriction already uses) -- the real system
+  # governs Khmer's *entire* vowel inventory, not just this one pair;
+  # full coverage would need ~150-300+ pairs, well beyond what a
+  # representative sketch should carry, so this stays honestly partial.
+  - [p, "iə"]   # 1st-register onset, blocked from the 2nd-register outcome
+  - [t, "iə"]
+  - [k, "iə"]
+  - [b, "ɑː"]   # 2nd-register onset, blocked from the 1st-register outcome
+  - [d, "ɑː"]
+  - [n, "ɑː"]
+stress_pattern: ""
+# Real Khmer stress is fully predictable (final-syllable prominence,
+# derived from its own real sesquisyllabic minor/major-syllable
+# structure -- a reduced "minor" pre-syllable plus a full stressed
+# "major" syllable), but this project has no mechanism to construct
+# that structure -- forcing a flat `stress_pattern: final` would
+# misrepresent a phenomenon this project can't actually build words to
+# match, so this stays a documented, deliberately-unmodeled real fact
+# rather than a forced-fit rule.
+orthography_category: diacritic-style
+orthography:
+  # Real Khmer romanization conventions (UNGEGN-adjacent), restricted to
+  # symbols this profile actually models -- illustrative, not a full
+  # account.
+  - {ipa: "pʰ", latin: ph}
+  - {ipa: "tʰ", latin: th}
+  - {ipa: "kʰ", latin: kh}
+  - {ipa: "tʃ", latin: ch}
+  - {ipa: "tʃʰ", latin: chh}
+  - {ipa: "ɲ", latin: nh}
+  - {ipa: "ŋ", latin: ng}
+  - {ipa: "ʔ", latin: "'"}
+  - {ipa: "ɑː", latin: a}    # the real 1st-register outcome of Khmer's own "a"-diacritic
+  - {ipa: "iə", latin: ie}   # the real 2nd-register outcome of the same diacritic
+  - {ipa: "ɨ", latin: "ŭ"}
+  - {ipa: "ɨː", latin: ii}
+  - {ipa: "ɛ", latin: e}
+  - {ipa: "ɛː", latin: ae}
+  - {ipa: "ɔ", latin: o}
+  - {ipa: "ɔː", latin: oa}
+  - {ipa: "ɨə", latin: eu}
+  - {ipa: "uə", latin: uo}
+core_vocabulary_average_syllables: 1.4  # illustrative -- many real Khmer roots are monosyllabic-with-a-heavy-onset (including its own real sesquisyllabic minor-syllable words, which this project's own syllable-counting model can't distinguish from a genuine full syllable) rather than genuinely polysyllabic; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [k, t, p, n, m, s, r]
+  common: [b, d, "kʰ", "tʰ", "pʰ", l, h]
+  uncommon: ["tʃ", "tʃʰ", "ɲ", "ŋ", j, w]
+  rare: ["ʔ"]
+nucleus_frequency_tiers:
+  very_common: [a, i, u, "ɑː"]
+  common: [e, o, "aː", "iː", "uː"]
+  uncommon: ["ɛ", "ɔ", "ɨ", "ə", "iə"]
+  rare: ["ɛː", "ɔː", "ɨː", "ɑ", "eː", "oː", ai, au, "ɨə", "uə"]
+coda_frequency_tiers:
+  very_common: [n, k, "ŋ", t]
+  common: [m, p, l, "ʔ"]
+  uncommon: [j, w, h]
+  rare: ["ɲ"]

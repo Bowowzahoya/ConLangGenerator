@@ -59,14 +59,15 @@ def test_predict_default_word_accent_unrecognized_pattern_falls_back_to_accent_2
 
 def test_resolve_word_accent_first_matched_profile_wins():
     class _Fake:
-        def __init__(self, realization, pattern, rate, length_rate=None):
+        def __init__(self, realization, pattern, rate, length_rate=None, window=None):
             self.word_accent_realization = realization
             self.word_accent_pattern = pattern
             self.word_accent_deviation_rate = rate
             self.word_accent_length_rate = length_rate
+            self.word_accent_window = window
 
     profiles = (_Fake("", "", None), _Fake("glottalization", "monosyllabic_heavy", 0.15), _Fake("pitch", "underived_monosyllable", 0.2))
-    assert word_accent_gen.resolve_word_accent(profiles) == ("glottalization", "monosyllabic_heavy", 0.15, None)
+    assert word_accent_gen.resolve_word_accent(profiles) == ("glottalization", "monosyllabic_heavy", 0.15, None, None)
 
 
 def test_resolve_word_accent_no_curated_profile_abstains():
@@ -75,8 +76,9 @@ def test_resolve_word_accent_no_curated_profile_abstains():
         word_accent_pattern = ""
         word_accent_deviation_rate = None
         word_accent_length_rate = None
+        word_accent_window = None
 
-    assert word_accent_gen.resolve_word_accent((_Fake(), _Fake())) == ("", "", None, None)
+    assert word_accent_gen.resolve_word_accent((_Fake(), _Fake())) == ("", "", None, None, None)
 
 
 def test_assign_word_accent_at_zero_strictness_always_returns_none():
@@ -228,14 +230,28 @@ def test_predict_default_word_accent_initial_falling_elsewhere_rising():
 
 def test_resolve_word_accent_returns_curated_length_rate():
     class _Fake:
-        def __init__(self, realization, pattern, rate, length_rate):
+        def __init__(self, realization, pattern, rate, length_rate, window=None):
             self.word_accent_realization = realization
             self.word_accent_pattern = pattern
             self.word_accent_deviation_rate = rate
             self.word_accent_length_rate = length_rate
+            self.word_accent_window = window
 
     profiles = (_Fake("pitch_and_length", "initial_falling_elsewhere_rising", 0.1, 0.6),)
-    assert word_accent_gen.resolve_word_accent(profiles) == ("pitch_and_length", "initial_falling_elsewhere_rising", 0.1, 0.6)
+    assert word_accent_gen.resolve_word_accent(profiles) == ("pitch_and_length", "initial_falling_elsewhere_rising", 0.1, 0.6, None)
+
+
+def test_resolve_word_accent_returns_curated_window():
+    class _Fake:
+        def __init__(self, realization, pattern, rate, length_rate, window):
+            self.word_accent_realization = realization
+            self.word_accent_pattern = pattern
+            self.word_accent_deviation_rate = rate
+            self.word_accent_length_rate = length_rate
+            self.word_accent_window = window
+
+    profiles = (_Fake("positional_pitch_accent", "lexical", None, None, 3),)
+    assert word_accent_gen.resolve_word_accent(profiles) == ("positional_pitch_accent", "lexical", None, None, 3)
 
 
 def test_assign_word_accent_with_length_at_zero_strictness_always_returns_none():
@@ -333,6 +349,48 @@ def test_mark_positional_pitch_accent_kernel_mid_word_rises_then_drops():
 def test_mark_positional_pitch_accent_monosyllable():
     assert word_accent_gen.mark_positional_pitch_accent(0, 1) == (_HIGH,)
     assert word_accent_gen.mark_positional_pitch_accent(None, 1) == (_LOW,)
+
+
+def test_assign_positional_pitch_accent_window_none_matches_original_behavior():
+    # window=None (the default) must be byte-identical to omitting the
+    # parameter entirely -- Japanese's own generation must never change.
+    seen_default = {word_accent_gen.assign_positional_pitch_accent(random.Random(s), 5, 1.0) for s in range(200)}
+    seen_explicit_none = {
+        word_accent_gen.assign_positional_pitch_accent(random.Random(s), 5, 1.0, None) for s in range(200)
+    }
+    assert seen_default == seen_explicit_none == {None, 0, 1, 2, 3, 4}
+
+
+def test_assign_positional_pitch_accent_window_restricts_kernel_candidates():
+    # Real Ancient Greek's own trimoric law: a 5-syllable word with
+    # window=3 can only ever land the kernel on syllable 2, 3, or 4 (the
+    # last 3), never 0 or 1.
+    rng = random.Random(0)
+    seen = {word_accent_gen.assign_positional_pitch_accent(rng, 5, 1.0, 3) for _ in range(500)}
+    assert seen == {None, 2, 3, 4}
+
+
+def test_assign_positional_pitch_accent_window_wider_than_word_covers_every_syllable():
+    # A word shorter than the window still allows every syllable, not a
+    # truncated/empty candidate range.
+    rng = random.Random(0)
+    seen = {word_accent_gen.assign_positional_pitch_accent(rng, 2, 1.0, 3) for _ in range(200)}
+    assert seen == {None, 0, 1}
+
+
+def test_mark_positional_pitch_accent_long_nucleus_false_matches_original_behavior():
+    assert word_accent_gen.mark_positional_pitch_accent(1, 4, False) == word_accent_gen.mark_positional_pitch_accent(1, 4)
+    assert word_accent_gen.mark_positional_pitch_accent(0, 2, False) == word_accent_gen.mark_positional_pitch_accent(0, 2)
+
+
+def test_mark_positional_pitch_accent_long_nucleus_at_kernel_gets_circumflex():
+    _FALLING = TONE_DIACRITICS[ToneLevel.FALLING]
+    # Real Attic acute-vs-circumflex rule: the kernel syllable specifically
+    # gets the falling (circumflex) mark instead of plain High when its
+    # own nucleus is long -- every other syllable's own mark is unaffected.
+    assert word_accent_gen.mark_positional_pitch_accent(1, 4, True) == (_LOW, _FALLING, _LOW, _LOW)
+    assert word_accent_gen.mark_positional_pitch_accent(2, 4, True) == (_LOW, _HIGH, _FALLING, _LOW)
+    assert word_accent_gen.mark_positional_pitch_accent(0, 2, True) == (_FALLING, _LOW)
 
 
 def test_mark_stress_and_word_accent_positional_pitch_accent_marks_every_syllable():

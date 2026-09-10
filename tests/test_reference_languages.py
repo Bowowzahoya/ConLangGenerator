@@ -305,10 +305,14 @@ def test_arawakan_matches_by_its_garifuna_alias():
     assert {p.name for p in matched} == {"Arawakan"}
 
 
-def test_icelandic_matches_by_its_old_norse_and_viking_aliases():
+def test_old_norse_matches_by_its_own_viking_alias():
+    # "old norse"/"norse"/"viking" used to alias to Icelandic (a stand-in
+    # for the unmodeled ancestor) -- now that Old Norse has its own real
+    # profile, they resolve there instead; Icelandic keeps only its own
+    # distinct identity alias.
     matched = match_profiles(("old norse", "VIKING"))
     names = {p.name for p in matched}
-    assert names == {"Icelandic"}
+    assert names == {"Old Norse"}
 
 
 def test_nahuatl_matches_by_its_aztec_alias():
@@ -921,6 +925,8 @@ def test_most_profiles_leave_average_syllables_uncurated():
         "Swahili", "Zulu", "Yoruba",
         "Arawakan", "Pama-Nyungan", "Bengali", "Georgian",
         "Hawaiian", "Nahuatl", "Quechua", "Xhosa",
+        "Welsh", "Basque", "Nama", "Navajo", "Khmer",
+        "Latin", "Old Norse", "Sumerian", "Ancient Greek", "Sanskrit",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -970,12 +976,18 @@ _PERFECTED_LANGUAGES = (
     "Vietnamese", "Cantonese",
     "Thai", "Indonesian", "Malay",
     "Bengali", "Georgian", "Quechua",
+    "Welsh", "Basque", "Navajo", "Khmer", "Latin", "Old Norse", "Ancient Greek", "Sanskrit",
     # Tamil, Mandarin, Japanese, and Tibetan are deliberately left out of
     # this list too, for the exact same "sonorant" coda_profile reason as
     # Italian above -- checked separately. Swahili, Zulu, and Yoruba are
     # also left out, for the analogous "coda_profile: none" reason (no
     # coda_frequency_tiers curated at all, since no native syllable ever
-    # closes) -- checked separately too.
+    # closes) -- checked separately too. Nama and Sumerian are left out
+    # for the same "sonorant" reason as Tamil/Mandarin/Japanese/Tibetan --
+    # checked separately. Navajo, despite Na-Dene codas being genuinely
+    # restrictive, is `coda_profile: unrestricted` (real Navajo verb
+    # stems can end in true obstruents like h/s/ʃ, not just the sonorant
+    # class), so it's curated the full way and stays in this list.
 )
 _TIER_NAMES = {"very_common", "common", "uncommon", "rare"}
 
@@ -1021,7 +1033,7 @@ def test_english_ð_is_onset_rare_despite_high_token_frequency():
 
 def test_non_perfected_profiles_leave_frequency_tiers_uncurated():
     for profile in REFERENCE_LANGUAGES:
-        if profile.name not in _PERFECTED_LANGUAGES and profile.name not in ("Italian", "Tamil", "Mandarin", "Japanese", "Tibetan", "Swahili", "Zulu", "Yoruba", "Arawakan", "Pama-Nyungan", "Nahuatl", "Hawaiian", "Xhosa"):
+        if profile.name not in _PERFECTED_LANGUAGES and profile.name not in ("Italian", "Tamil", "Mandarin", "Japanese", "Tibetan", "Swahili", "Zulu", "Yoruba", "Arawakan", "Pama-Nyungan", "Nahuatl", "Hawaiian", "Xhosa", "Nama", "Sumerian"):
             assert profile.onset_frequency_tiers == {}
             assert profile.nucleus_frequency_tiers == {}
             assert profile.coda_frequency_tiers == {}
@@ -1245,6 +1257,39 @@ def test_arawakan_declares_the_real_narrow_coda_set_and_the_real_sixth_vowel():
     assert "ɨ" in arawakan.vowels
     assert "ə" not in arawakan.vowels
     assert arawakan.stress_pattern == ""  # genuinely disputed across sources -- deliberately left uncurated rather than guessed
+
+
+def test_sumerian_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    _assert_onset_nucleus_only("Sumerian", coda_profile="sonorant")
+
+
+def test_sumerian_declares_no_stress_and_a_plain_four_vowel_system():
+    sumerian = next(p for p in REFERENCE_LANGUAGES if p.name == "Sumerian")
+    assert sumerian.stress_pattern == ""  # not well-established either way in the scholarly literature
+    assert sumerian.word_accent_realization == ""
+    assert set(sumerian.vowels) == {"a", "e", "i", "u"}  # real, well-agreed claim: no /o/
+
+
+def test_nama_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    _assert_onset_nucleus_only("Nama", coda_profile="sonorant")
+
+
+def test_nama_narrows_the_sonorant_coda_set_to_the_plain_nasal_only():
+    # Only "n" stays legal among the real sonority-class candidates
+    # (m/ŋ/w/j plus this pool's own nasal-manner click series) -- the
+    # naive consonants-minus-restricted difference also includes plain
+    # obstruents/clicks that the engine's own sonority filter already
+    # excludes regardless of this field, so this checks the candidate
+    # set specifically, the same shape Arawakan's own equivalent test uses.
+    nama = next(p for p in REFERENCE_LANGUAGES if p.name == "Nama")
+    legal_codas = set(nama.consonants) - set(nama.restricted_coda_consonants)
+    sonorant_candidates = {
+        "m", "n", "ŋ", "w", "j",
+        "ŋǀ", "ŋǃ", "ŋǁ", "ŋǂ", "ŋǀʰ", "ŋǃʰ", "ŋǁʰ", "ŋǂʰ", "ŋǀʼ", "ŋǃʼ", "ŋǁʼ", "ŋǂʼ",
+    }
+    assert legal_codas & sonorant_candidates == {"n"}
+    assert nama.tonal is True
+    assert nama.tone_level_count == 2
 
 
 def test_pama_nyungan_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
@@ -1804,6 +1849,7 @@ def test_most_profiles_leave_stress_pattern_uncurated():
         "Indonesian", "Malay",
         "Swahili",
         "Pama-Nyungan", "Bengali", "Georgian", "Nahuatl", "Quechua", "Hawaiian",
+        "Welsh", "Basque", "Latin", "Old Norse",
         # Mandarin, Japanese, Korean, Vietnamese, Cantonese, Thai,
         # Tibetan, Zulu, and Yoruba deliberately don't curate stress --
         # each tonal profile's real prosodic axis is its own tone system
@@ -1815,6 +1861,18 @@ def test_most_profiles_leave_stress_pattern_uncurated():
         # question across sources this profile can't responsibly pick a
         # side on (see its own comment); Xhosa, like Zulu, has no
         # independent stress system at all, tone governs prominence.
+        # Nama and Navajo are tonal (their own prosodic axis is tone, not
+        # stress); Khmer's real stress is fully predictable but from a
+        # sesquisyllabic minor/major-syllable structure this project can't
+        # construct, so it stays a documented, deliberately-unmodeled real
+        # fact rather than a forced-fit flat rule; Sumerian's real stress
+        # placement isn't well-established either way; Ancient Greek's own
+        # prosodic axis is its own positional pitch accent (curated
+        # separately, see word_accent below), the same "stress_pattern
+        # stays uncurated" choice Japanese's own profile already makes for
+        # the same realization; Sanskrit has no well-established word-
+        # stress system distinct from its own (unmodeled, out-of-scope)
+        # Vedic pitch accent.
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -1872,13 +1930,31 @@ def test_danish_declares_glottalization_word_accent_and_swedish_norwegian_declar
         assert by_name[name].word_accent_deviation_rate is not None
 
 
+def test_ancient_greek_declares_a_windowed_positional_pitch_accent():
+    ancient_greek = next(p for p in REFERENCE_LANGUAGES if p.name == "Ancient Greek")
+    assert ancient_greek.word_accent_realization == "positional_pitch_accent"
+    assert ancient_greek.word_accent_pattern == "lexical"
+    assert ancient_greek.word_accent_window == 3  # the real "trimoric law"
+    assert ancient_greek.stress_pattern == ""  # its own prosodic axis is the pitch accent above, not stress
+
+
+def test_japanese_leaves_word_accent_window_uncurated():
+    # Japanese's own positional pitch accent is unrestricted (any
+    # syllable can carry the kernel) -- window stays unset, the same
+    # "abstain when uncurated" convention every other optional field uses.
+    japanese = next(p for p in REFERENCE_LANGUAGES if p.name == "Japanese")
+    assert japanese.word_accent_realization == "positional_pitch_accent"
+    assert japanese.word_accent_window is None
+
+
 def test_icelandic_and_the_six_perfected_languages_leave_word_accent_uncurated():
     # Real Icelandic has no stød/pitch accent; the six perfected profiles
     # are unrelated languages that don't have this feature either. Real
     # Russian/Portuguese also lack a lexical tone/pitch-accent contrast --
-    # only Serbo-Croatian's own genuine 4-way tone+length system and
-    # Japanese's own positional pitch accent are curated.
-    curated = {"Danish", "Swedish", "Norwegian", "Serbo-Croatian", "Japanese"}
+    # only Serbo-Croatian's own genuine 4-way tone+length system,
+    # Japanese's own positional pitch accent, and Ancient Greek's own
+    # (windowed) positional pitch accent are curated.
+    curated = {"Danish", "Swedish", "Norwegian", "Serbo-Croatian", "Japanese", "Ancient Greek"}
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
             assert profile.word_accent_realization == ""

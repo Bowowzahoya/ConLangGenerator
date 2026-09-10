@@ -8,7 +8,7 @@ from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import Manner, Place, PhonemeInventory, Vowel, VowelBackness, VowelHeight, Consonant, WordAccentSystem
 from conlang_generator.core.romanization import STRESS_MARK
 from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation import lexicon_gen, phonology_gen, romanization_gen, word_builder
+from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, romanization_gen, word_builder
 from conlang_generator.llm.fake_client import FakeLLMClient
 
 
@@ -165,12 +165,21 @@ def test_small_words_average_closer_vowels_than_big_words():
         VowelHeight.OPEN_MID: 4, VowelHeight.NEAR_OPEN: 5, VowelHeight.OPEN: 6,
     }
     height_by_ipa = {v.ipa: height_rank[v.height] for v in inventory.vowels}
+    known_symbols = tuple(c.ipa for c in inventory.consonants) + tuple(height_by_ipa)
 
     def avg_first_vowel_height(gloss: str, pos, n: int = 100) -> float:
+        # Proper greedy-longest-match tokenization (the same mechanism the
+        # real generation pipeline itself uses), not naive single-character
+        # iteration -- a multi-character vowel symbol (a long vowel, a
+        # diphthong, a syllabic consonant like "r̩") doesn't necessarily
+        # share any individual character with a *separately* registered
+        # vowel entry, so character-by-character scanning can miss it
+        # entirely even though the word plainly has a vowel.
         total = 0
         for _ in range(n):
             entry = lexicon_gen.propose_word(rng, inventory, structure, tone_system, WordAccentSystem(), romanization, gloss, pos, client, "Test")
-            first_vowel = next(ch for ch in entry.ipa if ch in height_by_ipa)
+            symbols = ipa_tokenizer.symbols_only(entry.ipa, known_symbols)
+            first_vowel = next(s for s in symbols if s in height_by_ipa)
             total += height_by_ipa[first_vowel]
         return total / n
 

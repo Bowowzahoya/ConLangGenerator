@@ -288,16 +288,18 @@ def propose_templatic_word(
     word_accent_pattern = ""
     word_accent_deviation_rate: float | None = None
     word_accent_length_rate: float | None = None
+    word_accent_window: int | None = None
     if word_accent_system.enabled:
-        _, word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate = word_accent_gen.resolve_word_accent(
-            reference_profiles
-        )
+        (
+            _, word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate, word_accent_window,
+        ) = word_accent_gen.resolve_word_accent(reference_profiles)
     stressed = word_accent_gen.mark_stress_and_word_accent(
         rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, strictness,
         word_accent_realization=word_accent_system.realization,
         word_accent_pattern=word_accent_pattern,
         word_accent_deviation_rate=word_accent_deviation_rate,
         word_accent_length_rate=word_accent_length_rate,
+        word_accent_window=word_accent_window,
     )
 
     return LexicalEntry(

@@ -219,8 +219,12 @@ def test_evolved_dutch_lineage_keeps_coda_devoicing_with_no_new_contact():
     # evolve_language recomputes SyllableStructure -- even on a run that
     # adds no *new* contact language, same failure mode as the romanization
     # lineage bug this mirrors.
+    # seed=1 -- empirically-found (see the seed-search convention noted
+    # elsewhere in this file); re-found after the ten-language batch's own
+    # new phoneme-pool content shifted downstream rng draws enough that
+    # seed=0 stopped rolling a non-empty excluded_coda_consonants.
     base = generate_language(
-        "Dutch", GenerationSpec(prompt="Dutch", seed=0, traits=TraitProfile(source_languages=("Dutch",))), FakeLLMClient()
+        "Dutch", GenerationSpec(prompt="Dutch", seed=1, traits=TraitProfile(source_languages=("Dutch",))), FakeLLMClient()
     )
     assert base.syllable_structure.excluded_coda_consonants  # sanity: the base actually has the constraint
     evolved = evolve_language("Evolved", base, 100, TraitProfile(), seed=1)
@@ -422,13 +426,12 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # even one whose own pronunciation didn't shift this run at all. Fixed
     # seed known to reform at least one word while its IPA stays
     # byte-identical to the base. (Re-found repeatedly as downstream rng
-    # draws shift -- most recently against seed=2 after the Thai/
-    # Indonesian/Malay batch's own new phoneme-pool content (tɕʰ, ɤ, and
-    # the ɛː/ɔː/ɯː/ɤː long vowels) shifted downstream rng draws once more,
-    # same "seed-shift from new content" pattern documented elsewhere in
-    # this project's history.)
+    # draws shift -- most recently against seed=3 after the ten-language
+    # batch's own new phoneme-pool content shifted downstream rng draws
+    # once more, same "seed-shift from new content" pattern documented
+    # elsewhere in this project's history.)
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=2)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=3)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)

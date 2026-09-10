@@ -1,0 +1,98 @@
+name: Sanskrit
+aliases: [classical sanskrit, "samskrtam"]
+consonants: [p, "pʰ", b, "bʱ", m, t, "tʰ", d, "dʱ", n, "ʈ", "ʈʰ", "ɖ", "ɖʱ", "ɳ", k, "kʰ", g, "ɡʱ", "ŋ", "tʃ", "tʃʰ", "dʒ", "dʒʱ", "ɲ", s, "ʃ", "ʂ", h, j, r, l, v]
+# Real Classical Sanskrit's own famous 4-way stop/affricate series
+# (voiceless / voiceless-aspirated / voiced / voiced-breathy) across
+# every one of its 5 real places -- labial, dental, retroflex, velar,
+# palatal -- mapped directly onto this pool's own plain/aspirated/
+# breathy trait combination at each place. Real Sanskrit's own vocalic
+# ṛ/ḷ (syllabic r/l) stay a deliberately unmodeled real aside -- this
+# pool's own `r̩` models a comparable phenomenon but isn't drawn on here,
+# the same status Yoruba's own real syllabic nasal already has elsewhere
+# in this project.
+vowels: [a, i, u, "aː", "iː", "uː", "eː", "oː", ai, au]
+# Real Sanskrit e/o are phonetically always long (there's no short e/o
+# to contrast against), hence "eː"/"oː" here rather than a naive plain
+# e/o -- but see the orthography note below on how IAST still spells
+# them without a macron, since there's nothing to disambiguate from.
+coda_profile: unrestricted
+max_onset: 2
+max_coda: 1
+tonal: false
+# No stress_pattern/word_accent curated -- this profile deliberately
+# targets *Classical* Sanskrit (the language most fantasy/conlang users
+# mean), which genuinely lost the older Vedic pitch-accent system
+# entirely; that real, well-documented Vedic accent (a kernel-plus-one
+# svarita-derivation system) is a deliberately out-of-scope historical
+# aside, the same "real but predates/postdates the modeled standard"
+# honesty this project already practices elsewhere (e.g. Mandarin's own
+# neutral tone).
+restricted_coda_consonants: ["pʰ", b, "bʱ", "tʰ", d, "dʱ", "ʈʰ", "ɖ", "ɖʱ", "ɳ", "kʰ", g, "ɡʱ", "ŋ", "tʃ", "tʃʰ", "dʒ", "dʒʱ", "ɲ", s, "ʃ", "ʂ", h, j, r, l, v]
+# Real Classical Sanskrit's own strict word-final sandhi neutralizes
+# every coda down to just the plain voiceless stop of each series (p/t/
+# ʈ/k) plus the two nasals (n/m) -- a genuine, citable fact (real
+# anusvara/visarga stay unmodeled as their own unit phonemes, the same
+# "real but architecturally uncapturable" status this pool's other
+# nasalization/breathing marks already have elsewhere).
+attested_onset_clusters:
+  # Real, common Sanskrit initial clusters -- illustrative, not
+  # exhaustive (real Sanskrit onsets can run to 3-4 consonants, e.g.
+  # "sthā-"; this profile models a representative 2-member subset).
+  - [k, r]     # "krishna"
+  - [t, r]     # "traya" (three, related)
+  - [p, r]     # "prana"
+  - ["bʱ", r]   # "brahma"
+  - [d, v]     # "dvara" (door)
+  - [s, v]     # "svara" (vowel/sound)
+  - ["ʃ", r]    # "shri"
+  - [g, r]     # "graha" (planet)
+orthography_category: scholarly-macron-style
+orthography:
+  # Real IAST (International Alphabet of Sanskrit Transliteration)
+  # conventions, restricted to symbols this profile actually models --
+  # illustrative, not a full account, the same convention this project's
+  # own Hindi profile already curates for closely related material.
+  - {ipa: "ʈ", latin: "ṭ"}
+  - {ipa: "ʈʰ", latin: "ṭh"}
+  - {ipa: "ɖ", latin: "ḍ"}
+  - {ipa: "ɖʱ", latin: "ḍh"}
+  - {ipa: "ɳ", latin: "ṇ"}
+  - {ipa: "ʃ", latin: "ś"}
+  - {ipa: "ʂ", latin: "ṣ"}
+  - {ipa: "ŋ", latin: "ṅ"}
+  - {ipa: "ɲ", latin: "ñ"}
+  - {ipa: "tʃ", latin: c}
+  - {ipa: "tʃʰ", latin: ch}
+  - {ipa: "dʒ", latin: j}
+  - {ipa: "dʒʱ", latin: jh}
+  - {ipa: "pʰ", latin: ph}
+  - {ipa: "tʰ", latin: th}
+  - {ipa: "kʰ", latin: kh}
+  - {ipa: "bʱ", latin: bh}
+  - {ipa: "dʱ", latin: dh}
+  - {ipa: "ɡʱ", latin: gh}
+  - {ipa: j, latin: y}
+  - {ipa: "aː", latin: "ā"}
+  - {ipa: "iː", latin: "ī"}
+  - {ipa: "uː", latin: "ū"}
+  # Real IAST spells these *without* a macron despite being phonetically
+  # always-long -- there's no short e/o to disambiguate against, so the
+  # real convention leaves them plain.
+  - {ipa: "eː", latin: e}
+  - {ipa: "oː", latin: o}
+core_vocabulary_average_syllables: 2.0  # illustrative -- real Sanskrit's own rich inflectional morphology (case/number/gender endings) keeps words a bit longer than a bare root, comparable to this project's own Latin/Hindi territory; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [k, t, p, m, n, s, r]
+  common: [g, d, b, "tʃ", "dʒ", "ʃ", l, v, j, h]
+  uncommon: ["kʰ", "tʰ", "pʰ", "ʈ", "ɖ", "ɳ", "ɲ", "ŋ", "ʂ"]
+  rare: ["ɡʱ", "dʱ", "bʱ", "tʃʰ", "dʒʱ", "ʈʰ", "ɖʱ"]
+nucleus_frequency_tiers:
+  very_common: [a, i, u]
+  common: ["aː", "iː", "uː"]
+  uncommon: ["eː", "oː"]
+  rare: [ai, au]
+coda_frequency_tiers:
+  very_common: [n, m]
+  common: [t, k]
+  uncommon: [p]
+  rare: ["ʈ"]

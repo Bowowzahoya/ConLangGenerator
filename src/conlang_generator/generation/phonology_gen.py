@@ -125,6 +125,17 @@ _ASPIRATED_GROUP = (
     # ambiguity curated directly in thai.yaml's own orthography rules,
     # not papered over here.
     Consonant(ipa="tɕʰ", place=Place.PALATAL, manner=Manner.AFFRICATE, voiced=False, aspirated=True, prevalence=0.15),
+    # Real Navajo's own 3-way plain/aspirated/ejective series extends to
+    # its postalveolar and lateral affricates too (not just the alveolar
+    # tsʰ above) -- completing the real symmetry alongside the ejective
+    # tʃʼ/tɬʼ members already in `_EXOTIC_POOL`.
+    Consonant(ipa="tʃʰ", place=Place.POSTALVEOLAR, manner=Manner.AFFRICATE, voiced=False, aspirated=True, prevalence=0.12),
+    Consonant(ipa="tɬʰ", place=Place.ALVEOLAR, manner=Manner.LATERAL_AFFRICATE, voiced=False, aspirated=True, prevalence=0.08),
+    # Real Sanskrit's own 4-way stop series (voiceless / voiceless-
+    # aspirated / voiced / voiced-breathy) extends to its retroflex place
+    # too, alongside labial/dental/velar/palatal -- the aspirated member
+    # completing the ʈ/ɖ pair `_STOP_AND_AFFRICATE_PAIRS` already has.
+    Consonant(ipa="ʈʰ", place=Place.RETROFLEX, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.06),
 )
 _ASPIRATED_GROUP_BASE_RATE = 0.10
 
@@ -199,6 +210,15 @@ _BREATHY_GROUP = (
     Consonant(ipa="bʱ", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.30),
     Consonant(ipa="dʱ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.30),
     Consonant(ipa="ɡʱ", place=Place.VELAR, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.30),
+    # Real Sanskrit's own 5-way-per-place stop/affricate series (voiceless
+    # / voiceless-aspirated / voiced / voiced-breathy) completes its
+    # palatal member here -- bʱ/dʱ/ɡʱ above already cover labial/dental/
+    # velar, and this pool already has plain/aspirated tʃ/tʃʰ for the
+    # voiceless side.
+    Consonant(ipa="dʒʱ", place=Place.POSTALVEOLAR, manner=Manner.AFFRICATE, voiced=True, breathy=True, prevalence=0.30),
+    # The breathy retroflex member completing ʈ/ʈʰ/ɖ/ɖʱ's own real
+    # 4-way series (see `_ASPIRATED_GROUP`'s own ʈʰ addition above).
+    Consonant(ipa="ɖʱ", place=Place.RETROFLEX, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.20),
 )
 _BREATHY_GROUP_BASE_RATE = 0.12
 
@@ -264,6 +284,14 @@ _APPROXIMANT_POOL = (
     # (a handful of language families), matching this pool's own "rare
     # but real" rate for other typologically marked segments (e.g. ʐ).
     Consonant(ipa="ɻ", place=Place.RETROFLEX, manner=Manner.APPROXIMANT, voiced=True, prevalence=0.06),
+    # Real palatal lateral approximant (Spanish/Basque "ll", Italian
+    # "gli", Portuguese "lh", Catalan "ll") -- common enough
+    # cross-linguistically to sit in the unconditional pool rather than
+    # a gated group, the same "ordinary enough" status /ɻ/ just above
+    # already has. Previously unmodeled -- Italian's own already-curated
+    # profile approximates it with "lʲ" (palatalized l) for lack of this
+    # symbol; that approximation stays as-is, out of scope for this batch.
+    Consonant(ipa="ʎ", place=Place.PALATAL, manner=Manner.LATERAL_APPROXIMANT, voiced=True, prevalence=0.10),
 )
 
 # Very low-prevalence "exotic" extras -- non-pulmonic consonants, areally
@@ -302,6 +330,26 @@ _EXOTIC_POOL = (
     Consonant(ipa="ŋǀ", place=Place.DENTAL, manner=Manner.NASAL, voiced=True, prevalence=0.008),
     Consonant(ipa="ŋǃ", place=Place.POSTALVEOLAR, manner=Manner.NASAL, voiced=True, prevalence=0.008),
     Consonant(ipa="ŋǁ", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, prevalence=0.006),
+    # Real Nama (Khoekhoegowab)'s own primary click inventory -- the 4th
+    # click place (ǂ, already declared bare above but left unused by
+    # Zulu/Xhosa) plus a genuinely different accompaniment set from
+    # Zulu's own Nguni-internal innovations: aspirated and glottalized
+    # ("ejective", the closest existing trait) each independently stack
+    # onto the nasal series too, giving real nasalized-aspirated and
+    # nasalized-glottalized clicks no Bantu click language has. Nama does
+    # NOT get Zulu's own voiced/breathy "depressor" series -- that's a
+    # real Nguni-specific innovation from Bantu tone depression, absent
+    # from primary Khoisan languages (see nama.yaml).
+    Consonant(ipa="ǂʰ", place=Place.PALATAL, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.006),
+    Consonant(ipa="ŋǂ", place=Place.PALATAL, manner=Manner.NASAL, voiced=True, prevalence=0.006),
+    Consonant(ipa="ŋǀʰ", place=Place.DENTAL, manner=Manner.NASAL, voiced=True, aspirated=True, prevalence=0.005),
+    Consonant(ipa="ŋǃʰ", place=Place.POSTALVEOLAR, manner=Manner.NASAL, voiced=True, aspirated=True, prevalence=0.005),
+    Consonant(ipa="ŋǁʰ", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, aspirated=True, prevalence=0.004),
+    Consonant(ipa="ŋǂʰ", place=Place.PALATAL, manner=Manner.NASAL, voiced=True, aspirated=True, prevalence=0.004),
+    Consonant(ipa="ŋǀʼ", place=Place.DENTAL, manner=Manner.NASAL, voiced=True, ejective=True, prevalence=0.005),
+    Consonant(ipa="ŋǃʼ", place=Place.POSTALVEOLAR, manner=Manner.NASAL, voiced=True, ejective=True, prevalence=0.005),
+    Consonant(ipa="ŋǁʼ", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, ejective=True, prevalence=0.004),
+    Consonant(ipa="ŋǂʼ", place=Place.PALATAL, manner=Manner.NASAL, voiced=True, ejective=True, prevalence=0.004),
     Consonant(ipa="ɓ", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, prevalence=0.08),
     Consonant(ipa="ɗ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, prevalence=0.08),
     Consonant(ipa="ʄ", place=Place.PALATAL, manner=Manner.STOP, voiced=True, prevalence=0.05),
@@ -330,6 +378,28 @@ _EXOTIC_POOL = (
     # voiceless counterpart /k͡p/ is markedly more marginal/dialectal in
     # standard descriptions, so it isn't modeled here.
     Consonant(ipa="ɡb", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, prevalence=0.05),
+    # Real Navajo's own ejective series extends across all three
+    # affricate places this pool already has plain members for (tɬ just
+    # above, ts/tʃ in `_STOP_AND_AFFRICATE_PAIRS`), not just the stops
+    # `_EJECTIVES` already covers -- these join `_EXOTIC_POOL` as
+    # independent draws rather than that group's own all-or-nothing gate,
+    # since they're a different manner class entirely.
+    Consonant(ipa="tɬʼ", place=Place.ALVEOLAR, manner=Manner.LATERAL_AFFRICATE, voiced=False, ejective=True, prevalence=0.08),
+    Consonant(ipa="tsʼ", place=Place.ALVEOLAR, manner=Manner.AFFRICATE, voiced=False, ejective=True, prevalence=0.08),
+    Consonant(ipa="tʃʼ", place=Place.POSTALVEOLAR, manner=Manner.AFFRICATE, voiced=False, ejective=True, prevalence=0.08),
+    # Real Basque's own apical/laminal sibilant contrast (s̺/s̻, plus their
+    # affricate counterparts t̺s̺/t̻s̻) -- opaque multi-character IPA
+    # strings like every other exotic symbol here, no new "apical vs.
+    # laminal" feature needed.
+    Consonant(ipa="s̺", place=Place.ALVEOLAR, manner=Manner.FRICATIVE, voiced=False, prevalence=0.05),
+    Consonant(ipa="s̻", place=Place.ALVEOLAR, manner=Manner.FRICATIVE, voiced=False, prevalence=0.05),
+    Consonant(ipa="t̺s̺", place=Place.ALVEOLAR, manner=Manner.AFFRICATE, voiced=False, prevalence=0.04),
+    Consonant(ipa="t̻s̻", place=Place.ALVEOLAR, manner=Manner.AFFRICATE, voiced=False, prevalence=0.04),
+    # Real Welsh's own voiceless alveolar trill ("rh") -- a genuine,
+    # distinctive phoneme (unlike the voiced trill/tap already in
+    # `_APPROXIMANT_POOL`), opaque IPA string like every other exotic
+    # symbol here, no new feature needed.
+    Consonant(ipa="r̥", place=Place.ALVEOLAR, manner=Manner.TRILL, voiced=False, prevalence=0.05),
 )
 
 _MIN_CONSONANTS = 8
@@ -435,6 +505,30 @@ _VOWEL_EXTRAS = (
     # /r/ "is" a close central vowel. Low prevalence, matching this
     # pool's own established "rare exotic member" rate (y/ø/œ).
     Vowel(ipa="r̩", height=VowelHeight.CLOSE, backness=VowelBackness.CENTRAL, rounded=False, prevalence=0.04),
+    # Real Navajo's own 4-way vowel contrast (oral/nasal x short/long)
+    # needs long counterparts of the already-existing short nasal vowels
+    # ã/ẽ/ĩ/õ -- same same-quality length-pair strategy as every other
+    # long-vowel addition, `long` and `nasalized` composing freely since
+    # they're independent fields. Navajo has no /u/, so no ũː.
+    Vowel(ipa="ãː", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, long=True, nasalized=True, prevalence=0.05),
+    Vowel(ipa="ẽː", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, long=True, nasalized=True, prevalence=0.04),
+    Vowel(ipa="ĩː", height=VowelHeight.CLOSE, backness=VowelBackness.FRONT, rounded=False, long=True, nasalized=True, prevalence=0.04),
+    Vowel(ipa="õː", height=VowelHeight.CLOSE_MID, backness=VowelBackness.BACK, rounded=True, long=True, nasalized=True, prevalence=0.04),
+    # Real Khmer's own long counterparts of ɨ/ɑ (both already short
+    # vowels in this pool), same same-quality length-pair strategy.
+    Vowel(ipa="ɨː", height=VowelHeight.CLOSE, backness=VowelBackness.CENTRAL, rounded=False, long=True, prevalence=0.05),
+    Vowel(ipa="ɑː", height=VowelHeight.OPEN, backness=VowelBackness.BACK, rounded=False, long=True, prevalence=0.05),
+    # Real Khmer's own rich real diphthong inventory -- classified by
+    # onset quality, same pattern as every other diphthong in this pool.
+    Vowel(ipa="iə", height=VowelHeight.CLOSE, backness=VowelBackness.FRONT, rounded=False, diphthong=True, prevalence=0.06),
+    Vowel(ipa="ɨə", height=VowelHeight.CLOSE, backness=VowelBackness.CENTRAL, rounded=False, diphthong=True, prevalence=0.05),
+    Vowel(ipa="uə", height=VowelHeight.CLOSE, backness=VowelBackness.BACK, rounded=True, diphthong=True, prevalence=0.05),
+    Vowel(ipa="eə", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, diphthong=True, prevalence=0.04),
+    Vowel(ipa="oə", height=VowelHeight.CLOSE_MID, backness=VowelBackness.BACK, rounded=True, diphthong=True, prevalence=0.04),
+    Vowel(ipa="aə", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, diphthong=True, prevalence=0.04),
+    Vowel(ipa="əɨ", height=VowelHeight.MID, backness=VowelBackness.CENTRAL, rounded=False, diphthong=True, prevalence=0.03),
+    Vowel(ipa="aɨ", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, diphthong=True, prevalence=0.03),
+    Vowel(ipa="ao", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, diphthong=True, prevalence=0.03),
 )
 
 _TONE_LEVEL_SETS = (
@@ -1199,7 +1293,7 @@ def generate_phonology(
     # Mutually exclusive with tone (a real language is never both a tone
     # language and a pitch-accent language) -- skip the roll entirely
     # once `tonal` has already won.
-    word_accent_realization, _, _, _ = word_accent_gen.resolve_word_accent(reference_profiles)
+    word_accent_realization, _, _, _, _ = word_accent_gen.resolve_word_accent(reference_profiles)
     if tone_system.enabled or not word_accent_realization:
         word_accent_system = WordAccentSystem(enabled=False)
     else:

@@ -2184,3 +2184,113 @@ reading code or one-off ad hoc scripts.
     toward an average rather than enforcing a hard floor, so this stays
     a real, below-this-project's-modeled-granularity gap rather than a
     guaranteed constraint).
+- **The ten-language batch** (Welsh, Basque, Nama, Navajo, Khmer, Latin,
+  Old Norse, Sumerian, Ancient Greek, Sanskrit) brought this project's
+  reference set from the full 45-profile "real-language coverage" to a
+  broader typological/historical spread, prompted directly by "what's
+  still missing for world coverage and fantasy-conlang use" -- five real-
+  world gaps (Celtic, a language isolate, a primary click language, Na-
+  Dene, an Austroasiatic register system) and five extinct/historical
+  languages a fantasy conlang generator's own users would plausibly draw
+  on (Latin, Old Norse, Sumerian, Ancient Greek, Sanskrit). Unlike the
+  eight-stub batch immediately before it, this one needed real new
+  phonemes and one real architecture extension.
+  - **New phonemes** (all "extend an existing pattern" additions, no new
+    trait axes): Nama's own 4th click place (`ǂ`, already declared but
+    unused by Zulu/Xhosa) plus ~10 new stacked click accompaniments
+    (nasal+aspirated, nasal+glottalized) -- a real accompaniment system
+    genuinely distinct from Zulu's own Nguni-internal voiced/breathy
+    "depressor" series, which Nama lacks. Navajo's own real 3-way plain/
+    aspirated/ejective series completed across its postalveolar and
+    lateral affricates (`tʃʰ tɬʰ` alongside the ejective `tʃʼ tɬʼ` this
+    batch also added) plus 4 long-nasal vowels. Basque's own apical/
+    laminal sibilant contrast (`s̺ s̻ t̺s̺ t̻s̻`). Sanskrit's own real 4-way
+    stop series completed for its retroflex place (`ʈʰ ɖʱ`, alongside the
+    breathy palatal affricate `dʒʱ`). Khmer's own long/diphthong-rich
+    vowel space (`ɨː ɑː` plus 9 real diphthongs). Welsh's own voiceless
+    trill (`r̥`). A genuinely reusable addition: `ʎ` (palatal lateral
+    approximant -- Spanish/Basque "ll", Italian "gli", Portuguese "lh"),
+    common enough cross-linguistically to join the unconditional
+    approximant pool rather than a gated group.
+  - **The one real architecture piece**: `word_accent_gen.py`'s existing
+    `positional_pitch_accent` mechanism (built for Japanese) gained two
+    new optional parameters -- `assign_positional_pitch_accent`'s
+    `window` (restricts the accent kernel to the last N syllables, real
+    Ancient Greek's own "trimoric law") and `mark_positional_pitch_accent`'s
+    `long_nucleus_at_kernel` (the kernel syllable's mark becomes the
+    falling/circumflex diacritic instead of plain High specifically when
+    its own nucleus is long, the real Attic acute-vs-circumflex rule) --
+    both threaded through `mark_stress_and_word_accent` and a new
+    `ReferenceLanguageProfile.word_accent_window` field. `None`/`False`
+    (the defaults) preserve Japanese's own exact prior behavior
+    byte-for-byte; only Ancient Greek's own profile sets `window: 3`.
+  - **Scope calls that avoided needing more architecture**: Sanskrit
+    targets Classical (post-Vedic) Sanskrit specifically, which genuinely
+    lost phonemic pitch accent -- `word_accent_realization` stays
+    uncurated, with the real Vedic accent system (which *would* need a
+    further "derive svarita on kernel+1" extension) left a deliberately
+    out-of-scope historical aside. Khmer's real historical-voicing-
+    conditioned vowel "register" split is modeled via the *already-
+    existing* `attested_onset_nucleus_pairs`/`restricted_onset_nucleus_pairs`
+    mechanism (the same one Mandarin's own real `/ɕ/`-before-i/y
+    restriction already uses) -- a curation task, not new architecture,
+    demonstrated for one representative vowel pair across a handful of
+    onsets from each register class rather than the real full ~150-300+
+    pair space, honestly flagged as partial. Nama's stacked click
+    accompaniments needed no new trait axis at all: `Consonant.manner`
+    and its boolean traits are already independent fields, so
+    `Manner.NASAL, aspirated=True` (etc.) was already expressible.
+  - **Real, citable coda facts**: Navajo is `coda_profile: unrestricted`
+    (not `sonorant`, despite genuinely restrictive Na-Dene codas) because
+    real Navajo verb stems can end in true obstruents (`h s ʃ`), not just
+    the sonorant class a `sonorant` profile's own engine-level sonority
+    filter would allow. Nama and Sumerian, by contrast, *are*
+    `coda_profile: sonorant`, narrowed further (Nama to just the plain
+    nasal, matching real Khoekhoe's CV/CVN canon). Ancient Greek and
+    Sanskrit both narrow `unrestricted` codas to their own real small
+    closed sets (Greek: n/r/s; Sanskrit: the plain voiceless stop of each
+    series plus the two nasals, real pada-final sandhi neutralization).
+  - **Orthography conventions curated for real, citable reasons**: Old
+    Norse uses **acute accents** for vowel length (á é í ó ú ý ǽ ǿ),
+    deliberately distinct from Latin/Sanskrit's own real **macron**
+    convention -- two different real scholarly traditions for two
+    different language families, not an inconsistency; its real hl-/hn-/
+    hr- clusters are modeled as genuine two-segment /h/+sonorant
+    clusters, not invented unit phonemes. Navajo's real orthography
+    spells its lenis (phonetically voiceless-unaspirated) series with
+    *voiced* letters (b/d/dl/dz/dj) -- a real, historically-motivated
+    gotcha curated directly, not papered over -- plus the real ogonek
+    convention for nasal vowels (ą ę į ǫ), stacking with length doubling
+    for long nasal vowels (ąą ęę įį ǫǫ). Nama's own real click
+    orthography spells clicks with their own bare letters (ǀ ǃ ǁ ǂ), a
+    different real practical-orthography tradition from Zulu/Xhosa's own
+    borrowed-click c/q/x convention, overriding the shared fallback
+    tables' own Nguni-derived defaults. Ancient Greek's own real υ
+    (upsilon) is a front rounded vowel `/y/`, not "u"; η/ω get real
+    macron transliteration (ē/ō) as the long, quality-shifted partners of
+    short ε/ο (a genuine asymmetric length pair, unlike α/ι/υ's own
+    same-quality pairing). Sanskrit's own real IAST spells its
+    always-long e/o *without* a macron (there's no short counterpart to
+    disambiguate against) despite modeling them as `eː`/`oː` internally.
+  - Word length: Sumerian (1.3, the shortest in this project's own set,
+    reflecting its own famously monosyllabic-root-heavy core vocabulary,
+    flagged with even more counting uncertainty than Arawakan/Pama-
+    Nyungan given Sumerian's uniquely indirect script-only evidence
+    base), Welsh (1.45, real Celtic apocope), Old Norse (1.4), Nama (1.7,
+    shorter than Zulu/Xhosa's own Bantu-prefix-driven figures -- Khoekhoe
+    has no comparable noun-class system), Basque (1.8), Sanskrit/Latin
+    (2.0 each), Ancient Greek (2.1), Navajo (2.2, real productive
+    verb/noun prefixation), Khmer (1.4, many real roots monosyllabic-
+    with-a-heavy-onset, plus real unmodeled sesquisyllabic minor
+    syllables this project's own syllable-counting can't distinguish from
+    a genuine full syllable).
+  - A pre-existing latent bug surfaced (not introduced) by this batch's
+    own new pool content, fixed alongside it:
+    `test_small_words_average_closer_vowels_than_big_words`
+    (`test_sound_symbolism.py`) scanned a generated word's own vowel
+    height character-by-character rather than by proper phoneme
+    tokenization, so a word built around a multi-character vowel symbol
+    sharing no individual character with any separately-registered vowel
+    (e.g. the pre-existing syllabic `r̩`) could raise `StopIteration` --
+    fixed to use `ipa_tokenizer.symbols_only`, the same greedy-longest-
+    match tokenization the real generation pipeline itself already uses.

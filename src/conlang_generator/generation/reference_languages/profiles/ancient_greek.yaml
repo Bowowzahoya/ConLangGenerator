@@ -1,0 +1,78 @@
+name: Ancient Greek
+aliases: [attic greek, classical greek, "hellenike"]
+consonants: [p, b, "pʰ", t, d, "tʰ", k, g, "kʰ", s, z, m, n, l, r, h, "lː", "nː", "sː", "tː"]
+# Real Attic Greek's own genuine 3-way stop series (voiceless/voiced/
+# aspirated) at every place this pool models -- π/β/φ, τ/δ/θ, κ/γ/χ --
+# maps directly onto this pool's own plain/voiced/aspirated trait
+# combination, the same shape Sanskrit's own (richer, 4-way) series uses.
+vowels: [a, e, i, o, y, "aː", "ɛː", "iː", "ɔː", "yː", ai, "ɔi", au, ei]
+# Real classical Attic vowel system: α/ι/υ pair with genuine same-quality
+# length (a/aː, i/iː, y/yː -- υ is a real front rounded vowel /y/ by the
+# classical period, not "u"), but ε/η and ο/ω are a genuine *quality-
+# shifted* length pair, not same-quality -- short ε is close-mid, long η
+# is open-mid (and likewise short ο vs. long ω) -- modeled directly with
+# this pool's own e/"ɛː" and o/"ɔː" pairs rather than a naive same-quality
+# aː-style pairing, which would misrepresent this real asymmetry.
+coda_profile: unrestricted
+max_onset: 2
+max_coda: 1
+tonal: false
+restricted_onset_consonants: ["lː", "nː", "sː", "tː"]  # real Greek gemination (ἄλλος, θάλαττα) is medial/intervocalic only, the same real fact and fix shape every other geminate-modeling profile here already uses
+restricted_coda_consonants: [p, b, "pʰ", t, d, "tʰ", k, g, "kʰ", z, m, l, h, "lː", "nː", "sː", "tː"]
+# Real Attic Greek word-final consonants are a genuinely small, closed
+# set -- ν/ρ/ς (n/r/s) -- plus the real consonant-cluster letters ξ/ψ
+# (ks/ps, spelled as single letters but phonemically sequences, the same
+# "real digraph letter, not a unit phoneme" treatment Latin's own real
+# "x" already gets); this profile leaves ξ/ψ's own cluster shape out of
+# scope rather than forcing it through an uncertain coda-cluster-sonority
+# interaction, the same honest "further richer picture stays under-
+# modeled" choice this batch's own Khmer profile makes for its register
+# system.
+attested_onset_clusters:
+  # Real, common Attic initial clusters -- illustrative, not exhaustive.
+  - [k, r]    # "κρ" (kratos)
+  - [k, l]    # "κλ" (kleos)
+  - [p, r]    # "πρ" (praxis)
+  - [p, l]    # "πλ" (plousios)
+  - [t, r]    # "τρ" (tropos)
+  - [g, r]    # "γρ" (graphein)
+  - ["pʰ", r]  # "φρ" (phren)
+  - ["tʰ", r]  # "θρ" (thronos)
+  - ["kʰ", r]  # "χρ" (chronos)
+  - [g, n]    # "γν" (gnosis)
+stress_pattern: ""  # real Attic Greek's own prosodic axis is its own positional pitch accent (curated below), the same "stress_pattern stays uncurated" choice Japanese's own profile already makes for the same realization
+word_accent_realization: positional_pitch_accent
+word_accent_pattern: lexical  # a sentinel, not a shape rule -- real Attic accent-kernel placement is genuinely lexically arbitrary within its own window (see word_accent_window below), the same "no shape-based default" reasoning Japanese's own profile already gives for its own unrestricted version
+word_accent_window: 3  # real Attic Greek's own "trimoric law" (or "law of limitation"): the accent can fall no further back than the antepenult
+orthography_category: scholarly-macron-gemination-style
+orthography:
+  # Real, standard scholarly Ancient Greek transliteration, restricted to
+  # symbols this profile actually models -- illustrative, not a full
+  # account (real Greek's own native script, polytonic diacritics, and
+  # accent notation stay out of scope for this project's own Latin
+  # romanization output).
+  - {ipa: "pʰ", latin: ph}
+  - {ipa: "tʰ", latin: th}
+  - {ipa: "kʰ", latin: ch}
+  - {ipa: y, latin: y}       # real υ (upsilon) -- a front rounded vowel, not "u"
+  - {ipa: "aː", latin: "ā"}
+  - {ipa: "iː", latin: "ī"}
+  - {ipa: "yː", latin: "ȳ"}
+  - {ipa: "ɛː", latin: "ē"}  # real η (eta)
+  - {ipa: "ɔː", latin: "ō"}  # real ω (omega)
+core_vocabulary_average_syllables: 2.1  # illustrative -- real Ancient Greek's own rich inflectional morphology (case/number/person/tense/mood endings) keeps words a bit longer than a bare root, comparable to this project's own Latin/Hindi territory; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, p, m, n, s]
+  common: [d, g, b, l, r, h]
+  uncommon: ["tʰ", "kʰ", "pʰ", z]
+  rare: []  # the geminate series is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
+nucleus_frequency_tiers:
+  very_common: [a, i, e]
+  common: [o, y, "aː"]
+  uncommon: ["iː", "ɛː", "ɔː", "yː"]
+  rare: [ai, au, ei, "ɔi"]
+coda_frequency_tiers:
+  very_common: [n, s]
+  common: [r]
+  uncommon: []
+  rare: []

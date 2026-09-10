@@ -1,0 +1,65 @@
+name: Latin
+aliases: [classical latin, lingua latina]
+consonants: [p, b, t, d, k, g, f, s, h, m, n, l, r, j, w, "kː", "tː", "pː", "sː", "nː", "lː"]
+vowels: [a, e, i, o, u, "aː", "eː", "iː", "oː", "uː", ai, "ɔi", au]
+# Real Classical Latin has no phonemic /x/ at all -- the letter "x" spells
+# the real consonant sequence /ks/ (see restricted_coda_consonants and
+# attested_coda_clusters below), not this pool's own velar-fricative /x/,
+# so that symbol is deliberately absent from this profile's own inventory.
+coda_profile: unrestricted
+max_onset: 2
+max_coda: 2  # real Latin coda clusters exist (sunt, mons, pars) -- see attested_coda_clusters
+tonal: false
+restricted_onset_consonants: ["kː", "tː", "pː", "sː", "nː", "lː"]  # real Latin gemination is a medial/intervocalic phenomenon (real "vacca", "annus") -- a word never starts with a geminate; this project has no ambisyllabic modeling, so the coda-position half of a real geminate is what stays legal in coda
+restricted_coda_consonants: [h, j, w]  # real Latin: h is onset-only; the glides (spelled i/u when consonantal) don't independently close a syllable -- their vocalic counterparts already model Latin's real diphthongs (ae/oe/au) as their own atomic symbols
+attested_onset_clusters:
+  # Real, common Latin initial clusters -- illustrative, not exhaustive.
+  - [t, r]   # "trans"
+  - [k, r]   # "crux"
+  - [p, r]   # "primus"
+  - [f, l]   # "flos"
+  - [g, r]   # "gratia"
+  - [k, l]   # "clarus"
+  - [b, r]   # "brevis"
+attested_coda_clusters:
+  # Real Latin word-final clusters, restricted to symbols this profile
+  # models -- illustrative, not exhaustive.
+  - [n, t]   # "sunt" (they are)
+  - [n, s]   # "mons" (mountain)
+  - [r, s]   # "pars" (part)
+  - [k, s]   # "rex" (king) -- real Latin letter "x" spells the sequence /ks/
+  - [k, t]   # "factum" (made/done)
+stress_pattern: lexical  # the real, famous weight-sensitive Latin Stress Rule -- penult if heavy, else antepenult; quantity-sensitive, no flat position captures it, the same shape this project's own Arabic/Hindi/Hawaiian profiles already use for their own quantity-sensitive systems
+stress_deviation_rate: 0.10  # illustrative -- the real rule is close to exceptionless once syllable weight is known, noticeably more regular than Hindi's own disputed 0.40
+orthography_category: scholarly-macron-gemination-style
+orthography:
+  # Real Classical Latin spelling, restricted to symbols this profile
+  # actually models -- illustrative, not a full account. Classical Latin
+  # had no letters j/v distinct from i/u -- the same letter served both
+  # the vocalic and consonantal ("glide") value.
+  - {ipa: j, latin: i}
+  - {ipa: w, latin: u}
+  - {ipa: ai, latin: ae}    # real Latin "ae" diphthong
+  - {ipa: "ɔi", latin: oe}  # real Latin "oe" diphthong
+  # Real, standard scholarly macron-length convention (ā ē ī ō ū).
+  - {ipa: "aː", latin: "ā"}
+  - {ipa: "eː", latin: "ē"}
+  - {ipa: "iː", latin: "ī"}
+  - {ipa: "oː", latin: "ō"}
+  - {ipa: "uː", latin: "ū"}
+core_vocabulary_average_syllables: 2.0  # illustrative -- real Latin's own rich inflectional endings (case/number/person/tense suffixes) keep words a bit longer than a bare root, comparable to this project's own Hindi/Georgian territory; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [t, k, s, m, n]
+  common: [p, b, d, g, l, r]
+  uncommon: [f, h, j]
+  rare: [w]
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [u, e, o]
+  uncommon: ["aː", "iː", "uː", "eː", "oː"]
+  rare: [ai, au, "ɔi"]
+coda_frequency_tiers:
+  very_common: [t, s, n, m]
+  common: [r, l, k, d]
+  uncommon: [p, b, g, f, "kː", "tː"]
+  rare: ["pː", "sː", "nː", "lː"]

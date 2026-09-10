@@ -261,6 +261,7 @@ def build_word(
     word_accent_deviation_rate: float | None = None,
     word_accent_strictness: float = 0.0,
     word_accent_length_rate: float | None = None,
+    word_accent_window: int | None = None,
 ) -> str:
     """``stress_pattern``/``stress_deviation_rate``/``stress_strictness``
     are the already-resolved values from whichever matched
@@ -347,8 +348,11 @@ def build_word(
             # `word_accent_gen.assign_positional_pitch_accent`'s own
             # docstring for why real Japanese kernel placement has no
             # shape-based default to compute here at all.
-            kernel_index = word_accent_gen.assign_positional_pitch_accent(rng, num_syllables, word_accent_strictness)
-            accent_marks = word_accent_gen.mark_positional_pitch_accent(kernel_index, num_syllables)
+            kernel_index = word_accent_gen.assign_positional_pitch_accent(
+                rng, num_syllables, word_accent_strictness, word_accent_window
+            )
+            long_nucleus_at_kernel = kernel_index is not None and syllables[kernel_index][1].endswith("ː")
+            accent_marks = word_accent_gen.mark_positional_pitch_accent(kernel_index, num_syllables, long_nucleus_at_kernel)
         else:
             accented_nucleus, accented_coda = syllables[accented_index][1], syllables[accented_index][2]
             if word_accent_realization == "pitch_and_length":
@@ -401,6 +405,7 @@ def build_reduplicated_word(
     word_accent_deviation_rate: float | None = None,
     word_accent_strictness: float = 0.0,
     word_accent_length_rate: float | None = None,
+    word_accent_window: int | None = None,
 ) -> str | None:
     """A same-syllable-twice word (``mama``/``papa``-shaped): one onset
     consonant restricted to ``manner_classes``, one vowel preferring open
@@ -454,8 +459,11 @@ def build_reduplicated_word(
     accent_marks: tuple[str, str] = ("", "")
     if word_accent_pattern:
         if word_accent_realization == "positional_pitch_accent":
-            kernel_index = word_accent_gen.assign_positional_pitch_accent(rng, 2, word_accent_strictness)
-            accent_marks = word_accent_gen.mark_positional_pitch_accent(kernel_index, 2)
+            kernel_index = word_accent_gen.assign_positional_pitch_accent(
+                rng, 2, word_accent_strictness, word_accent_window
+            )
+            long_nucleus_at_kernel = kernel_index is not None and vowel.ipa.endswith("ː")
+            accent_marks = word_accent_gen.mark_positional_pitch_accent(kernel_index, 2, long_nucleus_at_kernel)
         elif word_accent_realization == "pitch_and_length":
             accent = word_accent_gen.assign_word_accent_with_length(
                 rng, 2, stress_index,

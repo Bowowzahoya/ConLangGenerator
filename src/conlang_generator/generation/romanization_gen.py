@@ -146,6 +146,16 @@ _DIGRAPH_TABLE: dict[str, str] = {
     "ǀʰ": "cH", "ǃʰ": "qH", "ǁʰ": "xhH",
     "ɡǀ": "gc", "ɡǃ": "gq", "ɡǁ": "gxh",
     "ŋǀ": "nc", "ŋǃ": "nq", "ŋǁ": "nxh",
+    # Real Nama's own 4th click place (ǂ, "tc" -- see the bare-click
+    # entry above) plus its own independent aspirated/nasalized/
+    # glottalized accompaniment stacking (unlike Zulu's own separate
+    # voiced/breathy "depressor" series, absent from Nama -- see
+    # phonology_gen.py's own comment on this series). Glottalized
+    # ("ejective", the closest existing trait) follows the same trailing
+    # apostrophe convention pʼ/tʼ/kʼ already use.
+    "ǂʰ": "tcH", "ŋǂ": "ntc",
+    "ŋǀʰ": "ncH", "ŋǃʰ": "nqH", "ŋǁʰ": "nxhH", "ŋǂʰ": "ntcH",
+    "ŋǀʼ": "nc'", "ŋǃʼ": "nq'", "ŋǁʼ": "nxh'", "ŋǂʼ": "ntc'",
     # Real Swahili's own prenasalized velar stop and real Yoruba's own
     # labial-velar stop -- both already spell exactly this way in their
     # real native orthographies (see swahili.yaml/yoruba.yaml).
@@ -236,6 +246,50 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # above), unlike the plain formula the other long vowels in this
     # table use.
     "ɛː": "ea:", "ɔː": "au:", "ɯː": "ii:", "ɤː": "oe:",
+    # Real Navajo's own ejective affricate series (see phonology_gen.py) --
+    # same trailing-apostrophe ejective convention pʼ/tʼ/kʼ already use,
+    # on this table's own existing plain-affricate bases (tl/ch/ts).
+    "tɬʼ": "tl'", "tsʼ": "ts'", "tʃʼ": "ch'",
+    # Real Basque's own apical/laminal sibilant contrast -- this table's
+    # generic fallback leans on the real Basque orthographic convention
+    # itself (s -> apical, z -> laminal, ts/tz for the affricates), which
+    # basque.yaml's own curated orthography also uses directly.
+    "s̺": "s", "s̻": "z", "t̺s̺": "ts", "t̻s̻": "tz",
+    # Real Sanskrit's own breathy palatal affricate, completing bʱ/dʱ/ɡʱ's
+    # own capital-H aspiration-adjacent marker above -- "jh" happens to
+    # also be the real Devanagari-derived romanization, and collides with
+    # ʝ's own "jh" above the same deliberate way bʱ/dʱ/ɡʱ already collide
+    # with the implosives.
+    "dʒʱ": "jh",
+    # Real Khmer's own long vowels and diphthongs not already covered
+    # above (see phonology_gen.py) -- ɨː/ɑː follow the same trailing-
+    # colon length convention as every other long vowel in this table;
+    # the diphthongs compose from each component vowel's own existing
+    # digraph value in this table (ə -> e, ɨ -> y), hand-adjusted only
+    # where that composition would collide with an existing entry (oə,
+    # aə). "ao" needs no entry -- already plain ASCII, like ai/au/ei.
+    "ɨː": "y:", "ɑː": "aa:",
+    "iə": "ie", "ɨə": "ye", "uə": "ue", "eə": "ee", "oə": "ou",
+    "aə": "ea", "əɨ": "ey", "aɨ": "ay",
+    # Real Navajo's own long nasal vowels -- nasalization's trailing "n"
+    # (ã -> an above) plus length's trailing colon, composed the same
+    # additive way tɕʰ stacks palatalization and aspiration above.
+    "ãː": "an:", "ẽː": "en:", "ĩː": "in:", "õː": "on:",
+    # Real Navajo's own aspirated postalveolar/lateral affricates --
+    # tʃ/tɬ's own base digraph plus the same capital-H aspiration suffix
+    # pʰ/tʰ/kʰ/tsʰ already use.
+    "tʃʰ": "chH", "tɬʰ": "tlH",
+    # Real Sanskrit's own aspirated/breathy retroflex stops, completing
+    # ʈ/ɖ's own tr/dr digraph base with the same capital-H aspiration
+    # suffix and bh/dh/gh-style breathy digraph this table already uses.
+    "ʈʰ": "trH", "ɖʱ": "drh",
+    # Real Welsh's own voiceless trill -- its own real spelling.
+    "r̥": "rh",
+    # Real palatal lateral approximant -- the real Spanish/Basque "ll"
+    # digraph (also Portuguese "lh", but "ll" is the more cross-
+    # linguistically recognizable choice for this style's own generic
+    # fallback).
+    "ʎ": "ll",
 }
 _DIACRITIC_TABLE: dict[str, str] = {
     "ʃ": "š", "ʒ": "ž", "tʃ": "č", "dʒ": "ǯ", "ŋ": "ṅ",
@@ -259,6 +313,14 @@ _DIACRITIC_TABLE: dict[str, str] = {
     "ǀʰ": "cʰ", "ǃʰ": "qʰ", "ǁʰ": "xhʰ",
     "ɡǀ": "gc", "ɡǃ": "gq", "ɡǁ": "gxh",
     "ŋǀ": "nc", "ŋǃ": "nq", "ŋǁ": "nxh",
+    # Real Nama's own 4th click place and independent aspirated/
+    # nasalized/glottalized accompaniment stacking -- same reasoning as
+    # the digraph table's own equivalent comment above. Glottalized
+    # ("ejective") reuses this table's own combining-ejective-mark
+    # convention (pʼ -> p̓ above).
+    "ǂʰ": "tcʰ", "ŋǂ": "ntc",
+    "ŋǀʰ": "ncʰ", "ŋǃʰ": "nqʰ", "ŋǁʰ": "nxhʰ", "ŋǂʰ": "ntcʰ",
+    "ŋǀʼ": "nc̓", "ŋǃʼ": "nq̓", "ŋǁʼ": "nxh̓", "ŋǂʼ": "ntc̓",
     "ŋg": "ṅg", "ɡb": "gb",
     "ɓ": "bh", "ɗ": "dh", "ʄ": "jh", "ɠ": "gh",
     "ɪ": "i", "ʊ": "u", "æ": "æ", "ɐ": "ă", "ɑ": "ȧ", "ø": "ø", "œ": "œ",
@@ -332,6 +394,46 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # exists" treatment øː gets above (real scholarly Thai transcription
     # does write ɛ̄/ɔ̄ this way).
     "ɛː": "ɛ̄", "ɔː": "ɔ̄", "ɯː": "ɯ̄", "ɤː": "ɤ̄",
+    # Real Navajo's own ejective affricate series -- this table's own
+    # combining-ejective-mark convention (pʼ -> p̓ above) on its own
+    # existing plain-affricate bases (tł/ʦ/č).
+    "tɬʼ": "tł̓", "tsʼ": "ʦ̓", "tʃʼ": "č̓",
+    # Real Basque's own apical/laminal sibilant contrast -- already
+    # legitimate IPA multi-character strings (base letter + a real
+    # sub-apical/laminal diacritic), so identity, the same treatment
+    # every other already-Latin-Extended modifier gets in this table.
+    "s̺": "s̺", "s̻": "s̻", "t̺s̺": "t̺s̺", "t̻s̻": "t̻s̻",
+    # Real Sanskrit's own breathy palatal affricate -- dʒ's own "ǯ" plus
+    # the same real IPA breathy-voice modifier letter (ʱ) bʱ/dʱ/ɡʱ
+    # already carry identity above.
+    "dʒʱ": "ǯʱ",
+    # Real Khmer's own long vowels and diphthongs -- ɨː/ɑː follow the
+    # bare-IPA-vowel-plus-combining-macron convention ɛː/ɔː/ɯː/ɤː
+    # already use above; the diphthongs compose from each component
+    # vowel's own existing diacritic value (ə -> ě, ɨ -> ï).
+    "ɨː": "ɨ̄", "ɑː": "ɑ̄",
+    "iə": "iě", "ɨə": "ïě", "uə": "uě", "eə": "eě", "oə": "oě",
+    "aə": "aě", "əɨ": "ěï", "aɨ": "aï",
+    # Real Navajo's own long nasal vowels -- the real IPA nasalization
+    # tilde (ã above) plus a combining macron for length, the same
+    # additive stacking tɕʰ uses for palatalization+aspiration above.
+    "ãː": "ã̄", "ẽː": "ẽ̄", "ĩː": "ĩ̄", "õː": "ȭ",
+    # Real Welsh's own voiceless trill -- already a legitimate IPA
+    # string (base letter + the real combining ring-below diacritic),
+    # identity, same treatment every other already-Latin-Extended
+    # modifier gets in this table.
+    # Real Navajo's own aspirated postalveolar/lateral affricates -- their
+    # own IPA modifier letter (ʰ) identity, same treatment tsʰ gets above.
+    "tʃʰ": "čʰ", "tɬʰ": "tłʰ",
+    # Real Sanskrit's own aspirated/breathy retroflex stops -- ʈ/ɖ's own
+    # retroflex dot-under letter plus the same modifier-letter identity
+    # treatment pʰ/bʱ already get.
+    "ʈʰ": "ṭʰ", "ɖʱ": "ḍʱ",
+    "r̥": "r̥",
+    # Real palatal lateral approximant -- the real Italian "gli"-derived
+    # scholarly convention of palatalized l, matching this table's own
+    # existing lʲ/dʲ/nʲ identity treatment.
+    "ʎ": "lʲ",
 }
 # A "shallow"/phonemic system in the spirit of Finnish, Swahili, or
 # informal Georgian transliteration -- one ASCII letter per sound, even at
@@ -358,6 +460,13 @@ _MONOLETTER_TABLE: dict[str, str] = {
     "ǀʰ": "c", "ǃʰ": "q", "ǁʰ": "z",
     "ɡǀ": "c", "ɡǃ": "q", "ɡǁ": "z",
     "ŋǀ": "c", "ŋǃ": "q", "ŋǁ": "z",
+    # Real Nama's own 4th click place and independent aspirated/
+    # nasalized/glottalized accompaniments -- all merge into their own
+    # bare click's own monoletter value, same "shallow style drops
+    # secondary features" precedent every other marked click above uses.
+    "ǂʰ": "x", "ŋǂ": "x",
+    "ŋǀʰ": "c", "ŋǃʰ": "q", "ŋǁʰ": "z", "ŋǂʰ": "x",
+    "ŋǀʼ": "c", "ŋǃʼ": "q", "ŋǁʼ": "z", "ŋǂʼ": "x",
     # Real Swahili/Yoruba unit phonemes merge toward their own primary
     # place of articulation, same shallow-merging treatment.
     "ŋg": "g", "ɡb": "b",
@@ -412,6 +521,39 @@ _MONOLETTER_TABLE: dict[str, str] = {
     # short counterparts' existing monoletter values, same pattern as
     # aː/iː/uː/eː/oː above.
     "ɛː": "e", "ɔː": "o", "ɯː": "i", "ɤː": "o",
+    # Real Navajo's own ejective affricate series -- ejective dropped,
+    # merges with its own plain-affricate counterpart, same treatment
+    # every other marked feature in this table gets.
+    "tɬʼ": "l", "tsʼ": "c", "tʃʼ": "c",
+    # Real Basque's own apical/laminal sibilant contrast -- merges
+    # toward plain "s"/"c", same aggressive-merging philosophy as every
+    # other marked feature in this shallow style.
+    "s̺": "s", "s̻": "s", "t̺s̺": "c", "t̻s̻": "c",
+    # Real Sanskrit's own breathy palatal affricate -- breathy dropped,
+    # merges with plain dʒ's own monoletter value.
+    "dʒʱ": "q",
+    # Real Khmer's own long vowels and diphthongs -- ɨː/ɑː merge into
+    # their own short counterparts' existing monoletter values, same
+    # pattern as aː/iː/uː/eː/oː above; the diphthongs compose from each
+    # component vowel's own monoletter value (ə -> a, ɨ -> i).
+    "ɨː": "i", "ɑː": "a",
+    "iə": "ia", "ɨə": "ia", "uə": "ua", "eə": "ea", "oə": "oa",
+    "aə": "aa", "əɨ": "oi", "aɨ": "ai",
+    # Real Navajo's own long nasal vowels -- both nasalization and
+    # length dropped, merge with the plain oral short vowel.
+    "ãː": "a", "ẽː": "e", "ĩː": "i", "õː": "o",
+    # Real Welsh's own voiceless trill -- voicelessness dropped, merges
+    # with plain "r", same treatment every other marked feature gets.
+    # Real Navajo's own aspirated postalveolar/lateral affricates --
+    # aspiration dropped, merge with their own plain counterparts.
+    "tʃʰ": "c", "tɬʰ": "l",
+    # Real Sanskrit's own aspirated/breathy retroflex stops -- merge with
+    # plain ʈ/ɖ's own monoletter values.
+    "ʈʰ": "t", "ɖʱ": "d",
+    "r̥": "r",
+    # Real palatal lateral approximant -- merges with plain "l", same
+    # aggressive-merging philosophy as every other marked feature here.
+    "ʎ": "l",
 }
 
 # Digit/letter markers a postposed-tone category maps `core.phonology`'s

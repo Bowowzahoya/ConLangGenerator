@@ -13,8 +13,18 @@ from conlang_generator.llm.fake_client import FakeLLMClient
 _SEEDS = range(200)
 
 
+_ALTITUDE_LINKED_EJECTIVES = frozenset({"pʼ", "tʼ", "kʼ"})
+"""The specific ejective stops Everett (2013)'s altitude correlation
+covers (phonology_gen.py's own `_EJECTIVES`/`traits.altitude` group).
+Later batches added other, unrelated `ejective=True` consonants (Nama's
+glottalized clicks, Navajo's ejective affricates) that draw from their
+own flat prevalence rather than this altitude-biased group -- a generic
+`c.ejective` check would no longer isolate altitude's effect once those
+exist in the pool."""
+
+
 def _has_ejectives(language: Language) -> bool:
-    return any(c.ejective for c in language.phonology.consonants)
+    return any(c.ipa in _ALTITUDE_LINKED_EJECTIVES for c in language.phonology.consonants)
 
 
 def _ejective_rate(altitude: float) -> float:

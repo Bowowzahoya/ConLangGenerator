@@ -1,0 +1,69 @@
+name: Welsh
+aliases: [cymraeg]
+consonants: [p, b, t, d, k, g, m, n, "ŋ", f, v, "θ", "ð", s, "ʃ", x, h, "ɬ", l, r, "r̥", j, w]
+vowels: [a, "ə", i, u, e, o, "aː", "iː", "uː", "eː", "oː", ai, au, "ɔi"]
+# South Welsh merger modeled as the default (no separate front-central
+# /ɨ/ contrasting with /i/ the way North Welsh has) -- a real, deliberate
+# simplification, not an oversight: the shared vowel pool's own /ɨ/ could
+# express North Welsh's own extra contrast, but this profile picks the
+# single, more broadly-spoken variety rather than modeling both.
+coda_profile: unrestricted
+max_onset: 2
+max_coda: 2  # real Welsh coda clusters exist (punt, gwallt, cerdd) but aren't as deep as onset-initial consonant mutation environments can get
+tonal: false
+restricted_onset_consonants: ["ŋ"]  # real Welsh /ŋ/ is medial/final only (cangen) -- never opens a native word
+restricted_coda_consonants: ["r̥", w, j, h]  # real Welsh: rh is word/morpheme-initial only; w/j pattern as diphthong components, not independent codas (the same real fact already curated for several other languages here); h is onset-only, cross-linguistically typical for a glottal fricative
+attested_onset_clusters:
+  # Real, common Welsh initial clusters -- illustrative, not exhaustive.
+  - [t, r]   # "tren" (train)
+  - [g, r]   # "gradd" (degree)
+  - [g, l]   # "glan" (clean/bank)
+  - [p, l]   # "plentyn" (child)
+  - [d, r]   # "draig" (dragon)
+  - [k, r]   # "craig" (rock)
+  - [k, l]   # "clust" (ear)
+attested_coda_clusters:
+  # Real Welsh coda clusters, restricted to symbols this profile models --
+  # illustrative, not exhaustive.
+  - [n, t]     # "punt" (pound)
+  - [r, "ð"]   # "cerdd" (poem/music)
+  - [l, x]     # "balch" (proud)
+  - ["ɬ", t]   # "gwallt" (hair)
+  - [s, t]     # general s+stop
+stress_pattern: penultimate  # real Welsh: famously regular, almost exceptionless penultimate stress
+stress_deviation_rate: 0.05  # illustrative -- very low, matching how rigidly regular real Welsh stress placement is
+orthography_category: digraph-style
+orthography:
+  # Real modern Welsh orthography, restricted to symbols this profile
+  # actually models -- illustrative, not a full account. Vowel length is
+  # largely predictable from syllable structure/stress in real Welsh and
+  # isn't consistently marked (the circumflet "to bach" only disambiguates
+  # a handful of otherwise-identical spellings), so this profile leaves it
+  # unmarked, the same choice the digraph style's own default already makes.
+  - {ipa: v, latin: f}      # real Welsh spells /v/ as single "f"
+  - {ipa: f, latin: ff}     # and /f/ as double "ff" -- the reverse of English
+  - {ipa: "ð", latin: dd}
+  - {ipa: "θ", latin: th}
+  - {ipa: x, latin: ch}
+  - {ipa: "ɬ", latin: ll}
+  - {ipa: "r̥", latin: rh}
+  - {ipa: "ŋ", latin: ng}
+  - {ipa: "ə", latin: y}    # real Welsh spells /ə/ as "y" in non-final syllables
+  - {ipa: u, latin: w}      # real Welsh spells /u/ as "w"
+  - {ipa: "ɔi", latin: wy}  # real Welsh "wy" diphthong
+core_vocabulary_average_syllables: 1.45  # illustrative -- real Celtic apocope (loss of most historical final syllables between Brittonic and Welsh) keeps the native core vocabulary short, closer to this project's own Germanic-territory counts than its longer Indo-Aryan/Bantu ones; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [k, t, d, m, n, s, l, r]
+  common: [p, b, g, f, v, h, w, j]
+  uncommon: ["θ", "ð", x, "ɬ"]
+  rare: ["ʃ", "r̥"]
+nucleus_frequency_tiers:
+  very_common: [a, "ə", i]
+  common: [u, e, o]
+  uncommon: ["aː", "iː", "uː", "eː", "oː"]
+  rare: [ai, au, "ɔi"]
+coda_frequency_tiers:
+  very_common: [n, t, r, s]
+  common: [m, k, l, d, "ð"]
+  uncommon: [p, g, f, v, "θ", "ŋ"]
+  rare: ["ʃ", x, "ɬ", b]
