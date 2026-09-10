@@ -1,0 +1,64 @@
+name: Swahili
+aliases: [kiswahili]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", h, m, n, "ɲ", "ŋ", l, r, j, w, "θ", "ð", "ɣ", x, mb, nd, "ŋg", nz]
+# Real Swahili's own core inventory plus the real Arabic-loan register
+# (θ/ð/ɣ/x -- th/dh/gh/kh, e.g. thelathini, dhahabu, ghali, khamsini)
+# many L1 speakers actually merge toward s/z/ɣ~h/h in casual speech, so
+# these are curated at this profile's own "rare" frequency tier below,
+# not on equal footing with the core set. Real prenasalized stops
+# mb/nd/ŋg/nz (see phonology_gen.py's own comment on them) are genuine
+# unit phonemes -- Swahili's own strict open-syllable canon (below)
+# tolerates them precisely because each occupies one onset slot, not
+# two consonants.
+vowels: [i, e, a, o, u]
+coda_profile: none
+max_onset: 1
+# Real native Swahili syllables are strictly (C)V -- fully open, no
+# codas at all. The one real exception, a syllabic nasal realizing a
+# noun-class prefix (mtu "person", nchi "country"), is a grammatical
+# fact this project's word-level model doesn't reach. A second real,
+# deliberately unmodeled exception: glide-initial onset clusters (Cw/Cj,
+# e.g. mwezi "moon") are genuinely legal even in this otherwise-strict
+# canon -- max_onset stays 1 rather than adding that narrow exception.
+tonal: false
+# Swahili genuinely lost the tone system every other Bantu language in
+# this batch keeps -- a well-known typological oddity, not an oversight
+# here. What replaced it prosodically is the real, near-exceptionless
+# fixed penultimate stress below.
+stress_pattern: penultimate
+stress_deviation_rate: 0.04  # illustrative -- one of the most reliable "rule of thumb" facts in descriptive Swahili linguistics, close to Finnish's own famously rigid initial-stress figure but for the opposite (penultimate) position
+orthography_category: digraph-style
+orthography:
+  # Real modern Swahili Latin orthography is close to WYSIWYG/phonemic,
+  # like Indonesian's own -- these aren't invented conventions, and (a
+  # genuine coincidence worth noting) the Arabic-loan digraphs happen to
+  # match this style's own generic English-ish th/dh/gh/kh default.
+  - {ipa: "tʃ", latin: ch}
+  - {ipa: "dʒ", latin: j}
+  - {ipa: "ʃ", latin: sh}
+  - {ipa: "θ", latin: th}
+  - {ipa: "ð", latin: dh}
+  - {ipa: "ɣ", latin: gh}
+  - {ipa: x, latin: kh}
+  # The one genuine, frequently-cited real gotcha: plain "ng" spells the
+  # prenasalized stop (ngoma "drum"), while "ng'" with an apostrophe
+  # spells the plain velar nasal alone (ng'ombe "cow") -- the reverse of
+  # what an apostrophe-as-omission reading would suggest.
+  - {ipa: "ŋg", latin: ng}
+  - {ipa: "ŋ", latin: "ng'"}
+  # Already correct by identity, curated explicitly for documentation --
+  # same "not an invented convention" precedent as the digraphs above.
+  - {ipa: mb, latin: mb}
+  - {ipa: nd, latin: nd}
+  - {ipa: nz, latin: nz}
+core_vocabulary_average_syllables: 2.04  # hand-counted across this project's own CORE_MEANINGS glosses at citation form (root + real noun-class prefix, e.g. maji "water", mtoto "child", mtu "person") -- illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [m, n, k, t, l, j, w, s]
+  common: [p, b, d, g, f, v, z, h, "ŋ", "ɲ", r]
+  uncommon: ["tʃ", "dʒ", "ʃ", mb, nd, "ŋg", nz]
+  rare: ["θ", "ð", "ɣ", x]
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [u, e]
+  uncommon: [o]
+  rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has

@@ -137,6 +137,19 @@ _DIGRAPH_TABLE: dict[str, str] = {
     "ɻ": "zh",
     "ħ": "hh", "ʕ": "3", "θ": "th", "ð": "dh", "ç": "hy", "ʝ": "jh",
     "ǀ": "c", "ǃ": "q", "ǂ": "tc", "ǁ": "xh",
+    # Real Zulu's own click-accompaniment series -- aspirated follows
+    # this table's own base-click letter + capital-H aspiration suffix
+    # (the same pʰ/tʰ/kʰ -> pH/tH/kH convention just below); voiced/
+    # breathy and nasalized follow the real Nguni gc/gq/gx and nc/nq/nx
+    # conventions curated directly in zulu.yaml, generalized here as a
+    # g-/n- prefix on this table's own base-click letter.
+    "ǀʰ": "cH", "ǃʰ": "qH", "ǁʰ": "xhH",
+    "ɡǀ": "gc", "ɡǃ": "gq", "ɡǁ": "gxh",
+    "ŋǀ": "nc", "ŋǃ": "nq", "ŋǁ": "nxh",
+    # Real Swahili's own prenasalized velar stop and real Yoruba's own
+    # labial-velar stop -- both already spell exactly this way in their
+    # real native orthographies (see swahili.yaml/yoruba.yaml).
+    "ŋg": "ng", "ɡb": "gb",
     "ɓ": "bh", "ɗ": "d'", "ʄ": "j'", "ɠ": "gh",
     "ɪ": "i", "ʊ": "u", "æ": "ae", "ɐ": "uh", "ɑ": "aa", "ø": "eu", "œ": "ue",
     # Secondary articulations (aspiration, pharyngealization/"emphatics")
@@ -177,6 +190,10 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # Nasalized vowels (Portuguese/French/Hindi-style): trailing "n",
     # the common ASCII stand-in for a nasalization mark.
     "ã": "an", "ẽ": "en", "ĩ": "in", "õ": "on", "ũ": "un",
+    # Real Yoruba's own open-mid nasal vowels -- distinct spellings from
+    # ẽ/õ above (already taken), reusing this table's own "ae"/"ao"-style
+    # open-mid vowel spelling plus the same trailing-n convention.
+    "ɛ̃": "aen", "ɔ̃": "aon",
     # Breathy/murmured voice (Hindi's own 4th stop series): "bh"/"gh"
     # already denote the implosives ɓ/ɠ above in this style -- a
     # deliberate, documented merge (same "shallow styles accept some
@@ -236,6 +253,13 @@ _DIACRITIC_TABLE: dict[str, str] = {
     "ɻ": "ḻ",
     "ħ": "ḫ", "ʕ": "ʿ", "θ": "ŧ", "ð": "đ", "ç": "ç", "ʝ": "ĵ",
     "ǀ": "c", "ǃ": "q", "ǂ": "tc", "ǁ": "xh",
+    # Same real Zulu click-accompaniment conventions as the digraph
+    # table above, using this table's own aspiration-modifier-letter (ʰ)
+    # treatment instead of a capital H.
+    "ǀʰ": "cʰ", "ǃʰ": "qʰ", "ǁʰ": "xhʰ",
+    "ɡǀ": "gc", "ɡǃ": "gq", "ɡǁ": "gxh",
+    "ŋǀ": "nc", "ŋǃ": "nq", "ŋǁ": "nxh",
+    "ŋg": "ṅg", "ɡb": "gb",
     "ɓ": "bh", "ɗ": "dh", "ʄ": "jh", "ɠ": "gh",
     "ɪ": "i", "ʊ": "u", "æ": "æ", "ɐ": "ă", "ɑ": "ȧ", "ø": "ø", "œ": "œ",
     # ɣ reuses Turkish "ğ" (a historically velar-fricative-derived sound in
@@ -270,6 +294,8 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # already legitimate Latin-Extended letters, same treatment aspiration/
     # pharyngealization/palatalization's own modifier letters got above).
     "ã": "ã", "ẽ": "ẽ", "ĩ": "ĩ", "õ": "õ", "ũ": "ũ",
+    # Real Yoruba's own open-mid nasal vowels -- same identity treatment.
+    "ɛ̃": "ɛ̃", "ɔ̃": "ɔ̃",
     # Breathy/murmured voice keeps its own real IPA modifier letter (ʱ),
     # identity, same treatment as aspiration's ʰ -- no collision here,
     # unlike the digraph style's bh/dh/gh (see its own comment).
@@ -325,6 +351,16 @@ _MONOLETTER_TABLE: dict[str, str] = {
     "ɻ": "r",
     "ħ": "h", "ʕ": "a", "θ": "t", "ð": "d", "ç": "h", "ʝ": "y",
     "ǀ": "c", "ǃ": "q", "ǂ": "x", "ǁ": "z",
+    # Aspirated/voiced/nasalized click accompaniments all merge into
+    # their own bare click's own monoletter value, same "shallow style
+    # drops secondary features" precedent every other marked feature in
+    # this table already follows.
+    "ǀʰ": "c", "ǃʰ": "q", "ǁʰ": "z",
+    "ɡǀ": "c", "ɡǃ": "q", "ɡǁ": "z",
+    "ŋǀ": "c", "ŋǃ": "q", "ŋǁ": "z",
+    # Real Swahili/Yoruba unit phonemes merge toward their own primary
+    # place of articulation, same shallow-merging treatment.
+    "ŋg": "g", "ɡb": "b",
     "ɓ": "b", "ɗ": "d", "ʄ": "j", "ɠ": "g",
     "ɪ": "i", "ʊ": "u", "æ": "e", "ɐ": "a", "ɑ": "a", "ø": "o", "œ": "o",
     "ɣ": "g", "pʰ": "p", "tʰ": "t", "kʰ": "k", "tsʰ": "c",
@@ -350,6 +386,7 @@ _MONOLETTER_TABLE: dict[str, str] = {
     # Nasalization dropped entirely, same "shallow, merges some
     # distinctions" precedent every other marked feature above uses.
     "ã": "a", "ẽ": "e", "ĩ": "i", "õ": "o", "ũ": "u",
+    "ɛ̃": "e", "ɔ̃": "o",
     # Breathy voice dropped, merges with the plain voiced stop.
     "bʱ": "b", "dʱ": "d", "ɡʱ": "g",
     "tɬ": "l",

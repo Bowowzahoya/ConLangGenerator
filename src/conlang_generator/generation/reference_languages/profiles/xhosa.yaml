@@ -1,5 +1,14 @@
 name: Xhosa
-aliases: [zulu, click language, nguni]
+aliases: [click language]
+# "zulu" used to live here as a bare alias -- a pre-existing conflation
+# this batch corrects. Zulu and Xhosa are separately standardized
+# languages (ISO zul vs xho) with real differences at the level this
+# project curates (Xhosa's own aspirated/affricate series is more
+# elaborate; its orthography has conventions Zulu's doesn't) -- closer
+# to a real conflation than Serbo-Croatian's own deliberate unification,
+# so Zulu now has its own profile (see zulu.yaml). "nguni" (the
+# language-family name covering Zulu/Xhosa/Swati/Ndebele) is dropped
+# too for the same reason -- it's not specifically Xhosa either.
 consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʔ", m, n, "ŋ", s, "ʃ", h, z, l, j, w, "ǀ", "ǃ", "ǂ", "ǁ"]
 vowels: [i, a, u, e, o]
 coda_profile: sonorant

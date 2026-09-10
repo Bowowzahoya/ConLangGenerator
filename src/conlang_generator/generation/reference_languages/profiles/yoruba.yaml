@@ -1,0 +1,61 @@
+name: Yoruba
+aliases: ["yorùbá", "èdè yorùbá"]
+consonants: [b, t, d, k, g, f, s, "ʃ", h, "dʒ", m, n, l, r, j, w, "ɡb"]
+# Real Yoruba's own doubly-articulated labial-velar stop /ɡb/ -- a
+# genuine, phonemically robust West African areal feature, one segment
+# occupying one onset slot, not a two-consonant cluster. Its real
+# voiceless counterpart /k͡p/ is markedly more marginal/dialectal in
+# standard descriptions and isn't modeled here. No clicks, ejectives, or
+# implosives, unlike this batch's own Zulu.
+vowels: [i, e, "ɛ", a, "ɔ", o, u, "ĩ", "ɛ̃", "ã", "ɔ̃", "ũ"]
+# Real 7 oral vowels plus a real 5-vowel nasal series -- the oral
+# close-mid/open-mid contrast (e/ɛ, o/ɔ) genuinely neutralizes under
+# nasalization, which is exactly why the nasal series uses the open-mid
+# qualities (ɛ̃/ɔ̃) rather than close-mid ones (no real ẽ/õ in Yoruba).
+coda_profile: none
+max_onset: 1
+# Real native Yoruba syllables are open CV/V. A real, distinctive,
+# deliberately unmodeled fact: a bare nasal consonant can itself be a
+# full tone-bearing syllable (e.g. the progressive marker ń in ó ń lọ
+# "he is going") -- this project has no syllabic-consonant-as-nucleus
+# mechanism, the same "below this project's modeled granularity" status
+# Swahili's own syllabic-nasal prefix gets.
+tonal: true
+tone_level_count: 3
+# Real Yoruba's own 3 level tones (High/Mid/Low), a register system --
+# exactly this project's own existing (LOW, MID, HIGH) set. Real Yoruba
+# orthography marks tone directly with acute=High/grave=Low/unmarked=
+# Mid -- exactly this project's own default VOWEL_DIACRITIC tone
+# strategy, needing no special category the way Thai's rtgs-style did.
+# This project's own generic Mid mark is a macron rather than real
+# Yoruba's true "unmarked" -- the same already-accepted simplification
+# every other tonal profile's own Mid tone lives with (Cantonese/
+# Vietnamese/Thai's Mid also renders as a macron, not silently).
+orthography_category: diacritic-style
+orthography:
+  # Real gotcha, the same "letter doesn't mean what you'd expect" theme
+  # as Korean/Cantonese/Vietnamese's own already-curated swaps: "j"
+  # spells /dʒ/ while "y" spells /j/ -- a mirror image of a naive IPA
+  # reading. Only the dʒ->j direction needs an explicit rule here (this
+  # style's own generic default for dʒ is a Slavic-style "ǯ"); j->y
+  # already matches every exotic style's own shared universal default,
+  # so it needs no override.
+  - {ipa: "dʒ", latin: j}
+  # Real subdot letters -- overriding this style's own generic
+  # diaeresis-based defaults (ë/ö) with Yoruba's own real orthography.
+  - {ipa: "ʃ", latin: "ṣ"}
+  - {ipa: "ɛ", latin: "ẹ"}
+  - {ipa: "ɔ", latin: "ọ"}
+  # Already correct by identity, curated explicitly for documentation.
+  - {ipa: "ɡb", latin: gb}
+core_vocabulary_average_syllables: 1.92  # hand-counted across this project's own CORE_MEANINGS glosses (omi "water", iná "fire", jẹ "eat", mu "drink"...) -- many core verbs are genuinely monosyllabic, pulling this below the typical Bantu figures elsewhere in this batch despite Yoruba's own longer, often vowel-prefixed nouns; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [m, n, l, r, j, w, k]
+  common: [t, b, d, g, f, s]
+  uncommon: ["ʃ", "dʒ", h]
+  rare: ["ɡb"]
+nucleus_frequency_tiers:
+  very_common: [a, i, u]
+  common: [e, o, "ɛ", "ɔ"]
+  uncommon: ["ã", "ĩ", "ũ"]
+  rare: ["ɛ̃", "ɔ̃"]

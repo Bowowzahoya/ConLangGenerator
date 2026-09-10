@@ -1,0 +1,99 @@
+name: Zulu
+aliases: [isizulu]
+consonants: [p, "pʰ", "bʱ", t, "tʰ", "dʱ", k, "kʰ", "ɡʱ", m, n, "ɲ", "ŋ", f, v, s, z, "ʃ", h, "ɬ", l, j, w, "ǀ", "ǃ", "ǁ", "ǀʰ", "ǃʰ", "ǁʰ", "ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ"]
+# One of the world's most complex real consonant inventories. The
+# 3-way p/pʰ/bʱ (etc.) stop series is real and citable, but its exact
+# phonetic character is simplified here: real Zulu's fortis series has
+# been analyzed as ejective by some phonetic work (Ladefoged, Traill)
+# and as fortis-aspirated by the classic Doke description -- a live,
+# minor dispute this profile sidesteps by modeling it as plain
+# voiceless p/t/k, distinct from the genuinely uncontested aspirated
+# pʰ/tʰ/kʰ series. The "bʱ"/"dʱ"/"ɡʱ" symbols here are real Zulu's own
+# depressor consonants -- historically breathy-voiced, and (unlike a
+# separate additional plain-voiced series, which real Zulu doesn't
+# have) the actual real referent of the orthographic letters b/d/g --
+# reusing the same breathy trait Hindi's own murmured 4th stop series
+# already curates, since both are phonetically breathy voice. Real
+# Zulu also lacks native /r/ entirely (a genuine Bantu-wide fact, not
+# an oversight) -- /l/ covers that space instead.
+#
+# Click places: dental ǀ, postalveolar ǃ, lateral ǁ -- the same 3-way
+# system and same letters (c/q/x) Xhosa's own profile already uses; the
+# palatoalveolar click has no standard Nguni letter and stays unused by
+# either language. Each place gets a real, well-established
+# accompaniment series (see phonology_gen.py's own comment on the pool
+# additions): plain voiceless, aspirated, voiced/breathy ("depressor"),
+# and nasalized.
+#
+# A real, genuinely distinctive fact stays deliberately unmodeled: real
+# depressor consonants (the historically breathy-voiced series --
+# "bʱ"/"dʱ"/"ɡʱ" and the voiced click series above) lower the tone of a
+# following vowel, one of the most-cited facts in Nguni tonology
+# (Rycroft, Cope, Downing) -- but this project's tone assignment has no
+# onset-conditioned logic at all today, and building that interaction
+# would be a separate, larger piece of architecture. The same "real but
+# not currently rule-capturable" reasoning that already keeps Thai's
+# own onset-voicing/tone-split history and Mandarin's neutral tone out
+# of scope. Real Zulu "dl" /dɮ/ (a genuine, distinct voiced lateral
+# affricate) also isn't modeled -- this pool's own lateral-affricate
+# symbol (Nahuatl's tɬ) is voiceless-only.
+vowels: [i, e, a, o, u]
+coda_profile: none
+max_onset: 1
+# Real native Zulu syllables are predominantly open CV, the same
+# Bantu-wide canon Swahili's own profile documents -- the same real
+# syllabic-nasal-prefix exception applies and stays out of scope for
+# the same reason.
+tonal: true
+tone_level_count: 2
+# Standard analysis: 2 underlying level tones (H/L), a register system
+# -- exactly this project's own existing (LOW, HIGH) set, already used
+# by Tibetan. Surface contours (rising/falling glides) are derived,
+# chiefly via the depressor effect above and tone spreading -- real,
+# but beyond what a flat register-tone assignment can capture.
+orthography_category: digraph-style
+orthography:
+  # Real Nguni click letters -- single ASCII letters, not digraphs, the
+  # one place this profile overrides its own category's generic
+  # default (which would otherwise spell ǁ "xh", not "x").
+  - {ipa: "ǀ", latin: c}
+  - {ipa: "ǃ", latin: q}
+  - {ipa: "ǁ", latin: x}
+  # Real Nguni click-accompaniment conventions: voiced/depressor clicks
+  # prefix "g", nasal clicks prefix "n". Aspirated clicks are modeled
+  # here as an "h" suffix on the plain click letter (ch/qh/xh), by
+  # analogy with the aspirated-stop convention below -- inferred, not
+  # directly confirmed by a source giving this exact spelling.
+  - {ipa: "ǀʰ", latin: ch}
+  - {ipa: "ǃʰ", latin: qh}
+  - {ipa: "ǁʰ", latin: xh}
+  - {ipa: "ɡǀ", latin: gc}
+  - {ipa: "ɡǃ", latin: gq}
+  - {ipa: "ɡǁ", latin: gx}
+  - {ipa: "ŋǀ", latin: nc}
+  - {ipa: "ŋǃ", latin: nq}
+  - {ipa: "ŋǁ", latin: nx}
+  # Real aspirated stops -- matches this category's own generic h-suffix
+  # default already, restated for documentation.
+  - {ipa: "pʰ", latin: ph}
+  - {ipa: "tʰ", latin: th}
+  - {ipa: "kʰ", latin: kh}
+  # Real depressor/breathy stops spell as plain b/d/g -- overriding this
+  # category's own generic "bh"/"dh"/"gh" default (the real convention
+  # for Hindi's own unrelated breathy series), since real Zulu writing
+  # doesn't mark the historical breathy quality at all.
+  - {ipa: "bʱ", latin: b}
+  - {ipa: "dʱ", latin: d}
+  - {ipa: "ɡʱ", latin: g}
+  - {ipa: "ɬ", latin: hl}
+core_vocabulary_average_syllables: 2.22  # hand-counted across this project's own CORE_MEANINGS glosses at citation form (root + real noun-class prefix, e.g. amanzi "water", umuntu "person") -- a real, defensible bit higher than Swahili's own 2.04, reflecting Nguni's own fuller class-prefix/augment system (i-, u-, in-, isi-, umu-) running longer than Swahili's shorter prefixes; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
+onset_frequency_tiers:
+  very_common: [m, n, l, k, t, w, j, s]
+  common: [p, "bʱ", "dʱ", "ɡʱ", f, v, z, "ʃ", h, "ɲ", "ŋ"]
+  uncommon: ["pʰ", "tʰ", "kʰ", "ɬ", "ǀ", "ǃ", "ǁ"]
+  rare: ["ǀʰ", "ǃʰ", "ǁʰ", "ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ"]
+nucleus_frequency_tiers:
+  very_common: [a, i]
+  common: [u, e]
+  uncommon: [o]
+  rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has

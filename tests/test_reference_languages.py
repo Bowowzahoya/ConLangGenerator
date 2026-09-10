@@ -28,7 +28,7 @@ def test_match_profiles_is_case_insensitive_and_matches_aliases():
     matched = match_profiles(("japanese", "ZULU"))
     names = {p.name for p in matched}
     assert "Japanese" in names
-    assert "Xhosa" in names  # "zulu" is an alias for the Xhosa/Nguni stand-in
+    assert "Zulu" in names  # Zulu now has its own profile, not Xhosa's -- see test_zulu_has_its_own_profile_separate_from_xhosa
 
 
 def test_match_profiles_ignores_unknown_names():
@@ -918,6 +918,7 @@ def test_most_profiles_leave_average_syllables_uncurated():
         "Mandarin", "Japanese", "Korean", "Mongolian",
         "Vietnamese", "Cantonese", "Tibetan",
         "Thai", "Indonesian", "Malay",
+        "Swahili", "Zulu", "Yoruba",
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:
@@ -968,7 +969,10 @@ _PERFECTED_LANGUAGES = (
     "Thai", "Indonesian", "Malay",
     # Tamil, Mandarin, Japanese, and Tibetan are deliberately left out of
     # this list too, for the exact same "sonorant" coda_profile reason as
-    # Italian above -- checked separately.
+    # Italian above -- checked separately. Swahili, Zulu, and Yoruba are
+    # also left out, for the analogous "coda_profile: none" reason (no
+    # coda_frequency_tiers curated at all, since no native syllable ever
+    # closes) -- checked separately too.
 )
 _TIER_NAMES = {"very_common", "common", "uncommon", "rare"}
 
@@ -1014,7 +1018,7 @@ def test_english_ð_is_onset_rare_despite_high_token_frequency():
 
 def test_non_perfected_profiles_leave_frequency_tiers_uncurated():
     for profile in REFERENCE_LANGUAGES:
-        if profile.name not in _PERFECTED_LANGUAGES and profile.name not in ("Italian", "Tamil", "Mandarin", "Japanese", "Tibetan"):
+        if profile.name not in _PERFECTED_LANGUAGES and profile.name not in ("Italian", "Tamil", "Mandarin", "Japanese", "Tibetan", "Swahili", "Zulu", "Yoruba"):
             assert profile.onset_frequency_tiers == {}
             assert profile.nucleus_frequency_tiers == {}
             assert profile.coda_frequency_tiers == {}
@@ -1094,6 +1098,132 @@ def test_tibetan_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols()
         assert len(tiered) == len(set(tiered)), position
         assert set(tiered) == _legal_symbols(tibetan, position), position
     assert tibetan.coda_frequency_tiers == {}
+
+
+def _assert_onset_nucleus_only(name: str):
+    # Same "coda_profile: none" situation for all three of this batch's
+    # profiles -- no native syllable ever closes, so coda_frequency_tiers
+    # stays empty outright, same shape as the "sonorant" exceptions
+    # above but with an even narrower (in fact empty) true legal coda set.
+    profile = next(p for p in REFERENCE_LANGUAGES if p.name == name)
+    for position, field in (
+        ("onset", profile.onset_frequency_tiers),
+        ("nucleus", profile.nucleus_frequency_tiers),
+    ):
+        assert set(field.keys()) == _TIER_NAMES, position
+        tiered = [symbol for members in field.values() for symbol in members]
+        assert len(tiered) == len(set(tiered)), position
+        assert set(tiered) == _legal_symbols(profile, position), position
+    assert profile.coda_frequency_tiers == {}
+    assert profile.coda_profile == "none"
+
+
+def test_swahili_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    _assert_onset_nucleus_only("Swahili")
+
+
+def test_zulu_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    _assert_onset_nucleus_only("Zulu")
+
+
+def test_yoruba_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
+    _assert_onset_nucleus_only("Yoruba")
+
+
+def test_zulu_has_its_own_profile_separate_from_xhosa():
+    # "zulu"/"nguni" used to be bare aliases on Xhosa's own profile -- a
+    # pre-existing conflation this batch corrects. Zulu is now its own
+    # real profile, and Xhosa no longer claims its name.
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["Zulu"] is not by_name["Xhosa"]
+    assert "zulu" not in by_name["Xhosa"].aliases
+    assert "nguni" not in by_name["Xhosa"].aliases
+    matched = match_profiles(("zulu",))
+    assert len(matched) == 1 and matched[0].name == "Zulu"
+
+
+def test_swahili_zulu_yoruba_declare_a_real_average_syllable_count():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in ("Swahili", "Zulu", "Yoruba"):
+        assert by_name[name].core_vocabulary_average_syllables is not None
+    # Zulu's own fuller Nguni class-prefix/augment system runs longer
+    # than Swahili's shorter prefixes -- a real, defensible difference,
+    # not just noise between two independent hand counts.
+    assert by_name["Zulu"].core_vocabulary_average_syllables > by_name["Swahili"].core_vocabulary_average_syllables
+
+
+def test_swahili_declares_no_tone_and_real_penultimate_stress():
+    # Swahili genuinely lost the Bantu tone system every other profile
+    # in this batch keeps -- confirmed here alongside its own real,
+    # near-exceptionless fixed penultimate stress.
+    swahili = next(p for p in REFERENCE_LANGUAGES if p.name == "Swahili")
+    assert swahili.tonal is False
+    assert swahili.stress_pattern == "penultimate"
+    assert swahili.stress_deviation_rate is not None
+
+
+def test_swahili_declares_the_real_ng_ng_apostrophe_contrast():
+    # Real, citable minimal distinction: plain "ng" spells the
+    # prenasalized stop, "ng'" (apostrophe) spells the plain velar nasal
+    # alone -- the reverse of what an apostrophe-as-omission reading
+    # would suggest.
+    swahili = next(p for p in REFERENCE_LANGUAGES if p.name == "Swahili")
+    inventory = _inventory_for(swahili)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Swahili",),
+        requested_orthography_style=swahili.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("ŋg") == "ng"
+    assert scheme.apply("ŋ") == "ng'"
+
+
+def test_zulu_declares_its_own_tone_level_count_and_click_series():
+    zulu = next(p for p in REFERENCE_LANGUAGES if p.name == "Zulu")
+    assert zulu.tone_level_count == 2
+    assert {"ǀ", "ǃ", "ǁ"} <= set(zulu.consonants)
+    assert {"ǀʰ", "ɡǀ", "ŋǀ"} <= set(zulu.consonants)  # a full accompaniment series exists for at least one place
+    assert "r" not in zulu.consonants  # real Zulu genuinely lacks native /r/
+
+
+def test_zulu_click_series_romanizes_with_the_real_nguni_letters():
+    zulu = next(p for p in REFERENCE_LANGUAGES if p.name == "Zulu")
+    inventory = _inventory_for(zulu)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Zulu",),
+        requested_orthography_style=zulu.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("ǀ") == "c"
+    assert scheme.apply("ǁ") == "x"
+    assert scheme.apply("ɡǃ") == "gq"
+    assert scheme.apply("ŋǁ") == "nx"
+    # Real depressor spelling: plain letters, not this category's own
+    # generic Hindi-style "bh"/"dh"/"gh" breathy default.
+    assert scheme.apply("bʱ") == "b"
+    assert scheme.apply("ɡʱ") == "g"
+
+
+def test_yoruba_declares_its_own_tone_level_count_and_nasal_vowels():
+    yoruba = next(p for p in REFERENCE_LANGUAGES if p.name == "Yoruba")
+    assert yoruba.tone_level_count == 3
+    assert "ɡb" in yoruba.consonants
+    assert {"ɛ̃", "ɔ̃"} <= set(yoruba.vowels)
+
+
+def test_yoruba_j_y_swap_and_subdot_vowels_romanize_correctly():
+    # Real gotcha, mirror image of a naive IPA reading: j spells /dʒ/,
+    # y spells /j/ -- the same family of swaps Korean/Cantonese/
+    # Vietnamese's own already-curated conventions belong to.
+    yoruba = next(p for p in REFERENCE_LANGUAGES if p.name == "Yoruba")
+    inventory = _inventory_for(yoruba)
+    scheme = generate_romanization(
+        random.Random(1), inventory, source_languages=("Yoruba",),
+        requested_orthography_style=yoruba.orthography_category, strictness=1.0,
+    )
+    assert scheme.apply("dʒ") == "j"
+    assert scheme.apply("j") == "y"
+    assert scheme.apply("ʃ") == "ṣ"
+    assert scheme.apply("ɛ") == "ẹ"
+    assert scheme.apply("ɔ") == "ọ"
 
 
 # --- Probabilistic, richer French/English romanization ---
@@ -1550,12 +1680,14 @@ def test_most_profiles_leave_stress_pattern_uncurated():
         "Hindi", "Tamil", "Persian",
         "Mongolian",
         "Indonesian", "Malay",
-        # Mandarin, Japanese, Korean, Vietnamese, Cantonese, Thai, and
-        # Tibetan deliberately don't curate stress -- each tonal
-        # profile's real prosodic axis is its own tone system (already
-        # `tonal: true`); Japanese's is its own positional pitch accent
-        # (curated separately, see word_accent below); Korean genuinely
-        # has neither stress nor tone in the standard dialect.
+        "Swahili",
+        # Mandarin, Japanese, Korean, Vietnamese, Cantonese, Thai,
+        # Tibetan, Zulu, and Yoruba deliberately don't curate stress --
+        # each tonal profile's real prosodic axis is its own tone system
+        # (already `tonal: true`); Japanese's is its own positional
+        # pitch accent (curated separately, see word_accent below);
+        # Korean genuinely has neither stress nor tone in the standard
+        # dialect.
     }
     for profile in REFERENCE_LANGUAGES:
         if profile.name not in curated:

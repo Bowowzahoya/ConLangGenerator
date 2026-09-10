@@ -275,6 +275,33 @@ _EXOTIC_POOL = (
     Consonant(ipa="ǃ", place=Place.POSTALVEOLAR, manner=Manner.STOP, voiced=False, prevalence=0.015),
     Consonant(ipa="ǂ", place=Place.PALATAL, manner=Manner.STOP, voiced=False, prevalence=0.01),
     Consonant(ipa="ǁ", place=Place.ALVEOLAR, manner=Manner.LATERAL_FRICATIVE, voiced=False, prevalence=0.01),
+    # Real Zulu's own click-accompaniment series, alongside the 3 bare
+    # clicks above (dental ǀ, postalveolar ǃ, lateral ǁ -- the same 3
+    # places, spelled c/q/x, that Xhosa's own profile already uses; the
+    # palatoalveolar ǂ has no standard Nguni letter and stays unused by
+    # either). Real Doke-style descriptions give up to 5 accompaniments
+    # per place; this pool models the 4 best-established ones --
+    # aspirated, voiced/breathy ("depressor"), and nasalized -- as their
+    # own atomic multi-character symbols, the same pattern pʰ/tʰ/kʰ's own
+    # _ASPIRATED_GROUP already uses for secondary articulation.
+    Consonant(ipa="ǀʰ", place=Place.DENTAL, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.008),
+    Consonant(ipa="ǃʰ", place=Place.POSTALVEOLAR, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.008),
+    Consonant(ipa="ǁʰ", place=Place.ALVEOLAR, manner=Manner.LATERAL_FRICATIVE, voiced=False, aspirated=True, prevalence=0.006),
+    # Voiced/breathy "depressor" clicks -- real Zulu's own historically
+    # breathy-voiced click series, which lowers the tone of a following
+    # vowel (see zulu.yaml's own comment; not modeled mechanically, no
+    # onset-conditioned tone logic exists in this project). `breathy`
+    # here is the exact same trait Hindi's own bʱ/dʱ/ɡʱ murmured series
+    # already uses -- both are phonetically breathy voice.
+    Consonant(ipa="ɡǀ", place=Place.DENTAL, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.008),
+    Consonant(ipa="ɡǃ", place=Place.POSTALVEOLAR, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.008),
+    Consonant(ipa="ɡǁ", place=Place.ALVEOLAR, manner=Manner.LATERAL_FRICATIVE, voiced=True, breathy=True, prevalence=0.006),
+    # Nasalized clicks -- phonetically pattern with nasals (voiced,
+    # sonorant-like), unlike the plain/aspirated/breathy series above,
+    # which all stay STOP/LATERAL_FRICATIVE like their bare counterparts.
+    Consonant(ipa="ŋǀ", place=Place.DENTAL, manner=Manner.NASAL, voiced=True, prevalence=0.008),
+    Consonant(ipa="ŋǃ", place=Place.POSTALVEOLAR, manner=Manner.NASAL, voiced=True, prevalence=0.008),
+    Consonant(ipa="ŋǁ", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, prevalence=0.006),
     Consonant(ipa="ɓ", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, prevalence=0.08),
     Consonant(ipa="ɗ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, prevalence=0.08),
     Consonant(ipa="ʄ", place=Place.PALATAL, manner=Manner.STOP, voiced=True, prevalence=0.05),
@@ -283,6 +310,26 @@ _EXOTIC_POOL = (
     # voiced/voiceless pair like _STOP_AND_AFFRICATE_PAIRS: a voiced
     # lateral affricate is real but markedly rarer cross-linguistically.
     Consonant(ipa="tɬ", place=Place.ALVEOLAR, manner=Manner.LATERAL_AFFRICATE, voiced=False, prevalence=0.1),
+    # Real Swahili's own prenasalized stops -- genuine unit phonemes
+    # (Swahili's own strict open-syllable canon tolerates them precisely
+    # because they occupy one onset slot, not two), each its own atomic
+    # multi-character symbol like tɬ above. No dedicated "prenasalized"
+    # trait exists on Consonant (or is needed) -- same "no dedicated
+    # category, reuse the closest existing shape" precedent every other
+    # multi-character symbol here already follows. mb/nd/nz are already
+    # plain ASCII, so (unlike ŋg) they need no romanization_gen.py
+    # fallback-table entries at all.
+    Consonant(ipa="mb", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, prevalence=0.10),
+    Consonant(ipa="nd", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, prevalence=0.10),
+    Consonant(ipa="ŋg", place=Place.VELAR, manner=Manner.STOP, voiced=True, prevalence=0.08),
+    Consonant(ipa="nz", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, prevalence=0.08),
+    # Real Yoruba's own doubly-articulated labial-velar stop -- no
+    # dedicated Place exists for a genuinely labial-velar articulation,
+    # so this reuses BILABIAL, the same simplification /w/ (also really
+    # labial-velar) already lives with elsewhere in this pool. The real
+    # voiceless counterpart /k͡p/ is markedly more marginal/dialectal in
+    # standard descriptions, so it isn't modeled here.
+    Consonant(ipa="ɡb", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, prevalence=0.05),
 )
 
 _MIN_CONSONANTS = 8
@@ -357,6 +404,14 @@ _VOWEL_EXTRAS = (
     Vowel(ipa="ĩ", height=VowelHeight.CLOSE, backness=VowelBackness.FRONT, rounded=False, nasalized=True, prevalence=0.12),
     Vowel(ipa="õ", height=VowelHeight.CLOSE_MID, backness=VowelBackness.BACK, rounded=True, nasalized=True, prevalence=0.13),
     Vowel(ipa="ũ", height=VowelHeight.CLOSE, backness=VowelBackness.BACK, rounded=True, nasalized=True, prevalence=0.12),
+    # Real Yoruba's own 5-vowel nasal series neutralizes the oral mid-
+    # height contrast (e/ɛ, o/ɔ) under nasalization, using the *open*-mid
+    # quality specifically -- ẽ/õ above are close-mid, so they don't
+    # cover Yoruba's own real ɛ̃/ɔ̃ (its actual nasal vowels alongside
+    # ã/ĩ/ũ, all already in this pool). Same same-quality pairing
+    # strategy as every other vowel-pool extension.
+    Vowel(ipa="ɛ̃", height=VowelHeight.OPEN_MID, backness=VowelBackness.FRONT, rounded=False, nasalized=True, prevalence=0.10),
+    Vowel(ipa="ɔ̃", height=VowelHeight.OPEN_MID, backness=VowelBackness.BACK, rounded=True, nasalized=True, prevalence=0.10),
     # Turkish's own dotless-ı vowel -- the pool's existing close vowels
     # are front unrounded (i), back/front rounded (u/y), and central
     # unrounded (ɨ), but no close *back* unrounded vowel until now.

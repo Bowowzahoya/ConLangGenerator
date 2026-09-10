@@ -1967,3 +1967,111 @@ reading code or one-off ad hoc scripts.
   predating this audit, and `max_coda: 1` would have silently
   contradicted that existing, more specific curation rather than
   refining it.
+- **The Swahili/Zulu/Yoruba batch** brought a tenth reference-profile
+  batch to full curation depth (all three brand-new profiles). Zulu
+  didn't exist as its own profile either -- `xhosa.yaml` previously
+  listed `zulu`/`nguni` as bare aliases on Xhosa's own profile, the same
+  pre-existing conflation this project found and corrected once already
+  (Indonesian/Malay). Research confirmed Zulu and Xhosa are separately
+  standardized languages (ISO `zul` vs `xho`) with real differences at
+  the level this project curates (Xhosa's own aspirated/affricate series
+  is more elaborate; its orthography has conventions Zulu's doesn't) --
+  closer to a real conflation than Serbo-Croatian's own deliberate
+  unification, so Zulu now has its own profile and Xhosa no longer
+  claims its name (Xhosa's own curation depth otherwise stays untouched,
+  not requested). Like the Thai/Indonesian/Malay batch, nothing here
+  needed new *architecture* -- every piece was the same shape of
+  per-profile curation (new phonemes filling out existing pool group
+  patterns, tone-level counts landing on already-existing
+  `_TONE_LEVEL_SETS` entries, `coda_profile: "none"` already a working,
+  precedented value via Hawaiian's own stub) this project has done
+  autonomously in every batch so far.
+  - **Zulu's real click-accompaniment series** was the batch's biggest
+    single addition: alongside the 3 bare clicks (`ǀ`/`ǃ`/`ǁ`, the same
+    dental/postalveolar/lateral places and `c`/`q`/`x` letters Xhosa's
+    own profile already curates), `phonology_gen.py`'s `_EXOTIC_POOL`
+    gained 9 new click phonemes -- aspirated (`ǀʰ`/`ǃʰ`/`ǁʰ`), voiced/
+    breathy "depressor" (`ɡǀ`/`ɡǃ`/`ɡǁ`, reusing the exact `breathy`
+    trait Hindi's own murmured `bʱ`/`dʱ`/`ɡʱ` series already uses, since
+    both are phonetically breathy voice), and nasalized (`ŋǀ`/`ŋǃ`/
+    `ŋǁ`, tagged `Manner.NASAL` rather than their bare counterparts'
+    own STOP/LATERAL_FRICATIVE, since nasalized clicks phonetically
+    pattern with nasals). Zulu's own plain-obstruent depressor series
+    reuses the pre-existing `bʱ`/`dʱ`/`ɡʱ` symbols directly -- real
+    Zulu "b"/"d"/"g" letters *are* this historically-breathy-voiced
+    series, not a separate additional plain-voiced one, and no new
+    phonemes were needed there. The real depressor-consonant tone-
+    lowering effect (one of the most-cited facts in Nguni tonology)
+    stays deliberately unmodeled -- this project's tone assignment has
+    no onset-conditioned logic at all, the same "real but not currently
+    rule-capturable" status Thai's own onset-voicing/tone-split history
+    got last batch. The fortis stop series' exact phonetic status
+    (ejective vs. fortis-aspirated) is a live, minor scholarly dispute,
+    sidestepped by modeling it as plain voiceless `p`/`t`/`k`, distinct
+    from the uncontested aspirated `pʰ`/`tʰ`/`kʰ` series. Zulu's own
+    `orthography_category` is `digraph-style` (matching the real
+    aspirated `h`-suffix convention), with explicit profile-level
+    overrides for the click letters (single ASCII, not this category's
+    own generic digraph default), the click-accompaniment spellings
+    (real Nguni `gc`/`gq`/`gx` voiced, `nc`/`nq`/`nx` nasal; aspirated
+    `ch`/`qh`/`xh` inferred by analogy, flagged as such rather than
+    confirmed), and the depressor series (plain `b`/`d`/`g`, overriding
+    this category's own generic Hindi-style `bh`/`dh`/`gh` breathy
+    default). Real Zulu also genuinely lacks native `/r/` -- a real,
+    citable Bantu-wide fact curated by simply leaving it out.
+  - **Swahili's real prenasalized stops** (`mb`/`nd`/`ŋg`/`nz`) are
+    genuine unit phonemes, not clusters -- Swahili's own strict open-
+    syllable canon (`coda_profile: none`, the same value Hawaiian's
+    existing stub already establishes as working) tolerates them
+    precisely because each occupies one onset slot. The real, citable
+    gotcha this profile curates directly: plain `ng` spells the
+    prenasalized stop (*ngoma* "drum"), while `ng'` with an apostrophe
+    spells the plain velar nasal alone (*ng'ombe* "cow") -- the reverse
+    of what an apostrophe-as-omission reading would suggest. Swahili
+    also **genuinely lost the Bantu tone system** every other profile in
+    this batch keeps (a well-known typological oddity), replaced by
+    real, near-exceptionless fixed penultimate stress
+    (`stress_deviation_rate: 0.04`, close to Finnish's own famously
+    rigid figure but for the opposite position).
+  - **Yoruba's real doubly-articulated labial-velar stop** `ɡb` (its
+    voiceless counterpart `k͡p` is markedly more marginal/dialectal and
+    isn't modeled) was added to the pool as `Place.BILABIAL` -- no
+    dedicated labial-velar place exists, the same simplification `/w/`
+    (also really labial-velar) already lives with. Real Yoruba's 5-vowel
+    nasal series neutralizes the oral mid-height contrast under
+    nasalization using the *open*-mid quality specifically, which is
+    why 2 new nasal vowels (`ɛ̃`/`ɔ̃`) were needed alongside the pre-
+    existing `ã`/`ẽ`/`ĩ`/`õ`/`ũ` group (Yoruba's own real nasal vowels
+    are `ĩ`/`ɛ̃`/`ã`/`ɔ̃`/`ũ`, not the close-mid `ẽ`/`õ` that group
+    already has). Real Yoruba orthography marks tone directly with
+    acute=High/grave=Low/unmarked=Mid -- exactly this project's own
+    *default* `VOWEL_DIACRITIC` tone strategy, needing no special
+    category the way Thai's `rtgs-style` did last batch (this project's
+    own generic Mid mark stays a macron rather than real Yoruba's true
+    "unmarked," the same already-accepted simplification every other
+    tonal profile's own Mid tone already lives with). Real gotcha, the
+    same family as Korean/Cantonese/Vietnamese's own already-curated
+    swaps: `j` spells /dʒ/ while `y` spells /j/ -- a mirror image of a
+    naive IPA reading.
+  - Zulu's real 2 level tones (H/L, a register system) and Yoruba's
+    real 3 level tones (High/Mid/Low, also register) both land exactly
+    on `_TONE_LEVEL_SETS` entries that already existed before this
+    batch (the 2-level set already used by Tibetan; the 3-level set
+    already present too) -- unlike Thai's own 5-level set last batch,
+    neither needed a new entry, just `tone_level_count` curated to
+    drive the existing reference-bias machinery toward the right one.
+  - Word length counted at the *word* level, citation form (root + real
+    noun-class prefix where one genuinely exists): Swahili (2.04) and
+    Zulu (2.22, a real, defensible bit higher, reflecting Nguni's own
+    fuller class-prefix/augment system running longer than Swahili's
+    shorter prefixes) both land near Indonesian/Malay's own figures;
+    Yoruba (1.92) lands lower despite its own often-longer, vowel-
+    prefixed nouns, since many core Yoruba verbs are genuinely
+    monosyllabic.
+  - All three use `coda_profile: none` (no native syllable ever
+    closes at all, a stricter fact than any `unrestricted`-profile
+    language in this project), so all three curate onset/nucleus
+    frequency tiers only and join Tamil/Mandarin/Japanese/Tibetan's own
+    "checked separately, not `_PERFECTED_LANGUAGES`" exception list
+    rather than being added to it, with their own dedicated tests
+    mirroring Hawaiian's own pre-existing `coda_profile: none` stub.
