@@ -783,11 +783,59 @@ Everything here is a pure function of a `random.Random` seeded from
   conditioned (`-da`/`-dä`/`-ta`/`-tä`), a compounding of exactly the
   problem that ruled out Turkish, not a simpler case.
 
-  Remaining ~32 reference profiles (including Turkish and Finnish,
-  explicitly skipped above) get no `word_classes` curation yet -- queued
-  as an explicit next batch (or several), the same "bring the next N up
-  to par" shape every prior reference-profile effort in this project has
-  used.
+  A fourth batch curated 8 more profiles, deliberately mixing a few more
+  positive declension/conjugation curations with several honest
+  "isolating, no citation-form class system" control cases (broadening
+  that control-case set past just Mandarin/English into several more
+  real language families): Hindi (a real, genuinely messier noun-gender
+  fact than a clean single-suffix system -- only the real "declinable"
+  masculine `-ā` subtype (laṛkā, ghoṛā) takes a marked citation ending
+  at all, with everything else, non-`-ā` masculine *and* feminine,
+  honestly modeled as a single "unmarked" class rather than overclaiming
+  a full gender system this project's own flat per-word mechanism can't
+  condition correctly; verbs get the real, near-universal `-nā`
+  infinitive), Welsh (real gender exists but, like Mainland Scandinavian,
+  isn't citation-form-suffix-marked on the noun -- it surfaces instead
+  via a following word's own initial-consonant mutation, well outside
+  this project's own per-word mechanism, so no noun classes; verbs get a
+  real dominant `-u` "verb-noun" citation class, the productive default
+  new/borrowed Welsh verbs take, plus a real unmarked minority for short
+  irregular verb-nouns like mynd/dod/cael), Bengali (no grammatical
+  gender at all, a real fact -- and a real single dominant `-a` "verbal
+  noun" citation class for verbs, distinct from the separate `-te`
+  conjunctive-participle form used in running speech), and five real
+  isolating-language control cases spanning distinct families --
+  Vietnamese and Khmer (Austroasiatic), Thai (Kra-Dai), Indonesian
+  (Austronesian -- its own real derivational/voice-marking affixes
+  attach in running speech, not obligatorily on the citation form
+  itself, the key real distinction from Swahili's own obligatory noun-
+  class prefixes), and Yoruba (Niger-Congo, but one that genuinely lost
+  the wider family's own Bantu-style noun-class-prefix system) -- each
+  with no citation-form noun/verb class marking at all, the same real
+  fact already curated for Mandarin/English.
+
+  Persian, Basque, Georgian, and Mongolian were each considered for this
+  batch and deliberately left uncurated: each has a real verb-citation-
+  form fact that isn't safely flattenable by this mechanism's own flat,
+  unconditioned per-word roll. Persian's real `-tan`/`-dan` infinitive
+  split is conditioned by the preceding stem's own consonant voicing --
+  the same category of problem (a conditioned suffix choice, just with a
+  different conditioning environment) that already ruled out Turkish's
+  and Finnish's own vowel-harmony-conditioned suffixes. Mongolian's real
+  citation-form suffix (traditionally romanized "-x") carries its own
+  harmony-alternating linking vowel as part of the morpheme itself
+  (`yavax` vs. `irex`), the same underlying problem again. Basque's own
+  real citation-form verb endings are genuinely mixed/irregular across
+  its core vocabulary (no single dominant pattern the way Welsh's own
+  `-u` is). Georgian's own real verbal-noun (masdar) formation depends
+  on a richer verb-class system this project doesn't model. Left for a
+  future batch rather than curated dishonestly.
+
+  Remaining ~14 reference profiles (including Turkish, Finnish, Persian,
+  Basque, Georgian, and Mongolian, all explicitly considered and skipped
+  above) get no `word_classes` curation yet -- queued as an explicit
+  next batch (or several), the same "bring the next N up to par" shape
+  every prior reference-profile effort in this project has used.
 - **`root_pattern.py`** (milestone 9): Semitic-style root-and-pattern
   (templatic) word formation -- a consonantal root (k-t-b "write"-related)
   fills a template to derive related words (kataba "he wrote", kitāb

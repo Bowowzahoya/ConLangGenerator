@@ -1,4 +1,11 @@
 name: Vietnamese
+# No word_classes curated, deliberately -- real Vietnamese, a strongly
+# isolating, monosyllabic-morpheme language, has no citation-form noun-
+# declension or verb-conjugation system at all, the same real fact
+# already curated for Mandarin/English. See mandarin.yaml's own note for
+# why an empty word_classes here doesn't suppress generation.word_
+# class_gen's own generic invented-class roll for an unmatched/
+# uncurated POS.
 aliases: ["tiếng việt"]
 consonants: [p, b, t, "tʰ", d, k, g, f, v, s, z, "ʃ", "ʒ", x, h, m, n, "ɲ", "ŋ", l, w, j]
 vowels: [i, e, "ɛ", a, "ɔ", o, u, "ɯ", "ə"]

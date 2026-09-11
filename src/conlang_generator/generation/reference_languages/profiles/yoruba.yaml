@@ -1,4 +1,12 @@
 name: Yoruba
+# No word_classes curated, deliberately -- real Yoruba, unlike this
+# project's own curated Bantu profiles (Swahili/Zulu/Xhosa), lost the
+# wider Niger-Congo noun-class-prefix system; modern Yoruba nouns and
+# verbs carry no citation-form class marking at all, a real, tonal, West
+# African isolating-language control case alongside Mandarin/Vietnamese/
+# Thai/Khmer/Indonesian. See mandarin.yaml's own note for why an empty
+# word_classes here doesn't suppress generation.word_class_gen's own
+# generic invented-class roll for an unmatched/uncurated POS.
 aliases: ["yorùbá", "èdè yorùbá"]
 consonants: [b, t, d, k, g, f, s, "ʃ", h, "dʒ", m, n, l, r, j, w, "ɡb"]
 # Real Yoruba's own doubly-articulated labial-velar stop /ɡb/ -- a

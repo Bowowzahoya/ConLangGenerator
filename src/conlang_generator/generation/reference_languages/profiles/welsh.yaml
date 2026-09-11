@@ -32,6 +32,22 @@ attested_coda_clusters:
   - [s, t]     # general s+stop
 stress_pattern: penultimate  # real Welsh: famously regular, almost exceptionless penultimate stress
 stress_deviation_rate: 0.05  # illustrative -- very low, matching how rigidly regular real Welsh stress placement is
+word_classes:
+  # Real Welsh does have grammatical gender (masculine/feminine), but it
+  # is *not* citation-form-suffix-marked on the noun itself -- it
+  # surfaces instead via initial-consonant mutation on words that
+  # *follow* a feminine noun, a real fact well outside this project's
+  # own per-word citation-shape mechanism, so no noun word_classes are
+  # curated here (the same honest omission as Danish/Swedish/Norwegian/
+  # Dutch's own real gender-without-noun-suffix facts). Verbs: real
+  # Welsh cites verbs by their own "verb-noun" form; "-u" is the single
+  # most productive, default verb-noun ending (the one new/borrowed
+  # verbs regularly take, e.g. ffonio, gyrru), while a real closed set
+  # of short, high-frequency verb-nouns (mynd, dod, cael, gwneud) stay
+  # unmarked or take other endings not modeled here.
+  - {name: "-u verb-noun", pos: verb, suffix: [u], prevalence: 0.65}
+  - {name: "unmarked verb-noun", pos: verb, prevalence: 0.35}
+word_class_deviation_rate: 0.1  # illustrative -- real Welsh verb-noun formation is fairly regular once a verb's own class (the productive -u pattern vs. one of its own real irregular shapes) is known
 orthography_category: digraph-style
 orthography:
   # Real modern Welsh orthography, restricted to symbols this profile

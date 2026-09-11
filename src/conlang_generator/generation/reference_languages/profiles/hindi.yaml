@@ -86,5 +86,22 @@ coda_frequency_tiers:
   common: [k, s, l, h, "ʈ"]
   uncommon: [p, d, g, v, j, "ɳ", "ɖ"]
   rare: [b, "tʃ", "dʒ", "ʃ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ"]  # the aspirated/breathy series is real but meaningfully rarer as a coda than as an onset
+word_classes:
+  # Real Hindi noun gender is genuinely messier than a single citation-
+  # form suffix -- only a real, well-documented *subset* of masculine
+  # nouns (the "declinable" -ā type: laṛkā "boy", ghoṛā "horse") takes a
+  # marked ending at all; everything else (non-ā masculine nouns *and*
+  # feminine nouns, which commonly but not reliably end in -ī/-iyā) is
+  # citation-form unmarked. Modeled honestly as that real 2-way split
+  # rather than overclaiming a full gender system this project's own
+  # flat mechanism can't condition correctly. Verbs: real Hindi
+  # dictionaries and grammars overwhelmingly cite the verb by its own
+  # "-nā" infinitive (karnā "to do", khānā "to eat") -- a real,
+  # near-universal citation-form fact independent of Hindi's own
+  # separate present/past stem-alternation system.
+  - {name: "masculine (-ā, declinable)", pos: noun, suffix: ["aː"], prevalence: 0.3}
+  - {name: "unmarked", pos: noun, prevalence: 0.7}
+  - {name: "-nā infinitive", pos: verb, suffix: [n, "aː"], prevalence: 1.0}
+word_class_deviation_rate: 0.1  # illustrative -- real Hindi infinitive marking is close to exceptionless; the noun split above already carries most of the real irregularity
 stress_pattern: lexical  # real Hindi is genuinely quantity-sensitive (heaviest syllable within a 3-syllable window from the right edge, default penult when all light) -- none of this project's flat-position patterns capture that, modeled the same "genuinely complex, no simple flat rule" way Arabic's own quantity-sensitive stress already is
 stress_deviation_rate: 0.40  # illustrative -- a bit above Arabic's own 0.35, reflecting a genuine, unresolved dispute in the literature (Dyrud 2001) over whether Hindi "stress" is even a phonetically robust category, on top of the quantity-sensitive rule's own real exceptions

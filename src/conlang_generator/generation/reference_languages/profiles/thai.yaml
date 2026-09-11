@@ -1,4 +1,11 @@
 name: Thai
+# No word_classes curated, deliberately -- real Thai, a strongly
+# isolating, tonal Kra-Dai language, has no citation-form noun-
+# declension or verb-conjugation system at all, the same real fact
+# already curated for Mandarin/Vietnamese. See mandarin.yaml's own note
+# for why an empty word_classes here doesn't suppress generation.word_
+# class_gen's own generic invented-class roll for an unmatched/
+# uncurated POS.
 aliases: ["ภาษาไทย", siamese]
 consonants: [p, "pʰ", b, t, "tʰ", d, k, "kʰ", "ʔ", "tɕ", "tɕʰ", f, s, h, m, n, "ŋ", l, r, w, j]
 # Real Thai's own 3-way stop series exists only at bilabial and dental

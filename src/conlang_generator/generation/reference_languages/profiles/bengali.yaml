@@ -32,6 +32,17 @@ stress_deviation_rate: 0.15  # illustrative -- real Bengali fixed word-initial s
 # real but not a simple per-symbol rule this project's architecture can
 # capture -- the same "real but not currently rule-capturable" status
 # every other language's own comparable complexity already gets.
+word_classes:
+  # Real Bengali famously has no grammatical gender at all (unlike
+  # Hindi/Sanskrit) -- no noun word_classes curated, an honest omission
+  # matching Hungarian's own genderless fact. Verbs: real Bengali
+  # dictionaries and grammars conventionally cite the verb by its own
+  # "verbal noun" form, formed with a dominant "-a" suffix (e.g. khawa
+  # "to eat", kora "to do") -- distinct from the separate "-te"
+  # conjunctive-participle form used in running speech, which isn't the
+  # citation form.
+  - {name: "-a verbal noun", pos: verb, suffix: [a], prevalence: 0.9}
+word_class_deviation_rate: 0.1  # illustrative -- real Bengali verbal-noun formation is fairly regular
 orthography_category: scholarly-macron-style
 orthography:
   # Real scholarly Bengali transliteration conventions, restricted to
