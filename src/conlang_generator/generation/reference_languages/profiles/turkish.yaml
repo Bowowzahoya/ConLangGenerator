@@ -64,6 +64,19 @@ coda_frequency_tiers:
   common: [k, m, p, f, j]
   uncommon: ["ʃ", "tʃ", h]
   rare: [b, d, g, "dʒ", v, z, "ʒ", "ɣ"]
+word_classes:
+  # Real Turkish's own famous vowel-harmony-conditioned infinitive:
+  # front-vowel stems take "-mek" (gel- -> gelmek "to come"), back-vowel
+  # stems take "-mak" (bak- -> bakmak "to look") -- genuine allomorphy of
+  # one grammatical suffix, not an unconditioned choice between two
+  # classes, so curated with `condition: vowel_harmony` rather than as
+  # two separate WordClass entries (see core.grammar.WordClass.condition
+  # for the resolution mechanism this now relies on, and why an
+  # unconditioned 50/50 pick here would routinely contradict this
+  # profile's own already-curated `vowel_harmony: true`). No noun
+  # classes: real Turkish has no grammatical gender at all.
+  - {name: "infinitive", pos: verb, condition: vowel_harmony, suffix: [m, e, k], suffix_alt: [m, a, k], prevalence: 1.0}
+word_class_deviation_rate: 0.05  # illustrative -- real Turkish infinitive marking is close to fully exceptionless once harmony correctly resolves the surface form
 stress_pattern: final  # real Turkish: robustly word-final by default
 stress_deviation_rate: 0.18  # illustrative -- real, systematic exceptions exist (place names default penultimate; certain suffixes are lexically "stress-neutral"), narrower than Hebrew's own deviation class
 stress_driven_vowel_reduction: false  # real Turkish: keeps comparatively full vowel quality regardless of stress

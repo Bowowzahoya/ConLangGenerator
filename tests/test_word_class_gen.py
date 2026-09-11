@@ -161,6 +161,85 @@ def test_generate_word_classes_adopts_frances_own_real_verb_classes_sometimes():
     assert hits > 0
 
 
+# --- apply_word_class: condition="vowel_harmony"/"final_voicing" ---
+
+
+def _harmony_inventory() -> PhonemeInventory:
+    # Turkish-shaped: a genuine front/back vowel pair (i/u), plus "a"
+    # deliberately kept CENTRAL (this project's own global pool
+    # convention -- see WordClass.condition's own docstring) so a
+    # central-only stem is exercised too.
+    return PhonemeInventory(
+        consonants=(
+            Consonant(ipa="m", place=Place.BILABIAL, manner=Manner.NASAL, voiced=True, prevalence=0.9),
+            Consonant(ipa="k", place=Place.VELAR, manner=Manner.STOP, voiced=False, prevalence=0.9),
+            Consonant(ipa="d", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, prevalence=0.9),
+            Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, prevalence=0.9),
+        ),
+        vowels=(
+            Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),
+            Vowel(ipa="i", height=VowelHeight.CLOSE, backness=VowelBackness.FRONT, rounded=False, prevalence=0.8),
+            Vowel(ipa="u", height=VowelHeight.CLOSE, backness=VowelBackness.BACK, rounded=True, prevalence=0.8),
+        ),
+    )
+
+
+def test_apply_word_class_vowel_harmony_picks_front_suffix_for_a_front_stem():
+    rng = random.Random(0)
+    cls = WordClass(name="infinitive", pos=PartOfSpeech.VERB, condition="vowel_harmony", suffix=("m", "e"), suffix_alt=("m", "a"))
+    result = word_class_gen.apply_word_class(rng, cls, "gil", _harmony_inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "").endswith("me")
+
+
+def test_apply_word_class_vowel_harmony_picks_back_suffix_for_a_back_stem():
+    rng = random.Random(0)
+    cls = WordClass(name="infinitive", pos=PartOfSpeech.VERB, condition="vowel_harmony", suffix=("m", "e"), suffix_alt=("m", "a"))
+    result = word_class_gen.apply_word_class(rng, cls, "kud", _harmony_inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "").endswith("ma")
+
+
+def test_apply_word_class_vowel_harmony_uses_the_stems_last_vowel_not_its_first():
+    # Real harmony conditions on the vowel nearest the suffix boundary --
+    # a front-then-back stem must still agree with its own trailing back
+    # vowel, not its leading front one.
+    rng = random.Random(0)
+    cls = WordClass(name="infinitive", pos=PartOfSpeech.VERB, condition="vowel_harmony", suffix=("m", "e"), suffix_alt=("m", "a"))
+    result = word_class_gen.apply_word_class(rng, cls, "kitud", _harmony_inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "").endswith("ma")
+
+
+def test_apply_word_class_vowel_harmony_falls_back_to_back_for_a_central_only_stem():
+    # This project's own global vowel pool classifies "a" as CENTRAL, not
+    # BACK (see WordClass.condition's own docstring) -- a stem with no
+    # non-central vowel at all (e.g. an all-"a" stem) has no harmony
+    # signal to read, and falls back to the back-harmony form.
+    rng = random.Random(0)
+    cls = WordClass(name="infinitive", pos=PartOfSpeech.VERB, condition="vowel_harmony", suffix=("m", "e"), suffix_alt=("m", "a"))
+    result = word_class_gen.apply_word_class(rng, cls, "kad", _harmony_inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "").endswith("ma")
+
+
+def test_apply_word_class_final_voicing_picks_voiceless_suffix_after_a_voiceless_stem():
+    rng = random.Random(0)
+    cls = WordClass(name="infinitive", pos=PartOfSpeech.VERB, condition="final_voicing", suffix=("t", "a", "n"), suffix_alt=("d", "a", "n"))
+    result = word_class_gen.apply_word_class(rng, cls, "raft", _harmony_inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "").endswith("tan")
+
+
+def test_apply_word_class_final_voicing_picks_voiced_suffix_after_a_voiced_stem():
+    rng = random.Random(0)
+    cls = WordClass(name="infinitive", pos=PartOfSpeech.VERB, condition="final_voicing", suffix=("t", "a", "n"), suffix_alt=("d", "a", "n"))
+    result = word_class_gen.apply_word_class(rng, cls, "xord", _harmony_inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "").endswith("dan")
+
+
+def test_apply_word_class_final_voicing_falls_back_to_the_default_suffix_for_a_vowel_final_stem():
+    rng = random.Random(0)
+    cls = WordClass(name="infinitive", pos=PartOfSpeech.VERB, condition="final_voicing", suffix=("t", "a", "n"), suffix_alt=("d", "a", "n"))
+    result = word_class_gen.apply_word_class(rng, cls, "da", _harmony_inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "").endswith("tan")
+
+
 def test_generate_word_classes_full_strictness_makes_frances_own_classes_near_certain():
     inventory, structure = _inventory(), _structure()
     hits = 0

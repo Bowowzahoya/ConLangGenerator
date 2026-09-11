@@ -898,6 +898,78 @@ Everything here is a pure function of a `random.Random` seeded from
   deliberately skipped -- rather than an unconsidered gap. Should new
   reference profiles be added in the future, they'd need this same
   explicit consideration to stay consistent with that standard.
+
+  **Stem-conditioned class selection**, added afterward, lifts exactly
+  the limitation that kept Turkish/Finnish/Mongolian/Persian in the
+  "deliberately skipped" list above: `WordClass` gained `condition`
+  (`""` | `"vowel_harmony"` | `"final_voicing"`) and `suffix_alt`, and
+  `word_class_gen.apply_word_class` gained `_resolve_conditioned_suffix`
+  (plus its own `_resolve_harmony_backness`/`_resolve_final_voiced`
+  helpers). This is a genuinely different mechanism from
+  `assign_word_class`'s own unconditioned weighted roll *among* classes
+  (appropriate for real lexical/arbitrary variation, e.g. Basque's own
+  still-uncurated irregular verb endings) -- a conditioned suffix is
+  real allomorphy *within one* grammatical class, where an unconditioned
+  50/50 pick between two literal forms would routinely contradict the
+  stem it's attaching to. Deliberately resolved late, not early: *which*
+  class a word belongs to (`assign_word_class`) is still a per-word roll
+  wholly unrelated to the stem's own phonology, decided (as before)
+  before the stem's IPA is even final; *which surface allomorph* a
+  conditioned class's suffix takes is resolved only inside
+  `apply_word_class`, the one point in the whole coinage pipeline where
+  the real, finished stem already exists -- so no call site needed
+  reordering, and no new argument needed threading through
+  `lexicon_gen.propose_word`/`root_pattern.propose_templatic_word`/
+  `sound_change`'s own coining functions at all.
+
+  Both conditions reuse phonological trait data `core.phonology` already
+  carries for every phoneme in the global pool -- `Vowel.backness`
+  (`word_builder.build_word`'s own harmony generation already keys off
+  this exact field, so a class's own condition resolution and the stem's
+  own harmony generation are provably reading the same fact) and
+  `Consonant.voiced` -- rather than inventing new per-language phonology
+  data. `"vowel_harmony"` resolves the stem's own harmony class from its
+  *last* non-`CENTRAL` vowel, scanning from the end (the vowel nearest
+  the suffix boundary, the one real harmony actually conditions on),
+  falling back to back-harmony when the stem has no such vowel at all --
+  a real, non-hypothetical case: this project's own global vowel pool
+  classifies a fully-open "a" as `CENTRAL` rather than a harmony-
+  participating `BACK`, even though real Turkic/Mongolic "a" behaves as
+  a back vowel for harmony purposes, and "a" is also that pool's single
+  most common vowel, so defaulting the "no clear signal" case to back
+  gets the single most frequent real case right rather than by
+  accident. `"final_voicing"` resolves the stem's own final segment's
+  voicing directly, falling back to the primary (voiceless-context)
+  form for a vowel-final stem.
+
+  Turkish (`-mek`/`-mak` infinitive, `condition: vowel_harmony`) and
+  Mongolian (`-эх`/`-ах`, i.e. `[e,x]`/`[a,x]` -- the real consonant
+  unchanged either way, only the harmony vowel alternates) are both now
+  curated exactly as their own real grammar works. Persian (`-tan`/
+  `-dan`, `condition: final_voicing`) is curated the same way for its
+  own real final-consonant-voicing agreement, a different conditioning
+  feature but the identical "genuine stem-conditioned allomorphy, not an
+  unconditioned choice" shape. Finnish (`condition: vowel_harmony`,
+  `-ä`/`-a`) is curated for its own real harmony axis only -- its own
+  further real stem-type/consonant-gradation conditioning (a second,
+  independent axis this mechanism doesn't attempt to compose with the
+  first) stays a known, explicitly documented gap in finnish.yaml's own
+  comment, not silently dropped. Verified by hand across 3 seeds each
+  for all four profiles: every single generated verb's suffix agreed
+  correctly with its own stem (harmony backness for Turkish/Finnish/
+  Mongolian, final-consonant voicing for Persian), including the
+  documented central-vowel-only and vowel-final fallback cases actually
+  firing and resolving as specified -- zero mismatches.
+
+  Basque, Georgian, Tamil's own verb-conjugation-class system, Sumerian/
+  Tamil's own noun agreement classes, Navajo, and Arawakan/Pama-Nyungan
+  remain genuinely out of this mechanism's reach for the *other* reasons
+  already given above (lexical irregularity with no confidently-known
+  real proportions, an unmodeled richer class system, agreement rather
+  than citation-form marking, polysynthetic template morphology, and
+  thin attestation, respectively) -- none of those are the "needs stem-
+  lookahead conditioning" problem this extension solves, so this
+  extension doesn't newly unblock any of them.
 - **`root_pattern.py`** (milestone 9): Semitic-style root-and-pattern
   (templatic) word formation -- a consonantal root (k-t-b "write"-related)
   fills a template to derive related words (kataba "he wrote", kitāb

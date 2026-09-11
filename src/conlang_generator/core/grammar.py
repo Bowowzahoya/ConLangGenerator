@@ -77,6 +77,55 @@ class WordClass(BaseModel, frozen=True):
     ``phonology_gen.py``'s own ``Consonant``/``Vowel.prevalence`` already
     plays, consulted by a weighted choice, not a probability in its own
     right."""
+    condition: str = ""
+    """When non-empty, this class's own ``suffix`` isn't a fixed literal
+    the way an ordinary class's is -- it names a real, stem-internal
+    phonological rule that picks between ``suffix`` and ``suffix_alt`` at
+    coinage time, once the stem it's attaching to actually exists (see
+    ``generation.word_class_gen.apply_word_class``). This is a genuinely
+    different mechanism from choosing *among several WordClass entries*
+    (an unconditioned weighted roll, appropriate for real lexical/
+    arbitrary variation like Basque's own irregular verb endings): a
+    conditioned suffix is real allomorphy of *one* grammatical class,
+    where a flat random pick between two literal forms would be actively
+    wrong roughly half the time (e.g. Turkish's own real vowel-harmony-
+    conditioned ``-mak``/``-mek`` infinitive -- picking between them
+    without looking at the stem would routinely produce a front-vowel
+    stem with the back-vowel suffix or vice versa, directly contradicting
+    this language's own already-curated ``vowel_harmony: true``).
+
+    ``"vowel_harmony"``: ``suffix`` is this class's own *front*-harmony
+    form, ``suffix_alt`` its *back*-harmony form (real Turkish/Finnish/
+    Mongolian-style backness harmony -- see
+    ``core.phonology.VowelBackness``). Resolved from the stem's own last
+    non-``CENTRAL`` vowel, scanning from the end (the vowel nearest the
+    suffix boundary, the one real harmony actually conditions on); a stem
+    with no non-``CENTRAL`` vowel at all falls back to the back-harmony
+    form (this project's own global vowel pool classifies a fully-open
+    "a" as ``CENTRAL`` rather than a harmony-participating ``BACK``, even
+    though real Turkic/Mongolic "a" behaves as a back vowel for harmony
+    purposes -- since "a" is also that pool's single most common vowel,
+    defaulting the "no clear signal" case to back gets the single most
+    frequent real case right rather than by accident).
+
+    ``"final_voicing"``: ``suffix`` is this class's own form used after a
+    voiceless stem-final consonant, ``suffix_alt`` after a voiced one
+    (real Persian-style ``-tan``/``-dan`` infinitive, conditioned by
+    simple final-consonant voicing agreement rather than vowel harmony).
+    A stem with no final consonant at all (vowel-final) falls back to
+    ``suffix``.
+
+    Only ``suffix``/``suffix_alt`` are ever conditioned -- ``prefix`` has
+    no conditioned counterpart, since none of this project's own curated
+    conditioned classes need one; a future prefixing case would need its
+    own ``prefix_alt`` added alongside this, not a reuse of these same
+    fields."""
+    suffix_alt: tuple[str, ...] = ()
+    """The stem-conditioned alternate to ``suffix`` -- see ``condition``'s
+    own docstring for which real phonological value each field
+    represents per condition type. Must stay empty when ``condition`` is
+    ``""`` (an ordinary, unconditioned class has only one real suffix
+    form, ``suffix`` itself)."""
 
 
 class GrammarProfile(BaseModel, frozen=True):

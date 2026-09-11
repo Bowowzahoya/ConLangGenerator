@@ -64,5 +64,18 @@ coda_frequency_tiers:
   common: [t, k, m, s]
   uncommon: [b, d, x, "ɣ", "ŋ"]
   rare: [p, q, "ɢ", "tʃ", "dʒ", "ʃ", j, w]
+word_classes:
+  # Real Mongolian's own citation-form verb suffix (traditionally
+  # romanized "-ах"/"-эх") already flagged in this profile's own
+  # core_vocabulary_average_syllables comment above (явах yavakh "go",
+  # a back/a-type stem) -- its own vowel is genuinely harmony-
+  # conditioned, front stems taking "-ех" (irekh "to come"), back stems
+  # "-ах", the real consonant "kh" (this profile's own "x") unchanged
+  # either way. Curated with `condition: vowel_harmony` (see
+  # core.grammar.WordClass.condition), the same real mechanism now
+  # curated for Turkish/Finnish. No noun classes: real Mongolian has no
+  # grammatical gender at all.
+  - {name: "citation form", pos: verb, condition: vowel_harmony, suffix: [e, x], suffix_alt: [a, x], prevalence: 1.0}
+word_class_deviation_rate: 0.08  # illustrative -- real Mongolian citation-form marking is fairly regular once harmony correctly resolves the surface form
 stress_pattern: first_long_vowel_else_initial  # real Mongolian (Svantesson et al.): stress falls on the first syllable with a long vowel or diphthong, else the initial syllable -- a defensible first-order approximation of a genuinely more complex real system (some analyses describe Khalkha stress as one of the most complex regularly-stressed systems in the world, with real weight-sensitivity and directionality interactions beyond this flat rule)
 stress_deviation_rate: 0.25  # illustrative -- reflects the real complexity beyond the simple "first long vowel" statement, without treating it as fully unpredictable the way a genuinely lexical system would be

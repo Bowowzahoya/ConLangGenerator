@@ -49,5 +49,18 @@ coda_frequency_tiers:
   common: [s, m, k, g, l, b]
   uncommon: [z, "ʃ", x, f, v, h, j]
   rare: [p, q, "tʃ", "dʒ", "ɣ", "ʒ"]
+word_classes:
+  # Real Persian's own infinitive is genuinely conditioned by the
+  # preceding (past) stem's own final-consonant voicing, not vowel
+  # harmony -- raftan "to go" (stem raft-, voiceless "t") vs. didan "to
+  # see" (stem did-, voiced "d"), xordan "to eat" (stem xord-, voiced
+  # "d"). Curated with `condition: final_voicing` (see
+  # core.grammar.WordClass.condition) -- the same "genuine stem-
+  # conditioned allomorphy, not an unconditioned choice" reasoning
+  # Turkish/Finnish/Mongolian's own harmony-conditioned infinitives
+  # already use, just a different real conditioning feature. No noun
+  # classes: real Persian has no grammatical gender at all.
+  - {name: "infinitive", pos: verb, condition: final_voicing, suffix: [t, a, n], suffix_alt: [d, a, n], prevalence: 1.0}
+word_class_deviation_rate: 0.08  # illustrative -- real Persian infinitive marking is fairly regular once voicing correctly resolves the surface form
 stress_pattern: final  # real Persian: robustly word-final by default for nouns/adjectives/prepositions/adverbs
 stress_deviation_rate: 0.20  # illustrative -- the real, systematic exception is the whole verb word-class (personal suffixes never stressed; the negative prefix pulls stress to the initial syllable instead), comparable order of magnitude to Turkish's own 0.18 systematic-exception rate

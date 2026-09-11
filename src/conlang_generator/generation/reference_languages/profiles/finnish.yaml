@@ -56,6 +56,24 @@ coda_frequency_tiers:
   common: [k, l, r, m, "kː", "tː"]
   uncommon: ["ŋ", h, v, j, "sː", "lː"]
   rare: [p, d, "pː"]
+word_classes:
+  # Real Finnish's own 1st infinitive is genuinely conditioned along two
+  # independent axes: vowel harmony (front "-ä" vs. back "-a") *and*
+  # stem-type/consonant-gradation class (a plain vowel suffix directly
+  # vs. a "-t-"/"-d-"-linked one, depending on which of Finnish's own
+  # traditional verb types a given verb belongs to). Only the harmony
+  # axis is curated here, via `condition: vowel_harmony` (see
+  # core.grammar.WordClass.condition) -- the same real mechanism now
+  # curated for Turkish/Mongolian. The stem-type axis stays deliberately
+  # unmodeled: this project's own per-word mechanism has no stem-type/
+  # conjugation-class concept independent of the class system itself,
+  # and layering a second, different conditioning dimension onto a
+  # single suffix field isn't attempted here -- a known, documented
+  # simplification (the real -ta/-tä/-da/-dä forms don't surface),
+  # rather than a fabricated compound rule. No noun classes: real
+  # Finnish has no grammatical gender at all.
+  - {name: "1st infinitive", pos: verb, condition: vowel_harmony, suffix: ["æ"], suffix_alt: [a], prevalence: 1.0}
+word_class_deviation_rate: 0.1  # illustrative -- a bit above Turkish's own rate, standing in partly for the real stem-type variation this profile doesn't otherwise model
 stress_pattern: initial  # real Finnish: always the word's first syllable
 stress_deviation_rate: 0.05  # illustrative -- real Finnish initial stress is famously rigid, close to exceptionless
 stress_driven_vowel_reduction: false  # real Finnish: a syllable-timed language that keeps full vowel quality regardless of stress -- no schwa-style reduction at all

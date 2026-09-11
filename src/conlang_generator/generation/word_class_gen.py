@@ -18,6 +18,16 @@ Called once per language, alongside where ``generator.py`` already builds
 ``word_builder.build_syllable``" precedent) -- a language's own set of
 classes is a fixed, whole-language fact, the same way ``plural_suffix``/
 ``templates``/``cases`` already are, not something re-rolled per word.
+
+``assign_word_class`` (below) picks *which* class a word belongs to --
+an unconditioned, per-word roll, appropriate for real lexical/arbitrary
+variation. A real phonologically-*conditioned* suffix (Turkish's own
+vowel-harmony-agreeing ``-mak``/``-mek`` infinitive, Persian's own
+voicing-agreeing ``-tan``/``-dan``) is a genuinely different thing --
+not a choice *among* classes, but real allomorphy *within* one class,
+resolved from the stem's own phonology rather than rolled -- see
+``core.grammar.WordClass.condition`` and ``apply_word_class``'s own
+docstring for where and how that resolution actually happens.
 """
 
 from __future__ import annotations
@@ -26,7 +36,7 @@ import random
 
 from conlang_generator.core.grammar import WordClass
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure
+from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure, VowelBackness
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import ipa_tokenizer, phonology_gen, word_accent_gen, word_builder
@@ -40,6 +50,12 @@ _ALL_SYMBOLS: tuple[str, ...] = tuple(c.ipa for c in phonology_gen.ALL_CONSONANT
 """The full global phoneme pool's own symbols -- see ``apply_word_class``'s
 own docstring for why tokenization needs this rather than just a
 specific run's own generated ``PhonemeInventory``."""
+_VOWEL_BACKNESS: dict[str, VowelBackness] = {v.ipa: v.backness for v in phonology_gen.ALL_VOWELS}
+_CONSONANT_VOICED: dict[str, bool] = {c.ipa: c.voiced for c in phonology_gen.ALL_CONSONANTS}
+"""Looked up against the same *global* pool ``_ALL_SYMBOLS`` already
+tokenizes against (not just a specific run's own ``PhonemeInventory``),
+for the same reason -- see ``WordClass.condition``'s own docstring for
+what these resolve (vowel-harmony backness, final-consonant voicing)."""
 
 # Real, well-documented cross-linguistic asymmetry: multi-class citation-
 # form paradigms (declension, conjugation, noun-class agreement) are
@@ -165,6 +181,43 @@ def assign_word_class(
     return rng.choices(classes, weights=[c.prevalence for c in classes])[0]
 
 
+def _resolve_harmony_backness(bare_stem_symbols: tuple[str, ...]) -> VowelBackness:
+    """This stem's own harmony class -- see ``WordClass.condition``'s own
+    ``"vowel_harmony"`` docstring for the exact rule (last non-``CENTRAL``
+    vowel, scanning from the end; ``BACK`` when the stem has none)."""
+    for symbol in reversed(bare_stem_symbols):
+        backness = _VOWEL_BACKNESS.get(symbol)
+        if backness is not None and backness is not VowelBackness.CENTRAL:
+            return backness
+    return VowelBackness.BACK
+
+
+def _resolve_final_voiced(bare_stem_symbols: tuple[str, ...]) -> bool | None:
+    """Whether this stem's own final segment is a voiced consonant -- see
+    ``WordClass.condition``'s own ``"final_voicing"`` docstring. ``None``
+    when the stem is vowel-final (no final consonant to condition on) or,
+    degenerately, empty."""
+    if not bare_stem_symbols:
+        return None
+    return _CONSONANT_VOICED.get(bare_stem_symbols[-1])
+
+
+def _resolve_conditioned_suffix(word_class: WordClass, bare_stem_symbols: tuple[str, ...]) -> tuple[str, ...]:
+    """The class's own actually-applicable ``suffix``, resolving
+    ``condition``-based allomorphy (if any) against the real stem it's
+    about to attach to. A no-op (returns ``word_class.suffix`` unchanged)
+    for an ordinary, unconditioned class."""
+    if word_class.condition == "vowel_harmony":
+        backness = _resolve_harmony_backness(bare_stem_symbols)
+        return word_class.suffix if backness is VowelBackness.FRONT else word_class.suffix_alt
+    if word_class.condition == "final_voicing":
+        voiced = _resolve_final_voiced(bare_stem_symbols)
+        if voiced:
+            return word_class.suffix_alt
+        return word_class.suffix
+    return word_class.suffix
+
+
 def apply_word_class(
     rng: random.Random,
     word_class: WordClass | None,
@@ -222,13 +275,29 @@ def apply_word_class(
     contain) aren't guaranteed to already be members of ``inventory``
     itself, and tokenizing against too narrow a symbol set would
     silently drop them (``ipa_tokenizer.tokenize``'s own documented
-    behavior for an unrecognized character)."""
+    behavior for an unrecognized character).
+
+    When ``word_class.condition`` is set, the suffix actually used isn't
+    ``word_class.suffix`` verbatim -- it's resolved against the real
+    stem's own bare (decoration-stripped) symbols via
+    ``_resolve_conditioned_suffix`` (real Turkish/Finnish/Mongolian
+    vowel-harmony agreement, or real Persian final-consonant-voicing
+    agreement -- see ``WordClass.condition``'s own docstring). This is
+    exactly why class *selection* (``assign_word_class``) and suffix
+    *resolution* (here) are different steps at different times: which
+    grammatical class a word belongs to is a per-word roll unrelated to
+    the stem's own phonology, but which surface allomorph that class's
+    own suffix takes is not a roll at all -- it's read directly off the
+    one stem it's actually attaching to, which only exists by the time
+    this function runs."""
     if word_class is None or not (word_class.prefix or word_class.suffix):
         return ipa
     known_symbols = _ALL_SYMBOLS
     stripped = ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, "")
-    stem_symbols = tuple(symbol + deco for symbol, deco in ipa_tokenizer.tokenize(stripped, known_symbols))
-    filled_symbols = word_class.prefix + stem_symbols + word_class.suffix
+    raw_tokens = ipa_tokenizer.tokenize(stripped, known_symbols)
+    stem_symbols = tuple(symbol + deco for symbol, deco in raw_tokens)
+    suffix = _resolve_conditioned_suffix(word_class, tuple(symbol for symbol, _ in raw_tokens))
+    filled_symbols = word_class.prefix + stem_symbols + suffix
     vowel_symbols = frozenset(inventory.vowel_symbols())
     return word_accent_gen.mark_stress_and_word_accent(
         rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, stress_strictness,
