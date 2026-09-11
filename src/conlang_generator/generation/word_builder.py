@@ -235,6 +235,32 @@ def build_syllable(
     return "".join(onset) + nucleus + tone_mark + "".join(coda)
 
 
+def build_class_suffix(rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure) -> tuple[str, ...]:
+    """An invented citation-form class *suffix* (``generation.word_
+    class_gen``'s own real Latin-``-us``/French-``-er``-style ending, for
+    a language with no matched reference profile of its own) -- a
+    nucleus plus optional legal coda, deliberately with **no onset**, so
+    ``[any stem-final segment] + [this suffix]`` is always phonotactically
+    safe by construction (vowel-initial can never form an illegal
+    cluster) without needing a general phonotactic-repair mechanism. A
+    real, if simplified, pattern -- many real declension endings genuinely
+    are vowel-only (Latin's own ``-a``, Italian's ``-o``/``-a``/``-e``)."""
+    nucleus = _choose_nucleus(rng, inventory, structure).ipa
+    coda = _build_coda(rng, inventory, structure, nucleus)
+    return (nucleus,) + coda
+
+
+def build_class_prefix(rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure) -> tuple[str, ...]:
+    """The prefixing counterpart of ``build_class_suffix`` -- an onset
+    plus nucleus, deliberately with **no coda**, so ``[this prefix] +
+    [any stem-initial segment]`` is always safe the same way (real Bantu
+    noun-class prefixes like Swahili's own ``m-``/``ki-`` are exactly
+    this CV shape)."""
+    onset = _build_onset(rng, inventory, structure)
+    nucleus = _choose_nucleus(rng, inventory, structure, onset[-1] if onset else None).ipa
+    return onset + (nucleus,)
+
+
 _STRESS_REDUCTION_RATE = 0.6
 """How often an eligible non-stressed syllable's nucleus reduces to
 schwa when ``reduce_unstressed_vowels`` fires, at ``stress_strictness=1.0``

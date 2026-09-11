@@ -21,11 +21,11 @@ from __future__ import annotations
 
 import random
 
-from conlang_generator.core.grammar import WordTemplate
+from conlang_generator.core.grammar import WordClass, WordTemplate
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure, WordAccentSystem
 from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
-from conlang_generator.generation import sonority, stress_gen, word_accent_gen, word_builder
+from conlang_generator.generation import sonority, stress_gen, word_accent_gen, word_builder, word_class_gen
 from conlang_generator.generation.lexicon_gen import choose_best_candidate
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient
@@ -245,6 +245,8 @@ def propose_templatic_word(
     source_languages: tuple[str, ...] = (),
     strictness: float = 0.0,
     word_accent_system: WordAccentSystem = WordAccentSystem(),
+    word_classes: tuple[WordClass, ...] = (),
+    word_class_deviation_rate: float | None = None,
 ) -> LexicalEntry:
     """Pick a template matching ``pos`` (varying across same-POS calls,
     for real variety across e.g. multiple nouns), generate several root
@@ -302,10 +304,20 @@ def propose_templatic_word(
         word_accent_window=word_accent_window,
     )
 
+    assigned_class = word_class_gen.assign_word_class(rng, word_classes, word_class_deviation_rate, pos)
+    stressed = word_class_gen.apply_word_class(
+        rng, assigned_class, stressed, inventory,
+        stress_pattern, stress_deviation_rate, strictness,
+        word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
+        word_accent_deviation_rate=word_accent_deviation_rate, word_accent_length_rate=word_accent_length_rate,
+        word_accent_window=word_accent_window,
+    )
+
     return LexicalEntry(
         ipa=stressed,
         romanization=apply_grammatical_spelling(romanization, romanization.apply(stressed), pos),
         glosses=(gloss,),
         pos=pos,
         root=chosen_root,
+        word_class=assigned_class.name if assigned_class is not None else None,
     )

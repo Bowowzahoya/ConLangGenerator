@@ -5,6 +5,7 @@ cache/cost-tracking contract (a cache hit must not be billed twice)."""
 from pathlib import Path
 
 from conlang_generator.core.lexicon import PartOfSpeech
+from conlang_generator.core.romanization import STRESS_MARK
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation.generator import generate_language
@@ -102,25 +103,56 @@ def test_german_biased_language_capitalizes_its_noun_entries():
     assert all(entry.romanization[:1].isupper() for entry in nouns)
 
 
-def test_french_biased_language_gives_its_verb_entries_a_silent_r():
-    # seed 0 rolls French's own mute_suffix_by_pos (VERB, "r") -- see the
-    # note on the German test above for the seed-search convention.
-    # (Re-found against seed=0 after the ten-language batch's own new
-    # phoneme-pool content shifted downstream rng draws enough (twice,
-    # as new phonemes kept being added through the batch) to change
-    # which seed rolls this -- same "seed-shift from new content" pattern
-    # documented elsewhere in this project's history.)
-    spec = GenerationSpec(prompt="test", seed=0, traits=TraitProfile(source_languages=("French",)))
+_FRENCH_VERB_CLASS_SUFFIXES = {("e",), ("i", "ʁ"), ("ʁ",)}  # -er / -ir / -re, see french.yaml's own word_classes
+
+
+def test_french_biased_language_gives_its_verb_entries_a_real_conjugation_class():
+    # seed=2 rolls French's own real word_classes adoption for VERB and
+    # actually assigns (not deviates) every core-vocabulary verb this
+    # run -- an empirically-found seed, same "search for a working seed"
+    # convention this project already uses elsewhere (test_sound_change.py).
+    spec = GenerationSpec(prompt="test", seed=2, traits=TraitProfile(source_languages=("French",)))
     language = generate_language("Test", spec, FakeLLMClient())
-    rule = next(
-        (r for r in language.romanization.grammatical_spelling.mute_suffix_by_pos if r.pos is PartOfSpeech.VERB), None
-    )
-    assert rule is not None and rule.suffix == "r"
     verbs = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.VERB]
     assert verbs
-    for entry in verbs:
-        assert entry.romanization.endswith("r")
-        assert not entry.ipa.endswith("r")  # the "r" has no corresponding sound at all
+    classed_verbs = [e for e in verbs if e.word_class is not None]
+    assert classed_verbs  # at least one verb actually got a real class assignment this run
+    for entry in classed_verbs:
+        assert entry.word_class in {"-er verbs", "-ir verbs", "-re verbs"}
+        assert any(entry.ipa.endswith("".join(suffix)) for suffix in _FRENCH_VERB_CLASS_SUFFIXES)
+
+
+_LATIN_NOUN_CLASS_SUFFIXES = {("a",), ("u", "s"), ("u", "m")}  # 1st / 2nd-masc / 2nd-neut, see latin.yaml's own word_classes
+
+
+def test_latin_biased_language_gives_its_noun_entries_a_real_declension():
+    # seed=1 rolls Latin's own real word_classes adoption for NOUN and
+    # actually assigns (not deviates) at least one core-vocabulary noun.
+    spec = GenerationSpec(prompt="test", seed=1, traits=TraitProfile(source_languages=("Latin",)))
+    language = generate_language("Test", spec, FakeLLMClient())
+    nouns = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.NOUN]
+    assert nouns
+    classed_nouns = [e for e in nouns if e.word_class is not None]
+    assert classed_nouns
+    for entry in classed_nouns:
+        assert entry.word_class in {"1st declension", "2nd declension (masculine)", "2nd declension (neuter)"}
+        assert any(entry.ipa.endswith("".join(suffix)) for suffix in _LATIN_NOUN_CLASS_SUFFIXES)
+
+
+def test_swahili_biased_language_gives_its_noun_entries_a_real_class_prefix():
+    # seed=2 rolls Swahili's own real word_classes adoption for NOUN and
+    # actually assigns (not deviates) at least one core-vocabulary noun.
+    spec = GenerationSpec(prompt="test", seed=2, traits=TraitProfile(source_languages=("Swahili",)))
+    language = generate_language("Test", spec, FakeLLMClient())
+    nouns = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.NOUN]
+    assert nouns
+    classed_nouns = [e for e in nouns if e.word_class is not None]
+    assert classed_nouns
+    real_prefixes = {"m", "ji", "ki", "n", "u"}
+    for entry in classed_nouns:
+        assert entry.word_class.startswith("class")
+        unstressed = entry.ipa.replace(STRESS_MARK, "")  # the mark can land on the word's own first syllable too
+        assert any(unstressed.startswith(prefix) for prefix in real_prefixes)
 
 
 def test_grammatical_spelling_convention_survives_evolution_with_no_new_source_language():

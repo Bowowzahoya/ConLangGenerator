@@ -10,6 +10,16 @@ coda_profile: unrestricted
 max_onset: 2
 max_coda: 2  # real Latin coda clusters exist (sunt, mons, pars) -- see attested_coda_clusters
 tonal: false
+word_classes:
+  # Real Latin noun declension classes -- an illustrative subset (real
+  # Latin has 5 declensions; this models the two most common). Each
+  # ending is real, phonologically pronounced content -- unlike French's
+  # own former mute_suffix_by_pos, Latin's -us/-a/-um genuinely were
+  # spoken, not silent.
+  - {name: "1st declension", pos: noun, suffix: [a], prevalence: 0.35}
+  - {name: "2nd declension (masculine)", pos: noun, suffix: [u, s], prevalence: 0.40}
+  - {name: "2nd declension (neuter)", pos: noun, suffix: [u, m], prevalence: 0.25}
+word_class_deviation_rate: 0.25  # illustrative -- this profile models only 2 of Latin's real 5 declensions, so a real 3rd/4th/5th-declension noun (or a genuine irregular like domus) shows up here as an "irregular exception" relative to the simplified 2-declension model
 restricted_onset_consonants: ["kː", "tː", "pː", "sː", "nː", "lː"]  # real Latin gemination is a medial/intervocalic phenomenon (real "vacca", "annus") -- a word never starts with a geminate; this project has no ambisyllabic modeling, so the coda-position half of a real geminate is what stays legal in coda
 restricted_coda_consonants: [h, j, w]  # real Latin: h is onset-only; the glides (spelled i/u when consonantal) don't independently close a syllable -- their vocalic counterparts already model Latin's real diphthongs (ae/oe/au) as their own atomic symbols
 attested_onset_clusters:

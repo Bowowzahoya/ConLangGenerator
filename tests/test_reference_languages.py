@@ -891,12 +891,71 @@ def test_german_declares_capitalized_nouns():
     assert german.capitalized_pos == (PartOfSpeech.NOUN,)
 
 
-def test_french_declares_a_silent_r_verb_suffix():
+def test_french_declares_real_verb_conjugation_classes():
+    # Real, phonologically-correct -er/-ir/-re verb classes (word_classes)
+    # supersede this profile's own former mute_suffix_by_pos entry (a
+    # cosmetic silent-"r"-only approximation) -- see french.yaml's own
+    # comment on why.
     french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
-    assert len(french.mute_suffix_by_pos) == 1
-    rule = french.mute_suffix_by_pos[0]
-    assert rule.pos is PartOfSpeech.VERB
-    assert rule.suffix == "r"
+    assert french.mute_suffix_by_pos == ()
+    verb_classes = tuple(c for c in french.word_classes if c.pos is PartOfSpeech.VERB)
+    assert len(verb_classes) == 3
+    by_name = {c.name: c for c in verb_classes}
+    assert by_name["-er verbs"].suffix == ("e",)
+    assert by_name["-ir verbs"].suffix == ("i", "ʁ")
+    assert by_name["-re verbs"].suffix == ("ʁ",)
+    assert french.word_class_deviation_rate is not None
+
+
+def test_latin_declares_real_noun_declension_classes():
+    latin = next(p for p in REFERENCE_LANGUAGES if p.name == "Latin")
+    noun_classes = tuple(c for c in latin.word_classes if c.pos is PartOfSpeech.NOUN)
+    assert len(noun_classes) == 3
+    by_name = {c.name: c for c in noun_classes}
+    assert by_name["1st declension"].suffix == ("a",)
+    assert by_name["2nd declension (masculine)"].suffix == ("u", "s")
+    assert by_name["2nd declension (neuter)"].suffix == ("u", "m")
+    # Every curated symbol must actually be in this profile's own
+    # modeled inventory, same restriction `orthography` already has.
+    symbols = latin.symbols()
+    for cls in noun_classes:
+        assert set(cls.prefix) <= symbols
+        assert set(cls.suffix) <= symbols
+
+
+def test_german_declares_real_noun_and_verb_classes():
+    german = next(p for p in REFERENCE_LANGUAGES if p.name == "German")
+    noun_classes = tuple(c for c in german.word_classes if c.pos is PartOfSpeech.NOUN)
+    verb_classes = tuple(c for c in german.word_classes if c.pos is PartOfSpeech.VERB)
+    assert len(noun_classes) == 2
+    assert len(verb_classes) == 1
+    by_name = {c.name: c for c in noun_classes}
+    assert by_name["unmarked (masc./neut.)"].suffix == ()  # a legal, unmarked class
+    assert by_name["-e (fem.)"].suffix == ("ə",)
+    assert verb_classes[0].suffix == ("ə", "n")
+    assert german.word_class_deviation_rate is not None
+
+
+def test_swahili_declares_a_real_noun_class_prefix_system():
+    swahili = next(p for p in REFERENCE_LANGUAGES if p.name == "Swahili")
+    noun_classes = tuple(c for c in swahili.word_classes if c.pos is PartOfSpeech.NOUN)
+    assert len(noun_classes) == 5
+    assert all(c.prefix and not c.suffix for c in noun_classes)  # a prefixing system, not suffixing
+    by_name = {c.name: c for c in noun_classes}
+    assert by_name["class 1/2 (m-/wa-)"].prefix == ("m",)
+    assert by_name["class 7/8 (ki-/vi-)"].prefix == ("k", "i")
+    symbols = swahili.symbols()
+    for cls in noun_classes:
+        assert set(cls.prefix) <= symbols
+
+
+def test_mandarin_declares_no_word_classes():
+    # The control case: a strongly isolating language has no citation-
+    # form declension/conjugation system at all -- see mandarin.yaml's
+    # own comment.
+    mandarin = next(p for p in REFERENCE_LANGUAGES if p.name == "Mandarin")
+    assert mandarin.word_classes == ()
+    assert mandarin.word_class_deviation_rate is None
 
 
 def test_the_four_perfected_languages_declare_a_real_average_syllable_count():

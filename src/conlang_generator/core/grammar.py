@@ -53,6 +53,32 @@ class WordTemplate(BaseModel, frozen=True):
     skeleton: tuple[str, ...]
 
 
+class WordClass(BaseModel, frozen=True):
+    """One citation-form word-shape class within a single part of
+    speech -- real Latin noun declensions (1st ``-a``, 2nd masc ``-us``,
+    2nd neut ``-um``), real French verb conjugations (``-er``/``-ir``/
+    ``-re``), real Bantu noun-class prefixes (``m-``/``wa-``, ``ki-``/
+    ``vi-``). ``prefix``/``suffix`` are literal IPA symbols -- genuine
+    phonological content, not a spelling-only convention (that's
+    ``core.romanization.MuteSuffixRule``'s own separate job, for a real
+    silent letter with no phonological correlate at all, e.g. French's
+    own infinitive silent "-r"). A class with both empty is legal
+    (a POS that's marked, if at all, only by which class a word belongs
+    to, not by any actual affix) but unusual -- most curated/invented
+    classes have at least one of the two set. Typed value object only,
+    no rule engine -- the same spirit ``WordTemplate`` already has."""
+
+    name: str
+    pos: PartOfSpeech
+    prefix: tuple[str, ...] = ()
+    suffix: tuple[str, ...] = ()
+    prevalence: float = 1.0
+    """Relative frequency among this POS's own classes -- same role
+    ``phonology_gen.py``'s own ``Consonant``/``Vowel.prevalence`` already
+    plays, consulted by a weighted choice, not a probability in its own
+    right."""
+
+
 class GrammarProfile(BaseModel, frozen=True):
     word_order: WordOrder
     morphological_type: MorphologicalType
@@ -75,3 +101,22 @@ class GrammarProfile(BaseModel, frozen=True):
     by ``grammar_gen.py`` and filled in afterward once the phoneme
     inventory exists, the same relationship ``plural_suffix`` already has
     to it."""
+    word_classes: tuple[WordClass, ...] = ()
+    """This language's own real or invented citation-form paradigms,
+    grouped implicitly by each member's own ``pos`` (a POS with zero
+    members here simply never gets any class marking -- most real
+    languages' pronouns/particles/numerals, and every isolating
+    language's every POS). Populated by
+    ``generation/word_class_gen.py``, consulted at word-coinage time in
+    ``lexicon_gen.propose_word``/``root_pattern.propose_templatic_word``/
+    ``sound_change``'s own coining functions -- unlike ``cases``/
+    ``plural_suffix`` above, this field has a real, live consumer."""
+    word_class_deviation_rate: float | None = None
+    """Chance a word that would otherwise get a class assignment is
+    instead treated as unclassed (no prefix/suffix at all) -- real
+    morphological irregularity/suppletion, the same per-language
+    "usually X, sometimes not" shape ``stress_deviation_rate`` already
+    has elsewhere. ``None`` (the common case -- most POS in most
+    languages have at most one class, where "deviation" is meaningless)
+    means not applicable; only set when some POS actually has more than
+    one class."""

@@ -118,7 +118,10 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
     # seed=0 after the ts/dz/alveolo-palatal-affricate/long-vowel pool
     # extension added new rng draws to consonant/vowel selection; re-found
     # again against evolve seed=0 after the Thai/Indonesian/Malay batch's
-    # own new phoneme-pool content shifted downstream rng draws once more.)
+    # own new phoneme-pool content shifted downstream rng draws once more;
+    # re-found again (twice, as the word-class-paradigm batch's own new
+    # per-language rng draws shifted this repeatedly while that batch was
+    # still in progress) back to evolve seed=0.)
     base = generate_language(
         "Dutch",
         GenerationSpec(
@@ -426,12 +429,12 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # even one whose own pronunciation didn't shift this run at all. Fixed
     # seed known to reform at least one word while its IPA stays
     # byte-identical to the base. (Re-found repeatedly as downstream rng
-    # draws shift -- most recently against seed=3 after the ten-language
-    # batch's own new phoneme-pool content shifted downstream rng draws
-    # once more, same "seed-shift from new content" pattern documented
+    # draws shift -- most recently against seed=5 after the word-class-
+    # paradigm batch's own new per-language rng draws shifted this once
+    # more, same "seed-shift from new content" pattern documented
     # elsewhere in this project's history.)
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=3)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=5)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)
@@ -539,7 +542,7 @@ def test_coin_native_word_uses_the_lineage_profiles_own_stress_pattern():
         name="TestLineage", consonants=("k", "t", "b"), vowels=("a",), coda_profile="none", max_onset=1, tonal=False,
         stress_pattern="final", stress_deviation_rate=0.0,
     )
-    ipa, root = sound_change._coin_native_word(
+    ipa, root, _ = sound_change._coin_native_word(
         random.Random(1), entry, inventory, structure, ToneSystem(), WordAccentSystem(), grammar,
         lineage_profiles=(lineage_profile,), strictness=1.0,
     )

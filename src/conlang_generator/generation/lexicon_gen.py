@@ -13,10 +13,11 @@ from __future__ import annotations
 import math
 import random
 
+from conlang_generator.core.grammar import WordClass
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, ToneSystem, WordAccentSystem
 from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
-from conlang_generator.generation import stress_gen, word_accent_gen, word_builder
+from conlang_generator.generation import stress_gen, word_accent_gen, word_builder, word_class_gen
 from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
@@ -209,6 +210,8 @@ def _propose_kinship_word(
     word_accent_deviation_rate: float | None = None,
     word_accent_length_rate: float | None = None,
     word_accent_window: int | None = None,
+    word_classes: tuple[WordClass, ...] = (),
+    word_class_deviation_rate: float | None = None,
 ) -> LexicalEntry | None:
     """Try the mama/papa-style reduplicated pattern; ``None`` means the
     inventory has no matching consonant class and the caller should fall
@@ -225,12 +228,21 @@ def _propose_kinship_word(
     )
     if word is None:
         return None
+    assigned_class = word_class_gen.assign_word_class(rng, word_classes, word_class_deviation_rate, pos)
+    word = word_class_gen.apply_word_class(
+        rng, assigned_class, word, inventory,
+        stress_pattern, stress_deviation_rate, stress_strictness,
+        word_accent_realization=word_accent_realization, word_accent_pattern=word_accent_pattern,
+        word_accent_deviation_rate=word_accent_deviation_rate, word_accent_length_rate=word_accent_length_rate,
+        word_accent_window=word_accent_window,
+    )
     return LexicalEntry(
         ipa=word,
         romanization=apply_grammatical_spelling(romanization, romanization.apply(word), pos),
         glosses=(gloss,),
         pos=pos,
         tones=(tone, tone) if tone is not None else (),
+        word_class=assigned_class.name if assigned_class is not None else None,
     )
 
 
@@ -298,6 +310,8 @@ def propose_word(
     favor_short: bool = True,
     source_languages: tuple[str, ...] = (),
     strictness: float = 0.0,
+    word_classes: tuple[WordClass, ...] = (),
+    word_class_deviation_rate: float | None = None,
 ) -> LexicalEntry:
     """Build candidate forms deterministically, then ask the LLM to pick one.
 
@@ -350,6 +364,7 @@ def propose_word(
             word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
             word_accent_deviation_rate=word_accent_deviation_rate, word_accent_length_rate=word_accent_length_rate,
             word_accent_window=word_accent_window,
+            word_classes=word_classes, word_class_deviation_rate=word_class_deviation_rate,
         )
         if kinship_entry is not None:
             return kinship_entry
@@ -381,6 +396,14 @@ def propose_word(
             candidates.append(word)
 
     chosen = choose_best_candidate(rng, candidates, gloss, pos, llm_client, language_name, context)
+    assigned_class = word_class_gen.assign_word_class(rng, word_classes, word_class_deviation_rate, pos)
+    chosen = word_class_gen.apply_word_class(
+        rng, assigned_class, chosen, inventory,
+        stress_pattern, stress_deviation_rate, strictness,
+        word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
+        word_accent_deviation_rate=word_accent_deviation_rate, word_accent_length_rate=word_accent_length_rate,
+        word_accent_window=word_accent_window,
+    )
 
     return LexicalEntry(
         ipa=chosen,
@@ -388,4 +411,5 @@ def propose_word(
         glosses=(gloss,),
         pos=pos,
         tones=tones,
+        word_class=assigned_class.name if assigned_class is not None else None,
     )

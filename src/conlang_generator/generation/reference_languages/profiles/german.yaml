@@ -8,6 +8,23 @@ tonal: false
 coda_devoicing: true
 orthography_category: germanic-doubling-style
 capitalized_pos: [noun]  # real German capitalizes every common noun, not just proper nouns
+word_classes:
+  # Real German noun gender loosely correlates with a citation-form
+  # ending: masculine/neuter nouns are overwhelmingly unmarked in their
+  # own nominative singular (der Mann, das Kind), while many feminine
+  # nouns take a real, genuinely pronounced final -e (die Blume, die
+  # Schule -- German's own real unstressed word-final "e" is schwa /ə/,
+  # the same real fact `stress_driven_vowel_reduction` above already
+  # reflects). Illustrative -- real German gender assignment is only
+  # loosely, not strictly, predictable from a noun's own ending.
+  - {name: "unmarked (masc./neut.)", pos: noun, prevalence: 0.6}
+  - {name: "-e (fem.)", pos: noun, suffix: ["ə"], prevalence: 0.4}
+  # Real German verb infinitives are overwhelmingly "-en" (machen,
+  # gehen, kommen) -- one dominant class, not several; real exceptions
+  # (sein, tun) surface via word_class_deviation_rate below instead of a
+  # second competing class.
+  - {name: "-en verbs", pos: verb, suffix: ["ə", n], prevalence: 1.0}
+word_class_deviation_rate: 0.04  # illustrative -- German's own real irregular-infinitive set (sein, tun, and a few compounds) is genuinely tiny
 stress_pattern: initial  # real German: usually the root's first syllable (Wasser, Mutter, Vater)
 stress_deviation_rate: 0.2  # illustrative -- loanwords and certain separable/inseparable-prefix verbs are the real exceptions
 stress_driven_vowel_reduction: true  # real German: unstressed syllables (especially word-final "-e"/"-en"/"-er") reduce to schwa (bitte, Wasser, geben) -- already the reasoning behind /ə/ being curated very_common in nucleus_frequency_tiers below

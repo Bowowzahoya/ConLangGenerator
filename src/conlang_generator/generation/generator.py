@@ -17,6 +17,7 @@ from conlang_generator.generation import (
     romanization_gen,
     root_pattern,
     word_builder,
+    word_class_gen,
 )
 from conlang_generator.llm.base import LLMClient
 
@@ -43,6 +44,13 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     if grammar.uses_root_and_pattern:
         templates = root_pattern.generate_templates(rng, inventory)
         grammar = grammar.model_copy(update={"templates": templates})
+
+    word_classes, word_class_deviation_rate = word_class_gen.generate_word_classes(
+        rng, spec, inventory, syllable_structure, grammar.uses_root_and_pattern
+    )
+    grammar = grammar.model_copy(
+        update={"word_classes": word_classes, "word_class_deviation_rate": word_class_deviation_rate}
+    )
 
     seed_entries = tuple(
         LexicalEntry(
@@ -80,6 +88,8 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
                 source_languages=spec.traits.source_languages,
                 strictness=spec.traits.source_language_strictness,
                 word_accent_system=word_accent_system,
+                word_classes=grammar.word_classes,
+                word_class_deviation_rate=grammar.word_class_deviation_rate,
             )
         else:
             entry = lexicon_gen.propose_word(
@@ -96,6 +106,8 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
                 context=spec.traits.salient_context,
                 source_languages=spec.traits.source_languages,
                 strictness=spec.traits.source_language_strictness,
+                word_classes=grammar.word_classes,
+                word_class_deviation_rate=grammar.word_class_deviation_rate,
             )
         generated_entries.append(entry)
     generated_entries = tuple(generated_entries)

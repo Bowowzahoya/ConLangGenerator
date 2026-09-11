@@ -208,11 +208,18 @@ All mutation-shaped operations return a new instance (`model_copy` /
   once; see `generation/root_pattern.py`). `WordTemplate.skeleton` is a
   sequence where `"C"` consumes the next root consonant in order and
   anything else is a literal ipa symbol (that template's own fixed vowel/
-  affix). Typed value objects only, no rule engine.
+  affix). `word_classes: tuple[WordClass, ...]` + `word_class_deviation_rate`
+  -- real, *phonologically live* citation-form paradigms (Latin's noun
+  declensions, French's verb conjugations, Swahili's noun-class prefixes),
+  see `generation/word_class_gen.py`'s own section below for the mechanism
+  -- unlike `cases`/`plural_suffix` just above, this pair has a real
+  consumer. Typed value objects only, no rule engine.
 - **`lexicon.py`**: `LexicalEntry` (form + glosses + POS + tones + `root`
   -- the consonantal root a templatic word was derived from, `None`
-  otherwise), `Lexicon` (entries + idioms, with case-insensitive
-  `by_gloss`/`by_form` lookup, both NFC-normalized on the form side).
+  otherwise -- + `word_class`, the name of the `WordClass` a word was
+  assigned at coinage, or `None`), `Lexicon` (entries + idioms, with
+  case-insensitive `by_gloss`/`by_form` lookup, both NFC-normalized on the
+  form side).
 - **`traits.py`**: `TraitProfile` -- an LLM-classified, graded, *bipolar*
   (`-1.0 to 1.0`) reading of a free-text prompt against a broad set of
   factors that shape real languages (terrain, community structure, contact
@@ -602,6 +609,91 @@ Everything here is a pure function of a `random.Random` seeded from
   reference profile with `root_and_pattern=True`. `templates` is left
   empty here; `generator.py` fills it in afterward once the phoneme
   inventory exists (same relationship `plural_suffix` already has to it).
+- **`word_class_gen.py`**: `generate_word_classes()` -- step one of a
+  staged grammar roadmap (part-of-speech labeling + per-POS citation-form
+  word shape here; real inflection -- case/conjugation/agreement -- and
+  LLM-driven sentence construction are later, separate steps). Rolls,
+  independently per `PartOfSpeech`, whether this language has a real
+  multi-class citation-form paradigm for it (real Latin noun declensions
+  `-us`/`-a`/`-um`, French verb conjugations `-er`/`-ir`/`-re`, Swahili
+  noun-class prefixes `m-`/`ki-`/...) -- reused verbatim from a matched
+  `ReferenceLanguageProfile.word_classes` when one curates them (a
+  `strictness`-graded adoption roll, same "usually, not always, adopt the
+  real convention" shape `romanization_gen.py`'s own reference-adoption
+  rolls already use), or invented otherwise via a real, well-documented
+  cross-linguistic asymmetry (nouns/verbs/adjectives get a meaningfully
+  higher base rate than pronouns/particles/numerals, which mostly don't
+  vary in citation shape by class at all). An invented class's own
+  prefix/suffix is built via two new `word_builder.py` helpers,
+  `build_class_suffix`/`build_class_prefix` -- a nucleus(+coda)-only
+  suffix or onset+nucleus-only prefix, deliberately never including the
+  "outer" onset/coda, so the join with any stem is phonotactically safe
+  by construction (vowel-adjacent, never an arbitrary cluster) without
+  needing a general phonotactic-repair mechanism. Root-and-pattern
+  languages never get *invented* classes (real Semitic case/gender
+  morphology interacts with root-and-pattern derivation in ways well
+  beyond this step's own scope, an explicit boundary, not solved here) --
+  a matched reference profile's own curated classes are still honored
+  regardless.
+
+  Unlike `core.romanization.MuteSuffixRule` (a cosmetic, silent spelling
+  addition with zero IPA effect -- real French's own infinitive silent
+  "-r"), a `WordClass`'s own prefix/suffix is genuine phonological
+  content: `word_class_gen.assign_word_class()` picks a word's own class
+  at coinage time (weighted by `WordClass.prevalence`, with a
+  `word_class_deviation_rate` roll modeling real irregular/suppletive
+  exceptions -- the same per-language "usually X, sometimes not" shape
+  `stress_deviation_rate` already has), and `apply_word_class()`
+  concatenates it directly onto the word's own IPA -- real content from
+  that point on, riding through `RomanizationScheme.apply()` and every
+  later `sound_change.py` rule exactly like any other phoneme, needing
+  **no** special evolution-time handling (a class suffix undergoes the
+  same historical sound change as the rest of the word, e.g. real Latin
+  `-us` -> Italian `-o`, the linguistically correct behavior, not a
+  re-derivation step). Critically, `apply_word_class()` also *re-derives*
+  stress (and word accent) on the full, now-longer word via
+  `word_accent_gen.mark_stress_and_word_accent` -- the same flat-symbol-
+  sequence marking mechanism `root_pattern.py`/`sound_change.py`'s own
+  templatic coining already use -- rather than trusting the stem's own
+  already-baked-in mark: a position-dependent pattern (real French's own
+  final-syllable stress is the clearest case) would otherwise still land
+  on the *stem's* former final syllable once a vowel-bearing suffix
+  syllable follows it, a real bug caught and fixed by generating French's
+  own validation data during this feature's own first batch. Called from
+  all four word-coining sites (`lexicon_gen.propose_word` and its own
+  `_propose_kinship_word` helper, `root_pattern.propose_templatic_word`,
+  `sound_change.py`'s two coining functions) -- a borrowed word
+  (`_coin_borrowed_word`) deliberately gets no class marking at all (real
+  loanwords don't follow the borrowing language's own declension/
+  conjugation system, at least not immediately). Known, documented gap:
+  a tone mark stays on whichever base vowel it was already on in the
+  stem, but a *new* vowel the suffix/prefix itself contributes gets no
+  tone mark of its own -- none of this feature's own first validation
+  batch (Latin, French, German, Swahili, Mandarin) combines tone with
+  word classes, so this doesn't yet surface in practice.
+
+  First validation batch curated real data for 5 profiles chosen to
+  exercise the mechanism's full range: Latin (suffixing noun declension),
+  French (suffixing verb conjugation -- retiring its own former
+  `mute_suffix_by_pos` entry, now modeled more accurately as real
+  phonological content), German (a mix of an unmarked class -- real
+  German masculine/neuter nouns take no citation-form ending at all,
+  a legal, honest "both prefix and suffix empty" `WordClass` -- and a
+  real `-e` feminine-leaning class, plus a single dominant `-en` verb
+  class), Swahili (the first profile to exercise `WordClass.prefix`, a
+  real Bantu noun-class-prefix system -- the direct payoff of a gap this
+  project's own Swahili profile had already flagged in passing, as a
+  word-length-counting note only, until now), and Mandarin (the "real
+  isolating language has no such system" control case -- though note an
+  empty `word_classes` doesn't *suppress* the generic invented-class
+  roll for an unmatched/uncurated POS, the same "optional-field default
+  can't distinguish unconsidered from actively false" limitation
+  `root_and_pattern`'s own default already has elsewhere in this
+  project; a Mandarin-biased run can still roll invented classes like
+  any other unmatched language). Remaining ~50 reference profiles get no
+  `word_classes` curation yet -- queued as an explicit next batch (or
+  several), the same "bring the next N up to par" shape every prior
+  reference-profile effort in this project has used.
 - **`root_pattern.py`** (milestone 9): Semitic-style root-and-pattern
   (templatic) word formation -- a consonantal root (k-t-b "write"-related)
   fills a template to derive related words (kataba "he wrote", kitāb
@@ -1639,11 +1731,14 @@ reading code or one-off ad hoc scripts.
   agreement (a word capitalized only when it's the grammatical subject,
   a mute letter that appears only in some inflected forms) -- this
   project has no live inflectional system to hang that on
-  (`GrammarProfile.plural_suffix`/`cases` are generated but have zero
-  consumers); and specific-word capitalization (e.g. English "I"),
-  dropped because keeping it consistent across a pronoun's variants
-  ("he"/"she"/"it") has no foothold in today's one-word-per-gloss
-  `CORE_MEANINGS` lexicon model.
+  (`GrammarProfile.plural_suffix`/`cases` are still generated but have
+  zero consumers -- `word_classes`/`word_class_deviation_rate`, added
+  alongside them on the same model, are the one exception, a real fixed
+  *citation-form* shape rather than sentence-context-driven agreement;
+  see `word_class_gen.py`'s own section above); and specific-word
+  capitalization (e.g. English "I"), dropped because keeping it
+  consistent across a pronoun's variants ("he"/"she"/"it") has no
+  foothold in today's one-word-per-gloss `CORE_MEANINGS` lexicon model.
 - Consonant gemination and palatalization -- both surveyed and initially
   deferred as needing a phoneme feature this project didn't model -- are
   now modeled (`Consonant.long`/`Consonant.palatalized`,

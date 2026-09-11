@@ -798,15 +798,13 @@ def test_full_strictness_suppresses_all_caps_even_when_explicitly_allowed():
     assert hits == 0
 
 
-def test_french_source_language_biases_toward_a_silent_r_verb_suffix():
-    inventory = _french_inventory()
-
-    def _has_verb_r(scheme):
-        return any(rule.pos is PartOfSpeech.VERB and rule.suffix == "r" for rule in scheme.grammatical_spelling.mute_suffix_by_pos)
-
-    unbiased = sum(_has_verb_r(generate_romanization(random.Random(seed), inventory, ())) for seed in _SEEDS)
-    biased = sum(_has_verb_r(generate_romanization(random.Random(seed), inventory, ("French",))) for seed in _SEEDS)
-    assert biased > unbiased
+# French no longer curates mute_suffix_by_pos -- its real verb-infinitive
+# endings (-er/-ir/-re) are modeled as genuine phonological word_classes
+# instead (see core.grammar.WordClass, generation.word_class_gen, and
+# french.yaml's own comment on why this supersedes the old mechanism for
+# this profile specifically); the equivalent reference-bias test for that
+# now lives in test_generation_and_translation.py, against the module that
+# actually consumes word_classes.
 
 
 def test_evolve_romanization_carries_grammatical_spelling_forward_unchanged():

@@ -1,0 +1,223 @@
+"""Seeded citation-form word-class-paradigm generation -- one independent
+roll per part of speech. See ``core.grammar.WordClass``'s own docstring for
+what a "class" is (real Latin noun declensions, French verb conjugations,
+Swahili noun-class prefixes) and why it's deliberately *not* the same
+mechanism as ``core.romanization.MuteSuffixRule`` (a class's own prefix/
+suffix is genuine phonological content, baked into a word's actual IPA at
+coinage time -- not a cosmetic, silent spelling addition).
+
+This is step one of a staged grammar roadmap (part-of-speech labeling +
+per-POS word shape here; real inflection -- case/conjugation/agreement --
+and LLM-driven sentence construction are later, separate steps).
+``core.grammar.GrammarProfile.cases``/``plural_suffix`` stay untouched and
+still have no consumer -- those are that later inflection step's own job,
+not this one's.
+
+Called once per language, alongside where ``generator.py`` already builds
+``plural_suffix`` (reusing the exact same "one syllable via
+``word_builder.build_syllable``" precedent) -- a language's own set of
+classes is a fixed, whole-language fact, the same way ``plural_suffix``/
+``templates``/``cases`` already are, not something re-rolled per word.
+"""
+
+from __future__ import annotations
+
+import random
+
+from conlang_generator.core.grammar import WordClass
+from conlang_generator.core.lexicon import PartOfSpeech
+from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure
+from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
+from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.generation import ipa_tokenizer, word_accent_gen, word_builder
+from conlang_generator.generation.reference_languages import match_profiles
+from conlang_generator.generation.trait_bias import biased_probability
+
+_ALL_PARTS_OF_SPEECH = tuple(PartOfSpeech)
+
+# Real, well-documented cross-linguistic asymmetry: multi-class citation-
+# form paradigms (declension, conjugation, noun-class agreement) are
+# heavily concentrated in nouns/verbs/adjectives; pronouns/particles/
+# numerals/other overwhelmingly don't vary in citation shape by class the
+# same way (most are either invariant or irregular/suppletive rather than
+# following a regular paradigm). Illustrative base rates, not a corpus
+# statistic -- same honesty standard as every other base rate in this
+# project (e.g. grammar_gen.py's own `_ROOT_AND_PATTERN_BASE_RATE`).
+_INVENTED_CLASS_BASE_RATE: dict[PartOfSpeech, float] = {
+    PartOfSpeech.NOUN: 0.22,
+    PartOfSpeech.VERB: 0.20,
+    PartOfSpeech.ADJECTIVE: 0.12,
+    PartOfSpeech.PRONOUN: 0.03,
+    PartOfSpeech.PARTICLE: 0.02,
+    PartOfSpeech.NUMERAL: 0.02,
+    PartOfSpeech.OTHER: 0.05,
+}
+_MIN_INVENTED_CLASSES = 2
+_MAX_INVENTED_CLASSES = 4
+_MIN_CLASS_PREVALENCE = 0.3
+_MAX_CLASS_PREVALENCE = 1.0
+_REFERENCE_ADOPTION_RATE = 0.7
+"""Same "usually, not always, adopt the matched language's own real
+convention" weight ``romanization_gen.py``'s own
+``_REFERENCE_ORTHOGRAPHY_WEIGHT`` already uses for reused orthography
+rules/onset-nucleus pairs."""
+_GENERIC_DEVIATION_RATE = 0.08
+"""Illustrative fallback when some POS got more than one class but no
+matched reference profile curates its own real rate -- most words follow
+their own assigned class; a modest minority are irregular/suppletive,
+the same "sensible generic baseline" role
+``stress_gen._GENERIC_STRESS_DEVIATION_RATE`` already plays."""
+
+
+def generate_word_classes(
+    rng: random.Random,
+    spec: GenerationSpec,
+    inventory: PhonemeInventory,
+    structure: SyllableStructure,
+    uses_root_and_pattern: bool,
+) -> tuple[tuple[WordClass, ...], float | None]:
+    """Returns this language's own ``(word_classes, word_class_deviation_
+    rate)``. Root-and-pattern languages (``uses_root_and_pattern``) never
+    get *invented* classes -- real Semitic morphology's own case/gender
+    system interacts with root-and-pattern derivation in ways well beyond
+    this step's scope, left an explicit boundary rather than solved here
+    -- but a matched reference profile's own curated classes are still
+    honored regardless, the same way ``root_and_pattern`` matching doesn't
+    otherwise gate any of this module's own reference-adoption logic."""
+    traits = spec.traits
+    reference_profiles = match_profiles(traits.source_languages)
+    strictness = traits.source_language_strictness if reference_profiles else 0.0
+
+    classes: list[WordClass] = []
+    any_multi_class = False
+    for pos in _ALL_PARTS_OF_SPEECH:
+        reference_classes = tuple(c for p in reference_profiles for c in p.word_classes if c.pos is pos)
+        if reference_classes:
+            adoption_rate = _REFERENCE_ADOPTION_RATE
+            if strictness > 0.0:
+                adoption_rate = biased_probability(adoption_rate, strictness)
+            if rng.random() < adoption_rate:
+                classes.extend(reference_classes)
+                if len(reference_classes) > 1:
+                    any_multi_class = True
+            # A failed adoption roll means this POS simply gets no class
+            # marking this run -- not a fallback to invented classes, the
+            # same "the roll either gives you the real thing or nothing"
+            # shape `_roll_grammatical_spelling`'s own mute-suffix reuse
+            # already has.
+            continue
+        if uses_root_and_pattern:
+            continue
+        base_rate = _INVENTED_CLASS_BASE_RATE[pos]
+        if rng.random() >= base_rate:
+            continue
+        num_classes = rng.randint(_MIN_INVENTED_CLASSES, _MAX_INVENTED_CLASSES)
+        # No cross-linguistic tendency to lean on for "prefixing vs.
+        # suffixing" absent a reference match -- a flat coin flip, the
+        # same honesty `grammar_gen.py`'s own `has_articles`/
+        # `adjective_after_noun` rolls already have.
+        is_prefixing = rng.random() < 0.5
+        for i in range(num_classes):
+            name = f"{pos.value} class {i + 1}"
+            prevalence = rng.uniform(_MIN_CLASS_PREVALENCE, _MAX_CLASS_PREVALENCE)
+            if is_prefixing:
+                affix = word_builder.build_class_prefix(rng, inventory, structure)
+                classes.append(WordClass(name=name, pos=pos, prefix=affix, prevalence=prevalence))
+            else:
+                affix = word_builder.build_class_suffix(rng, inventory, structure)
+                classes.append(WordClass(name=name, pos=pos, suffix=affix, prevalence=prevalence))
+        any_multi_class = True
+
+    if not any_multi_class:
+        return tuple(classes), None
+    deviation_rate = next(
+        (p.word_class_deviation_rate for p in reference_profiles if p.word_class_deviation_rate is not None),
+        _GENERIC_DEVIATION_RATE,
+    )
+    return tuple(classes), deviation_rate
+
+
+def assign_word_class(
+    rng: random.Random,
+    word_classes: tuple[WordClass, ...],
+    deviation_rate: float | None,
+    pos: PartOfSpeech,
+) -> WordClass | None:
+    """Picks this word's own class (weighted by ``WordClass.prevalence``,
+    the same role ``Consonant``/``Vowel.prevalence`` already play
+    elsewhere -- a plain ``rng.choices`` here rather than
+    ``word_builder.weighted_choice``, which is coupled to phoneme objects
+    specifically via their own ``.ipa`` attribute), or ``None`` when this
+    POS has no classes at all, or the ``deviation_rate`` roll makes this
+    word an irregular exception (the same ``rng.random() < rate`` shape
+    every other deviation-rate consumer in this project already uses)."""
+    classes = tuple(c for c in word_classes if c.pos is pos)
+    if not classes:
+        return None
+    if deviation_rate is not None and rng.random() < deviation_rate:
+        return None
+    return rng.choices(classes, weights=[c.prevalence for c in classes])[0]
+
+
+def apply_word_class(
+    rng: random.Random,
+    word_class: WordClass | None,
+    ipa: str,
+    inventory: PhonemeInventory,
+    stress_pattern: str,
+    stress_deviation_rate: float | None,
+    stress_strictness: float,
+    word_accent_realization: str = "",
+    word_accent_pattern: str = "",
+    word_accent_deviation_rate: float | None = None,
+    word_accent_length_rate: float | None = None,
+    word_accent_window: int | None = None,
+) -> str:
+    """Concatenates the assigned class's own literal prefix/suffix
+    phonemes onto ``ipa`` -- real phonological content from this point
+    on, riding through ``RomanizationScheme.apply()`` and every later
+    sound-change rule exactly like any other phoneme in the word. A
+    no-op when ``word_class`` is ``None`` or carries no actual prefix/
+    suffix (an "unmarked" class, e.g. German's own real masculine/
+    neuter nouns -- see german.yaml).
+
+    Critically, this *re-derives* stress (and word accent) on the full,
+    now-longer word rather than trusting whatever ``ipa`` already had
+    baked in: a real position-dependent pattern (French's own real
+    final-syllable stress being the clearest case) would otherwise still
+    land on the *stem's* own former final syllable, no longer the word's
+    true final syllable once a vowel-bearing suffix syllable follows it.
+    Strips ``STRESS_MARK``/``WORD_ACCENT_MARK`` from ``ipa``, re-
+    tokenizes the raw phonemes against this run's own inventory (so a
+    multi-character symbol like "kʰ" or "aː" stays one unit, not several
+    characters), concatenates prefix + stem + suffix, and re-marks the
+    whole thing via ``word_accent_gen.mark_stress_and_word_accent`` --
+    the same flat-symbol-sequence marking mechanism
+    ``root_pattern.propose_templatic_word``/``sound_change.py``'s own
+    templatic coining already use for a word with no per-syllable build
+    loop of its own.
+
+    Known gap, left unsolved for this first pass: a tone mark (if any)
+    stays attached to whichever base vowel it was already on in the
+    stem (``ipa_tokenizer.tokenize`` preserves trailing combining
+    marks), but a *new* vowel contributed by the suffix/prefix itself
+    gets no tone mark of its own. None of this batch's own validation
+    profiles combine tone with word classes (Mandarin has no word
+    classes; Swahili isn't tonal), so this doesn't surface there -- a
+    real future affix-tone interaction, not forgotten, just genuinely
+    out of this step's scope."""
+    if word_class is None or not (word_class.prefix or word_class.suffix):
+        return ipa
+    known_symbols = inventory.all_symbols()
+    stripped = ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, "")
+    stem_symbols = tuple(symbol + deco for symbol, deco in ipa_tokenizer.tokenize(stripped, known_symbols))
+    filled_symbols = word_class.prefix + stem_symbols + word_class.suffix
+    vowel_symbols = frozenset(inventory.vowel_symbols())
+    return word_accent_gen.mark_stress_and_word_accent(
+        rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, stress_strictness,
+        word_accent_realization=word_accent_realization,
+        word_accent_pattern=word_accent_pattern,
+        word_accent_deviation_rate=word_accent_deviation_rate,
+        word_accent_length_rate=word_accent_length_rate,
+        word_accent_window=word_accent_window,
+    )

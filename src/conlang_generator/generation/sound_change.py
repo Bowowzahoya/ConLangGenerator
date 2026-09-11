@@ -100,6 +100,7 @@ from conlang_generator.generation import (
     stress_gen,
     word_accent_gen,
     word_builder,
+    word_class_gen,
 )
 
 _VOICELESS_TO_VOICED: dict[str, str] = {
@@ -474,7 +475,7 @@ def _coin_native_word(
     grammar,
     lineage_profiles: tuple[reference_languages.ReferenceLanguageProfile, ...] = (),
     strictness: float = 0.0,
-) -> tuple[str, tuple[str, ...] | None]:
+) -> tuple[str, tuple[str, ...] | None, str | None]:
     """Native replacement (scenario 2b): an unrelated word for the same
     meaning, coined the same way fresh core-vocabulary generation coins any
     word (``lexicon_gen.py``/``root_pattern.py``), just targeting the
@@ -482,8 +483,11 @@ def _coin_native_word(
     root-and-pattern language's noun/verb/adjective entries, coins via the
     same template mechanism -- one root, no candidate-then-LLM-pick (unlike
     ``root_pattern.propose_templatic_word``), keeping evolution pure
-    rule-based like every other path here. Returns ``(ipa, root)`` --
-    ``root`` is ``None`` for non-templatic coinage.
+    rule-based like every other path here. Returns ``(ipa, root,
+    word_class)`` -- ``root`` is ``None`` for non-templatic coinage;
+    ``word_class`` is this freshly-coined replacement's own new class
+    assignment (via ``grammar.word_classes``/``word_class_deviation_rate``,
+    the same as any other coinage path), never the old entry's.
 
     ``lineage_profiles`` is the evolving language's own heritage (``evolve_language``'s
     ``lineage_profiles``, not the current run's possibly-empty ``reference_profiles`` --
@@ -515,13 +519,21 @@ def _coin_native_word(
             word_accent_length_rate=word_accent_length_rate,
             word_accent_window=word_accent_window,
         )
-        return stressed, root
+        assigned_class = word_class_gen.assign_word_class(rng, grammar.word_classes, grammar.word_class_deviation_rate, entry.pos)
+        stressed = word_class_gen.apply_word_class(
+            rng, assigned_class, stressed, inventory,
+            stress_pattern, stress_deviation_rate, strictness,
+            word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
+            word_accent_deviation_rate=word_accent_deviation_rate, word_accent_length_rate=word_accent_length_rate,
+            word_accent_window=word_accent_window,
+        )
+        return stressed, root, (assigned_class.name if assigned_class is not None else None)
 
     num_syllables = lexicon_gen.choose_syllable_count(rng, entry.pos, favor_short=True)
     tone_marks: tuple[str, ...] = ()
     if tone_system.enabled:
         tone_marks = tuple(tone_system.mark("", rng.choice(tone_system.levels)) for _ in range(num_syllables))
-    return word_builder.build_word(
+    word = word_builder.build_word(
         rng, inventory, structure, num_syllables, tone_marks,
         stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=strictness,
         word_accent_realization=word_accent_system.realization,
@@ -530,7 +542,16 @@ def _coin_native_word(
         word_accent_strictness=strictness,
         word_accent_length_rate=word_accent_length_rate,
         word_accent_window=word_accent_window,
-    ), None
+    )
+    assigned_class = word_class_gen.assign_word_class(rng, grammar.word_classes, grammar.word_class_deviation_rate, entry.pos)
+    word = word_class_gen.apply_word_class(
+        rng, assigned_class, word, inventory,
+        stress_pattern, stress_deviation_rate, strictness,
+        word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
+        word_accent_deviation_rate=word_accent_deviation_rate, word_accent_length_rate=word_accent_length_rate,
+        word_accent_window=word_accent_window,
+    )
+    return word, None, (assigned_class.name if assigned_class is not None else None)
 
 
 def _coin_borrowed_word(
@@ -620,6 +641,7 @@ def evolve_language(
     borrowed_romanizations: dict[int, str] = {}
     replaced_native: set[int] = set()
     replaced_roots: dict[int, tuple[str, ...]] = {}
+    replaced_word_classes: dict[int, str | None] = {}
     for i, (entry, evolved_ipa) in enumerate(zip(base.lexicon.entries, evolved_ipas)):
         if rng.random() < _replacement_rate(years, traits, entry.pos):
             if reference_profiles:
@@ -627,7 +649,7 @@ def evolve_language(
                 final_ipas.append(ipa)
                 borrowed_romanizations[i] = latin
             else:
-                ipa, root = _coin_native_word(
+                ipa, root, word_class = _coin_native_word(
                     rng, entry, provisional_inventory, provisional_structure, base.tone_system, base.word_accent, base.grammar,
                     lineage_profiles=lineage_profiles, strictness=traits.source_language_strictness,
                 )
@@ -635,6 +657,7 @@ def evolve_language(
                 replaced_native.add(i)
                 if root is not None:
                     replaced_roots[i] = root
+                replaced_word_classes[i] = word_class
         else:
             final_ipas.append(evolved_ipa)
 
@@ -669,14 +692,17 @@ def evolve_language(
     evolved_entries = []
     for i, (entry, final_ipa) in enumerate(zip(base.lexicon.entries, final_ipas)):
         root: tuple[str, ...] | None = entry.root
+        word_class: str | None = entry.word_class
         if i in borrowed_romanizations:
             latin = apply_grammatical_spelling(romanization, borrowed_romanizations[i], entry.pos)
             path = "borrowed"
             root = None  # a foreign borrowing has no native root of its own
+            word_class = None  # a foreign borrowing doesn't follow this language's own declension/conjugation classes either
         elif i in replaced_native:
             latin = apply_grammatical_spelling(romanization, romanization.apply(final_ipa), entry.pos)
             path = "replaced"
             root = replaced_roots.get(i)  # a new native root, or None if this wasn't templatic
+            word_class = replaced_word_classes.get(i)  # this fresh replacement's own new class assignment, not the old word's
         else:
             # This branch is only reached for an entry pass 1 didn't
             # replace, so `final_ipa` is exactly `evolved_ipas[i]` by
@@ -697,7 +723,10 @@ def evolve_language(
                 path = "conventional"
         evolved_entries.append(
             entry.model_copy(
-                update={"ipa": final_ipa, "romanization": latin, "notes": f"orthography: {path}", "root": root}
+                update={
+                    "ipa": final_ipa, "romanization": latin, "notes": f"orthography: {path}",
+                    "root": root, "word_class": word_class,
+                }
             )
         )
     evolved_entries = tuple(evolved_entries)

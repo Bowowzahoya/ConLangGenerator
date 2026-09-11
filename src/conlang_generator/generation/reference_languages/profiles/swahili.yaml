@@ -15,11 +15,14 @@ coda_profile: none
 max_onset: 1
 # Real native Swahili syllables are strictly (C)V -- fully open, no
 # codas at all. The one real exception, a syllabic nasal realizing a
-# noun-class prefix (mtu "person", nchi "country"), is a grammatical
-# fact this project's word-level model doesn't reach. A second real,
-# deliberately unmodeled exception: glide-initial onset clusters (Cw/Cj,
-# e.g. mwezi "moon") are genuinely legal even in this otherwise-strict
-# canon -- max_onset stays 1 rather than adding that narrow exception.
+# noun-class prefix (mtu "person", nchi "country"), is modeled below via
+# word_classes -- a literal "m"/"n" prefix concatenated directly onto a
+# vowel-or-consonant-initial stem, the same real phonotactic exception
+# (a prefix consonant with no vowel of its own) actual Swahili has. A
+# second real, deliberately unmodeled exception: glide-initial onset
+# clusters (Cw/Cj, e.g. mwezi "moon") are genuinely legal even in this
+# otherwise-strict canon -- max_onset stays 1 rather than adding that
+# narrow exception.
 tonal: false
 # Swahili genuinely lost the tone system every other Bantu language in
 # this batch keeps -- a well-known typological oddity, not an oversight
@@ -28,6 +31,25 @@ tonal: false
 stress_pattern: penultimate
 stress_deviation_rate: 0.04  # illustrative -- one of the most reliable "rule of thumb" facts in descriptive Swahili linguistics, close to Finnish's own famously rigid initial-stress figure but for the opposite (penultimate) position
 orthography_category: digraph-style
+word_classes:
+  # Real Swahili noun-class prefix system -- a representative subset of
+  # the real ~15-18 noun classes (illustrative, not exhaustive, the same
+  # scope every other multi-member curated list in this project already
+  # has). Each prefix is a real, attested one: class 1/2 m-/wa- (people:
+  # mtu "person", mtoto "child"), class 5/6 ji-/ma- (jicho "eye"), class
+  # 7/8 ki-/vi- (kitu "thing"), class 9/10 n- (animals, many borrowed
+  # nouns -- realized as a plain nasal prefix, the same real syllabic-
+  # nasal phonotactic exception m-/n- already are, see coda_profile's
+  # own comment above), class 11 u- (abstract nouns, uzuri "beauty").
+  # Real Swahili adjectives also agree with their own noun's class via a
+  # matching prefix -- genuine sentence-context-driven *agreement*, not
+  # a fixed citation-form fact, so deliberately not modeled here; that's
+  # this project's own later, separate inflection step's job.
+  - {name: "class 1/2 (m-/wa-)", pos: noun, prefix: [m], prevalence: 0.3}
+  - {name: "class 5/6 (ji-/ma-)", pos: noun, prefix: [j, i], prevalence: 0.15}
+  - {name: "class 7/8 (ki-/vi-)", pos: noun, prefix: [k, i], prevalence: 0.25}
+  - {name: "class 9/10 (n-)", pos: noun, prefix: [n], prevalence: 0.2}
+  - {name: "class 11 (u-)", pos: noun, prefix: [u], prevalence: 0.1}
 orthography:
   # Real modern Swahili Latin orthography is close to WYSIWYG/phonemic,
   # like Indonesian's own -- these aren't invented conventions, and (a

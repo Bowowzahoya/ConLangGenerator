@@ -45,6 +45,16 @@ class LexicalEntry(BaseModel, frozen=True):
     every other word. Recorded even though nothing reads it back yet, so
     a later derivational-relatedness feature (reusing an existing root for
     a semantically related new word) has the data already in place."""
+    word_class: str | None = None
+    """The name of the ``core.grammar.WordClass`` this word was assigned
+    at coinage (e.g. "1st declension", "-er verbs"), or ``None`` if this
+    word's own POS has no curated/invented classes, or the
+    ``word_class_deviation_rate`` roll made it an irregular exception.
+    The class's own prefix/suffix is already permanently baked into
+    ``ipa`` by the time this is set -- this field exists purely so a
+    later inflection step doesn't have to re-derive which paradigm a
+    word belongs to, the same "recorded even though nothing reads it
+    back yet" precedent ``root`` above already sets."""
 
     @property
     def primary_gloss(self) -> str:

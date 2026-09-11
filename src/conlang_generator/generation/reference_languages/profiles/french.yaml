@@ -13,7 +13,24 @@ onset_nucleus_spellings:
   # (for /w/ alone) plus a separate "a" appended after (which would
   # wrongly produce "moia").
   - {first: w, second: a, latin: oi}
-mute_suffix_by_pos: [{pos: verb, suffix: r}]  # real French infinitive "-er"'s silent r ("parler" /paʁle/)
+word_classes:
+  # Real French verb conjugation classes -- each infinitive ending is
+  # genuinely pronounced differently (this is real phonological content,
+  # not a cosmetic spelling convention -- see core.grammar.WordClass's
+  # own docstring for why this supersedes the old mute_suffix_by_pos
+  # entry this profile used to have): "-er" is /e/ (its own real
+  # final "r" is silent, not modeled as a phoneme at all -- "parler"
+  # /paʁle/); "-ir" is genuinely /iʁ/ ("finir" /finiʁ/); "-re" is
+  # genuinely /ʁ/, its own "e" silent ("prendre" /pʁɑ̃dʁ/, simplified
+  # here to the citation-form ending alone). Real "-er" verbs are by far
+  # the largest, fully productive class (virtually every new French verb
+  # coined today is "-er"); "-ir" is the second-largest; "-re" (with
+  # "-oir", not modeled separately here) is the smallest and most
+  # irregular, reflected in its own lower prevalence.
+  - {name: "-er verbs", pos: verb, suffix: [e], prevalence: 0.55}
+  - {name: "-ir verbs", pos: verb, suffix: [i, "ʁ"], prevalence: 0.30}
+  - {name: "-re verbs", pos: verb, suffix: ["ʁ"], prevalence: 0.15}
+word_class_deviation_rate: 0.05  # illustrative -- real French's own irregular verbs (être, avoir, aller, faire, ...) are a small, closed, highly memorable set relative to the fully productive regular classes above
 stress_pattern: final  # real French: essentially always the last syllable of the word (phrase-level stress is a separate, word-boundary-crossing phenomenon this project doesn't model)
 stress_deviation_rate: 0.02  # illustrative -- French's own real exceptions are vanishingly rare relative to the other five profiles
 restricted_coda_consonants: [w]  # /w/ is essentially onset-only in real French ("oui"); /j/ is genuinely attested in codas (soleil, travail) so it's deliberately NOT restricted here
@@ -108,11 +125,16 @@ orthography:
   - {ipa: "ɛ", latin: ai, weight: 0.35}
   - {ipa: "ɛ", latin: ei, weight: 0.15}
   # /e/ word-final: "-er"/"-ez" are real, common, non-verb-specific
-  # patterns (boulanger, danger; chez, nez, assez) alongside plain "é" --
-  # distinct from the separate verb-infinitive mute-r suffix mechanism
-  # above (mute_suffix_by_pos), which just appends a silent "r" after
-  # whichever spelling wins here. Elsewhere, plain "é" is the only real
-  # spelling.
+  # patterns (boulanger, danger; chez, nez, assez) alongside plain "é".
+  # Real French spells every "-er"-class verb infinitive (above)
+  # deterministically as "-er", never "-é"/"-ez" -- a POS-conditioned
+  # spelling rule this project's own `RomanizationRule` mechanism can't
+  # express (its own `following`/`preceding` tags are phonological
+  # neighbor context, not grammatical category), so a generated "-er"
+  # verb's own final /e/ still probabilistically resolves through this
+  # same general rule instead. A known, documented simplification: the
+  # real *phonological* ending (/e/) is correct; its spelling isn't
+  # always the real deterministic "-er" the way actual French always is.
   - {ipa: e, latin: "é", following: [boundary], weight: 0.5}
   - {ipa: e, latin: er, following: [boundary], weight: 0.3}
   - {ipa: e, latin: ez, following: [boundary], weight: 0.2}

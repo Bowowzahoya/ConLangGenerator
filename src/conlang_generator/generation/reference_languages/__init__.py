@@ -74,6 +74,8 @@ word_accent_deviation_rate: null    # optional, defaults null -- e.g. 0.15
 word_accent_length_rate: null       # optional, defaults null -- e.g. 0.5; only meaningful for "pitch_and_length" (real BCMS length is substantially lexical)
 word_accent_window: null            # optional, defaults null -- e.g. 3; only meaningful for "positional_pitch_accent" (real Ancient Greek's own trimoric law)
 word_accent_marking: ""             # optional, defaults empty -- e.g. "marked", for a language that writes it (none curated do)
+word_classes: []                    # optional, defaults empty -- e.g. [{name: "1st declension", pos: noun, suffix: [a], prevalence: 1.0}]
+word_class_deviation_rate: null     # optional, defaults null -- e.g. 0.1, real irregular-word rate; only meaningful alongside a multi-member word_classes entry
 ```
 
 ``orthography`` entries are ``RomanizationRule``s -- see its docstring for
@@ -90,6 +92,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel
 
+from conlang_generator.core.grammar import WordClass
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.romanization import JointSpelling, MuteSuffixRule, RomanizationRule
 
@@ -430,6 +433,25 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     Same per-profile-override role ``stress_accent_marking`` plays for
     stress; only consulted when ``source_language_strictness`` > 0 -- see
     ``core.romanization.RomanizationScheme.apply()``."""
+    word_classes: tuple[WordClass, ...] = ()
+    """This language's own real citation-form paradigms (Latin's noun
+    declensions, French's verb conjugations, Swahili's noun-class
+    prefixes) -- see ``core.grammar.WordClass``'s own docstring. Each
+    member's own ``prefix``/``suffix`` must be restricted to symbols this
+    profile's own ``consonants``/``vowels`` cover, same restriction
+    ``orthography`` already has. Empty (the common case for the many
+    profiles not yet curated this way) means not curated --
+    ``generation.word_class_gen.generate_word_classes`` falls back to
+    inventing classes (or none) for this language's own generated
+    inventory instead."""
+    word_class_deviation_rate: float | None = None
+    """This language's own real citation-form irregularity rate --
+    mirrors ``stress_deviation_rate``'s "curated real rate overrides the
+    generic illustrative fallback" role, for
+    ``core.grammar.GrammarProfile.word_class_deviation_rate``. Only
+    meaningful alongside a curated ``word_classes`` with more than one
+    member for some POS; ``None`` (the common case) means not curated --
+    ``generate_word_classes`` falls back to its own generic rate."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)
