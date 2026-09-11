@@ -91,6 +91,17 @@ coda_frequency_tiers:
   common: [l, k, d, m, "ʈ", "ɖ", "ɳ", "ʂ"]  # the retroflex series is real and genuinely common as a coda (unlike onset) -- the surface outcome of real Swedish /r/+dental sandhi (kort, bord, barn, mars)
   uncommon: [f, "ŋ", b, p, v, g]
   rare: [x, j]
+word_classes:
+  # Real Swedish: no citation-form noun suffix distinguishes the real
+  # common/neuter (en-word/ett-word) gender split -- same real fact, and
+  # same deliberate noun omission, as Danish. Verbs: real Swedish
+  # infinitives overwhelmingly take an unstressed "-a" marker (already
+  # this profile's own very_common nucleus, alongside schwa); a small
+  # closed set of already vowel-final monosyllabic verbs (gå, stå, se,
+  # ge, tro, bo, dö) stay unmarked.
+  - {name: "-a infinitive", pos: verb, suffix: [a], prevalence: 0.85}
+  - {name: "unmarked infinitive", pos: verb, prevalence: 0.15}
+word_class_deviation_rate: 0.1  # illustrative -- real Swedish's own infinitive marking is close to exceptionless once a verb's own class (marked vs. unmarked) is known
 stress_pattern: initial  # real Swedish: usually the root's first syllable, same Germanic default as German/Dutch/Danish
 stress_deviation_rate: 0.15  # illustrative -- loanwords are the main real exception
 stress_driven_vowel_reduction: true  # real Swedish: unstressed syllables reduce toward schwa, same Scandinavian-mainland pattern as Danish

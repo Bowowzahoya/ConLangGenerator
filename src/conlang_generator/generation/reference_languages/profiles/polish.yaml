@@ -94,6 +94,22 @@ coda_frequency_tiers:
   common: [n, l, m, w, "ʃ", p]
   uncommon: [f, x, ts, "ɲ", "tʃ", j]
   rare: [h, "ç", "tɕ", b, d, g, dz, "dʒ", "dʑ", v, z, "ʒ", "ʝ"]
+word_classes:
+  # Real Polish noun gender, the same dominant citation-form correlation
+  # already curated for Russian: masculine nouns are overwhelmingly
+  # unmarked (bare consonant-final stem), feminine nouns overwhelmingly
+  # take "-a", neuter nouns overwhelmingly take "-o" (a real, if
+  # illustrative, subset -- real Polish neuters also include "-e"/"-ę"/
+  # "-um" stems, not modeled here). Verbs: real Polish infinitives are
+  # (with a small closed set of real exceptions, e.g. "iść", "móc")
+  # marked by the single, famous "-ć" suffix -- phonemically the
+  # alveolo-palatal affricate "tɕ" this profile already curates for real
+  # Polish spelled "ć".
+  - {name: "masculine (unmarked)", pos: noun, prevalence: 0.4}
+  - {name: "feminine (-a)", pos: noun, suffix: [a], prevalence: 0.35}
+  - {name: "neuter (-o)", pos: noun, suffix: [o], prevalence: 0.25}
+  - {name: "-ć infinitive", pos: verb, suffix: ["tɕ"], prevalence: 1.0}
+word_class_deviation_rate: 0.15  # illustrative -- same order of magnitude as Russian's own real gender/conjugation irregularity
 stress_pattern: penultimate  # real Polish: fixed penultimate stress, a small number of verb-form/loanword exceptions
 stress_deviation_rate: 0.05  # illustrative -- real Polish stress is one of the most rigidly fixed-position systems in Europe
 stress_driven_vowel_reduction: false  # real Polish: a conservative, syllable-timed language that keeps full vowel quality regardless of stress

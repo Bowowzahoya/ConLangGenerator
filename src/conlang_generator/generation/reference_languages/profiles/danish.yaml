@@ -91,6 +91,20 @@ coda_frequency_tiers:
   common: ["ʁ", l, k, d, m]
   uncommon: [f, "ŋ", b, p, v, g]
   rare: ["ð", j]
+word_classes:
+  # Real Danish: no citation-form noun suffix distinguishes the real
+  # common/neuter (en-word/et-word) gender split -- that distinction
+  # surfaces only on the indefinite article and later agreement, not on
+  # the noun's own bare citation form, so no noun word_classes are
+  # curated here (an honest omission, the same reasoning that keeps
+  # Sanskrit noun-only and Arabic/Hebrew verb-empty). Verbs: real Danish
+  # infinitives overwhelmingly take an unstressed "-e" marker (spelled
+  # "e", realized as schwa -- already this profile's own very_common
+  # nucleus); a small closed set of already vowel-final monosyllabic
+  # verbs (gå, stå, se, tro, bo, dø, ske) stay unmarked.
+  - {name: "-e infinitive", pos: verb, suffix: ["ə"], prevalence: 0.85}
+  - {name: "unmarked infinitive", pos: verb, prevalence: 0.15}
+word_class_deviation_rate: 0.1  # illustrative -- real Danish's own infinitive marking is close to exceptionless once a verb's own class (marked vs. unmarked) is known
 stress_pattern: initial  # real Danish: usually the root's first syllable, same Germanic default as German/Dutch
 stress_deviation_rate: 0.15  # illustrative -- loanwords are the main real exception
 stress_driven_vowel_reduction: true  # real Danish: unstressed syllables reduce heavily toward schwa -- often described as the most aggressively vowel-eroded of the Germanic languages

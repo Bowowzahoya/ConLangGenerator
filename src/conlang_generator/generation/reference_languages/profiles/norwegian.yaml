@@ -86,6 +86,17 @@ coda_frequency_tiers:
   common: [l, k, d, m, "ʈ", "ɖ", "ɳ", "ʂ"]  # the retroflex series is real and genuinely common as a coda (unlike onset) -- the surface outcome of real Norwegian /r/+dental sandhi (kort, bord, barn)
   uncommon: [f, "ŋ", b, p, v, g]
   rare: ["ʃ", j]
+word_classes:
+  # Real Norwegian: no citation-form noun suffix distinguishes the real
+  # common/neuter gender split -- same real fact, and same deliberate
+  # noun omission, as Danish/Swedish. Verbs (Bokmål norm): real
+  # Norwegian infinitives overwhelmingly take an unstressed "-e" marker,
+  # the same real fact as Danish's own; a small closed set of already
+  # vowel-final monosyllabic verbs (gå, stå, se, tro, bo, dø) stay
+  # unmarked.
+  - {name: "-e infinitive", pos: verb, suffix: ["ə"], prevalence: 0.85}
+  - {name: "unmarked infinitive", pos: verb, prevalence: 0.15}
+word_class_deviation_rate: 0.1  # illustrative -- real Norwegian's own infinitive marking is close to exceptionless once a verb's own class (marked vs. unmarked) is known
 stress_pattern: initial  # real Norwegian: usually the root's first syllable, same Germanic default as German/Dutch/Danish/Swedish
 stress_deviation_rate: 0.15  # illustrative -- loanwords are the main real exception
 stress_driven_vowel_reduction: true  # real Norwegian: unstressed syllables reduce toward schwa, same Scandinavian-mainland pattern as Danish/Swedish

@@ -84,6 +84,22 @@ coda_frequency_tiers:
   common: [r, l, m, "ʃ", z]
   uncommon: [p, b, d, g, v, j, "ɲ"]
   rare: [c, "ɟ", ts, dz, "tʃ", "dʒ", "ʒ", h, f]
+word_classes:
+  # Real Hungarian has no grammatical gender/noun-class system at all --
+  # no noun word_classes curated, an honest omission (contrast Polish/
+  # Serbo-Croatian's own real Slavic gender-correlated declension).
+  # Verbs: real Hungarian infinitives are (with a small closed set of
+  # real suppletive exceptions -- van/lenni "to be", eszik/enni "to
+  # eat") marked by the suffix "-ni" -- deliberately safe to curate
+  # despite this profile's own vowel_harmony: true, unlike Turkish's
+  # real -mak/-mek (skipped in an earlier batch): real Hungarian "-ni"
+  # is one of the few Hungarian suffixes that does *not* itself
+  # alternate by vowel harmony (unlike most Hungarian case suffixes),
+  # so a flat, unconditioned suffix here doesn't risk violating this
+  # profile's own harmony fact the way a harmony-conditioned suffix
+  # choice would.
+  - {name: "-ni infinitive", pos: verb, suffix: [n, i], prevalence: 1.0}
+word_class_deviation_rate: 0.1  # illustrative -- mainly stands in for real Hungarian's own small suppletive-infinitive class (lenni, enni)
 stress_pattern: initial  # real Hungarian: essentially exceptionless -- always the word's first syllable, even more rigidly than German/Dutch's own initial default
 stress_deviation_rate: 0.03  # illustrative -- real Hungarian stress is famously the most rigidly initial of any commonly-cited European language
 stress_driven_vowel_reduction: false  # real Hungarian: a conservative, syllable-timed language that keeps full vowel quality regardless of stress

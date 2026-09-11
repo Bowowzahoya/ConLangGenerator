@@ -746,11 +746,48 @@ Everything here is a pure function of a `random.Random` seeded from
   5/6, 7/8, 9/10, 11 -- Xhosa's own class 1/2 `um-` is genuinely,
   dialectally shorter than Zulu's own `umu-`, the first two profiles to
   combine a curated `WordClass.prefix` system with tone, see the
-  tone-gap note above). Remaining ~40 reference profiles (including
-  Turkish, explicitly skipped above) get no `word_classes` curation
-  yet -- queued as an explicit next batch (or several), the same
-  "bring the next N up to par" shape every prior reference-profile
-  effort in this project has used.
+  tone-gap note above).
+
+  A third batch curated 8 more profiles: Danish, Swedish, and Norwegian
+  (a real Mainland Scandinavian fact quite different from Old Norse/
+  Icelandic's own real declension -- the modern common/neuter gender
+  split is *not* citation-form-marked on the noun itself at all, unlike
+  Old Norse's real `-r`, so no noun classes are curated for any of the
+  three; verbs instead get a real dominant infinitive marker each
+  (Danish/Norwegian `-e`, Swedish `-a`, both realized as this project's
+  own schwa/`a` nucleus) plus a small real "unmarked" class for the
+  closed set of already vowel-final monosyllabic verbs -- gå/stå/se/
+  bo-class exceptions), Dutch (a near-exceptionless single `-en`
+  infinitive class, the strongest single-class case curated yet --
+  "zijn" ("to be") is close to the only real exception, folded into
+  `word_class_deviation_rate` rather than a second class), English (a
+  second real control case alongside Mandarin's -- modern English has
+  no citation-form noun or verb class marking at all, the most
+  thoroughly analytic profile in this project's own Germanic family),
+  Polish and Serbo-Croatian (the same real Slavic masc-unmarked/
+  fem-`-a`/neut-`-o` gender split already curated for Russian, plus each
+  language's own real dominant verb-infinitive marker -- Polish's
+  single `-ć` (phonemically `"tɕ"`, the same alveolo-palatal affricate
+  this profile already curates for real Polish spelled "ć"), Serbo-
+  Croatian's dominant `-ti` alongside a real smaller `-ći` class for a
+  closed set of velar-stem verbs), and Hungarian (a real single `-ni`
+  infinitive class, no noun classes at all -- Hungarian has no
+  grammatical gender -- and deliberately safe to curate despite this
+  profile's own `vowel_harmony: true`: unlike Turkish's real `-mak`/
+  `-mek` split, Hungarian's own real `-ni` is one of the few Hungarian
+  suffixes that does *not* itself alternate by vowel harmony, so a flat
+  suffix choice here can't violate the harmony fact the way a
+  harmony-conditioned suffix would). Finnish was considered and
+  deliberately skipped alongside Turkish: its own real 1st-infinitive
+  marker is *both* harmony-conditioned (`-a`/`-ä`) *and* stem-type-
+  conditioned (`-da`/`-dä`/`-ta`/`-tä`), a compounding of exactly the
+  problem that ruled out Turkish, not a simpler case.
+
+  Remaining ~32 reference profiles (including Turkish and Finnish,
+  explicitly skipped above) get no `word_classes` curation yet -- queued
+  as an explicit next batch (or several), the same "bring the next N up
+  to par" shape every prior reference-profile effort in this project has
+  used.
 - **`root_pattern.py`** (milestone 9): Semitic-style root-and-pattern
   (templatic) word formation -- a consonantal root (k-t-b "write"-related)
   fills a template to derive related words (kataba "he wrote", kitāb

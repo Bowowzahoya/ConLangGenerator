@@ -84,6 +84,22 @@ coda_frequency_tiers:
   common: [r, l, m, v, "tʃ"]
   uncommon: [p, b, d, g, z, "ʃ", x, j]
   rare: [f, "ʒ", ts, dz, "dʒ", "tɕ", "dʑ", "ɲ", "lʲ"]
+word_classes:
+  # Real Serbo-Croatian noun gender, the same dominant citation-form
+  # correlation already curated for Russian/Polish: masculine nouns are
+  # overwhelmingly unmarked (bare consonant-final stem), feminine nouns
+  # overwhelmingly take "-a", neuter nouns overwhelmingly take "-o" (a
+  # real, if illustrative, subset -- real BCMS neuters also include
+  # "-e" stems, not modeled here). Verbs: real BCMS infinitives are
+  # dominantly "-ti", with a real, smaller "-ći" class for a closed set
+  # of velar-final-stem verbs (reći, moći, peći) -- "ć" is the same real
+  # alveolo-palatal affricate "tɕ" this profile already curates.
+  - {name: "masculine (unmarked)", pos: noun, prevalence: 0.4}
+  - {name: "feminine (-a)", pos: noun, suffix: [a], prevalence: 0.4}
+  - {name: "neuter (-o)", pos: noun, suffix: [o], prevalence: 0.2}
+  - {name: "-ti infinitive", pos: verb, suffix: [t, i], prevalence: 0.85}
+  - {name: "-ći infinitive", pos: verb, suffix: ["tɕ", i], prevalence: 0.15}
+word_class_deviation_rate: 0.15  # illustrative -- same order of magnitude as Russian/Polish's own real gender/conjugation irregularity
 stress_pattern: lexical  # real BCMS (Neo-Stokavian) stress is lexically variable but categorically never falls on a word's own final syllable -- satisfied for free by predict_default_stress's own generic penultimate-leaning fallback, which never lands on the final syllable of any multi-syllable word
 stress_deviation_rate: 0.3  # illustrative -- same generic baseline this project already uses for a genuinely lexical system with no single dominant flat rule
 stress_driven_vowel_reduction: false  # real BCMS: a conservative, pitch-accent language that keeps full vowel quality regardless of stress -- unlike Russian's own akanye/ikanye
