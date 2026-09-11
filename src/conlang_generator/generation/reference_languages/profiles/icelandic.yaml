@@ -9,6 +9,20 @@ vowels: [i, "ɪ", "ɛ", a, "ɔ", u, "ʊ", "ø", "œ", y, ai, au, ei, "ɔi"]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
+word_classes:
+  # Real Icelandic strong masculine noun nominative singular -ur (hestur
+  # "horse", maður "man") -- the real modern reflex of Old Norse's own
+  # nominative -r (see old_norse.yaml's own word_classes), grown an
+  # epenthetic vowel after certain consonant clusters over the
+  # centuries. Feminine/neuter strong nouns stay real, bare unmarked
+  # citation forms, same as their Old Norse ancestor. Real Icelandic
+  # verb infinitives are, likewise, still overwhelmingly the inherited
+  # -a ending.
+  - {name: "masculine (-ur)", pos: noun, suffix: [u, r], prevalence: 0.45}
+  - {name: "feminine (unmarked)", pos: noun, prevalence: 0.30}
+  - {name: "neuter (unmarked)", pos: noun, prevalence: 0.25}
+  - {name: "-a infinitive", pos: verb, suffix: [a], prevalence: 1.0}
+word_class_deviation_rate: 0.15  # illustrative -- same figure and reasoning as Old Norse's own
 orthography_category: diacritic-style
 orthography:
   # Real Icelandic spelling conventions, restricted to symbols this

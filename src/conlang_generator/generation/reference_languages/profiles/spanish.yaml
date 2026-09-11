@@ -8,6 +8,20 @@ orthography_category: diacritic-style
 stress_pattern: penultimate_or_final_by_coda  # real Spanish: penultimate if the word ends in a vowel or n/s (casa, comen), final otherwise (hotel, papel, ciudad)
 stress_deviation_rate: 0.15  # illustrative -- the real exceptions are exactly what the written accent (á/é/í/ó/ú) marks
 stress_accent_marking: irregular_only  # real Spanish's own á/é/í/ó/ú: written only when a word's actual stress deviates from the predictable default above (corazón/está), never when it follows the rule (casa/comen)
+word_classes:
+  # Real Spanish noun gender: dominant, if imperfect, correlation with a
+  # citation-form ending (masculine -o, feminine -a -- real exceptions
+  # like "el día"/"la mano" show up via word_class_deviation_rate below).
+  # Real Spanish verb conjugation: three real, phonologically distinct
+  # infinitive classes -ar/-er/-ir, spelled with a coda *tap* (see
+  # restricted_coda_consonants below -- the trill never closes a
+  # syllable, so the real infinitive-final "r" is phonemically "ɾ").
+  - {name: "masculine (-o)", pos: noun, suffix: [o], prevalence: 0.5}
+  - {name: "feminine (-a)", pos: noun, suffix: [a], prevalence: 0.5}
+  - {name: "-ar verbs", pos: verb, suffix: [a, "ɾ"], prevalence: 0.6}
+  - {name: "-er verbs", pos: verb, suffix: [e, "ɾ"], prevalence: 0.25}
+  - {name: "-ir verbs", pos: verb, suffix: [i, "ɾ"], prevalence: 0.15}
+word_class_deviation_rate: 0.15  # illustrative -- real Spanish gender has a meaningful real-exception class (nouns ending in -e/consonant, or the famous el día/la mano mismatches); verb conjugation itself is close to exceptionless once the infinitive ending is known
 restricted_coda_consonants: [r]
 # The trill /r/ categorically never closes a syllable in real Spanish --
 # it only ever occurs word-initially or intervocalically (spelled "rr"

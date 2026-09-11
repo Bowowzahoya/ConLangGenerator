@@ -132,6 +132,7 @@ def test_root_and_pattern_language_entries_have_roots_that_reproduce_their_ipa()
     templates_by_pos = {}
     for template in language.grammar.templates:
         templates_by_pos.setdefault(template.pos, []).append(template)
+    classes_by_name = {c.name: c for c in language.grammar.word_classes}
 
     checked = 0
     for entry in language.lexicon.entries:
@@ -143,8 +144,18 @@ def test_root_and_pattern_language_entries_have_roots_that_reproduce_their_ipa()
         # for its POS with its own recorded root -- modulo the embedded
         # stress mark, which `fill_template` itself knows nothing about
         # (stress is a separate post-processing step, see
-        # `root_pattern.propose_templatic_word`'s own docstring).
+        # `root_pattern.propose_templatic_word`'s own docstring), and
+        # modulo any word_class prefix/suffix (real Arabic's own
+        # feminine -a marker, applied *after* the template is filled --
+        # see word_class_gen.py -- so it must be stripped back off
+        # before comparing against the template-filled form).
         bare_ipa = entry.ipa.replace(STRESS_MARK, "")
+        if entry.word_class is not None:
+            cls = classes_by_name[entry.word_class]
+            prefix, suffix = "".join(cls.prefix), "".join(cls.suffix)
+            assert bare_ipa.startswith(prefix) and bare_ipa.endswith(suffix)
+            end = len(bare_ipa) - len(suffix)
+            bare_ipa = bare_ipa[len(prefix) : end]
         assert any(fill_template(t, entry.root) == bare_ipa for t in templates_by_pos[entry.pos])
         checked += 1
     assert checked > 0

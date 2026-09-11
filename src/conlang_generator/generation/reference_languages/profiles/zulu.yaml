@@ -51,6 +51,25 @@ tone_level_count: 2
 # by Tibetan. Surface contours (rising/falling glides) are derived,
 # chiefly via the depressor effect above and tone spreading -- real,
 # but beyond what a flat register-tone assignment can capture.
+word_classes:
+  # Real Zulu noun-class prefix system -- a representative subset of the
+  # real ~15 Nguni classes (illustrative, not exhaustive, the same scope
+  # this batch's own Swahili profile already uses for the same real
+  # Bantu-wide fact): class 1/2 umu-/aba- (umuntu "person"), class 5/6
+  # i-/ama- (amanzi "water" -- a class-6 mass-noun use, cited directly
+  # in this profile's own word-length comment above), class 7/8
+  # isi-/izi- (isitsha "dish"), class 9/10 in-/izin- (the real
+  # prenasalized-cluster pattern, same shape Swahili's own n- class
+  # already has), class 11 u- (ubuso). Known gap this batch's own
+  # Swahili validation didn't surface (Swahili isn't tonal): a vowel the
+  # prefix itself contributes gets no tone mark of its own -- see
+  # generation/word_class_gen.py's own documented limitation.
+  - {name: "class 1/2 (umu-/aba-)", pos: noun, prefix: [u, m, u], prevalence: 0.25}
+  - {name: "class 5/6 (i-/ama-)", pos: noun, prefix: [i], prevalence: 0.2}
+  - {name: "class 7/8 (isi-/izi-)", pos: noun, prefix: [i, s, i], prevalence: 0.2}
+  - {name: "class 9/10 (in-/izin-)", pos: noun, prefix: [i, n], prevalence: 0.2}
+  - {name: "class 11 (u-)", pos: noun, prefix: [u], prevalence: 0.15}
+word_class_deviation_rate: 0.2  # illustrative -- this profile models 5 of Zulu's real ~15 noun classes, so a real word from an unmodeled class shows up here as an "irregular exception" relative to the simplified subset
 orthography_category: digraph-style
 orthography:
   # Real Nguni click letters -- single ASCII letters, not digraphs, the

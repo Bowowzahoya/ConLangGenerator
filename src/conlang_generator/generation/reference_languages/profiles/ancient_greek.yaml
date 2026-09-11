@@ -17,6 +17,24 @@ coda_profile: unrestricted
 max_onset: 2
 max_coda: 1
 tonal: false
+word_classes:
+  # Real Attic noun declension -- an illustrative subset (real Greek has
+  # a real 3rd, consonant-stem declension too, left out here the same
+  # "representative, not exhaustive" way this project's own Latin
+  # profile models only 2 of Latin's real 5). 1st declension real -η
+  # ending (its own real vowel-quality-shifted long partner of ε, the
+  # same asymmetric pair this profile's own vowel comment already
+  # explains); 2nd declension real -ος (masc./fem.) and -ον (neuter).
+  # Verb citation form (1st singular present active) is overwhelmingly
+  # the real thematic -ω ending -- phonemically /ɔː/, literally what the
+  # letter omega always spells in this profile's own model -- with a
+  # real, smaller athematic -μι class (εἰμί, φημί) alongside it.
+  - {name: "1st declension (-ē)", pos: noun, suffix: ["ɛː"], prevalence: 0.3}
+  - {name: "2nd declension (masc./fem., -os)", pos: noun, suffix: [o, s], prevalence: 0.45}
+  - {name: "2nd declension (neut., -on)", pos: noun, suffix: [o, n], prevalence: 0.25}
+  - {name: "-ō (thematic)", pos: verb, suffix: ["ɔː"], prevalence: 0.9}
+  - {name: "-mi (athematic)", pos: verb, suffix: [m, i], prevalence: 0.1}
+word_class_deviation_rate: 0.3  # illustrative -- this profile models only 2 of Greek's real 3 declensions, so a real 3rd-declension (consonant-stem) noun shows up here as an "irregular exception" relative to the simplified model, the same reasoning Latin's own higher-than-French/Portuguese rate already uses
 restricted_onset_consonants: ["lː", "nː", "sː", "tː"]  # real Greek gemination (ἄλλος, θάλαττα) is medial/intervocalic only, the same real fact and fix shape every other geminate-modeling profile here already uses
 restricted_coda_consonants: [p, b, "pʰ", t, d, "tʰ", k, g, "kʰ", z, m, l, h, "lː", "nː", "sː", "tː"]
 # Real Attic Greek word-final consonants are a genuinely small, closed

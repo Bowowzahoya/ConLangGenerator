@@ -7,6 +7,23 @@ max_onset: 2
 tonal: false
 coda_devoicing: true
 orthography_category: diacritic-style
+word_classes:
+  # Real Russian noun gender genuinely correlates with a citation-form
+  # ending: masculine nouns are overwhelmingly bare (consonant-final,
+  # стол/дом), feminine take -а (вода), neuter take -о (окно). Real
+  # Russian verb conjugation (classes I/II) is a *present-tense*
+  # distinction, not a citation-form one -- the infinitive itself is
+  # overwhelmingly the single real "-ть" suffix regardless of which
+  # conjugation class a verb belongs to, so this models just that one
+  # dominant real ending rather than a false multi-class infinitive
+  # split. "-ть" is phonemically a single palatalized consonant with no
+  # vowel of its own, spelled with the real soft sign (see this
+  # profile's own already-curated "tʲ" -> "t'" transliteration rule).
+  - {name: "masculine (unmarked)", pos: noun, prevalence: 0.4}
+  - {name: "feminine (-a)", pos: noun, suffix: [a], prevalence: 0.35}
+  - {name: "neuter (-o)", pos: noun, suffix: [o], prevalence: 0.25}
+  - {name: "-t' verbs", pos: verb, suffix: ["tʲ"], prevalence: 1.0}
+word_class_deviation_rate: 0.15  # illustrative -- real Russian gender has a genuine exception class (masculine nouns ending in -a like папа/дядя, indeclinable loanwords); a handful of real athematic verbs (мочь, идти) don't take plain -ть either
 attested_onset_clusters:
   # Real, common Russian onset clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive. Real Russian is

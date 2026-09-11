@@ -6,6 +6,20 @@ coda_profile: unrestricted
 max_onset: 1
 tonal: false
 root_and_pattern: true
+word_classes:
+  # Real MSA feminine marker (تاء مربوطة, tāʾ marbūṭa) -- a genuinely
+  # real, extremely common noun-citation-form suffix, /-a/ in pause
+  # form. Curated despite this profile's own root_and_pattern: true,
+  # since word_classes operates orthogonal to (on top of) whatever stem
+  # the templatic system already built -- unlike an *invented* class,
+  # which this profile's own real Semitic morphology deliberately stays
+  # excluded from (see generation/word_class_gen.py's own docstring).
+  # No verb classes curated: real Arabic verb citation-form variation is
+  # entirely the templatic Form I-X system already modeled via
+  # WordTemplate, not a suffix-class layer on top of it.
+  - {name: "masculine (unmarked)", pos: noun, prevalence: 0.65}
+  - {name: "feminine (-a)", pos: noun, suffix: [a], prevalence: 0.35}
+word_class_deviation_rate: 0.15  # illustrative -- the -a marker is a strong, reliable real signal, but real natural-gender feminine nouns without it exist too (umm "mother", arḍ "land")
 restricted_onset_consonants: ["kː", "tː", "sː", "nː", "lː"]  # real Arabic shadda (gemination) is a medial/intervocalic phenomenon -- a word never *starts* with a geminated consonant, same fact already curated for Finnish's own geminates
 restricted_coda_consonants: [j, w]  # real Arabic coda /j//w/ (bayt "house", yawm "day") form a diphthong with the preceding vowel rather than closing the syllable as a true consonant -- same real fact already curated for English's own restricted_coda_consonants
 attested_coda_clusters:

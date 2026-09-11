@@ -8,6 +8,19 @@ orthography_category: gemination-style
 stress_pattern: lexical  # real Italian is majority-penultimate (parola piana) but genuinely lexical -- real minorities on the final syllable (tronca: città, perché) and antepenultimate (sdrucciola: tavolo) that no rule predicts
 stress_deviation_rate: 0.25  # illustrative -- captures Italian's real, if minority, tronca/sdrucciola classes
 stress_accent_marking: final_only  # real Italian: a grave accent appears whenever the *last* syllable is stressed (città, perché, però) -- unlike Spanish, not conditioned on "irregularity" by any other measure; antepenultimate (sdrucciola) stress is real but stays unmarked
+word_classes:
+  # Real Italian noun gender: a genuine 3-way citation-form split --
+  # masculine -o, feminine -a, and a real, genuinely gender-ambiguous
+  # -e class (real "-e" nouns can be either gender, unlike Spanish's own
+  # simpler -o/-a system). Real Italian verb conjugation: three real,
+  # phonologically distinct infinitive classes -are/-ere/-ire.
+  - {name: "masculine (-o)", pos: noun, suffix: [o], prevalence: 0.45}
+  - {name: "feminine (-a)", pos: noun, suffix: [a], prevalence: 0.40}
+  - {name: "-e (either gender)", pos: noun, suffix: [e], prevalence: 0.15}
+  - {name: "-are verbs", pos: verb, suffix: [a, r, e], prevalence: 0.65}
+  - {name: "-ere verbs", pos: verb, suffix: [e, r, e], prevalence: 0.20}
+  - {name: "-ire verbs", pos: verb, suffix: [i, r, e], prevalence: 0.15}
+word_class_deviation_rate: 0.12  # illustrative -- real Italian noun/verb classes are more reliable than Spanish's own (fewer real gender-ending mismatches), reflected in a lower rate
 restricted_onset_consonants: ["kː", "tː", "pː", "sː", "nː", "lː", z]
 # Gemination is strictly intervocalic in real Italian -- no geminate ever
 # opens a word. Word-initial /z/ doesn't occur either: an "s"-initial

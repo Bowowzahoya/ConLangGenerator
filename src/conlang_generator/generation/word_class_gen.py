@@ -29,11 +29,17 @@ from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
 from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation import ipa_tokenizer, word_accent_gen, word_builder
+from conlang_generator.generation import ipa_tokenizer, phonology_gen, word_accent_gen, word_builder
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.generation.trait_bias import biased_probability
 
 _ALL_PARTS_OF_SPEECH = tuple(PartOfSpeech)
+_ALL_SYMBOLS: tuple[str, ...] = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(
+    v.ipa for v in phonology_gen.ALL_VOWELS
+)
+"""The full global phoneme pool's own symbols -- see ``apply_word_class``'s
+own docstring for why tokenization needs this rather than just a
+specific run's own generated ``PhonemeInventory``."""
 
 # Real, well-documented cross-linguistic asymmetry: multi-class citation-
 # form paradigms (declension, conjugation, noun-class agreement) are
@@ -205,10 +211,21 @@ def apply_word_class(
     profiles combine tone with word classes (Mandarin has no word
     classes; Swahili isn't tonal), so this doesn't surface there -- a
     real future affix-tone interaction, not forgotten, just genuinely
-    out of this step's scope."""
+    out of this step's scope.
+
+    Tokenizes against the *full global* phoneme pool
+    (``phonology_gen.ALL_CONSONANTS``/``ALL_VOWELS``), not just
+    ``inventory``'s own generated symbols -- deliberately: a root-and-
+    pattern word's own literal template characters (real Arabic's own
+    "m-" place-noun prefix, hardcoded in ``root_pattern.generate_
+    templates()`` regardless of what this run's inventory happens to
+    contain) aren't guaranteed to already be members of ``inventory``
+    itself, and tokenizing against too narrow a symbol set would
+    silently drop them (``ipa_tokenizer.tokenize``'s own documented
+    behavior for an unrecognized character)."""
     if word_class is None or not (word_class.prefix or word_class.suffix):
         return ipa
-    known_symbols = inventory.all_symbols()
+    known_symbols = _ALL_SYMBOLS
     stripped = ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, "")
     stem_symbols = tuple(symbol + deco for symbol, deco in ipa_tokenizer.tokenize(stripped, known_symbols))
     filled_symbols = word_class.prefix + stem_symbols + word_class.suffix

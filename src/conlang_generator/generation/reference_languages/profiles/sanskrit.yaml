@@ -19,6 +19,24 @@ coda_profile: unrestricted
 max_onset: 2
 max_coda: 1
 tonal: false
+word_classes:
+  # Real Sanskrit noun stem classes, cited by their own real stem form
+  # (the real, standard dictionary-citation convention, e.g.
+  # Monier-Williams) rather than an inflected nominative -- deliberately
+  # sidesteps needing the real visarga/sandhi-marked "-aḥ" ending, which
+  # would need "h" in coda position, already excluded by this profile's
+  # own restricted_coda_consonants above. Real a-stems (the most common
+  # class) cover both masculine and neuter alike at the bare-stem level
+  # (they only diverge in their own case *endings*, an inflection-layer
+  # fact out of this step's scope) -- modeled as one class rather than a
+  # false masc./neut. split; ā-stems are the real, phonologically
+  # distinct feminine class. No verb classes curated -- real Sanskrit
+  # verbs are conventionally cited by root, not a citation-form suffix,
+  # and the real 10-class gana system is a present-stem-formation fact
+  # this project isn't confident enough to compress into a suffix model.
+  - {name: "a-stem (masc./neut.)", pos: noun, suffix: [a], prevalence: 0.6}
+  - {name: "ā-stem (feminine)", pos: noun, suffix: ["aː"], prevalence: 0.4}
+word_class_deviation_rate: 0.3  # illustrative -- real Sanskrit also has consonant-stem, i-stem, and u-stem nouns not modeled here, the same "partial model, higher exception rate" reasoning this batch's own Ancient Greek profile already uses
 # No stress_pattern/word_accent curated -- this profile deliberately
 # targets *Classical* Sanskrit (the language most fantasy/conlang users
 # mean), which genuinely lost the older Vedic pitch-accent system

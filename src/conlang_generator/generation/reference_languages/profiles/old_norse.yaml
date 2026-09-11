@@ -6,6 +6,21 @@ coda_profile: unrestricted
 max_onset: 2
 max_coda: 2  # real Old Norse coda clusters exist (land, kaldr, fyrst, bjǫrn)
 tonal: false
+word_classes:
+  # Real Old Norse strong noun declension: masculine a-stems famously
+  # take a real nominative-singular -r (úlfr "wolf", hestr "horse",
+  # dagr "day"); feminine and neuter strong nouns are both real, bare
+  # unmarked stems in the nominative singular (distinguished by their
+  # own case *endings* elsewhere, an inflection-layer fact out of this
+  # step's scope, not by the citation form itself). Real Old Norse verb
+  # infinitives are overwhelmingly the single dominant -a ending, true
+  # of both weak and (unlike many other Germanic languages) most strong
+  # verbs alike (kalla "to call", bíta "to bite").
+  - {name: "masculine (-r)", pos: noun, suffix: [r], prevalence: 0.45}
+  - {name: "feminine (unmarked)", pos: noun, prevalence: 0.30}
+  - {name: "neuter (unmarked)", pos: noun, prevalence: 0.25}
+  - {name: "-a infinitive", pos: verb, suffix: [a], prevalence: 1.0}
+word_class_deviation_rate: 0.15  # illustrative -- real Old Norse also has consonant-stem and u-stem nouns not modeled here; the -a infinitive itself is comparatively reliable
 restricted_coda_consonants: [v, h, j]  # real Old Norse: word-final /f/ (not /v/) is the real coda realization of this place, the general Germanic final-devoicing pattern; h and j, like every other profile here, are onset-only
 attested_onset_clusters:
   # Real, common Old Norse initial clusters -- illustrative, not

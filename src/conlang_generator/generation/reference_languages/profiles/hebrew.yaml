@@ -7,6 +7,16 @@ max_onset: 1
 max_coda: 1  # see the segolate comment below -- real native Hebrew coda clusters are rare/avoided, not a productive modern pattern
 tonal: false
 root_and_pattern: true
+word_classes:
+  # Real Hebrew feminine marker (ה-, phonemically /-a/) -- the same real
+  # Semitic citation-form fact Arabic's own tāʾ marbūṭa already models,
+  # curated the same way despite root_and_pattern: true (see arabic.yaml's
+  # own comment on why this is safe). No verb classes -- real Hebrew verb
+  # citation-form variation is the templatic binyan system (WordTemplate),
+  # not a suffix layer on top of it.
+  - {name: "masculine (unmarked)", pos: noun, prevalence: 0.6}
+  - {name: "feminine (-a)", pos: noun, suffix: [a], prevalence: 0.4}
+word_class_deviation_rate: 0.15  # illustrative -- same figure as Arabic's own, the same real Semitic exception rate (natural-gender feminine nouns without the marker, e.g. em "mother")
 orthography_category: scholarly-macron-style
 orthography:
   # Real scholarly Hebrew transliteration conventions, restricted to

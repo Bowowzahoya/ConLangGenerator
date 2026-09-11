@@ -659,18 +659,33 @@ Everything here is a pure function of a `random.Random` seeded from
   final-syllable stress is the clearest case) would otherwise still land
   on the *stem's* former final syllable once a vowel-bearing suffix
   syllable follows it, a real bug caught and fixed by generating French's
-  own validation data during this feature's own first batch. Called from
-  all four word-coining sites (`lexicon_gen.propose_word` and its own
-  `_propose_kinship_word` helper, `root_pattern.propose_templatic_word`,
-  `sound_change.py`'s two coining functions) -- a borrowed word
-  (`_coin_borrowed_word`) deliberately gets no class marking at all (real
-  loanwords don't follow the borrowing language's own declension/
-  conjugation system, at least not immediately). Known, documented gap:
-  a tone mark stays on whichever base vowel it was already on in the
-  stem, but a *new* vowel the suffix/prefix itself contributes gets no
-  tone mark of its own -- none of this feature's own first validation
-  batch (Latin, French, German, Swahili, Mandarin) combines tone with
-  word classes, so this doesn't yet surface in practice.
+  own validation data during this feature's own first batch. Re-
+  tokenizes the stem against the *full global* phoneme pool
+  (`phonology_gen.ALL_CONSONANTS`/`ALL_VOWELS`, module constant
+  `_ALL_SYMBOLS`), not just this run's own generated `PhonemeInventory`:
+  a root-and-pattern template's own literal characters (real Arabic's
+  "m-" place-noun prefix, hardcoded in `root_pattern.generate_
+  templates()` regardless of what a given run's own inventory happens to
+  contain) aren't guaranteed to already be inventory members, and
+  tokenizing against too narrow a symbol set silently drops them
+  (`ipa_tokenizer.tokenize`'s own documented behavior for an
+  unrecognized character) -- a real bug found and fixed curating
+  Arabic's own second-batch validation data (a missing root consonant
+  only surfaced once a `WordClass` was actually applied to a templatic
+  word). Called from all four word-coining sites
+  (`lexicon_gen.propose_word` and its own `_propose_kinship_word`
+  helper, `root_pattern.propose_templatic_word`, `sound_change.py`'s two
+  coining functions) -- a borrowed word (`_coin_borrowed_word`)
+  deliberately gets no class marking at all (real loanwords don't follow
+  the borrowing language's own declension/conjugation system, at least
+  not immediately). Known, documented gap: a tone mark stays on
+  whichever base vowel it was already on in the stem, but a *new* vowel
+  the suffix/prefix itself contributes gets no tone mark of its own --
+  confirmed harmless in practice for Zulu/Xhosa's own second-batch
+  noun-class prefixes (e.g. Zulu `umu-` + stem): the prefix's own vowels
+  simply surface untoned while the stem's original tones ride through
+  unchanged, a real but cosmetically minor gap, not a crash or a
+  mismarked stem.
 
   First validation batch curated real data for 5 profiles chosen to
   exercise the mechanism's full range: Latin (suffixing noun declension),
@@ -690,10 +705,52 @@ Everything here is a pure function of a `random.Random` seeded from
   can't distinguish unconsidered from actively false" limitation
   `root_and_pattern`'s own default already has elsewhere in this
   project; a Mandarin-biased run can still roll invented classes like
-  any other unmatched language). Remaining ~50 reference profiles get no
-  `word_classes` curation yet -- queued as an explicit next batch (or
-  several), the same "bring the next N up to par" shape every prior
-  reference-profile effort in this project has used.
+  any other unmatched language).
+
+  A second batch curated 12 more profiles, broadening real
+  cross-linguistic coverage past the first batch's Romance/Bantu/
+  isolating spread: Spanish and Portuguese (the same real Iberian
+  masc-`-o`/fem-`-a` noun split and `-ar`/`-er`/`-ir` verb classes as
+  French/Latin's own Romance family, but with a phonemic tap `"ɾ"` in
+  the verb suffix rather than a trill, matching each profile's own
+  already-curated `restricted_coda_consonants: [r]`), Italian (a genuine
+  3-way `-o`/`-a`/`-e` noun split, the first profile where the third
+  class is real gender-ambiguity itself, not a third gender), Russian
+  (masc-unmarked/fem-`-a`/neut-`-o` noun gender plus a single dominant
+  `-t'` verb class -- deliberately *not* modeling Russian's real
+  conjugation-class I/II distinction, since that split is present-
+  tense-only, not a citation-form fact, so a false multi-class
+  infinitive split was avoided), Arabic and Hebrew (real Semitic
+  feminine tāʾ marbūṭa/`-a` marking curated *despite*
+  `root_and_pattern: true` -- safe because `word_classes` applies
+  orthogonally on top of whatever stem the templatic system already
+  built; only *invented* classes are excluded from root-and-pattern
+  languages, reference-curated ones are always honored), Ancient Greek
+  (real 1st declension `-ē` / 2nd declension `-os`(masc./fem.)/
+  `-on`(neut.) nouns, thematic `-ō` / athematic `-mi` verbs -- modeling
+  2 of Greek's real 3 declensions, reflected in a higher
+  `word_class_deviation_rate` than the more-regular profiles), Sanskrit
+  (real a-stem/ā-stem nouns, cited by *stem* form rather than the
+  visarga-marked nominative `-aḥ`, since "h" isn't a legal coda in this
+  profile's own already-curated restrictions -- no verb classes, since
+  Sanskrit verbs are conventionally cited by root), Old Norse and
+  Icelandic (real masc-`-r`(Old Norse)/`-ur`(Icelandic, the modern
+  reflex) vs. unmarked fem./neut. nouns, plus a real `-a` infinitive
+  verb class -- Turkish's own real vowel-harmony-conditioned `-mak`/
+  `-mek` infinitive split was deliberately *not* curated, since
+  `assign_word_class`'s flat weighted pick has no mechanism to
+  condition a class choice on a stem's own harmony class, and forcing a
+  random split could silently violate a profile's own already-curated
+  `vowel_harmony: true` fact), and Zulu/Xhosa (real Bantu noun-class
+  prefix systems, a 5-class representative subset each of class 1/2,
+  5/6, 7/8, 9/10, 11 -- Xhosa's own class 1/2 `um-` is genuinely,
+  dialectally shorter than Zulu's own `umu-`, the first two profiles to
+  combine a curated `WordClass.prefix` system with tone, see the
+  tone-gap note above). Remaining ~40 reference profiles (including
+  Turkish, explicitly skipped above) get no `word_classes` curation
+  yet -- queued as an explicit next batch (or several), the same
+  "bring the next N up to par" shape every prior reference-profile
+  effort in this project has used.
 - **`root_pattern.py`** (milestone 9): Semitic-style root-and-pattern
   (templatic) word formation -- a consonantal root (k-t-b "write"-related)
   fills a template to derive related words (kataba "he wrote", kitāb

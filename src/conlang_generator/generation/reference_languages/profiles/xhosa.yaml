@@ -39,6 +39,22 @@ tonal: true
 tone_level_count: 2
 # Same real 2-level H/L register system standard Nguni tonology already
 # gives Zulu -- Xhosa tonology is analyzed the same way.
+word_classes:
+  # Real Xhosa noun-class prefix system -- the same representative
+  # subset Zulu's own profile curates, with Xhosa's own real, genuinely
+  # distinct class-1 form: "umntu" (person), shorter than Zulu's own
+  # "umuntu" -- a real dialectal/phonological difference between the
+  # two closely related but separately standardized languages, not an
+  # error. Class 5/6 i-/ama- (amanzi "water", cited directly in this
+  # profile's own word-length comment above), 7/8 isi-/izi-, 9/10
+  # in-/izin- (the real prenasalized-cluster pattern), 11 u- all match
+  # Zulu's own real forms.
+  - {name: "class 1/2 (um-/aba-)", pos: noun, prefix: [u, m], prevalence: 0.25}
+  - {name: "class 5/6 (i-/ama-)", pos: noun, prefix: [i], prevalence: 0.2}
+  - {name: "class 7/8 (isi-/izi-)", pos: noun, prefix: [i, s, i], prevalence: 0.2}
+  - {name: "class 9/10 (in-/izin-)", pos: noun, prefix: [i, n], prevalence: 0.2}
+  - {name: "class 11 (u-)", pos: noun, prefix: [u], prevalence: 0.15}
+word_class_deviation_rate: 0.2  # illustrative -- same figure and reasoning as Zulu's own (a representative subset of the real ~15 Nguni classes)
 orthography_category: digraph-style
 # Corrected from "monoletter-style", for the exact same reason Zulu's
 # own profile already made this call: the real aspirated-click/

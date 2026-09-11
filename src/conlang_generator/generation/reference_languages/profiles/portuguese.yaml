@@ -7,6 +7,18 @@ max_onset: 2
 max_coda: 1  # see the coda-cluster comment below -- true coda clusters are essentially absent from native Portuguese vocabulary
 tonal: false
 orthography_category: diacritic-style
+word_classes:
+  # Real Portuguese noun gender (masculine -o, feminine -a) and verb
+  # conjugation (-ar/-er/-ir) -- the same real Romance pattern Spanish's
+  # own profile already curates, with the same real fact behind the
+  # infinitive's own final consonant: the coda *tap* "ɾ", not the
+  # separate word-initial/geminate "ʁ" rhotic.
+  - {name: "masculine (-o)", pos: noun, suffix: [o], prevalence: 0.5}
+  - {name: "feminine (-a)", pos: noun, suffix: [a], prevalence: 0.5}
+  - {name: "-ar verbs", pos: verb, suffix: [a, "ɾ"], prevalence: 0.6}
+  - {name: "-er verbs", pos: verb, suffix: [e, "ɾ"], prevalence: 0.25}
+  - {name: "-ir verbs", pos: verb, suffix: [i, "ɾ"], prevalence: 0.15}
+word_class_deviation_rate: 0.15  # illustrative -- same figure as Spanish's own, the same real Iberian-Romance exception rate
 attested_onset_clusters:
   # Real, common Portuguese onset clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
