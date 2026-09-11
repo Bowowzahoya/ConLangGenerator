@@ -13,6 +13,12 @@ aliases: ["bahasa melayu", malaysian]
 # pokok vs Indonesian pohon "tree", haiwan vs hewan "animal", sejuk vs
 # dingin "cold", cakap vs bilang/kata "say") and its own aliases, not by
 # inventing a phonological difference that isn't actually there.
+# No word_classes curated, deliberately, for the same real reason as
+# Indonesian's own note: the dictionary/citation form of both nouns and
+# verbs is the bare root, with no obligatory class-marking affix --
+# Malay's own real derivational/voice-marking prefixes (me-, di-, ber-,
+# same shared system as Indonesian's) attach in running speech, not on
+# the citation form itself.
 consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, s, z, "ʃ", h, m, n, "ɲ", "ŋ", l, r, j, w]
 vowels: [i, e, "ə", a, o, u]
 coda_profile: unrestricted

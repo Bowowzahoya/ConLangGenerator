@@ -831,11 +831,73 @@ Everything here is a pure function of a `random.Random` seeded from
   on a richer verb-class system this project doesn't model. Left for a
   future batch rather than curated dishonestly.
 
-  Remaining ~14 reference profiles (including Turkish, Finnish, Persian,
-  Basque, Georgian, and Mongolian, all explicitly considered and skipped
-  above) get no `word_classes` curation yet -- queued as an explicit
-  next batch (or several), the same "bring the next N up to par" shape
-  every prior reference-profile effort in this project has used.
+  A fifth batch addressed the last 14 uncurated reference profiles,
+  bringing every profile in `reference_languages/profiles/` to one of
+  three explicit, documented states: really curated, honestly empty (a
+  real "no citation-form class system" control case), or deliberately
+  skipped (a real system this mechanism can't safely flatten). Five
+  more profiles got real positive data: Japanese (no noun classes --
+  genuinely genderless -- but a real, essentially exceptionless single
+  verb class: the dictionary/"plain non-past" citation form always ends
+  in a u-row syllable, modeled as the bare vowel suffix `u` so it
+  composes correctly regardless of the stem's own final consonant),
+  Korean (no noun classes; verbs *and* adjectives -- real Korean
+  adjectives are morphologically "descriptive verbs," not a separate
+  word-shape category -- share the same real, essentially exceptionless
+  `-다`/`-da` citation-form suffix, curated with IPA `t` rather than `d`
+  since Korean has one plain stop phoneme `/t/`, not a separate `/d/`,
+  and this profile's own pre-existing orthography rule already spells
+  it "d" after a vowel), Nahuatl (the real, obligatory absolutive noun
+  suffix already flagged in this profile's own `core_vocabulary_
+  average_syllables` comment -- simplified from its real three-way
+  phonologically-conditioned allomorphy (`-tl`/`-tli`/`-in`) to a single
+  dominant "-tli" elsewhere-form, the same "naturalism, not full
+  accuracy, at the phonotactic boundary" simplification this project's
+  own Russian `-t'` already accepts, plus a real unmarked class for
+  Nahuatl's own obligatorily-possessed nouns -- confirmed working
+  exactly as intended when kinship terms like "mother"/"father" landed
+  in that unmarked class during validation), Quechua (no noun classes --
+  genuinely genderless -- but a real, near-universal `-y` infinitive,
+  curated as the glide `/j/` consonant this profile already models, not
+  the vowel its own Latin spelling suggests), and Nama (a real,
+  typologically unusual *suffixing* gender-number system -- but curated
+  only partially, honestly: the real feminine `-s` is directly
+  curatable, while the real masculine `-b` genuinely isn't, since this
+  profile's own consonant inventory deliberately has no voiced stop
+  series at all, so masculine and common gender are folded into a
+  single honest "unmarked" class rather than introducing a phoneme this
+  language's own profile says doesn't exist).
+
+  The other nine got an explicit "no word_classes, deliberately"
+  control-case or skip note: Malay (mirrors Indonesian's own real bare-
+  root-citation fact exactly), Cantonese and Hawaiian (isolating/
+  analytic control cases, Sinitic and Polynesian respectively, joining
+  Mandarin/Vietnamese/Thai/Khmer/Yoruba's own), Tibetan (no noun
+  declension at all; real verb stem-alternation exists but the
+  dictionary citation form is conventionally just the bare present
+  stem), Sumerian (a real animate/inanimate noun class exists, but it's
+  semantic/agreement-triggering, not a citation-form suffix -- and this
+  whole profile's own documented uncertainty as a reconstructed-only
+  sketch makes inventing a paradigm here a bigger overclaim than
+  elsewhere), Tamil (a real rational/irrational noun class, same
+  semantic/agreement-triggering shape as Sumerian's; real verb
+  infinitive formation is conditioned by one of three traditional
+  conjugation classes, each with its own sandhi rule -- the same
+  category of conditioned-suffix problem already ruling out Persian/
+  Basque/Georgian/Mongolian), Navajo (real verb morphology is
+  polysynthetic and template-based -- a whole ordered sequence of
+  prefix slots around the root, not a root-plus-citation-suffix -- far
+  beyond a single flat per-word roll), and Arawakan/Pama-Nyungan (both
+  composite family sketches whose own already-documented thinner
+  attestation makes this project's specific knowledge of a real
+  citation-form system too uncertain to curate with the same confidence
+  as its better-attested profiles).
+
+  Every reference profile now has an explicit, reasoned answer to "does
+  this language get word_classes" -- curated, honestly empty, or
+  deliberately skipped -- rather than an unconsidered gap. Should new
+  reference profiles be added in the future, they'd need this same
+  explicit consideration to stay consistent with that standard.
 - **`root_pattern.py`** (milestone 9): Semitic-style root-and-pattern
   (templatic) word formation -- a consonantal root (k-t-b "write"-related)
   fills a template to derive related words (kataba "he wrote", kitāb

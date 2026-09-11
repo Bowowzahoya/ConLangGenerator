@@ -20,6 +20,26 @@ restricted_coda_consonants: [m, "ŋ", w, j, "ŋǀ", "ŋǃ", "ŋǁ", "ŋǂ", "ŋ�
 # sonority filter (which would also legalize m/ŋ/w/j and, since this
 # pool's own nasal clicks are modeled with Manner.NASAL, the nasal click
 # series too): the only real coda is the plain alveolar nasal /n/.
+word_classes:
+  # Real Khoekhoegowab has a famous, typologically unusual *suffixing*
+  # gender-number system (most of the world's gender systems are
+  # prefixing or non-affixal) -- real masculine singular "-b", feminine
+  # singular "-s", common singular "-i", plus real plural counterparts.
+  # Modeled here only partially, honestly: the real feminine "-s" is
+  # curatable directly (the plain alveolar fricative this profile
+  # already models), but the real masculine "-b" genuinely can't be --
+  # this profile's own consonant inventory deliberately has no voiced
+  # stop series at all (see the "no real voiced series" note in this
+  # profile's own consonants comment above), so introducing "b" here
+  # would contradict an already-curated fact about this language rather
+  # than approximate it. Masculine and common gender are therefore both
+  # folded into a single honest "unmarked" class rather than inventing a
+  # masculine ending this profile's own phoneme pool doesn't support. No
+  # verb classes: real Khoekhoe verbs are conventionally cited by their
+  # own bare root, with TAM marking added only in actual use.
+  - {name: "feminine (-s)", pos: noun, suffix: [s], prevalence: 0.35}
+  - {name: "unmarked (masculine/common)", pos: noun, prevalence: 0.65}
+word_class_deviation_rate: 0.15  # illustrative -- similar order of magnitude to this project's other real-but-partial gender systems (Ancient Greek, Sanskrit)
 orthography_category: diacritic-style
 orthography:
   # Real Khoekhoegowab practical orthography spells its own click series

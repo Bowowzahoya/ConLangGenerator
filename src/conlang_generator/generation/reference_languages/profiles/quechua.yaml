@@ -12,6 +12,14 @@ restricted_coda_consonants: ["pʼ", "tʼ", "kʼ", "pʰ", "tʰ", "kʰ"]
 tonal: false
 stress_pattern: penultimate
 stress_deviation_rate: 0.06  # illustrative -- real Quechua has famously near-fixed penultimate stress, one of the most standard facts in Andean-language typology, with very few (mostly loanword) exceptions
+word_classes:
+  # Real Quechua has no grammatical gender at all -- no noun classes
+  # curated. Verbs: real Quechua's own famous, near-universal infinitive
+  # marker "-y" (rimay "to speak," mikhuy "to eat," puriy "to walk") --
+  # phonemically the glide /j/ this profile already curates as a
+  # consonant, not the vowel "y" its own Latin spelling suggests.
+  - {name: "-y infinitive", pos: verb, suffix: [j], prevalence: 0.95}
+word_class_deviation_rate: 0.05  # illustrative -- real Quechua -y infinitive marking is about as close to exceptionless as this project's other "single dominant marker" verb systems (Dutch -en, Hungarian -ni)
 orthography_category: diacritic-style
 orthography:
   # Real modern Quechua orthography already uses exactly these

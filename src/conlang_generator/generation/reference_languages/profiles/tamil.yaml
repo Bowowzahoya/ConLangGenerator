@@ -1,4 +1,19 @@
 name: Tamil
+# No word_classes curated, deliberately -- real Tamil's own famous
+# rational/irrational (human-divine vs. everything else) noun
+# classification is a semantic, agreement-triggering class realized on
+# pronouns and verb agreement, not a citation-form suffix on the noun
+# itself, so it isn't curatable the way Latin/Bantu-style declension is.
+# Verbs: real Tamil infinitive formation is genuinely conditioned by
+# which of Tamil's own three traditional conjugation classes (weak/
+# strong/middle) a verb belongs to, each with its own sandhi-driven
+# infinitive-forming rule (gemination, glide insertion) -- the same
+# category of "conditioned, not safely flattenable by a single flat
+# random pick" problem that already ruled out Persian/Basque/Georgian/
+# Mongolian, so left uncurated here too rather than curated
+# dishonestly. See mandarin.yaml's own note for why an empty
+# word_classes here doesn't suppress generation.word_class_gen's own
+# generic invented-class roll for an unmatched/uncurated POS.
 consonants: [p, t, "ʈ", k, "tʃ", m, n, "ɳ", "ɲ", "ŋ", l, r, "ɾ", v, j, "ɻ"]
 vowels: [a, "aː", i, "iː", u, "uː", e, "eː", o, "oː"]
 coda_profile: sonorant  # real Tamil codas are restricted to nasals, liquids, and the glide /j/ -- same real fact and same fix Italian's own perfected profile already curates for its own coda set

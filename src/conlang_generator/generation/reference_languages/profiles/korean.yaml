@@ -30,6 +30,22 @@ restricted_coda_consonants: ["pʰ", "pʼ", "tʰ", "tʼ", "kʰ", "kʼ", "tʃ", s,
 # Korean) -- stress_pattern/word_accent both stay uncurated, the same
 # honest "genuinely doesn't have this feature" convention every other
 # non-stressed/non-accented profile already uses.
+word_classes:
+  # Real Korean nouns carry no citation-form gender/declension marking
+  # at all (case is handled entirely by separate particles) -- no noun
+  # classes curated. Verbs *and* adjectives (real Korean adjectives are
+  # morphologically "descriptive verbs," not a separate word-shape
+  # category) share the same real, essentially exceptionless citation-
+  # form fact already noted above in this profile's own core_vocabulary_
+  # average_syllables comment: the dictionary/plain form always ends in
+  # "-다" -da (가다 gada "go", 크다 keuda "big").
+  # IPA "t" here, not "d" -- real Korean has one plain/lax stop phoneme
+  # /t/, not a separate /d/; this profile's own orthography rule above
+  # (following: [vowel] -> "d") already spells it correctly as "-da"
+  # once it lands after the stem's own final vowel.
+  - {name: "-da citation form", pos: verb, suffix: [t, a], prevalence: 1.0}
+  - {name: "-da citation form", pos: adjective, suffix: [t, a], prevalence: 1.0}
+word_class_deviation_rate: 0.03  # illustrative -- real Korean -da citation marking is about as close to exceptionless as any fact curated in this project
 orthography:
   # Real Revised Romanization (the current official South Korean
   # standard) conventions, restricted to symbols this profile actually

@@ -8,6 +8,20 @@ name: Pama-Nyungan
 # is just three vowels -- both genuinely typical, well-documented facts
 # about this family, not a simplification of convenience.
 aliases: [pitjantjatjara, western desert, aboriginal]
+# No word_classes curated -- real Western Desert languages like
+# Pitjantjatjara have no grammatical gender (the famous Dyirbal noun-
+# class/classifier system some readers may expect from "Australian
+# language" is a different, specific Pama-Nyungan branch, not a family-
+# wide fact, and not what this particular sketch models), and this
+# project's own knowledge of a confident, well-attested citation-form
+# verb-marking convention for this specific sketch isn't solid enough to
+# curate with the same confidence as this project's better-attested
+# profiles, on top of this whole sketch's own already-documented thinner
+# attestation. Left uncurated rather than curated dishonestly, the same
+# standard applied to Arawakan/Persian/Basque/Georgian/Mongolian/Tamil.
+# See mandarin.yaml's own note for why an empty word_classes here
+# doesn't suppress generation.word_class_gen's own generic invented-
+# class roll for an unmatched/uncurated POS.
 consonants: [p, t, "ʈ", c, k, m, n, "ɳ", "ɲ", "ŋ", l, r, "ɾ", w, j]
 vowels: [a, i, u, "aː", "iː", "uː"]
 # Real contrastive vowel length exists across Western Desert varieties,

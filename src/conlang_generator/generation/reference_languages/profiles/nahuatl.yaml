@@ -14,6 +14,24 @@ restricted_coda_consonants: [m, n]
 tonal: false
 stress_pattern: penultimate
 stress_deviation_rate: 0.06  # illustrative -- real Classical Nahuatl has famously near-fixed penultimate stress (Andrews; Karttunen), with very few exceptions (vocative forms shift stress to the final syllable)
+word_classes:
+  # Real Classical Nahuatl's own obligatory absolutive noun suffix,
+  # already flagged in this profile's own core_vocabulary_average_
+  # syllables comment above (ātl, tletl, tepētl). The real system has
+  # three phonologically-conditioned allomorphs (-tl after a vowel-final
+  # stem, -tli elsewhere, -in after an l-final stem) -- simplified here
+  # to just the real "-tli" elsewhere-form as a single dominant class
+  # (safe after either a vowel- or consonant-final stem, the same
+  # "naturalism, not full accuracy, at the phonotactic boundary"
+  # simplification this project's own Russian "-t'" already accepts),
+  # plus a real unmarked minority for the closed set of obligatorily-
+  # possessed nouns (kinship terms and a few others) that never take the
+  # absolutive suffix in citation form at all. No verb classes: real
+  # Classical Nahuatl verbs are conventionally cited by their own bare
+  # stem, with no infinitive suffix.
+  - {name: "-tli (absolutive)", pos: noun, suffix: ["tɬ", i], prevalence: 0.75}
+  - {name: "unmarked (obligatorily possessed)", pos: noun, prevalence: 0.25}
+word_class_deviation_rate: 0.08  # illustrative -- real Nahuatl absolutive marking is fairly regular once a noun's own class (ordinary vs. obligatorily-possessed) is known
 orthography_category: digraph-style
 orthography:
   # Real Classical Nahuatl (colonial-era, Spanish-influenced) spelling

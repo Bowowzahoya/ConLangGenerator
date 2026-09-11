@@ -60,6 +60,18 @@ nucleus_frequency_tiers:
 # filtering isn't expressible via restricted_coda_consonants alone), the
 # same real reason Italian's/Tamil's own perfected profiles leave this
 # field uncurated too.
+word_classes:
+  # Real Japanese nouns carry no citation-form gender/declension marking
+  # at all (a genuinely genderless language, case handled entirely by
+  # separate particles) -- no noun classes curated. Verbs are the
+  # opposite extreme: real Japanese's own famous "dictionary form"
+  # (plain non-past) is, without real exception, always a u-row
+  # syllable -- taberu, kaku, nomu, miru, and even the two truly
+  # irregular verbs (kuru, suru) still end in "u". Modeled here as the
+  # bare vowel suffix "u" so it composes correctly regardless of which
+  # u-row consonant a given stem's own final syllable already ends in.
+  - {name: "-u citation form", pos: verb, suffix: [u], prevalence: 1.0}
+word_class_deviation_rate: 0.03  # illustrative -- real Japanese verb citation-form marking is about as close to exceptionless as any fact curated in this project
 word_accent_realization: positional_pitch_accent  # real Japanese lexical pitch accent -- structurally a positional system (which syllable, if any, carries the pitch-drop kernel), not a fixed small category set the way Danish/Swedish/Serbo-Croatian's own word accent is
 word_accent_pattern: lexical  # a sentinel, not a shape rule -- real Japanese accent-kernel placement is genuinely lexically arbitrary, so only this field's truthiness (gating the feature on) is consulted for this realization, never its value; see generation/word_accent_gen.py's own assign_positional_pitch_accent docstring
 # word_accent_marking stays "" (unset) -- real standard Japanese
