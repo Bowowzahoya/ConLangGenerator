@@ -962,14 +962,87 @@ Everything here is a pure function of a `random.Random` seeded from
   firing and resolving as specified -- zero mismatches.
 
   Basque, Georgian, Tamil's own verb-conjugation-class system, Sumerian/
-  Tamil's own noun agreement classes, Navajo, and Arawakan/Pama-Nyungan
-  remain genuinely out of this mechanism's reach for the *other* reasons
+  Tamil's own noun agreement classes, and Arawakan/Pama-Nyungan remain
+  genuinely out of this mechanism's reach for the *other* reasons
   already given above (lexical irregularity with no confidently-known
   real proportions, an unmodeled richer class system, agreement rather
-  than citation-form marking, polysynthetic template morphology, and
-  thin attestation, respectively) -- none of those are the "needs stem-
-  lookahead conditioning" problem this extension solves, so this
-  extension doesn't newly unblock any of them.
+  than citation-form marking, and thin attestation, respectively) --
+  none of those are the "needs stem-lookahead conditioning" problem this
+  extension solves, so this extension doesn't newly unblock any of them.
+  Navajo, listed above as blocked by *polysynthetic template morphology*
+  specifically, is addressed by a second, different extension instead --
+  see immediately below.
+
+  **Polysynthetic position-class prefixes**, added after that, lifts the
+  polysynthetic-morphology limitation that kept Navajo on the
+  "deliberately skipped" list: `WordClass` gained `position_classes`
+  (`tuple[PositionClass, ...]`), and two new small frozen models,
+  `PositionClass` (a named slot: `name` + `options`) and
+  `PositionClassOption` (`name` + `symbols` + `prevalence`) -- real
+  Athabaskanist terminology (Young & Morgan; Rice; Hardy) for exactly
+  this concept: a polysynthetic word's own verb-prefix structure is
+  conventionally described as an ordered sequence of "position classes,"
+  each a real, independent grammatical category (subject agreement,
+  classifier, ...) that contributes its own morpheme to *every* word of
+  that class simultaneously -- categorically different from an ordinary
+  `WordClass` (one alternative paradigm chosen *among* several by
+  `assign_word_class`'s own roll) or from `condition`'s own stem-
+  conditioned *binary* choice. `word_class_gen.apply_word_class` gained
+  `_resolve_position_classes`: for each slot, an independent weighted
+  roll among its own options (the same `rng.choices`-by-`prevalence`
+  shape `assign_word_class`'s own class selection already uses, just
+  repeated once per slot), concatenated in order into a composite prefix
+  prepended ahead of `prefix` and the stem. `symbols=()` is a real,
+  legitimate option, not a placeholder -- a slot's own "null/zero
+  morpheme" choice (Navajo's own zero classifier, by far its most common
+  real one).
+
+  Reuses the *exact* same integration points as `condition`/`suffix_alt`
+  did, and for the identical underlying reason: `apply_word_class`
+  already runs at the one point in every coinage path where the real
+  stem exists, so composing a further prefix there needed no new
+  argument threaded through any of the 5 existing call sites
+  (`lexicon_gen.py` x2, `root_pattern.py` x1, `sound_change.py` x2), no
+  new `GrammarProfile` field, and no new generator function --
+  `generate_word_classes`'s existing reference-adoption logic already
+  copies a matched profile's whole `WordClass` object (new field
+  included) verbatim, confirmed during design research rather than
+  assumed. Like `condition`, this only ever reaches a generated language
+  through explicit reference-profile matching (`source_languages` naming
+  "Navajo" by exact name/alias) -- the invented-class path never sets
+  `position_classes`, so an unrelated/fictional language can't roll a
+  polysynthetic prefix on its own, the same answer already given for
+  harmony/voicing conditioning.
+
+  Navajo itself is curated *partially and explicitly*: only the real
+  classifier slot, and only 2 of its own real 4 members -- the real
+  zero/null classifier (prevalence 0.7, the most common by far) and the
+  real "ł-classifier" (prevalence 0.3, a simple, segmentally clean
+  voiceless-lateral prefix, `"ɬ"`, already romanizing correctly via this
+  profile's own pre-existing `{ipa: "ɬ", latin: "ł"}` rule). The other 2
+  real classifiers (the "d-classifier," which often surfaces as
+  consonant mutation on the stem's own initial segment rather than a
+  clean independent segment, and the "ł'-classifier," glottalization
+  interacting with the stem) are real but segmentally too complex for
+  this project's flat concatenation model to honestly represent --
+  left uncurated, the same "confident partial coverage" standard already
+  used for Ancient Greek's 2-of-3 declensions and Zulu/Xhosa's
+  5-of-~15 noun classes. The real subject-agreement prefix system (a
+  further, more outward position class) stays entirely unmodeled too,
+  for the same reason Tamil's own conjugation classes and Finnish's own
+  stem-type conditioning stayed unmodeled: it's genuinely complicated by
+  Navajo's own real "Mode I"/"Mode II" conjugation-class allomorphy and
+  the yi-/bi- referential alternation, material advanced enough that
+  guessing specific forms would overclaim confidence this project
+  doesn't have. Verified by hand across 5 seeds: every generated verb
+  carries the classifier (deterministically -- `word_class_deviation_
+  rate` unset, since a real Navajo verb always has *some* classifier,
+  including the audibly-silent zero one, so "no marking at all" isn't a
+  coherent state the way it is for an ordinary optional class), the
+  `ł`-classifier's own real romanization fires correctly every time it's
+  rolled, and the zero/`ł` split across 45 sampled verbs (34/11, ~76%/
+  24%) lands close to the curated 70%/30% target within normal sampling
+  variance for that sample size.
 - **`root_pattern.py`** (milestone 9): Semitic-style root-and-pattern
   (templatic) word formation -- a consonantal root (k-t-b "write"-related)
   fills a template to derive related words (kataba "he wrote", kitāb

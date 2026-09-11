@@ -126,6 +126,53 @@ class WordClass(BaseModel, frozen=True):
     represents per condition type. Must stay empty when ``condition`` is
     ``""`` (an ordinary, unconditioned class has only one real suffix
     form, ``suffix`` itself)."""
+    position_classes: tuple[PositionClass, ...] = ()
+    """An ordered sequence of independently-rolled position-class slots
+    -- real Navajo-style polysynthetic verb-prefix morphology, where
+    several distinct grammatical categories (subject agreement,
+    classifier, ...) each contribute their own morpheme to a single word
+    *simultaneously*, unlike an ordinary ``WordClass`` (one alternative
+    paradigm chosen *among* several by ``assign_word_class``'s own
+    unconditioned roll). Every slot here always resolves to something
+    (possibly a real null/zero option) for every word of this class --
+    concatenated in order, before ``prefix`` and the stem, by
+    ``generation.word_class_gen.apply_word_class``'s own
+    ``_resolve_position_classes`` helper. Orthogonal to
+    ``condition``/``suffix_alt`` (that axis conditions the *suffix* on
+    the stem's own phonology; this one builds a composite *prefix* from
+    several independent rolls) -- a class can use either, both, or
+    neither. Like ``condition``, this only ever reaches a generated
+    language via reference-profile adoption (a matched profile's own
+    curated ``WordClass`` carried through verbatim) -- the invented-class
+    path never sets it, so an unrelated/fictional language can't roll
+    one on its own."""
+
+
+class PositionClassOption(BaseModel, frozen=True):
+    """One real morpheme choice within a single position-class slot --
+    e.g. real Navajo's own classifier slot has a small real paradigm,
+    each member its own option here. ``symbols=()`` is a real,
+    legitimate option (a genuine null/zero morpheme -- Navajo's own zero
+    classifier is the single most common real choice, not a
+    placeholder)."""
+
+    name: str
+    symbols: tuple[str, ...] = ()
+    prevalence: float = 1.0
+
+
+class PositionClass(BaseModel, frozen=True):
+    """One position-class slot in a polysynthetic word's own prefix
+    structure -- a real, named grammatical category (e.g. "classifier")
+    with its own small paradigm of real ``PositionClassOption``s,
+    resolved by an independent weighted roll every time a ``WordClass``
+    carrying it gets applied. Real Athabaskanist terminology (Young &
+    Morgan; Rice; Hardy) for exactly this concept -- Navajo's own
+    verb-prefix positions are conventionally described this way in the
+    literature."""
+
+    name: str
+    options: tuple[PositionClassOption, ...]
 
 
 class GrammarProfile(BaseModel, frozen=True):

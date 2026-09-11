@@ -3,7 +3,7 @@ generation and application (core.grammar.WordClass)."""
 
 import random
 
-from conlang_generator.core.grammar import WordClass
+from conlang_generator.core.grammar import PositionClass, PositionClassOption, WordClass
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import Consonant, Manner, Place, PhonemeInventory, SyllableStructure, Vowel, VowelBackness, VowelHeight
 from conlang_generator.core.romanization import STRESS_MARK
@@ -238,6 +238,88 @@ def test_apply_word_class_final_voicing_falls_back_to_the_default_suffix_for_a_v
     cls = WordClass(name="infinitive", pos=PartOfSpeech.VERB, condition="final_voicing", suffix=("t", "a", "n"), suffix_alt=("d", "a", "n"))
     result = word_class_gen.apply_word_class(rng, cls, "da", _harmony_inventory(), "", None, 0.0)
     assert result.replace(STRESS_MARK, "").endswith("tan")
+
+
+# --- apply_word_class: position_classes (real Navajo-style polysynthetic prefixes) ---
+
+
+def test_apply_word_class_position_classes_single_slot_single_option():
+    rng = random.Random(0)
+    slot = PositionClass(name="classifier", options=(PositionClassOption(name="ł", symbols=("l",), prevalence=1.0),))
+    cls = WordClass(name="verb (classifier)", pos=PartOfSpeech.VERB, position_classes=(slot,))
+    result = word_class_gen.apply_word_class(rng, cls, "tal", _inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "") == "ltal"
+
+
+def test_apply_word_class_position_classes_are_concatenated_in_slot_order():
+    rng = random.Random(0)
+    first = PositionClass(name="outer", options=(PositionClassOption(name="p", symbols=("p",), prevalence=1.0),))
+    second = PositionClass(name="inner", options=(PositionClassOption(name="k", symbols=("k",), prevalence=1.0),))
+    cls = WordClass(name="verb", pos=PartOfSpeech.VERB, position_classes=(first, second))
+    result = word_class_gen.apply_word_class(rng, cls, "tal", _inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "") == "pktal"  # "outer" slot precedes "inner", both precede the stem
+
+
+def test_apply_word_class_position_classes_zero_symbol_option_is_a_real_choice():
+    # A real null/zero morpheme option (WordClass.position_classes's own
+    # docstring: Navajo's own zero classifier) -- picking it must leave
+    # the stem untouched by this slot, not be treated as "no class."
+    rng = random.Random(0)
+    slot = PositionClass(name="classifier", options=(PositionClassOption(name="zero", symbols=(), prevalence=1.0),))
+    cls = WordClass(name="verb (classifier)", pos=PartOfSpeech.VERB, position_classes=(slot,))
+    result = word_class_gen.apply_word_class(rng, cls, "tal", _inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "") == "tal"
+
+
+def test_apply_word_class_position_classes_respect_option_prevalence():
+    rng = random.Random(0)
+    slot = PositionClass(
+        name="classifier",
+        options=(
+            PositionClassOption(name="zero", symbols=(), prevalence=0.7),
+            PositionClassOption(name="ł", symbols=("l",), prevalence=0.3),
+        ),
+    )
+    cls = WordClass(name="verb (classifier)", pos=PartOfSpeech.VERB, position_classes=(slot,))
+    hits = sum(
+        1
+        for _ in range(400)
+        if word_class_gen.apply_word_class(rng, cls, "tal", _inventory(), "", None, 0.0).replace(STRESS_MARK, "") == "tal"
+    )
+    assert 240 < hits < 340  # roughly 70% zero-classifier, generous band for a 400-draw sample
+
+
+def test_apply_word_class_position_classes_compose_with_prefix_and_suffix():
+    rng = random.Random(0)
+    slot = PositionClass(name="classifier", options=(PositionClassOption(name="ł", symbols=("l",), prevalence=1.0),))
+    cls = WordClass(
+        name="x", pos=PartOfSpeech.VERB, position_classes=(slot,), prefix=("k", "i"), suffix=("a",),
+    )
+    result = word_class_gen.apply_word_class(rng, cls, "tap", _inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "") == "lkitapa"  # position prefix, then ordinary prefix, then stem, then suffix
+
+
+def test_apply_word_class_position_classes_alone_are_not_treated_as_a_no_op():
+    # Guard regression: a class with only position_classes set (no plain
+    # prefix/suffix) must still apply -- Navajo's own real curated class
+    # is shaped exactly this way.
+    rng = random.Random(0)
+    slot = PositionClass(name="classifier", options=(PositionClassOption(name="ł", symbols=("l",), prevalence=1.0),))
+    cls = WordClass(name="verb (classifier)", pos=PartOfSpeech.VERB, position_classes=(slot,))
+    result = word_class_gen.apply_word_class(rng, cls, "tal", _inventory(), "", None, 0.0)
+    assert result != "tal"
+
+
+def test_apply_word_class_position_classes_restress_correctly_for_a_syllable_slot():
+    # A slot contributing a full onset+nucleus syllable (not just a bare
+    # consonant, unlike Navajo's own curated classifier) must still be
+    # correctly folded into initial-stress restressing.
+    rng = random.Random(0)
+    inventory = _inventory()
+    slot = PositionClass(name="prefix", options=(PositionClassOption(name="ki", symbols=("k", "i"), prevalence=1.0),))
+    cls = WordClass(name="x", pos=PartOfSpeech.NOUN, position_classes=(slot,))
+    result = word_class_gen.apply_word_class(rng, cls, "tapa", inventory, "initial", 0.0, 1.0)
+    assert result.startswith(STRESS_MARK + "ki")
 
 
 def test_generate_word_classes_full_strictness_makes_frances_own_classes_near_certain():

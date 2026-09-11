@@ -1,16 +1,46 @@
 name: Navajo
-# No word_classes curated, deliberately -- real Navajo has no
-# grammatical gender and, unlike this project's own curated
-# declension-by-suffix or verb-conjugation-by-suffix languages, its real
-# verb morphology is polysynthetic and template-based (a real Navajo
-# verb is built from a whole ordered sequence of prefix slots around the
-# root, not a simple root-plus-citation-suffix), so far beyond a single
-# flat per-word suffix/prefix roll that even attempting an honest
-# simplification would misrepresent the real system rather than
-# approximate it. See mandarin.yaml's own note for why an empty
-# word_classes here doesn't suppress generation.word_class_gen's own
-# generic invented-class roll for an unmatched/uncurated POS.
 aliases: ["diné bizaad"]
+word_classes:
+  # Real Navajo's own famous polysynthetic verb-prefix structure --
+  # previously left entirely uncurated here (see this project's own
+  # commit history) since it's built from a whole ordered sequence of
+  # independent prefix slots around the stem, not a simple root-plus-
+  # citation-suffix a flat WordClass suffix/prefix could represent.
+  # Curated now via `position_classes` (see core.grammar.WordClass.
+  # position_classes), the real Athabaskanist "position class" concept
+  # (Young & Morgan; Faltz; Rice; Hardy) this mechanism exists to model.
+  #
+  # Only the real *classifier* slot is curated, and only 2 of its own
+  # real 4 members: the real zero/null classifier (by far the most
+  # common) and the real "ł-classifier" (a simple, segmentally clean
+  # voiceless-lateral prefix). The other 2 real classifiers -- the
+  # "d-classifier" (often surfacing as consonant mutation on the stem's
+  # own initial segment rather than a clean independent segment) and the
+  # "ł'-classifier" (glottalization interacting with the stem) -- are
+  # real but segmentally too complex for this project's flat
+  # concatenation model to honestly represent, so left uncurated: the
+  # same "confident partial coverage, not full accuracy" standard
+  # already used for Ancient Greek's 2-of-3 declensions and Zulu/Xhosa's
+  # 5-of-~15 noun classes.
+  #
+  # Still NOT modeled at all: the real subject-agreement prefix system,
+  # which sits in its own further-out position class and is genuinely
+  # complicated by Navajo's own real "Mode I"/"Mode II" conjugation-
+  # class allomorphy and the yi-/bi- referential alternation -- material
+  # advanced enough that guessing specific forms here would risk the
+  # kind of overclaim this project has consistently avoided (same
+  # reasoning that already kept Tamil's conjugation classes and
+  # Finnish's stem-type conditioning unmodeled). No noun classes: real
+  # Navajo has no grammatical gender, and this axis is specific to
+  # Navajo's own verb-prefix structure.
+  - name: "verb (classifier)"
+    pos: verb
+    prevalence: 1.0
+    position_classes:
+      - name: classifier
+        options:
+          - {name: "zero classifier", symbols: [], prevalence: 0.7}
+          - {name: "ł-classifier", symbols: ["ɬ"], prevalence: 0.3}
 consonants: [b, t, "tʰ", "tʼ", k, "kʰ", "kʼ", "ʔ", ts, "tsʰ", "tsʼ", "tʃ", "tʃʰ", "tʃʼ", "tɬ", "tɬʰ", "tɬʼ", s, z, "ʃ", "ʒ", "ɬ", l, h, "ɣ", m, n, w, j]
 # Real Navajo's own famous 3-way stop/affricate contrast (unaspirated /
 # aspirated / ejective) across every place this pool models a fricative-

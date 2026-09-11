@@ -218,6 +218,20 @@ def _resolve_conditioned_suffix(word_class: WordClass, bare_stem_symbols: tuple[
     return word_class.suffix
 
 
+def _resolve_position_classes(rng: random.Random, word_class: WordClass) -> tuple[str, ...]:
+    """This class's own composite position-class prefix -- one
+    independently weighted-rolled option's symbols from each slot in
+    ``word_class.position_classes``, in order (real Navajo-style
+    polysynthetic verb-prefix structure -- see that field's own
+    docstring). Empty when ``position_classes`` is empty, the ordinary
+    case."""
+    resolved: list[str] = []
+    for slot in word_class.position_classes:
+        option = rng.choices(slot.options, weights=[o.prevalence for o in slot.options])[0]
+        resolved.extend(option.symbols)
+    return tuple(resolved)
+
+
 def apply_word_class(
     rng: random.Random,
     word_class: WordClass | None,
@@ -289,15 +303,27 @@ def apply_word_class(
     the stem's own phonology, but which surface allomorph that class's
     own suffix takes is not a roll at all -- it's read directly off the
     one stem it's actually attaching to, which only exists by the time
-    this function runs."""
-    if word_class is None or not (word_class.prefix or word_class.suffix):
+    this function runs.
+
+    ``word_class.position_classes``, when non-empty, contributes a
+    further composite prefix ahead of ``word_class.prefix`` -- one
+    independently weighted-rolled option per slot, via
+    ``_resolve_position_classes`` (real Navajo-style polysynthetic
+    verb-prefix structure -- see ``WordClass.position_classes``'s own
+    docstring). Unlike the ``condition`` resolution above, this doesn't
+    read anything off the stem -- each slot's own roll is unconditioned,
+    the same "independent per-word roll" shape ``assign_word_class``'s
+    own class selection already has, just repeated once per slot instead
+    of once for the whole class."""
+    if word_class is None or not (word_class.prefix or word_class.suffix or word_class.position_classes):
         return ipa
     known_symbols = _ALL_SYMBOLS
     stripped = ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, "")
     raw_tokens = ipa_tokenizer.tokenize(stripped, known_symbols)
     stem_symbols = tuple(symbol + deco for symbol, deco in raw_tokens)
     suffix = _resolve_conditioned_suffix(word_class, tuple(symbol for symbol, _ in raw_tokens))
-    filled_symbols = word_class.prefix + stem_symbols + suffix
+    position_prefix = _resolve_position_classes(rng, word_class)
+    filled_symbols = position_prefix + word_class.prefix + stem_symbols + suffix
     vowel_symbols = frozenset(inventory.vowel_symbols())
     return word_accent_gen.mark_stress_and_word_accent(
         rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, stress_strictness,
