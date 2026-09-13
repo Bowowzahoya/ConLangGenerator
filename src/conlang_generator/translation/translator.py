@@ -56,6 +56,7 @@ from dataclasses import dataclass
 from conlang_generator.core.grammar import Alignment, GrammarProfile, InflectionAffix, WordOrder
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
+from conlang_generator.core.romanization import apply_grammatical_spelling
 from conlang_generator.generation import inflection_gen, stress_gen, word_accent_gen
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
@@ -224,7 +225,26 @@ def _combined_tense_agreement_affix(
     return InflectionAffix(label="tense+agreement", prefix=prefix, suffix=suffix)
 
 
-def _apply_case(language: Language, entry: LexicalEntry, case_label: str | None, salt: str) -> tuple[str, str]:
+def _case_affix_salt(entry: LexicalEntry, case_label: str) -> str:
+    """The rng salt for marking ``entry`` with ``case_label`` -- shared
+    verbatim between encoding (``_apply_case``) and decoding (``_decode_
+    noun``) so both sides derive the *identical* rng stream and therefore
+    the identical stress/re-rendering outcome for the same (entry, case)
+    pair. Deliberately keyed only on ``entry.ipa``/``case_label`` -- never
+    on the original English token or sentence, which decoding has no way
+    to reconstruct from an observed conlang word alone."""
+    return f"case:{entry.ipa}:{case_label}"
+
+
+def _verb_affix_salt(entry: LexicalEntry, tense_label: str | None, agreement_label: str) -> str:
+    """The rng salt for marking ``entry`` with a given tense+agreement
+    combination -- same "identical salt on both sides" contract as
+    ``_case_affix_salt``, keyed on the *resolved* labels (not the raw
+    English verb/subject tokens, which decoding never has)."""
+    return f"verb:{entry.ipa}:{tense_label}:{agreement_label}"
+
+
+def _apply_case(language: Language, entry: LexicalEntry, case_label: str | None) -> tuple[str, str]:
     """Returns this entry's own ``(romanization, ipa)``, case-marked when
     ``case_label`` names a case this language's own ``GrammarProfile.cases``
     actually has (and a matching ``case_affixes`` entry exists) --
@@ -238,14 +258,13 @@ def _apply_case(language: Language, entry: LexicalEntry, case_label: str | None,
     affix = next((a for a in grammar.case_affixes if a.label == case_label), None)
     if affix is None:
         return entry.romanization, entry.ipa
-    rng = _translation_rng(language, f"case:{case_label}:{salt}")
+    rng = _translation_rng(language, _case_affix_salt(entry, case_label))
     ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
-    return language.romanization.apply(ipa), ipa
+    romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+    return romanization, ipa
 
 
-def _apply_verb_inflection(
-    language: Language, entry: LexicalEntry, detected_tense: str, subject_tok: str, salt: str
-) -> tuple[str, str]:
+def _apply_verb_inflection(language: Language, entry: LexicalEntry, detected_tense: str, subject_tok: str) -> tuple[str, str]:
     """The verb/copula-side counterpart of ``_apply_case`` -- composes and
     applies this sentence's own tense+agreement affix (see
     ``_combined_tense_agreement_affix``), or returns the bare citation
@@ -259,9 +278,10 @@ def _apply_verb_inflection(
     affix = _combined_tense_agreement_affix(grammar, tense_label, agreement_label)
     if affix is None:
         return entry.romanization, entry.ipa
-    rng = _translation_rng(language, f"verb:{salt}")
+    rng = _translation_rng(language, _verb_affix_salt(entry, tense_label, agreement_label))
     ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
-    return language.romanization.apply(ipa), ipa
+    romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+    return romanization, ipa
 
 
 def _maybe_prefix_article(
@@ -326,7 +346,7 @@ def translate_to_conlang(
             working_language, adj_tok, PartOfSpeech.ADJECTIVE, coined, llm_client
         )
         subject_pair = _maybe_prefix_article(
-            working_language, *_apply_case(working_language, subject_entry, None, subject_tok), used_article, subject_tok
+            working_language, *_apply_case(working_language, subject_entry, None), used_article, subject_tok
         )
         adj_pair = (adj_entry.romanization, adj_entry.ipa)
         ordered_pairs = (
@@ -336,9 +356,7 @@ def translate_to_conlang(
             copula_entry = working_language.lexicon.by_gloss("be")
             if copula_entry is not None:
                 detected_tense = "past" if copula_tok in _PAST_COPULAS else "non_past"
-                copula_pair = _apply_verb_inflection(
-                    working_language, copula_entry, detected_tense, subject_tok, "copula"
-                )
+                copula_pair = _apply_verb_inflection(working_language, copula_entry, detected_tense, subject_tok)
                 # The copula always sits between subject and predicate --
                 # real "the mountain is high"/"haute est la montagne"-style
                 # languages both keep it in the middle regardless of which
@@ -367,12 +385,12 @@ def translate_to_conlang(
         subject_case = "ergative" if grammar.alignment is Alignment.ERGATIVE_ABSOLUTIVE else None
         object_case = "accusative" if grammar.alignment is Alignment.NOMINATIVE_ACCUSATIVE else None
         subject_pair = _maybe_prefix_article(
-            working_language, *_apply_case(working_language, subject_entry, subject_case, subject_tok), used_article, subject_tok
+            working_language, *_apply_case(working_language, subject_entry, subject_case), used_article, subject_tok
         )
         object_pair = _maybe_prefix_article(
-            working_language, *_apply_case(working_language, obj_entry, object_case, obj_tok), used_article, obj_tok
+            working_language, *_apply_case(working_language, obj_entry, object_case), used_article, obj_tok
         )
-        verb_pair = _apply_verb_inflection(working_language, verb_entry, detected_tense, subject_tok, verb_tok)
+        verb_pair = _apply_verb_inflection(working_language, verb_entry, detected_tense, subject_tok)
         roles = {"S": subject_pair, "V": verb_pair, "O": object_pair}
         ordered_pairs = [roles[r] for r in _ROLE_ORDER[grammar.word_order]]
         pattern = "subject-verb-object"
@@ -420,11 +438,12 @@ def _decode_noun(language: Language, token: str) -> tuple[LexicalEntry, str] | N
             return entry, "unmarked"
     for entry in noun_entries:
         for affix in language.grammar.case_affixes:
-            rng = _translation_rng(language, f"decode-case:{entry.ipa}:{affix.label}")
+            rng = _translation_rng(language, _case_affix_salt(entry, affix.label))
             ipa = inflection_gen.apply_affix(
                 rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
             )
-            if _normalize(language.romanization.apply(ipa)) == normalized:
+            candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+            if _normalize(candidate) == normalized:
                 return entry, affix.label
     return None
 
@@ -454,11 +473,12 @@ def _decode_verb(
                 affix = _combined_tense_agreement_affix(language.grammar, tense_label, agreement_label)
                 if affix is None:
                     continue
-                rng = _translation_rng(language, f"decode-verb:{entry.ipa}:{tense_label}:{agreement_label}")
+                rng = _translation_rng(language, _verb_affix_salt(entry, tense_label, agreement_label))
                 ipa = inflection_gen.apply_affix(
                     rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
                 )
-                if _normalize(language.romanization.apply(ipa)) == normalized:
+                candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+                if _normalize(candidate) == normalized:
                     return entry, tense_label
     return None
 

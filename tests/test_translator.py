@@ -4,6 +4,7 @@ marking under both alignments) and its generate-and-compare decoding back
 out again (Stage 5)."""
 
 from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
@@ -224,3 +225,32 @@ def test_predicate_adjective_with_copula_round_trips_when_adjective_precedes_nou
     back_past = translate_to_english(past.text, past.language, FakeLLMClient())
     assert back_past.pattern == "predicate-adjective"
     assert back_past.text.lower() == "mountain was high"
+
+
+def test_svo_round_trips_when_verb_affix_salt_cant_reuse_the_original_english_token():
+    # Regression guard: _apply_verb_inflection/_apply_case originally
+    # seeded their rng from the raw English token (e.g. the verb "see" or
+    # subject "I"), which decoding can never reconstruct from an observed
+    # conlang word alone -- encode and decode silently used *different*
+    # rng streams for the identical (entry, tense, agreement) combination,
+    # occasionally landing on different stress placement and therefore a
+    # different rendered spelling, so the verb failed to decode at all.
+    # Found by hand while demonstrating the feature via the real CLI
+    # against a German-biased language at seed=0 -- this project's own
+    # test suite never happened to roll a case where the two salts
+    # actually diverged in their rendered output before that.
+    language = generate_language(
+        "T",
+        GenerationSpec(prompt="p", seed=0, traits=TraitProfile(source_languages=("German",), source_language_strictness=1.0)),
+        FakeLLMClient(),
+    )
+    to_conlang = translate_to_conlang("I see the mountain", language, FakeLLMClient())
+    assert to_conlang.coined == ()
+    back = translate_to_english(to_conlang.text, to_conlang.language, FakeLLMClient())
+    assert back.pattern == "subject-verb-object"
+    assert back.text.lower().split() == ["i", "see", "mountain"]
+
+    past = translate_to_conlang("I saw the mountain", to_conlang.language, FakeLLMClient())
+    back_past = translate_to_english(past.text, past.language, FakeLLMClient())
+    assert back_past.pattern == "subject-verb-object"
+    assert back_past.text.lower().split() == ["i", "saw", "mountain"]
