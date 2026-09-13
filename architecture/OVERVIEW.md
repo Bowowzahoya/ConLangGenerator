@@ -444,11 +444,14 @@ Everything here is a pure function of a `random.Random` seeded from
   The same dial extends to `romanization_gen.py` (whole-scheme category
   selection, per-symbol curated spelling adoption, and the
   `GrammaticalSpelling` rolls -- German nouns reliably capitalize, French
-  verbs reliably get their silent "-r") and to `grammar_gen.py`'s two
-  existing reference-bias axes (`uses_root_and_pattern`, the `FUSIONAL`
-  weight boost) -- deliberately *not* to typological axes with no
-  per-profile data at all (word order, alignment: see "Known v0
-  limitations" below).
+  verbs reliably get their silent "-r") and to `grammar_gen.py`'s
+  reference-bias axes -- originally just `uses_root_and_pattern`/the
+  `FUSIONAL` weight boost, later extended to `word_order`/`alignment`/
+  `has_articles`/`has_overt_copula`/`adjective_after_noun`/`cases` too
+  once `real_word_order`/etc. existed to bias toward (see "Real
+  inflection" below) -- for the specific profiles curated for those newer
+  fields; an unmatched or not-yet-curated-for-this-axis profile still
+  falls back to the unbiased trait-only roll exactly as before.
   `_force_include`'s seed-example floor stays completely unrestricted
   regardless of strictness, for the same correctness reason as above.
   Strictness also fixes two gaps a restricted *inventory* alone doesn't:
@@ -1368,13 +1371,111 @@ Everything here is a pure function of a `random.Random` seeded from
   since the text isn't asking the conlang to *resemble* that language,
   only evoking its culture.
 
+## Real inflection: case, tense, agreement, articles/copula, and grammar-level reference bias ("step 2")
+
+The word/lexicon-level weighting batch above deliberately deferred one
+gap: `GrammarProfile.word_order`/`has_articles`/`has_overt_copula`/
+`adjective_after_noun` never consulted `source_languages` at all, and
+`cases` was rolled but had **no consumer anywhere** -- the translator
+only ever reordered bare citation-form words, never actually marking a
+noun for case or inserting an article/copula even when the rolled
+`GrammarProfile` said the language had the feature. This batch closes
+both gaps.
+
+- **Reference-profile curation + weighted bias (`grammar_gen.py`,
+  `reference_languages/__init__.py`)**: six new optional fields
+  (`real_word_order`/`real_alignment`/`real_has_articles`/`real_has_
+  overt_copula`/`real_adjective_after_noun`/`real_case_count`, each
+  `None`/abstains when uncurated) curated for a first representative
+  batch of 16 profiles (French, German, Dutch, English, Japanese,
+  Mandarin, Arabic, Turkish, Latin, Swahili, Korean, Thai, Russian,
+  Polish, Hawaiian, Georgian) -- the rest stay uncurated, same "separate
+  batches over time" precedent this project's own curation history
+  already has. `grammar_gen.generate_grammar` now consults `match_
+  profiles_weighted` for every one of these axes, built weighted from the
+  start: `word_order`/`alignment` get the same "boost the matched value's
+  own weight within the categorical roll" shape `morphological_type`
+  already uses for `FUSIONAL`; `has_articles`/`has_overt_copula`/
+  `adjective_after_noun` share a new local `_boolean_reference_bias`
+  helper (boost toward the matched value, suppress toward its opposite at
+  high strictness); `cases`' own *count* is nudged toward the weighted
+  average of matched profiles' `real_case_count`, converging exactly to
+  it (including a real, curated 0) at full weight/strictness. An
+  ergative-absolutive language now draws its case labels from a separate
+  `_ERGATIVE_CASE_LABELS` pool (ergative/absolutive/...) instead of the
+  nominative/accusative-style labels, which never made sense for it -- a
+  gap only surfaced while wiring the translator's own case marking.
+- **`InflectionAffix` (`core/grammar.py`)**: a new value type for
+  sentence-role-driven inflection (case, tense, subject agreement),
+  deliberately distinct from `WordClass` -- see its own docstring for why
+  (lexeme-fixed, chosen-once-at-coinage paradigm membership vs. a value
+  applied fresh per sentence based on syntactic role; the two share only
+  the low-level "attach a prefix/suffix, re-derive stress" mechanism,
+  extracted into `word_builder.attach_affix_and_restress` so both
+  `word_class_gen.apply_word_class` and the new `inflection_gen.apply_
+  affix` can call it without `inflection_gen.py` needing to depend on
+  `WordClass` at all). `GrammarProfile` gains `tenses` (an illustrative,
+  source-language-independent 2-way `("past", "non_past")` vs. 3-way
+  `("past", "present", "future")` coin flip) plus `case_affixes`/`tense_
+  affixes`/`agreement_affixes` (`generation/inflection_gen.py`'s own
+  `generate_*_affixes` functions, filled in by `generator.py` once the
+  phoneme inventory exists -- the same two-phase relationship `plural_
+  suffix`/`templates` already have). Agreement is keyed by this project's
+  own 4 core pronoun glosses (`"I"`/`"you"`/`"he"`/`"we"`) plus
+  `"default"` for any noun subject, not an abstract person/number grid
+  this project's pronoun set doesn't otherwise use.
+- **Conditional core vocabulary**: `lexicon_gen.CORE_MEANINGS` gained
+  `("the", PARTICLE)`/`("be", VERB)`, coined only when `has_articles`/
+  `has_overt_copula` is true (`lexicon_gen.CONDITIONAL_MEANINGS` maps the
+  gloss to the gating `GrammarProfile` attribute) -- a language without
+  the feature has no such lexeme at all.
+- **`translator.py` applies the inflection it only reordered words by
+  before**: inserts the coined "the" before a non-pronoun noun argument
+  when the English input used an article and `has_articles` is true;
+  inserts the copula (tense+agreement-marked via one combined
+  `InflectionAffix`, tense detected from a small irregular-past lookup
+  plus regular `-ed`/`-ied` stripping, agreement from the subject's own
+  pronoun gloss or `"default"`) between subject and predicate when
+  `has_overt_copula`; marks the object with the accusative case under
+  nominative-accusative alignment, or the subject with the ergative case
+  under ergative-absolutive (only one argument per sentence, matching a
+  common real simplification). Each affix application seeds its own
+  `random.Random` from a stable hash of `(language.spec.seed, a per-call
+  salt)`, the same "hash the payload into a local seed" precedent
+  `core.romanization._stable_local_choice` already uses, so translation
+  stays reproducible without a public rng parameter.
+- **Decoding it back out (`translate_to_english`) is generate-and-compare,
+  not a parse** -- spelling isn't a clean invertible function in general
+  (the same reason `sound_change.py`'s own reform-detection compares via
+  `apply()` rather than string surgery). `_decode_noun`/`_decode_verb`
+  render each candidate lexicon entry's own bare form and, if that
+  doesn't match, each of its case/tense+agreement-marked forms via the
+  identical `inflection_gen.apply_affix` path encoding used, comparing
+  against the observed token. A 3-token sentence is genuinely ambiguous
+  once a copula exists (subject-copula-adjective and subject-verb-object
+  both look like 3 plain tokens) -- resolved by testing the copula
+  hypothesis first (does the verb-position token decode specifically
+  against the "be" entry?) and falling back to the transitive reading
+  when it doesn't.
+- **Explicit scope limits, same "illustrative, not exhaustive" honesty as
+  everywhere else in this project**: only one argument is ever
+  case-marked per sentence; `genitive`/`dative`/`locative` labels exist in
+  the case pool but stay unexercised (no possessive/oblique sentence
+  pattern exists to attach them to); tense detection never recognizes a
+  periphrastic English future ("will go"); LLM-driven sentence
+  construction beyond these two hand-written patterns is still a later,
+  separate step.
+
 ## `translation/` -- bidirectional translation
 
 - **`translator.py`**: `translate_to_conlang()` / `translate_to_english()`.
   Recognizes exactly three sentence shapes (predicate-adjective,
   subject-verb-object, word-for-word fallback); see the module docstring for
   the full list of explicit v0 limitations (no real parser, naive
-  lemmatization, English assumed canonical SVO for reconstruction).
+  lemmatization, English assumed canonical SVO for reconstruction). Real
+  inflection (articles, an overt copula, case, tense, agreement) is now
+  applied/decoded when the target language's own `GrammarProfile` says it
+  has the feature -- see the "Real inflection" section above.
 - **`expansion.py`**: `coin_word()` -- reuses `lexicon_gen.propose_word()`
   with a per-gloss RNG seed derived from `sha256(spec.seed, gloss)`, so
   coinage is reproducible independent of translation order.
@@ -1428,20 +1529,26 @@ reading code or one-off ad hoc scripts.
   rate, not by fresh generation. `time_depth_years` itself is still
   unconsumed too (`--evolve-from`/`--years` on the CLI is the actual years
   input; the classifier-extracted field isn't wired to it yet).
-- `source_language_strictness` only reaches the reference-bias mechanisms
-  that already exist (phonology's inventory/syllable-shape/tonal/vowel-
-  harmony axes; `romanization_gen.py`'s category/per-symbol/grammatical-
-  spelling rolls; `grammar_gen.py`'s `uses_root_and_pattern`/`FUSIONAL`
-  boost) -- it can't push `word_order`, `alignment`, or an explicit
-  `morphological_type` toward a matched language's real value, because
-  `ReferenceLanguageProfile` doesn't store that data for any of the 30
-  profiles today (adding real, accurate values for all of them is a
-  separate curation project, same discipline the phonological/
-  orthographic profile fields already required). It also doesn't reach
-  `sound_change.py`'s own, separate inventory-recompute path during
-  multi-century evolution -- a strict language's phonology can still
-  drift back toward looser/generic over a long evolution run, same as
-  any other language's.
+- `source_language_strictness` reaches every reference-bias mechanism
+  that exists (phonology's inventory/syllable-shape/tonal/vowel-harmony
+  axes; `romanization_gen.py`'s category/per-symbol/grammatical-spelling
+  rolls; `grammar_gen.py`'s `uses_root_and_pattern`/`FUSIONAL` boost, and
+  now `word_order`/`alignment`/`has_articles`/`has_overt_copula`/
+  `adjective_after_noun`/`cases` too -- see "Real inflection" above) --
+  but only for the specific `ReferenceLanguageProfile`s actually curated
+  for a given axis. The newer `real_word_order`/`real_alignment`/`real_
+  has_articles`/`real_has_overt_copula`/`real_adjective_after_noun`/
+  `real_case_count` fields exist for a first batch of 16 profiles, not
+  all ~50 -- an uncurated-for-that-axis or entirely unmatched profile
+  still falls back to the unbiased trait-only roll, same "abstain when
+  uncurated" convention as every other optional field. An explicit
+  `morphological_type` still has no matched-language bias at all (only
+  `FUSIONAL`'s own boost, gated on `root_and_pattern` specifically, not a
+  general `real_morphological_type` field). `source_language_strictness`
+  also doesn't reach `sound_change.py`'s own, separate inventory-recompute
+  path during multi-century evolution -- a strict language's phonology
+  can still drift back toward looser/generic over a long evolution run,
+  same as any other language's.
 - `restricted_onset_consonants`/`attested_onset_clusters` are curated for
   German, English, French, Dutch, Italian, and Spanish -- every other
   profile leaves both empty (falls back to the generic sonority-only
