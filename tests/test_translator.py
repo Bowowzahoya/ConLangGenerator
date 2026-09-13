@@ -199,3 +199,28 @@ def test_no_features_language_predicate_adjective_still_round_trips():
     assert back.pattern == "predicate-adjective"
     assert "mountain" in back.text.lower()
     assert "high" in back.text.lower()
+
+
+def test_predicate_adjective_with_copula_round_trips_when_adjective_precedes_noun():
+    # Regression guard: the copula always sits in the *middle* position
+    # regardless of word_order, and subject/adjective order follows
+    # adjective_after_noun directly -- neither follows word_order's own
+    # S/V/O role mapping the way the transitive SVO pattern does. A first
+    # cut of the decoder wrongly reused that role mapping here too, which
+    # happened to work by coincidence for _NOM_ACC_SEED (adjective_after_
+    # noun=True lines up with the S/O positions) but silently failed for
+    # _ERGATIVE_SEED, which has adjective_after_noun=False (adjective
+    # first, then copula, then subject) -- caught by hand while
+    # demonstrating the feature via the real CLI, not by the original
+    # test suite.
+    language = _language(_ERGATIVE_SEED)
+    assert language.grammar.has_overt_copula is True
+    assert language.grammar.adjective_after_noun is False
+    present = translate_to_conlang("the mountain is high", language, FakeLLMClient())
+    back_present = translate_to_english(present.text, present.language, FakeLLMClient())
+    assert back_present.pattern == "predicate-adjective"
+    assert back_present.text.lower() == "mountain is high"
+    past = translate_to_conlang("the mountain was high", present.language, FakeLLMClient())
+    back_past = translate_to_english(past.text, past.language, FakeLLMClient())
+    assert back_past.pattern == "predicate-adjective"
+    assert back_past.text.lower() == "mountain was high"

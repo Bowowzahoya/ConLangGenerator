@@ -481,19 +481,32 @@ def translate_to_english(
     ordered_glosses: list[str] | None = None
 
     if len(tokens) == 3:
-        roles = _ROLE_ORDER[language.grammar.word_order]
-        role_to_token = dict(zip(roles, tokens))
         if language.grammar.has_overt_copula:
-            copula_decoded = _decode_verb(language, role_to_token["V"], candidate_glosses=frozenset({"be"}))
+            # The copula always sits in the *middle* position, regardless
+            # of word_order -- see translate_to_conlang's own predicate-
+            # adjective handling, which inserts it there unconditionally
+            # (word_order only ever governs the *transitive* SVO
+            # hypothesis tried below).
+            copula_decoded = _decode_verb(language, tokens[1], candidate_glosses=frozenset({"be"}))
             if copula_decoded is not None:
-                subject_decoded = _decode_noun(language, role_to_token["S"])
-                adj_entry = language.lexicon.by_form(role_to_token["O"])  # adjectives are never inflected
+                # Likewise, subject/adjective order here follows
+                # adjective_after_noun directly (the same flag the
+                # encoder itself reads), not word_order's own S/O
+                # positions -- reading it back rather than re-deriving it.
+                first_tok, second_tok = tokens[0], tokens[2]
+                subject_tok, adj_tok = (
+                    (first_tok, second_tok) if language.grammar.adjective_after_noun else (second_tok, first_tok)
+                )
+                subject_decoded = _decode_noun(language, subject_tok)
+                adj_entry = language.lexicon.by_form(adj_tok)  # adjectives are never inflected
                 if subject_decoded is not None and adj_entry is not None and adj_entry.pos is PartOfSpeech.ADJECTIVE:
                     _, tense_label = copula_decoded
                     copula_word = "was" if tense_label == "past" else "is"
                     ordered_glosses = [subject_decoded[0].primary_gloss, copula_word, adj_entry.primary_gloss]
                     pattern = "predicate-adjective"
         if ordered_glosses is None:
+            roles = _ROLE_ORDER[language.grammar.word_order]
+            role_to_token = dict(zip(roles, tokens))
             subject_decoded = _decode_noun(language, role_to_token["S"])
             object_decoded = _decode_noun(language, role_to_token["O"])
             verb_decoded = _decode_verb(language, role_to_token["V"])
