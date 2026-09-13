@@ -58,8 +58,14 @@ from conlang_generator.core.phonology import (
 )
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import ipa_tokenizer, sonority, word_accent_gen
-from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles
+from conlang_generator.generation.reference_languages import (
+    ReferenceLanguageProfile,
+    match_profiles,
+    match_profiles_weighted,
+)
 from conlang_generator.generation.trait_bias import biased_probability
+
+WeightedProfiles = tuple[tuple[ReferenceLanguageProfile, float], ...]
 
 # -- Stops and affricates: voiceless drawn first, voiced only if the
 # voiceless counterpart was drawn (the implicational universal). --
@@ -586,7 +592,7 @@ def _fricative_inclusion_probability(fricative: Consonant, harshness: float) -> 
 
 
 def _reference_biased_rate(
-    base_rate: float, symbol: str, reference_symbols: frozenset[str], strictness: float = 0.0
+    base_rate: float, symbol: str, reference_weights: dict[str, float], strictness: float = 0.0
 ) -> float:
     """Milestone 5: when ``TraitProfile.source_languages`` matched one or
     more real-language profiles, soft-bias every inclusion draw toward
@@ -594,87 +600,129 @@ def _reference_biased_rate(
     rather than overriding the probabilistic mechanism outright. A no-op
     (returns ``base_rate`` unchanged) when no reference is active.
 
+    ``reference_weights`` maps each symbol used by *any* matched profile
+    to the *combined* weight of every profile using it (summed, capped at
+    ``1.0`` -- see ``generate_phonology``'s own construction of this
+    dict) -- a symbol only the 30%-weighted language uses is real, if
+    weaker, evidence, not the same full evidence a symbol every matched
+    language agrees on already is.
+
     ``strictness`` (``TraitProfile.source_language_strictness``) layers an
-    extra pull on top of that soft result, toward certainty for a
-    reference symbol and toward impossibility for a non-reference one --
-    a no-op at the default ``0.0`` (returns the soft result unchanged,
-    byte-identical to this function before ``strictness`` existed),
-    exactly ``1.0``/``0.0`` at ``strictness=1.0`` (hard restriction),
-    smoothly graded in between. Reuses ``biased_probability`` directly:
-    ``strictness`` is already a zero-to-one "positive strength," so this
-    is just its signed form."""
-    if not reference_symbols:
+    extra pull on top of that soft result, scaled by the symbol's own
+    weight for the reference branch (unscaled for the "not in reference"
+    branch -- absence is absence regardless of weight) -- a no-op at the
+    default ``0.0`` (returns the soft result unchanged, byte-identical to
+    this function before ``strictness`` existed), exactly ``1.0``/``0.0``
+    at ``strictness=1.0`` with a symbol every matched language agrees on
+    (hard restriction, the original single-language behavior exactly
+    preserved), smoothly graded in between. Reuses ``biased_probability``
+    directly: ``strictness`` is already a zero-to-one "positive strength,"
+    so this is just its signed, weight-scaled form."""
+    if not reference_weights:
         return base_rate
-    in_reference = symbol in reference_symbols
+    weight = reference_weights.get(symbol, 0.0)
+    in_reference = weight > 0.0
     soft_rate = max(base_rate, 0.85) if in_reference else base_rate * 0.3
     if strictness <= 0.0:
         return soft_rate
-    return biased_probability(soft_rate, strictness if in_reference else -strictness)
+    return biased_probability(soft_rate, strictness * weight if in_reference else -strictness)
 
 
 def _group_reference_bias(
-    probability: float, group_ipas: tuple[str, ...], reference_symbols: frozenset[str], strictness: float = 0.0
+    probability: float,
+    group_ipas: tuple[str, ...],
+    weighted_profiles: tuple[tuple[ReferenceLanguageProfile, float], ...],
+    strictness: float = 0.0,
 ) -> float:
     """Same idea as ``_reference_biased_rate`` but for an all-or-nothing
-    group gate (ejectives, the uvular series): boost the group's odds if
-    the reference profile(s) use *any* member of it, suppress otherwise.
-    ``strictness`` layers the same extra pull -- see
+    group gate (ejectives, the uvular series): boost the group's odds
+    based on the *combined weight* of matched profiles using *any* member
+    of it, suppress otherwise. Computed directly from ``weighted_profiles``
+    (each profile's own weight counted once, regardless of how many of the
+    group's own members it happens to use) rather than from a symbol-level
+    weight dict summed across members -- summing per-symbol weights would
+    double-count a single profile that curates more than one member of the
+    same small group (real for the ejective/uvular series, both narrow
+    enough that one language easily has several members). ``strictness``
+    layers the same weight-scaled extra pull -- see
     ``_reference_biased_rate``'s own docstring. Note this only gates
     whether the group fires at all; once it does, ``_strict_group_members``
     separately grades which *individual* members actually get added."""
-    if not reference_symbols:
+    if not weighted_profiles:
         return probability
-    any_member_matched = any(ipa in reference_symbols for ipa in group_ipas)
+    group_ipa_set = frozenset(group_ipas)
+    group_weight = min(
+        1.0,
+        sum(weight for profile, weight in weighted_profiles if group_ipa_set & profile.symbols()),
+    )
+    any_member_matched = group_weight > 0.0
     soft_probability = max(probability, 0.75) if any_member_matched else min(probability, 0.05)
     if strictness <= 0.0:
         return soft_probability
-    return biased_probability(soft_probability, strictness if any_member_matched else -strictness)
+    return biased_probability(soft_probability, strictness * group_weight if any_member_matched else -strictness)
 
 
 def _reference_clamp(
     probability: float,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: tuple[tuple[ReferenceLanguageProfile, float], ...],
     attr: str,
     strictness: float = 0.0,
 ) -> float:
     """For boolean language-wide properties (tonal, vowel harmony): clamp
     the computed probability toward what the matched reference profile(s)
     say, rather than leaving it purely to the trait-driven base rate --
-    "say" meaning *any* matched profile, so a multi-language match already
-    behaves as a union (true if either has it, false only if neither
-    does). ``strictness`` layers the same extra pull -- see
+    weighted now, not a flat union: the *combined weight* of matched
+    profiles with ``attr`` true (summed, capped at ``1.0`` -- safe to sum
+    directly here, unlike a multi-symbol group gate, since each profile
+    contributes at most one ``True``/``False`` value, never several) feeds
+    a continuous interpolation instead of a binary "any true" cliff -- a
+    language that's 70% a tonal source and 30% a non-tonal one lands
+    meaningfully closer to "tonal" than a 50/50 split would, without being
+    as certain as an unweighted ``any()`` incorrectly always was
+    regardless of how many named languages disagreed. ``strictness``
+    layers the same weight-scaled extra pull -- see
     ``_reference_biased_rate``'s own docstring -- becoming fully
-    deterministic (exactly matching that union) at ``strictness=1.0``."""
-    if not reference_profiles:
+    deterministic at ``strictness=1.0`` when every matched profile agrees
+    (weight sums to ``1.0``), the original single-language behavior
+    exactly preserved."""
+    if not weighted_profiles:
         return probability
-    values = [getattr(p, attr) for p in reference_profiles]
-    any_true = any(values)
-    soft_probability = max(probability, 0.75) if any_true else min(probability, 0.08)
+    weighted_true = min(1.0, sum(weight for profile, weight in weighted_profiles if getattr(profile, attr)))
+    any_true = weighted_true > 0.0
+    soft_probability = (0.75 + weighted_true * (max(probability, 0.75) - 0.75)) if any_true else min(probability, 0.08)
     if strictness <= 0.0:
         return soft_probability
-    return biased_probability(soft_probability, strictness if any_true else -strictness)
+    return biased_probability(soft_probability, strictness * weighted_true if any_true else -strictness)
 
 
 def _choose_tone_levels(
     rng: random.Random,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: tuple[tuple[ReferenceLanguageProfile, float], ...],
     strictness: float,
 ) -> tuple:
     """Which of `_TONE_LEVEL_SETS` this tonal language actually gets --
     reference-biased the same way `coda_profile`'s own selection just
-    above in `generate_phonology` already is (weight the matching entry
-    4x, then let `strictness` pull further via `biased_probability`): a
-    matched profile's own real `ReferenceLanguageProfile.tone_level_count`
-    (e.g. Cantonese/Vietnamese's own real 6, Mandarin's own real 4,
-    Tibetan's own real 2) boosts whichever `_TONE_LEVEL_SETS` entry has
-    that many levels, so a strongly source-biased run actually lands on
-    that language's real tone count more often -- not a uniform pick
-    among the sets regardless of which language matched, which is what
-    this function replaces. No matched profile (or none with
+    above in `generate_phonology` already is: a matched profile's own real
+    `ReferenceLanguageProfile.tone_level_count` (e.g. Cantonese/
+    Vietnamese's own real 6, Mandarin's own real 4, Tibetan's own real 2)
+    boosts whichever `_TONE_LEVEL_SETS` entry has that many levels, scaled
+    by the *combined weight* of matched profiles curating that count
+    (summed, capped at `1.0` -- safe to sum directly, each profile
+    contributes at most one count) -- `*4` at full weight (`1.0`,
+    unchanged from before this feature existed), proportionally less for
+    a lighter-weighted match, so a strongly source-biased run actually
+    lands on that language's real tone count more often -- not a uniform
+    pick among the sets regardless of which language matched, which is
+    what this function replaces. No matched profile (or none with
     `tone_level_count` curated) falls back to a uniform pick, unchanged
     from the prior behavior."""
-    tone_level_weights = [1] * len(_TONE_LEVEL_SETS)
-    reference_tone_counts = {p.tone_level_count for p in reference_profiles if p.tone_level_count is not None}
+    tone_level_weights = [1.0] * len(_TONE_LEVEL_SETS)
+    weight_by_tone_count: dict[int, float] = {}
+    for profile, weight in weighted_profiles:
+        if profile.tone_level_count is not None:
+            weight_by_tone_count[profile.tone_level_count] = min(
+                1.0, weight_by_tone_count.get(profile.tone_level_count, 0.0) + weight
+            )
     # Unlike `coda_profile` above (a required field every profile always
     # has a real value for), `tone_level_count` is optional -- reference
     # profiles can be present with *none* of them curating it, which
@@ -682,40 +730,46 @@ def _choose_tone_levels(
     # every entry's weight toward zero (every entry would otherwise get
     # the "not the matched count" negative pull, with nothing on the
     # positive side to balance it).
-    if reference_tone_counts:
+    if weight_by_tone_count:
         tone_level_weights = [
-            w * 4 if len(levels) in reference_tone_counts else w
+            w * (1 + 3 * weight_by_tone_count.get(len(levels), 0.0))
             for levels, w in zip(_TONE_LEVEL_SETS, tone_level_weights)
         ]
         if strictness > 0.0:
             total = sum(tone_level_weights)
             tone_level_weights = [
-                total * biased_probability(w / total, strictness if len(levels) in reference_tone_counts else -strictness)
+                total * biased_probability(
+                    w / total, strictness * weight_by_tone_count.get(len(levels), 0.0) if len(levels) in weight_by_tone_count else -strictness
+                )
                 for levels, w in zip(_TONE_LEVEL_SETS, tone_level_weights)
             ]
     return rng.choices(_TONE_LEVEL_SETS, weights=tone_level_weights)[0]
 
 
 def _strict_group_members(
-    rng: random.Random, group: tuple, reference_symbols: frozenset[str], strictness: float
+    rng: random.Random, group: tuple, reference_weights: dict[str, float], strictness: float
 ) -> tuple:
     """Once a group (or the always-on vowel anchors) has been decided to
     fire, this grades each individual *member's* own presence -- today's
     behavior is "every member joins unconditionally," a no-op here at the
     default ``strictness=0.0`` (``biased_probability(1.0, 0.0) == 1.0``,
     always included). At higher strictness a member not attested in any
-    matched reference profile gets strictness-graded out, so a firing
-    group only contributes what the reference language(s) actually have
-    -- e.g. Finnish's only geminate is "kː", not the whole
-    ``_GEMINATE_GROUP``; English has no plain "a", Nahuatl no "u", so
-    ``_VOWEL_ANCHORS`` (unconditional today regardless of any bias) needs
-    this too."""
-    if not reference_symbols or strictness <= 0.0:
+    matched reference profile gets strictness-graded out (scaled by that
+    member's own combined weight when it is), so a firing group only
+    contributes what the reference language(s) actually have, weighted by
+    how much of the total named influence actually backs each member --
+    e.g. Finnish's only geminate is "kː", not the whole ``_GEMINATE_
+    GROUP``; English has no plain "a", Nahuatl no "u", so ``_VOWEL_
+    ANCHORS`` (unconditional today regardless of any bias) needs this
+    too. Independent per member (no cross-member summing), so no
+    double-counting risk the way a group-*level* gate has."""
+    if not reference_weights or strictness <= 0.0:
         return group
     kept = []
     for member in group:
-        in_reference = member.ipa in reference_symbols
-        if rng.random() < biased_probability(1.0, strictness if in_reference else -strictness):
+        weight = reference_weights.get(member.ipa, 0.0)
+        in_reference = weight > 0.0
+        if rng.random() < biased_probability(1.0, strictness * weight if in_reference else -strictness):
             kept.append(member)
     return tuple(kept)
 
@@ -771,7 +825,8 @@ def _force_include(selected: list, pool: tuple, must_include: frozenset[str]) ->
 def _select_consonants(
     rng: random.Random,
     spec: GenerationSpec,
-    reference_symbols: frozenset[str],
+    reference_weights: dict[str, float],
+    weighted_profiles: WeightedProfiles,
     strictness: float = 0.0,
     must_include: frozenset[str] = frozenset(),
 ) -> list[Consonant]:
@@ -784,14 +839,14 @@ def _select_consonants(
             if voiceless.ipa == "tʃ"
             else voiceless.prevalence
         )
-        voiceless_rate = _reference_biased_rate(voiceless_rate, voiceless.ipa, reference_symbols, strictness)
+        voiceless_rate = _reference_biased_rate(voiceless_rate, voiceless.ipa, reference_weights, strictness)
         if rng.random() < voiceless_rate:
             consonants.append(voiceless)
-            voiced_rate = _reference_biased_rate(voiced.prevalence, voiced.ipa, reference_symbols, strictness)
+            voiced_rate = _reference_biased_rate(voiced.prevalence, voiced.ipa, reference_weights, strictness)
             if rng.random() < voiced_rate:
                 consonants.append(voiced)
 
-    glottal_rate = _reference_biased_rate(_GLOTTAL_STOP.prevalence, _GLOTTAL_STOP.ipa, reference_symbols, strictness)
+    glottal_rate = _reference_biased_rate(_GLOTTAL_STOP.prevalence, _GLOTTAL_STOP.ipa, reference_weights, strictness)
     if rng.random() < glottal_rate:
         consonants.append(_GLOTTAL_STOP)
 
@@ -799,101 +854,101 @@ def _select_consonants(
         1.0 if spec.force_high_altitude else biased_probability(_EJECTIVE_GROUP_BASE_RATE, traits.altitude)
     )
     ejective_probability = _group_reference_bias(
-        ejective_probability, tuple(e.ipa for e in _EJECTIVES), reference_symbols, strictness
+        ejective_probability, tuple(e.ipa for e in _EJECTIVES), weighted_profiles, strictness
     )
     if rng.random() < ejective_probability:
-        consonants.extend(_strict_group_members(rng, _EJECTIVES, reference_symbols, strictness))
+        consonants.extend(_strict_group_members(rng, _EJECTIVES, reference_weights, strictness))
 
     uvular_probability = (
         1.0 if spec.force_isolated else biased_probability(_UVULAR_GROUP_BASE_RATE, traits.isolation)
     )
     uvular_probability = _group_reference_bias(
-        uvular_probability, tuple(u.ipa for u in _UVULAR_GROUP), reference_symbols, strictness
+        uvular_probability, tuple(u.ipa for u in _UVULAR_GROUP), weighted_profiles, strictness
     )
     if rng.random() < uvular_probability:
-        consonants.extend(_strict_group_members(rng, _UVULAR_GROUP, reference_symbols, strictness))
+        consonants.extend(_strict_group_members(rng, _UVULAR_GROUP, reference_weights, strictness))
 
     aspirated_probability = _group_reference_bias(
-        _ASPIRATED_GROUP_BASE_RATE, tuple(c.ipa for c in _ASPIRATED_GROUP), reference_symbols, strictness
+        _ASPIRATED_GROUP_BASE_RATE, tuple(c.ipa for c in _ASPIRATED_GROUP), weighted_profiles, strictness
     )
     if rng.random() < aspirated_probability:
-        consonants.extend(_strict_group_members(rng, _ASPIRATED_GROUP, reference_symbols, strictness))
+        consonants.extend(_strict_group_members(rng, _ASPIRATED_GROUP, reference_weights, strictness))
 
     pharyngealized_probability = _group_reference_bias(
-        _PHARYNGEALIZED_GROUP_BASE_RATE, tuple(c.ipa for c in _PHARYNGEALIZED_GROUP), reference_symbols, strictness
+        _PHARYNGEALIZED_GROUP_BASE_RATE, tuple(c.ipa for c in _PHARYNGEALIZED_GROUP), weighted_profiles, strictness
     )
     if rng.random() < pharyngealized_probability:
-        consonants.extend(_strict_group_members(rng, _PHARYNGEALIZED_GROUP, reference_symbols, strictness))
+        consonants.extend(_strict_group_members(rng, _PHARYNGEALIZED_GROUP, reference_weights, strictness))
 
     geminate_probability = _group_reference_bias(
-        _GEMINATE_GROUP_BASE_RATE, tuple(c.ipa for c in _GEMINATE_GROUP), reference_symbols, strictness
+        _GEMINATE_GROUP_BASE_RATE, tuple(c.ipa for c in _GEMINATE_GROUP), weighted_profiles, strictness
     )
     if rng.random() < geminate_probability:
-        consonants.extend(_strict_group_members(rng, _GEMINATE_GROUP, reference_symbols, strictness))
+        consonants.extend(_strict_group_members(rng, _GEMINATE_GROUP, reference_weights, strictness))
 
     palatalized_probability = _group_reference_bias(
-        _PALATALIZED_GROUP_BASE_RATE, tuple(c.ipa for c in _PALATALIZED_GROUP), reference_symbols, strictness
+        _PALATALIZED_GROUP_BASE_RATE, tuple(c.ipa for c in _PALATALIZED_GROUP), weighted_profiles, strictness
     )
     if rng.random() < palatalized_probability:
-        consonants.extend(_strict_group_members(rng, _PALATALIZED_GROUP, reference_symbols, strictness))
+        consonants.extend(_strict_group_members(rng, _PALATALIZED_GROUP, reference_weights, strictness))
 
     alveolo_palatal_probability = _group_reference_bias(
-        _ALVEOLO_PALATAL_GROUP_BASE_RATE, tuple(c.ipa for c in _ALVEOLO_PALATAL_GROUP), reference_symbols, strictness
+        _ALVEOLO_PALATAL_GROUP_BASE_RATE, tuple(c.ipa for c in _ALVEOLO_PALATAL_GROUP), weighted_profiles, strictness
     )
     if rng.random() < alveolo_palatal_probability:
-        consonants.extend(_strict_group_members(rng, _ALVEOLO_PALATAL_GROUP, reference_symbols, strictness))
+        consonants.extend(_strict_group_members(rng, _ALVEOLO_PALATAL_GROUP, reference_weights, strictness))
 
     for nasal in _NASAL_POOL:
         rate = biased_probability(nasal.prevalence, -traits.aesthetic_harshness) if nasal is _ng else nasal.prevalence
-        rate = _reference_biased_rate(rate, nasal.ipa, reference_symbols, strictness)
+        rate = _reference_biased_rate(rate, nasal.ipa, reference_weights, strictness)
         if rng.random() < rate:
             consonants.append(nasal)
 
     for fricative in _FRICATIVE_POOL:
         rate = _fricative_inclusion_probability(fricative, traits.aesthetic_harshness)
-        rate = _reference_biased_rate(rate, fricative.ipa, reference_symbols, strictness)
+        rate = _reference_biased_rate(rate, fricative.ipa, reference_weights, strictness)
         if rng.random() < rate:
             consonants.append(fricative)
 
     for approximant in _APPROXIMANT_POOL:
-        rate = _reference_biased_rate(approximant.prevalence, approximant.ipa, reference_symbols, strictness)
+        rate = _reference_biased_rate(approximant.prevalence, approximant.ipa, reference_weights, strictness)
         if rng.random() < rate:
             consonants.append(approximant)
 
     for exotic in _EXOTIC_POOL:
-        rate = _reference_biased_rate(exotic.prevalence, exotic.ipa, reference_symbols, strictness)
+        rate = _reference_biased_rate(exotic.prevalence, exotic.ipa, reference_weights, strictness)
         if rng.random() < rate:
             consonants.append(exotic)
 
     breathy_probability = _group_reference_bias(
-        _BREATHY_GROUP_BASE_RATE, tuple(c.ipa for c in _BREATHY_GROUP), reference_symbols, strictness
+        _BREATHY_GROUP_BASE_RATE, tuple(c.ipa for c in _BREATHY_GROUP), weighted_profiles, strictness
     )
     if rng.random() < breathy_probability:
-        consonants.extend(_strict_group_members(rng, _BREATHY_GROUP, reference_symbols, strictness))
+        consonants.extend(_strict_group_members(rng, _BREATHY_GROUP, reference_weights, strictness))
 
     pre_aspirated_probability = _group_reference_bias(
-        _PRE_ASPIRATED_GROUP_BASE_RATE, tuple(c.ipa for c in _PRE_ASPIRATED_GROUP), reference_symbols, strictness
+        _PRE_ASPIRATED_GROUP_BASE_RATE, tuple(c.ipa for c in _PRE_ASPIRATED_GROUP), weighted_profiles, strictness
     )
     if rng.random() < pre_aspirated_probability:
-        consonants.extend(_strict_group_members(rng, _PRE_ASPIRATED_GROUP, reference_symbols, strictness))
+        consonants.extend(_strict_group_members(rng, _PRE_ASPIRATED_GROUP, reference_weights, strictness))
 
     consonants = _force_include(consonants, ALL_CONSONANTS, must_include)
-    return _ensure_floor(rng, consonants, ALL_CONSONANTS, _MIN_CONSONANTS, reference_symbols, strictness)
+    return _ensure_floor(rng, consonants, ALL_CONSONANTS, _MIN_CONSONANTS, frozenset(reference_weights), strictness)
 
 
 def _select_vowels(
     rng: random.Random,
-    reference_symbols: frozenset[str],
+    reference_weights: dict[str, float],
     strictness: float = 0.0,
     must_include: frozenset[str] = frozenset(),
 ) -> list[Vowel]:
-    vowels = list(_strict_group_members(rng, _VOWEL_ANCHORS, reference_symbols, strictness))
+    vowels = list(_strict_group_members(rng, _VOWEL_ANCHORS, reference_weights, strictness))
     for extra in _VOWEL_EXTRAS:
-        rate = _reference_biased_rate(extra.prevalence, extra.ipa, reference_symbols, strictness)
+        rate = _reference_biased_rate(extra.prevalence, extra.ipa, reference_weights, strictness)
         if rng.random() < rate:
             vowels.append(extra)
     vowels = _force_include(vowels, ALL_VOWELS, must_include)
-    return _ensure_floor(rng, vowels, ALL_VOWELS, _MIN_VOWELS, reference_symbols, strictness)
+    return _ensure_floor(rng, vowels, ALL_VOWELS, _MIN_VOWELS, frozenset(reference_weights), strictness)
 
 
 def _sonorant_or_glottal_symbols(consonants: tuple[Consonant, ...]) -> tuple[str, ...]:
@@ -902,7 +957,7 @@ def _sonorant_or_glottal_symbols(consonants: tuple[Consonant, ...]) -> tuple[str
 
 def _resolve_pair_restriction(
     rng: random.Random,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: tuple[tuple[ReferenceLanguageProfile, float], ...],
     strictness: float,
     first_symbols: tuple[str, ...],
     second_symbols: tuple[str, ...],
@@ -926,17 +981,31 @@ def _resolve_pair_restriction(
     of *forbidden* combinations (most languages -- English's real "dw-"
     never preceding a rounded vowel); whitelist mode is a small, nearly-
     closed *attested* list against a much larger theoretical space
-    (Mandarin-like). Multiple matched profiles combine via "the combined
-    *legal* set is the union of each language's own legal set" -- which
-    means blacklist-mode profiles *intersect* (a pair only stays forbidden
-    if every one of them forbids it) while whitelist-mode profiles *union*
-    (a pair is legal if either attests it); a mix of both collapses to
-    blacklist semantics, since there's no whitelist representation once
-    something else has already widened the legal set -- the combined
-    blacklist is the intersection of all blacklists, minus the union of
-    all whitelists as exemptions. Only when *every* matched profile is
-    whitelist-mode does the result stay genuine (restrictive) whitelist
-    semantics.
+    (Mandarin-like).
+
+    Blacklist-mode profiles now combine by **weighted majority**, not
+    unanimous intersection: a pair stays forbidden only if the *summed
+    weight* of blacklist-mode profiles forbidding it strictly exceeds the
+    summed weight of blacklist-mode profiles allowing it. This is a
+    deliberate generalization, not a bug -- with a single matched profile
+    (weight ``1.0``) or two *equally*-weighted profiles that disagree, it
+    reduces to exactly the original intersection outcome (a tie resolves
+    to "allowed," the same as intersection's own "not every profile
+    forbids it -> not forbidden"). But with three or more equally-weighted
+    profiles that only *partially* agree, weighted majority and true
+    intersection can genuinely differ (intersection demands unanimity;
+    weighted majority only demands over half) -- a conscious behavior
+    change for that specific case, not an oversight. Whitelist-mode
+    profiles still combine by plain union regardless of weight (a
+    whitelisted attestation, however lightly weighted, still exempts a
+    pair from the blacklist -- weighting a permissive floor down has no
+    coherent reading the way weighting a restriction down does); a mix of
+    both collapses to blacklist semantics, since there's no whitelist
+    representation once something else has already widened the legal set
+    -- the combined blacklist is the weighted-majority blacklist minus the
+    union of all whitelists as exemptions. Only when *every* matched
+    profile is whitelist-mode does the result stay genuine (restrictive)
+    whitelist semantics.
 
     No source language matched at all: this axis doesn't depend on source
     languages -- it rolls its own blacklist-or-whitelist mode from
@@ -947,16 +1016,27 @@ def _resolve_pair_restriction(
     a symbol totally unreachable in this position, per "a whitelist should
     generally be large enough to support a language."
     """
-    if reference_profiles:
-        blacklist_profiles = [p for p in reference_profiles if getattr(p, blacklist_field)]
-        whitelist_profiles = [p for p in reference_profiles if getattr(p, whitelist_field)]
+    if weighted_profiles:
+        blacklist_profiles = [(p, w) for p, w in weighted_profiles if getattr(p, blacklist_field)]
+        whitelist_profiles = [(p, w) for p, w in weighted_profiles if getattr(p, whitelist_field)]
         symbol_space = frozenset(first_symbols) | frozenset(second_symbols)
 
         if blacklist_profiles or not whitelist_profiles:
-            combined_blacklist = frozenset(getattr(blacklist_profiles[0], blacklist_field)) if blacklist_profiles else frozenset()
-            for profile in blacklist_profiles[1:]:
-                combined_blacklist &= frozenset(getattr(profile, blacklist_field))
-            combined_whitelist = frozenset().union(*(getattr(p, whitelist_field) for p in whitelist_profiles)) if whitelist_profiles else frozenset()
+            all_forbidden_pairs: set[tuple[str, str]] = set()
+            forbidding_weight_by_pair: dict[tuple[str, str], float] = {}
+            for profile, weight in blacklist_profiles:
+                for pair in getattr(profile, blacklist_field):
+                    all_forbidden_pairs.add(pair)
+                    forbidding_weight_by_pair[pair] = forbidding_weight_by_pair.get(pair, 0.0) + weight
+            total_blacklist_weight = sum(weight for _, weight in blacklist_profiles)
+            combined_blacklist = frozenset(
+                pair
+                for pair in all_forbidden_pairs
+                if forbidding_weight_by_pair[pair] > total_blacklist_weight - forbidding_weight_by_pair[pair]
+            )
+            combined_whitelist = (
+                frozenset().union(*(getattr(p, whitelist_field) for p, _ in whitelist_profiles)) if whitelist_profiles else frozenset()
+            )
             effective_blacklist = frozenset(
                 pair for pair in (combined_blacklist - combined_whitelist) if pair[0] in symbol_space and pair[1] in symbol_space
             )
@@ -966,7 +1046,7 @@ def _resolve_pair_restriction(
         else:
             combined_whitelist = frozenset(
                 pair
-                for pair in frozenset().union(*(getattr(p, whitelist_field) for p in whitelist_profiles))
+                for pair in frozenset().union(*(getattr(p, whitelist_field) for p, _ in whitelist_profiles))
                 if pair[0] in symbol_space and pair[1] in symbol_space
             )
             if strictness <= 0.0:
@@ -997,7 +1077,7 @@ def _resolve_pair_restriction(
 
 def _resolve_onset_nucleus_restriction(
     rng: random.Random,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: WeightedProfiles,
     strictness: float,
     consonant_symbols: tuple[str, ...],
     vowel_symbols: tuple[str, ...],
@@ -1005,14 +1085,14 @@ def _resolve_onset_nucleus_restriction(
 ) -> tuple[tuple[tuple[str, str], ...] | None, tuple[tuple[str, str], ...]]:
     """Onset+nucleus co-occurrence -- see ``_resolve_pair_restriction``."""
     return _resolve_pair_restriction(
-        rng, reference_profiles, strictness, consonant_symbols, vowel_symbols, phonotactic_restrictiveness,
+        rng, weighted_profiles, strictness, consonant_symbols, vowel_symbols, phonotactic_restrictiveness,
         "restricted_onset_nucleus_pairs", "attested_onset_nucleus_pairs",
     )
 
 
 def _resolve_nucleus_coda_restriction(
     rng: random.Random,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: WeightedProfiles,
     strictness: float,
     vowel_symbols: tuple[str, ...],
     consonant_symbols: tuple[str, ...],
@@ -1020,14 +1100,14 @@ def _resolve_nucleus_coda_restriction(
 ) -> tuple[tuple[tuple[str, str], ...] | None, tuple[tuple[str, str], ...]]:
     """Nucleus+coda co-occurrence -- see ``_resolve_pair_restriction``."""
     return _resolve_pair_restriction(
-        rng, reference_profiles, strictness, vowel_symbols, consonant_symbols, phonotactic_restrictiveness,
+        rng, weighted_profiles, strictness, vowel_symbols, consonant_symbols, phonotactic_restrictiveness,
         "restricted_nucleus_coda_pairs", "attested_nucleus_coda_pairs",
     )
 
 
 def _resolve_coda_onset_boundary_restriction(
     rng: random.Random,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: WeightedProfiles,
     strictness: float,
     consonant_symbols: tuple[str, ...],
     phonotactic_restrictiveness: float,
@@ -1036,7 +1116,7 @@ def _resolve_coda_onset_boundary_restriction(
     ``_resolve_pair_restriction``. Both sides draw from the same
     consonant pool."""
     return _resolve_pair_restriction(
-        rng, reference_profiles, strictness, consonant_symbols, consonant_symbols, phonotactic_restrictiveness,
+        rng, weighted_profiles, strictness, consonant_symbols, consonant_symbols, phonotactic_restrictiveness,
         "restricted_coda_onset_pairs", "attested_coda_onset_pairs",
     )
 
@@ -1051,7 +1131,7 @@ is exactly ``1.0``, i.e. unchanged from today's uninfluenced behavior."""
 
 def _resolve_position_multipliers(
     symbols: tuple[str, ...],
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    reference_profiles: tuple[tuple[ReferenceLanguageProfile, float], ...],
     strictness: float,
     field: str,
 ) -> tuple[tuple[str, float], ...]:
@@ -1072,21 +1152,25 @@ def _resolve_position_multipliers(
     weights, not probabilities of a binary event. A no-op at
     ``strictness<=0`` or with no matched profile, same guarantee as every
     other axis in this feature. Multiple matched profiles disagreeing on
-    a symbol's tier average their weights (not a union/intersection --
-    there's no legal/illegal split here to combine that way)."""
+    a symbol's tier take a real *weighted* average now (each profile's own
+    tier weighted by its own relative influence), not a plain unweighted
+    mean -- a symbol the 70%-weighted language tiers "very_common" and the
+    30%-weighted one tiers "rare" lands close to "very_common," not
+    exactly halfway between the two."""
     if not reference_profiles or strictness <= 0.0:
         return ()
     result = []
     for symbol in symbols:
-        tier_weights = [
-            _FREQUENCY_TIER_WEIGHTS[tier]
-            for p in reference_profiles
+        weighted_tier_values = [
+            (_FREQUENCY_TIER_WEIGHTS[tier], weight)
+            for p, weight in reference_profiles
             for tier, members in getattr(p, field).items()
             if symbol in members
         ]
-        if not tier_weights:
+        if not weighted_tier_values:
             continue
-        target = sum(tier_weights) / len(tier_weights)
+        total_weight = sum(weight for _, weight in weighted_tier_values)
+        target = sum(value * weight for value, weight in weighted_tier_values) / total_weight
         result.append((symbol, 1.0 + strictness * (target - 1.0)))
     return tuple(result)
 
@@ -1096,7 +1180,18 @@ def generate_phonology(
 ) -> tuple[PhonemeInventory, SyllableStructure, ToneSystem, WordAccentSystem]:
     traits = spec.traits
     reference_profiles = match_profiles(traits.source_languages)
-    reference_symbols: frozenset[str] = frozenset().union(*(p.symbols() for p in reference_profiles)) if reference_profiles else frozenset()
+    weighted_profiles = match_profiles_weighted(traits.source_languages, traits.source_language_weights)
+    # Per-symbol combined weight across every contributing profile, summed
+    # and capped at 1.0 -- the weighted stand-in for what used to be a flat
+    # `reference_symbols: frozenset[str]` membership test. `_reference_
+    # biased_rate`/`_strict_group_members` read this to scale their own
+    # strictness pull by how much of the total named influence actually
+    # backs each symbol, instead of treating "curated by a 10%-weighted
+    # language" and "curated by every matched language" identically.
+    reference_weights: dict[str, float] = {}
+    for profile, weight in weighted_profiles:
+        for symbol in profile.symbols():
+            reference_weights[symbol] = min(1.0, reference_weights.get(symbol, 0.0) + weight)
     strictness = traits.source_language_strictness if reference_profiles else 0.0
 
     seed_ipa_text = "".join(example.ipa or "" for example in spec.seed_examples)
@@ -1106,47 +1201,61 @@ def generate_phonology(
     must_include_consonants = frozenset(t for t in seed_tokens if t in consonant_symbol_pool)
     must_include_vowels = frozenset(t for t in seed_tokens if t in vowel_symbol_pool)
 
-    consonants = tuple(_select_consonants(rng, spec, reference_symbols, strictness, must_include_consonants))
-    vowels = tuple(_select_vowels(rng, reference_symbols, strictness, must_include_vowels))
+    consonants = tuple(
+        _select_consonants(rng, spec, reference_weights, weighted_profiles, strictness, must_include_consonants)
+    )
+    vowels = tuple(_select_vowels(rng, reference_weights, strictness, must_include_vowels))
     inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
     consonant_symbols = inventory.consonant_symbols()
     vowel_symbols_for_pairs = inventory.vowel_symbols()
     allowed_onset_nucleus_pairs, excluded_onset_nucleus_pairs = _resolve_onset_nucleus_restriction(
-        rng, reference_profiles, strictness, consonant_symbols, vowel_symbols_for_pairs, traits.phonotactic_restrictiveness
+        rng, weighted_profiles, strictness, consonant_symbols, vowel_symbols_for_pairs, traits.phonotactic_restrictiveness
     )
     allowed_nucleus_coda_pairs, excluded_nucleus_coda_pairs = _resolve_nucleus_coda_restriction(
-        rng, reference_profiles, strictness, vowel_symbols_for_pairs, consonant_symbols, traits.phonotactic_restrictiveness
+        rng, weighted_profiles, strictness, vowel_symbols_for_pairs, consonant_symbols, traits.phonotactic_restrictiveness
     )
     allowed_coda_onset_boundary_pairs, excluded_coda_onset_boundary_pairs = _resolve_coda_onset_boundary_restriction(
-        rng, reference_profiles, strictness, consonant_symbols, traits.phonotactic_restrictiveness
+        rng, weighted_profiles, strictness, consonant_symbols, traits.phonotactic_restrictiveness
     )
 
     # Onset-position restriction (e.g. /ŋ/ never opens a syllable in real
     # German/English) -- the onset-side mirror of the coda-devoicing
-    # exclusion below, graded by strictness the same "rng.random() <
-    # strictness per restricted symbol" way as every other axis in this
-    # feature (a no-op at strictness=0.0, since `restricted_onset` only
-    # matters once this loop actually runs).
+    # exclusion below. Each restricted symbol's own exclusion roll is now
+    # scaled by the *combined weight* of whichever matched profiles flag it
+    # restricted (summed, capped at 1.0) -- a symbol only a 10%-weighted
+    # profile restricts is far less likely to actually get excluded than
+    # one every matched profile agrees on; at a single matched profile
+    # (weight 1.0) this reproduces the old flat `strictness` roll exactly.
     excluded_onset_consonants: tuple[str, ...] = ()
-    if reference_profiles and strictness > 0.0:
-        restricted_onset = frozenset().union(
-            *(p.restricted_onset_consonants for p in reference_profiles)
-        ) & set(consonant_symbols)
-        excluded_onset_consonants = tuple(c for c in restricted_onset if rng.random() < strictness)
+    if weighted_profiles and strictness > 0.0:
+        restricted_onset_weight: dict[str, float] = {}
+        for profile, weight in weighted_profiles:
+            for symbol in profile.restricted_onset_consonants:
+                if symbol in consonant_symbols:
+                    restricted_onset_weight[symbol] = min(1.0, restricted_onset_weight.get(symbol, 0.0) + weight)
+        excluded_onset_consonants = tuple(
+            symbol for symbol, weight in restricted_onset_weight.items() if rng.random() < strictness * weight
+        )
 
     onset_pairs = sonority.legal_onset_pairs(consonants)
     if excluded_onset_consonants:
         onset_pairs = tuple(p for p in onset_pairs if p[0] not in excluded_onset_consonants and p[1] not in excluded_onset_consonants)
     if reference_profiles and strictness > 0.0:
-        attested_onset_clusters = frozenset().union(*(p.attested_onset_clusters for p in reference_profiles))
+        # Attested-cluster whitelisting: a plain union regardless of
+        # weight, same "a permissive floor doesn't weight down" rule
+        # `_resolve_pair_restriction`'s own whitelist branch documents.
+        attested_onset_clusters = frozenset().union(*(p.attested_onset_clusters for p, _ in weighted_profiles))
         onset_pairs = sonority.grade_against_attested(rng, onset_pairs, tuple(attested_onset_clusters), strictness)
     onset_cluster_probability = 0.5
-    if reference_profiles:
-        allows_onset_cluster = any(p.max_onset >= 2 for p in reference_profiles)
-        onset_cluster_probability = 0.85 if allows_onset_cluster else 0.1
+    if weighted_profiles:
+        weighted_allows_onset_cluster = min(
+            1.0, sum(weight for profile, weight in weighted_profiles if profile.max_onset >= 2)
+        )
+        onset_cluster_probability = 0.1 + weighted_allows_onset_cluster * (0.85 - 0.1)
         if strictness > 0.0:
             onset_cluster_probability = biased_probability(
-                onset_cluster_probability, strictness if allows_onset_cluster else -strictness
+                onset_cluster_probability,
+                strictness * weighted_allows_onset_cluster if weighted_allows_onset_cluster > 0.0 else -strictness,
             )
     max_onset = 2 if onset_pairs and rng.random() < onset_cluster_probability else 1
     allowed_onset_clusters = (
@@ -1154,30 +1263,43 @@ def generate_phonology(
     )
 
     coda_weights = list(_CODA_PROFILE_WEIGHTS)
-    if reference_profiles:
-        reference_coda_profiles = {p.coda_profile for p in reference_profiles}
-        coda_weights = [w * 4 if profile in reference_coda_profiles else w for profile, w in zip(_CODA_PROFILES, coda_weights)]
+    if weighted_profiles:
+        coda_profile_weight: dict[str, float] = {}
+        for profile, weight in weighted_profiles:
+            coda_profile_weight[profile.coda_profile] = min(1.0, coda_profile_weight.get(profile.coda_profile, 0.0) + weight)
+        coda_weights = [
+            w * (1 + 3 * coda_profile_weight.get(category, 0.0)) for category, w in zip(_CODA_PROFILES, coda_weights)
+        ]
         if strictness > 0.0:
             total = sum(coda_weights)
             coda_weights = [
-                total * biased_probability(w / total, strictness if profile in reference_coda_profiles else -strictness)
-                for profile, w in zip(_CODA_PROFILES, coda_weights)
+                total * biased_probability(
+                    w / total,
+                    strictness * coda_profile_weight.get(category, 0.0)
+                    if coda_profile_weight.get(category, 0.0) > 0.0
+                    else -strictness,
+                )
+                for category, w in zip(_CODA_PROFILES, coda_weights)
             ]
     coda_profile = rng.choices(_CODA_PROFILES, weights=coda_weights)[0]
 
     # Coda-position restriction (e.g. /j//w/ never close a syllable in
     # real English -- what looks like a word-final glide in English
     # spelling is actually part of a diphthong vowel) -- the coda-side
-    # mirror of the onset restriction above, same strictness grading.
+    # mirror of the onset restriction above, same weighted grading.
     # Computed once, ahead of the coda_profile branches below, since a
     # curated-restricted sonorant would otherwise still slip through the
     # "sonorant" branch's own `_sonorant_or_glottal_symbols` whitelist.
     restricted_coda: frozenset[str] = frozenset()
-    if reference_profiles and strictness > 0.0:
-        restricted_coda = frozenset().union(
-            *(p.restricted_coda_consonants for p in reference_profiles)
-        ) & set(consonant_symbols)
-        restricted_coda = frozenset(c for c in restricted_coda if rng.random() < strictness)
+    if weighted_profiles and strictness > 0.0:
+        restricted_coda_weight: dict[str, float] = {}
+        for profile, weight in weighted_profiles:
+            for symbol in profile.restricted_coda_consonants:
+                if symbol in consonant_symbols:
+                    restricted_coda_weight[symbol] = min(1.0, restricted_coda_weight.get(symbol, 0.0) + weight)
+        restricted_coda = frozenset(
+            symbol for symbol, weight in restricted_coda_weight.items() if rng.random() < strictness * weight
+        )
 
     excluded_coda_consonants: tuple[str, ...] = ()
     if coda_profile == "none":
@@ -1189,7 +1311,15 @@ def generate_phonology(
         else:
             max_coda, allowed_coda_consonants, allowed_coda_clusters = 0, None, ()
     else:  # unrestricted
-        if any(p.coda_devoicing for p in reference_profiles):
+        # `coda_devoicing` has no trait dial of its own -- same
+        # reference-profile-only gating `word_accent_realization` below
+        # uses, starting `_reference_clamp` from a base probability of 0.0
+        # so it never fires unmatched. Boolean-any replaced with a real
+        # weighted fraction: `weighted_profiles and ...` short-circuits so
+        # an unmatched run never spends an rng draw here, matching the old
+        # deterministic-false behavior exactly for that (by far the most
+        # common) case.
+        if weighted_profiles and rng.random() < _reference_clamp(0.0, weighted_profiles, "coda_devoicing", strictness):
             excluded_coda_consonants = tuple(
                 c.ipa
                 for c in consonants
@@ -1200,7 +1330,7 @@ def generate_phonology(
         excluded_coda_consonants = tuple(frozenset(excluded_coda_consonants) | restricted_coda)
         coda_pairs = sonority.exclude_final(sonority.legal_coda_pairs(consonants), excluded_coda_consonants)
         if reference_profiles and strictness > 0.0:
-            attested_coda_clusters = frozenset().union(*(p.attested_coda_clusters for p in reference_profiles))
+            attested_coda_clusters = frozenset().union(*(p.attested_coda_clusters for p, _ in weighted_profiles))
             coda_pairs = sonority.grade_against_attested(rng, coda_pairs, tuple(attested_coda_clusters), strictness)
         # Reference-biased the same shape onset_cluster_probability above
         # already is, keyed on max_coda instead of max_onset -- without
@@ -1209,13 +1339,16 @@ def generate_phonology(
         # clusters exist at all (see ReferenceLanguageProfile.max_coda's
         # own docstring for the real Thai bug this fixes).
         coda_cluster_probability = 0.3
-        curated_max_coda = [p.max_coda for p in reference_profiles if p.max_coda is not None]
-        if curated_max_coda:
-            allows_coda_cluster = any(m >= 2 for m in curated_max_coda)
-            coda_cluster_probability = 0.85 if allows_coda_cluster else 0.1
+        curated_max_coda_weighted = [(p.max_coda, weight) for p, weight in weighted_profiles if p.max_coda is not None]
+        if curated_max_coda_weighted:
+            weighted_allows_coda_cluster = min(
+                1.0, sum(weight for max_coda_value, weight in curated_max_coda_weighted if max_coda_value >= 2)
+            )
+            coda_cluster_probability = 0.1 + weighted_allows_coda_cluster * (0.85 - 0.1)
             if strictness > 0.0:
                 coda_cluster_probability = biased_probability(
-                    coda_cluster_probability, strictness if allows_coda_cluster else -strictness
+                    coda_cluster_probability,
+                    strictness * weighted_allows_coda_cluster if weighted_allows_coda_cluster > 0.0 else -strictness,
                 )
         if coda_pairs and rng.random() < coda_cluster_probability:
             max_coda, allowed_coda_consonants, allowed_coda_clusters = (
@@ -1225,7 +1358,7 @@ def generate_phonology(
             max_coda, allowed_coda_consonants, allowed_coda_clusters = 1, None, ()
 
     vowel_harmony_probability = biased_probability(_VOWEL_HARMONY_BASE_RATE, traits.isolation)
-    vowel_harmony_probability = _reference_clamp(vowel_harmony_probability, reference_profiles, "vowel_harmony", strictness)
+    vowel_harmony_probability = _reference_clamp(vowel_harmony_probability, weighted_profiles, "vowel_harmony", strictness)
     vowel_harmony = rng.random() < vowel_harmony_probability
 
     # In-word sampling-frequency realism (distinct from every restriction
@@ -1241,13 +1374,13 @@ def generate_phonology(
         else tuple(c for c in consonant_symbols if c not in excluded_coda_consonants)
     )
     onset_symbol_multipliers = _resolve_position_multipliers(
-        onset_legal_symbols, reference_profiles, strictness, "onset_frequency_tiers"
+        onset_legal_symbols, weighted_profiles, strictness, "onset_frequency_tiers"
     )
     nucleus_symbol_multipliers = _resolve_position_multipliers(
-        vowel_symbols_for_pairs, reference_profiles, strictness, "nucleus_frequency_tiers"
+        vowel_symbols_for_pairs, weighted_profiles, strictness, "nucleus_frequency_tiers"
     )
     coda_symbol_multipliers = _resolve_position_multipliers(
-        coda_legal_symbols, reference_profiles, strictness, "coda_frequency_tiers"
+        coda_legal_symbols, weighted_profiles, strictness, "coda_frequency_tiers"
     )
 
     syllable_structure = SyllableStructure(
@@ -1274,9 +1407,9 @@ def generate_phonology(
         1.0 if spec.force_tonal else biased_probability(0.35, traits.tonal_friendliness)
     )
     if not spec.force_tonal:
-        tonal_probability = _reference_clamp(tonal_probability, reference_profiles, "tonal", strictness)
+        tonal_probability = _reference_clamp(tonal_probability, weighted_profiles, "tonal", strictness)
     if rng.random() < tonal_probability:
-        levels = _choose_tone_levels(rng, reference_profiles, strictness)
+        levels = _choose_tone_levels(rng, weighted_profiles, strictness)
         tone_system = ToneSystem(enabled=True, levels=levels)
     else:
         tone_system = ToneSystem(enabled=False)
@@ -1297,7 +1430,7 @@ def generate_phonology(
     if tone_system.enabled or not word_accent_realization:
         word_accent_system = WordAccentSystem(enabled=False)
     else:
-        word_accent_probability = _reference_clamp(0.0, reference_profiles, "word_accent_realization", strictness)
+        word_accent_probability = _reference_clamp(0.0, weighted_profiles, "word_accent_realization", strictness)
         word_accent_system = (
             WordAccentSystem(enabled=True, realization=word_accent_realization)
             if rng.random() < word_accent_probability

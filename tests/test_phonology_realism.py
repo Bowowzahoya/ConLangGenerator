@@ -723,7 +723,7 @@ def test_choose_tone_levels_biases_toward_a_five_tone_profile_too():
     hits = sum(
         1
         for _ in range(500)
-        if len(phonology_gen._choose_tone_levels(rng, (thai_like,), 1.0)) == 5
+        if len(phonology_gen._choose_tone_levels(rng, ((thai_like, 1.0),), 1.0)) == 5
     )
     assert hits > 450
 
@@ -746,7 +746,7 @@ def test_choose_tone_levels_biases_toward_the_matched_profiles_own_tone_count():
     hits = sum(
         1
         for _ in range(500)
-        if len(phonology_gen._choose_tone_levels(rng, (cantonese_like,), 1.0)) == 6
+        if len(phonology_gen._choose_tone_levels(rng, ((cantonese_like, 1.0),), 1.0)) == 6
     )
     assert hits > 450
 
@@ -757,7 +757,7 @@ def test_choose_tone_levels_ignores_a_profile_with_no_tone_level_count_curated()
     # optional field.
     uncurated = _synthetic_profile("U")
     rng = random.Random(0)
-    lengths = [len(phonology_gen._choose_tone_levels(rng, (uncurated,), 1.0)) for _ in range(500)]
+    lengths = [len(phonology_gen._choose_tone_levels(rng, ((uncurated, 1.0),), 1.0)) for _ in range(500)]
     counts = {n: lengths.count(n) for n in {len(levels) for levels in phonology_gen._TONE_LEVEL_SETS}}
     # Roughly uniform -- no single length should dominate the way the
     # biased test above shows for a curated profile.
@@ -771,7 +771,7 @@ def test_resolve_onset_nucleus_restriction_intersects_two_blacklists():
     a = _synthetic_profile("A", restricted_onset_nucleus_pairs=(("w", "u"), ("p", "a")))
     b = _synthetic_profile("B", restricted_onset_nucleus_pairs=(("w", "u"),))
     allowed, excluded = phonology_gen._resolve_onset_nucleus_restriction(
-        random.Random(0), (a, b), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
+        random.Random(0), ((a, 1.0), (b, 1.0)), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
     )
     assert allowed is None
     assert set(excluded) == {("w", "u")}  # ("p", "a") only forbidden by A, so it's legal in the combination
@@ -783,7 +783,7 @@ def test_resolve_onset_nucleus_restriction_unions_two_whitelists():
     a = _synthetic_profile("A", attested_onset_nucleus_pairs=(("p", "a"),))
     b = _synthetic_profile("B", attested_onset_nucleus_pairs=(("t", "u"),))
     allowed, excluded = phonology_gen._resolve_onset_nucleus_restriction(
-        random.Random(0), (a, b), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
+        random.Random(0), ((a, 1.0), (b, 1.0)), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
     )
     assert excluded == ()
     assert set(allowed) == {("p", "a"), ("t", "u")}
@@ -797,7 +797,7 @@ def test_resolve_onset_nucleus_restriction_mixed_subtracts_whitelist_exemptions(
     blacklist = _synthetic_profile("BL", restricted_onset_nucleus_pairs=(("w", "u"), ("p", "a")))
     whitelist = _synthetic_profile("WL", attested_onset_nucleus_pairs=(("w", "u"),))
     allowed, excluded = phonology_gen._resolve_onset_nucleus_restriction(
-        random.Random(0), (blacklist, whitelist), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
+        random.Random(0), ((blacklist, 1.0), (whitelist, 1.0)), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
     )
     assert allowed is None
     assert set(excluded) == {("p", "a")}  # ("w", "u") exempted by the whitelist
@@ -810,7 +810,7 @@ def test_resolve_onset_nucleus_restriction_ignores_uncurated_profiles():
     curated = _synthetic_profile("Curated", restricted_onset_nucleus_pairs=(("w", "u"),))
     uncurated = _synthetic_profile("Uncurated")
     allowed, excluded = phonology_gen._resolve_onset_nucleus_restriction(
-        random.Random(0), (curated, uncurated), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
+        random.Random(0), ((curated, 1.0), (uncurated, 1.0)), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
     )
     assert allowed is None
     assert set(excluded) == {("w", "u")}
@@ -936,7 +936,7 @@ def test_resolve_nucleus_coda_restriction_intersects_two_blacklists():
     a = _synthetic_profile("A", restricted_nucleus_coda_pairs=(("i", "ŋ"), ("u", "n")))
     b = _synthetic_profile("B", restricted_nucleus_coda_pairs=(("i", "ŋ"),))
     allowed, excluded = phonology_gen._resolve_nucleus_coda_restriction(
-        random.Random(0), (a, b), 1.0, ("a", "i", "u"), ("ŋ", "n"), 0.0
+        random.Random(0), ((a, 1.0), (b, 1.0)), 1.0, ("a", "i", "u"), ("ŋ", "n"), 0.0
     )
     assert allowed is None
     assert set(excluded) == {("i", "ŋ")}  # ("u", "n") only forbidden by A
@@ -946,7 +946,7 @@ def test_resolve_nucleus_coda_restriction_unions_two_whitelists():
     a = _synthetic_profile("A", attested_nucleus_coda_pairs=(("a", "n"),))
     b = _synthetic_profile("B", attested_nucleus_coda_pairs=(("u", "t"),))
     allowed, excluded = phonology_gen._resolve_nucleus_coda_restriction(
-        random.Random(0), (a, b), 1.0, ("a", "u"), ("n", "t"), 0.0
+        random.Random(0), ((a, 1.0), (b, 1.0)), 1.0, ("a", "u"), ("n", "t"), 0.0
     )
     assert excluded == ()
     assert set(allowed) == {("a", "n"), ("u", "t")}
@@ -956,7 +956,7 @@ def test_resolve_nucleus_coda_restriction_ignores_uncurated_profiles():
     curated = _synthetic_profile("Curated", restricted_nucleus_coda_pairs=(("i", "ŋ"),))
     uncurated = _synthetic_profile("Uncurated")
     allowed, excluded = phonology_gen._resolve_nucleus_coda_restriction(
-        random.Random(0), (curated, uncurated), 1.0, ("a", "i"), ("ŋ", "n"), 0.0
+        random.Random(0), ((curated, 1.0), (uncurated, 1.0)), 1.0, ("a", "i"), ("ŋ", "n"), 0.0
     )
     assert allowed is None
     assert set(excluded) == {("i", "ŋ")}
@@ -982,7 +982,7 @@ def test_resolve_coda_onset_boundary_restriction_intersects_two_blacklists():
     a = _synthetic_profile("A", restricted_coda_onset_pairs=(("t", "l"), ("n", "d")))
     b = _synthetic_profile("B", restricted_coda_onset_pairs=(("t", "l"),))
     allowed, excluded = phonology_gen._resolve_coda_onset_boundary_restriction(
-        random.Random(0), (a, b), 1.0, ("t", "l", "n", "d"), 0.0
+        random.Random(0), ((a, 1.0), (b, 1.0)), 1.0, ("t", "l", "n", "d"), 0.0
     )
     assert allowed is None
     assert set(excluded) == {("t", "l")}  # ("n", "d") only forbidden by A
@@ -992,7 +992,7 @@ def test_resolve_coda_onset_boundary_restriction_unions_two_whitelists():
     a = _synthetic_profile("A", attested_coda_onset_pairs=(("n", "d"),))
     b = _synthetic_profile("B", attested_coda_onset_pairs=(("t", "l"),))
     allowed, excluded = phonology_gen._resolve_coda_onset_boundary_restriction(
-        random.Random(0), (a, b), 1.0, ("n", "d", "t", "l"), 0.0
+        random.Random(0), ((a, 1.0), (b, 1.0)), 1.0, ("n", "d", "t", "l"), 0.0
     )
     assert excluded == ()
     assert set(allowed) == {("n", "d"), ("t", "l")}
@@ -1002,7 +1002,7 @@ def test_resolve_coda_onset_boundary_restriction_ignores_uncurated_profiles():
     curated = _synthetic_profile("Curated", restricted_coda_onset_pairs=(("t", "l"),))
     uncurated = _synthetic_profile("Uncurated")
     allowed, excluded = phonology_gen._resolve_coda_onset_boundary_restriction(
-        random.Random(0), (curated, uncurated), 1.0, ("t", "l", "n"), 0.0
+        random.Random(0), ((curated, 1.0), (uncurated, 1.0)), 1.0, ("t", "l", "n"), 0.0
     )
     assert allowed is None
     assert set(excluded) == {("t", "l")}
@@ -1185,7 +1185,7 @@ def test_resolve_position_multipliers_lerps_from_1_0_toward_the_tier_weight():
     profile = _synthetic_profile("A", onset_frequency_tiers={"very_common": ("s",), "rare": ("z",)})
     for strictness, expected_s, expected_z in ((0.0, 1.0, 1.0), (0.5, 1.5, 1.0 - 0.425), (1.0, 2.0, 0.15)):
         result = dict(
-            phonology_gen._resolve_position_multipliers(("s", "z"), (profile,), strictness, "onset_frequency_tiers")
+            phonology_gen._resolve_position_multipliers(("s", "z"), ((profile, 1.0),), strictness, "onset_frequency_tiers")
         )
         if strictness <= 0.0:
             assert result == {}
@@ -1198,7 +1198,7 @@ def test_resolve_position_multipliers_common_tier_is_always_exactly_1_0():
     profile = _synthetic_profile("A", onset_frequency_tiers={"common": ("p",)})
     for strictness in (0.25, 0.5, 1.0):
         result = dict(
-            phonology_gen._resolve_position_multipliers(("p",), (profile,), strictness, "onset_frequency_tiers")
+            phonology_gen._resolve_position_multipliers(("p",), ((profile, 1.0),), strictness, "onset_frequency_tiers")
         )
         assert result["p"] == 1.0
 
@@ -1206,7 +1206,7 @@ def test_resolve_position_multipliers_common_tier_is_always_exactly_1_0():
 def test_resolve_position_multipliers_unflagged_symbol_gets_no_entry():
     profile = _synthetic_profile("A", onset_frequency_tiers={"very_common": ("s",)})
     result = dict(
-        phonology_gen._resolve_position_multipliers(("s", "t"), (profile,), 1.0, "onset_frequency_tiers")
+        phonology_gen._resolve_position_multipliers(("s", "t"), ((profile, 1.0),), 1.0, "onset_frequency_tiers")
     )
     assert "t" not in result
     assert result["s"] == 2.0
@@ -1216,7 +1216,7 @@ def test_resolve_position_multipliers_averages_disagreeing_profiles():
     a = _synthetic_profile("A", onset_frequency_tiers={"very_common": ("s",)})  # 2.0
     b = _synthetic_profile("B", onset_frequency_tiers={"rare": ("s",)})  # 0.15
     result = dict(
-        phonology_gen._resolve_position_multipliers(("s",), (a, b), 1.0, "onset_frequency_tiers")
+        phonology_gen._resolve_position_multipliers(("s",), ((a, 1.0), (b, 1.0)), 1.0, "onset_frequency_tiers")
     )
     assert result["s"] == pytest.approx((2.0 + 0.15) / 2)
 
@@ -1224,7 +1224,7 @@ def test_resolve_position_multipliers_averages_disagreeing_profiles():
 def test_resolve_position_multipliers_no_op_without_a_match_or_strictness():
     profile = _synthetic_profile("A", onset_frequency_tiers={"very_common": ("s",)})
     assert phonology_gen._resolve_position_multipliers(("s",), (), 1.0, "onset_frequency_tiers") == ()
-    assert phonology_gen._resolve_position_multipliers(("s",), (profile,), 0.0, "onset_frequency_tiers") == ()
+    assert phonology_gen._resolve_position_multipliers(("s",), ((profile, 1.0),), 0.0, "onset_frequency_tiers") == ()
 
 
 def _onset_token_share(rng: random.Random, inventory, structure, symbol: str, n: int = 200) -> float:
@@ -1467,3 +1467,140 @@ def test_reduce_unstressed_vowels_skips_a_swap_that_would_violate_a_nucleus_coda
         for i, ch in enumerate(bare):
             if ch == "ŋ" and i > 0 and bare[i - 1] in vowels:
                 assert bare[i - 1] != "ə"
+
+
+# --- source_language_weights: weighted redesign of phonology_gen.py's own
+# reference-bias combination points (Stage 3) ---
+
+
+def test_reference_biased_rate_full_weight_reproduces_full_strength_pull():
+    # A single matched profile (weight 1.0, the default/equal-weight case)
+    # must reproduce exactly what full strictness always did before
+    # weighting existed -- a certain pull all the way to the ceiling.
+    assert phonology_gen._reference_biased_rate(0.1, "k", {"k": 1.0}, 1.0) == pytest.approx(1.0)
+
+
+def test_reference_biased_rate_a_lighter_weight_pulls_less_strongly():
+    heavy = phonology_gen._reference_biased_rate(0.1, "k", {"k": 1.0}, 1.0)
+    light = phonology_gen._reference_biased_rate(0.1, "k", {"k": 0.2}, 1.0)
+    assert light < heavy
+
+
+def test_group_reference_bias_full_weight_reproduces_full_strength_pull():
+    profile = _synthetic_profile("A")  # default consonants include "p"
+    assert phonology_gen._group_reference_bias(0.1, ("p",), ((profile, 1.0),), 1.0) == pytest.approx(1.0)
+
+
+def test_group_reference_bias_a_lighter_weight_pulls_less_strongly():
+    profile = _synthetic_profile("A")
+    heavy = phonology_gen._group_reference_bias(0.1, ("p",), ((profile, 1.0),), 1.0)
+    light = phonology_gen._group_reference_bias(0.1, ("p",), ((profile, 0.2),), 1.0)
+    assert light < heavy
+
+
+def test_group_reference_bias_does_not_double_count_a_profile_with_two_group_members():
+    # A single profile contributing *two* group members must still only
+    # count its own weight once toward the group -- not once per member --
+    # the same double-counting hazard `_resolve_joint_spellings` guards
+    # against in romanization_gen.py.
+    profile = _synthetic_profile("A")  # default consonants ("p", "t", "w") cover both members
+    two_members = phonology_gen._group_reference_bias(0.1, ("p", "t"), ((profile, 0.4),), 1.0)
+    one_member = phonology_gen._group_reference_bias(0.1, ("p",), ((profile, 0.4),), 1.0)
+    assert two_members == pytest.approx(one_member)
+
+
+def test_reference_clamp_weighted_fraction_interpolates_continuously():
+    # A base probability already above the 0.75 floor (e.g. from a strong
+    # trait bias) is where the weighted-fraction interpolation actually
+    # shows: a profile backing only 30% of the total named influence
+    # should land well short of a fully-weighted match.
+    strong = ReferenceLanguageProfile(
+        name="Strong", consonants=("p",), vowels=("a",), coda_profile="unrestricted", max_onset=1, tonal=True
+    )
+    weak_nontonal = ReferenceLanguageProfile(
+        name="Weak", consonants=("p",), vowels=("a",), coda_profile="unrestricted", max_onset=1, tonal=False
+    )
+    full = phonology_gen._reference_clamp(0.9, ((strong, 1.0),), "tonal", 0.0)
+    partial = phonology_gen._reference_clamp(0.9, ((strong, 0.3), (weak_nontonal, 0.7)), "tonal", 0.0)
+    assert full == pytest.approx(0.9)
+    assert partial == pytest.approx(0.75 + 0.3 * (0.9 - 0.75))
+    assert partial < full
+
+
+def test_choose_tone_levels_a_heavier_weighted_profiles_tone_count_wins_out():
+    heavy = _synthetic_profile("Heavy", tone_level_count=6)
+    light = _synthetic_profile("Light", tone_level_count=5)
+    rng = random.Random(0)
+    hits_6 = sum(
+        1
+        for _ in range(500)
+        if len(phonology_gen._choose_tone_levels(rng, ((heavy, 0.9), (light, 0.1)), 1.0)) == 6
+    )
+    assert hits_6 > 300
+
+
+def test_resolve_position_multipliers_weighted_average_leans_toward_the_heavier_profile():
+    a = _synthetic_profile("A", onset_frequency_tiers={"very_common": ("s",)})  # 2.0
+    b = _synthetic_profile("B", onset_frequency_tiers={"rare": ("s",)})  # 0.15
+    skewed = dict(
+        phonology_gen._resolve_position_multipliers(("s",), ((a, 0.9), (b, 0.1)), 1.0, "onset_frequency_tiers")
+    )
+    equal = dict(
+        phonology_gen._resolve_position_multipliers(("s",), ((a, 1.0), (b, 1.0)), 1.0, "onset_frequency_tiers")
+    )
+    assert skewed["s"] == pytest.approx((2.0 * 0.9 + 0.15 * 0.1) / 1.0)
+    assert skewed["s"] > equal["s"]
+
+
+def test_resolve_pair_restriction_weighted_majority_can_diverge_from_true_intersection():
+    # Weighted-majority is a deliberate generalization of the old
+    # unanimous-intersection rule: with 3+ equally-weighted blacklist-mode
+    # profiles that only *partially* agree, a pair can stay forbidden even
+    # though not every one of them forbids it -- true intersection would
+    # have allowed it here (only 2 of the 3 forbid ("w", "u")).
+    a = _synthetic_profile("A", restricted_onset_nucleus_pairs=(("w", "u"), ("p", "a")))
+    b = _synthetic_profile("B", restricted_onset_nucleus_pairs=(("w", "u"),))
+    c = _synthetic_profile("C", restricted_onset_nucleus_pairs=(("t", "a"),))
+    allowed, excluded = phonology_gen._resolve_onset_nucleus_restriction(
+        random.Random(0), ((a, 1.0), (b, 1.0), (c, 1.0)), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
+    )
+    assert allowed is None
+    assert ("w", "u") in excluded  # 2/3 of the blacklist weight forbids it -- majority
+    assert ("p", "a") not in excluded  # only 1/3 forbids it -- minority, stays allowed
+    assert ("t", "a") not in excluded  # only 1/3 forbids it -- minority, stays allowed
+
+
+def test_resolve_pair_restriction_a_heavier_profiles_veto_outweighs_a_lighter_disagreement():
+    heavy = _synthetic_profile("Heavy", restricted_onset_nucleus_pairs=(("w", "u"),))
+    light = _synthetic_profile("Light", restricted_onset_nucleus_pairs=(("t", "a"),))
+    allowed, excluded = phonology_gen._resolve_onset_nucleus_restriction(
+        random.Random(0), ((heavy, 0.9), (light, 0.1)), 1.0, ("p", "t", "w"), ("a", "u"), 0.0
+    )
+    assert allowed is None
+    assert ("w", "u") in excluded  # 0.9 > 0.1 -- the heavier profile's own veto wins
+    assert ("t", "a") not in excluded  # only 0.1 of the weight forbids it
+
+
+def test_source_language_weights_bias_onset_cluster_probability_toward_the_heavier_language():
+    # Real English allows onset clusters (max_onset=2); real Japanese
+    # doesn't (max_onset=1). Weighting heavily toward English should
+    # produce a real onset cluster far more often than weighting heavily
+    # toward Japanese, at full strictness.
+    def _cluster_rate(weights: tuple[float, float]) -> float:
+        hits = 0
+        n = 150
+        for seed in range(n):
+            traits = TraitProfile(
+                source_languages=("English", "Japanese"),
+                source_language_weights=weights,
+                source_language_strictness=1.0,
+            )
+            spec = GenerationSpec(prompt="p", seed=seed, traits=traits)
+            _, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+            if structure.max_onset >= 2:
+                hits += 1
+        return hits / n
+
+    english_heavy = _cluster_rate((0.9, 0.1))
+    japanese_heavy = _cluster_rate((0.1, 0.9))
+    assert english_heavy > japanese_heavy
