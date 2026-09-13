@@ -465,12 +465,12 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # even one whose own pronunciation didn't shift this run at all. Fixed
     # seed known to reform at least one word while its IPA stays
     # byte-identical to the base. (Re-found repeatedly as downstream rng
-    # draws shift -- most recently against seed=5 after the word-class-
-    # paradigm batch's own new per-language rng draws shifted this once
-    # more, same "seed-shift from new content" pattern documented
-    # elsewhere in this project's history.)
+    # draws shift -- most recently against seed=3 after generator.py
+    # started rolling case/tense/agreement affixes for every language,
+    # shifting this once more, same "seed-shift from new content" pattern
+    # documented elsewhere in this project's history.)
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=5)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=3)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)

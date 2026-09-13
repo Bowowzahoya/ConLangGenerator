@@ -12,6 +12,7 @@ from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import (
     grammar_gen,
+    inflection_gen,
     lexicon_gen,
     phonology_gen,
     romanization_gen,
@@ -51,6 +52,13 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     )
     grammar = grammar.model_copy(
         update={"word_classes": word_classes, "word_class_deviation_rate": word_class_deviation_rate}
+    )
+
+    case_affixes = inflection_gen.generate_case_affixes(rng, inventory, syllable_structure, grammar.cases)
+    tense_affixes = inflection_gen.generate_tense_affixes(rng, inventory, syllable_structure, grammar.tenses)
+    agreement_affixes = inflection_gen.generate_agreement_affixes(rng, inventory, syllable_structure)
+    grammar = grammar.model_copy(
+        update={"case_affixes": case_affixes, "tense_affixes": tense_affixes, "agreement_affixes": agreement_affixes}
     )
 
     seed_entries = tuple(

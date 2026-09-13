@@ -65,6 +65,13 @@ _WORD_ORDER_REFERENCE_BOOST = 3.0  # same "*4 at full weight" shape phonology_ge
 
 _CASE_LABELS = ("nominative", "accusative", "genitive", "dative", "locative")
 
+_TENSE_LABELS_TWO_WAY = ("past", "non_past")
+_TENSE_LABELS_THREE_WAY = ("past", "present", "future")
+"""Two illustrative tense systems -- a simple past/non-past split (a real
+cross-linguistic pattern, e.g. Japanese) or the more familiar 3-way past/
+present/future -- rolled per language with no reference bias of its own
+(no per-profile tense-system data curated yet)."""
+
 _MIN_WEIGHT = 1.0  # rng.choices needs positive weights; floor after nudging
 
 _ROOT_AND_PATTERN_BASE_RATE = 0.03  # narrow typological category by default
@@ -271,6 +278,12 @@ def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile
         if num_cases > 0:
             cases = tuple(_CASE_LABELS[:num_cases])
 
+    # No cross-linguistic tendency this project curates to lean on for
+    # which tense system a language has -- an illustrative coin flip, the
+    # same honesty `is_prefixing`'s own invented-class coin flip already
+    # has (see `word_class_gen.py`).
+    tenses = _TENSE_LABELS_THREE_WAY if rng.random() < 0.5 else _TENSE_LABELS_TWO_WAY
+
     return GrammarProfile(
         word_order=word_order,
         morphological_type=morphological_type,
@@ -279,6 +292,7 @@ def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile
         adjective_after_noun=adjective_after_noun,
         has_overt_copula=has_overt_copula,
         cases=cases,
+        tenses=tenses,
         plural_suffix=None,
         uses_root_and_pattern=uses_root_and_pattern,
         templates=(),
