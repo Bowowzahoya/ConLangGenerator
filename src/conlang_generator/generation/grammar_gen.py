@@ -64,6 +64,14 @@ _WORD_ORDER_WEIGHTS = [45, 42, 9, 3, 1, 1]  # rough cross-linguistic frequency o
 _WORD_ORDER_REFERENCE_BOOST = 3.0  # same "*4 at full weight" shape phonology_gen.py's own coda_weights boost uses
 
 _CASE_LABELS = ("nominative", "accusative", "genitive", "dative", "locative")
+_ERGATIVE_CASE_LABELS = ("ergative", "absolutive", "genitive", "dative", "locative")
+"""The case-label pool for an ergative-absolutive language -- swapped in
+below instead of ``_CASE_LABELS``' own nominative/accusative labels,
+which only make sense for a nominative-accusative language. Same 5-label
+shape and illustrative-count roll otherwise; ``translation/translator.py``
+reads ``grammar.cases``/``grammar.alignment`` together to decide which of
+"accusative" (nominative-accusative: marks the object) or "ergative"
+(ergative-absolutive: marks a transitive subject) it actually needs."""
 
 _TENSE_LABELS_TWO_WAY = ("past", "non_past")
 _TENSE_LABELS_THREE_WAY = ("past", "present", "future")
@@ -248,6 +256,7 @@ def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile
     has_overt_copula_probability = _boolean_reference_bias(0.6, weighted_profiles, "real_has_overt_copula", strictness)
     has_overt_copula = rng.random() < has_overt_copula_probability
 
+    case_label_pool = _ERGATIVE_CASE_LABELS if alignment is Alignment.ERGATIVE_ABSOLUTIVE else _CASE_LABELS
     cases: tuple[str, ...] = ()
     if morphological_type is not MorphologicalType.ISOLATING:
         # Same unbiased roll as before, always -- preserves the exact rng
@@ -274,9 +283,9 @@ def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile
                 weight for _, weight in curated_case_counts
             )
             num_cases = round(num_cases + strictness * total_weight * (target_count - num_cases))
-            num_cases = max(0, min(len(_CASE_LABELS), num_cases))
+            num_cases = max(0, min(len(case_label_pool), num_cases))
         if num_cases > 0:
-            cases = tuple(_CASE_LABELS[:num_cases])
+            cases = tuple(case_label_pool[:num_cases])
 
     # No cross-linguistic tendency this project curates to lean on for
     # which tense system a language has -- an illustrative coin flip, the
