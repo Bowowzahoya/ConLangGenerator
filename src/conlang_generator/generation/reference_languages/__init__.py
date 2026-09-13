@@ -479,3 +479,38 @@ def match_profiles(names: tuple[str, ...]) -> tuple[ReferenceLanguageProfile, ..
                 matched.append(profile)
                 break
     return tuple(matched)
+
+
+def match_profiles_weighted(
+    names: tuple[str, ...], weights: tuple[float, ...] = ()
+) -> tuple[tuple[ReferenceLanguageProfile, float], ...]:
+    """Like ``match_profiles``, but pairs each matched profile with its
+    own relative weight from ``weights`` (aligned by index to ``names``
+    *before* matching, so an unknown/dropped name's own weight drops
+    with it rather than silently shifting every later index). ``weights``
+    empty, or shorter than ``names``, defaults every missing entry to
+    ``1.0`` -- today's unweighted behavior exactly (every matched
+    language counted equally). Weights are normalized to sum to ``1.0``
+    across the *matched* set only (an unmatched name's own weight is
+    simply discarded, not redistributed -- same "unknown names vanish
+    without a trace" spirit ``match_profiles`` already has). All-zero or
+    otherwise non-positive total weight (a degenerate input, not
+    something real callers should produce) falls back to equal weighting
+    rather than dividing by zero -- the same "never let a rare edge case
+    crash generation" discipline every other illustrative rate in this
+    project already follows."""
+    matched: list[tuple[ReferenceLanguageProfile, float]] = []
+    for i, raw_name in enumerate(names):
+        needle = raw_name.strip().lower()
+        weight = weights[i] if i < len(weights) else 1.0
+        for profile in REFERENCE_LANGUAGES:
+            if needle == profile.name.lower() or needle in profile.aliases:
+                matched.append((profile, weight))
+                break
+    if not matched:
+        return ()
+    total = sum(weight for _, weight in matched)
+    if total <= 0.0:
+        equal = 1.0 / len(matched)
+        return tuple((profile, equal) for profile, _ in matched)
+    return tuple((profile, weight / total) for profile, weight in matched)

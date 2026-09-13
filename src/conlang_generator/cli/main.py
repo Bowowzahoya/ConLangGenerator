@@ -41,6 +41,42 @@ def _client(llm: str):
         raise typer.Exit(code=1) from exc
 
 
+def _merge_source_languages(
+    existing_names: tuple[str, ...],
+    existing_weights: tuple[float, ...],
+    cli_entries: list[str],
+) -> tuple[tuple[str, ...], tuple[float, ...]]:
+    """Merges the classifier's own inferred ``source_languages``/
+    ``source_language_weights`` with ``--source-language`` CLI entries,
+    each optionally suffixed ``:WEIGHT`` (e.g. ``"French:0.7"``) --
+    unsuffixed entries (bare ``"French"``) carry no weight opinion of
+    their own. A name already present keeps its existing weight unless
+    this CLI entry explicitly supplies one (a bare CLI repeat of an
+    already-classifier-inferred language shouldn't silently overwrite
+    that inferred weight with a default ``1.0``); a genuinely new name
+    with no explicit weight defaults to ``1.0``, the same "unweighted
+    means equal" fallback ``match_profiles_weighted`` already applies.
+    Order is preserved, first-seen wins position (mirrors the plain
+    ``dict.fromkeys`` dedup this replaces)."""
+    weight_by_name: dict[str, float] = {
+        name: (existing_weights[i] if i < len(existing_weights) else 1.0) for i, name in enumerate(existing_names)
+    }
+    order = list(existing_names)
+    for entry in cli_entries:
+        name, _, raw_weight = entry.partition(":")
+        name = name.strip()
+        if name not in weight_by_name:
+            order.append(name)
+            weight_by_name[name] = 1.0
+        if raw_weight:
+            try:
+                weight_by_name[name] = float(raw_weight)
+            except ValueError:
+                typer.echo(f"error: --source-language weight must be a number, got {entry!r}", err=True)
+                raise typer.Exit(code=1) from None
+    return tuple(order), tuple(weight_by_name[name] for name in order)
+
+
 def _parse_enum_option(raw: str | None, enum_cls: type, flag: str):
     if raw is None:
         return None
@@ -77,7 +113,10 @@ def generate(
     tonal: bool = typer.Option(False, "--tonal", help="Force phonemic tone (guaranteed, not just likely)."),
     fantasy: bool = typer.Option(False, "--fantasy", help="Record as a fantasy-setting language (metadata only)."),
     source_language: list[str] = typer.Option(
-        [], "--source-language", help="Bias generation toward a known real language's palette (repeatable); merged with any the prompt implies. See --strictness."
+        [], "--source-language",
+        help="Bias generation toward a known real language's palette (repeatable); merged with any the prompt implies. "
+        "Optionally suffix a relative weight, e.g. --source-language 'French:0.7' --source-language 'German:0.3', "
+        "for mixing more than one unevenly (weights need not sum to 1 -- normalized automatically). See --strictness.",
     ),
     strictness: float = typer.Option(
         None, "--strictness",
@@ -138,8 +177,10 @@ def generate(
     client = _client(llm)
     traits = classify_prompt(prompt, fantasy, client)
     if source_language:
-        merged = tuple(dict.fromkeys((*traits.source_languages, *source_language)))
-        traits = traits.model_copy(update={"source_languages": merged})
+        merged_names, merged_weights = _merge_source_languages(
+            traits.source_languages, traits.source_language_weights, source_language
+        )
+        traits = traits.model_copy(update={"source_languages": merged_names, "source_language_weights": merged_weights})
     if strictness is not None:
         traits = traits.model_copy(update={"source_language_strictness": strictness})
 

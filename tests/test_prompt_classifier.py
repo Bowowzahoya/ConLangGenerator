@@ -92,6 +92,26 @@ def test_phonotactic_restrictiveness_parses_as_an_ordinary_graded_trait():
     assert profile.phonotactic_restrictiveness == 0.8
 
 
+def test_source_language_weights_parses_a_float_list():
+    client = _FixedJsonLLMClient(
+        '{"source_languages": ["French", "German"], "source_language_weights": [0.7, 0.3]}'
+    )
+    profile = classify_prompt("mostly French with a German influence", False, client)
+    assert profile.source_language_weights == (0.7, 0.3)
+
+
+def test_missing_source_language_weights_defaults_to_empty():
+    client = _FixedJsonLLMClient('{"source_languages": ["English", "German"]}')
+    profile = classify_prompt("basically a mix of English and German", False, client)
+    assert profile.source_language_weights == ()
+
+
+def test_source_language_weights_drops_non_numeric_entries():
+    client = _FixedJsonLLMClient('{"source_language_weights": [0.7, "a lot", 0.3]}')
+    profile = classify_prompt("anything", False, client)
+    assert profile.source_language_weights == (0.7, 0.3)
+
+
 def test_source_language_strictness_is_clamped_to_the_unit_interval():
     # Unlike the bipolar trait dimensions ([-1, 1]), strictness is
     # one-directional -- a value above 1.0 or below 0.0 (an LLM's JSON

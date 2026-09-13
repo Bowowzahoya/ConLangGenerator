@@ -9,7 +9,7 @@ from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation.grammar_gen import generate_grammar
 from conlang_generator.generation.phonology_gen import ALL_CONSONANTS, ALL_VOWELS, generate_phonology
-from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, match_profiles
+from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, match_profiles, match_profiles_weighted
 from conlang_generator.generation.romanization_gen import generate_romanization
 
 _SEEDS = range(150)
@@ -33,6 +33,53 @@ def test_match_profiles_is_case_insensitive_and_matches_aliases():
 
 def test_match_profiles_ignores_unknown_names():
     assert match_profiles(("Klingon", "not a real language")) == ()
+
+
+def test_match_profiles_weighted_defaults_to_equal_weight():
+    matched = match_profiles_weighted(("French", "German"))
+    weights = {p.name: w for p, w in matched}
+    assert weights["French"] == pytest.approx(0.5)
+    assert weights["German"] == pytest.approx(0.5)
+
+
+def test_match_profiles_weighted_normalizes_to_one():
+    matched = match_profiles_weighted(("French", "German"), (0.7, 0.3))
+    weights = {p.name: w for p, w in matched}
+    assert weights["French"] == pytest.approx(0.7)
+    assert weights["German"] == pytest.approx(0.3)
+
+
+def test_match_profiles_weighted_normalizes_unnormalized_input():
+    matched = match_profiles_weighted(("French", "German"), (7.0, 3.0))
+    weights = {p.name: w for p, w in matched}
+    assert weights["French"] == pytest.approx(0.7)
+    assert weights["German"] == pytest.approx(0.3)
+
+
+def test_match_profiles_weighted_drops_unmatched_names_and_their_own_weight():
+    matched = match_profiles_weighted(("French", "Klingon", "German"), (0.6, 100.0, 0.4))
+    weights = {p.name: w for p, w in matched}
+    assert set(weights) == {"French", "German"}
+    assert weights["French"] == pytest.approx(0.6)
+    assert weights["German"] == pytest.approx(0.4)
+
+
+def test_match_profiles_weighted_defaults_missing_trailing_weights_to_one():
+    matched = match_profiles_weighted(("French", "German"), (1.0,))
+    weights = {p.name: w for p, w in matched}
+    assert weights["French"] == pytest.approx(0.5)
+    assert weights["German"] == pytest.approx(0.5)
+
+
+def test_match_profiles_weighted_falls_back_to_equal_for_degenerate_zero_weights():
+    matched = match_profiles_weighted(("French", "German"), (0.0, 0.0))
+    weights = {p.name: w for p, w in matched}
+    assert weights["French"] == pytest.approx(0.5)
+    assert weights["German"] == pytest.approx(0.5)
+
+
+def test_match_profiles_weighted_empty_for_no_matches():
+    assert match_profiles_weighted(("Klingon",), (1.0,)) == ()
 
 
 def test_every_reference_symbol_is_in_our_own_phoneme_pool():

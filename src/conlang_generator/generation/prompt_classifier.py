@@ -77,6 +77,15 @@ Dimensions, with what a positive (+) vs. negative (-) value means for each:
 Also extract:
 - "source_languages": named real languages/language families the text \
 mentions or clearly evokes, as a list of strings (usually empty).
+- "source_language_weights": a list of numbers, the same length as \
+"source_languages", only meaningful when more than one language is \
+named, for how much of the influence comes from each one (need not sum \
+to 1.0 -- normalized automatically). Omit entirely (or leave every \
+value equal) unless the text itself implies an *uneven* mix, e.g. \
+"mostly French with a Slavic undertone" is uneven (French should \
+dominate); "a blend of English and German" is not (nothing says one \
+outweighs the other) -- default to equal weights rather than guessing \
+an uneven split the text doesn't actually support.
 - "source_language_strictness": a number from 0.0 to 1.0, only meaningful \
 when "source_languages" is non-empty, for how closely the text asks the \
 generated language to resemble the named language(s) specifically (as \
@@ -152,12 +161,27 @@ syllable for tone," would extract the same value.)
 
 Prompt: "a language that's basically a mix of English and German, should \
 sound like a close cousin of both"
--> source_languages: ["English", "German"], source_language_strictness: \
-0.85, every other dimension: 0.0. (Multiple named languages are fine --
+-> source_languages: ["English", "German"], source_language_weights: \
+[1, 1] (or omitted -- equivalent), source_language_strictness: 0.85, \
+every other dimension: 0.0. (Multiple named languages are fine -- \
 strictness is one shared number covering closeness to the *combination* \
 of everything named, not a separate value per language. "Basically a mix \
 of" + "close cousin of both" is explicit and central, so strictness sits \
-high, same reasoning as any other dimension's 0.7-0.9 band.)
+high, same reasoning as any other dimension's 0.7-0.9 band. Nothing in \
+the text says one outweighs the other, so the weights stay equal --
+"mix of X and Y" alone is not evidence of an uneven blend.)
+
+Prompt: "a language with a mostly French base, but with a noticeable \
+German influence from centuries of a shared border"
+-> source_languages: ["French", "German"], source_language_weights: \
+[0.7, 0.3], source_language_strictness: 0.5, every other dimension: 0.0. \
+("Mostly X, but with a noticeable Y influence" is real, direct evidence \
+of an *uneven* mix, unlike the plain "mix of X and Y" case above -- \
+French should clearly dominate, German should be a real but secondary \
+presence, not a coin flip between them. The specific numbers are \
+illustrative of the *ratio* the text implies (clearly more than half but \
+not overwhelming), not read off the text literally -- there's no "70%" \
+in the prompt itself.)
 
 Prompt: "a language with a small, rigid set of allowed syllables, almost \
 like a fixed syllabary, no source language in mind"
@@ -201,6 +225,7 @@ def _parse(text: str) -> TraitProfile:
     values: dict[str, object] = {field: _coerce_bipolar_float(raw.get(field)) for field in GRADED_TRAIT_FIELDS}
     for field in _LIST_FIELDS:
         values[field] = _coerce_str_tuple(raw.get(field))
+    values["source_language_weights"] = _coerce_float_tuple(raw.get("source_language_weights"))
     values["source_language_strictness"] = _coerce_unit_float(raw.get("source_language_strictness"))
     values["time_depth_years"] = _coerce_optional_int(raw.get("time_depth_years"))
     values["requested_orthography_style"] = _coerce_str(raw.get("requested_orthography_style"))
@@ -232,6 +257,24 @@ def _coerce_str_tuple(value: object) -> tuple[str, ...]:
     if not isinstance(value, list):
         return ()
     return tuple(str(item) for item in value if isinstance(item, str))
+
+
+def _coerce_float_tuple(value: object) -> tuple[float, ...]:
+    """Like ``_coerce_str_tuple`` but for ``source_language_weights`` --
+    a non-numeric entry (the LLM hedging with ``null``, say) drops out
+    silently rather than raising, the same lenient-parsing spirit every
+    other coercion here already has; ``match_profiles_weighted`` already
+    tolerates a shorter-than-``source_languages`` result (defaults the
+    rest to equal weight), so there's no need to pad here too."""
+    if not isinstance(value, list):
+        return ()
+    result = []
+    for item in value:
+        try:
+            result.append(float(item))
+        except (TypeError, ValueError):
+            continue
+    return tuple(result)
 
 
 def _coerce_optional_int(value: object) -> int | None:

@@ -99,6 +99,19 @@ class TraitProfile(BaseModel, frozen=True):
     named languages, but never from outside all of them. Gradeable in
     between. See ``generation.trait_bias.biased_probability``, the shared
     interpolation this reuses throughout."""
+    source_language_weights: tuple[float, ...] = ()
+    """Relative influence of each same-index entry in ``source_languages``
+    -- empty (the default) means every named language is weighted
+    equally, reproducing today's behavior exactly. Not required to sum to
+    1.0 -- normalized at the point of use (see
+    ``generation.reference_languages.match_profiles_weighted``).
+    Meaningless with fewer than 2 ``source_languages``. Orthogonal to
+    ``source_language_strictness``: strictness is "how hard to pull
+    toward the named language(s), as a group"; this is "how much of that
+    pull comes from which one," e.g. a mostly-French, somewhat-German
+    conlang is ``source_languages=("French", "German")``,
+    ``source_language_weights=(0.7, 0.3)``, at whatever strictness the
+    text separately supports."""
     salient_vocabulary_domains: tuple[str, ...] = ()
     """Subsistence/culture-driven vocabulary domains (e.g. "seafaring",
     "herding"); recorded only, not yet used to expand the core lexicon."""
