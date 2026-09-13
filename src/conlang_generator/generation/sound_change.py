@@ -186,6 +186,82 @@ def _compute_rates(years: int, traits: TraitProfile) -> _Rates:
     )
 
 
+def _reachable_sound_change_symbols(rates: _Rates) -> frozenset[str]:
+    """The bounded set of IPA symbols this run's sound-change rules could
+    actually introduce beyond the base language's own inventory, given
+    ``rates``. Each rule maps a small, fixed set of symbols to another
+    fixed symbol (``_VOICELESS_TO_VOICED``/``_PALATALIZATION``/
+    ``_PLAIN_TO_EJECTIVE`` above, plus vowel reduction's "ə"), and a rule
+    at rate 0 can never fire at all (every ``_apply_*``/
+    ``_simplify_clusters`` function early-returns on ``rate <= 0``), so
+    excluding an inactive rule's own targets keeps this as tight as the
+    run can actually produce -- at ``years=0`` (every rate saturates to
+    exactly 0) this is the empty set, so a language's reconstructed
+    inventory is byte-for-byte the same tokenization as its base's own.
+
+    This closure only needs one pass: `_evolve_ipa`'s six rules apply in
+    a fixed order to an already-tokenized list, each looking only at
+    symbols already in that list (either from the base language's own
+    inventory, or from a fresh token this same closure already
+    accounts for) -- no rule's own *output* symbol ever becomes a later
+    rule's *input* trigger (lenition's voiced outputs aren't in
+    ``_PALATALIZATION``'s keys, palatalization's affricate outputs
+    aren't in ``_PLAIN_TO_EJECTIVE``'s keys, etc.), so there's no chain
+    of introduced symbols enabling further introduced symbols to track.
+
+    Used to keep ``ipa_tokenizer``'s own greedy-longest-match candidate
+    set (see ``evolve_language``'s own ``known_symbols``/
+    ``reconstruction_symbols``) from ever containing some *other*
+    profile's coincidentally-same-spelled multi-character phoneme (e.g.
+    Swahili's prenasalized stop "nz" in ``phonology_gen.ALL_CONSONANTS``)
+    that this language's own words -- pre- or post-evolution -- could
+    never actually produce, which would otherwise let the tokenizer
+    mis-parse two real, adjacent single-character phonemes (one
+    syllable's coda "n" immediately followed by the next syllable's
+    onset "z") as that unrelated phoneme instead."""
+    symbols: set[str] = set()
+    if rates.lenition > 0:
+        symbols.update(_VOICELESS_TO_VOICED.values())
+    if rates.final_devoicing > 0:
+        symbols.update(_VOICELESS_TO_VOICED.keys())
+    if rates.palatalization > 0:
+        symbols.update(_PALATALIZATION.values())
+    if rates.vowel_reduction > 0:
+        symbols.add("ə")
+    if rates.ejective_drift > 0:
+        symbols.update(_PLAIN_TO_EJECTIVE.values())
+    return frozenset(symbols)
+
+
+def _tokenizer_pool(all_single_char_symbols: frozenset[str], language_symbols: frozenset[str]) -> tuple[str, ...]:
+    """A tokenizer candidate set that can never mis-parse two real,
+    adjacent single-character phonemes as some unrelated multi-character
+    one, while still never silently dropping a genuine single-character
+    symbol that isn't part of ``language_symbols`` (e.g. a grammatical
+    affix's own literal vowel -- a word-class suffix like a Dutch-style
+    plural "-ən" injects its "ə" directly, the same "template characters
+    aren't guaranteed to already be inventory members" situation
+    ``word_class_gen.apply_word_class``'s own docstring already
+    documents, so ``language_symbols`` alone would wrongly starve the
+    tokenizer of a character that's genuinely there).
+
+    The ambiguity this project's tokenizer bug (see ``evolve_language``'s
+    own comment above) needs is structural: a *multi*-character candidate
+    (2+ code points) that happens to equal the concatenation of two real,
+    shorter tokens. A single-character candidate can never cause that --
+    there's nothing shorter to wrongly prefer over it -- so every
+    single-character symbol this project can ever model stays a
+    candidate unconditionally, sourced from ``all_single_char_symbols``
+    (every profile's own single-character phonemes, i.e. the previous,
+    unrestricted global pool, minus every multi-character one). Only
+    *multi*-character candidates get filtered down to ``language_symbols``
+    -- the ones actually reachable by this specific language -- since
+    those are the only candidates capable of ever winning a greedy-
+    longest-match tie against two real, coincidentally-adjacent shorter
+    tokens that were never meant to be read as one phoneme."""
+    return tuple(all_single_char_symbols | {symbol for symbol in language_symbols if len(symbol) > 1})
+
+
 _ORTHOGRAPHY_HALF_LIVES = {
     # Real, discrete Dutch spelling reforms (1804, 1863, 1946/47, 1996,
     # 2005) are ~50-150 years apart -- reform is rare relative to sound
@@ -638,7 +714,33 @@ def evolve_language(
 
     consonant_by_ipa = {c.ipa: c for c in phonology_gen.ALL_CONSONANTS}
     vowel_by_ipa = {v.ipa: v for v in phonology_gen.ALL_VOWELS}
-    known_symbols = tuple(consonant_by_ipa) + tuple(vowel_by_ipa)
+    # Tokenizing against the *full global* phoneme pool here (every symbol
+    # this project can ever model, across every unrelated language
+    # profile) is a correctness bug, not just an inefficiency:
+    # `ipa_tokenizer`'s greedy-longest-match can mis-parse two real,
+    # adjacent single-character phonemes (e.g. one syllable's coda "n"
+    # immediately followed by the next syllable's onset "z") as a
+    # *different*, unrelated multi-character phoneme that merely happens
+    # to share that spelling in some *other* profile's own palette (e.g.
+    # Swahili's prenasalized stop "nz", `phonology_gen.ALL_CONSONANTS`)
+    # -- one this language never actually has. `known_symbols`/
+    # `reconstruction_symbols` below run every multi-character candidate
+    # through `_tokenizer_pool` -- restricted to what this language could
+    # actually produce -- while every single-character candidate stays
+    # global (see that function's own docstring for why: a grammatical
+    # affix can inject a literal single-character symbol, e.g. a Dutch-
+    # style plural suffix's own schwa, that never went through phoneme
+    # selection at all, and narrowing single characters too would
+    # silently drop those instead of just mis-tokenizing them).
+    # `consonant_by_ipa`/`vowel_by_ipa` above stay global regardless --
+    # those resolve a symbol's phonological *properties* (sonority,
+    # voicing, place/manner) once a rule has already decided to
+    # introduce it, an unrelated question from "what should the
+    # tokenizer's own candidate set be."
+    single_char_symbols = frozenset(s for s in (*consonant_by_ipa, *vowel_by_ipa) if len(s) == 1)
+    base_symbols = frozenset(base.phonology.all_symbols())
+    known_symbols = _tokenizer_pool(single_char_symbols, base_symbols)
+    reconstruction_symbols = _tokenizer_pool(single_char_symbols, base_symbols | _reachable_sound_change_symbols(rates))
 
     evolved_pairs = [
         _evolve_ipa(entry.ipa, rng, rates, known_symbols, consonant_by_ipa, vowel_by_ipa)
@@ -650,12 +752,26 @@ def evolve_language(
     # coinage target for any native (non-borrowed) lexical replacements
     # below, before borrowed/replaced words can widen it further.
     provisional_inventory, provisional_structure = _inventory_and_structure(
-        base.syllable_structure, evolved_ipas, known_symbols, rng, traits, lineage_profiles
+        base.syllable_structure, evolved_ipas, reconstruction_symbols, rng, traits, lineage_profiles
     )
     reference_profiles = reference_languages.match_profiles(traits.source_languages)
     weighted_reference_profiles = reference_languages.match_profiles_weighted(
         traits.source_languages, traits.source_language_weights
     )
+    # Borrowed replacements (pass 1 below) coin a word from a *reference*
+    # profile's own palette, not this language's own -- widen the
+    # reconstruction pool to match, same "only as tight as this run can
+    # actually produce" discipline as `reconstruction_symbols` above, so
+    # a borrowed word's own genuine phonemes don't trip the same
+    # tokenizer ambiguity from the opposite direction (a real reference-
+    # language multi-character phoneme wrongly split into single
+    # characters because it wasn't a tokenizer candidate at all).
+    final_reconstruction_symbols = reconstruction_symbols
+    if reference_profiles:
+        final_reconstruction_symbols = tuple(
+            frozenset(reconstruction_symbols)
+            | {symbol for profile, _ in weighted_reference_profiles for symbol in (*profile.consonants, *profile.vowels)}
+        )
 
     # Pass 1: lexical replacement (scenarios 2a/2b) -- decide per entry
     # whether the whole word (not just its sound) gets replaced, at a rate
@@ -690,7 +806,7 @@ def evolve_language(
             final_ipas.append(evolved_ipa)
 
     inventory, syllable_structure = _inventory_and_structure(
-        base.syllable_structure, final_ipas, known_symbols, rng, traits, lineage_profiles
+        base.syllable_structure, final_ipas, final_reconstruction_symbols, rng, traits, lineage_profiles
     )
     romanization = romanization_gen.evolve_romanization(
         base.romanization, inventory, rng, lineage_languages,

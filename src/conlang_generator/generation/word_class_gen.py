@@ -39,7 +39,7 @@ from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure, VowelBackness
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
 from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation import ipa_tokenizer, phonology_gen, word_accent_gen, word_builder
+from conlang_generator.generation import ipa_tokenizer, phonology_gen, word_builder
 from conlang_generator.generation.reference_languages import match_profiles, match_profiles_weighted
 from conlang_generator.generation.trait_bias import biased_probability
 
@@ -48,8 +48,18 @@ _ALL_SYMBOLS: tuple[str, ...] = tuple(c.ipa for c in phonology_gen.ALL_CONSONANT
     v.ipa for v in phonology_gen.ALL_VOWELS
 )
 """The full global phoneme pool's own symbols -- see ``apply_word_class``'s
-own docstring for why tokenization needs this rather than just a
-specific run's own generated ``PhonemeInventory``."""
+own docstring for why tokenization needs *some* symbols from here rather
+than just a specific run's own generated ``PhonemeInventory``."""
+_ALL_SINGLE_CHAR_SYMBOLS: frozenset[str] = frozenset(s for s in _ALL_SYMBOLS if len(s) == 1)
+"""Only the single-character members of ``_ALL_SYMBOLS`` -- see
+``apply_word_class``'s own docstring for why ``known_symbols`` there
+draws unconditionally from just this subset, not all of ``_ALL_SYMBOLS``
+(the same ``sound_change.py``'s own ``_tokenizer_pool`` fix, for the same
+reason: a *multi*-character global symbol can mis-parse two real,
+adjacent single-character phonemes that were never meant to be read as
+one, e.g. a stem's own final consonant immediately followed by an
+attaching suffix's own first consonant -- a *single*-character symbol
+can never do that, so it stays a safe, unconditional candidate)."""
 _VOWEL_BACKNESS: dict[str, VowelBackness] = {v.ipa: v.backness for v in phonology_gen.ALL_VOWELS}
 _CONSONANT_VOICED: dict[str, bool] = {c.ipa: c.voiced for c in phonology_gen.ALL_CONSONANTS}
 """Looked up against the same *global* pool ``_ALL_SYMBOLS`` already
@@ -413,12 +423,17 @@ def apply_word_class(
     Strips ``STRESS_MARK``/``WORD_ACCENT_MARK`` from ``ipa``, re-
     tokenizes the raw phonemes against this run's own inventory (so a
     multi-character symbol like "kʰ" or "aː" stays one unit, not several
-    characters), concatenates prefix + stem + suffix, and re-marks the
-    whole thing via ``word_accent_gen.mark_stress_and_word_accent`` --
-    the same flat-symbol-sequence marking mechanism
-    ``root_pattern.propose_templatic_word``/``sound_change.py``'s own
-    templatic coining already use for a word with no per-syllable build
-    loop of its own.
+    characters), then hands the prefix/stem/suffix pieces to
+    ``word_builder.attach_affix_and_restress`` -- the shared "concatenate
+    and re-mark stress/word-accent" primitive this function's own former
+    inline logic was extracted into, since ``generation.inflection_gen.
+    apply_affix`` needs the identical mechanical treatment for a
+    sentence-role-driven case/tense/agreement affix (see ``core.grammar.
+    InflectionAffix``'s own docstring for why that's a different type
+    from ``WordClass`` despite sharing this one mechanism) -- the same
+    flat-symbol-sequence marking mechanism ``root_pattern.propose_
+    templatic_word``/``sound_change.py``'s own templatic coining already
+    use for a word with no per-syllable build loop of its own.
 
     Known gap, left unsolved for this first pass: a tone mark (if any)
     stays attached to whichever base vowel it was already on in the
@@ -430,16 +445,32 @@ def apply_word_class(
     real future affix-tone interaction, not forgotten, just genuinely
     out of this step's scope.
 
-    Tokenizes against the *full global* phoneme pool
-    (``phonology_gen.ALL_CONSONANTS``/``ALL_VOWELS``), not just
-    ``inventory``'s own generated symbols -- deliberately: a root-and-
-    pattern word's own literal template characters (real Arabic's own
-    "m-" place-noun prefix, hardcoded in ``root_pattern.generate_
+    Tokenizes ``stripped`` (the stem alone -- ``word_class.prefix``/
+    ``suffix``/the position-class prefix are plain literal strings
+    concatenated on afterward, never run through the tokenizer
+    themselves) against every single-character symbol in the *full
+    global* phoneme pool unconditionally, plus only whichever
+    multi-character symbols are actually in ``inventory``'s own
+    generated palette -- not the full global multi-character set.
+    Every single character stays available because a root-and-pattern
+    word's own literal template characters (real Arabic's own "m-"
+    place-noun prefix, hardcoded in ``root_pattern.generate_
     templates()`` regardless of what this run's inventory happens to
     contain) aren't guaranteed to already be members of ``inventory``
     itself, and tokenizing against too narrow a symbol set would
     silently drop them (``ipa_tokenizer.tokenize``'s own documented
-    behavior for an unrecognized character).
+    behavior for an unrecognized character) -- every such literal in
+    this project today is a single character, so restricting only the
+    *multi*-character candidates costs nothing there. Restricting those
+    to ``inventory``'s own is what actually matters: a bare stem's own
+    phonemes always come from ``inventory`` in the first place (built by
+    ``word_builder.build_word``/``root_pattern.generate_root`` against
+    that same inventory), so a multi-character global symbol from some
+    unrelated profile's own palette (e.g. Swahili's prenasalized stop
+    "nz") could otherwise mis-parse two real, adjacent single-character
+    phonemes this stem actually has as that unrelated phoneme instead --
+    the same tokenizer-ambiguity bug ``sound_change.py``'s own
+    ``_tokenizer_pool`` fixes for diachronic evolution.
 
     When ``word_class.condition`` is set, the suffix actually used isn't
     ``word_class.suffix`` verbatim -- it's resolved against the real
@@ -467,16 +498,15 @@ def apply_word_class(
     of once for the whole class."""
     if word_class is None or not (word_class.prefix or word_class.suffix or word_class.position_classes):
         return ipa
-    known_symbols = _ALL_SYMBOLS
+    known_symbols = tuple(_ALL_SINGLE_CHAR_SYMBOLS | {symbol for symbol in inventory.all_symbols() if len(symbol) > 1})
     stripped = ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, "")
     raw_tokens = ipa_tokenizer.tokenize(stripped, known_symbols)
     stem_symbols = tuple(symbol + deco for symbol, deco in raw_tokens)
     suffix = _resolve_conditioned_suffix(word_class, tuple(symbol for symbol, _ in raw_tokens))
     position_prefix = _resolve_position_classes(rng, word_class)
-    filled_symbols = position_prefix + word_class.prefix + stem_symbols + suffix
-    vowel_symbols = frozenset(inventory.vowel_symbols())
-    return word_accent_gen.mark_stress_and_word_accent(
-        rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, stress_strictness,
+    return word_builder.attach_affix_and_restress(
+        rng, position_prefix + word_class.prefix, stem_symbols, suffix, inventory,
+        stress_pattern, stress_deviation_rate, stress_strictness,
         word_accent_realization=word_accent_realization,
         word_accent_pattern=word_accent_pattern,
         word_accent_deviation_rate=word_accent_deviation_rate,

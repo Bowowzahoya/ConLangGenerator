@@ -3,7 +3,9 @@ generation (core.grammar.InflectionAffix)."""
 
 import random
 
+from conlang_generator.core.grammar import InflectionAffix
 from conlang_generator.core.phonology import Consonant, Manner, Place, PhonemeInventory, SyllableStructure, Vowel, VowelBackness, VowelHeight
+from conlang_generator.core.romanization import STRESS_MARK
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import inflection_gen
 from conlang_generator.generation.generator import generate_language
@@ -68,6 +70,44 @@ def test_generate_language_populates_case_tense_agreement_affixes():
     assert [a.label for a in grammar.case_affixes] == list(grammar.cases)
     assert [a.label for a in grammar.tense_affixes] == list(grammar.tenses)
     assert [a.label for a in grammar.agreement_affixes] == list(inflection_gen.AGREEMENT_LABELS)
+
+
+def test_apply_affix_is_a_no_op_for_none():
+    rng = random.Random(0)
+    assert inflection_gen.apply_affix(rng, None, "kat", _inventory(), "", None, 0.0) == "kat"
+
+
+def test_apply_affix_is_a_no_op_for_an_empty_affix():
+    rng = random.Random(0)
+    empty = InflectionAffix(label="nominative")
+    assert inflection_gen.apply_affix(rng, empty, "kat", _inventory(), "", None, 0.0) == "kat"
+
+
+def test_apply_affix_attaches_the_suffix():
+    rng = random.Random(0)
+    affix = InflectionAffix(label="accusative", suffix=("a",))
+    result = inflection_gen.apply_affix(rng, affix, "kat", _inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "") == "kata"
+
+
+def test_apply_affix_attaches_the_prefix():
+    rng = random.Random(0)
+    affix = InflectionAffix(label="past", prefix=("i",))
+    result = inflection_gen.apply_affix(rng, affix, "kat", _inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "") == "ikat"
+
+
+def test_apply_affix_composes_two_affixes_via_one_synthetic_affix():
+    # This project's own combined tense+agreement application (see
+    # apply_affix's own docstring): pass one synthetic InflectionAffix
+    # whose suffix is both labels' suffixes concatenated, rather than
+    # calling apply_affix twice.
+    rng = random.Random(0)
+    tense = InflectionAffix(label="past", suffix=("i",))
+    agreement = InflectionAffix(label="he", suffix=("a",))
+    combined = InflectionAffix(label="past+he", suffix=tense.suffix + agreement.suffix)
+    result = inflection_gen.apply_affix(rng, combined, "kat", _inventory(), "", None, 0.0)
+    assert result.replace(STRESS_MARK, "") == "katia"
 
 
 def test_generate_language_is_still_deterministic_with_affixes_wired_in():

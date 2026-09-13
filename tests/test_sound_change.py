@@ -14,9 +14,10 @@ from collections import Counter
 from dataclasses import replace
 
 from conlang_generator.core.grammar import Alignment, GrammarProfile, MorphologicalType, WordOrder, WordTemplate
-from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
+from conlang_generator.core.language import Language
+from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
 from conlang_generator.core.phonology import Consonant, Manner, Place, PhonemeInventory, SyllableStructure, ToneSystem, Vowel, VowelBackness, VowelHeight, WordAccentSystem
-from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK, apply_grammatical_spelling
+from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK, RomanizationRule, RomanizationScheme, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, sonority, sound_change
@@ -58,21 +59,73 @@ def test_weighted_spelling_alternatives_dont_spuriously_reform_at_zero_years():
     # French /o/ ("o"/"au"/"eau") could show up as spuriously "reformed"
     # even with zero actual sound or orthography change. At years=0
     # nothing should move at all.
-    # seed=0 -- empirically-found (see the seed-search convention noted
-    # elsewhere in this file); seed=3 (this test's original seed) now hits
-    # an unrelated, pre-existing tokenizer bug where a word's raw IPA
-    # happens to contain the substring "nz" (the concatenation of two
-    # adjacent single-consonant syllable onsets), which
-    # sound_change._inventory_and_structure's own symbol reconstruction
-    # then mis-tokenizes as the *distinct* modeled "nz" prenasalized-stop
-    # phoneme -- unrelated to this test's own reform-detection concern.
+    # seed=3 -- empirically-found (see the seed-search convention noted
+    # elsewhere in this file). Was briefly swapped to seed=0 while a
+    # separate, unrelated tokenizer bug was diagnosed (this seed's base
+    # word's raw IPA happens to contain the substring "nz" -- the
+    # concatenation of two adjacent single-consonant syllable onsets --
+    # which sound_change._inventory_and_structure's own symbol
+    # reconstruction mis-tokenized as the *distinct* modeled "nz"
+    # prenasalized-stop phoneme); restored to seed=3 now that
+    # _tokenizer_pool fixes that root cause (see
+    # test_reconstruction_never_lets_an_unrelated_multichar_phoneme_
+    # swallow_two_adjacent_real_ones below for a direct regression test).
     base = generate_language(
-        "Base", GenerationSpec(prompt="p", seed=0, traits=TraitProfile(source_languages=("French",), source_language_strictness=1.0)),
+        "Base", GenerationSpec(prompt="p", seed=3, traits=TraitProfile(source_languages=("French",), source_language_strictness=1.0)),
         FakeLLMClient(),
     )
     evolved = evolve_language("Evolved", base, 0, TraitProfile(source_languages=("French",), source_language_strictness=1.0), seed=1)
     assert [e.ipa for e in base.lexicon.entries] == [e.ipa for e in evolved.lexicon.entries]
     assert [e.romanization for e in base.lexicon.entries] == [e.romanization for e in evolved.lexicon.entries]
+
+
+def test_reconstruction_never_lets_an_unrelated_multichar_phoneme_swallow_two_adjacent_real_ones():
+    # Direct, synthetic reproduction of the tokenizer-ambiguity bug noted
+    # above, rather than relying on stumbling onto the right seed:
+    # `phonology_gen.ALL_CONSONANTS` models a genuine Swahili-style
+    # prenasalized stop "nz" (a single, atomic multi-character phoneme in
+    # *that* profile's own palette) purely as a distinct, unrelated global
+    # entry -- it has nothing to do with this test's own hand-built
+    # language, which has real, separate "n" and "z" consonants and no
+    # "nz" phoneme of its own at all. A word whose coda "n" happens to
+    # sit immediately before the next syllable's onset "z" (no vowel
+    # between them) produces the literal substring "nz" in its raw IPA --
+    # exactly the coincidental collision `_inventory_and_structure`'s own
+    # symbol reconstruction used to mis-tokenize as the *global* "nz"
+    # phoneme when it tokenized against the full global pool instead of
+    # this language's own real, reconstructed inventory.
+    consonants = (
+        Consonant(ipa="n", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, prevalence=0.9),
+        Consonant(ipa="z", place=Place.ALVEOLAR, manner=Manner.FRICATIVE, voiced=True, prevalence=0.9),
+    )
+    vowels = (Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),)
+    phonology = PhonemeInventory(consonants=consonants, vowels=vowels)
+    structure = SyllableStructure(max_onset=1, max_coda=1)
+    romanization = RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="a", latin="a"),
+            RomanizationRule(ipa="n", latin="n"),
+            RomanizationRule(ipa="z", latin="z"),
+        ),
+        vowel_symbols=("a",),
+    )
+    grammar = GrammarProfile(
+        word_order=WordOrder.SVO, morphological_type=MorphologicalType.ISOLATING, alignment=Alignment.NOMINATIVE_ACCUSATIVE,
+        has_articles=False, adjective_after_noun=False, has_overt_copula=True,
+    )
+    # "an.za" -- coda "n" immediately followed by the next syllable's own
+    # onset "z", the real structural source of a coincidental "nz" run.
+    entry = LexicalEntry(ipa="anza", romanization="anza", glosses=("test",), pos=PartOfSpeech.NOUN)
+    base = Language(
+        name="Base", spec=GenerationSpec(prompt="p", seed=0), phonology=phonology, syllable_structure=structure,
+        tone_system=ToneSystem(), romanization=romanization, grammar=grammar, lexicon=Lexicon(entries=(entry,)),
+    )
+    # years=0 -- no sound change should fire at all, isolating this to
+    # reconstruction's own tokenization rather than any rule's behavior.
+    evolved = evolve_language("Evolved", base, 0, TraitProfile(), seed=1)
+    assert evolved.lexicon.entries[0].ipa == "anza"
+    assert set(evolved.phonology.consonant_symbols()) == {"n", "z"}
+    assert all(rule.ipa != "nz" for rule in evolved.romanization.rules)
 
 
 def test_more_years_changes_more_words():

@@ -272,6 +272,49 @@ def build_class_prefix(rng: random.Random, inventory: PhonemeInventory, structur
     return onset + (nucleus,)
 
 
+def attach_affix_and_restress(
+    rng: random.Random,
+    prefix: tuple[str, ...],
+    stem_symbols: tuple[str, ...],
+    suffix: tuple[str, ...],
+    inventory: PhonemeInventory,
+    stress_pattern: str,
+    stress_deviation_rate: float | None,
+    stress_strictness: float,
+    word_accent_realization: str = "",
+    word_accent_pattern: str = "",
+    word_accent_deviation_rate: float | None = None,
+    word_accent_length_rate: float | None = None,
+    word_accent_window: int | None = None,
+) -> str:
+    """Concatenates ``prefix + stem_symbols + suffix`` and re-derives
+    stress/word-accent on the resulting, now-longer symbol sequence via
+    ``word_accent_gen.mark_stress_and_word_accent`` -- the shared, low-
+    level "attach a bound morpheme, re-mark stress" mechanism both
+    ``word_class_gen.apply_word_class`` (a lexeme-fixed citation-class
+    affix, chosen once at coinage) and ``generation.inflection_gen.
+    apply_affix`` (a sentence-role-driven case/tense/agreement affix,
+    applied fresh per use) call -- see ``core.grammar.InflectionAffix``'s
+    own docstring for why those two are different types that still need
+    the identical mechanical treatment. Re-deriving stress here, rather
+    than trusting whatever the caller's own ``ipa`` already had baked in,
+    matters for the same reason it always has: a real position-dependent
+    pattern (French's own final-syllable stress being the clearest case)
+    would otherwise still land on the stem's own former final syllable,
+    no longer the word's true final syllable once a suffix syllable
+    follows it."""
+    filled_symbols = prefix + stem_symbols + suffix
+    vowel_symbols = frozenset(inventory.vowel_symbols())
+    return word_accent_gen.mark_stress_and_word_accent(
+        rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, stress_strictness,
+        word_accent_realization=word_accent_realization,
+        word_accent_pattern=word_accent_pattern,
+        word_accent_deviation_rate=word_accent_deviation_rate,
+        word_accent_length_rate=word_accent_length_rate,
+        word_accent_window=word_accent_window,
+    )
+
+
 _STRESS_REDUCTION_RATE = 0.6
 """How often an eligible non-stressed syllable's nucleus reduces to
 schwa when ``reduce_unstressed_vowels`` fires, at ``stress_strictness=1.0``
