@@ -1265,6 +1265,109 @@ Everything here is a pure function of a `random.Random` seeded from
   limitations below. Reproducible: the whole pass is one
   seeded `random.Random`, consumed in lexicon order.
 
+- **Per-language weighting (`traits.source_language_weights`)**: everything
+  above describing multiple `source_languages` combining assumed they
+  combine *unweighted* -- an equal-influence union/intersection/mean/
+  first-match-wins/uniform choice, with no way to ask for "mostly French,
+  somewhat German." `source_language_weights` (a parallel tuple to
+  `source_languages`, empty meaning equal weight, not required to sum to
+  1.0 -- normalized at the point of use by
+  `reference_languages.match_profiles_weighted`) fixes that, threaded
+  through every combination point in `romanization_gen.py`,
+  `phonology_gen.py`, `grammar_gen.py`, and `word_class_gen.py`, plus
+  `sound_change.py`'s own `lineage_weights` (mirrors `lineage_languages`'
+  union-and-persist behavior, so a language's own historical weighting
+  survives an evolution run that names no new contact language). The CLI's
+  `--source-language` flag accepts an optional `NAME:WEIGHT` suffix
+  (`--source-language "French:0.7" --source-language "German:0.3"`);
+  `prompt_classifier.py` extracts an uneven split from wording like
+  "mostly a French base, but with a noticeable German influence" the same
+  way it extracts everything else, staying equal for a plain "mix of X
+  and Y." Each *kind* of combination needed its own reasoned treatment,
+  not one mechanical multiply-by-weight shortcut, since two genuinely
+  different families exist: an **independent-roll** family (most of
+  `romanization_gen.py`'s first-match-wins-with-its-own-roll functions,
+  `word_class_gen.py`'s per-profile class-adoption roll) scales each
+  candidate's own strength by its weight but iterates in *descending*-
+  weight order and, critically, rescales every weight *relative to the
+  heaviest matched profile* (`romanization_gen._by_descending_weight`) --
+  not the raw sum-normalized weight -- so that two *equally*-weighted
+  languages (today's default multi-language case) still reproduce a
+  single named language's full roll strength, not a weaker one. A
+  **union/pooling** family (`_resolve_joint_spellings`, `phonology_gen.py`'s
+  boolean-any-to-weighted-fraction conversions, `_resolve_position_
+  multipliers`' frequency-tier averaging) instead uses the raw
+  sum-normalized weight directly, summing each *distinct contributing
+  profile's* weight once (never once per matching entry -- a profile that
+  curates multiple qualifying entries/symbols for the same combination
+  point is deduped by `id(profile)`, not by weight value, since two
+  different profiles can coincidentally share a weight) -- here a real,
+  *intentional* behavior change is accepted even at equal weight, since a
+  convention only part of the total named influence backs really is less
+  certain than one every matched profile agrees on. One deliberate
+  semantic generalization is called out explicitly where it lives:
+  `phonology_gen._resolve_pair_restriction`'s onset/nucleus/coda-boundary
+  blacklist combination is now **weighted-majority** (a pair stays
+  forbidden only if the summed weight of blacklist-mode profiles
+  forbidding it strictly exceeds the summed weight of those allowing it)
+  rather than unanimous intersection -- identical to intersection for two
+  equally-weighted disagreeing profiles (a tie resolves to "allowed"), but
+  can diverge from it with three or more equally-weighted profiles that
+  only partially agree (majority no longer requires unanimity). Whitelist
+  combination stays a plain union regardless of weight in every case
+  (onset-cluster/coda-cluster attested-data, pair-restriction whitelists,
+  `word_class_gen`'s adopted-class pooling per profile) -- a permissive
+  floor's whole purpose is inclusion, so weighting it down has no
+  coherent reading the way weighting a restriction down does.
+- **Invented harmony-conditioned classes and polysynthetic position
+  classes**: `WordClass.condition`/`suffix_alt` (harmony/voicing-
+  conditioned suffix allomorphy) and `WordClass.position_classes`
+  (Navajo-style polysynthetic prefix slots) used to be reachable *only*
+  through reference-profile adoption -- a language with no
+  `source_languages` at all could never roll either mechanism, even when
+  its own independently-rolled `SyllableStructure.vowel_harmony` or
+  `GrammarProfile.morphological_type is POLYSYNTHETIC` said it plausibly
+  should. `word_class_gen.generate_word_classes`'s *invented* path now
+  gives an eligible POS's (NOUN/VERB/ADJECTIVE) class-marking roll a real
+  chance, gated on `vowel_harmony`, to collapse into one real
+  `condition="vowel_harmony"` class with front/back suffix allomorphs
+  (via two `word_builder.build_class_suffix` calls, which gained an
+  optional `harmony_class` parameter threaded straight into its existing
+  `_choose_nucleus` call) instead of several independent flat classes; VERB
+  specifically also gets a chance, gated on `morphological_type is
+  POLYSYNTHETIC`, to collapse into a `position_classes`-bearing class via
+  a new `_invent_position_classes` helper (1-2 slots, each a real null/
+  zero-morpheme option -- mirroring Navajo's own real, most-common zero
+  classifier -- plus 2-3 further options built via the existing
+  `word_builder.build_class_prefix`). Neither collapse marks the POS as
+  `any_multi_class` -- every word of that POS unconditionally takes the
+  one resulting class, the same as a reference-adopted single class
+  (Turkish's own real curated infinitive) never does either. `final_
+  voicing` conditioning is deliberately *not* extended to the invented
+  path: `build_class_suffix` is deliberately always vowel-initial (no
+  onset, for its own phonotactic-safety guarantee), but `final_voicing`
+  (real Persian `-tan`/`-dan`) needs a consonant-initial suffix --
+  extending it would mean inventing a materially riskier new suffix
+  shape, not exposing an existing one, and is left out rather than
+  half-solved.
+- Two smaller fixes rounding out the same batch: `word_class_gen.py`'s
+  invented-class base rate for a part of speech a matched reference
+  profile curates *nothing* for is now suppressed toward zero as
+  `source_language_strictness` rises (`biased_probability(base_rate,
+  -strictness)`) -- the same "matched but doesn't have it" treatment
+  `grammar_gen.py` already gave `uses_root_and_pattern`, but previously
+  missing here, so a strict single-language request could still invent a
+  paradigm the named language shows no sign of having. And
+  `prompt_classifier.py`'s system prompt gained an explicit instruction
+  (plus a worked example: devout desert nomads/prayer/austere
+  sun-scoured settlements -> `source_languages: ["Arabic"]`) generalizing
+  the existing Dutch/windmills "atmospherically evoked" pattern: strong
+  cultural, religious, or geographic imagery that real-world evokes a
+  specific language or family justifies naming it even with no language,
+  region, or ethnicity named outright, kept at low strictness (0.0-0.2)
+  since the text isn't asking the conlang to *resemble* that language,
+  only evoking its culture.
+
 ## `translation/` -- bidirectional translation
 
 - **`translator.py`**: `translate_to_conlang()` / `translate_to_english()`.
