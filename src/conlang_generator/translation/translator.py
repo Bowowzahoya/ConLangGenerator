@@ -15,21 +15,34 @@ Explicit v0 limitations, by design:
   canonical SVO; this is a simplification, not a model of English syntax.
 
 Real inflection (case, tense, subject agreement, articles, an overt copula)
-is now applied when the target language's own ``GrammarProfile`` says it has
-the feature -- see ``_apply_case``/``_apply_tense_and_agreement``/
-``_maybe_prefix_article``/the predicate-adjective pattern's own copula
-handling below. Applying an affix re-derives the affected word's stress via
-``generation.inflection_gen.apply_affix`` (the same shared mechanism
-``word_class_gen.apply_word_class`` uses for citation-class marking -- see
-``core.grammar.InflectionAffix``'s own docstring for why the two are
-different types), seeded from a stable hash of ``(language.spec.seed, text)``
-so repeated calls on the same input stay reproducible without a public rng
-parameter (the same "hash the payload into a local seed" precedent
-``core.romanization._stable_local_choice`` already uses).
+is applied on the way to the conlang when the target language's own
+``GrammarProfile`` says it has the feature -- see ``_apply_case``/
+``_apply_verb_inflection``/``_maybe_prefix_article``/the predicate-adjective
+pattern's own copula handling below. Applying an affix re-derives the
+affected word's stress via ``generation.inflection_gen.apply_affix`` (the
+same shared mechanism ``word_class_gen.apply_word_class`` uses for
+citation-class marking -- see ``core.grammar.InflectionAffix``'s own
+docstring for why the two are different types), seeded from a stable hash of
+``(language.spec.seed, a per-call salt)`` so repeated calls on the same
+input stay reproducible without a public rng parameter (the same "hash the
+payload into a local seed" precedent ``core.romanization._stable_local_
+choice`` already uses).
+
+Decoding that same inflection back out on the way to English
+(``translate_to_english``) is generate-and-compare, not a parse -- see
+``_decode_noun``/``_decode_verb``'s own docstrings for why (spelling isn't a
+clean invertible function in general, the same reason ``sound_change.py``'s
+own reform-detection compares via ``apply()`` rather than string surgery).
+A 3-token sentence is genuinely ambiguous once a copula exists (subject-
+copula-adjective and subject-verb-object both look like 3 plain tokens) --
+resolved by testing the copula hypothesis first (does the verb-position
+token decode specifically against the "be" entry?) and falling back to the
+transitive reading when it doesn't.
 
 Unknown *English* content words trigger word coinage (see ``expansion.py``);
-unknown *conlang* words cannot be reverse-coined (there is no English gloss to
-coin from) and surface as ``<unknown:...>`` in the rough gloss line.
+an unknown *conlang* word that can't be decoded via ``_decode_noun``/
+``_decode_verb`` either (there is no English gloss to reverse-coin from)
+surfaces as ``<unknown:...>`` in the rough gloss line.
 """
 
 from __future__ import annotations
@@ -70,6 +83,10 @@ _IRREGULAR_LEMMA_BY_PAST = {
 lemmatizer, matching this module's own "no real parser" standard. A verb
 outside this small closed set falls through to the regular ``-ed``/``-ied``
 strip below."""
+_PAST_FORM_BY_LEMMA = {lemma: past for past, lemma in _IRREGULAR_LEMMA_BY_PAST.items()}
+"""The reverse of ``_IRREGULAR_LEMMA_BY_PAST`` -- used by ``translate_to_
+english`` to reconstruct a past-tense English gloss once a conlang verb
+has been decoded back to its lemma and a ``"past"`` tense reading."""
 
 _AGREEMENT_LABEL_BY_PRONOUN = {"i": "I", "you": "you", "he": "he", "we": "we"}
 """Maps a lowercased English subject-pronoun token to the matching
@@ -99,6 +116,10 @@ class TranslationResult:
 
 def _tokenize(text: str) -> list[str]:
     return re.findall(r"[a-zA-Z']+", text.lower())
+
+
+def _normalize(text: str) -> str:
+    return unicodedata.normalize("NFC", text).lower()
 
 
 def _lemma_candidates(token: str) -> list[str]:
@@ -375,34 +396,144 @@ def translate_to_conlang(
     )
 
 
+def _decode_noun(language: Language, token: str) -> tuple[LexicalEntry, str] | None:
+    """Reverse of ``_apply_case``: returns ``(entry, case_label)`` for a
+    noun-position conlang token, ``"unmarked"`` for a bare/uninflected
+    match (the common case -- an isolating language, or the argument
+    alignment leaves unmarked). Decoding is generate-and-compare, not a
+    parse: since spelling isn't a clean invertible function in general
+    (the same reason ``sound_change.py``'s own reform-detection compares
+    via ``apply()`` rather than string surgery), this renders each real
+    noun entry's own bare form and, if that doesn't match, each of its
+    case-marked forms via the identical ``inflection_gen.apply_affix``
+    path encoding used, then compares against the observed token. ``None``
+    when no noun entry (marked or not) matches at all."""
+    normalized = _normalize(token)
+    # A subject/object argument may be a real noun or a pronoun (e.g. "I")
+    # -- both fill the same syntactic slot, the same reason
+    # translate_to_conlang's own _lookup_or_coin never restricts a
+    # subject/object lookup to PartOfSpeech.NOUN (only the *coining*
+    # fallback POS, for a genuinely new word, is NOUN).
+    noun_entries = [e for e in language.lexicon.entries if e.pos in (PartOfSpeech.NOUN, PartOfSpeech.PRONOUN)]
+    for entry in noun_entries:
+        if _normalize(entry.romanization) == normalized:
+            return entry, "unmarked"
+    for entry in noun_entries:
+        for affix in language.grammar.case_affixes:
+            rng = _translation_rng(language, f"decode-case:{entry.ipa}:{affix.label}")
+            ipa = inflection_gen.apply_affix(
+                rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+            )
+            if _normalize(language.romanization.apply(ipa)) == normalized:
+                return entry, affix.label
+    return None
+
+
+def _decode_verb(
+    language: Language, token: str, candidate_glosses: frozenset[str] | None = None
+) -> tuple[LexicalEntry, str | None] | None:
+    """The verb-position counterpart of ``_decode_noun`` -- returns
+    ``(entry, tense_label)`` (``None`` for the tense when this language
+    has no tense system, or the exact bare form matched). ``candidate_
+    glosses``, when given, restricts the search to specific verbs (used
+    by ``translate_to_english`` to test "is this token actually the
+    copula?" without also matching some unrelated ordinary verb that
+    happens to render identically for a different tense/agreement
+    combination)."""
+    normalized = _normalize(token)
+    verb_entries = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.VERB]
+    if candidate_glosses is not None:
+        verb_entries = [e for e in verb_entries if e.primary_gloss in candidate_glosses]
+    for entry in verb_entries:
+        if _normalize(entry.romanization) == normalized:
+            return entry, None
+    tense_options: list[str | None] = [None] + list(language.grammar.tenses)
+    for entry in verb_entries:
+        for tense_label in tense_options:
+            for agreement_label in inflection_gen.AGREEMENT_LABELS:
+                affix = _combined_tense_agreement_affix(language.grammar, tense_label, agreement_label)
+                if affix is None:
+                    continue
+                rng = _translation_rng(language, f"decode-verb:{entry.ipa}:{tense_label}:{agreement_label}")
+                ipa = inflection_gen.apply_affix(
+                    rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+                )
+                if _normalize(language.romanization.apply(ipa)) == normalized:
+                    return entry, tense_label
+    return None
+
+
+def _english_verb_gloss(entry: LexicalEntry, tense_label: str | None) -> str:
+    if tense_label != "past":
+        return entry.primary_gloss
+    return _PAST_FORM_BY_LEMMA.get(entry.primary_gloss, entry.primary_gloss + "ed")
+
+
 def translate_to_english(
     text: str, language: Language, llm_client: LLMClient
 ) -> TranslationResult:
-    tokens = unicodedata.normalize("NFC", text).strip().split()
-    entries: list[LexicalEntry | None] = [language.lexicon.by_form(tok) for tok in tokens]
-    known = [e for e in entries if e is not None]
-    pattern = "word-for-word"
+    raw_tokens = unicodedata.normalize("NFC", text).strip().split()
+    the_entry = language.lexicon.by_gloss("the")
+    the_normalized = _normalize(the_entry.romanization) if the_entry is not None else None
+    tokens = [t for t in raw_tokens if the_normalized is None or _normalize(t) != the_normalized]
 
-    if len(entries) == 3 and len(known) == 3:
+    pattern = "word-for-word"
+    ordered_glosses: list[str] | None = None
+
+    if len(tokens) == 3:
         roles = _ROLE_ORDER[language.grammar.word_order]
-        role_to_entry = dict(zip(roles, entries))
-        ordered_glosses = [
-            role_to_entry["S"].primary_gloss,
-            role_to_entry["V"].primary_gloss,
-            role_to_entry["O"].primary_gloss,
-        ]
-        pattern = "subject-verb-object"
-    elif len(entries) == 2 and len(known) == 2:
-        first, second = entries
-        noun_entry = first if first.pos == PartOfSpeech.NOUN else second
-        adj_entry = second if noun_entry is first else first
-        ordered_glosses = [noun_entry.primary_gloss, "is", adj_entry.primary_gloss]
-        pattern = "predicate-adjective"
-    else:
-        ordered_glosses = [
-            entry.primary_gloss if entry is not None else f"<unknown:{tok}>"
-            for entry, tok in zip(entries, tokens)
-        ]
+        role_to_token = dict(zip(roles, tokens))
+        if language.grammar.has_overt_copula:
+            copula_decoded = _decode_verb(language, role_to_token["V"], candidate_glosses=frozenset({"be"}))
+            if copula_decoded is not None:
+                subject_decoded = _decode_noun(language, role_to_token["S"])
+                adj_entry = language.lexicon.by_form(role_to_token["O"])  # adjectives are never inflected
+                if subject_decoded is not None and adj_entry is not None and adj_entry.pos is PartOfSpeech.ADJECTIVE:
+                    _, tense_label = copula_decoded
+                    copula_word = "was" if tense_label == "past" else "is"
+                    ordered_glosses = [subject_decoded[0].primary_gloss, copula_word, adj_entry.primary_gloss]
+                    pattern = "predicate-adjective"
+        if ordered_glosses is None:
+            subject_decoded = _decode_noun(language, role_to_token["S"])
+            object_decoded = _decode_noun(language, role_to_token["O"])
+            verb_decoded = _decode_verb(language, role_to_token["V"])
+            if subject_decoded is not None and object_decoded is not None and verb_decoded is not None:
+                verb_entry, tense_label = verb_decoded
+                ordered_glosses = [
+                    subject_decoded[0].primary_gloss,
+                    _english_verb_gloss(verb_entry, tense_label),
+                    object_decoded[0].primary_gloss,
+                ]
+                pattern = "subject-verb-object"
+    elif len(tokens) == 2:
+        first, second = (language.lexicon.by_form(t) for t in tokens)
+        if first is not None and second is not None:
+            noun_entry = first if first.pos == PartOfSpeech.NOUN else second
+            adj_entry = second if noun_entry is first else first
+            ordered_glosses = [noun_entry.primary_gloss, "is", adj_entry.primary_gloss]
+            pattern = "predicate-adjective"
+
+    if ordered_glosses is None:
+        # Best-effort per-token fallback -- try an exact match, then a
+        # generic noun/verb decode, before giving up on that one token;
+        # the whole sentence's own structure was either never 2 or 3
+        # tokens after stripping articles, or one of the shapes above
+        # failed to decode (an unknown coined word, most commonly).
+        ordered_glosses = []
+        for tok in tokens:
+            entry = language.lexicon.by_form(tok)
+            if entry is not None:
+                ordered_glosses.append(entry.primary_gloss)
+                continue
+            noun_decoded = _decode_noun(language, tok)
+            if noun_decoded is not None:
+                ordered_glosses.append(noun_decoded[0].primary_gloss)
+                continue
+            verb_decoded = _decode_verb(language, tok)
+            if verb_decoded is not None:
+                ordered_glosses.append(_english_verb_gloss(*verb_decoded))
+                continue
+            ordered_glosses.append(f"<unknown:{tok}>")
 
     draft = " ".join(ordered_glosses)
     request = LLMRequest(
