@@ -106,6 +106,21 @@ from X"). Reserve this the same way other dimensions reserve values near \
 +-1.0 -- rare, for genuinely unambiguous text.
   - 0.0 (the default) whenever "source_languages" is empty -- there's \
 nothing for strictness to apply to.
+A real language need not be named, or even hinted at by name, to justify \
+populating "source_languages" at all: strong cultural, religious, or \
+geographic imagery that real-world evokes a specific language or language \
+family justifies naming it, the same "atmospherically evoked" reasoning \
+the Dutch/windmills case above already uses, just from a different kind \
+of cue -- e.g. devout desert nomads, prayer, and austere sun-scoured \
+settlements evoke Arabic even with no language, region, or ethnicity \
+named outright. Keep "source_language_strictness" low (0.0-0.2) for this \
+kind of inferred, not requested, affinity -- the text isn't asking the \
+conlang to resemble that language, only evoking the kind of culture that \
+language is historically associated with. Don't strain for this: only \
+extract a language this way when the cultural signal is genuinely strong \
+and specific enough that a well-informed reader would independently name \
+the same language -- a generic "desert people" with no further religious \
+or cultural texture is not enough on its own.
 - "salient_vocabulary_domains": short domain words for subsistence/culture \
 implied by the text, e.g. "seafaring", "herding" (usually empty).
 - "time_depth_years": an integer if the text asks how a language would \
@@ -150,6 +165,19 @@ even without asking to closely resemble it -- windmills/canals/lowlands \
 plus "vaguely evocative of Dutch" is enough to extract the name, but the \
 soft wording keeps strictness low; doesn't on its own justify a high \
 value on any other dimension.)
+
+Prompt: "a people of devout desert nomads, prayer at dawn and dusk, \
+austere sun-scoured settlements of pale stone"
+-> source_languages: ["Arabic"], source_language_strictness: 0.15, \
+ritual_register: 0.4, every other dimension: 0.0. (No language, region, \
+or ethnicity is named anywhere -- "devout desert nomads" plus daily \
+prayer plus the austere desert-settlement imagery together evoke Arabic \
+strongly enough to name it outright, the same kind of inference the \
+Dutch/windmills example above makes from a different set of cues. \
+Strictness stays low since nothing asks the conlang to resemble Arabic \
+specifically, only evokes the culture; "prayer at dawn and dusk" is \
+explicit enough about a distinct religious speech practice to support a \
+modest ritual_register value on its own.)
 
 Prompt: "a tonal language for a trading empire, please mark tone with a \
 number after each syllable, Wade-Giles style"
