@@ -34,6 +34,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         spec.forced_orthography,
         spec.allow_all_caps,
         spec.traits.source_language_strictness,
+        spec.traits.source_language_weights,
     )
     grammar = grammar_gen.generate_grammar(rng, spec)
 

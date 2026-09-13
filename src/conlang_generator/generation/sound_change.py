@@ -557,7 +557,7 @@ def _coin_native_word(
 def _coin_borrowed_word(
     rng: random.Random,
     entry: LexicalEntry,
-    reference_profiles: tuple,
+    weighted_profiles: tuple,
     consonant_by_ipa: dict,
     vowel_by_ipa: dict,
 ) -> tuple[str, str]:
@@ -566,8 +566,14 @@ def _coin_borrowed_word(
     language's own spelling conventions (Milestone A's reference-aware
     ``generate_romanization``) rather than this language's own systemic
     rules -- the borrowed word keeps its foreign spelling, it isn't
-    respelled."""
-    profile = rng.choice(reference_profiles)
+    respelled. Which language a given borrowed word comes from is a
+    weighted choice, not a uniform one -- a 70%-weighted contact language
+    should supply most borrowings, a 30%-weighted one a real but smaller
+    minority, the same relative-influence reading `source_language_
+    weights` has everywhere else."""
+    profiles = [p for p, _ in weighted_profiles]
+    weights = [w for _, w in weighted_profiles]
+    profile = rng.choices(profiles, weights=weights)[0]
     consonants = tuple(c for s in profile.consonants if (c := consonant_by_ipa.get(s)) is not None)
     vowels = tuple(v for s in profile.vowels if (v := vowel_by_ipa.get(s)) is not None)
     inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
@@ -604,6 +610,25 @@ def evolve_language(
     # too, and persisted onto the returned language's own spec (below) so
     # a second evolution generation inherits the same lineage in turn.
     lineage_languages = tuple(dict.fromkeys((*base.spec.traits.source_languages, *traits.source_languages)))
+    # Same union, for each name's own *weight*: the base language's own
+    # prior weight persists unless this run's own `traits` re-states a
+    # weight for that same name, in which case the fresh, current-run
+    # value wins (this evolution's own contact intensity is presumably
+    # what the caller actually means "now," not a stale weight from
+    # however the base language was originally generated). A name with
+    # no weight recorded anywhere defaults to 1.0, matching
+    # `match_profiles_weighted`'s own "unweighted means equal" fallback.
+    lineage_weight_by_name: dict[str, float] = {
+        name: (base.spec.traits.source_language_weights[i] if i < len(base.spec.traits.source_language_weights) else 1.0)
+        for i, name in enumerate(base.spec.traits.source_languages)
+    }
+    lineage_weight_by_name.update(
+        {
+            name: (traits.source_language_weights[i] if i < len(traits.source_language_weights) else 1.0)
+            for i, name in enumerate(traits.source_languages)
+        }
+    )
+    lineage_weights = tuple(lineage_weight_by_name.get(name, 1.0) for name in lineage_languages)
     # Same lineage, used for phonotactic constraints (e.g. Dutch's coda-
     # devoicing) rather than orthography this time -- a separate variable
     # from `reference_profiles` below (which is deliberately current-run-
@@ -628,6 +653,9 @@ def evolve_language(
         base.syllable_structure, evolved_ipas, known_symbols, rng, traits, lineage_profiles
     )
     reference_profiles = reference_languages.match_profiles(traits.source_languages)
+    weighted_reference_profiles = reference_languages.match_profiles_weighted(
+        traits.source_languages, traits.source_language_weights
+    )
 
     # Pass 1: lexical replacement (scenarios 2a/2b) -- decide per entry
     # whether the whole word (not just its sound) gets replaced, at a rate
@@ -645,7 +673,7 @@ def evolve_language(
     for i, (entry, evolved_ipa) in enumerate(zip(base.lexicon.entries, evolved_ipas)):
         if rng.random() < _replacement_rate(years, traits, entry.pos):
             if reference_profiles:
-                ipa, latin = _coin_borrowed_word(rng, entry, reference_profiles, consonant_by_ipa, vowel_by_ipa)
+                ipa, latin = _coin_borrowed_word(rng, entry, weighted_reference_profiles, consonant_by_ipa, vowel_by_ipa)
                 final_ipas.append(ipa)
                 borrowed_romanizations[i] = latin
             else:
@@ -669,6 +697,7 @@ def evolve_language(
         reform_rate=orthography_rates.reform, drift_rate=orthography_rates.drift,
         forced_orthography=forced_orthography,
         strictness=traits.source_language_strictness,
+        source_language_weights=lineage_weights,
     )
 
     # Pass 2: every non-replaced entry's spelling comes from the one
@@ -734,7 +763,7 @@ def evolve_language(
     spec = GenerationSpec(
         prompt=f"evolved from '{base.name}' over {years} years",
         seed=seed,
-        traits=traits.model_copy(update={"source_languages": lineage_languages}),
+        traits=traits.model_copy(update={"source_languages": lineage_languages, "source_language_weights": lineage_weights}),
     )
 
     return Language(

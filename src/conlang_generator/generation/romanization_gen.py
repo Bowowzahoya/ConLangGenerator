@@ -117,7 +117,7 @@ from conlang_generator.core.romanization import (
     VowelLengthStrategy,
 )
 from conlang_generator.generation import sonority
-from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles
+from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles_weighted
 from conlang_generator.generation.trait_bias import biased_probability
 
 _EJECTIVE_SPELLING_MARKS = ("'", "’")  # ascii apostrophe, right single quote
@@ -712,57 +712,99 @@ def _strict_weight(base_weight: float, strictness: float) -> float:
     return biased_probability(base_weight, strictness) if strictness > 0.0 else base_weight
 
 
+WeightedProfiles = tuple[tuple[ReferenceLanguageProfile, float], ...]
+"""A ``reference_languages.match_profiles_weighted`` result -- each
+matched profile paired with its own relative weight (already normalized
+to sum to 1.0 across the matched set). Every reference-combination
+function in this module takes this shape now, not a bare profile tuple,
+so per-language weight is available wherever profiles get combined."""
+
+
+def _by_descending_weight(weighted_profiles: WeightedProfiles) -> list[tuple[ReferenceLanguageProfile, float]]:
+    """Stable sort by weight, heaviest first *and* rescaled relative to
+    that heaviest weight (so the top profile's own value is always
+    exactly ``1.0``) -- the shared ordering/scaling every first-match-
+    wins-with-its-own-independent-roll function below now uses instead of
+    plain ``source_languages`` tuple order at an unscaled ``strictness``.
+
+    Deliberately *not* the raw ``match_profiles_weighted`` weights (which
+    sum to ``1.0`` across the whole matched set): those shrink toward
+    zero as more *equally*-weighted languages are named, which is right
+    for a union/pooling function (Stage 3's boolean-any -> weighted-
+    fraction family, `_resolve_joint_spellings`'s combined weight) but
+    wrong here -- an independent per-profile roll's own strength should
+    depend on how it compares to its *strongest competitor*, not on how
+    many languages happen to be named. Rescaling to the max preserves the
+    exact backward-compatible case this feature must not break: two (or
+    more) equally-weighted languages each still get a full, unscaled
+    roll, byte-identical to before this feature existed -- only a
+    genuinely *lighter*-weighted language (relative to the heaviest
+    matched one) gets a reduced one. Stable, so equal-weight profiles
+    keep their original relative order too."""
+    if not weighted_profiles:
+        return []
+    heaviest = max(weight for _, weight in weighted_profiles)
+    rescaled = [(profile, weight / heaviest) for profile, weight in weighted_profiles]
+    return sorted(rescaled, key=lambda pw: pw[1], reverse=True)
+
+
 def _resolve_syllable_boundary_marker(
     rng: random.Random,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: WeightedProfiles,
     default: SyllableBoundaryMarker,
     strictness: float,
 ) -> SyllableBoundaryMarker:
     """A matched profile's own `syllable_boundary_marker` override (e.g.
     French's real tréma) gets the same probabilistic shot as every other
-    reference-adoption roll in this module -- `default` (whatever the
-    resolved whole-scheme `category` already has) wins otherwise. Only
-    consulted by `generate_romanization`: `evolve_romanization`
-    deliberately doesn't re-consult reference bias for any category axis
-    (see its own docstring) -- it reconstructs the *already-resolved*
-    value from the base scheme via `_category_from_scheme` instead, so a
-    language's orthographic family doesn't randomly drift mid-evolution."""
-    for profile in reference_profiles:
-        if profile.syllable_boundary_marker and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
+    reference-adoption roll in this module, scaled by that profile's own
+    relative weight -- `default` (whatever the resolved whole-scheme
+    `category` already has) wins otherwise. Profiles are tried heaviest-
+    first (`_by_descending_weight`), so a lower-weighted language's own
+    convention is both less likely to be checked first *and* less likely
+    to win its own roll when it is. Only consulted by
+    `generate_romanization`: `evolve_romanization` deliberately doesn't
+    re-consult reference bias for any category axis (see its own
+    docstring) -- it reconstructs the *already-resolved* value from the
+    base scheme via `_category_from_scheme` instead, so a language's
+    orthographic family doesn't randomly drift mid-evolution."""
+    for profile, weight in _by_descending_weight(weighted_profiles):
+        if profile.syllable_boundary_marker and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness * weight):
             return SyllableBoundaryMarker(profile.syllable_boundary_marker)
     return default
 
 
 def _resolve_stress_accent_marking(
     rng: random.Random,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: WeightedProfiles,
     default: str,
     strictness: float,
 ) -> str:
     """A matched profile's own ``stress_accent_marking`` override (e.g.
-    real Spanish's irregular-only á/é/í/ó/ú) gets the same probabilistic
-    shot as ``syllable_boundary_marker`` above, and the same "only
-    consulted by ``generate_romanization``" carve-out -- ``evolve_romanization``
-    reconstructs the already-resolved value from the base scheme instead
-    (via ``_category_from_scheme``), so a language's stress-marking
-    convention doesn't randomly drift mid-evolution."""
-    for profile in reference_profiles:
-        if profile.stress_accent_marking and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
+    real Spanish's irregular-only á/é/í/ó/ú) gets the same weight-scaled
+    probabilistic shot as ``syllable_boundary_marker`` above, and the
+    same "only consulted by ``generate_romanization``" carve-out --
+    ``evolve_romanization`` reconstructs the already-resolved value from
+    the base scheme instead (via ``_category_from_scheme``), so a
+    language's stress-marking convention doesn't randomly drift
+    mid-evolution."""
+    for profile, weight in _by_descending_weight(weighted_profiles):
+        if profile.stress_accent_marking and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness * weight):
             return profile.stress_accent_marking
     return default
 
 
-def _resolve_stress_pattern(reference_profiles: tuple[ReferenceLanguageProfile, ...]) -> str:
+def _resolve_stress_pattern(weighted_profiles: WeightedProfiles) -> str:
     """The matched profile's own ``stress_pattern``, for
     ``RomanizationScheme.stress_pattern`` -- unlike ``stress_accent_marking``
     (a category-family-level axis with its own probabilistic-adoption
     roll), this is always just "whichever matched profile's own value,
-    if any" outright, the same first-match-wins rule
+    if any" outright, tried heaviest-weighted first
+    (``_by_descending_weight``) -- the same first-match-wins rule
     ``generation.stress_gen.resolve_stress_pattern`` already uses for
     stress *assignment* -- ``apply()``'s own "irregular_only" marking
     needs to compare against the exact same pattern assignment actually
     used, not an independently-rolled one."""
-    for profile in reference_profiles:
+    for profile, _ in _by_descending_weight(weighted_profiles):
         if profile.stress_pattern:
             return profile.stress_pattern
     return ""
@@ -770,32 +812,34 @@ def _resolve_stress_pattern(reference_profiles: tuple[ReferenceLanguageProfile, 
 
 def _resolve_word_accent_marking(
     rng: random.Random,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: WeightedProfiles,
     default: str,
     strictness: float,
 ) -> str:
     """The word-accent-marking mirror of ``_resolve_stress_accent_marking``
-    above -- same probabilistic-adoption shot, same "only consulted by
-    ``generate_romanization``, ``evolve_romanization`` reconstructs from
-    the base scheme instead" carve-out. No currently curated profile sets
-    ``word_accent_marking`` (real Danish/Swedish/Norwegian orthography
-    writes neither stød nor pitch accent), so this always returns
-    ``default`` today -- wired for a future profile that does, the same
-    "designed for, not yet exercised" spirit as the field itself."""
-    for profile in reference_profiles:
-        if profile.word_accent_marking and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
+    above -- same weight-scaled probabilistic-adoption shot, same "only
+    consulted by ``generate_romanization``, ``evolve_romanization``
+    reconstructs from the base scheme instead" carve-out. No currently
+    curated profile sets ``word_accent_marking`` (real Danish/Swedish/
+    Norwegian orthography writes neither stød nor pitch accent), so this
+    always returns ``default`` today -- wired for a future profile that
+    does, the same "designed for, not yet exercised" spirit as the field
+    itself."""
+    for profile, weight in _by_descending_weight(weighted_profiles):
+        if profile.word_accent_marking and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness * weight):
             return profile.word_accent_marking
     return default
 
 
-def _resolve_word_accent_realization(reference_profiles: tuple[ReferenceLanguageProfile, ...]) -> str:
+def _resolve_word_accent_realization(weighted_profiles: WeightedProfiles) -> str:
     """The matched profile's own ``word_accent_realization``, for
     ``RomanizationScheme.word_accent_realization`` -- always first-match-
-    wins outright, the same reasoning ``_resolve_stress_pattern`` gives:
-    ``apply()``'s pitch-vs-tone ``deco``-stripping needs to know the exact
-    realization ``generation.phonology_gen``/``word_accent_gen`` actually
-    used for this run, not an independently-rolled one."""
-    for profile in reference_profiles:
+    wins outright, tried heaviest-weighted first, the same reasoning
+    ``_resolve_stress_pattern`` gives: ``apply()``'s pitch-vs-tone
+    ``deco``-stripping needs to know the exact realization
+    ``generation.phonology_gen``/``word_accent_gen`` actually used for
+    this run, not an independently-rolled one."""
+    for profile, _ in _by_descending_weight(weighted_profiles):
         if profile.word_accent_realization:
             return profile.word_accent_realization
     return ""
@@ -803,7 +847,7 @@ def _resolve_word_accent_realization(reference_profiles: tuple[ReferenceLanguage
 
 def _resolve_joint_spellings(
     rng: random.Random,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: WeightedProfiles,
     strictness: float,
     inventory_symbols: frozenset[str],
     field: str,
@@ -813,21 +857,37 @@ def _resolve_joint_spellings(
     `"nucleus_coda_spellings"` -- same resolution logic either way).
     Entries whose `first`/`second` symbol isn't actually in this run's
     own inventory are dropped (meaningless otherwise). Grouped by `first`
-    and adopted per group with the same `_strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT,
-    strictness)` roll every other curated-convention adoption in this
-    module gets -- `by_first` is built by iterating `reference_profiles`
-    (a tuple) and each profile's own field (also a tuple), so its
-    insertion order -- and this function's own rng-consumption order --
-    is fully deterministic, never a raw hash-ordered `set`."""
+    and adopted per group with one shared `_strict_weight` roll scaled by
+    the *combined* weight of every profile contributing an entry to that
+    group (summed, capped at 1.0) -- a spelling convention backed only by
+    a 30%-weighted language is correspondingly less likely to survive
+    than one backed by a 70%-weighted language, or by both together.
+    `by_first`/`weight_by_first` are built by iterating `weighted_profiles`
+    (a tuple) and each profile's own field (also a tuple), so insertion
+    order -- and this function's own rng-consumption order -- stays fully
+    deterministic, never a raw hash-ordered `set`."""
     by_first: dict[str, list[JointSpelling]] = {}
-    for profile in reference_profiles:
+    # Which distinct profiles (by identity, not weight value -- two
+    # profiles can coincidentally share a weight) contributed at least
+    # one entry to each `first` symbol's own group, so a profile
+    # offering several entries for the same symbol (e.g. two different
+    # `second` spellings) counts its own weight once per group, not once
+    # per entry.
+    contributors_by_first: dict[str, list[int]] = {}
+    for profile, weight in weighted_profiles:
+        first_symbols_here: set[str] = set()
         for entry in getattr(profile, field):
             if entry.first not in inventory_symbols or entry.second not in inventory_symbols:
                 continue
             by_first.setdefault(entry.first, []).append(entry)
+            first_symbols_here.add(entry.first)
+        for first in first_symbols_here:
+            contributors_by_first.setdefault(first, []).append(id(profile))
+    weight_by_profile_id = {id(profile): weight for profile, weight in weighted_profiles}
     resolved: list[JointSpelling] = []
-    for entries in by_first.values():
-        if rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
+    for first, entries in by_first.items():
+        combined_weight = min(1.0, sum(weight_by_profile_id[pid] for pid in set(contributors_by_first[first])))
+        if rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness * combined_weight):
             resolved.extend(entries)
     return tuple(resolved)
 
@@ -1017,13 +1077,16 @@ def _category_from_scheme(scheme: RomanizationScheme) -> OrthographyCategory:
     )
 
 
-def _reference_orthography(source_languages: tuple[str, ...]) -> dict[str, list[RomanizationRule]]:
-    """``{ipa_symbol: [rule, ...]}`` -- a symbol may have more than one
-    variant rule, for two different reasons: a genuine context split
-    (Dutch's open/closed vowel-length pair, Mandarin's ü/u after
-    j/q/x/y), or genuine *weighted alternatives* sharing the very same
-    condition (real French ``/o/`` being "o"/"au"/"eau" -- see
-    ``core.romanization.RomanizationRule.weight``). First matched profile
+def _reference_orthography(
+    source_languages: tuple[str, ...], source_language_weights: tuple[float, ...] = ()
+) -> tuple[dict[str, list[RomanizationRule]], dict[str, float]]:
+    """``({ipa_symbol: [rule, ...]}, {ipa_symbol: weight})`` -- a symbol
+    may have more than one variant rule, for two different reasons: a
+    genuine context split (Dutch's open/closed vowel-length pair,
+    Mandarin's ü/u after j/q/x/y), or genuine *weighted alternatives*
+    sharing the very same condition (real French ``/o/`` being
+    "o"/"au"/"eau" -- see ``core.romanization.RomanizationRule.weight``).
+    The heaviest-weighted matched profile (``_by_descending_weight``)
     wins for a given (ipa, following, preceding, syllable) combination if
     more than one *different* source language defines it -- but that
     dedup must not fire *within* a single profile's own rule list, or a
@@ -1031,21 +1094,32 @@ def _reference_orthography(source_languages: tuple[str, ...]) -> dict[str, list[
     would be silently dropped as "already covered". So this tracks
     coverage per already-*fully processed* profile, not globally: a
     profile can freely contribute several same-condition rules, and only
-    a later, different profile is blocked from adding more for a
-    condition an earlier one already claimed."""
+    a later (lighter-weighted), different profile is blocked from adding
+    more for a condition a heavier one already claimed.
+
+    The second returned dict records, per symbol, the weight of the
+    *first* (heaviest) profile to contribute any rule for it -- needed so
+    `_rules_for_symbol`'s own adoption roll can scale by that weight too;
+    without it, a symbol's own reference rule would win its adoption roll
+    at full, unscaled strength regardless of whether the language backing
+    it was weighted 90% or 10%, since a plain rule list carries no memory
+    of which profile (or how heavily weighted) contributed it."""
     by_symbol: dict[str, list[RomanizationRule]] = {}
+    weight_by_symbol: dict[str, float] = {}
     covered: dict[str, set[tuple]] = {}
-    for profile in match_profiles(source_languages):
+    weighted_profiles = match_profiles_weighted(source_languages, source_language_weights)
+    for profile, weight in _by_descending_weight(weighted_profiles):
         newly_covered: dict[str, set[tuple]] = {}
         for rule in profile.orthography:
             condition = (rule.following, rule.preceding, rule.syllable)
             if condition in covered.get(rule.ipa, ()):
                 continue  # an earlier-matched, different profile already claimed this
             by_symbol.setdefault(rule.ipa, []).append(rule)
+            weight_by_symbol.setdefault(rule.ipa, weight)  # first (heaviest) contributor only
             newly_covered.setdefault(rule.ipa, set()).add(condition)
         for ipa, conditions in newly_covered.items():
             covered.setdefault(ipa, set()).update(conditions)
-    return by_symbol
+    return by_symbol, weight_by_symbol
 
 
 def _short_counterpart(vowel: Vowel, inventory: PhonemeInventory) -> Vowel | None:
@@ -1258,9 +1332,10 @@ def _structural_rules(category: OrthographyCategory, inventory: PhonemeInventory
 def _rules_for_symbol(
     symbol: str,
     reference: dict[str, list[RomanizationRule]],
+    weight_by_symbol: dict[str, float],
     structural: dict[str, list[RomanizationRule]],
     category: OrthographyCategory,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: WeightedProfiles,
     rng: random.Random,
     strictness: float = 0.0,
 ) -> list[RomanizationRule]:
@@ -1275,28 +1350,37 @@ def _rules_for_symbol(
     see romanization_gen.py's module docstring) > the scheme's own flat
     fallback letter, for a symbol no active source language has any real
     convention for at all. `strictness` pulls the first roll toward
-    certainty (see `_strict_weight`) -- a matched language's own curated
-    rule wins near-outright at strictness=1.0."""
+    certainty (see `_strict_weight`), scaled by `weight_by_symbol`'s own
+    entry for this symbol (the heaviest-weighted profile that actually
+    curates it, from `_reference_orthography`) -- a matched language's own
+    curated rule wins near-outright at strictness=1.0 only when that
+    language is also the heaviest (or only) one named; a symbol backed
+    only by a lightly-weighted matched language recedes accordingly. The
+    contact-table fallback, when more than one matched profile has one,
+    picks among them by weighted random choice rather than uniformly -- a
+    heavier-weighted language's own table is correspondingly more likely
+    to be the one that fills the gap."""
     variants = reference.get(symbol)
-    if variants and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
+    if variants and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness * weight_by_symbol.get(symbol, 1.0)):
         return list(variants)
     generated = structural.get(symbol)
     if generated:
         return list(generated)
-    contact_tables = [
-        _CATEGORIES_BY_NAME[p.orthography_category].exotic_style
-        for p in reference_profiles
-        if p.orthography_category and p.orthography_category in _CATEGORIES_BY_NAME
-    ]
+    contact_tables: list[dict[str, str]] = []
+    contact_weights: list[float] = []
+    for profile, weight in weighted_profiles:
+        if profile.orthography_category and profile.orthography_category in _CATEGORIES_BY_NAME:
+            contact_tables.append(_CATEGORIES_BY_NAME[profile.orthography_category].exotic_style)
+            contact_weights.append(weight)
     if contact_tables:
-        table = contact_tables[0] if len(contact_tables) == 1 else rng.choice(contact_tables)
+        table = contact_tables[0] if len(contact_tables) == 1 else rng.choices(contact_tables, weights=contact_weights)[0]
         return [RomanizationRule(ipa=symbol, latin=table.get(symbol, symbol))]
     return [RomanizationRule(ipa=symbol, latin=category.exotic_style.get(symbol, symbol))]
 
 
 def _resolve_category(
     rng: random.Random,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: WeightedProfiles,
     requested_style_name: str,
     force: OrthographyForce,
     fallback_factory: Callable[[], OrthographyCategory],
@@ -1308,29 +1392,34 @@ def _resolve_category(
     name isn't real (forcing is the "guarantee, fail loudly if misspelled"
     channel, unlike `source_languages`' silent best-effort matching).
     Otherwise, each of a matched reference profile's own declared
-    `orthography_category` (in order) and then `requested_style_name` (the
-    prompt-classifier hint) gets one probabilistic shot at winning, same
-    spirit as `_REFERENCE_ORTHOGRAPHY_WEIGHT` elsewhere in this module --
-    `strictness` pulls each of those shots toward certainty (see
-    `_strict_weight`), so the first-priority matched language's own
-    category wins outright at strictness=1.0; nothing winning calls
-    `fallback_factory()` -- a *callable*, not a precomputed value, so a
-    caller that doesn't need it (a force or a bias already won) never
-    burns its `rng` draws, keeping this project's RNG-consumption order
-    stable regardless of which path wins. Any other field set on `force`
-    then overrides just that one axis on top of whatever was resolved,
-    always."""
+    `orthography_category` (heaviest-weighted first, `_by_descending_
+    weight`) and then `requested_style_name` (the prompt-classifier hint,
+    tried last, at unscaled weight -- it isn't tied to any one named
+    language) gets one probabilistic shot at winning, scaled by that
+    profile's own relative weight -- `strictness` pulls each of those
+    shots toward certainty (see `_strict_weight`), so the heaviest-
+    weighted matched language's own category wins outright at
+    strictness=1.0; nothing winning calls `fallback_factory()` -- a
+    *callable*, not a precomputed value, so a caller that doesn't need it
+    (a force or a bias already won) never burns its `rng` draws, keeping
+    this project's RNG-consumption order stable regardless of which path
+    wins. Any other field set on `force` then overrides just that one
+    axis on top of whatever was resolved, always."""
     if force.style is not None:
         if force.style not in _CATEGORIES_BY_NAME:
             raise ValueError(f"Unknown orthography style {force.style!r}; valid names: {sorted(_CATEGORIES_BY_NAME)}")
         base = _CATEGORIES_BY_NAME[force.style]
     else:
-        candidate_names = [p.orthography_category for p in reference_profiles if p.orthography_category]
+        candidates: list[tuple[str, float]] = [
+            (profile.orthography_category, weight)
+            for profile, weight in _by_descending_weight(weighted_profiles)
+            if profile.orthography_category
+        ]
         if requested_style_name:
-            candidate_names.append(requested_style_name)
+            candidates.append((requested_style_name, 1.0))
         base = None
-        for candidate_name in candidate_names:
-            if candidate_name and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness):
+        for candidate_name, weight in candidates:
+            if rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, strictness * weight):
                 candidate = _CATEGORIES_BY_NAME.get(candidate_name)
                 if candidate is not None:
                     base = candidate
@@ -1341,17 +1430,18 @@ def _resolve_category(
 
 
 def _first_matched_with(
-    reference_profiles: tuple[ReferenceLanguageProfile, ...], field_name: str
-) -> tuple[ReferenceLanguageProfile | None, tuple]:
-    """The first matched reference profile declaring a non-empty value for
-    `field_name` (in match order), and that value -- `(None, ())` if none
-    does. Generic over `capitalized_pos`/`mute_suffix_by_pos` so a future
+    weighted_profiles: WeightedProfiles, field_name: str
+) -> tuple[ReferenceLanguageProfile | None, float, tuple]:
+    """The heaviest-weighted matched reference profile declaring a
+    non-empty value for `field_name` (`_by_descending_weight` order), that
+    profile's own weight, and the value -- `(None, 0.0, ())` if none does.
+    Generic over `capitalized_pos`/`mute_suffix_by_pos` so a future
     profile beyond German/French picks up the same boost automatically."""
-    for profile in reference_profiles:
+    for profile, weight in _by_descending_weight(weighted_profiles):
         value = getattr(profile, field_name)
         if value:
-            return profile, value
-    return None, ()
+            return profile, weight, value
+    return None, 0.0, ()
 
 
 def _roll_pos_group(rng: random.Random, rate: float, candidates: tuple[PartOfSpeech, ...]) -> tuple[PartOfSpeech, ...]:
@@ -1371,7 +1461,7 @@ def _roll_pos_group(rng: random.Random, rate: float, candidates: tuple[PartOfSpe
 
 def _roll_grammatical_spelling(
     rng: random.Random,
-    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+    weighted_profiles: WeightedProfiles,
     allow_all_caps: bool,
     strictness: float = 0.0,
 ) -> GrammaticalSpelling:
@@ -1404,10 +1494,12 @@ def _roll_grammatical_spelling(
       with a matched, non-mute-suffix language (German, English, Dutch),
       it never fires at all.
     """
-    _, capitalized_candidates = _first_matched_with(reference_profiles, "capitalized_pos")
+    _, capitalized_weight, capitalized_candidates = _first_matched_with(weighted_profiles, "capitalized_pos")
     capitalization_rate = _CAPITALIZATION_REFERENCE_BOOST_RATE if capitalized_candidates else _CAPITALIZATION_BASE_RATE
     if strictness > 0.0:
-        capitalization_rate = biased_probability(capitalization_rate, strictness if capitalized_candidates else -strictness)
+        capitalization_rate = biased_probability(
+            capitalization_rate, strictness * capitalized_weight if capitalized_candidates else -strictness
+        )
     capitalized_pos = _roll_pos_group(rng, capitalization_rate, capitalized_candidates)
 
     all_caps_pos = ()
@@ -1417,10 +1509,12 @@ def _roll_grammatical_spelling(
             all_caps_rate = biased_probability(all_caps_rate, -strictness)  # no real language does this -- strictness only ever suppresses
         all_caps_pos = _roll_pos_group(rng, all_caps_rate, ())
 
-    _, reference_mute_rules = _first_matched_with(reference_profiles, "mute_suffix_by_pos")
+    _, mute_weight, reference_mute_rules = _first_matched_with(weighted_profiles, "mute_suffix_by_pos")
     mute_suffix_rate = _MUTE_SUFFIX_BASE_RATE
     if strictness > 0.0:
-        mute_suffix_rate = biased_probability(mute_suffix_rate, strictness if reference_mute_rules else -strictness)
+        mute_suffix_rate = biased_probability(
+            mute_suffix_rate, strictness * mute_weight if reference_mute_rules else -strictness
+        )
     mute_suffix_by_pos: tuple[MuteSuffixRule, ...] = ()
     if rng.random() < mute_suffix_rate:
         if reference_mute_rules:
@@ -1445,39 +1539,42 @@ def generate_romanization(
     forced_orthography: OrthographyForce = OrthographyForce(),
     allow_all_caps: bool = False,
     strictness: float = 0.0,
+    source_language_weights: tuple[float, ...] = (),
 ) -> RomanizationScheme:
-    reference = _reference_orthography(source_languages)
-    reference_profiles = match_profiles(source_languages)
-    effective_strictness = strictness if reference_profiles else 0.0
+    reference, reference_weight_by_symbol = _reference_orthography(source_languages, source_language_weights)
+    weighted_profiles = match_profiles_weighted(source_languages, source_language_weights)
+    effective_strictness = strictness if weighted_profiles else 0.0
     category = _resolve_category(
-        rng, reference_profiles, requested_orthography_style, forced_orthography,
+        rng, weighted_profiles, requested_orthography_style, forced_orthography,
         fallback_factory=lambda: _roll_independent_axes(rng),
         strictness=effective_strictness,
     )
     syllable_boundary_marker = _resolve_syllable_boundary_marker(
-        rng, reference_profiles, category.syllable_boundary_marker, effective_strictness
+        rng, weighted_profiles, category.syllable_boundary_marker, effective_strictness
     )
     stress_accent_marking = _resolve_stress_accent_marking(
-        rng, reference_profiles, category.stress_accent_marking, effective_strictness
+        rng, weighted_profiles, category.stress_accent_marking, effective_strictness
     )
-    stress_pattern = _resolve_stress_pattern(reference_profiles)
-    word_accent_marking = _resolve_word_accent_marking(rng, reference_profiles, "", effective_strictness)
-    word_accent_realization = _resolve_word_accent_realization(reference_profiles)
+    stress_pattern = _resolve_stress_pattern(weighted_profiles)
+    word_accent_marking = _resolve_word_accent_marking(rng, weighted_profiles, "", effective_strictness)
+    word_accent_realization = _resolve_word_accent_realization(weighted_profiles)
     structural = _structural_rules(category, inventory)
     rules: list[RomanizationRule] = []
     for symbol in inventory.all_symbols():
         rules.extend(
-            _rules_for_symbol(symbol, reference, structural, category, reference_profiles, rng, effective_strictness)
+            _rules_for_symbol(
+                symbol, reference, reference_weight_by_symbol, structural, category, weighted_profiles, rng, effective_strictness
+            )
         )
     inventory_symbols = frozenset(inventory.all_symbols())
     onset_nucleus_spellings = _resolve_joint_spellings(
-        rng, reference_profiles, effective_strictness, inventory_symbols, "onset_nucleus_spellings"
+        rng, weighted_profiles, effective_strictness, inventory_symbols, "onset_nucleus_spellings"
     )
     nucleus_coda_spellings = _resolve_joint_spellings(
-        rng, reference_profiles, effective_strictness, inventory_symbols, "nucleus_coda_spellings"
+        rng, weighted_profiles, effective_strictness, inventory_symbols, "nucleus_coda_spellings"
     )
     vowel_symbols, legal_onset_clusters, vowel_backness, vowel_length = _scheme_context(inventory)
-    grammatical_spelling = _roll_grammatical_spelling(rng, reference_profiles, allow_all_caps, effective_strictness)
+    grammatical_spelling = _roll_grammatical_spelling(rng, weighted_profiles, allow_all_caps, effective_strictness)
     return RomanizationScheme(
         rules=tuple(rules),
         vowel_symbols=vowel_symbols,
@@ -1526,6 +1623,7 @@ def evolve_romanization(
     drift_rate: float = 0.0,
     forced_orthography: OrthographyForce = OrthographyForce(),
     strictness: float = 0.0,
+    source_language_weights: tuple[float, ...] = (),
 ) -> RomanizationScheme:
     """Orthographic inertia for sound-changed languages, decided per
     *symbol* rather than per word -- so every word sharing a symbol gets
@@ -1570,13 +1668,13 @@ def evolve_romanization(
         rng, (), "", forced_orthography,
         fallback_factory=lambda: _category_from_scheme(base_scheme),
     )
-    reference = _reference_orthography(source_languages)
+    reference, reference_weight_by_symbol = _reference_orthography(source_languages, source_language_weights)
     # Only the per-symbol exotic-table fallback consults source_languages
     # here, not the whole-scheme category (see the docstring above) -- a
     # newly-reformed symbol with no curated rule of its own still leans on
     # its lineage's own conventions rather than a fully generic table.
-    reference_profiles = match_profiles(source_languages)
-    effective_strictness = strictness if reference_profiles else 0.0
+    weighted_profiles = match_profiles_weighted(source_languages, source_language_weights)
+    effective_strictness = strictness if weighted_profiles else 0.0
     structural = _structural_rules(category, new_inventory)
 
     rules: list[RomanizationRule] = []
@@ -1586,7 +1684,9 @@ def evolve_romanization(
             rules.extend(old_by_ipa[symbol])
         else:
             rules.extend(
-                _rules_for_symbol(symbol, reference, structural, category, reference_profiles, rng, effective_strictness)
+                _rules_for_symbol(
+                    symbol, reference, reference_weight_by_symbol, structural, category, weighted_profiles, rng, effective_strictness
+                )
             )
 
     rules = [
@@ -1612,13 +1712,18 @@ def evolve_romanization(
             if keep_old_joint:
                 resolved.extend(old_by_first[symbol])
                 continue
-            candidates = [
-                entry
-                for profile in reference_profiles
-                for entry in getattr(profile, field)
-                if entry.first == symbol and entry.first in new_symbols and entry.second in new_symbols
-            ]
-            if candidates and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, effective_strictness):
+            candidates: list[JointSpelling] = []
+            contributing_weights: list[float] = []
+            for profile, weight in weighted_profiles:
+                contributed = False
+                for entry in getattr(profile, field):
+                    if entry.first == symbol and entry.first in new_symbols and entry.second in new_symbols:
+                        candidates.append(entry)
+                        contributed = True
+                if contributed:
+                    contributing_weights.append(weight)  # once per profile, not once per entry
+            combined_weight = min(1.0, sum(contributing_weights))
+            if candidates and rng.random() < _strict_weight(_REFERENCE_ORTHOGRAPHY_WEIGHT, effective_strictness * combined_weight):
                 resolved.extend(candidates)
         return tuple(resolved)
 

@@ -105,6 +105,34 @@ def test_evolving_with_no_new_contact_still_keeps_the_base_languages_own_lineage
     assert "Chinese" in evolved_with_contact.spec.traits.source_languages
 
 
+def test_lineage_weights_persist_a_base_languages_own_weight_unless_restated():
+    base = generate_language(
+        "Base",
+        GenerationSpec(
+            prompt="p", seed=3,
+            traits=TraitProfile(source_languages=("Dutch", "German"), source_language_weights=(0.8, 0.2)),
+        ),
+        FakeLLMClient(),
+    )
+    # No new contact this run -- the base's own weights should persist
+    # unchanged, not silently reset to equal weighting.
+    evolved = evolve_language("Evolved", base, 100, TraitProfile(), seed=1)
+    weights_by_name = dict(zip(evolved.spec.traits.source_languages, evolved.spec.traits.source_language_weights))
+    assert weights_by_name["Dutch"] == 0.8
+    assert weights_by_name["German"] == 0.2
+
+    # This run *does* restate Dutch's own weight -- the fresh value wins
+    # for that name; German's own prior weight (not restated) persists.
+    evolved_restated = evolve_language(
+        "Evolved", base, 100, TraitProfile(source_languages=("Dutch",), source_language_weights=(0.3,)), seed=1
+    )
+    restated_weights = dict(
+        zip(evolved_restated.spec.traits.source_languages, evolved_restated.spec.traits.source_language_weights)
+    )
+    assert restated_weights["Dutch"] == 0.3
+    assert restated_weights["German"] == 0.2
+
+
 def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spelling_rules():
     # End-to-end version of the regression above: Dutch's own curated
     # x->ch rule (dutch.yaml) must still be reachable for a reformed "x"
@@ -461,6 +489,29 @@ def test_source_language_replacement_borrows_from_its_own_phoneme_pool():
     # bound: legitimate changes to reference_languages/profiles/dutch.yaml (its
     # rule count) shift this fixed seed's downstream rng draws incidentally.
     assert within_dutch_pool >= 35
+
+
+def test_source_language_weights_bias_borrowing_toward_the_heavier_language():
+    base = _base_language()
+    dutch = next(p for p in REFERENCE_LANGUAGES if p.name == "Dutch")
+    mandarin = next(p for p in REFERENCE_LANGUAGES if p.name == "Mandarin")
+    traits = TraitProfile(
+        contact_intensity=0.95, source_languages=("Dutch", "Mandarin"), source_language_weights=(0.95, 0.05)
+    )
+    evolved = evolve_language("Evolved", base, 3000, traits, seed=5)
+
+    within_dutch_only = 0
+    within_mandarin_only = 0
+    for entry in evolved.lexicon.entries:
+        symbols = set(ipa_tokenizer.symbols_only(entry.ipa, _KNOWN_SYMBOLS))
+        if not symbols:
+            continue
+        within_dutch_only += symbols <= dutch.symbols() and not symbols <= mandarin.symbols()
+        within_mandarin_only += symbols <= mandarin.symbols() and not symbols <= dutch.symbols()
+    # A heavily Dutch-weighted mix should draw most (unambiguous) borrowed
+    # words from Dutch's own pool, not Mandarin's -- mirrors the single-
+    # language regression test above, now for a weighted two-language mix.
+    assert within_dutch_only > within_mandarin_only
 
 
 def test_replacement_without_source_language_still_round_trips():

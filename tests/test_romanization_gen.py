@@ -34,6 +34,7 @@ from conlang_generator.generation.romanization_gen import (
 
 _SEEDS = range(150)
 _DUTCH = next(p for p in REFERENCE_LANGUAGES if p.name == "Dutch")
+_MANDARIN = next(p for p in REFERENCE_LANGUAGES if p.name == "Mandarin")
 _CONSONANT_BY_IPA = {c.ipa: c for c in ALL_CONSONANTS}
 _VOWEL_BY_IPA = {v.ipa: v for v in ALL_VOWELS}
 
@@ -42,6 +43,15 @@ def _dutch_flavored_inventory() -> PhonemeInventory:
     return PhonemeInventory(
         consonants=tuple(_CONSONANT_BY_IPA[s] for s in _DUTCH.consonants),
         vowels=tuple(_VOWEL_BY_IPA[s] for s in _DUTCH.vowels),
+    )
+
+
+def _dutch_and_mandarin_flavored_inventory() -> PhonemeInventory:
+    symbols = tuple(dict.fromkeys((*_DUTCH.consonants, *_MANDARIN.consonants)))
+    vowel_symbols = tuple(dict.fromkeys((*_DUTCH.vowels, *_MANDARIN.vowels)))
+    return PhonemeInventory(
+        consonants=tuple(_CONSONANT_BY_IPA[s] for s in symbols),
+        vowels=tuple(_VOWEL_BY_IPA[s] for s in vowel_symbols),
     )
 
 
@@ -73,7 +83,7 @@ def test_reference_orthography_keeps_all_of_one_profiles_tied_alternatives():
     # must all survive -- the dedup that stops a *later*, different
     # profile from overriding an earlier one's coverage must not also
     # fire within one profile's own list.
-    reference = _reference_orthography(("French",))
+    reference, _ = _reference_orthography(("French",))
     o_spellings = {rule.latin for rule in reference["o"]}
     assert o_spellings == {"o", "au", "eau"}
 
@@ -91,8 +101,25 @@ def test_reference_orthography_still_lets_the_first_matched_profile_win(monkeypa
         orthography=(RomanizationRule(ipa="p", latin="SECOND"),),
     )
     monkeypatch.setattr(reference_languages, "REFERENCE_LANGUAGES", (first, second))
-    reference = _reference_orthography(("First", "Second"))
+    reference, _ = _reference_orthography(("First", "Second"))
     assert [rule.latin for rule in reference["p"]] == ["FIRST"]
+
+
+def test_reference_orthography_a_heavier_weighted_later_named_profile_still_wins(monkeypatch):
+    # A weight override can flip the tuple-order tiebreak: "Second" named
+    # second but weighted heavier than "First" should win the same
+    # (ipa, condition) conflict the previous test resolved the other way.
+    first = ReferenceLanguageProfile(
+        name="First", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False,
+        orthography=(RomanizationRule(ipa="p", latin="FIRST"),),
+    )
+    second = ReferenceLanguageProfile(
+        name="Second", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False,
+        orthography=(RomanizationRule(ipa="p", latin="SECOND"),),
+    )
+    monkeypatch.setattr(reference_languages, "REFERENCE_LANGUAGES", (first, second))
+    reference, _ = _reference_orthography(("First", "Second"), (0.2, 0.8))
+    assert [rule.latin for rule in reference["p"]] == ["SECOND"]
 
 
 def test_no_source_language_matches_current_behavior():
@@ -103,14 +130,17 @@ def test_no_source_language_matches_current_behavior():
         assert with_empty == with_unmatched
 
 
-def _dutch_rule_fraction(source_languages: tuple[str, ...], strictness: float = 0.0) -> float:
+def _dutch_rule_fraction(
+    source_languages: tuple[str, ...], strictness: float = 0.0, source_language_weights: tuple[float, ...] = ()
+) -> float:
     dutch_by_ipa = {rule.ipa: rule.latin for rule in _DUTCH.orthography}
     inventory = _dutch_flavored_inventory()
     hits = 0
     total = 0
     for seed in _SEEDS:
         scheme = generate_romanization(
-            random.Random(seed), inventory, source_languages, allow_all_caps=False, strictness=strictness
+            random.Random(seed), inventory, source_languages, allow_all_caps=False, strictness=strictness,
+            source_language_weights=source_language_weights,
         )
         by_ipa = {rule.ipa: rule.latin for rule in scheme.rules}
         for ipa, latin in dutch_by_ipa.items():
@@ -128,6 +158,50 @@ def test_full_strictness_makes_dutch_rule_adoption_near_certain():
     strict = _dutch_rule_fraction(("Dutch",), strictness=1.0)
     assert strict > soft
     assert strict > 0.97
+
+
+def _first_rule_fraction(weights: tuple[float, ...], monkeypatch, strictness: float = 1.0) -> float:
+    # Synthetic profiles, deliberately non-overlapping on symbol "p" (only
+    # "First" curates it at all) -- isolates the adoption-*roll-strength*
+    # mechanism cleanly, unlike real Dutch+Mandarin, which legitimately
+    # also both curate real, non-conflicting (different-condition) rules
+    # for some of the same symbols, muddying a same-symbol comparison
+    # with real multi-profile rule *coexistence*, not a weighting effect.
+    first = ReferenceLanguageProfile(
+        name="First", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False,
+        orthography=(RomanizationRule(ipa="p", latin="FIRST"),),
+    )
+    second = ReferenceLanguageProfile(
+        name="Second", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False,
+    )
+    monkeypatch.setattr(reference_languages, "REFERENCE_LANGUAGES", (first, second))
+    inventory = PhonemeInventory(
+        consonants=(Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False),),
+        vowels=(Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False),),
+    )
+    hits = sum(
+        any(rule.ipa == "p" and rule.latin == "FIRST" for rule in generate_romanization(
+            random.Random(seed), inventory, ("First", "Second"), strictness=strictness, source_language_weights=weights,
+        ).rules)
+        for seed in _SEEDS
+    )
+    return hits / len(_SEEDS)
+
+
+def test_full_strictness_equal_weights_still_gives_a_rule_full_adoption_strength(monkeypatch):
+    # Regression guard, mirrored from the category-selection version above:
+    # naming a second, equally-weighted language (here, one that simply
+    # doesn't curate this particular symbol at all) must not water down
+    # the curating language's own rule-adoption strength.
+    assert _first_rule_fraction((1.0, 1.0), monkeypatch) > 0.97
+
+
+def test_source_language_weights_reduce_a_lightly_weighted_languages_own_rule_adoption(monkeypatch):
+    heavy = _first_rule_fraction((0.9, 0.1), monkeypatch)
+    light = _first_rule_fraction((0.1, 0.9), monkeypatch)
+    assert heavy > light
+    assert heavy > 0.9
+    assert light < 0.85  # meaningfully below the ~1.0 an unweighted/equal-weight match would give
 
 
 def test_evolve_romanization_keeps_old_rules_for_surviving_symbols():
@@ -557,10 +631,12 @@ def _category_fraction(
     inventory: PhonemeInventory,
     requested_orthography_style: str = "",
     strictness: float = 0.0,
+    source_language_weights: tuple[float, ...] = (),
 ) -> float:
     hits = sum(
         generate_romanization(
-            random.Random(seed), inventory, source_languages, requested_orthography_style, strictness=strictness
+            random.Random(seed), inventory, source_languages, requested_orthography_style, strictness=strictness,
+            source_language_weights=source_language_weights,
         ).category_name
         == category_name
         for seed in _SEEDS
@@ -599,6 +675,33 @@ def test_full_strictness_makes_dutch_category_selection_near_certain():
     strict = _category_fraction(("Dutch",), "germanic-doubling-style", inventory, strictness=1.0)
     assert strict > soft
     assert strict > 0.97
+
+
+def test_full_strictness_equal_weights_reproduces_single_language_adoption_strength():
+    # Regression guard: two *equally*-weighted languages (the default,
+    # unweighted case) must roll each candidate at the same full strength
+    # a single named language gets -- not a weaker one just because a
+    # second language is also named. Dutch is listed first, so at
+    # strictness=1.0 it should win its own (now unscaled, since both are
+    # tied for heaviest) roll almost every time, exactly matching
+    # test_full_strictness_makes_dutch_category_selection_near_certain's
+    # own >0.97 bar for the single-language case.
+    inventory = _dutch_and_mandarin_flavored_inventory()
+    strict = _category_fraction(("Dutch", "Mandarin"), "germanic-doubling-style", inventory, strictness=1.0)
+    assert strict > 0.97
+
+
+def test_source_language_weights_bias_category_selection_toward_the_heavier_language():
+    inventory = _dutch_and_mandarin_flavored_inventory()
+    dutch_heavy = _category_fraction(
+        ("Dutch", "Mandarin"), "germanic-doubling-style", inventory, strictness=1.0, source_language_weights=(0.9, 0.1)
+    )
+    mandarin_heavy = _category_fraction(
+        ("Dutch", "Mandarin"), "germanic-doubling-style", inventory, strictness=1.0, source_language_weights=(0.1, 0.9)
+    )
+    assert dutch_heavy > mandarin_heavy
+    assert dutch_heavy > 0.8  # the heavier language should still win outright most of the time
+    assert mandarin_heavy < 0.3  # the lighter one should recede, not just tiebreak second
 
 
 def test_dutch_biased_scheme_spells_the_vuur_alternation_correctly():
