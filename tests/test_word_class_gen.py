@@ -3,7 +3,7 @@ generation and application (core.grammar.WordClass)."""
 
 import random
 
-from conlang_generator.core.grammar import PositionClass, PositionClassOption, WordClass
+from conlang_generator.core.grammar import MorphologicalType, PositionClass, PositionClassOption, WordClass
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import Consonant, Manner, Place, PhonemeInventory, SyllableStructure, Vowel, VowelBackness, VowelHeight
 from conlang_generator.core.romanization import STRESS_MARK
@@ -130,7 +130,9 @@ def test_generate_word_classes_root_and_pattern_gets_no_invented_classes():
     for seed in range(50):
         rng = random.Random(seed)
         spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile())
-        classes, deviation_rate = word_class_gen.generate_word_classes(rng, spec, inventory, structure, True)
+        classes, deviation_rate = word_class_gen.generate_word_classes(
+            rng, spec, inventory, structure, True, MorphologicalType.FUSIONAL
+        )
         assert classes == ()
         assert deviation_rate is None
 
@@ -141,7 +143,9 @@ def test_generate_word_classes_invents_classes_for_an_unmatched_language_sometim
     for seed in range(200):
         rng = random.Random(seed)
         spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile())
-        classes, _ = word_class_gen.generate_word_classes(rng, spec, inventory, structure, False)
+        classes, _ = word_class_gen.generate_word_classes(
+            rng, spec, inventory, structure, False, MorphologicalType.FUSIONAL
+        )
         if classes:
             hits += 1
     assert hits > 0
@@ -153,12 +157,87 @@ def test_generate_word_classes_adopts_frances_own_real_verb_classes_sometimes():
     for seed in range(60):
         rng = random.Random(seed)
         spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=("French",)))
-        classes, deviation_rate = word_class_gen.generate_word_classes(rng, spec, inventory, structure, False)
+        classes, deviation_rate = word_class_gen.generate_word_classes(
+            rng, spec, inventory, structure, False, MorphologicalType.FUSIONAL
+        )
         verb_classes = {c.name for c in classes if c.pos is PartOfSpeech.VERB}
         if verb_classes == {"-er verbs", "-ir verbs", "-re verbs"}:
             hits += 1
             assert deviation_rate is not None
     assert hits > 0
+
+
+def test_generate_word_classes_invents_a_harmony_conditioned_class_when_structure_has_vowel_harmony():
+    # A language with no source-language influence at all, but this run's
+    # own independently-rolled `structure.vowel_harmony=True` -- the
+    # invented path should sometimes collapse a POS's own class marking
+    # into a single real harmony-conditioned suffix pair instead of N
+    # flat classes, the same mechanism a matched Turkish/Finnish/
+    # Mongolian-style profile already exercises via reference adoption.
+    inventory = _inventory()
+    structure = SyllableStructure(max_onset=1, max_coda=1, vowel_harmony=True)
+    hits = 0
+    for seed in range(400):
+        rng = random.Random(seed)
+        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile())
+        classes, _ = word_class_gen.generate_word_classes(
+            rng, spec, inventory, structure, False, MorphologicalType.FUSIONAL
+        )
+        harmony_classes = [c for c in classes if c.condition == "vowel_harmony"]
+        if harmony_classes:
+            hits += 1
+            for wc in harmony_classes:
+                assert wc.suffix
+                assert wc.suffix_alt
+                assert wc.prefix == ()
+    assert hits > 0
+
+
+def test_generate_word_classes_never_invents_harmony_classes_without_vowel_harmony():
+    inventory = _inventory()
+    structure = SyllableStructure(max_onset=1, max_coda=1, vowel_harmony=False)
+    for seed in range(200):
+        rng = random.Random(seed)
+        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile())
+        classes, _ = word_class_gen.generate_word_classes(
+            rng, spec, inventory, structure, False, MorphologicalType.FUSIONAL
+        )
+        assert not any(c.condition == "vowel_harmony" for c in classes)
+
+
+def test_generate_word_classes_invents_position_classes_for_a_polysynthetic_verb():
+    # No source-language influence, but this run's own independently-
+    # rolled `morphological_type=POLYSYNTHETIC` -- VERB's own invented
+    # class marking should sometimes take the shape of real Navajo-style
+    # position-class prefixation instead of a flat prefix/suffix class.
+    inventory, structure = _inventory(), _structure()
+    hits = 0
+    for seed in range(400):
+        rng = random.Random(seed)
+        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile())
+        classes, _ = word_class_gen.generate_word_classes(
+            rng, spec, inventory, structure, False, MorphologicalType.POLYSYNTHETIC
+        )
+        position_classes_wcs = [c for c in classes if c.pos is PartOfSpeech.VERB and c.position_classes]
+        if position_classes_wcs:
+            hits += 1
+            for wc in position_classes_wcs:
+                assert wc.prefix == () and wc.suffix == ()
+                for slot in wc.position_classes:
+                    assert len(slot.options) >= 2
+                    assert any(option.symbols == () for option in slot.options)
+    assert hits > 0
+
+
+def test_generate_word_classes_never_invents_position_classes_without_polysynthetic():
+    inventory, structure = _inventory(), _structure()
+    for seed in range(200):
+        rng = random.Random(seed)
+        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile())
+        classes, _ = word_class_gen.generate_word_classes(
+            rng, spec, inventory, structure, False, MorphologicalType.FUSIONAL
+        )
+        assert not any(c.position_classes for c in classes)
 
 
 def test_source_language_weights_reduce_frances_own_class_adoption_when_lightly_weighted():
@@ -184,7 +263,9 @@ def test_source_language_weights_reduce_frances_own_class_adoption_when_lightly_
                     source_language_strictness=1.0,
                 ),
             )
-            classes, _ = word_class_gen.generate_word_classes(rng, spec, inventory, structure, False)
+            classes, _ = word_class_gen.generate_word_classes(
+            rng, spec, inventory, structure, False, MorphologicalType.FUSIONAL
+        )
             verb_classes = {c.name for c in classes if c.pos is PartOfSpeech.VERB}
             if verb_classes == {"-er verbs", "-ir verbs", "-re verbs"}:
                 hits += 1
@@ -370,7 +451,9 @@ def test_generate_word_classes_full_strictness_suppresses_invented_classes_for_a
         spec = GenerationSpec(
             prompt="p", seed=seed, traits=TraitProfile(source_languages=("French",), source_language_strictness=1.0)
         )
-        classes, _ = word_class_gen.generate_word_classes(rng, spec, inventory, structure, False)
+        classes, _ = word_class_gen.generate_word_classes(
+            rng, spec, inventory, structure, False, MorphologicalType.FUSIONAL
+        )
         if any(c.pos is PartOfSpeech.NOUN for c in classes):
             hits += 1
     assert hits / n < 0.05  # near-zero, not just "reduced"
@@ -388,7 +471,9 @@ def test_generate_word_classes_zero_strictness_still_invents_classes_for_an_uncu
         spec = GenerationSpec(
             prompt="p", seed=seed, traits=TraitProfile(source_languages=("French",), source_language_strictness=0.0)
         )
-        classes, _ = word_class_gen.generate_word_classes(rng, spec, inventory, structure, False)
+        classes, _ = word_class_gen.generate_word_classes(
+            rng, spec, inventory, structure, False, MorphologicalType.FUSIONAL
+        )
         if any(c.pos is PartOfSpeech.NOUN for c in classes):
             hits += 1
     assert hits > 0
@@ -403,7 +488,9 @@ def test_generate_word_classes_full_strictness_makes_frances_own_classes_near_ce
         spec = GenerationSpec(
             prompt="p", seed=seed, traits=TraitProfile(source_languages=("French",), source_language_strictness=1.0)
         )
-        classes, _ = word_class_gen.generate_word_classes(rng, spec, inventory, structure, False)
+        classes, _ = word_class_gen.generate_word_classes(
+            rng, spec, inventory, structure, False, MorphologicalType.FUSIONAL
+        )
         verb_classes = {c.name for c in classes if c.pos is PartOfSpeech.VERB}
         if verb_classes == {"-er verbs", "-ir verbs", "-re verbs"}:
             hits += 1

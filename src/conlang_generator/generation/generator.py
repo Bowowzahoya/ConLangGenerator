@@ -47,7 +47,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         grammar = grammar.model_copy(update={"templates": templates})
 
     word_classes, word_class_deviation_rate = word_class_gen.generate_word_classes(
-        rng, spec, inventory, syllable_structure, grammar.uses_root_and_pattern
+        rng, spec, inventory, syllable_structure, grammar.uses_root_and_pattern, grammar.morphological_type
     )
     grammar = grammar.model_copy(
         update={"word_classes": word_classes, "word_class_deviation_rate": word_class_deviation_rate}

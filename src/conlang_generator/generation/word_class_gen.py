@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import random
 
-from conlang_generator.core.grammar import WordClass
+from conlang_generator.core.grammar import MorphologicalType, PositionClass, PositionClassOption, WordClass
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure, VowelBackness
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
@@ -90,6 +90,65 @@ their own assigned class; a modest minority are irregular/suppletive,
 the same "sensible generic baseline" role
 ``stress_gen._GENERIC_STRESS_DEVIATION_RATE`` already plays."""
 
+_HARMONY_ELIGIBLE_POS = (PartOfSpeech.NOUN, PartOfSpeech.VERB, PartOfSpeech.ADJECTIVE)
+_HARMONY_CLASS_COLLAPSE_RATE = 0.35
+"""When this run's own (already independently rolled, source-language-
+independent) ``structure.vowel_harmony`` is true, the odds that an
+eligible POS's invented class marking takes the shape of a single real
+harmony-conditioned suffix pair (front/back allomorphs, real Turkish/
+Finnish/Mongolian-style) instead of N unconditioned flat classes --
+illustrative, not a corpus statistic, same honesty standard as every
+other invented-path base rate here."""
+
+_POSITION_CLASS_COLLAPSE_RATE = 0.35
+"""Same role as ``_HARMONY_CLASS_COLLAPSE_RATE``, for VERB specifically,
+gated on this run's own rolled ``morphological_type is POLYSYNTHETIC``
+instead of ``vowel_harmony`` -- the odds an invented VERB class takes the
+shape of real Navajo-style position-class prefixation instead of a flat
+prefix/suffix."""
+_MIN_POSITION_CLASS_SLOTS = 1
+_MAX_POSITION_CLASS_SLOTS = 2
+_MIN_POSITION_CLASS_OPTIONS = 2
+_MAX_POSITION_CLASS_OPTIONS = 3
+_MIN_NULL_OPTION_PREVALENCE = 0.4
+_MAX_NULL_OPTION_PREVALENCE = 0.7
+"""A real null/zero-morpheme option is always included (mirroring real
+Navajo's own zero classifier, by far its most common real choice, not a
+placeholder) and given the majority share of each slot's own prevalence
+-- a real, cross-linguistically common pattern for polysynthetic
+position-class slots generally, not just Navajo's classifier."""
+_MIN_FILLED_OPTION_PREVALENCE = 0.1
+_MAX_FILLED_OPTION_PREVALENCE = 0.3
+
+
+def _invent_position_classes(
+    rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure
+) -> tuple[PositionClass, ...]:
+    """Invents 1-2 position-class slots for a polysynthetic language with
+    no matched reference profile of its own -- each slot's own real
+    paradigm is a null/zero-morpheme option (see ``_MIN_NULL_OPTION_
+    PREVALENCE``) plus 2-3 further options built via ``word_builder.
+    build_class_prefix``'s own onset+nucleus shape, the same building
+    block an ordinary invented prefixing class already reuses."""
+    slots = []
+    for slot_index in range(rng.randint(_MIN_POSITION_CLASS_SLOTS, _MAX_POSITION_CLASS_SLOTS)):
+        options = [
+            PositionClassOption(
+                name="null", symbols=(), prevalence=rng.uniform(_MIN_NULL_OPTION_PREVALENCE, _MAX_NULL_OPTION_PREVALENCE)
+            )
+        ]
+        for option_index in range(rng.randint(_MIN_POSITION_CLASS_OPTIONS, _MAX_POSITION_CLASS_OPTIONS)):
+            symbols = word_builder.build_class_prefix(rng, inventory, structure)
+            options.append(
+                PositionClassOption(
+                    name=f"position {slot_index + 1} option {option_index + 1}",
+                    symbols=symbols,
+                    prevalence=rng.uniform(_MIN_FILLED_OPTION_PREVALENCE, _MAX_FILLED_OPTION_PREVALENCE),
+                )
+            )
+        slots.append(PositionClass(name=f"position {slot_index + 1}", options=tuple(options)))
+    return tuple(slots)
+
 
 def generate_word_classes(
     rng: random.Random,
@@ -97,6 +156,7 @@ def generate_word_classes(
     inventory: PhonemeInventory,
     structure: SyllableStructure,
     uses_root_and_pattern: bool,
+    morphological_type: MorphologicalType,
 ) -> tuple[tuple[WordClass, ...], float | None]:
     """Returns this language's own ``(word_classes, word_class_deviation_
     rate)``. Root-and-pattern languages (``uses_root_and_pattern``) never
@@ -162,6 +222,58 @@ def generate_word_classes(
             # for fidelity should lean toward less invention either way.
             base_rate = biased_probability(base_rate, -strictness)
         if rng.random() >= base_rate:
+            continue
+        # Two alternate shapes an invented class can take, each gated on a
+        # typological fact this run already independently rolled for
+        # itself (source-language-independent, unlike everything above) --
+        # `and` short-circuits so a run with neither trait active never
+        # spends the extra roll, same as the harmony-agnostic no-op
+        # `phonology_gen.generate_phonology`'s own weighted checks keep.
+        if (
+            pos in _HARMONY_ELIGIBLE_POS
+            and structure.vowel_harmony
+            and rng.random() < _HARMONY_CLASS_COLLAPSE_RATE
+        ):
+            # A single real harmony-conditioned suffix pair (front/back
+            # allomorphs resolved from the stem's own phonology, real
+            # Turkish/Finnish/Mongolian-style -- see `WordClass.condition`'s
+            # own docstring) instead of N independent, unconditioned flat
+            # classes. Not marked `any_multi_class`: every word of this POS
+            # unconditionally takes this one class, the same way a
+            # reference-adopted single class (e.g. Turkish's own real
+            # curated infinitive) never triggers it either.
+            front_suffix = word_builder.build_class_suffix(rng, inventory, structure, harmony_class=VowelBackness.FRONT)
+            back_suffix = word_builder.build_class_suffix(rng, inventory, structure, harmony_class=VowelBackness.BACK)
+            classes.append(
+                WordClass(
+                    name=f"{pos.value} (vowel harmony)",
+                    pos=pos,
+                    condition="vowel_harmony",
+                    suffix=front_suffix,
+                    suffix_alt=back_suffix,
+                    prevalence=1.0,
+                )
+            )
+            continue
+        if (
+            pos is PartOfSpeech.VERB
+            and morphological_type is MorphologicalType.POLYSYNTHETIC
+            and rng.random() < _POSITION_CLASS_COLLAPSE_RATE
+        ):
+            # Real Navajo-style position-class prefixation instead of an
+            # ordinary flat prefix/suffix class -- same "one class, no
+            # assign_word_class ambiguity" reasoning as the harmony
+            # collapse above (this class's own internal position-class
+            # slots are what varies per application, resolved
+            # independently by `_resolve_position_classes` at apply time).
+            classes.append(
+                WordClass(
+                    name=f"{pos.value} (position classes)",
+                    pos=pos,
+                    position_classes=_invent_position_classes(rng, inventory, structure),
+                    prevalence=1.0,
+                )
+            )
             continue
         num_classes = rng.randint(_MIN_INVENTED_CLASSES, _MAX_INVENTED_CLASSES)
         # No cross-linguistic tendency to lean on for "prefixing vs.

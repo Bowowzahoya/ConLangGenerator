@@ -235,7 +235,12 @@ def build_syllable(
     return "".join(onset) + nucleus + tone_mark + "".join(coda)
 
 
-def build_class_suffix(rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure) -> tuple[str, ...]:
+def build_class_suffix(
+    rng: random.Random,
+    inventory: PhonemeInventory,
+    structure: SyllableStructure,
+    harmony_class: VowelBackness | None = None,
+) -> tuple[str, ...]:
     """An invented citation-form class *suffix* (``generation.word_
     class_gen``'s own real Latin-``-us``/French-``-er``-style ending, for
     a language with no matched reference profile of its own) -- a
@@ -244,8 +249,14 @@ def build_class_suffix(rng: random.Random, inventory: PhonemeInventory, structur
     safe by construction (vowel-initial can never form an illegal
     cluster) without needing a general phonotactic-repair mechanism. A
     real, if simplified, pattern -- many real declension endings genuinely
-    are vowel-only (Latin's own ``-a``, Italian's ``-o``/``-a``/``-e``)."""
-    nucleus = _choose_nucleus(rng, inventory, structure).ipa
+    are vowel-only (Latin's own ``-a``, Italian's ``-o``/``-a``/``-e``).
+
+    ``harmony_class``, when given, soft-prefers a nucleus of that backness
+    the same way ``_choose_nucleus`` already does everywhere else -- used
+    by ``word_class_gen``'s own invented ``condition="vowel_harmony"``
+    path to build the front/back allomorph pair (``suffix``/``suffix_
+    alt``) a harmonizing invented class needs."""
+    nucleus = _choose_nucleus(rng, inventory, structure, harmony_class=harmony_class).ipa
     coda = _build_coda(rng, inventory, structure, nucleus)
     return (nucleus,) + coda
 
