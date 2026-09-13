@@ -2,7 +2,7 @@ import random
 
 import pytest
 
-from conlang_generator.core.grammar import MorphologicalType
+from conlang_generator.core.grammar import Alignment, MorphologicalType, WordOrder
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import PhonemeInventory
 from conlang_generator.core.spec import GenerationSpec
@@ -2139,3 +2139,163 @@ def test_italian_marks_stress_only_on_the_final_syllable():
     S = "ˈ"
     assert scheme.apply("kit" + S + "a") == "chitá"  # final syllable stressed -- accented
     assert scheme.apply(S + "kita") == "chita"        # non-final stressed -- unmarked
+
+
+# --- Stage 2: grammar-level reference bias (word_order/alignment/has_articles/has_overt_copula/adjective_after_noun/cases) ---
+
+
+def test_japanese_source_language_biases_toward_sov_word_order():
+    def _sov_rate(source_languages: tuple[str, ...]) -> float:
+        hits = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
+            grammar = generate_grammar(random.Random(seed), spec)
+            hits += grammar.word_order is WordOrder.SOV
+        return hits / len(_SEEDS)
+
+    assert _sov_rate(("Japanese",)) > _sov_rate(())
+
+
+def test_full_strictness_makes_japanese_word_order_near_certain_sov():
+    hits = 0
+    for seed in _SEEDS:
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("Japanese",), source_language_strictness=1.0)
+        )
+        grammar = generate_grammar(random.Random(seed), spec)
+        hits += grammar.word_order is WordOrder.SOV
+    assert hits > len(_SEEDS) * 0.9
+
+
+def test_georgian_source_language_biases_toward_ergative_alignment():
+    def _ergative_rate(source_languages: tuple[str, ...]) -> float:
+        hits = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
+            grammar = generate_grammar(random.Random(seed), spec)
+            hits += grammar.alignment is Alignment.ERGATIVE_ABSOLUTIVE
+        return hits / len(_SEEDS)
+
+    assert _ergative_rate(("Georgian",)) > _ergative_rate(())
+
+
+def test_french_source_language_biases_away_from_ergative_alignment():
+    # French's own real_alignment is nominative_accusative -- the opposite
+    # direction from Georgian's own bias above, confirming the suppression
+    # branch (not just the boost branch) actually fires.
+    def _ergative_rate(source_languages: tuple[str, ...]) -> float:
+        hits = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(
+                prompt="p", seed=seed,
+                traits=TraitProfile(source_languages=source_languages, source_language_strictness=1.0),
+            )
+            grammar = generate_grammar(random.Random(seed), spec)
+            hits += grammar.alignment is Alignment.ERGATIVE_ABSOLUTIVE
+        return hits / len(_SEEDS)
+
+    assert _ergative_rate(("French",)) < _ergative_rate(())
+
+
+def test_english_source_language_biases_toward_has_articles():
+    def _articles_rate(source_languages: tuple[str, ...]) -> float:
+        hits = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
+            grammar = generate_grammar(random.Random(seed), spec)
+            hits += grammar.has_articles
+        return hits / len(_SEEDS)
+
+    assert _articles_rate(("English",)) > _articles_rate(())
+
+
+def test_japanese_source_language_biases_away_from_has_articles():
+    def _articles_rate(source_languages: tuple[str, ...]) -> float:
+        hits = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
+            grammar = generate_grammar(random.Random(seed), spec)
+            hits += grammar.has_articles
+        return hits / len(_SEEDS)
+
+    assert _articles_rate(("Japanese",)) < _articles_rate(())
+
+
+def test_russian_source_language_biases_away_from_has_overt_copula():
+    def _copula_rate(source_languages: tuple[str, ...]) -> float:
+        hits = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
+            grammar = generate_grammar(random.Random(seed), spec)
+            hits += grammar.has_overt_copula
+        return hits / len(_SEEDS)
+
+    assert _copula_rate(("Russian",)) < _copula_rate(())
+
+
+def test_french_source_language_biases_toward_adjective_after_noun():
+    def _adj_after_rate(source_languages: tuple[str, ...]) -> float:
+        hits = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
+            grammar = generate_grammar(random.Random(seed), spec)
+            hits += grammar.adjective_after_noun
+        return hits / len(_SEEDS)
+
+    assert _adj_after_rate(("French",)) > _adj_after_rate(())
+
+
+def test_source_language_weights_scale_down_frances_own_adjective_after_noun_bias():
+    # A lightly-weighted French alongside a heavily-weighted English
+    # (real_adjective_after_noun=False) should boost adjective-after-noun
+    # odds far less than a heavily-weighted French does.
+    def _adj_after_rate(weights: tuple[float, float]) -> float:
+        hits = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(
+                prompt="p", seed=seed,
+                traits=TraitProfile(
+                    source_languages=("French", "English"), source_language_weights=weights, source_language_strictness=1.0,
+                ),
+            )
+            grammar = generate_grammar(random.Random(seed), spec)
+            hits += grammar.adjective_after_noun
+        return hits / len(_SEEDS)
+
+    french_light = _adj_after_rate((0.1, 0.9))
+    french_heavy = _adj_after_rate((0.9, 0.1))
+    assert french_light < french_heavy
+
+
+def test_german_source_language_biases_case_count_toward_four():
+    def _four_case_rate(source_languages: tuple[str, ...], strictness: float) -> float:
+        hits = 0
+        n = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(
+                prompt="p", seed=seed,
+                traits=TraitProfile(source_languages=source_languages, source_language_strictness=strictness),
+            )
+            grammar = generate_grammar(random.Random(seed), spec)
+            if not grammar.cases:
+                continue  # this seed happened to roll ISOLATING -- no case system to compare
+            n += 1
+            hits += len(grammar.cases) == 4
+        return hits / n if n else 0.0
+
+    assert _four_case_rate(("German",), 1.0) > _four_case_rate((), 0.0)
+
+
+def test_french_source_language_at_full_strictness_always_produces_no_cases():
+    # French's own real_case_count is 0 and its weight is 1.0 (a single
+    # matched profile) -- at strictness=1.0 the case-count roll converges
+    # exactly to 0 regardless of the unbiased 2/3/4-case draw it started
+    # from, and morphological_type being ISOLATING already forces cases
+    # empty on its own -- so every seed should land on no cases at all,
+    # not just most of them.
+    for seed in _SEEDS:
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("French",), source_language_strictness=1.0)
+        )
+        grammar = generate_grammar(random.Random(seed), spec)
+        assert grammar.cases == ()
