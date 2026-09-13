@@ -322,6 +322,44 @@ def test_apply_word_class_position_classes_restress_correctly_for_a_syllable_slo
     assert result.startswith(STRESS_MARK + "ki")
 
 
+def test_generate_word_classes_full_strictness_suppresses_invented_classes_for_an_uncurated_pos():
+    # French only curates VERB word_classes -- at full strictness, NOUN
+    # (a POS French's own profile has no opinion on, curated or not)
+    # should almost never get an invented class, the same "matched but
+    # doesn't have it -> suppress" treatment grammar_gen.py already gives
+    # uses_root_and_pattern.
+    inventory, structure = _inventory(), _structure()
+    hits = 0
+    n = 200
+    for seed in range(n):
+        rng = random.Random(seed)
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("French",), source_language_strictness=1.0)
+        )
+        classes, _ = word_class_gen.generate_word_classes(rng, spec, inventory, structure, False)
+        if any(c.pos is PartOfSpeech.NOUN for c in classes):
+            hits += 1
+    assert hits / n < 0.05  # near-zero, not just "reduced"
+
+
+def test_generate_word_classes_zero_strictness_still_invents_classes_for_an_uncurated_pos():
+    # A no-op at strictness=0.0 -- today's behavior (an unmatched-for-
+    # this-POS language still gets the ordinary invented-class base rate)
+    # stays unchanged when strictness isn't actually dialed up.
+    inventory, structure = _inventory(), _structure()
+    hits = 0
+    n = 200
+    for seed in range(n):
+        rng = random.Random(seed)
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("French",), source_language_strictness=0.0)
+        )
+        classes, _ = word_class_gen.generate_word_classes(rng, spec, inventory, structure, False)
+        if any(c.pos is PartOfSpeech.NOUN for c in classes):
+            hits += 1
+    assert hits > 0
+
+
 def test_generate_word_classes_full_strictness_makes_frances_own_classes_near_certain():
     inventory, structure = _inventory(), _structure()
     hits = 0

@@ -131,6 +131,18 @@ def generate_word_classes(
         if uses_root_and_pattern:
             continue
         base_rate = _INVENTED_CLASS_BASE_RATE[pos]
+        if reference_profiles and strictness > 0.0:
+            # A matched reference profile that curates *no* word_classes
+            # for this POS is itself evidence at high strictness -- the
+            # same "matched but doesn't have it -> suppress toward zero"
+            # treatment `grammar_gen.py` already gives `uses_root_and_
+            # pattern`, applied here so a strict single-language run
+            # doesn't invent a paradigm the named language(s) show no
+            # sign of having, real absence (Turkish's own real lack of
+            # noun classes) or merely uncurated-so-far alike -- both look
+            # identical from here (an empty tuple), and a strict request
+            # for fidelity should lean toward less invention either way.
+            base_rate = biased_probability(base_rate, -strictness)
         if rng.random() >= base_rate:
             continue
         num_classes = rng.randint(_MIN_INVENTED_CLASSES, _MAX_INVENTED_CLASSES)
