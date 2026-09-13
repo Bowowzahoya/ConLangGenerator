@@ -113,3 +113,11 @@ word_class_deviation_rate: 0.15  # illustrative -- same order of magnitude as Ru
 stress_pattern: penultimate  # real Polish: fixed penultimate stress, a small number of verb-form/loanword exceptions
 stress_deviation_rate: 0.05  # illustrative -- real Polish stress is one of the most rigidly fixed-position systems in Europe
 stress_driven_vowel_reduction: false  # real Polish: a conservative, syllable-timed language that keeps full vowel quality regardless of stress
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: SVO                 # the standard pragmatically-neutral citation order, despite real Polish's own case-enabled free permutation
+real_alignment: nominative_accusative
+real_has_articles: false             # no grammaticalized articles, same as Russian
+real_has_overt_copula: true          # "byc" (jest) -- unlike Russian, real Polish keeps an overt present-tense copula (on jest wysoki = "he is tall")
+real_adjective_after_noun: false     # real Polish attributive adjectives precede the noun (wysoka gora = "tall mountain")
+real_case_count: 7                   # nominative, genitive, dative, accusative, instrumental, locative, vocative -- real, well-documented

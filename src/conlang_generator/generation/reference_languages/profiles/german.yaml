@@ -148,3 +148,11 @@ nucleus_frequency_tiers:
   common: ["ɛ", ai, u, o, au]
   uncommon: [e, "ɔ", "ʊ", "iː", "aː", i, "eː"]
   rare: [y, "ø", "œ", "œy", "oː", "uː"]
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: SVO                 # real German is verb-second (V2) in main clauses, which surfaces as SVO with an ordinary fronted subject -- the standard citation form; subordinate clauses are genuinely verb-final (SOV), an honest simplification for this project's own single-value field
+real_alignment: nominative_accusative
+real_has_articles: true              # der/die/das, ein/eine
+real_has_overt_copula: true          # "sein" -- real German predicate-adjective sentences use an overt copula (der Berg ist hoch)
+real_adjective_after_noun: false     # real German attributive adjectives precede the noun (der hohe Berg)
+real_case_count: 4                   # nominative, accusative, dative, genitive -- real, well-documented

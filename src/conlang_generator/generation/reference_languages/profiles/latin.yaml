@@ -73,3 +73,11 @@ coda_frequency_tiers:
   common: [r, l, k, d]
   uncommon: [p, b, g, f, "kː", "tː"]
   rare: ["pː", "sː", "nː", "lː"]
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: SOV                 # the standard citation order for Classical Latin, despite its own famously free surface order (case marking, not position, carries most grammatical relations)
+real_alignment: nominative_accusative
+real_has_articles: false             # Classical Latin famously has no articles at all
+real_has_overt_copula: true          # "esse" -- real Latin predicate-adjective sentences use an overt copula (mons altus est)
+real_adjective_after_noun: null      # genuinely too free/stylistically-driven to honestly reduce to one default (a real class of adjectives -- magnus/parvus/multus/alius and others -- conventionally precedes; most ordinary descriptive adjectives more often follow) -- same "abstain rather than force it" standard real_case_count already uses for Finnish/Georgian
+real_case_count: 6                   # nominative, genitive, dative, accusative, ablative, vocative -- real, well-documented

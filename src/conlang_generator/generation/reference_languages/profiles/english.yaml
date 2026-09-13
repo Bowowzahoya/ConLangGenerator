@@ -271,3 +271,11 @@ nucleus_frequency_tiers:
   common: ["æ", "ɐ", "ɛ", ai, ei]
   uncommon: ["ɑ", "ɔ", o, u, au]
   rare: ["ʊ", "ɔi", e]
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: SVO
+real_alignment: nominative_accusative
+real_has_articles: true              # the, a/an
+real_has_overt_copula: true          # "be" -- real English predicate-adjective sentences use an overt copula (the mountain is high)
+real_adjective_after_noun: false     # real English attributive adjectives precede the noun (the high mountain)
+real_case_count: 0                   # modern English nouns don't decline for case at all (only pronouns retain a real nominative/oblique distinction: he/him)

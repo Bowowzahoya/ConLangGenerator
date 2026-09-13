@@ -78,3 +78,11 @@ coda_frequency_tiers:
 stress_pattern: lexical  # real Arabic stress is genuinely quantity-sensitive (heavy syllables attract stress), not a flat position -- none of this project's other four patterns capture that; modeled the same "genuinely complex, no simple flat rule" way English's own real stress system is
 stress_deviation_rate: 0.35  # illustrative -- lower than English's own 0.5 (real Arabic's heavy-syllable rule is meaningfully more predictive in practice than English's genuinely idiosyncratic system, even though neither is a flat position)
 stress_driven_vowel_reduction: false  # real Arabic: keeps comparatively full vowel quality regardless of stress, unlike English/German/Dutch
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: VSO                 # the traditional/Classical and Modern Standard Arabic citation order -- many colloquial varieties favor SVO instead, an honest simplification for this project's own single-value field
+real_alignment: nominative_accusative
+real_has_articles: true              # al- -- a real, grammaticalized (if prefixal, not a separate word) definite article; no indefinite article, but the boolean is about having *an* article system at all
+real_has_overt_copula: false         # real Arabic present-tense nominal/adjectival predicate sentences are genuinely zero-copula (huwa taweel = "he (is) tall")
+real_adjective_after_noun: true      # real Arabic attributive adjectives follow the noun (al-bait al-kabir = "the house the-big")
+real_case_count: 3                   # nominative, accusative, genitive -- the real Classical/MSA i'rab system (largely unmarked in speech, but the standard citation count)

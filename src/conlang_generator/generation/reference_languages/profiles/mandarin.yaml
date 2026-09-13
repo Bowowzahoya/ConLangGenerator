@@ -102,3 +102,11 @@ nucleus_frequency_tiers:
 # filtering isn't expressible via restricted_coda_consonants alone), the
 # same real reason Italian's/Tamil's own perfected profiles leave this
 # field uncurated too.
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: SVO
+real_alignment: nominative_accusative
+real_has_articles: false             # no grammaticalized articles
+real_has_overt_copula: false         # real Mandarin adjectival predicates need no copula at all (ta hen gao = "he is tall", with a degree adverb, not shi) -- shi is only for real nominal predicates, a different construction this project doesn't model
+real_adjective_after_noun: false     # real Mandarin attributive adjectives precede the noun (gao de shan = "tall mountain")
+real_case_count: 0                   # Mandarin is a classic isolating language -- no case marking of any kind

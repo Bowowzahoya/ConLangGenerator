@@ -84,3 +84,11 @@ nucleus_frequency_tiers:
   common: [u, e]
   uncommon: [o]
   rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: SVO
+real_alignment: nominative_accusative
+real_has_articles: false             # no grammaticalized articles -- definiteness comes from noun-class agreement/context/demonstratives instead
+real_has_overt_copula: true          # "ni" -- a real, invariant copula particle used in predicate-adjective/nominal sentences (yeye ni mrefu = "he is tall")
+real_adjective_after_noun: true      # real Swahili attributive adjectives follow the noun, agreeing via noun-class concord (mtu mrefu = "tall person")
+real_case_count: 0                   # Swahili (like other Bantu languages) marks grammatical relations via noun-class agreement, not case inflection

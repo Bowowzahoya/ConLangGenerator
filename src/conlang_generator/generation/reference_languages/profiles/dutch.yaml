@@ -131,3 +131,11 @@ nucleus_frequency_tiers:
   common: ["ɪ", "ɛ", o, u, "ɑ"]
   uncommon: [i, "ɔ", y, "ø", au, e]
   rare: ["œ", "ɛi", "œy"]
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: SVO                 # same real verb-second (V2) caveat as German's own profile -- main-clause SVO is the standard citation form
+real_alignment: nominative_accusative
+real_has_articles: true              # de/het, een
+real_has_overt_copula: true          # "zijn" -- real Dutch predicate-adjective sentences use an overt copula (de berg is hoog)
+real_adjective_after_noun: false     # real Dutch attributive adjectives precede the noun (de hoge berg)
+real_case_count: 0                   # modern Dutch has genuinely lost its real historical case system -- only vestigial in a few fixed expressions/pronouns

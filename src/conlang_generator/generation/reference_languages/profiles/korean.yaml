@@ -105,3 +105,11 @@ coda_frequency_tiers:
   common: [t, l]
   uncommon: [m, "ŋ"]
   rare: [p]
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: SOV
+real_alignment: nominative_accusative
+real_has_articles: false             # no grammaticalized articles
+real_has_overt_copula: false         # real Korean descriptive adjectives are themselves a verb-like word class ("adjectival verbs") that conjugate directly (nopda = "to be tall") -- no separate copula needed
+real_adjective_after_noun: false     # real Korean attributive adjectives precede the noun (nopeun san = "tall mountain")
+real_case_count: null                # real Korean marks grammatical relations with case particles, not fused inflectional suffixes -- same abstention reasoning as Japanese's own profile

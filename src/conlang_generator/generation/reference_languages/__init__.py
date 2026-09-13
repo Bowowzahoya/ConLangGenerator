@@ -76,6 +76,12 @@ word_accent_window: null            # optional, defaults null -- e.g. 3; only me
 word_accent_marking: ""             # optional, defaults empty -- e.g. "marked", for a language that writes it (none curated do)
 word_classes: []                    # optional, defaults empty -- e.g. [{name: "1st declension", pos: noun, suffix: [a], prevalence: 1.0}]
 word_class_deviation_rate: null     # optional, defaults null -- e.g. 0.1, real irregular-word rate; only meaningful alongside a multi-member word_classes entry
+real_word_order: null               # optional, defaults null -- e.g. "SOV", one of core.grammar.WordOrder's values
+real_alignment: null                # optional, defaults null -- "nominative_accusative" | "ergative_absolutive"
+real_has_articles: null             # optional, defaults null -- e.g. true
+real_has_overt_copula: null         # optional, defaults null -- e.g. false, real zero-copula present tense
+real_adjective_after_noun: null     # optional, defaults null -- e.g. true
+real_case_count: null               # optional, defaults null -- e.g. 4; 0 means a real, verified lack of case marking
 ```
 
 ``orthography`` entries are ``RomanizationRule``s -- see its docstring for
@@ -92,7 +98,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel
 
-from conlang_generator.core.grammar import WordClass
+from conlang_generator.core.grammar import Alignment, WordClass, WordOrder
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.romanization import JointSpelling, MuteSuffixRule, RomanizationRule
 
@@ -452,6 +458,70 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     meaningful alongside a curated ``word_classes`` with more than one
     member for some POS; ``None`` (the common case) means not curated --
     ``generate_word_classes`` falls back to its own generic rate."""
+    real_word_order: WordOrder | None = None
+    """This language's own real dominant constituent order (real Latin's
+    own famously flexible order is still usually described as
+    underlyingly SOV, e.g.) -- biases ``grammar_gen.generate_grammar``'s
+    own ``_WORD_ORDER_WEIGHTS`` roll toward this value the same
+    "large ceiling weight, dwarfing the rest, scaled by strictness" shape
+    already used to bias ``morphological_type`` toward ``FUSIONAL`` for a
+    root-and-pattern match. ``None`` (the common case for the many
+    profiles not yet curated this way) means not curated -- abstains,
+    same convention as every other optional field here."""
+    real_alignment: Alignment | None = None
+    """This language's own real morphosyntactic alignment -- most real
+    languages are nominative-accusative; a smaller, real set (Georgian,
+    Basque, many Australian/Mayan languages) is ergative-absolutive, at
+    least partially (a language with genuine *split* ergativity -- e.g.
+    conditioned by aspect or NP type -- is curated with whichever
+    alignment is more pervasive/default for it, an honest simplification,
+    not a claim of a clean unconditioned system). ``None`` (the common
+    case) means not curated -- abstains, same convention as every other
+    field here."""
+    real_has_articles: bool | None = None
+    """Whether this language has real grammaticalized articles (definite
+    and/or indefinite) at all -- e.g. true for English/German/French/
+    Arabic, false for Japanese/Mandarin/Russian/Latin/Turkish (none of
+    which grammaticalize articles, whatever demonstratives or other
+    devices they use instead). ``None`` (the common case) means not
+    curated -- abstains, same convention as every other field here."""
+    real_has_overt_copula: bool | None = None
+    """Whether this language uses an overt linking verb for a real
+    predicate-adjective/predicate-nominal sentence in its own default
+    (usually present-tense) register -- e.g. true for English/German/
+    French/Swahili, false for Russian/Arabic/Turkish's own real zero-
+    copula present tense. An honest simplification for a language (like
+    Russian) whose real zero-copula pattern is present-tense-only: this
+    project's own translator gates the *whole* feature on this one flag
+    regardless of tense, not just the present. ``None`` (the common case)
+    means not curated -- abstains, same convention as every other field
+    here."""
+    real_adjective_after_noun: bool | None = None
+    """Whether this language's own real unmarked attributive-adjective
+    order places the adjective after the noun -- true for French/Arabic/
+    Swahili/Thai, false for English/German/Dutch/Russian/Polish/Japanese/
+    Mandarin/Turkish/Korean/Georgian. ``None`` (the common case, and
+    deliberately including classical Latin here despite its own real
+    adjective classes each leaning a real direction -- its genuinely
+    free, stylistically-driven order as a whole resists an honest single
+    default the way ``real_case_count`` abstains from Finnish's 15 or
+    Georgian's contested 7) means not curated -- abstains, same
+    convention as every other field here."""
+    real_case_count: int | None = None
+    """This language's own real number of distinct grammatical cases,
+    when it has a real case system simple enough to state as one honest
+    number -- ``0`` for a language with no case system at all (English,
+    Mandarin, Swahili), a small positive integer for a real, tractable
+    system (German 4, Latin 6, Russian 6, Turkish 6). Biases
+    ``grammar_gen.generate_grammar``'s own case-count roll toward this
+    value via a weighted average, the same shape
+    ``phonology_gen._resolve_position_multipliers`` already uses for
+    frequency-tier bias. ``None`` means either not curated yet, or --
+    same "confident partial coverage, not full accuracy" standard as
+    Navajo's 2-of-4 curated classifiers -- a real system genuinely too
+    large/contested to honestly reduce to one number (Finnish's 15,
+    Georgian's own debated 7-vs-fewer count): abstaining is more honest
+    than guessing a number for those."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

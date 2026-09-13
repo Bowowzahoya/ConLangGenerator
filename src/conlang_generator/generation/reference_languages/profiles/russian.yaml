@@ -124,3 +124,11 @@ coda_frequency_tiers:
 stress_pattern: lexical  # real Russian stress is famously "free" -- lexically fixed per word (and can even move within a paradigm), not predictable from a word's shape, same "genuinely complex, no simple flat rule" status English/Arabic/Italian's own stress already has
 stress_deviation_rate: 0.45  # illustrative -- close to English's own near-coin-flip figure, reflecting how little a flat positional default actually predicts real Russian stress
 stress_driven_vowel_reduction: true  # real Russian akanye/ikanye: unstressed о/а merge toward a reduced central quality, unstressed е/я toward a reduced front quality -- one of the most famous facts about Russian phonology
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: SVO                 # the standard pragmatically-neutral citation order, despite real Russian's own case-enabled free permutation
+real_alignment: nominative_accusative
+real_has_articles: false             # no grammaticalized articles -- definiteness comes from context/word order/demonstratives instead
+real_has_overt_copula: false         # real Russian present tense is the textbook zero-copula case (on vysokiy = "he (is) tall") -- "byt'" only surfaces overtly in past/future
+real_adjective_after_noun: false     # real Russian attributive adjectives precede the noun (vysokaya gora = "tall mountain")
+real_case_count: 6                   # nominative, genitive, dative, accusative, instrumental, prepositional -- real, well-documented

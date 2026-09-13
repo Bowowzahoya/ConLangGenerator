@@ -59,3 +59,11 @@ coda_frequency_tiers:
   common: [m, k, l, d, v]
   uncommon: [b, g, z, "ʃ", j]
   rare: [p, "tʃ", "dʒ", "pʼ", "tʼ", "kʼ", q, x, "ʒ", w]
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: SOV
+real_alignment: ergative_absolutive   # real Georgian has genuine *split* ergativity (ergative in the aorist/past screeve, accusative-like in the present) -- curated as ergative since that's this language's single most distinctive, textbook-canonical typological trait, the same "confident partial coverage" simplification real_case_count already applies elsewhere
+real_has_articles: false             # no grammaticalized articles, typical of Caucasian languages
+real_has_overt_copula: false         # real Georgian's present-tense copula is a bound suffix cliticized onto the predicate adjective itself (mta maghalia = "mountain tall-is"), not a separate free-standing word -- doesn't match this project's own "insert a separate copula lexeme" mechanism
+real_adjective_after_noun: false     # real Georgian attributive adjectives precede the noun (maghali mta = "tall mountain")
+real_case_count: 7                   # nominative, ergative, dative, genitive, instrumental, adverbial, vocative -- real, well-documented (the exact count is debated by some analyses, but 7 is the standard citation)

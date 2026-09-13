@@ -80,3 +80,11 @@ word_class_deviation_rate: 0.05  # illustrative -- real Turkish infinitive marki
 stress_pattern: final  # real Turkish: robustly word-final by default
 stress_deviation_rate: 0.18  # illustrative -- real, systematic exceptions exist (place names default penultimate; certain suffixes are lexically "stress-neutral"), narrower than Hebrew's own deviation class
 stress_driven_vowel_reduction: false  # real Turkish: keeps comparatively full vowel quality regardless of stress
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: SOV
+real_alignment: nominative_accusative
+real_has_articles: false             # no grammaticalized definite/indefinite articles ("bir" is a numeral used indefinite-article-like, not a true article)
+real_has_overt_copula: false         # real Turkish present-tense predicate adjectives take a person-agreement suffix directly (guzel-dir/guzel), routinely dropped rather than realized as a separate copula word
+real_adjective_after_noun: false     # real Turkish attributive adjectives precede the noun (buyuk ev = "big house")
+real_case_count: 6                   # nominative, accusative, genitive, dative, locative, ablative -- real, well-documented

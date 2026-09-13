@@ -43,3 +43,11 @@ nucleus_frequency_tiers:
   common: [u, e, "aː"]
   uncommon: [o, "iː", "uː"]
   rare: ["eː", "oː"]
+
+# --- Grammar-level typology (source_language bias in grammar_gen.py) ---
+real_word_order: VSO                 # canonical for Polynesian languages generally, well-documented for Hawaiian
+real_alignment: null                 # real Hawaiian's own alignment is genuinely debated in the literature (its pronoun system reads mostly nominative-accusative, but some constructions have been argued to show ergative-like patterns) -- honestly left uncurated rather than picking a side of a real academic disagreement
+real_has_articles: true              # ka/ke (definite), he (indefinite) -- real, grammaticalized articles
+real_has_overt_copula: false         # real Hawaiian predicate-adjective sentences use the stative/adjective itself in the verbal-predicate slot (ua ki'eki'e ka mauna = "the mountain is tall") -- no separate copula lexeme
+real_adjective_after_noun: true      # real Hawaiian modifiers follow the noun (mauna ki'eki'e = "tall mountain")
+real_case_count: null                # real Hawaiian marks grammatical relations with preposed case-marking particles, not fused inflectional suffixes -- same abstention reasoning as Japanese/Korean's own profiles
