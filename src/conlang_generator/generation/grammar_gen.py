@@ -39,7 +39,7 @@ import random
 
 from conlang_generator.core.grammar import Alignment, GrammarProfile, MorphologicalType, WordOrder
 from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation.reference_languages import match_profiles
+from conlang_generator.generation.reference_languages import match_profiles, match_profiles_weighted
 from conlang_generator.generation.trait_bias import biased_probability
 
 _WORD_ORDERS = [WordOrder.SOV, WordOrder.SVO, WordOrder.VSO, WordOrder.VOS, WordOrder.OVS, WordOrder.OSV]
@@ -58,8 +58,15 @@ def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile
     traits = spec.traits
     word_order = rng.choices(_WORD_ORDERS, weights=_WORD_ORDER_WEIGHTS)[0]
     reference_profiles = match_profiles(traits.source_languages)
+    weighted_profiles = match_profiles_weighted(traits.source_languages, traits.source_language_weights)
     strictness = traits.source_language_strictness if reference_profiles else 0.0
-    root_and_pattern_reference = any(p.root_and_pattern for p in reference_profiles)
+    # Weighted fraction, not a boolean-any: a language that's 30%-weighted
+    # toward a root-and-pattern source (Arabic) should nudge fusional/
+    # root-and-pattern odds up only a little, not as hard as a fully-
+    # weighted match would -- feeds both the `fusional_floor` interpolation
+    # and `uses_root_and_pattern_probability` below continuously.
+    weighted_root_and_pattern = min(1.0, sum(weight for profile, weight in weighted_profiles if profile.root_and_pattern))
+    root_and_pattern_reference = weighted_root_and_pattern > 0.0
 
     isolation_strength = 1.0 if spec.force_isolated else traits.isolation
     morph_weights = {
@@ -72,21 +79,32 @@ def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile
         # Arabic's inflectional system is empirically fusional -- bias
         # toward that value specifically, not just "any of the four".
         # `strictness` scales the boost further (not just the flat 60.0
-        # floor) -- morphological_type is a 4-way weighted choice, not a
+        # ceiling) -- morphological_type is a 4-way weighted choice, not a
         # boolean, so there's no clean "certainty" to pull toward the way
         # the other reference-bias axes have; a very large ceiling weight
         # is the closest equivalent, dwarfing the other three options.
-        fusional_floor = 60.0
+        # `weighted_root_and_pattern` then interpolates continuously
+        # between the unboosted baseline and that ceiling -- at full
+        # weight (a single matched profile, or several agreeing ones) this
+        # reduces to exactly the old flat floor.
+        fusional_ceiling = 60.0
         if strictness > 0.0:
-            fusional_floor = fusional_floor + strictness * (_STRICT_FUSIONAL_WEIGHT_CEILING - fusional_floor)
+            fusional_ceiling = fusional_ceiling + strictness * (_STRICT_FUSIONAL_WEIGHT_CEILING - fusional_ceiling)
+        fusional_floor = morph_weights[MorphologicalType.FUSIONAL] + weighted_root_and_pattern * (
+            fusional_ceiling - morph_weights[MorphologicalType.FUSIONAL]
+        )
         morph_weights[MorphologicalType.FUSIONAL] = max(morph_weights[MorphologicalType.FUSIONAL], fusional_floor)
     morph_weights = {k: max(_MIN_WEIGHT, v) for k, v in morph_weights.items()}
     morphological_type = rng.choices(
         list(morph_weights.keys()), weights=list(morph_weights.values())
     )[0]
 
-    uses_root_and_pattern_probability = (
-        _ROOT_AND_PATTERN_REFERENCE_RATE if root_and_pattern_reference else _ROOT_AND_PATTERN_BASE_RATE
+    # Weighted-fraction interpolation between the narrow base rate and the
+    # reference-dominant rate, not a boolean cliff -- at full weight (a
+    # single matched profile, or several agreeing ones) this reduces to
+    # exactly the old two-value choice.
+    uses_root_and_pattern_probability = _ROOT_AND_PATTERN_BASE_RATE + weighted_root_and_pattern * (
+        _ROOT_AND_PATTERN_REFERENCE_RATE - _ROOT_AND_PATTERN_BASE_RATE
     )
     if strictness > 0.0:
         # Symmetric pull, same shape as _reference_biased_rate elsewhere:
@@ -96,7 +114,8 @@ def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile
         # full strictness). A no-op when there's no source language at
         # all -- strictness is already forced to 0.0 in that case, above.
         uses_root_and_pattern_probability = biased_probability(
-            uses_root_and_pattern_probability, strictness if root_and_pattern_reference else -strictness
+            uses_root_and_pattern_probability,
+            strictness * weighted_root_and_pattern if root_and_pattern_reference else -strictness,
         )
     uses_root_and_pattern = rng.random() < uses_root_and_pattern_probability
 

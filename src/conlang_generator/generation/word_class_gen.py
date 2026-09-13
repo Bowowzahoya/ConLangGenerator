@@ -40,7 +40,7 @@ from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import ipa_tokenizer, phonology_gen, word_accent_gen, word_builder
-from conlang_generator.generation.reference_languages import match_profiles
+from conlang_generator.generation.reference_languages import match_profiles, match_profiles_weighted
 from conlang_generator.generation.trait_bias import biased_probability
 
 _ALL_PARTS_OF_SPEECH = tuple(PartOfSpeech)
@@ -108,20 +108,38 @@ def generate_word_classes(
     otherwise gate any of this module's own reference-adoption logic."""
     traits = spec.traits
     reference_profiles = match_profiles(traits.source_languages)
+    weighted_profiles = match_profiles_weighted(traits.source_languages, traits.source_language_weights)
     strictness = traits.source_language_strictness if reference_profiles else 0.0
 
     classes: list[WordClass] = []
     any_multi_class = False
     for pos in _ALL_PARTS_OF_SPEECH:
-        reference_classes = tuple(c for p in reference_profiles for c in p.word_classes if c.pos is pos)
-        if reference_classes:
-            adoption_rate = _REFERENCE_ADOPTION_RATE
-            if strictness > 0.0:
-                adoption_rate = biased_probability(adoption_rate, strictness)
-            if rng.random() < adoption_rate:
-                classes.extend(reference_classes)
-                if len(reference_classes) > 1:
-                    any_multi_class = True
+        profile_classes_for_pos = [
+            (profile, weight, tuple(c for c in profile.word_classes if c.pos is pos))
+            for profile, weight in weighted_profiles
+        ]
+        profile_classes_for_pos = [(p, w, cs) for p, w, cs in profile_classes_for_pos if cs]
+        if profile_classes_for_pos:
+            # Each matched profile's own curated classes for this POS join
+            # the pool via an *independent* roll scaled by that profile's
+            # own weight -- not one shared roll for every matched profile's
+            # classes unconditionally, the old unweighted behavior. At a
+            # single matched profile (weight 1.0) this reduces to exactly
+            # that old roll; two or more profiles is a deliberate behavior
+            # change even at equal weight, the same "a convention only
+            # part of the total named influence backs is less certain"
+            # reasoning `romanization_gen._resolve_joint_spellings` already
+            # established.
+            adopted: list[WordClass] = []
+            for profile, weight, curated_classes in profile_classes_for_pos:
+                adoption_rate = _REFERENCE_ADOPTION_RATE
+                if strictness > 0.0:
+                    adoption_rate = biased_probability(adoption_rate, strictness * weight)
+                if rng.random() < adoption_rate:
+                    adopted.extend(curated_classes)
+            classes.extend(adopted)
+            if len(adopted) > 1:
+                any_multi_class = True
             # A failed adoption roll means this POS simply gets no class
             # marking this run -- not a fallback to invented classes, the
             # same "the roll either gives you the real thing or nothing"
@@ -164,8 +182,16 @@ def generate_word_classes(
 
     if not any_multi_class:
         return tuple(classes), None
+    # First-match-wins, sorted by descending weight rather than raw
+    # `source_languages` order -- same "the heaviest-weighted matched
+    # profile's own curated value wins outright" rule
+    # `romanization_gen._resolve_stress_pattern`'s Stage 2 redesign uses.
     deviation_rate = next(
-        (p.word_class_deviation_rate for p in reference_profiles if p.word_class_deviation_rate is not None),
+        (
+            profile.word_class_deviation_rate
+            for profile, _ in sorted(weighted_profiles, key=lambda pw: pw[1], reverse=True)
+            if profile.word_class_deviation_rate is not None
+        ),
         _GENERIC_DEVIATION_RATE,
     )
     return tuple(classes), deviation_rate

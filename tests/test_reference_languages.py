@@ -933,6 +933,33 @@ def test_full_strictness_still_boosts_root_and_pattern_for_arabic():
     assert hits > len(_SEEDS) * 0.9
 
 
+def test_source_language_weights_scale_down_arabics_root_and_pattern_boost():
+    # A lightly-weighted Arabic alongside a heavily-weighted non-root-and-
+    # pattern language should boost root-and-pattern odds far less than a
+    # fully-weighted (or heavily-weighted) Arabic does -- the weighted-
+    # fraction interpolation `weighted_root_and_pattern` feeds, not a
+    # boolean "matched at all" cliff.
+    def _rate(weights: tuple[float, float]) -> float:
+        hits = 0
+        for seed in _SEEDS:
+            spec = GenerationSpec(
+                prompt="p",
+                seed=seed,
+                traits=TraitProfile(
+                    source_languages=("Arabic", "English"),
+                    source_language_weights=weights,
+                    source_language_strictness=1.0,
+                ),
+            )
+            grammar = generate_grammar(random.Random(seed), spec)
+            hits += grammar.uses_root_and_pattern
+        return hits / len(_SEEDS)
+
+    arabic_light = _rate((0.1, 0.9))
+    arabic_heavy = _rate((0.9, 0.1))
+    assert arabic_light < arabic_heavy
+
+
 def test_german_declares_capitalized_nouns():
     german = next(p for p in REFERENCE_LANGUAGES if p.name == "German")
     assert german.capitalized_pos == (PartOfSpeech.NOUN,)

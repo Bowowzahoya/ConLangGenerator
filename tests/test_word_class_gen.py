@@ -161,6 +161,40 @@ def test_generate_word_classes_adopts_frances_own_real_verb_classes_sometimes():
     assert hits > 0
 
 
+def test_source_language_weights_reduce_frances_own_class_adoption_when_lightly_weighted():
+    # A lightly-weighted French alongside a heavily-weighted English
+    # (which curates no VERB classes of its own) should adopt French's
+    # real "-er"/"-ir"/"-re" pool far less often than a heavily-weighted
+    # French does -- each matched profile's own adoption roll is now
+    # independently scaled by its own weight, not one shared roll at flat
+    # strictness regardless of how the named influence is actually split.
+    inventory, structure = _inventory(), _structure()
+
+    def _hit_rate(weights: tuple[float, float]) -> float:
+        hits = 0
+        n = 150
+        for seed in range(n):
+            rng = random.Random(seed)
+            spec = GenerationSpec(
+                prompt="p",
+                seed=seed,
+                traits=TraitProfile(
+                    source_languages=("French", "English"),
+                    source_language_weights=weights,
+                    source_language_strictness=1.0,
+                ),
+            )
+            classes, _ = word_class_gen.generate_word_classes(rng, spec, inventory, structure, False)
+            verb_classes = {c.name for c in classes if c.pos is PartOfSpeech.VERB}
+            if verb_classes == {"-er verbs", "-ir verbs", "-re verbs"}:
+                hits += 1
+        return hits / n
+
+    french_heavy = _hit_rate((0.9, 0.1))
+    french_light = _hit_rate((0.1, 0.9))
+    assert french_light < french_heavy
+
+
 # --- apply_word_class: condition="vowel_harmony"/"final_voicing" ---
 
 
