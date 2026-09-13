@@ -175,6 +175,38 @@ class PositionClass(BaseModel, frozen=True):
     options: tuple[PositionClassOption, ...]
 
 
+class InflectionAffix(BaseModel, frozen=True):
+    """One bound morpheme for a sentence-role-driven inflection axis
+    (case, tense, subject agreement) -- deliberately distinct from
+    ``WordClass``, which models a *lexeme-fixed, chosen-once-at-coinage*
+    paradigm membership (a noun's own declension, a verb's own
+    conjugation class). An ``InflectionAffix`` is the opposite shape: the
+    *same* value gets applied fresh to whichever word actually needs it
+    in a given sentence, decided by that word's own role there (the
+    direct object needs the accusative case; the subject decides which
+    agreement suffix the verb takes), never chosen once and baked into
+    the lexicon entry the way a ``WordClass`` suffix is. The two share
+    only the low-level "attach a prefix/suffix, re-derive stress" mechanism
+    (``word_builder.attach_affix_and_restress``, which both ``word_class_
+    gen.apply_word_class`` and ``generation.inflection_gen.apply_affix``
+    call) -- carrying ``WordClass``'s own ``prevalence``/``condition``/
+    ``position_classes`` here would be meaningless, since none of those
+    "chosen among several options" concepts apply to a value that's
+    always deterministically the right one for its own label."""
+
+    label: str
+    """Which value on its own axis this is -- a case label (e.g.
+    ``"accusative"``, drawn from the same pool ``GrammarProfile.cases``
+    already uses), a tense label (``"past"``, from ``GrammarProfile.
+    tenses``), or an agreement label (one of the 4 core pronoun glosses
+    this project's own ``lexicon_gen.CORE_MEANINGS`` already has --
+    ``"I"``/``"you"``/``"he"``/``"we"`` -- plus ``"default"`` for any
+    non-pronoun/noun subject, the real cross-linguistic "3rd person is
+    the unmarked default" pattern)."""
+    prefix: tuple[str, ...] = ()
+    suffix: tuple[str, ...] = ()
+
+
 class GrammarProfile(BaseModel, frozen=True):
     word_order: WordOrder
     morphological_type: MorphologicalType
@@ -216,3 +248,33 @@ class GrammarProfile(BaseModel, frozen=True):
     languages have at most one class, where "deviation" is meaningless)
     means not applicable; only set when some POS actually has more than
     one class."""
+    tenses: tuple[str, ...] = ()
+    """This language's own illustrative tense-label set (e.g. ``("past",
+    "non_past")`` or ``("past", "present", "future")``) -- rolled in
+    ``grammar_gen.generate_grammar`` itself, a source-language-independent
+    illustrative choice the same way ``is_prefixing``'s own invented-class
+    coin flip is (no cross-linguistic tendency this project curates to
+    lean on for which tense system a language has). Empty means this
+    language marks no tense distinction at all. Parallel to ``cases``
+    above; ``tense_affixes`` below is this set's own generated phonology."""
+    case_affixes: tuple[InflectionAffix, ...] = ()
+    """One invented suffix per label in ``cases`` -- filled in by
+    ``generator.py`` once the phoneme inventory exists (the same two-
+    phase relationship ``plural_suffix``/``templates`` already have),
+    via ``generation.inflection_gen.generate_case_affixes``. Applied to a
+    sentence's own subject/object per ``alignment`` at translation time
+    (``translation/translator.py``), not baked into a ``LexicalEntry`` --
+    unlike ``word_classes``, a noun's own case marking depends on its
+    syntactic role in a given sentence, not a fact fixed at coinage."""
+    tense_affixes: tuple[InflectionAffix, ...] = ()
+    """One invented suffix per label in ``tenses`` -- same two-phase
+    relationship and generation source as ``case_affixes``, applied to
+    this sentence's own finite verb (or copula) at translation time."""
+    agreement_affixes: tuple[InflectionAffix, ...] = ()
+    """One invented suffix per subject-agreement label (this project's 4
+    core pronoun glosses plus ``"default"`` -- see ``InflectionAffix.
+    label``'s own docstring) -- same two-phase relationship and
+    generation source as ``case_affixes``, applied to this sentence's own
+    finite verb (or copula) at translation time, composed together with
+    the tense affix into one combined suffix so stress is only re-derived
+    once per word."""
