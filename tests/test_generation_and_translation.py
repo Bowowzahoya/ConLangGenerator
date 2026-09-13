@@ -26,6 +26,13 @@ def test_generation_is_deterministic_for_identical_inputs():
     assert lang1 == lang2
 
 
+def test_the_and_be_are_coined_only_when_their_grammar_flag_is_set():
+    for seed in range(60):
+        language = generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
+        assert (language.lexicon.by_gloss("the") is not None) == language.grammar.has_articles
+        assert (language.lexicon.by_gloss("be") is not None) == language.grammar.has_overt_copula
+
+
 def test_translate_round_trip_for_core_vocabulary():
     # Seed 1 -- known to round-trip "mountain"/"high" cleanly with no
     # candidate collisions. (Re-found against seed=1 after the Thai/

@@ -82,6 +82,9 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     for gloss, pos in lexicon_gen.CORE_MEANINGS:
         if gloss.lower() in seeded_glosses:
             continue
+        gate_attr = lexicon_gen.CONDITIONAL_MEANINGS.get(gloss)
+        if gate_attr is not None and not getattr(grammar, gate_attr):
+            continue
         if grammar.uses_root_and_pattern and pos in root_pattern.TEMPLATIC_POS:
             entry = root_pattern.propose_templatic_word(
                 rng,

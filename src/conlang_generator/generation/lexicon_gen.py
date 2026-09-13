@@ -75,7 +75,17 @@ CORE_MEANINGS: tuple[tuple[str, PartOfSpeech], ...] = (
     ("three", PartOfSpeech.NUMERAL),
     ("not", PartOfSpeech.PARTICLE),
     ("and", PartOfSpeech.PARTICLE),
+    ("the", PartOfSpeech.PARTICLE),
+    ("be", PartOfSpeech.VERB),
 )
+
+CONDITIONAL_MEANINGS: dict[str, str] = {"the": "has_articles", "be": "has_overt_copula"}
+"""Maps a gloss in ``CORE_MEANINGS`` to the ``core.grammar.GrammarProfile``
+boolean attribute that gates whether this run actually coins it at all --
+a language without articles/an overt copula shouldn't have the
+corresponding lexeme in the first place, unlike every other, always-
+generated core meaning above. Consulted by ``generator.py``'s own
+core-vocabulary loop."""
 
 
 _FUNCTION_LIKE_POS = {PartOfSpeech.PRONOUN, PartOfSpeech.PARTICLE}

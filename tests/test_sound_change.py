@@ -210,7 +210,10 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
     # own new phoneme-pool content shifted downstream rng draws once more;
     # re-found again (twice, as the word-class-paradigm batch's own new
     # per-language rng draws shifted this repeatedly while that batch was
-    # still in progress) back to evolve seed=0.)
+    # still in progress) back to evolve seed=0; re-found again (now
+    # evolve seed=1) after generator.py started conditionally coining
+    # "the"/"be" and rolling case/tense/agreement affixes for every
+    # language.)
     base = generate_language(
         "Dutch",
         GenerationSpec(
@@ -221,7 +224,7 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
         ),
         FakeLLMClient(),
     )
-    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=0)
+    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=1)
     x_rules = [r for r in evolved.romanization.rules if r.ipa == "x"]
     assert x_rules and all(r.latin == "ch" for r in x_rules)
 
@@ -518,12 +521,12 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # even one whose own pronunciation didn't shift this run at all. Fixed
     # seed known to reform at least one word while its IPA stays
     # byte-identical to the base. (Re-found repeatedly as downstream rng
-    # draws shift -- most recently against seed=3 after generator.py
-    # started rolling case/tense/agreement affixes for every language,
+    # draws shift -- most recently against seed=0 after generator.py
+    # started conditionally coining "the"/"be" for every language,
     # shifting this once more, same "seed-shift from new content" pattern
     # documented elsewhere in this project's history.)
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=3)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=0)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)
