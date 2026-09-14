@@ -1429,21 +1429,20 @@ both gaps.
   `has_overt_copula` is true (`lexicon_gen.CONDITIONAL_MEANINGS` maps the
   gloss to the gating `GrammarProfile` attribute) -- a language without
   the feature has no such lexeme at all.
-- **`translator.py` applies the inflection it only reordered words by
-  before**: inserts the coined "the" before a non-pronoun noun argument
-  when the English input used an article and `has_articles` is true;
-  inserts the copula (tense+agreement-marked via one combined
-  `InflectionAffix`, tense detected from a small irregular-past lookup
-  plus regular `-ed`/`-ied` stripping, agreement from the subject's own
-  pronoun gloss or `"default"`) between subject and predicate when
-  `has_overt_copula`; marks the object with the accusative case under
-  nominative-accusative alignment, or the subject with the ergative case
-  under ergative-absolutive (only one argument per sentence, matching a
-  common real simplification). Each affix application seeds its own
-  `random.Random` from a stable hash of `(language.spec.seed, a per-call
-  salt)`, the same "hash the payload into a local seed" precedent
-  `core.romanization._stable_local_choice` already uses, so translation
-  stays reproducible without a public rng parameter.
+- **`translator.py`'s own rendering primitives apply the inflection**:
+  `_apply_case`/`_apply_verb_inflection` case-mark a noun/pronoun or
+  tense+agreement-mark a verb/copula (the latter via one combined
+  `InflectionAffix`, agreement keyed by this project's own 4 core pronoun
+  glosses or `"default"`) whenever the caller names a label this
+  language's own `GrammarProfile` actually has -- an unavailable/invalid
+  label degrades to the bare citation form rather than raising. Each
+  affix application seeds its own `random.Random` from a stable hash of
+  `(language.spec.seed, a per-call salt)`, the same "hash the payload
+  into a local seed" precedent `core.romanization._stable_local_choice`
+  already uses, so translation stays reproducible without a public rng
+  parameter. As of the LLM-drafted-plan rewrite below, *which* label (if
+  any) to apply to a given word is decided by the sentence plan, not by
+  scanning the English input for an article/copula/case cue.
 - **Decoding it back out (`translate_to_english`) is generate-and-compare,
   not a parse** -- spelling isn't a clean invertible function in general
   (the same reason `sound_change.py`'s own reform-detection compares via
@@ -1451,31 +1450,53 @@ both gaps.
   render each candidate lexicon entry's own bare form and, if that
   doesn't match, each of its case/tense+agreement-marked forms via the
   identical `inflection_gen.apply_affix` path encoding used, comparing
-  against the observed token. A 3-token sentence is genuinely ambiguous
-  once a copula exists (subject-copula-adjective and subject-verb-object
-  both look like 3 plain tokens) -- resolved by testing the copula
-  hypothesis first (does the verb-position token decode specifically
-  against the "be" entry?) and falling back to the transitive reading
-  when it doesn't.
+  against the observed token.
 - **Explicit scope limits, same "illustrative, not exhaustive" honesty as
   everywhere else in this project**: only one argument is ever
   case-marked per sentence; `genitive`/`dative`/`locative` labels exist in
   the case pool but stay unexercised (no possessive/oblique sentence
   pattern exists to attach them to); tense detection never recognizes a
-  periphrastic English future ("will go"); LLM-driven sentence
-  construction beyond these two hand-written patterns is still a later,
-  separate step.
+  periphrastic English future ("will go").
 
 ## `translation/` -- bidirectional translation
 
-- **`translator.py`**: `translate_to_conlang()` / `translate_to_english()`.
-  Recognizes exactly three sentence shapes (predicate-adjective,
-  subject-verb-object, word-for-word fallback); see the module docstring for
-  the full list of explicit v0 limitations (no real parser, naive
-  lemmatization, English assumed canonical SVO for reconstruction). Real
-  inflection (articles, an overt copula, case, tense, agreement) is now
-  applied/decoded when the target language's own `GrammarProfile` says it
-  has the feature -- see the "Real inflection" section above.
+- **`sentence_planner.py`**: an LLM drafts one sentence's own *structure*
+  before any word is rendered -- word order, which arguments (if any) get
+  case-marked, whether an article/copula/negation/conjunction appears,
+  and a finite verb's tense/agreement -- as an ordered `SentencePlan` of
+  `PlannedSlot`s (`kind="content"` names an English lemma/pos plus
+  optional case/tense/agreement; `"article"`/`"copula"`/`"negation"`/
+  `"conjunction"` are function-word slots). This replaces the two
+  hand-written sentence shapes (predicate-adjective, subject-verb-object)
+  `translate_to_conlang` used to pattern-match against. The LLM never
+  invents a word's actual spelling -- see the module's own docstring for
+  the LLM/deterministic-rendering boundary, the same "LLM picks among/
+  describes deterministically-built material" principle `lexicon_gen.py`
+  already established. Parsing is lenient (`generation/prompt_
+  classifier.py`'s own "extract JSON, coerce field-by-field, degrade to a
+  safe default" style); a totally unparseable response falls back to a
+  trivial one-slot-per-content-word plan, the same word-for-word safety
+  net `translator.py` always had. `llm/fake_client.py`'s
+  `fake_strategy="sentence_plan"` deterministically reproduces the old
+  two-pattern heuristic (plus a 3rd, always-available "one content slot
+  per word" fallback) for tests and dry runs.
+- **`translator.py`**: `translate_to_conlang()` calls `sentence_planner.
+  plan_sentence()` then walks the plan's slots, rendering each via the
+  existing `_lookup_or_coin`/`_apply_case`/`_apply_verb_inflection`
+  primitives -- no sentence-shape branching left in this function at all.
+  `translate_to_english()`'s decode is now per-token and
+  structure-agnostic to match: an exact `by_form` match, else `_decode_
+  noun` then `_decode_verb`, no positional assumption about which pool a
+  given token belongs to. The decoded sequence is handed to the *same*
+  pre-existing fluency-polish LLM call, its prompt generalized to
+  describe `"(case: X)"`/`"(tense: X)"` annotations so a real model can
+  reconstruct natural English word order/tense from them; the fake
+  passthrough backend, having no real language understanding, doesn't
+  attempt that reordering -- see the module docstring for the remaining
+  explicit scope limits (single-clause only; noun-phrase-level
+  coordination but no multi-clause/relative-clause/subordinate structure;
+  no question formation; negation is one particle slot with no
+  per-language position typology).
 - **`expansion.py`**: `coin_word()` -- reuses `lexicon_gen.propose_word()`
   with a per-gloss RNG seed derived from `sha256(spec.seed, gloss)`, so
   coinage is reproducible independent of translation order.

@@ -263,3 +263,53 @@ def test_svo_round_trips_when_verb_affix_salt_cant_reuse_the_original_english_to
     back_past = translate_to_english(past.text, past.language, FakeLLMClient())
     assert back_past.pattern == "llm-plan"
     assert back_past.text.lower().split() == ["i", "saw", "mountain"]
+
+
+# --- negation and coordination (newly reachable via the LLM-drafted plan) ---
+
+
+def test_negated_predicate_adjective_includes_the_not_particle_and_round_trips():
+    language = _language(_NOM_ACC_SEED)
+    not_entry = language.lexicon.by_gloss("not")
+    result = translate_to_conlang("the mountain is not high", language, FakeLLMClient())
+    assert result.coined == ()
+    assert not_entry.romanization in result.text.split()
+    back = translate_to_english(result.text, result.language, FakeLLMClient())
+    assert "not" in back.text.lower()
+    assert "mountain" in back.text.lower()
+    assert "high" in back.text.lower()
+
+
+def test_negation_still_works_for_a_language_with_no_copula_or_articles():
+    language = _language(_NO_FEATURES_SEED)
+    not_entry = language.lexicon.by_gloss("not")
+    result = translate_to_conlang("the mountain is not high", language, FakeLLMClient())
+    assert not_entry.romanization in result.text.split()
+    back = translate_to_english(result.text, result.language, FakeLLMClient())
+    assert "not" in back.text.lower()
+
+
+def test_coordinated_object_noun_phrases_both_render_and_round_trip():
+    language = _language(_NOM_ACC_SEED)
+    and_entry = language.lexicon.by_gloss("and")
+    result = translate_to_conlang("I see the mountain and the river", language, FakeLLMClient())
+    assert and_entry.romanization in result.text.split()
+    back = translate_to_english(result.text, result.language, FakeLLMClient())
+    words = back.text.lower().split()
+    assert "mountain" in words
+    assert "river" in words
+    assert "and" in words
+
+
+def test_a_sentence_shape_neither_old_fixed_pattern_covered_still_round_trips():
+    # 5 content words ("I", "see", "mountain", "and", "river") -- neither
+    # of the two hand-written shapes translate_to_conlang used to
+    # recognize (2-word predicate-adjective, 3-word SVO) covers this, the
+    # exact gap the LLM-drafted plan replaces the old rigid pattern
+    # matching to close.
+    language = _language(_NOM_ACC_SEED)
+    result = translate_to_conlang("I see the mountain and the river", language, FakeLLMClient())
+    assert len(result.text.split()) >= 5
+    back = translate_to_english(result.text, result.language, FakeLLMClient())
+    for word in ("i", "see", "mountain", "and", "river"):
+        assert word in back.text.lower()
