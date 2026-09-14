@@ -151,7 +151,7 @@ def test_predicate_adjective_with_copula_round_trips_present_tense():
     language = _language(_NOM_ACC_SEED)
     to_conlang = translate_to_conlang("the mountain is high", language, FakeLLMClient())
     back = translate_to_english(to_conlang.text, to_conlang.language, FakeLLMClient())
-    assert back.pattern == "predicate-adjective"
+    assert back.pattern == "llm-plan"
     assert "mountain" in back.text.lower()
     assert "high" in back.text.lower()
     assert "is" in back.text.lower()
@@ -161,7 +161,7 @@ def test_predicate_adjective_with_copula_round_trips_past_tense():
     language = _language(_NOM_ACC_SEED)
     to_conlang = translate_to_conlang("the mountain was high", language, FakeLLMClient())
     back = translate_to_english(to_conlang.text, to_conlang.language, FakeLLMClient())
-    assert back.pattern == "predicate-adjective"
+    assert back.pattern == "llm-plan"
     assert "was" in back.text.lower()
 
 
@@ -173,7 +173,7 @@ def test_svo_with_accusative_object_round_trips_and_disambiguates_from_copula_pa
     language = _language(_NOM_ACC_SEED)
     to_conlang = translate_to_conlang("I see the mountain", language, FakeLLMClient())
     back = translate_to_english(to_conlang.text, to_conlang.language, FakeLLMClient())
-    assert back.pattern == "subject-verb-object"
+    assert back.pattern == "llm-plan"
     assert back.text.lower().split() == ["i", "see", "mountain"]
 
 
@@ -181,50 +181,59 @@ def test_svo_round_trips_past_tense_with_irregular_verb():
     language = _language(_NOM_ACC_SEED)
     to_conlang = translate_to_conlang("I saw the mountain", language, FakeLLMClient())
     back = translate_to_english(to_conlang.text, to_conlang.language, FakeLLMClient())
-    assert back.pattern == "subject-verb-object"
+    assert back.pattern == "llm-plan"
     assert back.text.lower().split() == ["i", "saw", "mountain"]
 
 
 def test_ergative_language_svo_round_trips_with_ergative_marked_subject():
+    # This fixture's own word_order is SOV, not SVO -- the generic,
+    # structure-agnostic decoder (see translator.py's own module
+    # docstring) no longer reorders tokens back into canonical English
+    # SVO itself; that's now the real fluency-polish LLM's own job (it
+    # reads each word's "(case: ...)" annotation to work out its role),
+    # which FakeLLMClient's "passthrough" strategy deliberately doesn't
+    # attempt. Checking gloss membership (not exact order) is the correct
+    # thing for a fake/no-real-understanding backend either way.
     language = _language(_ERGATIVE_SEED)
     to_conlang = translate_to_conlang("I see the mountain", language, FakeLLMClient())
     back = translate_to_english(to_conlang.text, to_conlang.language, FakeLLMClient())
-    assert back.pattern == "subject-verb-object"
-    assert back.text.lower().split() == ["i", "see", "mountain"]
+    assert back.pattern == "llm-plan"
+    assert set(back.text.lower().split()) == {"i", "see", "mountain"}
 
 
 def test_no_features_language_predicate_adjective_still_round_trips():
     language = _language(_NO_FEATURES_SEED)
     to_conlang = translate_to_conlang("the mountain is high", language, FakeLLMClient())
     back = translate_to_english(to_conlang.text, to_conlang.language, FakeLLMClient())
-    assert back.pattern == "predicate-adjective"
+    assert back.pattern == "llm-plan"
     assert "mountain" in back.text.lower()
     assert "high" in back.text.lower()
 
 
 def test_predicate_adjective_with_copula_round_trips_when_adjective_precedes_noun():
-    # Regression guard: the copula always sits in the *middle* position
-    # regardless of word_order, and subject/adjective order follows
-    # adjective_after_noun directly -- neither follows word_order's own
-    # S/V/O role mapping the way the transitive SVO pattern does. A first
-    # cut of the decoder wrongly reused that role mapping here too, which
-    # happened to work by coincidence for _NOM_ACC_SEED (adjective_after_
-    # noun=True lines up with the S/O positions) but silently failed for
-    # _ERGATIVE_SEED, which has adjective_after_noun=False (adjective
-    # first, then copula, then subject) -- caught by hand while
-    # demonstrating the feature via the real CLI, not by the original
-    # test suite.
+    # Originally a regression guard against a positional-assumption bug in
+    # the old decoder (it wrongly reused word_order's own S/V/O role
+    # mapping for the copula pattern too, which happened to work by
+    # coincidence for _NOM_ACC_SEED but silently failed for
+    # _ERGATIVE_SEED's own adjective_after_noun=False order). The new
+    # per-token, structure-agnostic decoder (see translator.py's own
+    # module docstring) has no positional assumption left to get wrong --
+    # every token decodes independently regardless of where it sits --
+    # but it also no longer reorders the result back into canonical
+    # English itself (that's the real fluency LLM's own job now), so this
+    # keeps the same fixture as coverage for the copula/tense decode path
+    # while checking gloss membership rather than exact order.
     language = _language(_ERGATIVE_SEED)
     assert language.grammar.has_overt_copula is True
     assert language.grammar.adjective_after_noun is False
     present = translate_to_conlang("the mountain is high", language, FakeLLMClient())
     back_present = translate_to_english(present.text, present.language, FakeLLMClient())
-    assert back_present.pattern == "predicate-adjective"
-    assert back_present.text.lower() == "mountain is high"
+    assert back_present.pattern == "llm-plan"
+    assert set(back_present.text.lower().split()) == {"mountain", "is", "high"}
     past = translate_to_conlang("the mountain was high", present.language, FakeLLMClient())
     back_past = translate_to_english(past.text, past.language, FakeLLMClient())
-    assert back_past.pattern == "predicate-adjective"
-    assert back_past.text.lower() == "mountain was high"
+    assert back_past.pattern == "llm-plan"
+    assert set(back_past.text.lower().split()) == {"mountain", "was", "high"}
 
 
 def test_svo_round_trips_when_verb_affix_salt_cant_reuse_the_original_english_token():
@@ -247,10 +256,10 @@ def test_svo_round_trips_when_verb_affix_salt_cant_reuse_the_original_english_to
     to_conlang = translate_to_conlang("I see the mountain", language, FakeLLMClient())
     assert to_conlang.coined == ()
     back = translate_to_english(to_conlang.text, to_conlang.language, FakeLLMClient())
-    assert back.pattern == "subject-verb-object"
+    assert back.pattern == "llm-plan"
     assert back.text.lower().split() == ["i", "see", "mountain"]
 
     past = translate_to_conlang("I saw the mountain", to_conlang.language, FakeLLMClient())
     back_past = translate_to_english(past.text, past.language, FakeLLMClient())
-    assert back_past.pattern == "subject-verb-object"
+    assert back_past.pattern == "llm-plan"
     assert back_past.text.lower().split() == ["i", "saw", "mountain"]

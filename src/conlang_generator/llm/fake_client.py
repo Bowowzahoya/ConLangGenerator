@@ -23,6 +23,15 @@ that need specific fake behavior say so explicitly via ``request.metadata``:
   usual IPA symbol, most Latin letters map straight through. This is
   explicitly not real phonetic analysis, just enough to be IPA-shaped for
   tests and dry runs (used by ``generation/seed_examples.py``).
+- ``fake_strategy=\"sentence_plan\"`` + the grammar-shape keys
+  ``translation/sentence_planner.py`` sets (``word_order``, ``alignment``,
+  ``cases``, ``tenses``, ``has_articles``, ``has_overt_copula``,
+  ``adjective_after_noun``): returns a JSON array of plan-slot objects
+  reproducing, deterministically and without real language understanding,
+  the same two-pattern (predicate-adjective / subject-verb-object)
+  structure ``translate_to_conlang`` used before the LLM-drafted planner
+  existed, plus a one-slot-per-word fallback for anything else -- see
+  ``_fake_sentence_plan``'s own docstring for the exact heuristic.
 - anything else: an opaque deterministic placeholder string.
 """
 
@@ -30,6 +39,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 
 from conlang_generator.llm.base import LLMRequest, LLMResponse
 
@@ -51,6 +61,137 @@ def stable_hash(text: str) -> int:
 def _fake_trait_profile(prompt: str, field_names: list[str]) -> str:
     values = {name: round((stable_hash(prompt + name) % 201 - 100) / 100.0, 2) for name in field_names}
     return json.dumps(values)
+
+
+_FAKE_ARTICLES = {"a", "an", "the"}
+_FAKE_COPULAS = {"is", "are", "am", "was", "were", "be", "been", "being"}
+_FAKE_PAST_COPULAS = {"was", "were"}
+_FAKE_PRONOUN_TOKENS = {"i", "you", "he", "we", "this", "that"}
+_FAKE_AGREEMENT_BY_PRONOUN = {"i": "I", "you": "you", "he": "he", "we": "we"}
+_FAKE_IRREGULAR_PAST_LEMMA = {
+    "went": "go", "saw": "see", "came": "come", "ate": "eat", "drank": "drink",
+    "said": "say", "knew": "know", "slept": "sleep", "gave": "give",
+}
+"""Small, deliberately duplicated subset of ``translation/translator.py``'s
+own irregular-past table -- this module can't import from ``translation``
+(``translator.py`` already imports from ``llm``, so the reverse would be
+circular), and this fake only needs enough to keep its own deterministic
+heuristic self-consistent, not a shared source of truth."""
+_FAKE_ROLE_ORDER = {
+    "SOV": ("S", "O", "V"), "SVO": ("S", "V", "O"), "VSO": ("V", "S", "O"),
+    "VOS": ("V", "O", "S"), "OVS": ("O", "V", "S"), "OSV": ("O", "S", "V"),
+}
+
+
+def _fake_tokenize(text: str) -> list[str]:
+    return re.findall(r"[a-zA-Z']+", text.lower())
+
+
+def _fake_detect_tense_and_lemma(token: str) -> tuple[str, str]:
+    if token in _FAKE_IRREGULAR_PAST_LEMMA:
+        return "past", _FAKE_IRREGULAR_PAST_LEMMA[token]
+    if token.endswith("ied") and len(token) > 3:
+        return "past", token[:-3] + "y"
+    if token.endswith("ed") and len(token) > 2:
+        return "past", token[:-2]
+    return "non_past", token[:-1] if token.endswith("s") and len(token) > 1 else token
+
+
+def _fake_tense_label(detected: str, tenses: list[str]) -> str | None:
+    if detected == "past":
+        return "past" if "past" in tenses else None
+    if "non_past" in tenses:
+        return "non_past"
+    if "present" in tenses:
+        return "present"
+    return None
+
+
+def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
+    """Deterministically reproduces, from ``prompt`` (the raw English
+    input) and the grammar-shape ``metadata`` keys ``sentence_planner.
+    plan_sentence`` sets, a plan equivalent to what ``translate_to_conlang``
+    built by hand before the LLM-drafted planner existed: a copula-bearing
+    2-content-word input becomes a predicate-adjective plan, a
+    3-content-word input becomes a subject-verb-object plan (case-marking
+    the object under nominative-accusative or the subject under
+    ergative-absolutive), and anything else becomes one bare content slot
+    per word, in order -- including a "the"/"not"/"and" token, which
+    resolves correctly at render time via its own already-existing
+    lexicon entry regardless of the placeholder ``"noun"`` pos this
+    fallback always uses. A recognized "not" is excluded from those two
+    length checks and emitted as its own ``"negation"`` slot next to the
+    copula/verb instead -- otherwise "the mountain is not high" would
+    miscount as a 3-content-word input and be read as a (wrong) transitive
+    sentence with "not" as the verb."""
+    word_order = metadata.get("word_order", "SVO")
+    alignment = metadata.get("alignment", "nominative_accusative")
+    tenses = [t for t in metadata.get("tenses", "").split(",") if t]
+    has_articles = metadata.get("has_articles") == "true"
+    has_overt_copula = metadata.get("has_overt_copula") == "true"
+    adjective_after_noun = metadata.get("adjective_after_noun") == "true"
+
+    raw_tokens = _fake_tokenize(prompt)
+    used_article = any(t in _FAKE_ARTICLES for t in raw_tokens)
+    tokens = [t for t in raw_tokens if t not in _FAKE_ARTICLES]
+    tokens_no_copula = [t for t in tokens if t not in _FAKE_COPULAS]
+    has_copula = any(t in _FAKE_COPULAS for t in tokens)
+    copula_tok = next((t for t in tokens if t in _FAKE_COPULAS), None)
+    negated = "not" in tokens_no_copula
+    content_tokens = [t for t in tokens_no_copula if t != "not"]
+
+    def content_slot(tok: str, pos: str, case: str | None = None) -> dict:
+        slot: dict = {"kind": "content", "gloss": tok, "pos": pos}
+        if case:
+            slot["case"] = case
+        return slot
+
+    def noun_phrase(tok: str, case: str | None) -> list[dict]:
+        is_pronoun = tok in _FAKE_PRONOUN_TOKENS
+        prefix = [] if is_pronoun or not (used_article and has_articles) else [{"kind": "article"}]
+        return prefix + [content_slot(tok, "pronoun" if is_pronoun else "noun", case)]
+
+    if has_copula and len(content_tokens) == 2:
+        subject_tok, adj_tok = content_tokens
+        subject_np = noun_phrase(subject_tok, None)
+        adjective_slot = content_slot(adj_tok, "adjective")
+        copula_group: list[dict] = []
+        if has_overt_copula:
+            detected_tense = "past" if copula_tok in _FAKE_PAST_COPULAS else "non_past"
+            tense_label = _fake_tense_label(detected_tense, tenses)
+            copula_slot = {"kind": "copula", "agreement": _FAKE_AGREEMENT_BY_PRONOUN.get(subject_tok, "default")}
+            if tense_label:
+                copula_slot["tense"] = tense_label
+            copula_group = [copula_slot]
+        if negated:
+            copula_group = copula_group + [{"kind": "negation"}]
+        slots = (subject_np + copula_group + [adjective_slot]) if adjective_after_noun else (
+            [adjective_slot] + copula_group + subject_np
+        )
+    elif len(content_tokens) == 3:
+        subject_tok, verb_tok, obj_tok = content_tokens
+        detected_tense, verb_lemma = _fake_detect_tense_and_lemma(verb_tok)
+        tense_label = _fake_tense_label(detected_tense, tenses)
+        subject_case = "ergative" if alignment == "ergative_absolutive" else None
+        object_case = "accusative" if alignment == "nominative_accusative" else None
+        subject_np = noun_phrase(subject_tok, subject_case)
+        object_np = noun_phrase(obj_tok, object_case)
+        verb_slot = {
+            "kind": "content", "gloss": verb_lemma, "pos": "verb",
+            "agreement": _FAKE_AGREEMENT_BY_PRONOUN.get(subject_tok, "default"),
+        }
+        if tense_label:
+            verb_slot["tense"] = tense_label
+        verb_group = [verb_slot] + ([{"kind": "negation"}] if negated else [])
+        role_slots = {"S": subject_np, "V": verb_group, "O": object_np}
+        slots = [s for role in _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O")) for s in role_slots[role]]
+    else:
+        slots = [
+            {"kind": "negation"} if t == "not" else content_slot(t, "noun")
+            for t in tokens_no_copula
+        ]
+
+    return json.dumps(slots)
 
 
 def _fake_guess_ipa(form: str) -> str:
@@ -83,6 +224,8 @@ class FakeLLMClient:
             text = _fake_trait_profile(request.prompt, field_names)
         elif strategy == "guess_ipa":
             text = _fake_guess_ipa(request.prompt)
+        elif strategy == "sentence_plan":
+            text = _fake_sentence_plan(request.prompt, request.metadata)
         else:
             text = f"fake-response-{stable_hash(request.prompt) % 10_000}"
 

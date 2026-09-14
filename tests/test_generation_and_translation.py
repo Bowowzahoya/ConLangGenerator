@@ -46,7 +46,7 @@ def test_translate_round_trip_for_core_vocabulary():
     language = generate_language("Test", spec, client)
 
     to_conlang = translate_to_conlang("the mountain is high", language, client)
-    assert to_conlang.pattern == "predicate-adjective"
+    assert to_conlang.pattern == "llm-plan"
     assert to_conlang.coined == ()  # both words are core vocabulary
 
     back = translate_to_english(to_conlang.text, to_conlang.language, client)

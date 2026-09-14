@@ -1,24 +1,25 @@
 """English <-> conlang translation.
 
-Explicit v0 limitations, by design:
+An LLM-drafted ``translation.sentence_planner.SentencePlan`` decides this
+sentence's own *structure* -- word order, which arguments get case-marked,
+whether an article/copula/negation/conjunction appears, what tense/
+agreement a finite verb takes -- see that module's own docstring for the
+LLM/deterministic-rendering boundary. This module never asks an LLM to
+invent a word's actual spelling or phonology; ``translate_to_conlang``
+only ever renders a plan's slots via the *existing* deterministic
+primitives below (``_lookup_or_coin``, ``_apply_case``,
+``_apply_verb_inflection``).
 
-- No real parser. Exactly three sentence shapes are recognized: a two-content-
-  word predicate-adjective sentence ("the mountain is high"), a three-
-  content-word subject-verb-object sentence ("I see the mountain"), and
-  everything else falls back to naive word-for-word substitution in the
-  original order.
-- English tokens are matched to glosses via exact match, a trailing-``s``
-  strip, or (for tense detection -- see ``_detect_tense_and_lemma_candidates``)
-  a small irregular-past lookup plus a regular ``-ed``/``-ied`` strip -- no
-  real lemmatization or parsing beyond that.
-- Conlang -> English reconstruction assumes the *English* side is always
-  canonical SVO; this is a simplification, not a model of English syntax.
+Remaining v0 limitations, by design: single-clause only (the plan's own
+flat slot list supports noun-phrase-level coordination -- "the mountain
+and the river" -- but not multiple independent clauses, relative clauses,
+or subordination); no question formation; negation is a single particle
+slot with no per-language negation-position typology curated.
 
 Real inflection (case, tense, subject agreement, articles, an overt copula)
 is applied on the way to the conlang when the target language's own
 ``GrammarProfile`` says it has the feature -- see ``_apply_case``/
-``_apply_verb_inflection``/``_maybe_prefix_article``/the predicate-adjective
-pattern's own copula handling below. Applying an affix re-derives the
+``_apply_verb_inflection`` below. Applying an affix re-derives the
 affected word's stress via ``generation.inflection_gen.apply_affix`` (the
 same shared mechanism ``word_class_gen.apply_word_class`` uses for
 citation-class marking -- see ``core.grammar.InflectionAffix``'s own
@@ -33,11 +34,11 @@ Decoding that same inflection back out on the way to English
 ``_decode_noun``/``_decode_verb``'s own docstrings for why (spelling isn't a
 clean invertible function in general, the same reason ``sound_change.py``'s
 own reform-detection compares via ``apply()`` rather than string surgery).
-A 3-token sentence is genuinely ambiguous once a copula exists (subject-
-copula-adjective and subject-verb-object both look like 3 plain tokens) --
-resolved by testing the copula hypothesis first (does the verb-position
-token decode specifically against the "be" entry?) and falling back to the
-transitive reading when it doesn't.
+Decoding no longer assumes any fixed sentence shape or position: every
+conlang token is tried independently against an exact match, then
+``_decode_noun``, then ``_decode_verb`` -- since the plan-driven encoder can
+now produce genuinely arbitrary structure, there is no longer a small fixed
+set of shapes to special-case on the way back.
 
 Unknown *English* content words trigger word coinage (see ``expansion.py``);
 an unknown *conlang* word that can't be decoded via ``_decode_noun``/
@@ -49,11 +50,10 @@ from __future__ import annotations
 
 import hashlib
 import random
-import re
 import unicodedata
 from dataclasses import dataclass
 
-from conlang_generator.core.grammar import Alignment, GrammarProfile, InflectionAffix, WordOrder
+from conlang_generator.core.grammar import GrammarProfile, InflectionAffix
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.romanization import apply_grammatical_spelling
@@ -61,20 +61,7 @@ from conlang_generator.generation import inflection_gen, stress_gen, word_accent
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
-from conlang_generator.translation import expansion
-
-_ARTICLES = {"a", "an", "the"}
-_COPULAS = {"is", "are", "am", "was", "were", "be", "been", "being"}
-_PAST_COPULAS = {"was", "were"}
-
-_ROLE_ORDER: dict[WordOrder, tuple[str, str, str]] = {
-    WordOrder.SOV: ("S", "O", "V"),
-    WordOrder.SVO: ("S", "V", "O"),
-    WordOrder.VSO: ("V", "S", "O"),
-    WordOrder.VOS: ("V", "O", "S"),
-    WordOrder.OVS: ("O", "V", "S"),
-    WordOrder.OSV: ("O", "S", "V"),
-}
+from conlang_generator.translation import expansion, sentence_planner
 
 _IRREGULAR_LEMMA_BY_PAST = {
     "went": "go", "saw": "see", "came": "come", "ate": "eat", "drank": "drink",
@@ -86,23 +73,9 @@ outside this small closed set falls through to the regular ``-ed``/``-ied``
 strip below."""
 _PAST_FORM_BY_LEMMA = {lemma: past for past, lemma in _IRREGULAR_LEMMA_BY_PAST.items()}
 """The reverse of ``_IRREGULAR_LEMMA_BY_PAST`` -- used by ``translate_to_
-english`` to reconstruct a past-tense English gloss once a conlang verb
-has been decoded back to its lemma and a ``"past"`` tense reading."""
-
-_AGREEMENT_LABEL_BY_PRONOUN = {"i": "I", "you": "you", "he": "he", "we": "we"}
-"""Maps a lowercased English subject-pronoun token to the matching
-``generation.inflection_gen.AGREEMENT_LABELS`` entry -- any other subject
-(a coined or looked-up noun) gets ``"default"``, the real cross-linguistic
-"3rd person is the unmarked default" pattern."""
-
-_PRONOUN_TOKENS = {"i", "you", "he", "we", "this", "that"}
-"""This project's own full ``lexicon_gen.CORE_MEANINGS`` pronoun set --
-consulted by ``_maybe_prefix_article`` so a pronoun never gets "the"
-prepended (no real language does this) even though ``used_article`` is
-tracked per *sentence*, not per noun phrase (this module's own "no real
-parser" limitation -- with only one shared flag, without this exclusion a
-transitive sentence's own pronominal subject would wrongly inherit the
-object's own article)."""
+english`` (via ``_english_verb_gloss``) to reconstruct a past-tense English
+gloss once a conlang verb has been decoded back to its lemma and a
+``"past"`` tense reading."""
 
 
 @dataclass(frozen=True)
@@ -112,55 +85,11 @@ class TranslationResult:
     language: Language
     """Possibly updated -- new words may have been coined during translation."""
     coined: tuple[LexicalEntry, ...] = ()
-    pattern: str = "word-for-word"
-
-
-def _tokenize(text: str) -> list[str]:
-    return re.findall(r"[a-zA-Z']+", text.lower())
+    pattern: str = "llm-plan"
 
 
 def _normalize(text: str) -> str:
     return unicodedata.normalize("NFC", text).lower()
-
-
-def _lemma_candidates(token: str) -> list[str]:
-    candidates = [token]
-    if token.endswith("s") and len(token) > 1:
-        candidates.append(token[:-1])
-    return candidates
-
-
-def _detect_tense_and_lemma_candidates(token: str) -> tuple[str, list[str]]:
-    """Returns ``(detected_tense, lemma_candidates)`` -- ``"past"`` for a
-    recognized irregular past form or a regular ``-ed``/``-ied`` ending,
-    ``"non_past"`` otherwise (falling back to ``_lemma_candidates``'s own
-    trailing-``s`` strip, unchanged from before this project modeled tense
-    at all)."""
-    if token in _IRREGULAR_LEMMA_BY_PAST:
-        return "past", [_IRREGULAR_LEMMA_BY_PAST[token]]
-    if token.endswith("ied") and len(token) > 3:
-        return "past", [token[:-3] + "y"]
-    if token.endswith("ed") and len(token) > 2:
-        return "past", [token[:-2]]
-    return "non_past", _lemma_candidates(token)
-
-
-def _tense_label(detected_tense: str, tenses: tuple[str, ...]) -> str | None:
-    """Maps a detected ``"past"``/``"non_past"`` reading onto whichever
-    label this language's own rolled ``GrammarProfile.tenses`` system
-    actually has for it (a 2-way ``("past", "non_past")`` system or a 3-way
-    ``("past", "present", "future")`` one -- see ``grammar_gen.py``).
-    ``None`` when this language has no tense system at all, or (for a
-    3-way system) no meaningful non-past English tense was actually
-    detected -- this module never tries to recognize a periphrastic
-    English future ("will go")."""
-    if detected_tense == "past":
-        return "past" if "past" in tenses else None
-    if "non_past" in tenses:
-        return "non_past"
-    if "present" in tenses:
-        return "present"
-    return None
 
 
 def _translation_rng(language: Language, salt: str) -> random.Random:
@@ -264,42 +193,35 @@ def _apply_case(language: Language, entry: LexicalEntry, case_label: str | None)
     return romanization, ipa
 
 
-def _apply_verb_inflection(language: Language, entry: LexicalEntry, detected_tense: str, subject_tok: str) -> tuple[str, str]:
+def _apply_verb_inflection(
+    language: Language, entry: LexicalEntry, tense_label: str | None, agreement_label: str
+) -> tuple[str, str]:
     """The verb/copula-side counterpart of ``_apply_case`` -- composes and
     applies this sentence's own tense+agreement affix (see
     ``_combined_tense_agreement_affix``), or returns the bare citation
     form unchanged when this language has neither tense nor a real
     agreement suffix worth attaching (never actually empty today, since
     ``agreement_affixes`` always has a ``"default"`` entry, but the
-    ``None`` case is still handled honestly)."""
+    ``None`` case is still handled honestly). ``tense_label``/
+    ``agreement_label`` come directly from the sentence plan's own
+    ``PlannedSlot.tense``/``.agreement`` -- normalized here (an
+    unavailable/invalid value falls back to ``None``/``"default"``) rather
+    than by the caller, so the exact same normalized values always feed
+    both the affix lookup and its own rng salt (see
+    ``_case_affix_salt``/``_verb_affix_salt``'s own docstrings for why an
+    encode/decode salt mismatch is a real, previously-hit bug -- an
+    unnormalized invalid label here would reintroduce it, since
+    ``_decode_verb`` only ever tries genuinely valid labels)."""
     grammar = language.grammar
-    tense_label = _tense_label(detected_tense, grammar.tenses)
-    agreement_label = _AGREEMENT_LABEL_BY_PRONOUN.get(subject_tok, "default")
-    affix = _combined_tense_agreement_affix(grammar, tense_label, agreement_label)
+    resolved_tense = tense_label if tense_label in grammar.tenses else None
+    resolved_agreement = agreement_label if agreement_label in inflection_gen.AGREEMENT_LABELS else "default"
+    affix = _combined_tense_agreement_affix(grammar, resolved_tense, resolved_agreement)
     if affix is None:
         return entry.romanization, entry.ipa
-    rng = _translation_rng(language, _verb_affix_salt(entry, tense_label, agreement_label))
+    rng = _translation_rng(language, _verb_affix_salt(entry, resolved_tense, resolved_agreement))
     ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
     romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
     return romanization, ipa
-
-
-def _maybe_prefix_article(
-    language: Language, romanization: str, ipa: str, used_article: bool, subject_or_object_tok: str
-) -> tuple[str, str]:
-    """Prepends this language's own coined "the" lexeme when the English
-    input actually used an article, this language's own ``GrammarProfile.
-    has_articles`` says it has one at all (``lexicon_gen.CONDITIONAL_
-    MEANINGS`` guarantees the lexeme only exists in that case), and this
-    particular argument isn't a pronoun (see ``_PRONOUN_TOKENS``'s own
-    docstring for why that check matters given ``used_article`` is tracked
-    per sentence, not per noun phrase)."""
-    if not (used_article and language.grammar.has_articles) or subject_or_object_tok in _PRONOUN_TOKENS:
-        return romanization, ipa
-    article = language.lexicon.by_gloss("the")
-    if article is None:
-        return romanization, ipa
-    return f"{article.romanization} {romanization}", f"{article.ipa} {ipa}"
 
 
 def _lookup_or_coin(
@@ -308,9 +230,9 @@ def _lookup_or_coin(
     pos: PartOfSpeech,
     coined: list[LexicalEntry],
     llm_client: LLMClient,
-    lemma_candidates: list[str] | None = None,
+    lemma_candidates: list[str],
 ) -> tuple[Language, LexicalEntry]:
-    for candidate in lemma_candidates if lemma_candidates is not None else _lemma_candidates(token):
+    for candidate in lemma_candidates:
         entry = language.lexicon.by_gloss(candidate)
         if entry is not None:
             return language, entry
@@ -324,93 +246,53 @@ def _lookup_or_coin(
     return updated, new_entry
 
 
+_BARE_GLOSS_BY_SLOT_KIND = {"article": "the", "negation": "not", "conjunction": "and"}
+"""The fixed core-vocabulary gloss each function-word ``PlannedSlot.kind``
+always renders as its own bare citation form -- ``"copula"`` is deliberately
+excluded, since unlike these three it still takes tense/agreement marking
+like a finite verb."""
+
+
 def translate_to_conlang(
     text: str, language: Language, llm_client: LLMClient
 ) -> TranslationResult:
-    raw_tokens = _tokenize(text)
-    used_article = any(t in _ARTICLES for t in raw_tokens)
-    tokens = [t for t in raw_tokens if t not in _ARTICLES]
-    has_copula = any(t in _COPULAS for t in tokens)
-    copula_tok = next((t for t in tokens if t in _COPULAS), None)
-    content_tokens = [t for t in tokens if t not in _COPULAS]
-
+    plan = sentence_planner.plan_sentence(text, language, llm_client)
     coined: list[LexicalEntry] = []
     working_language = language
 
-    if has_copula and len(content_tokens) == 2:
-        subject_tok, adj_tok = content_tokens
-        working_language, subject_entry = _lookup_or_coin(
-            working_language, subject_tok, PartOfSpeech.NOUN, coined, llm_client
-        )
-        working_language, adj_entry = _lookup_or_coin(
-            working_language, adj_tok, PartOfSpeech.ADJECTIVE, coined, llm_client
-        )
-        subject_pair = _maybe_prefix_article(
-            working_language, *_apply_case(working_language, subject_entry, None), used_article, subject_tok
-        )
-        adj_pair = (adj_entry.romanization, adj_entry.ipa)
-        ordered_pairs = (
-            [subject_pair, adj_pair] if working_language.grammar.adjective_after_noun else [adj_pair, subject_pair]
-        )
-        if working_language.grammar.has_overt_copula:
-            copula_entry = working_language.lexicon.by_gloss("be")
-            if copula_entry is not None:
-                detected_tense = "past" if copula_tok in _PAST_COPULAS else "non_past"
-                copula_pair = _apply_verb_inflection(working_language, copula_entry, detected_tense, subject_tok)
-                # The copula always sits between subject and predicate --
-                # real "the mountain is high"/"haute est la montagne"-style
-                # languages both keep it in the middle regardless of which
-                # side the adjective itself falls on (adjective_after_noun
-                # only governs their own relative order, reused here rather
-                # than adding a second, dedicated predicate-order flag).
-                ordered_pairs = [ordered_pairs[0], copula_pair, ordered_pairs[1]]
-        pattern = "predicate-adjective"
-    elif len(content_tokens) == 3:
-        subject_tok, verb_tok, obj_tok = content_tokens
-        working_language, subject_entry = _lookup_or_coin(
-            working_language, subject_tok, PartOfSpeech.NOUN, coined, llm_client
-        )
-        detected_tense, verb_lemma_candidates = _detect_tense_and_lemma_candidates(verb_tok)
-        working_language, verb_entry = _lookup_or_coin(
-            working_language, verb_tok, PartOfSpeech.VERB, coined, llm_client, verb_lemma_candidates
-        )
-        working_language, obj_entry = _lookup_or_coin(
-            working_language, obj_tok, PartOfSpeech.NOUN, coined, llm_client
-        )
-        grammar = working_language.grammar
-        # Only one argument is ever case-marked per sentence, matching a
-        # common real simplification (many real languages leave one side
-        # of the alignment zero-marked) -- the object under nominative-
-        # accusative, a transitive subject under ergative-absolutive.
-        subject_case = "ergative" if grammar.alignment is Alignment.ERGATIVE_ABSOLUTIVE else None
-        object_case = "accusative" if grammar.alignment is Alignment.NOMINATIVE_ACCUSATIVE else None
-        subject_pair = _maybe_prefix_article(
-            working_language, *_apply_case(working_language, subject_entry, subject_case), used_article, subject_tok
-        )
-        object_pair = _maybe_prefix_article(
-            working_language, *_apply_case(working_language, obj_entry, object_case), used_article, obj_tok
-        )
-        verb_pair = _apply_verb_inflection(working_language, verb_entry, detected_tense, subject_tok)
-        roles = {"S": subject_pair, "V": verb_pair, "O": object_pair}
-        ordered_pairs = [roles[r] for r in _ROLE_ORDER[grammar.word_order]]
-        pattern = "subject-verb-object"
-    else:
-        ordered_pairs = []
-        for tok in content_tokens:
+    romanization_parts: list[str] = []
+    ipa_parts: list[str] = []
+    for slot in plan.slots:
+        rendered: tuple[str, str] | None = None
+        if slot.kind == "content" and slot.gloss:
+            pos = sentence_planner.POS_BY_PLAN_STRING.get(slot.pos, PartOfSpeech.NOUN)
             working_language, entry = _lookup_or_coin(
-                working_language, tok, PartOfSpeech.NOUN, coined, llm_client
+                working_language, slot.gloss, pos, coined, llm_client, lemma_candidates=[slot.gloss]
             )
-            ordered_pairs.append((entry.romanization, entry.ipa))
-        pattern = "word-for-word"
+            rendered = (
+                _apply_verb_inflection(working_language, entry, slot.tense, slot.agreement or "default")
+                if pos is PartOfSpeech.VERB
+                else _apply_case(working_language, entry, slot.case)
+            )
+        elif slot.kind == "copula":
+            entry = working_language.lexicon.by_gloss("be")
+            if entry is not None:
+                rendered = _apply_verb_inflection(working_language, entry, slot.tense, slot.agreement or "default")
+        elif slot.kind in _BARE_GLOSS_BY_SLOT_KIND:
+            entry = working_language.lexicon.by_gloss(_BARE_GLOSS_BY_SLOT_KIND[slot.kind])
+            if entry is not None:
+                rendered = (entry.romanization, entry.ipa)
 
-    conlang_text = " ".join(romanization for romanization, _ in ordered_pairs)
-    ipa_text = " ".join(ipa for _, ipa in ordered_pairs)
+        if rendered is not None:
+            romanization_parts.append(rendered[0])
+            ipa_parts.append(rendered[1])
+
     return TranslationResult(
-        text=conlang_text,
-        ipa=ipa_text,
+        text=" ".join(romanization_parts),
+        ipa=" ".join(ipa_parts),
         language=working_language,
         coined=tuple(coined),
-        pattern=pattern,
+        pattern="llm-plan",
     )
 
 
@@ -448,21 +330,12 @@ def _decode_noun(language: Language, token: str) -> tuple[LexicalEntry, str] | N
     return None
 
 
-def _decode_verb(
-    language: Language, token: str, candidate_glosses: frozenset[str] | None = None
-) -> tuple[LexicalEntry, str | None] | None:
+def _decode_verb(language: Language, token: str) -> tuple[LexicalEntry, str | None] | None:
     """The verb-position counterpart of ``_decode_noun`` -- returns
     ``(entry, tense_label)`` (``None`` for the tense when this language
-    has no tense system, or the exact bare form matched). ``candidate_
-    glosses``, when given, restricts the search to specific verbs (used
-    by ``translate_to_english`` to test "is this token actually the
-    copula?" without also matching some unrelated ordinary verb that
-    happens to render identically for a different tense/agreement
-    combination)."""
+    has no tense system, or the exact bare form matched)."""
     normalized = _normalize(token)
     verb_entries = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.VERB]
-    if candidate_glosses is not None:
-        verb_entries = [e for e in verb_entries if e.primary_gloss in candidate_glosses]
     for entry in verb_entries:
         if _normalize(entry.romanization) == normalized:
             return entry, None
@@ -484,6 +357,13 @@ def _decode_verb(
 
 
 def _english_verb_gloss(entry: LexicalEntry, tense_label: str | None) -> str:
+    """The English surface form for a decoded verb entry -- special-cased
+    for "be" (the copula never takes a regular ``-ed``-style past, and
+    isn't in ``_PAST_FORM_BY_LEMMA``'s own small irregular-verb list),
+    otherwise the bare lemma for anything but a ``"past"`` reading, or
+    ``_PAST_FORM_BY_LEMMA``'s irregular form/a regular ``-ed`` suffix."""
+    if entry.primary_gloss == "be":
+        return "was" if tense_label == "past" else "is"
     if tense_label != "past":
         return entry.primary_gloss
     return _PAST_FORM_BY_LEMMA.get(entry.primary_gloss, entry.primary_gloss + "ed")
@@ -497,91 +377,63 @@ def translate_to_english(
     the_normalized = _normalize(the_entry.romanization) if the_entry is not None else None
     tokens = [t for t in raw_tokens if the_normalized is None or _normalize(t) != the_normalized]
 
-    pattern = "word-for-word"
-    ordered_glosses: list[str] | None = None
+    # Per-token, structure-agnostic decode -- the plan-driven encoder can
+    # produce genuinely arbitrary structure, so there's no fixed sentence
+    # shape left to special-case on the way back (see this module's own
+    # docstring). ``plain`` feeds a deterministic fake/fallback answer
+    # (and the real fluency LLM's own "if all else fails" text);
+    # ``annotated`` gives a real LLM the case/tense information a bare
+    # gloss sequence would otherwise lose.
+    plain: list[str] = []
+    annotated: list[str] = []
+    for tok in tokens:
+        entry = language.lexicon.by_form(tok)
+        if entry is not None:
+            plain.append(entry.primary_gloss)
+            annotated.append(entry.primary_gloss)
+            continue
+        noun_decoded = _decode_noun(language, tok)
+        if noun_decoded is not None:
+            noun_entry, case_label = noun_decoded
+            plain.append(noun_entry.primary_gloss)
+            annotated.append(
+                noun_entry.primary_gloss
+                if case_label == "unmarked"
+                else f"{noun_entry.primary_gloss} (case: {case_label})"
+            )
+            continue
+        verb_decoded = _decode_verb(language, tok)
+        if verb_decoded is not None:
+            verb_entry, tense_label = verb_decoded
+            gloss = _english_verb_gloss(verb_entry, tense_label)
+            plain.append(gloss)
+            annotated.append(gloss if tense_label is None else f"{gloss} (tense: {tense_label})")
+            continue
+        plain.append(f"<unknown:{tok}>")
+        annotated.append(f"<unknown:{tok}>")
 
-    if len(tokens) == 3:
-        if language.grammar.has_overt_copula:
-            # The copula always sits in the *middle* position, regardless
-            # of word_order -- see translate_to_conlang's own predicate-
-            # adjective handling, which inserts it there unconditionally
-            # (word_order only ever governs the *transitive* SVO
-            # hypothesis tried below).
-            copula_decoded = _decode_verb(language, tokens[1], candidate_glosses=frozenset({"be"}))
-            if copula_decoded is not None:
-                # Likewise, subject/adjective order here follows
-                # adjective_after_noun directly (the same flag the
-                # encoder itself reads), not word_order's own S/O
-                # positions -- reading it back rather than re-deriving it.
-                first_tok, second_tok = tokens[0], tokens[2]
-                subject_tok, adj_tok = (
-                    (first_tok, second_tok) if language.grammar.adjective_after_noun else (second_tok, first_tok)
-                )
-                subject_decoded = _decode_noun(language, subject_tok)
-                adj_entry = language.lexicon.by_form(adj_tok)  # adjectives are never inflected
-                if subject_decoded is not None and adj_entry is not None and adj_entry.pos is PartOfSpeech.ADJECTIVE:
-                    _, tense_label = copula_decoded
-                    copula_word = "was" if tense_label == "past" else "is"
-                    ordered_glosses = [subject_decoded[0].primary_gloss, copula_word, adj_entry.primary_gloss]
-                    pattern = "predicate-adjective"
-        if ordered_glosses is None:
-            roles = _ROLE_ORDER[language.grammar.word_order]
-            role_to_token = dict(zip(roles, tokens))
-            subject_decoded = _decode_noun(language, role_to_token["S"])
-            object_decoded = _decode_noun(language, role_to_token["O"])
-            verb_decoded = _decode_verb(language, role_to_token["V"])
-            if subject_decoded is not None and object_decoded is not None and verb_decoded is not None:
-                verb_entry, tense_label = verb_decoded
-                ordered_glosses = [
-                    subject_decoded[0].primary_gloss,
-                    _english_verb_gloss(verb_entry, tense_label),
-                    object_decoded[0].primary_gloss,
-                ]
-                pattern = "subject-verb-object"
-    elif len(tokens) == 2:
-        first, second = (language.lexicon.by_form(t) for t in tokens)
-        if first is not None and second is not None:
-            noun_entry = first if first.pos == PartOfSpeech.NOUN else second
-            adj_entry = second if noun_entry is first else first
-            ordered_glosses = [noun_entry.primary_gloss, "is", adj_entry.primary_gloss]
-            pattern = "predicate-adjective"
-
-    if ordered_glosses is None:
-        # Best-effort per-token fallback -- try an exact match, then a
-        # generic noun/verb decode, before giving up on that one token;
-        # the whole sentence's own structure was either never 2 or 3
-        # tokens after stripping articles, or one of the shapes above
-        # failed to decode (an unknown coined word, most commonly).
-        ordered_glosses = []
-        for tok in tokens:
-            entry = language.lexicon.by_form(tok)
-            if entry is not None:
-                ordered_glosses.append(entry.primary_gloss)
-                continue
-            noun_decoded = _decode_noun(language, tok)
-            if noun_decoded is not None:
-                ordered_glosses.append(noun_decoded[0].primary_gloss)
-                continue
-            verb_decoded = _decode_verb(language, tok)
-            if verb_decoded is not None:
-                ordered_glosses.append(_english_verb_gloss(*verb_decoded))
-                continue
-            ordered_glosses.append(f"<unknown:{tok}>")
-
-    draft = " ".join(ordered_glosses)
+    plain_draft = " ".join(plain)
+    annotated_draft = " ".join(annotated)
     request = LLMRequest(
         system=(
-            "You turn a rough English gloss sequence from a constructed-"
-            "language translation into one natural English sentence. Keep "
-            "the meaning; do not add new content."
+            "You turn an annotated rough English gloss sequence from a "
+            "constructed-language translation into one natural, fluent "
+            "English sentence. Each word is its English gloss, optionally "
+            "annotated with '(case: X)' (this word's grammatical role -- "
+            "e.g. an accusative/absolutive/ergative-marked word is "
+            "typically a direct object) or '(tense: X)' (a verb's "
+            "detected tense -- render it as the matching English tense). "
+            "Keep the meaning and the word order's implied roles; do not "
+            "add new content; drop the annotations themselves from your "
+            "output."
         ),
-        prompt=f"Rough gloss sequence: {draft}\nWrite a natural English sentence:",
+        prompt=f"Rough gloss sequence: {annotated_draft}\nWrite a natural English sentence:",
         model=DEFAULT_MODEL,
         max_tokens=64,
         purpose="translate.fluency",
-        metadata={"fake_strategy": "passthrough", "fallback_text": draft},
+        metadata={"fake_strategy": "passthrough", "fallback_text": plain_draft},
     )
     response = llm_client.complete(request)
     return TranslationResult(
-        text=response.text, ipa="", language=language, coined=(), pattern=pattern
+        text=response.text, ipa="", language=language, coined=(), pattern="llm-plan"
     )
