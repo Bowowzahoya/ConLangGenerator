@@ -1483,8 +1483,44 @@ both gaps.
 ## `speech/`
 
 - **`reader.py`**: `lookup_pronunciation()` / `describe()` -- IPA and
-  romanization lookup only. No audio synthesis (explicit limitation, not a
-  stand-in for real TTS).
+  romanization lookup only.
+- **`tts.py`**: real audio synthesis, mirroring `llm/base.py`/`llm/
+  factory.py`'s own provider-agnostic-seam shape exactly (`TTSClient`
+  `Protocol`, `build_tts_client(kind)` factory) -- `cli/main.py`'s own
+  `pronounce --tts <kind>` never imports a specific backend directly.
+  `"none"` (the default, same "cheap and dependency-free by default"
+  precedent `build_llm_client(kind="fake")` already sets) reproduces the
+  original text-only behavior. Two real backends, since they sound
+  genuinely different and neither is a clear universal winner:
+  `"espeak"` (espeak-ng, cross-platform once installed -- has no direct
+  IPA input, so `ipa_to_kirshenbaum.py` converts to its own Kirshenbaum
+  ASCII-IPA notation first, wrapped in its `[[...]]` bracket phonetic-
+  input syntax) and `"sapi"` (Windows' own built-in `System.Speech`,
+  invoked via a short PowerShell script rather than a new Python
+  dependency -- no install at all, and it accepts literal IPA directly
+  through SSML's `<phoneme alphabet="ipa">`, so no approximation step is
+  needed; Windows-only, `synthesize()` returns `False` cleanly
+  elsewhere).
+- **`ipa_to_kirshenbaum.py`**: converts this project's own IPA notation
+  (all ~195 symbols in `phonology_gen.ALL_CONSONANTS`/`ALL_VOWELS`) into
+  Kirshenbaum, a real, documented ASCII-IPA scheme (not espeak-ng's own
+  arbitrary notation). `_BASE_BY_IPA` covers every *plain* symbol
+  directly; a genuinely exotic one (click clusters, pharyngealized/
+  breathy/pre-aspirated consonants, apical-vs-laminal distinctions) falls
+  back through a systematic modifier-stripping approximation (ejective/
+  aspirated/palatalized/pharyngealized/breathy/length/nasalization/
+  apical/laminal stripped one at a time, re-checking the base table each
+  time, with length and nasalization *appended* via Kirshenbaum's own
+  notation rather than silently dropped) toward the nearest representable
+  phoneme -- illustrative, not exhaustive, the same honesty standard
+  every other curated table in this project already holds itself to. A
+  nasalized vowel (e.g. `"ã"`) is stored as one precomposed Unicode
+  codepoint in this project's own pool, unlike every other modifier here
+  (which is already its own standalone character) -- NFD-normalized
+  before the fallback check so both cases share one code path. Tone and
+  word-accent marks have no real espeak-ng equivalent at all (no lexical-
+  tone input mechanism) and are dropped entirely, a known, permanent
+  limitation, not something faked.
 
 ## `cli/main.py`
 

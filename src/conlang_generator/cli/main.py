@@ -20,6 +20,7 @@ from conlang_generator.generation.seed_examples import resolve_seed_examples
 from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.speech import reader
+from conlang_generator.speech.tts import build_tts_client
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
 
@@ -306,8 +307,11 @@ def translate(
 def pronounce(
     word: str = typer.Argument(..., help="An English gloss or a conlang word (romanized or IPA form)."),
     lang: str = typer.Option(..., "--lang", help="Language name."),
+    tts: str = typer.Option(
+        "none", "--tts", help="Audio synthesis backend: none, espeak (espeak-ng, once installed), or sapi (Windows only)."
+    ),
 ) -> None:
-    """Show IPA and romanization for a known word. No audio synthesis yet."""
+    """Show IPA and romanization for a known word, optionally synthesizing real audio."""
     try:
         language = _repository().load(lang)
     except FileNotFoundError as exc:
@@ -319,6 +323,19 @@ def pronounce(
         typer.echo(f"'{word}' is not in {lang}'s lexicon yet.")
         raise typer.Exit(code=1)
     typer.echo(reader.describe(entry))
+
+    if tts != "none":
+        try:
+            client = build_tts_client(tts)
+        except ValueError as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        output_path = CACHE_DIR / "audio" / f"{lang}-{entry.primary_gloss}.wav"
+        if client.synthesize(entry.ipa, output_path):
+            typer.echo(f"Audio saved to {output_path}")
+        else:
+            typer.echo(f"error: '{tts}' TTS backend unavailable or synthesis failed.", err=True)
+            raise typer.Exit(code=1)
 
 
 def main() -> None:
