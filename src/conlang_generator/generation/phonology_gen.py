@@ -1175,6 +1175,51 @@ def _resolve_position_multipliers(
     return tuple(result)
 
 
+def _seed_tokenizer_pool(
+    consonant_symbol_pool: tuple[str, ...],
+    vowel_symbol_pool: tuple[str, ...],
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+) -> tuple[str, ...]:
+    """The tokenizer candidate set for ``generate_phonology``'s own
+    ``seed_examples`` scan -- same ``ipa_tokenizer`` greedy-longest-match
+    ambiguity ``sound_change._tokenizer_pool``/``word_class_gen.
+    apply_word_class`` already guard against (a *multi*-character global
+    phoneme, e.g. Swahili's prenasalized stop "nz" in ``ALL_CONSONANTS``,
+    can wrongly swallow two real, coincidentally-adjacent single-character
+    phonemes -- one syllable's coda immediately followed by the next
+    syllable's onset -- that a user's own seed-example IPA merely happens
+    to spell the same way).
+
+    This call site can't reuse either of those fixes' own restriction
+    target directly: there's no already-known inventory yet to restrict
+    against here -- computing one from scratch is exactly what this
+    function's caller is about to do. So every *single*-character symbol
+    stays a candidate unconditionally (same reasoning as the other two
+    fixes: nothing shorter to wrongly prefer over it, so it can never
+    cause this ambiguity), while *multi*-character candidates are
+    restricted to whichever reference profile(s) this run actually
+    matched (``traits.source_languages``) -- narrower than the full
+    global pool, but still wide enough to recognize a genuine multi-
+    character phoneme belonging to a named source language's own
+    palette. With no matched profile at all, there's no narrower set to
+    prefer, so this falls back to the full global multi-character pool,
+    the same behavior as before this fix (a real diphthong like "au" in
+    an unguided seed example still tokenizes as two symbols, not
+    wrongly forced to split -- the false-positive risk here is strictly
+    lower than the mis-parse this exists to prevent, and no narrower
+    fallback is available without a matched profile to draw one from)."""
+    all_single_char_symbols = frozenset(s for s in (*consonant_symbol_pool, *vowel_symbol_pool) if len(s) == 1)
+    if not reference_profiles:
+        return consonant_symbol_pool + vowel_symbol_pool
+    multi_char_candidates = frozenset(
+        symbol
+        for profile in reference_profiles
+        for symbol in (*profile.consonants, *profile.vowels)
+        if len(symbol) > 1
+    )
+    return tuple(all_single_char_symbols | multi_char_candidates)
+
+
 def generate_phonology(
     rng: random.Random, spec: GenerationSpec
 ) -> tuple[PhonemeInventory, SyllableStructure, ToneSystem, WordAccentSystem]:
@@ -1197,7 +1242,8 @@ def generate_phonology(
     seed_ipa_text = "".join(example.ipa or "" for example in spec.seed_examples)
     consonant_symbol_pool = tuple(c.ipa for c in ALL_CONSONANTS)
     vowel_symbol_pool = tuple(v.ipa for v in ALL_VOWELS)
-    seed_tokens = ipa_tokenizer.symbols_only(seed_ipa_text, consonant_symbol_pool + vowel_symbol_pool)
+    seed_tokenizer_pool = _seed_tokenizer_pool(consonant_symbol_pool, vowel_symbol_pool, reference_profiles)
+    seed_tokens = ipa_tokenizer.symbols_only(seed_ipa_text, seed_tokenizer_pool)
     must_include_consonants = frozenset(t for t in seed_tokens if t in consonant_symbol_pool)
     must_include_vowels = frozenset(t for t in seed_tokens if t in vowel_symbol_pool)
 

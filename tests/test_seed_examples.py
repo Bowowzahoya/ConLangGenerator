@@ -1,4 +1,8 @@
+import random
+
 from conlang_generator.core.spec import GenerationSpec, SeedExample
+from conlang_generator.core.traits import TraitProfile
+from conlang_generator.generation import phonology_gen
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.generation.seed_examples import resolve_seed_examples
 from conlang_generator.llm.fake_client import FakeLLMClient
@@ -56,6 +60,38 @@ def test_seed_word_phonemes_are_present_in_generated_inventory():
 
     assert "ʁ" in language.phonology.consonant_symbols()
     assert "a" in language.phonology.vowel_symbols()
+
+
+def test_seed_example_never_lets_an_unrelated_multichar_phoneme_swallow_two_adjacent_real_ones():
+    # Direct, synthetic reproduction of the same tokenizer-ambiguity bug
+    # `test_sound_change.py`'s own
+    # `test_reconstruction_never_lets_an_unrelated_multichar_phoneme_
+    # swallow_two_adjacent_real_ones` guards against, at this project's
+    # other structurally-similar call site: `phonology_gen.ALL_CONSONANTS`
+    # models a genuine Swahili-style prenasalized stop "nz" as a distinct,
+    # unrelated global entry, with nothing to do with this test's own
+    # seed example. A seed word whose IPA happens to contain the literal
+    # substring "nz" -- here, two real, adjacent single-character
+    # phonemes "n" and "z" -- used to get greedily mis-tokenized as the
+    # *global* "nz" phoneme when `generate_phonology` scanned
+    # `seed_examples` against the full, unrestricted global multi-
+    # character pool, wrongly force-including "nz" itself (and neither
+    # "n" nor "z" individually) in the generated inventory via
+    # `_force_include`. With a matched reference profile that has no
+    # "nz" of its own (real French has neither the phoneme nor any
+    # multi-character consonant at all), the fix restricts multi-
+    # character tokenizer candidates to that profile's own palette, so
+    # this now tokenizes as two ordinary single-character phonemes.
+    rng = random.Random(0)
+    examples = (SeedExample(gloss="test", form="anza", ipa="anza"),)
+    spec = GenerationSpec(
+        prompt="p", seed=0, seed_examples=examples,
+        traits=TraitProfile(source_languages=("French",)),
+    )
+    inventory, _, _, _ = phonology_gen.generate_phonology(rng, spec)
+    assert "n" in inventory.consonant_symbols()
+    assert "z" in inventory.consonant_symbols()
+    assert "nz" not in inventory.consonant_symbols()
 
 
 def test_seeded_gloss_is_not_also_generated():
