@@ -7,6 +7,11 @@ that need specific fake behavior say so explicitly via ``request.metadata``:
 - ``fake_strategy=\"choose_index\"`` + ``num_options=\"N\"``: returns a stable
   ``\"1\"``..``\"N\"`` derived from a hash of the prompt (used by
   ``generation/lexicon_gen.py`` to pick among pre-built candidate words).
+- ``fake_strategy=\"batch_choose_index\"`` + ``candidate_counts=\"5,5,4,...\"``
+  (comma-joined per-word candidate counts): the batched counterpart of
+  ``choose_index`` (used by ``lexicon_gen.choose_best_candidates_batch``) --
+  returns one ``WORD_NUMBER:CANDIDATE_NUMBER`` line per word, each index a
+  stable hash of ``prompt`` plus that word's own position.
 - ``fake_strategy=\"passthrough\"`` + ``fallback_text=\"...\"``: echoes that
   text back verbatim (used where a real model would polish a deterministic
   draft -- in fake mode the draft is the answer).
@@ -217,6 +222,11 @@ class FakeLLMClient:
             num_options = int(request.metadata.get("num_options", "1"))
             index = stable_hash(request.prompt) % num_options + 1
             text = str(index)
+        elif strategy == "batch_choose_index":
+            counts = [int(c) for c in request.metadata.get("candidate_counts", "").split(",") if c]
+            text = "\n".join(
+                f"{i}:{stable_hash(f'{request.prompt}#{i}') % count + 1}" for i, count in enumerate(counts, start=1)
+            )
         elif strategy == "passthrough":
             text = request.metadata.get("fallback_text", "")
         elif strategy == "trait_profile":

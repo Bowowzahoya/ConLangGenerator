@@ -165,3 +165,25 @@ def test_pronounce_synthesizes_with_espeak(client):
     response = client.post("/api/pronounce", json={"ipa": "kat", "tts": "espeak"})
     assert response.status_code == 200
     assert len(response.content) > 0
+
+
+def test_generate_word_selection_defaults_to_algorithmic_and_round_trips(client):
+    body = client.post("/api/generate", json={"prompt": "p", "name": "Ws Default", "seed": 2, "llm": "fake"}).json()
+    assert body["grammar"]["word_selection"] == "algorithmic"
+    fetched = client.get("/api/languages/ws-default").json()
+    assert fetched["grammar"]["word_selection"] == "algorithmic"
+
+
+def test_generate_accepts_llm_word_selection(client):
+    body = client.post(
+        "/api/generate", json={"prompt": "p", "name": "Ws Llm", "seed": 2, "llm": "fake", "word_selection": "llm"}
+    ).json()
+    assert body["grammar"]["word_selection"] == "llm"
+    assert len(body["lexicon"]) > 40
+
+
+def test_generate_rejects_an_invalid_word_selection(client):
+    response = client.post(
+        "/api/generate", json={"prompt": "p", "name": "Ws Bad", "seed": 2, "llm": "fake", "word_selection": "psychic"}
+    )
+    assert response.status_code == 400

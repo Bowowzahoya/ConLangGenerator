@@ -78,26 +78,23 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     )
     seeded_glosses = {example.gloss.lower() for example in spec.seed_examples}
 
-    def propose_core_word(gloss: str, pos: PartOfSpeech) -> LexicalEntry:
+    def build_core_pending(gloss: str, pos: PartOfSpeech) -> lexicon_gen.PendingWord | LexicalEntry:
         if grammar.uses_root_and_pattern and pos in root_pattern.TEMPLATIC_POS:
-            return root_pattern.propose_templatic_word(
+            return root_pattern.build_pending_templatic_word(
                 rng,
                 inventory,
                 grammar.templates,
                 romanization,
                 gloss,
                 pos,
-                llm_client,
-                name,
                 structure=syllable_structure,
-                context=spec.traits.salient_context,
                 source_languages=spec.traits.source_languages,
                 strictness=spec.traits.source_language_strictness,
                 word_accent_system=word_accent_system,
                 word_classes=grammar.word_classes,
                 word_class_deviation_rate=grammar.word_class_deviation_rate,
             )
-        return lexicon_gen.propose_word(
+        return lexicon_gen.build_pending_word(
             rng,
             inventory,
             syllable_structure,
@@ -106,9 +103,6 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             romanization,
             gloss,
             pos,
-            llm_client,
-            name,
-            context=spec.traits.salient_context,
             source_languages=spec.traits.source_languages,
             strictness=spec.traits.source_language_strictness,
             word_classes=grammar.word_classes,
@@ -120,24 +114,65 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
 
     known_forms = {normalized_form(entry.romanization) for entry in seed_entries}
 
-    generated_entries = []
+    eligible_meanings = []
     for gloss, pos in lexicon_gen.CORE_MEANINGS:
         if gloss.lower() in seeded_glosses:
             continue
         gate_attr = lexicon_gen.CONDITIONAL_MEANINGS.get(gloss)
         if gate_attr is not None and not getattr(grammar, gate_attr):
             continue
-        # Retry on a romanization collision with a word already placed in
-        # this lexicon (same discipline as translation.expansion.coin_word),
-        # since Lexicon.by_form returns only the first match and a
-        # homograph would make the other word unreachable via it.
-        entry = propose_core_word(gloss, pos)
-        for _ in range(5):
-            if normalized_form(entry.romanization) not in known_forms:
-                break
-            entry = propose_core_word(gloss, pos)
-        known_forms.add(normalized_form(entry.romanization))
-        generated_entries.append(entry)
+        eligible_meanings.append((gloss, pos))
+
+    def build_and_pick(meanings: list[tuple[str, PartOfSpeech]]) -> list[LexicalEntry]:
+        # Build every word's candidate pool (algorithmic), then make every
+        # pick at once -- one batched LLM request when word_selection is
+        # "llm" (instead of one call per word), or a plain seeded pick, with
+        # no LLM call at all, otherwise.
+        built = [build_core_pending(gloss, pos) for gloss, pos in meanings]
+        pending_words = [item for item in built if isinstance(item, lexicon_gen.PendingWord)]
+        if spec.word_selection == "llm":
+            chosen_candidates = lexicon_gen.choose_best_candidates_batch(
+                pending_words, llm_client, name, spec.traits.salient_context
+            )
+        else:
+            chosen_candidates = [
+                lexicon_gen.resolve_candidate(
+                    rng, pw.candidates, pw.gloss, pw.pos, llm_client, name, spec.traits.salient_context, "algorithmic"
+                )
+                for pw in pending_words
+            ]
+        chosen_iter = iter(chosen_candidates)
+        return [item if isinstance(item, LexicalEntry) else item.finish(next(chosen_iter)) for item in built]
+
+    generated_entries = build_and_pick(eligible_meanings)
+
+    # Retry a romanization collision with a word already placed in this
+    # lexicon (same discipline as translation.expansion.coin_word), since
+    # Lexicon.by_form returns only the first match and a homograph would
+    # make the other word unreachable via it. Each retry round re-picks
+    # every still-colliding word together, so a batched run costs roughly
+    # one request per round, not one per colliding word; after 5 rounds a
+    # still-colliding word is accepted as-is.
+    unresolved: list[int] = []
+    for index, entry in enumerate(generated_entries):
+        if normalized_form(entry.romanization) in known_forms:
+            unresolved.append(index)
+        else:
+            known_forms.add(normalized_form(entry.romanization))
+    for _ in range(5):
+        if not unresolved:
+            break
+        retried = build_and_pick([eligible_meanings[i] for i in unresolved])
+        still_colliding: list[int] = []
+        for index, entry in zip(unresolved, retried):
+            generated_entries[index] = entry
+            if normalized_form(entry.romanization) in known_forms:
+                still_colliding.append(index)
+            else:
+                known_forms.add(normalized_form(entry.romanization))
+        unresolved = still_colliding
+    for index in unresolved:
+        known_forms.add(normalized_form(generated_entries[index].romanization))
     generated_entries = tuple(generated_entries)
 
     return Language(

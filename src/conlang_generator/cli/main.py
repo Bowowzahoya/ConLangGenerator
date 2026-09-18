@@ -158,8 +158,17 @@ def generate(
         False, "--allow-all-caps",
         help="Permit (not guarantee) a rare roll rendering a whole part-of-speech category in ALL CAPS. Off by default.",
     ),
+    word_selection: str = typer.Option(
+        "algorithmic", "--word-selection",
+        help="How the final pick among each word's already-built candidate spellings is made: 'algorithmic' (default, "
+        "no LLM call) or 'llm' (sound-symbolism-informed, one batched request for the whole core vocabulary). "
+        "Prompt classification always uses --llm regardless.",
+    ),
 ) -> None:
     """Generate a new language and save it."""
+    if word_selection not in ("algorithmic", "llm"):
+        typer.echo(f"error: --word-selection must be 'algorithmic' or 'llm', got {word_selection!r}", err=True)
+        raise typer.Exit(code=1)
     if orthography_style is not None and orthography_style not in ORTHOGRAPHY_STYLE_NAMES:
         typer.echo(f"error: --orthography-style must be one of {', '.join(ORTHOGRAPHY_STYLE_NAMES)}, got {orthography_style!r}", err=True)
         raise typer.Exit(code=1)
@@ -229,6 +238,7 @@ def generate(
         fantasy=fantasy,
         seed_examples=seed_examples,
         allow_all_caps=allow_all_caps,
+        word_selection=word_selection,
     )
     language = generate_language(name, spec, client)
     _repository().save(language)

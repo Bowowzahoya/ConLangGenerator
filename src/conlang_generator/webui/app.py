@@ -110,6 +110,7 @@ def _language_summary(language: Language) -> dict:
             "cases": list(grammar.cases),
             "tenses": list(grammar.tenses),
             "tonal": language.tone_system.enabled,
+            "word_selection": language.spec.word_selection,
         },
         "traits": {
             **nonzero_traits,
@@ -176,6 +177,7 @@ class GenerateRequest(BaseModel):
     syllable_boundary_marker: str | None = None
     consonant_gemination_marked: bool | None = None
     allow_all_caps: bool = False
+    word_selection: str = "algorithmic"
 
 
 class TranslateRequest(BaseModel):
@@ -230,6 +232,8 @@ def generate(request: GenerateRequest) -> dict:
         )
     if request.strictness is not None and not 0.0 <= request.strictness <= 1.0:
         raise HTTPException(status_code=400, detail="strictness must be between 0.0 and 1.0")
+    if request.word_selection not in ("algorithmic", "llm"):
+        raise HTTPException(status_code=400, detail="word_selection must be 'algorithmic' or 'llm'")
 
     forced_orthography = OrthographyForce(
         style=request.orthography_style,
@@ -268,6 +272,7 @@ def generate(request: GenerateRequest) -> dict:
         fantasy=request.fantasy,
         seed_examples=seed_examples,
         allow_all_caps=request.allow_all_caps,
+        word_selection=request.word_selection,
     )
     language = generate_language(request.name, spec, client)
     _repository().save(language)

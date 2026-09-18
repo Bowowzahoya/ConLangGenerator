@@ -64,3 +64,12 @@ class GenerationSpec(BaseModel, frozen=True):
     roll -- unlike `force_*` above, this *permits* a possibility rather
     than forcing one: no real language renders whole word classes in full
     caps, so a plain run should never produce one unless the user asks."""
+    word_selection: str = "algorithmic"
+    """How the final pick among a word's already-built, already-valid
+    candidate spellings is made -- ``"algorithmic"`` (default): a uniform
+    seeded-rng pick, no LLM call; ``"llm"``: sound-symbolism-informed pick
+    via the configured LLM (batched into one request for the initial
+    core vocabulary). Candidate *building* is algorithmic either way, and
+    prompt classification always uses the configured LLM backend
+    regardless -- this only governs the last pick. Also honored for words
+    coined later during translation (``translation/expansion.py``)."""

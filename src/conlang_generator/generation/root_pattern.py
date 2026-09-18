@@ -11,10 +11,10 @@ English gloss and the existing lexicon, LLM territory, not attempted here.
 ``LexicalEntry.root`` is recorded on every templatic word regardless, so
 that future work has the data already in place.
 
-Pure rule-based, no LLM, except the same candidate-then-pick step
-``lexicon_gen.propose_word`` already uses (``choose_best_candidate``) --
-several root candidates are built, the LLM picks the best-sounding one,
-same cheap/cache-friendly shape as everywhere else in this pipeline.
+Pure rule-based, no LLM, except the optional candidate-then-pick step
+``lexicon_gen.propose_word`` already uses (``resolve_candidate``, LLM only
+when ``word_selection="llm"``) -- several root candidates are built, then
+one is picked, same cheap/cache-friendly shape as everywhere else here.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure, WordAccentSystem
 from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
 from conlang_generator.generation import sonority, stress_gen, word_accent_gen, word_builder, word_class_gen
-from conlang_generator.generation.lexicon_gen import choose_best_candidate
+from conlang_generator.generation.lexicon_gen import PendingWord, resolve_candidate
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient
 
@@ -230,29 +230,30 @@ def template_for_pos(rng: random.Random, templates: tuple[WordTemplate, ...], po
     return rng.choice(matching) if matching else rng.choice(templates)
 
 
-def propose_templatic_word(
+def build_pending_templatic_word(
     rng: random.Random,
     inventory: PhonemeInventory,
     templates: tuple[WordTemplate, ...],
     romanization: RomanizationScheme,
     gloss: str,
     pos: PartOfSpeech,
-    llm_client: LLMClient,
-    language_name: str,
     structure: SyllableStructure | None = None,
     num_candidates: int = 5,
-    context: str = "",
     source_languages: tuple[str, ...] = (),
     strictness: float = 0.0,
     word_accent_system: WordAccentSystem = WordAccentSystem(),
     word_classes: tuple[WordClass, ...] = (),
     word_class_deviation_rate: float | None = None,
-) -> LexicalEntry:
-    """Pick a template matching ``pos`` (varying across same-POS calls,
-    for real variety across e.g. multiple nouns), generate several root
-    candidates, fill the template with each, and let the LLM pick the
-    best-sounding one -- same candidate-then-pick shape as
-    ``lexicon_gen.propose_word``. ``structure``, when given, makes every
+) -> PendingWord:
+    """Everything ``propose_templatic_word`` does short of the final
+    pick -- see ``lexicon_gen.build_pending_word``. Returns a
+    ``PendingWord`` whose ``finish`` completes the entry once a candidate
+    is chosen.
+
+    Picks a template matching ``pos`` (varying across same-POS calls,
+    for real variety across e.g. multiple nouns), generates several root
+    candidates, and fills the template with each -- same candidate-then-
+    pick shape as ``lexicon_gen.propose_word``. ``structure``, when given, makes every
     generated root respect this language's own onset/coda/onset-nucleus
     restrictions -- see ``generate_root``'s own docstring. ``source_languages``/
     ``strictness`` resolve stress the same way ``lexicon_gen.propose_word``
@@ -279,45 +280,80 @@ def propose_templatic_word(
             roots.append(root)
 
     candidates = [fill_template(template, root) for root in roots]
-    chosen = choose_best_candidate(rng, candidates, gloss, pos, llm_client, language_name, context)
-    chosen_root = roots[candidates.index(chosen)]
 
-    root_iter = iter(chosen_root)
-    filled_symbols = tuple(next(root_iter) if slot == "C" else slot for slot in template.skeleton)
-    vowel_symbols = frozenset(v.ipa for v in inventory.vowels)
-    reference_profiles = match_profiles(source_languages)
-    stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(reference_profiles)
-    word_accent_pattern = ""
-    word_accent_deviation_rate: float | None = None
-    word_accent_length_rate: float | None = None
-    word_accent_window: int | None = None
-    if word_accent_system.enabled:
-        (
-            _, word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate, word_accent_window,
-        ) = word_accent_gen.resolve_word_accent(reference_profiles)
-    stressed = word_accent_gen.mark_stress_and_word_accent(
-        rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, strictness,
-        word_accent_realization=word_accent_system.realization,
-        word_accent_pattern=word_accent_pattern,
-        word_accent_deviation_rate=word_accent_deviation_rate,
-        word_accent_length_rate=word_accent_length_rate,
-        word_accent_window=word_accent_window,
-    )
+    def finish(chosen: str) -> LexicalEntry:
+        chosen_root = roots[candidates.index(chosen)]
+        root_iter = iter(chosen_root)
+        filled_symbols = tuple(next(root_iter) if slot == "C" else slot for slot in template.skeleton)
+        vowel_symbols = frozenset(v.ipa for v in inventory.vowels)
+        reference_profiles = match_profiles(source_languages)
+        stress_pattern, stress_deviation_rate = stress_gen.resolve_stress_pattern(reference_profiles)
+        word_accent_pattern = ""
+        word_accent_deviation_rate: float | None = None
+        word_accent_length_rate: float | None = None
+        word_accent_window: int | None = None
+        if word_accent_system.enabled:
+            (
+                _, word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate, word_accent_window,
+            ) = word_accent_gen.resolve_word_accent(reference_profiles)
+        stressed = word_accent_gen.mark_stress_and_word_accent(
+            rng, filled_symbols, vowel_symbols, stress_pattern, stress_deviation_rate, strictness,
+            word_accent_realization=word_accent_system.realization,
+            word_accent_pattern=word_accent_pattern,
+            word_accent_deviation_rate=word_accent_deviation_rate,
+            word_accent_length_rate=word_accent_length_rate,
+            word_accent_window=word_accent_window,
+        )
 
-    assigned_class = word_class_gen.assign_word_class(rng, word_classes, word_class_deviation_rate, pos)
-    stressed = word_class_gen.apply_word_class(
-        rng, assigned_class, stressed, inventory,
-        stress_pattern, stress_deviation_rate, strictness,
-        word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
-        word_accent_deviation_rate=word_accent_deviation_rate, word_accent_length_rate=word_accent_length_rate,
-        word_accent_window=word_accent_window,
-    )
+        assigned_class = word_class_gen.assign_word_class(rng, word_classes, word_class_deviation_rate, pos)
+        stressed = word_class_gen.apply_word_class(
+            rng, assigned_class, stressed, inventory,
+            stress_pattern, stress_deviation_rate, strictness,
+            word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
+            word_accent_deviation_rate=word_accent_deviation_rate, word_accent_length_rate=word_accent_length_rate,
+            word_accent_window=word_accent_window,
+        )
 
-    return LexicalEntry(
-        ipa=stressed,
-        romanization=apply_grammatical_spelling(romanization, romanization.apply(stressed), pos),
-        glosses=(gloss,),
-        pos=pos,
-        root=chosen_root,
-        word_class=assigned_class.name if assigned_class is not None else None,
+        return LexicalEntry(
+            ipa=stressed,
+            romanization=apply_grammatical_spelling(romanization, romanization.apply(stressed), pos),
+            glosses=(gloss,),
+            pos=pos,
+            root=chosen_root,
+            word_class=assigned_class.name if assigned_class is not None else None,
+        )
+
+    return PendingWord(gloss=gloss, pos=pos, candidates=candidates, finish=finish)
+
+
+def propose_templatic_word(
+    rng: random.Random,
+    inventory: PhonemeInventory,
+    templates: tuple[WordTemplate, ...],
+    romanization: RomanizationScheme,
+    gloss: str,
+    pos: PartOfSpeech,
+    llm_client: LLMClient,
+    language_name: str,
+    structure: SyllableStructure | None = None,
+    num_candidates: int = 5,
+    context: str = "",
+    source_languages: tuple[str, ...] = (),
+    strictness: float = 0.0,
+    word_accent_system: WordAccentSystem = WordAccentSystem(),
+    word_classes: tuple[WordClass, ...] = (),
+    word_class_deviation_rate: float | None = None,
+    word_selection: str = "algorithmic",
+) -> LexicalEntry:
+    """``build_pending_templatic_word`` then one pick -- see
+    ``lexicon_gen.resolve_candidate`` for ``word_selection``."""
+    pending = build_pending_templatic_word(
+        rng, inventory, templates, romanization, gloss, pos, structure=structure,
+        num_candidates=num_candidates, source_languages=source_languages, strictness=strictness,
+        word_accent_system=word_accent_system, word_classes=word_classes,
+        word_class_deviation_rate=word_class_deviation_rate,
     )
+    chosen = resolve_candidate(
+        rng, pending.candidates, gloss, pos, llm_client, language_name, context, word_selection
+    )
+    return pending.finish(chosen)

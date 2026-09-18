@@ -36,7 +36,7 @@ _ZERO_RATES = sound_change._Rates(
 
 
 def _base_language():
-    return generate_language("Base", GenerationSpec(prompt="base", seed=13), FakeLLMClient())
+    return generate_language("Base", GenerationSpec(prompt="base", seed=16), FakeLLMClient())
 
 
 def _changed_count(base, years, traits, seed) -> int:
@@ -213,7 +213,9 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
     # still in progress) back to evolve seed=0; re-found again (now
     # evolve seed=1) after generator.py started conditionally coining
     # "the"/"be" and rolling case/tense/agreement affixes for every
-    # language.)
+    # language; re-found again (back to evolve seed=0) after core-vocabulary
+    # word selection became a seeded, LLM-free pick by default -- another
+    # rng-stream reorder, plus the batched build-then-pick pass.)
     base = generate_language(
         "Dutch",
         GenerationSpec(
@@ -224,7 +226,7 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
         ),
         FakeLLMClient(),
     )
-    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=1)
+    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=0)
     x_rules = [r for r in evolved.romanization.rules if r.ipa == "x"]
     assert x_rules and all(r.latin == "ch" for r in x_rules)
 

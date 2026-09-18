@@ -1069,9 +1069,29 @@ Everything here is a pure function of a `random.Random` seeded from
   duplicating it. Applies to `PartOfSpeech.NOUN`/`VERB`/`ADJECTIVE` only
   (`TEMPLATIC_POS`) -- pronouns/particles/numerals stay non-templatic, real
   Semitic function words aren't derived this way either.
-- **`lexicon_gen.py`**: `CORE_MEANINGS` (the ~49-word core vocabulary) and
-  `propose_word()` -- builds candidate forms deterministically, asks the LLM
-  to pick one via `choose_best_candidate()` (shared with `root_pattern.py`).
+- **`lexicon_gen.py`**: `CORE_MEANINGS` (the ~51-word core vocabulary) and
+  `propose_word()` -- builds candidate forms deterministically
+  (`build_pending_word()`, returning a `PendingWord` whose `finish` callback
+  completes it once a candidate is chosen), then picks one via
+  `resolve_candidate()`, governed by `GenerationSpec.word_selection`:
+  `"algorithmic"` (the default) is a uniform seeded-rng pick with **no LLM
+  call at all**; `"llm"` delegates to `choose_best_candidate()` (one call,
+  sound-symbolism-informed; shared with `root_pattern.py`, whose
+  `build_pending_templatic_word()` has the same build/finish split). The
+  initial core-vocabulary pass in `generator.py` builds every word's pool
+  first and resolves all picks together -- one batched request
+  (`choose_best_candidates_batch()`, a `WORD_NUMBER:CANDIDATE_NUMBER`
+  reply parsed leniently, any malformed answer falling back to candidate 1)
+  instead of one per word; romanization-collision retries re-pick their
+  colliding words together per round (at most 5 rounds), so a whole
+  language costs roughly 1-3 word-selection requests rather than ~51.
+  `translation/expansion.py`'s later coinage honors the language's own
+  `spec.word_selection` too. Sound symbolism itself (mother/father via
+  `_propose_kinship_word`'s reduplication, big/small via
+  `_SIZE_BIAS_GLOSSES`) lives in candidate *building*, not in this final
+  pick, so making the pick algorithmic changes none of it. Prompt
+  classification (`classify_prompt`) always uses the configured LLM
+  regardless of `word_selection`.
   Shared by both initial generation and later expansion.
   Syllable count is weighted by part of speech and a `favor_short` flag
   (pronouns/particles skew short regardless; core generation defaults

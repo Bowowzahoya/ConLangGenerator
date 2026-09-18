@@ -2,16 +2,24 @@
 
 Word *forms* are always phonotactically valid by construction: a handful of
 candidate forms are built deterministically from the seeded RNG
-(``word_builder.build_word``), and the LLM's only job is to pick the
-best-sounding one for the requested meaning. This keeps the creative step
-cheap, cache-friendly, and impossible to produce an invalid word -- there is
-no free-form generation to validate or repair.
+(``word_builder.build_word``), and the final pick among them is either a
+plain seeded-rng choice (``word_selection="algorithmic"``, the default, no
+LLM call at all) or the LLM's best-sounding pick (``"llm"``, batched into one
+request across the whole core vocabulary -- see ``choose_best_candidates_
+batch``). Either way the step is cheap, cache-friendly, and impossible to
+produce an invalid word -- there is no free-form generation to validate or
+repair. Sound symbolism itself (mother/father, big/small) lives in the
+candidate-*building* bias (``_propose_kinship_word``, ``_SIZE_BIAS_GLOSSES``),
+not in this final pick.
 """
 
 from __future__ import annotations
 
 import math
 import random
+import re
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from conlang_generator.core.grammar import WordClass
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
@@ -304,7 +312,92 @@ def choose_best_candidate(
     return candidates[index]
 
 
-def propose_word(
+def resolve_candidate(
+    rng: random.Random,
+    candidates: list[str],
+    gloss: str,
+    pos: PartOfSpeech,
+    llm_client: LLMClient,
+    language_name: str,
+    context: str = "",
+    word_selection: str = "algorithmic",
+) -> str:
+    """Picks one of an already-built, already-valid candidate pool.
+    ``word_selection="algorithmic"`` (the default) never touches the LLM --
+    a uniform pick via the seeded ``rng``, so the choice stays
+    reproducible per seed; ``"llm"`` delegates to ``choose_best_candidate``
+    (one LLM call, sound-symbolism-informed). A single-candidate pool
+    needs no choice under either mode. Candidate *building* is always
+    algorithmic regardless -- this only governs the final pick."""
+    if len(candidates) == 1:
+        return candidates[0]
+    if word_selection == "algorithmic":
+        return rng.choice(candidates)
+    return choose_best_candidate(rng, candidates, gloss, pos, llm_client, language_name, context)
+
+
+@dataclass
+class PendingWord:
+    """One word whose deterministic candidate pool is built but whose
+    final pick hasn't been made -- lets a caller (``generator.py``'s core-
+    vocabulary loop) resolve every pending word's choice in one batched
+    LLM request (``choose_best_candidates_batch``) instead of one call
+    each. ``finish`` maps the chosen candidate to the finished entry (word
+    class, stress re-derivation, spelling -- all algorithmic)."""
+
+    gloss: str
+    pos: PartOfSpeech
+    candidates: list[str]
+    finish: Callable[[str], LexicalEntry]
+
+
+def choose_best_candidates_batch(
+    pending: list[PendingWord], llm_client: LLMClient, language_name: str, context: str = ""
+) -> list[str]:
+    """One LLM request choosing among every pending word's candidates at
+    once, instead of ``choose_best_candidate``'s one request per word.
+    Returns the chosen candidate string per pending word, in order.
+    Parsing is lenient (same spirit as ``prompt_classifier._parse``): any
+    missing/out-of-range/malformed answer falls back to that word's first
+    candidate, mirroring ``choose_best_candidate``'s own fallback."""
+    if not pending:
+        return []
+    context_line = f" Context: {context}." if context else ""
+    listing = "\n".join(
+        f"{i}. {pw.gloss} ({pw.pos.value}): " + " ".join(f"{j + 1}) {c}" for j, c in enumerate(pw.candidates))
+        for i, pw in enumerate(pending, start=1)
+    )
+    prompt = (
+        f"Language: {language_name}.{context_line} For each numbered word below, choose the candidate "
+        "that sounds best for its meaning. Reply with exactly one line per word in the form "
+        "WORD_NUMBER:CANDIDATE_NUMBER (for example 1:3), and nothing else.\n" + listing
+    )
+    request = LLMRequest(
+        system=(
+            "You are helping design a constructed language's vocabulary. For each word, pick the "
+            "candidate that best fits the requested meaning and part of speech, considering sound symbolism."
+        ),
+        prompt=prompt,
+        model=DEFAULT_MODEL,
+        max_tokens=max(256, 8 * len(pending)),
+        purpose="lexicon.propose_words_batch",
+        metadata={
+            "fake_strategy": "batch_choose_index",
+            "candidate_counts": ",".join(str(len(pw.candidates)) for pw in pending),
+        },
+    )
+    response = llm_client.complete(request)
+    answers = {int(w): int(c) for w, c in re.findall(r"(\d+)\s*[:.\-]\s*(\d+)", response.text)}
+    chosen: list[str] = []
+    for i, pw in enumerate(pending, start=1):
+        index = answers.get(i, 1) - 1
+        if not 0 <= index < len(pw.candidates):
+            index = 0
+        chosen.append(pw.candidates[index])
+    return chosen
+
+
+def build_pending_word(
     rng: random.Random,
     inventory: PhonemeInventory,
     structure: SyllableStructure,
@@ -313,17 +406,20 @@ def propose_word(
     romanization: RomanizationScheme,
     gloss: str,
     pos: PartOfSpeech,
-    llm_client: LLMClient,
-    language_name: str,
     num_candidates: int = 5,
-    context: str = "",
     favor_short: bool = True,
     source_languages: tuple[str, ...] = (),
     strictness: float = 0.0,
     word_classes: tuple[WordClass, ...] = (),
     word_class_deviation_rate: float | None = None,
-) -> LexicalEntry:
-    """Build candidate forms deterministically, then ask the LLM to pick one.
+) -> PendingWord | LexicalEntry:
+    """Build candidate forms deterministically -- everything ``propose_word``
+    does short of the final pick. Returns a finished ``LexicalEntry``
+    directly when ``_propose_kinship_word`` already resolved the word (no
+    candidates, no choice, no LLM), otherwise a ``PendingWord`` whose
+    ``finish`` completes it once a candidate is chosen (by
+    ``resolve_candidate`` one word at a time, or
+    ``choose_best_candidates_batch`` for many at once).
 
     ``context`` is free-text flavor (e.g. ``TraitProfile.salient_context``)
     appended to the LLM prompt when non-empty -- the "unknown unknowns"
@@ -405,21 +501,62 @@ def propose_word(
             seen.add(word)
             candidates.append(word)
 
-    chosen = choose_best_candidate(rng, candidates, gloss, pos, llm_client, language_name, context)
-    assigned_class = word_class_gen.assign_word_class(rng, word_classes, word_class_deviation_rate, pos)
-    chosen = word_class_gen.apply_word_class(
-        rng, assigned_class, chosen, inventory,
-        stress_pattern, stress_deviation_rate, strictness,
-        word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
-        word_accent_deviation_rate=word_accent_deviation_rate, word_accent_length_rate=word_accent_length_rate,
-        word_accent_window=word_accent_window,
-    )
+    def finish(chosen: str) -> LexicalEntry:
+        assigned_class = word_class_gen.assign_word_class(rng, word_classes, word_class_deviation_rate, pos)
+        chosen = word_class_gen.apply_word_class(
+            rng, assigned_class, chosen, inventory,
+            stress_pattern, stress_deviation_rate, strictness,
+            word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
+            word_accent_deviation_rate=word_accent_deviation_rate, word_accent_length_rate=word_accent_length_rate,
+            word_accent_window=word_accent_window,
+        )
+        return LexicalEntry(
+            ipa=chosen,
+            romanization=apply_grammatical_spelling(romanization, romanization.apply(chosen), pos),
+            glosses=(gloss,),
+            pos=pos,
+            tones=tones,
+            word_class=assigned_class.name if assigned_class is not None else None,
+        )
 
-    return LexicalEntry(
-        ipa=chosen,
-        romanization=apply_grammatical_spelling(romanization, romanization.apply(chosen), pos),
-        glosses=(gloss,),
-        pos=pos,
-        tones=tones,
-        word_class=assigned_class.name if assigned_class is not None else None,
+    return PendingWord(gloss=gloss, pos=pos, candidates=candidates, finish=finish)
+
+
+def propose_word(
+    rng: random.Random,
+    inventory: PhonemeInventory,
+    structure: SyllableStructure,
+    tone_system: ToneSystem,
+    word_accent_system: WordAccentSystem,
+    romanization: RomanizationScheme,
+    gloss: str,
+    pos: PartOfSpeech,
+    llm_client: LLMClient,
+    language_name: str,
+    num_candidates: int = 5,
+    context: str = "",
+    favor_short: bool = True,
+    source_languages: tuple[str, ...] = (),
+    strictness: float = 0.0,
+    word_classes: tuple[WordClass, ...] = (),
+    word_class_deviation_rate: float | None = None,
+    word_selection: str = "algorithmic",
+) -> LexicalEntry:
+    """Build candidate forms deterministically (``build_pending_word``),
+    then pick one -- via a uniform seeded-rng pick by default
+    (``word_selection="algorithmic"``, no LLM call at all) or one LLM
+    call (``"llm"``, sound-symbolism-informed) -- see
+    ``resolve_candidate``. ``context`` is free-text flavor (e.g.
+    ``TraitProfile.salient_context``) appended to the LLM prompt when
+    non-empty; only meaningful for ``"llm"``."""
+    pending = build_pending_word(
+        rng, inventory, structure, tone_system, word_accent_system, romanization, gloss, pos,
+        num_candidates=num_candidates, favor_short=favor_short, source_languages=source_languages,
+        strictness=strictness, word_classes=word_classes, word_class_deviation_rate=word_class_deviation_rate,
     )
+    if isinstance(pending, LexicalEntry):
+        return pending
+    chosen = resolve_candidate(
+        rng, pending.candidates, gloss, pos, llm_client, language_name, context, word_selection
+    )
+    return pending.finish(chosen)
