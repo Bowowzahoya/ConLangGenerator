@@ -75,3 +75,13 @@ def test_find_espeak_ng_returns_none_when_nothing_is_found(monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda name: None)
     monkeypatch.setattr(Path, "is_file", lambda self: False)
     assert tts._find_espeak_ng() is None
+
+
+def test_available_backends_none_is_always_true():
+    assert tts.available_backends()["none"] is True
+
+
+def test_available_backends_reflects_actual_espeak_and_platform_state():
+    backends = tts.available_backends()
+    assert backends["espeak"] == _ESPEAK_AVAILABLE
+    assert backends["sapi"] == _IS_WINDOWS

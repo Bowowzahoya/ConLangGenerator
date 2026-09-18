@@ -139,4 +139,19 @@ def build_tts_client(kind: str = "none") -> TTSClient:
     raise ValueError(f"unknown TTS client kind: {kind!r}")
 
 
-__all__ = ["TTSClient", "NoneTTSClient", "EspeakTTSClient", "SapiTTSClient", "build_tts_client"]
+def available_backends() -> dict[str, bool]:
+    """Which backends are actually usable right now on this machine --
+    for a caller (``webui/app.py``'s own ``/api/options``) that wants to
+    only offer a real choice, not silently fail after the fact.
+    ``"none"`` is always ``True`` (it just does nothing)."""
+    return {
+        "none": True,
+        "espeak": _find_espeak_ng() is not None,
+        "sapi": sys.platform.startswith("win"),
+    }
+
+
+__all__ = [
+    "TTSClient", "NoneTTSClient", "EspeakTTSClient", "SapiTTSClient",
+    "build_tts_client", "available_backends",
+]

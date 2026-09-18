@@ -50,8 +50,8 @@
     background: var(--bg); color: var(--text); font: inherit;
   }
   textarea { min-height: 64px; resize: vertical; }
-  .row { display: flex; gap: 12px; }
-  .row > div { flex: 1; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 140px; }
   .checks { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 0; }
   .checks label { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text); font-size: 14px; }
   .checks input { width: auto; }
@@ -210,6 +210,14 @@
           <option value="anthropic">anthropic</option>
         </select>
       </div>
+      <div>
+        <label for="tr-tts">Pronunciation</label>
+        <select id="tr-tts">
+          <option value="none">none (text only)</option>
+          <option value="espeak">espeak-ng</option>
+          <option value="sapi">Windows SAPI</option>
+        </select>
+      </div>
     </div>
 
     <label for="tr-text">Text</label>
@@ -326,6 +334,13 @@ async function loadOptions() {
   fill("gen-vowel-length-style", opts.vowel_length_styles);
   fill("gen-tone-style", opts.tone_styles);
   fill("gen-syllable-boundary-marker", opts.syllable_boundary_markers);
+
+  for (const opt of $("tr-tts").options) {
+    if (opt.value !== "none" && !opts.tts_backends[opt.value]) {
+      opt.disabled = true;
+      opt.textContent += " (unavailable on this machine)";
+    }
+  }
 }
 
 // --- language dropdown (translate tab) ---
@@ -428,6 +443,41 @@ $("generate-btn").onclick = async () => {
   }
 };
 
+// --- pronunciation (translate tab, English -> conlang results only) ---
+function wirePronounceButton(ipaText) {
+  const pBtn = $("pronounce-btn"), pErr = $("pronounce-error"), audioEl = $("pronounce-audio");
+  pBtn.onclick = async () => {
+    pErr.hidden = true;
+    const backend = $("tr-tts").value;
+    if (backend === "none") {
+      pErr.textContent = "Pick a pronunciation backend (espeak-ng or Windows SAPI) above first.";
+      pErr.hidden = false;
+      return;
+    }
+    pBtn.disabled = true; pBtn.textContent = "Synthesizing…";
+    try {
+      const res = await fetch("/api/pronounce", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ipa: ipaText, tts: backend }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        throw new Error(errBody && errBody.detail ? errBody.detail : `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      if (audioEl.src) URL.revokeObjectURL(audioEl.src);
+      audioEl.src = URL.createObjectURL(blob);
+      audioEl.style.display = "inline-block";
+      await audioEl.play();
+    } catch (e) {
+      pErr.textContent = e.message;
+      pErr.hidden = false;
+    } finally {
+      pBtn.disabled = false; pBtn.textContent = "\u{1F50A} Play pronunciation";
+    }
+  };
+}
+
 // --- translate ---
 $("translate-btn").onclick = async () => {
   const btn = $("translate-btn"), err = $("translate-error");
@@ -453,6 +503,12 @@ $("translate-btn").onclick = async () => {
     });
     const coined = result.coined.length
       ? `<div class="badges"><span class="badge">coined: ${result.coined.join(", ")}</span></div>` : "";
+    const pronounceBlock = result.ipa ? `
+        <div class="submit-row">
+          <button type="button" class="add-row" id="pronounce-btn">&#128266; Play pronunciation</button>
+          <audio id="pronounce-audio" controls style="display:none; margin-left:10px; vertical-align:middle;"></audio>
+        </div>
+        <div class="error" id="pronounce-error" hidden></div>` : "";
     $("translate-result").innerHTML = `
       <div class="card">
         <div class="translate-output">${result.text}</div>
@@ -462,7 +518,9 @@ $("translate-btn").onclick = async () => {
           <span class="badge">this call: $${result.cost.delta_usd.toFixed(4)} (${result.cost.delta_calls} calls)</span>
         </div>
         ${coined}
+        ${pronounceBlock}
       </div>`;
+    if (result.ipa) wirePronounceButton(result.ipa);
     await refreshCost();
   } catch (e) {
     err.textContent = e.message;

@@ -2,7 +2,12 @@
 end. Skipped entirely when the optional ``web`` dependency group isn't
 installed (``pytest.importorskip``), so the main suite stays green
 without it. Fake-LLM-only (``llm="fake"``), matching this project's own
-fake-LLM-first testing rule -- no real Anthropic calls here."""
+fake-LLM-first testing rule -- no real Anthropic calls here. The one
+exception is ``/api/pronounce``'s real-backend tests, gated behind actual
+backend availability the same way ``tests/test_tts.py`` already gates
+its own -- no LLM involved either way."""
+
+import sys
 
 import pytest
 
@@ -10,7 +15,11 @@ fastapi = pytest.importorskip("fastapi")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from conlang_generator.speech import tts  # noqa: E402
 from conlang_generator.webui import app as webui_app  # noqa: E402
+
+_ESPEAK_AVAILABLE = tts.available_backends()["espeak"]
+_IS_WINDOWS = sys.platform.startswith("win")
 
 
 @pytest.fixture()
@@ -106,3 +115,53 @@ def test_generate_rejects_an_unknown_orthography_style(client):
         json={"prompt": "p", "name": "Bad Style", "seed": 0, "llm": "fake", "orthography_style": "not-a-real-style"},
     )
     assert response.status_code == 400
+
+
+def test_options_endpoint_reports_tts_backend_availability(client):
+    response = client.get("/api/options")
+    backends = response.json()["tts_backends"]
+    assert backends["none"] is True
+    assert backends["espeak"] == _ESPEAK_AVAILABLE
+    assert backends["sapi"] == _IS_WINDOWS
+
+
+def test_pronounce_rejects_the_none_backend(client):
+    response = client.post("/api/pronounce", json={"ipa": "kat", "tts": "none"})
+    assert response.status_code == 400
+
+
+def test_pronounce_rejects_empty_ipa(client):
+    response = client.post("/api/pronounce", json={"ipa": "   ", "tts": "espeak"})
+    assert response.status_code == 400
+
+
+def test_pronounce_reports_503_when_the_backend_is_unavailable(client, monkeypatch):
+    class _AlwaysFailsClient:
+        def synthesize(self, ipa_text, output_path):
+            return False
+
+    monkeypatch.setattr(webui_app.tts, "build_tts_client", lambda kind: _AlwaysFailsClient())
+    response = client.post("/api/pronounce", json={"ipa": "kat", "tts": "espeak"})
+    assert response.status_code == 503
+
+
+@pytest.mark.skipif(not _IS_WINDOWS, reason="SAPI is Windows-only")
+def test_pronounce_synthesizes_a_single_word_with_sapi(client):
+    response = client.post("/api/pronounce", json={"ipa": "kat", "tts": "sapi"})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "audio/wav"
+    assert len(response.content) > 0
+
+
+@pytest.mark.skipif(not _IS_WINDOWS, reason="SAPI is Windows-only")
+def test_pronounce_synthesizes_a_multi_word_sentence_with_sapi(client):
+    single = client.post("/api/pronounce", json={"ipa": "kat", "tts": "sapi"}).content
+    sentence = client.post("/api/pronounce", json={"ipa": "kat mat", "tts": "sapi"}).content
+    assert len(sentence) > len(single)  # two words (plus inter-word silence) outlasts one
+
+
+@pytest.mark.skipif(not _ESPEAK_AVAILABLE, reason="espeak-ng not installed on this machine")
+def test_pronounce_synthesizes_with_espeak(client):
+    response = client.post("/api/pronounce", json={"ipa": "kat", "tts": "espeak"})
+    assert response.status_code == 200
+    assert len(response.content) > 0

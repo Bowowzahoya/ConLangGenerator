@@ -20,9 +20,12 @@ Not installed by default (see the ``web`` dependency group in
 
 from __future__ import annotations
 
+import io
+import uuid
+import wave
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -41,6 +44,7 @@ from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAME
 from conlang_generator.generation.seed_examples import resolve_seed_examples
 from conlang_generator.llm.cost_tracker import CostTracker
 from conlang_generator.llm.factory import build_llm_client
+from conlang_generator.speech import tts
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
 
@@ -213,6 +217,7 @@ def get_options() -> dict:
         "vowel_length_styles": [m.name.lower() for m in VowelLengthStrategy],
         "tone_styles": [m.name.lower() for m in ToneMarkingStrategy],
         "syllable_boundary_markers": [m.name.lower() for m in SyllableBoundaryMarker],
+        "tts_backends": tts.available_backends(),
     }
 
 
@@ -302,6 +307,69 @@ def translate(request: TranslateRequest) -> dict:
         "coined": [e.romanization for e in result.coined],
         "cost": _cost_delta(before, after),
     }
+
+
+class PronounceRequest(BaseModel):
+    ipa: str
+    tts: str = "espeak"
+
+
+def _synthesize_sentence(client: tts.TTSClient, ipa_sentence: str) -> bytes | None:
+    """Every real ``TTSClient.synthesize`` is documented as a *word's*
+    own IPA -> one ``.wav`` file -- a translated sentence is several
+    words separated by plain spaces, which neither backend's own
+    single-``[[...]]``/single-``<phoneme>`` call is built to span (and
+    ``ipa_tokenizer.tokenize`` -- see its own docstring -- silently drops
+    any character it doesn't recognize, spaces included, so simply
+    handing the whole sentence to ``synthesize`` would just run every
+    word's phonemes together with no word boundary at all). Synthesizes
+    each word separately instead, into its own temp file under
+    ``CACHE_DIR / "audio"``, then concatenates the raw PCM frames (with a
+    short silence between words for intelligibility) into one combined
+    in-memory ``.wav`` -- ``None`` if any single word's own synthesis
+    fails, matching every ``TTSClient``'s own "unavailable/failed is a
+    normal, non-exceptional state" contract."""
+    words = ipa_sentence.split()
+    if not words:
+        return None
+    temp_paths = [CACHE_DIR / "audio" / f"webui-{uuid.uuid4().hex}.wav" for _ in words]
+    try:
+        for word_ipa, path in zip(words, temp_paths):
+            if not client.synthesize(word_ipa, path):
+                return None
+        params = None
+        silence = b""
+        frames: list[bytes] = []
+        for path in temp_paths:
+            with wave.open(str(path), "rb") as wf:
+                if params is None:
+                    params = wf.getparams()
+                    silence = b"\x00" * int(0.15 * params.framerate) * params.sampwidth * params.nchannels
+                frames.append(wf.readframes(wf.getnframes()))
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as out:
+            out.setparams(params)
+            for i, frame in enumerate(frames):
+                if i > 0:
+                    out.writeframesraw(silence)
+                out.writeframesraw(frame)
+        return buffer.getvalue()
+    finally:
+        for path in temp_paths:
+            path.unlink(missing_ok=True)
+
+
+@app.post("/api/pronounce")
+def pronounce(request: PronounceRequest) -> Response:
+    if request.tts not in ("espeak", "sapi"):
+        raise HTTPException(status_code=400, detail="tts must be 'espeak' or 'sapi'")
+    if not request.ipa.strip():
+        raise HTTPException(status_code=400, detail="ipa must not be empty")
+    client = tts.build_tts_client(request.tts)
+    audio = _synthesize_sentence(client, request.ipa)
+    if audio is None:
+        raise HTTPException(status_code=503, detail=f"'{request.tts}' TTS backend unavailable or synthesis failed.")
+    return Response(content=audio, media_type="audio/wav")
 
 
 if STATIC_DIR.exists():
