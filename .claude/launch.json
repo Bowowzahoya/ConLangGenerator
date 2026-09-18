@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "conlang-webui",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "--group", "web", "uvicorn", "conlang_generator.webui.app:app", "--reload", "--port", "8000"],
+      "port": 8000
+    }
+  ]
+}

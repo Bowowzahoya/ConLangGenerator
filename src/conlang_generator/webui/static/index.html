@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConLangGenerator</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --panel: #ffffff; --border: #ddd8ce; --text: #2a2621;
+    --muted: #7a7468; --accent: #7a4f2b; --accent-bg: #f1e6d8;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1a17; --panel: #262320; --border: #3a352e; --text: #ece7de;
+      --muted: #9a9284; --accent: #d3a06c; --accent-bg: #332a1f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--panel);
+  }
+  header h1 { font-size: 17px; margin: 0; }
+  #cost-badge {
+    font-family: var(--mono); font-size: 13px; background: var(--accent-bg);
+    color: var(--accent); padding: 5px 12px; border-radius: 999px;
+  }
+  nav { display: flex; gap: 4px; padding: 12px 24px 0; }
+  nav button {
+    border: 1px solid var(--border); border-bottom: none; background: var(--panel);
+    color: var(--muted); padding: 9px 18px; border-radius: 8px 8px 0 0; cursor: pointer;
+    font-size: 14px;
+  }
+  nav button.active { color: var(--text); font-weight: 600; background: var(--bg); }
+  main { padding: 20px 24px 48px; max-width: 980px; margin: 0 auto; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px 20px; margin-bottom: 16px;
+  }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text], input[type=number], textarea, select {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--text); font: inherit;
+  }
+  textarea { min-height: 64px; resize: vertical; }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  .checks { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 0; }
+  .checks label { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text); font-size: 14px; }
+  .checks input { width: auto; }
+  details { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+  summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+  .dyn-row { display: flex; gap: 8px; margin-bottom: 6px; align-items: center; }
+  .dyn-row > * { flex: 1; }
+  .dyn-row button { flex: 0 0 auto; }
+  button.add-row, button.remove-row {
+    border: 1px dashed var(--border); background: none; color: var(--muted);
+    border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 13px;
+  }
+  button.remove-row { flex: 0 0 auto; border-style: solid; }
+  .submit-row { margin-top: 16px; }
+  button.primary {
+    background: var(--accent); color: #fff; border: none; padding: 10px 20px;
+    border-radius: 7px; font-size: 14px; cursor: pointer; font-weight: 600;
+  }
+  button.primary:disabled { opacity: 0.5; cursor: default; }
+  .error { color: #b3311d; font-size: 13px; margin-top: 10px; }
+  .result { margin-top: 20px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
+  .badge {
+    font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--accent-bg);
+    color: var(--accent); font-family: var(--mono);
+  }
+  h2 { font-size: 15px; margin: 18px 0 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  .ipa { font-family: var(--mono); color: var(--muted); }
+  .lexicon-wrap { max-height: 420px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .translate-output { font-size: 17px; margin: 6px 0; }
+  .translate-ipa { font-family: var(--mono); color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ConLangGenerator</h1>
+  <div id="cost-badge">cost: $0.0000 (0 calls)</div>
+</header>
+
+<nav>
+  <button id="tab-generate-btn" class="active">Generate</button>
+  <button id="tab-translate-btn">Translate</button>
+</nav>
+
+<main>
+
+<section id="panel-generate" class="panel active">
+  <div class="card">
+    <label for="gen-prompt">Prompt</label>
+    <textarea id="gen-prompt" placeholder="a language spoken by seafaring traders in a tropical archipelago"></textarea>
+
+    <div class="row">
+      <div>
+        <label for="gen-name">Name</label>
+        <input type="text" id="gen-name" placeholder="My Language">
+      </div>
+      <div>
+        <label for="gen-seed">Seed</label>
+        <input type="number" id="gen-seed" value="0">
+      </div>
+      <div>
+        <label for="gen-llm">LLM backend</label>
+        <select id="gen-llm">
+          <option value="fake">fake (free)</option>
+          <option value="anthropic">anthropic</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="checks">
+      <label><input type="checkbox" id="gen-fantasy"> fantasy</label>
+      <label><input type="checkbox" id="gen-isolated"> force isolated</label>
+      <label><input type="checkbox" id="gen-high-altitude"> force high altitude</label>
+      <label><input type="checkbox" id="gen-tonal"> force tonal</label>
+      <label><input type="checkbox" id="gen-allow-all-caps"> allow all-caps POS</label>
+    </div>
+
+    <details>
+      <summary>Advanced options</summary>
+
+      <label>Source languages <span class="ipa">(bias generation toward a real language's palette)</span></label>
+      <div id="source-lang-rows"></div>
+      <button type="button" class="add-row" id="add-source-lang">+ source language</button>
+
+      <label for="gen-strictness">Source-language strictness (0.0-1.0, blank = inferred from prompt)</label>
+      <input type="number" id="gen-strictness" min="0" max="1" step="0.05" placeholder="(inferred)">
+
+      <label>Seed examples <span class="ipa">(literal words that must appear verbatim)</span></label>
+      <div id="seed-example-rows"></div>
+      <button type="button" class="add-row" id="add-seed-example">+ seed example</button>
+
+      <div class="row">
+        <div>
+          <label for="gen-orthography-style">Orthography style</label>
+          <select id="gen-orthography-style"><option value="">(unforced)</option></select>
+        </div>
+        <div>
+          <label for="gen-exotic-symbol-style">Exotic symbol style</label>
+          <select id="gen-exotic-symbol-style"><option value="">(unforced)</option></select>
+        </div>
+        <div>
+          <label for="gen-vowel-length-style">Vowel length style</label>
+          <select id="gen-vowel-length-style"><option value="">(unforced)</option></select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="gen-tone-style">Tone style</label>
+          <select id="gen-tone-style"><option value="">(unforced)</option></select>
+        </div>
+        <div>
+          <label for="gen-syllable-boundary-marker">Syllable boundary marker</label>
+          <select id="gen-syllable-boundary-marker"><option value="">(unforced)</option></select>
+        </div>
+        <div>
+          <label for="gen-short-vowel-doubling">Short-vowel consonant doubling</label>
+          <select id="gen-short-vowel-doubling">
+            <option value="">(unforced)</option>
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        </div>
+      </div>
+      <label for="gen-consonant-gemination">Consonant gemination marked</label>
+      <select id="gen-consonant-gemination">
+        <option value="">(unforced)</option>
+        <option value="true">true</option>
+        <option value="false">false</option>
+      </select>
+    </details>
+
+    <div class="submit-row">
+      <button class="primary" id="generate-btn">Generate Language</button>
+    </div>
+    <div class="error" id="generate-error" hidden></div>
+  </div>
+
+  <div class="result" id="generate-result"></div>
+</section>
+
+<section id="panel-translate" class="panel">
+  <div class="card">
+    <div class="row">
+      <div>
+        <label for="tr-lang">Language <button type="button" class="add-row" id="refresh-langs" style="margin-left:8px;">refresh</button></label>
+        <select id="tr-lang"></select>
+      </div>
+      <div>
+        <label for="tr-llm">LLM backend</label>
+        <select id="tr-llm">
+          <option value="fake">fake (free)</option>
+          <option value="anthropic">anthropic</option>
+        </select>
+      </div>
+    </div>
+
+    <label for="tr-text">Text</label>
+    <textarea id="tr-text" placeholder="I see the mountain and the river"></textarea>
+
+    <div class="checks">
+      <label><input type="radio" name="tr-direction" value="conlang" checked> English &rarr; conlang</label>
+      <label><input type="radio" name="tr-direction" value="english"> conlang &rarr; English</label>
+    </div>
+
+    <div class="submit-row">
+      <button class="primary" id="translate-btn">Translate</button>
+    </div>
+    <div class="error" id="translate-error" hidden></div>
+  </div>
+
+  <div class="result" id="translate-result"></div>
+</section>
+
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function fmtCost(usd, calls) {
+  return `cost: $${usd.toFixed(4)} (${calls} call${calls === 1 ? "" : "s"})`;
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  let body;
+  try { body = await res.json(); } catch (e) { body = null; }
+  if (!res.ok) {
+    const detail = (body && body.detail) ? body.detail : `HTTP ${res.status}`;
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return body;
+}
+
+// --- tabs ---
+function showTab(which) {
+  $("panel-generate").classList.toggle("active", which === "generate");
+  $("panel-translate").classList.toggle("active", which === "translate");
+  $("tab-generate-btn").classList.toggle("active", which === "generate");
+  $("tab-translate-btn").classList.toggle("active", which === "translate");
+}
+$("tab-generate-btn").onclick = () => showTab("generate");
+$("tab-translate-btn").onclick = () => showTab("translate");
+
+// --- cost badge ---
+async function refreshCost() {
+  try {
+    const cost = await api("/api/cost");
+    $("cost-badge").textContent = fmtCost(cost.total_cost_usd, cost.num_calls);
+  } catch (e) { /* cost badge is best-effort */ }
+}
+
+// --- dynamic rows (source languages / seed examples) ---
+function addSourceLangRow() {
+  const row = document.createElement("div");
+  row.className = "dyn-row";
+  row.innerHTML = `
+    <input type="text" placeholder="language name, e.g. French" class="sl-name">
+    <input type="number" placeholder="weight (optional)" step="0.1" class="sl-weight">
+    <button type="button" class="remove-row">&times;</button>`;
+  row.querySelector(".remove-row").onclick = () => row.remove();
+  $("source-lang-rows").appendChild(row);
+}
+function addSeedExampleRow() {
+  const row = document.createElement("div");
+  row.className = "dyn-row";
+  row.innerHTML = `
+    <input type="text" placeholder="gloss, e.g. water" class="se-gloss">
+    <input type="text" placeholder="form, e.g. aqua" class="se-form">
+    <input type="text" placeholder="IPA (optional)" class="se-ipa">
+    <button type="button" class="remove-row">&times;</button>`;
+  row.querySelector(".remove-row").onclick = () => row.remove();
+  $("seed-example-rows").appendChild(row);
+}
+$("add-source-lang").onclick = addSourceLangRow;
+$("add-seed-example").onclick = addSeedExampleRow;
+
+function collectSourceLanguages() {
+  return [...$("source-lang-rows").querySelectorAll(".dyn-row")]
+    .map(row => ({
+      name: row.querySelector(".sl-name").value.trim(),
+      weight: row.querySelector(".sl-weight").value ? parseFloat(row.querySelector(".sl-weight").value) : null,
+    }))
+    .filter(e => e.name);
+}
+function collectSeedExamples() {
+  return [...$("seed-example-rows").querySelectorAll(".dyn-row")]
+    .map(row => ({
+      gloss: row.querySelector(".se-gloss").value.trim(),
+      form: row.querySelector(".se-form").value.trim(),
+      ipa: row.querySelector(".se-ipa").value.trim() || null,
+    }))
+    .filter(e => e.gloss && e.form);
+}
+
+// --- orthography option selects, populated from /api/options ---
+async function loadOptions() {
+  const opts = await api("/api/options");
+  const fill = (id, values) => {
+    const select = $(id);
+    for (const v of values) {
+      const opt = document.createElement("option");
+      opt.value = v; opt.textContent = v;
+      select.appendChild(opt);
+    }
+  };
+  fill("gen-orthography-style", opts.orthography_styles);
+  fill("gen-exotic-symbol-style", opts.exotic_symbol_styles);
+  fill("gen-vowel-length-style", opts.vowel_length_styles);
+  fill("gen-tone-style", opts.tone_styles);
+  fill("gen-syllable-boundary-marker", opts.syllable_boundary_markers);
+}
+
+// --- language dropdown (translate tab) ---
+async function refreshLanguages() {
+  const data = await api("/api/languages");
+  const select = $("tr-lang");
+  const previous = select.value;
+  select.innerHTML = "";
+  for (const slug of data.languages) {
+    const opt = document.createElement("option");
+    opt.value = slug; opt.textContent = slug;
+    select.appendChild(opt);
+  }
+  if (data.languages.includes(previous)) select.value = previous;
+}
+$("refresh-langs").onclick = refreshLanguages;
+
+// --- rendering a language summary (shared by generate result + could be reused) ---
+function renderLanguageSummary(container, summary) {
+  const g = summary.grammar, t = summary.traits;
+  const traitBadges = Object.entries(t)
+    .filter(([k, v]) => typeof v === "number" && v !== 0)
+    .map(([k, v]) => `<span class="badge">${k}: ${v.toFixed(2)}</span>`).join("");
+  const sourceLangBadge = t.source_languages && t.source_languages.length
+    ? `<span class="badge">source: ${t.source_languages.join(", ")} (strictness ${t.source_language_strictness.toFixed(2)})</span>`
+    : "";
+
+  container.innerHTML = `
+    <div class="card">
+      <h2 style="margin-top:0">${summary.name} <span class="ipa">(${summary.slug})</span></h2>
+      <div class="badges">
+        <span class="badge">word order: ${g.word_order}</span>
+        <span class="badge">alignment: ${g.alignment}</span>
+        <span class="badge">morphology: ${g.morphological_type}</span>
+        <span class="badge">articles: ${g.has_articles}</span>
+        <span class="badge">overt copula: ${g.has_overt_copula}</span>
+        <span class="badge">adj after noun: ${g.adjective_after_noun}</span>
+        <span class="badge">tonal: ${g.tonal}</span>
+        ${g.cases.length ? `<span class="badge">cases: ${g.cases.join(", ")}</span>` : ""}
+        ${g.tenses.length ? `<span class="badge">tenses: ${g.tenses.join(", ")}</span>` : ""}
+        <span class="badge">orthography: ${summary.orthography_category || "(unnamed)"}</span>
+      </div>
+      ${traitBadges || sourceLangBadge ? `<div class="badges">${traitBadges}${sourceLangBadge}</div>` : ""}
+      ${summary.cost ? `<div class="badges"><span class="badge">this call: $${summary.cost.delta_usd.toFixed(4)} (${summary.cost.delta_calls} calls)</span></div>` : ""}
+      <h2>Lexicon (${summary.lexicon.length} words)</h2>
+      <div class="lexicon-wrap">
+        <table>
+          <thead><tr><th>gloss</th><th>pos</th><th>word</th><th>IPA</th></tr></thead>
+          <tbody>
+            ${summary.lexicon.map(e => `<tr><td>${e.gloss}</td><td>${e.pos}</td><td>${e.romanization}</td><td class="ipa">/${e.ipa}/</td></tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// --- generate ---
+$("generate-btn").onclick = async () => {
+  const btn = $("generate-btn"), err = $("generate-error");
+  err.hidden = true;
+  const prompt = $("gen-prompt").value.trim();
+  const name = $("gen-name").value.trim();
+  if (!prompt || !name) {
+    err.textContent = "Prompt and name are both required.";
+    err.hidden = false;
+    return;
+  }
+  const body = {
+    prompt, name,
+    seed: parseInt($("gen-seed").value || "0", 10),
+    llm: $("gen-llm").value,
+    fantasy: $("gen-fantasy").checked,
+    isolated: $("gen-isolated").checked,
+    high_altitude: $("gen-high-altitude").checked,
+    tonal: $("gen-tonal").checked,
+    allow_all_caps: $("gen-allow-all-caps").checked,
+    source_languages: collectSourceLanguages(),
+    strictness: $("gen-strictness").value ? parseFloat($("gen-strictness").value) : null,
+    examples: collectSeedExamples(),
+    orthography_style: $("gen-orthography-style").value || null,
+    exotic_symbol_style: $("gen-exotic-symbol-style").value || null,
+    vowel_length_style: $("gen-vowel-length-style").value || null,
+    short_vowel_doubling: $("gen-short-vowel-doubling").value === "" ? null : $("gen-short-vowel-doubling").value === "true",
+    tone_style: $("gen-tone-style").value || null,
+    syllable_boundary_marker: $("gen-syllable-boundary-marker").value || null,
+    consonant_gemination_marked: $("gen-consonant-gemination").value === "" ? null : $("gen-consonant-gemination").value === "true",
+  };
+  btn.disabled = true; btn.textContent = "Generating…";
+  try {
+    const summary = await api("/api/generate", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    renderLanguageSummary($("generate-result"), summary);
+    await Promise.all([refreshCost(), refreshLanguages()]);
+  } catch (e) {
+    err.textContent = e.message;
+    err.hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = "Generate Language";
+  }
+};
+
+// --- translate ---
+$("translate-btn").onclick = async () => {
+  const btn = $("translate-btn"), err = $("translate-error");
+  err.hidden = true;
+  const lang = $("tr-lang").value;
+  const text = $("tr-text").value.trim();
+  if (!lang) {
+    err.textContent = "Generate or pick a language first.";
+    err.hidden = false;
+    return;
+  }
+  if (!text) {
+    err.textContent = "Enter some text to translate.";
+    err.hidden = false;
+    return;
+  }
+  const direction = document.querySelector('input[name="tr-direction"]:checked').value;
+  const body = { lang, text, to: direction, llm: $("tr-llm").value };
+  btn.disabled = true; btn.textContent = "Translating…";
+  try {
+    const result = await api("/api/translate", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    const coined = result.coined.length
+      ? `<div class="badges"><span class="badge">coined: ${result.coined.join(", ")}</span></div>` : "";
+    $("translate-result").innerHTML = `
+      <div class="card">
+        <div class="translate-output">${result.text}</div>
+        ${result.ipa ? `<div class="translate-ipa">/${result.ipa}/</div>` : ""}
+        <div class="badges">
+          <span class="badge">pattern: ${result.pattern}</span>
+          <span class="badge">this call: $${result.cost.delta_usd.toFixed(4)} (${result.cost.delta_calls} calls)</span>
+        </div>
+        ${coined}
+      </div>`;
+    await refreshCost();
+  } catch (e) {
+    err.textContent = e.message;
+    err.hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = "Translate";
+  }
+};
+
+// --- init ---
+addSourceLangRow();
+addSeedExampleRow();
+loadOptions().catch(() => {});
+refreshLanguages().catch(() => {});
+refreshCost();
+</script>
+</body>
+</html>

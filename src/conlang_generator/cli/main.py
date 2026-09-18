@@ -338,6 +338,24 @@ def pronounce(
             raise typer.Exit(code=1)
 
 
+@app.command()
+def serve(
+    port: int = typer.Option(8000, "--port", help="Port to serve the local web UI on."),
+    reload: bool = typer.Option(False, "--reload", help="Auto-restart on source changes (development only)."),
+) -> None:
+    """Run the local browser UI (generate + translate) -- requires the
+    optional 'web' dependency group (`uv sync --group web`)."""
+    try:
+        import uvicorn
+    except ImportError as exc:
+        typer.echo(
+            "error: the web UI needs the optional 'web' dependency group -- run `uv sync --group web` first.",
+            err=True,
+        )
+        raise typer.Exit(code=1) from exc
+    uvicorn.run("conlang_generator.webui.app:app", port=port, reload=reload)
+
+
 def main() -> None:
     # IPA and tone diacritics are outside cp1252 -- Windows terminals default
     # to it, so force UTF-8 output rather than crashing on the first accent.
