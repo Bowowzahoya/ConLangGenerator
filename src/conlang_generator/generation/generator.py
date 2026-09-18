@@ -78,15 +78,9 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     )
     seeded_glosses = {example.gloss.lower() for example in spec.seed_examples}
 
-    generated_entries = []
-    for gloss, pos in lexicon_gen.CORE_MEANINGS:
-        if gloss.lower() in seeded_glosses:
-            continue
-        gate_attr = lexicon_gen.CONDITIONAL_MEANINGS.get(gloss)
-        if gate_attr is not None and not getattr(grammar, gate_attr):
-            continue
+    def propose_core_word(gloss: str, pos: PartOfSpeech) -> LexicalEntry:
         if grammar.uses_root_and_pattern and pos in root_pattern.TEMPLATIC_POS:
-            entry = root_pattern.propose_templatic_word(
+            return root_pattern.propose_templatic_word(
                 rng,
                 inventory,
                 grammar.templates,
@@ -103,24 +97,46 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
                 word_classes=grammar.word_classes,
                 word_class_deviation_rate=grammar.word_class_deviation_rate,
             )
-        else:
-            entry = lexicon_gen.propose_word(
-                rng,
-                inventory,
-                syllable_structure,
-                tone_system,
-                word_accent_system,
-                romanization,
-                gloss,
-                pos,
-                llm_client,
-                name,
-                context=spec.traits.salient_context,
-                source_languages=spec.traits.source_languages,
-                strictness=spec.traits.source_language_strictness,
-                word_classes=grammar.word_classes,
-                word_class_deviation_rate=grammar.word_class_deviation_rate,
-            )
+        return lexicon_gen.propose_word(
+            rng,
+            inventory,
+            syllable_structure,
+            tone_system,
+            word_accent_system,
+            romanization,
+            gloss,
+            pos,
+            llm_client,
+            name,
+            context=spec.traits.salient_context,
+            source_languages=spec.traits.source_languages,
+            strictness=spec.traits.source_language_strictness,
+            word_classes=grammar.word_classes,
+            word_class_deviation_rate=grammar.word_class_deviation_rate,
+        )
+
+    def normalized_form(romanization_str: str) -> str:
+        return unicodedata.normalize("NFC", romanization_str).lower()
+
+    known_forms = {normalized_form(entry.romanization) for entry in seed_entries}
+
+    generated_entries = []
+    for gloss, pos in lexicon_gen.CORE_MEANINGS:
+        if gloss.lower() in seeded_glosses:
+            continue
+        gate_attr = lexicon_gen.CONDITIONAL_MEANINGS.get(gloss)
+        if gate_attr is not None and not getattr(grammar, gate_attr):
+            continue
+        # Retry on a romanization collision with a word already placed in
+        # this lexicon (same discipline as translation.expansion.coin_word),
+        # since Lexicon.by_form returns only the first match and a
+        # homograph would make the other word unreachable via it.
+        entry = propose_core_word(gloss, pos)
+        for _ in range(5):
+            if normalized_form(entry.romanization) not in known_forms:
+                break
+            entry = propose_core_word(gloss, pos)
+        known_forms.add(normalized_form(entry.romanization))
         generated_entries.append(entry)
     generated_entries = tuple(generated_entries)
 

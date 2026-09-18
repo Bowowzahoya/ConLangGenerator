@@ -33,6 +33,26 @@ def test_the_and_be_are_coined_only_when_their_grammar_flag_is_set():
         assert (language.lexicon.by_gloss("be") is not None) == language.grammar.has_overt_copula
 
 
+def test_core_vocabulary_has_no_romanization_collisions():
+    # Seeds 5 and 8 are known to have previously produced homographs among
+    # CORE_MEANINGS entries (e.g. seed=8: "mountain"/"and" both romanized
+    # to "lu"; seed=5: "not"/"water" both romanized to "tanh" despite
+    # different IPA) before generator.py's core-vocabulary loop gained the
+    # same by_form collision-avoidance retry translation.expansion.coin_word
+    # already had. Lexicon.by_form returns only the first match, so a
+    # homograph made the other word unreachable/misidentified via it.
+    for seed in (5, 8):
+        language = generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
+        seen: dict[str, str] = {}
+        for entry in language.lexicon.entries:
+            form = entry.romanization.lower()
+            assert form not in seen, (
+                f"seed={seed}: {entry.primary_gloss!r} and {seen.get(form)!r} "
+                f"both romanize to {entry.romanization!r}"
+            )
+            seen[form] = entry.primary_gloss
+
+
 def test_translate_round_trip_for_core_vocabulary():
     # Seed 1 -- known to round-trip "mountain"/"high" cleanly with no
     # candidate collisions. (Re-found against seed=1 after the Thai/
