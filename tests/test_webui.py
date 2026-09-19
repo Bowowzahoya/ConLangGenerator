@@ -231,3 +231,29 @@ def test_generate_rejects_an_invalid_foreign_names_value(client):
         json={"prompt": "p", "name": "Fn Bad", "seed": 2, "llm": "fake", "foreign_names": "translate"},
     )
     assert response.status_code == 400
+
+
+def test_generate_with_real_words_and_evolution_reports_them_and_warns_on_a_split_vocabulary(client):
+    body = client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": "Real Dutch", "seed": 3, "llm": "fake", "vocabulary_size": 60,
+              "source_languages": [{"name": "Dutch", "weight": None}], "strictness": 1.0,
+              "word_strictness": 1.0, "evolve_years": 200},
+    ).json()
+    assert body["real_words"] > 30
+    assert body["grammar"]["evolved_years"] == 200
+    assert body["warnings"] == []
+    split = client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": "Split", "seed": 3, "llm": "fake", "vocabulary_size": 60,
+              "source_languages": [{"name": "Dutch", "weight": None}], "strictness": 0.1, "word_strictness": 1.0},
+    ).json()
+    assert len(split["warnings"]) == 1
+
+
+def test_generate_rejects_out_of_range_word_strictness_and_evolve_years(client):
+    for extra in ({"word_strictness": 1.5}, {"evolve_years": -1}):
+        response = client.post(
+            "/api/generate", json={"prompt": "p", "name": "Bad Range", "seed": 3, "llm": "fake", **extra}
+        )
+        assert response.status_code == 400

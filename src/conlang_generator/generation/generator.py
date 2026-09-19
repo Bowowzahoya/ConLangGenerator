@@ -14,9 +14,11 @@ from conlang_generator.generation import (
     grammar_gen,
     inflection_gen,
     lexicon_gen,
+    real_words,
     phonology_gen,
     romanization_gen,
     root_pattern,
+    sound_change,
     word_builder,
     word_class_gen,
 )
@@ -26,7 +28,21 @@ from conlang_generator.llm.base import LLMClient
 def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) -> Language:
     rng = random.Random(spec.seed)
 
-    inventory, syllable_structure, tone_system, word_accent_system = phonology_gen.generate_phonology(rng, spec)
+    # Which pregenerated meanings follow a real source-language word (word
+    # strictness) is planned first, because exact copies (strictness 1.0)
+    # must force their phonemes into the inventory.
+    meanings = lexicon_gen.select_meanings(spec.vocabulary_size)
+    real_choices = real_words.plan_real_words(spec, meanings, llm_client)
+    phonology_spec = spec.model_copy(
+        update={
+            "seed_examples": spec.seed_examples
+            + real_words.exact_seed_examples(real_choices, spec.traits.source_word_strictness)
+        }
+    )
+
+    inventory, syllable_structure, tone_system, word_accent_system = phonology_gen.generate_phonology(
+        rng, phonology_spec
+    )
     romanization = romanization_gen.generate_romanization(
         rng,
         inventory,
@@ -76,7 +92,13 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         )
         for example in spec.seed_examples
     )
-    seeded_glosses = {example.gloss.lower() for example in spec.seed_examples}
+    real_entries = real_words.build_real_entries(
+        real_choices, spec.traits.source_word_strictness, spec.seed, inventory, syllable_structure, romanization
+    )
+    seed_entries = seed_entries + real_entries
+    seeded_glosses = {example.gloss.lower() for example in spec.seed_examples} | {
+        entry.primary_gloss.lower() for entry in real_entries
+    }
 
     def build_core_pending(gloss: str, pos: PartOfSpeech) -> lexicon_gen.PendingWord | LexicalEntry:
         if grammar.uses_root_and_pattern and pos in root_pattern.TEMPLATIC_POS:
@@ -115,7 +137,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     known_forms = {normalized_form(entry.romanization) for entry in seed_entries}
 
     eligible_meanings = []
-    for gloss, pos in lexicon_gen.select_meanings(spec.vocabulary_size):
+    for gloss, pos in meanings:
         if gloss.lower() in seeded_glosses:
             continue
         gate_attr = lexicon_gen.CONDITIONAL_MEANINGS.get(gloss)
@@ -187,3 +209,51 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         lexicon=Lexicon(entries=seed_entries + generated_entries),
         history=("generated core language",),
     )
+
+
+def resolve_evolve_years(spec: GenerationSpec) -> int:
+    """Explicit ``spec.evolve_years`` wins (``0`` meaning none); otherwise the
+    time depth the prompt classifier inferred; otherwise ``0``."""
+    years = spec.evolve_years if spec.evolve_years is not None else spec.traits.time_depth_years
+    return max(0, years or 0)
+
+
+def generate_evolved_language(name: str, spec: GenerationSpec, llm_client: LLMClient) -> Language:
+    """``generate_language`` followed by ``resolve_evolve_years`` years of
+    sound change (``sound_change.evolve_language``) when that is positive --
+    e.g. "Dutch evolved forward 200 years": real Dutch words (word
+    strictness), then two centuries of change. The result keeps the caller's
+    own settings (word selection, vocabulary size, foreign names, ...) and
+    records both steps in its history."""
+    base = generate_language(name, spec, llm_client)
+    years = resolve_evolve_years(spec)
+    if years <= 0:
+        return base
+    evolved = sound_change.evolve_language(
+        name, base, years, spec.traits, spec.seed, forced_orthography=spec.forced_orthography
+    )
+    kept_spec = evolved.spec.model_copy(
+        update={
+            "prompt": spec.prompt,
+            "fantasy": spec.fantasy,
+            "word_selection": spec.word_selection,
+            "vocabulary_size": spec.vocabulary_size,
+            "foreign_names": spec.foreign_names,
+            "evolve_years": years,
+            "force_isolated": spec.force_isolated,
+            "force_high_altitude": spec.force_high_altitude,
+            "force_tonal": spec.force_tonal,
+            "forced_orthography": spec.forced_orthography,
+            "allow_all_caps": spec.allow_all_caps,
+        }
+    )
+    # Evolution overwrites each entry's note with its orthography path; keep
+    # the real-word provenance (unless the word was replaced by a new one).
+    carried = tuple(
+        new.model_copy(update={"notes": f"{old.notes}; {new.notes}"})
+        if old.notes.startswith("real") and "replaced" not in new.notes
+        else new
+        for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)
+    )
+    lexicon = evolved.lexicon.model_copy(update={"entries": carried})
+    return evolved.model_copy(update={"spec": kept_spec, "lexicon": lexicon})

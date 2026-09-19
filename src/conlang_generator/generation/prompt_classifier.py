@@ -121,6 +121,15 @@ extract a language this way when the cultural signal is genuinely strong \
 and specific enough that a well-informed reader would independently name \
 the same language -- a generic "desert people" with no further religious \
 or cultural texture is not enough on its own.
+- "source_word_strictness": a number from 0.0 to 1.0, only meaningful \
+when "source_languages" is non-empty, for how much of the vocabulary should \
+be the named language's ACTUAL words (as opposed to invented words that \
+merely sound like it, which is what "source_language_strictness" governs). \
+0.0 (the default) means no real words. Use a value only when the text \
+asks for real vocabulary: 0.3-0.6 for "many words borrowed from"/"heavily \
+based on the real vocabulary of"; 0.8-1.0 for "actual X words", "evolved \
+forward from real X", "X as it would be spoken in N years", "descended \
+from X". Descriptions that only evoke a language's flavor get 0.0.
 - "salient_vocabulary_domains": short domain words for subsistence/culture \
 implied by the text, e.g. "seafaring", "herding" (usually empty).
 - "time_depth_years": an integer if the text asks how a language would \
@@ -219,6 +228,13 @@ canon, no other dimension touched -- "no source language in mind" is why \
 source_languages stays empty even though the description is Mandarin-like \
 in spirit.)
 
+Prompt: "Dutch evolved forward 200 years"
+-> source_languages: ["Dutch"], source_language_strictness: 0.9, \
+source_word_strictness: 0.9, time_depth_years: 200, every other \
+dimension: 0.0. (The text asks for real Dutch changed by sound change, so \
+both the allowed sounds and the words follow Dutch closely; the years \
+become time_depth_years.)
+
 Respond with ONLY a single JSON object, no prose, no markdown fences."""
 
 
@@ -255,6 +271,7 @@ def _parse(text: str) -> TraitProfile:
         values[field] = _coerce_str_tuple(raw.get(field))
     values["source_language_weights"] = _coerce_float_tuple(raw.get("source_language_weights"))
     values["source_language_strictness"] = _coerce_unit_float(raw.get("source_language_strictness"))
+    values["source_word_strictness"] = _coerce_unit_float(raw.get("source_word_strictness"))
     values["time_depth_years"] = _coerce_optional_int(raw.get("time_depth_years"))
     values["requested_orthography_style"] = _coerce_str(raw.get("requested_orthography_style"))
     values["salient_context"] = _coerce_str(raw.get("salient_context"))

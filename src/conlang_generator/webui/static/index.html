@@ -159,7 +159,13 @@
       <div id="source-lang-rows"></div>
       <button type="button" class="add-row" id="add-source-lang">+ source language</button>
 
-      <label for="gen-strictness">Source-language strictness (0.0-1.0, blank = inferred from prompt)</label>
+      <label for="gen-evolve-years">Years of evolution (sound change applied after generating; 0 = none; blank = whatever the prompt implies, e.g. "evolved forward 200 years")</label>
+      <input type="number" id="gen-evolve-years" min="0" max="100000" step="50" placeholder="(from prompt)">
+
+      <label for="gen-word-strictness">Word strictness (0.0-1.0: how many words follow the source language's actual words, and how closely; 1.0 = exact copies; blank = inferred from prompt)</label>
+      <input type="number" id="gen-word-strictness" min="0" max="1" step="0.05" placeholder="(inferred)">
+
+      <label for="gen-strictness">Sound strictness (0.0-1.0: how tightly the allowed sounds follow the source language; blank = inferred from prompt)</label>
       <input type="number" id="gen-strictness" min="0" max="1" step="0.05" placeholder="(inferred)">
 
       <label>Seed examples <span class="ipa">(literal words that must appear verbatim)</span></label>
@@ -404,11 +410,14 @@ function renderLanguageSummary(container, summary) {
         <span class="badge">tonal: ${g.tonal}</span>
         <span class="badge">word selection: ${g.word_selection}</span>
         <span class="badge">foreign names: ${g.foreign_names}</span>
+        ${g.evolved_years ? `<span class="badge">evolved ${g.evolved_years} years</span>` : ""}
+        ${summary.real_words ? `<span class="badge">real-word-based: ${summary.real_words} of ${summary.lexicon.length}</span>` : ""}
         ${g.cases.length ? `<span class="badge">cases: ${g.cases.join(", ")}</span>` : ""}
         ${g.tenses.length ? `<span class="badge">tenses: ${g.tenses.join(", ")}</span>` : ""}
         <span class="badge">orthography: ${summary.orthography_category || "(unnamed)"}</span>
       </div>
       ${traitBadges || sourceLangBadge ? `<div class="badges">${traitBadges}${sourceLangBadge}</div>` : ""}
+      ${(summary.warnings || []).map(w => `<div class="error">⚠ ${w}</div>`).join("")}
       ${summary.cost ? `<div class="badges"><span class="badge">this call: $${summary.cost.delta_usd.toFixed(4)} (${summary.cost.delta_calls} calls)</span></div>` : ""}
       <h2>Lexicon (${summary.lexicon.length} words)</h2>
       <div class="lexicon-wrap">
@@ -447,6 +456,8 @@ $("generate-btn").onclick = async () => {
     foreign_names: $("gen-foreign-names").value || null,
     source_languages: collectSourceLanguages(),
     strictness: $("gen-strictness").value ? parseFloat($("gen-strictness").value) : null,
+    word_strictness: $("gen-word-strictness").value ? parseFloat($("gen-word-strictness").value) : null,
+    evolve_years: $("gen-evolve-years").value === "" ? null : parseInt($("gen-evolve-years").value, 10),
     examples: collectSeedExamples(),
     orthography_style: $("gen-orthography-style").value || null,
     exotic_symbol_style: $("gen-exotic-symbol-style").value || null,

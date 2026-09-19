@@ -1069,6 +1069,35 @@ Everything here is a pure function of a `random.Random` seeded from
   duplicating it. Applies to `PartOfSpeech.NOUN`/`VERB`/`ADJECTIVE` only
   (`TEMPLATIC_POS`) -- pronouns/particles/numerals stay non-templatic, real
   Semitic function words aren't derived this way either.
+- **Real words and evolution** (two strictness dials, one step): the
+  existing `source_language_strictness` is the **sound** strictness -- it
+  only limits which sounds/syllables/orthography a language may use. The new
+  `TraitProfile.source_word_strictness` (CLI `--word-strictness`, "Word
+  strictness" in the web UI, classifier-extracted from wording like "actual
+  Dutch words"; default 0 = none) is the **word** strictness
+  (`generation/real_words.py`): each pregenerated meaning follows a real
+  source-language word with that probability, and a real word is loosened by
+  swapping each sound for a near neighbour with probability
+  `(1 - strictness) * 0.6`, restricted to the sounds the sound strictness
+  allows and re-spelled through the language's orthography -- so **1.0 makes
+  every word an exact copy** (spelling verbatim, its phonemes forced into the
+  inventory). Real words come from `reference_languages/lexicons/<name>.yaml`
+  (`real_lexicon.py`; hand-transcribed to the modeled phoneme set, best
+  effort and not linguist-verified; validated by `tests/test_real_
+  lexicons.py`), and any meaning a matched language lacks curated is filled
+  by one batched LLM request per 100 meanings (`real_words_llm.py`; answers
+  whose IPA doesn't tokenize are dropped, the fake backend fills nothing).
+  Word strictness far above sound strictness (margin 0.25) allows a *split
+  vocabulary* and is **warned about, never blocked**. Real-derived entries
+  carry `notes="real word: X"` / `"real-based word: X"`.
+  Fitting a pronunciation to a language (nearest inventory phoneme +
+  syllable-rule repair) lives in `generation/phoneme_fit.py`, shared with
+  foreign-name adaptation. `generator.generate_evolved_language` then runs
+  `GenerationSpec.evolve_years` (else the prompt-inferred
+  `traits.time_depth_years`) years of `sound_change.evolve_language` on the
+  fresh language -- so "Dutch evolved forward 200 years" is real Dutch words
+  under real sound change; the CLI `--years` (without `--evolve-from`) and the
+  web "Years of evolution" box drive it too.
 - **Vocabulary size**: `lexicon_gen.CORE_MEANINGS` (the original 51,
   unchanged -- `experiments/` scripts index real-language lexicons against
   its order) plus `extended_meanings.EXTENDED_MEANINGS` (~445 more basic
@@ -1643,9 +1672,9 @@ reading code or one-off ad hoc scripts.
   `spatial_reference`, `ritual_register`, `taboo_register`,
   `terrain_communication_distance`, `salient_vocabulary_domains`.
   `orality_literacy` is consumed only by evolution's orthography-reform
-  rate, not by fresh generation. `time_depth_years` itself is still
-  unconsumed too (`--evolve-from`/`--years` on the CLI is the actual years
-  input; the classifier-extracted field isn't wired to it yet).
+  rate, not by fresh generation. The
+  classifier-extracted `time_depth_years` is now the default for
+  `GenerationSpec.evolve_years` (see "Real words and evolution" below).
 - `source_language_strictness` reaches every reference-bias mechanism
   that exists (phonology's inventory/syllable-shape/tonal/vowel-harmony
   axes; `romanization_gen.py`'s category/per-symbol/grammatical-spelling

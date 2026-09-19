@@ -99,6 +99,15 @@ class TraitProfile(BaseModel, frozen=True):
     named languages, but never from outside all of them. Gradeable in
     between. See ``generation.trait_bias.biased_probability``, the shared
     interpolation this reuses throughout."""
+    source_word_strictness: float = Field(default=0.0, ge=0.0, le=1.0)
+    """The separate dial for real *words* (``source_language_strictness``
+    above only governs which sounds are allowed). It decides both how many
+    pregenerated meanings follow a real ``source_languages`` word and how
+    closely they follow it -- ``0.0`` (default) uses none, ``1.0`` makes
+    every word an exact copy of the real one; in between, words are looser
+    variants restricted to the allowed sounds. See ``generation/
+    real_words.py``. A high value with a much lower sound strictness is
+    allowed but warned about (a split vocabulary)."""
     source_language_weights: tuple[float, ...] = ()
     """Relative influence of each same-index entry in ``source_languages``
     -- empty (the default) means every named language is weighted

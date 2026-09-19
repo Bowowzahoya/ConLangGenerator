@@ -38,9 +38,10 @@ from conlang_generator.core.romanization import (
     VowelLengthStrategy,
 )
 from conlang_generator.core.spec import GenerationSpec, SeedExample
-from conlang_generator.generation.generator import generate_language
+from conlang_generator.generation.generator import generate_evolved_language, resolve_evolve_years
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
+from conlang_generator.generation.real_words import strictness_warnings
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.generation.seed_examples import resolve_seed_examples
 from conlang_generator.llm.cost_tracker import CostTracker
@@ -114,6 +115,7 @@ def _language_summary(language: Language) -> dict:
             "tonal": language.tone_system.enabled,
             "word_selection": language.spec.word_selection,
             "foreign_names": names.resolve_foreign_names(language),
+            "evolved_years": resolve_evolve_years(language.spec) if any(h.startswith("evolved") for h in language.history) else 0,
         },
         "traits": {
             **nonzero_traits,
@@ -122,6 +124,7 @@ def _language_summary(language: Language) -> dict:
             "salient_context": traits.salient_context,
         },
         "orthography_category": language.romanization.category_name,
+        "real_words": sum(1 for e in language.lexicon.entries if e.notes.startswith("real")),
         "lexicon": [
             {
                 "gloss": entry.primary_gloss,
@@ -183,6 +186,8 @@ class GenerateRequest(BaseModel):
     word_selection: str = "algorithmic"
     vocabulary_size: int = 400
     foreign_names: str | None = None
+    word_strictness: float | None = None
+    evolve_years: int | None = None
 
 
 class TranslateRequest(BaseModel):
@@ -236,6 +241,10 @@ def generate(request: GenerateRequest) -> dict:
             status_code=400,
             detail=f"orthography_style must be one of {', '.join(ORTHOGRAPHY_STYLE_NAMES)}, got {request.orthography_style!r}",
         )
+    if request.evolve_years is not None and not 0 <= request.evolve_years <= 100000:
+        raise HTTPException(status_code=400, detail="evolve_years must be between 0 and 100000")
+    if request.word_strictness is not None and not 0.0 <= request.word_strictness <= 1.0:
+        raise HTTPException(status_code=400, detail="word_strictness must be between 0.0 and 1.0")
     if request.strictness is not None and not 0.0 <= request.strictness <= 1.0:
         raise HTTPException(status_code=400, detail="strictness must be between 0.0 and 1.0")
     if not 1 <= request.vocabulary_size <= len(ALL_MEANINGS):
@@ -267,6 +276,8 @@ def generate(request: GenerateRequest) -> dict:
         traits = traits.model_copy(update={"source_languages": names, "source_language_weights": weights})
     if request.strictness is not None:
         traits = traits.model_copy(update={"source_language_strictness": request.strictness})
+    if request.word_strictness is not None:
+        traits = traits.model_copy(update={"source_word_strictness": request.word_strictness})
 
     raw_examples = tuple(SeedExample(gloss=e.gloss, form=e.form, ipa=e.ipa) for e in request.examples)
     seed_examples = resolve_seed_examples(raw_examples, client)
@@ -285,13 +296,15 @@ def generate(request: GenerateRequest) -> dict:
         word_selection=request.word_selection,
         vocabulary_size=request.vocabulary_size,
         foreign_names=request.foreign_names,
+        evolve_years=request.evolve_years,
     )
-    language = generate_language(request.name, spec, client)
+    language = generate_evolved_language(request.name, spec, client)
     _repository().save(language)
 
     after = _cost_snapshot()
     summary = _language_summary(language)
     summary["cost"] = _cost_delta(before, after)
+    summary["warnings"] = strictness_warnings(traits)
     return summary
 
 

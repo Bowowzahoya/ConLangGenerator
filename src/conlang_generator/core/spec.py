@@ -86,3 +86,9 @@ class GenerationSpec(BaseModel, frozen=True):
     it from the matched ``source_languages`` (each profile's curated
     ``foreign_name_handling``), falling back to ``"keep"`` -- see
     ``translation/names.py``."""
+    evolve_years: int | None = None
+    """Years of sound change to run on the freshly generated language before
+    it is returned (``generator.generate_evolved_language``). ``None``
+    (default) falls back to the prompt-inferred ``traits.time_depth_years``;
+    ``0`` forces no evolution. Real source-language words
+    (``traits.source_word_strictness``) evolve like any other word."""

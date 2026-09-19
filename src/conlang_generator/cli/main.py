@@ -13,9 +13,10 @@ from conlang_generator.core.romanization import (
     VowelLengthStrategy,
 )
 from conlang_generator.core.spec import GenerationSpec, SeedExample
-from conlang_generator.generation.generator import generate_language
+from conlang_generator.generation.generator import generate_evolved_language, generate_language
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
+from conlang_generator.generation.real_words import strictness_warnings
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.generation.seed_examples import resolve_seed_examples
 from conlang_generator.generation.sound_change import evolve_language
@@ -130,7 +131,11 @@ def generate(
     evolve_from: str = typer.Option(
         None, "--evolve-from", help="Evolve an existing saved language via sound change instead of generating fresh (requires --years)."
     ),
-    years: int = typer.Option(None, "--years", help="Time depth in years, for --evolve-from."),
+    years: int = typer.Option(
+        None, "--years",
+        help="Years of sound change: with --evolve-from, how long to evolve that saved language; otherwise, evolve the "
+        "newly generated language this many years (0 = none). Blank uses the time depth the prompt implies.",
+    ),
     orthography_style: str = typer.Option(
         None, "--orthography-style",
         help=f"Force a whole named orthography style (guaranteed, not just likely). One of: {', '.join(ORTHOGRAPHY_STYLE_NAMES)}.",
@@ -164,6 +169,12 @@ def generate(
         help="How many basic meanings to pregenerate (most basic first; default 400, max 496). Grammatical "
         "essentials are always included, and any other word is coined on demand during translation, then reused.",
     ),
+    word_strictness: float = typer.Option(
+        None, "--word-strictness",
+        help="How much of the vocabulary follows the --source-language's ACTUAL words (0.0-1.0, separate from --strictness, "
+        "which only governs the allowed sounds): higher means more words are real-based AND closer to the real word; "
+        "1.0 makes every word an exact copy. Overrides the prompt-inferred value.",
+    ),
     foreign_names: str = typer.Option(
         None, "--foreign-names",
         help="How the language treats a foreign proper name met in translation: 'keep' (as written, Dutch-style) or "
@@ -179,6 +190,9 @@ def generate(
     """Generate a new language and save it."""
     if not 1 <= vocabulary_size <= len(ALL_MEANINGS):
         typer.echo(f"error: --vocabulary-size must be between 1 and {len(ALL_MEANINGS)}, got {vocabulary_size}", err=True)
+        raise typer.Exit(code=1)
+    if word_strictness is not None and not 0.0 <= word_strictness <= 1.0:
+        typer.echo(f"error: --word-strictness must be between 0.0 and 1.0, got {word_strictness!r}", err=True)
         raise typer.Exit(code=1)
     if foreign_names is not None and foreign_names not in ("keep", "adapt"):
         typer.echo(f"error: --foreign-names must be 'keep' or 'adapt', got {foreign_names!r}", err=True)
@@ -210,6 +224,10 @@ def generate(
         traits = traits.model_copy(update={"source_languages": merged_names, "source_language_weights": merged_weights})
     if strictness is not None:
         traits = traits.model_copy(update={"source_language_strictness": strictness})
+    if word_strictness is not None:
+        traits = traits.model_copy(update={"source_word_strictness": word_strictness})
+    for warning in strictness_warnings(traits):
+        typer.echo(f"warning: {warning}", err=True)
 
     if evolve_from is not None:
         if years is None:
@@ -257,12 +275,15 @@ def generate(
         allow_all_caps=allow_all_caps,
         word_selection=word_selection,
         vocabulary_size=vocabulary_size,
+        evolve_years=years,
         foreign_names=foreign_names,
     )
-    language = generate_language(name, spec, client)
+    language = generate_evolved_language(name, spec, client)
     _repository().save(language)
 
     typer.echo(f"Generated '{language.name}' ({language.slug}) -- {len(language.lexicon.entries)} core words.")
+    if any(step.startswith("evolved") for step in language.history):
+        typer.echo(f"Evolved {language.spec.evolve_years} years after generation.")
     typer.echo(
         f"Word order: {language.grammar.word_order.value}, "
         f"morphology: {language.grammar.morphological_type.value}, "
