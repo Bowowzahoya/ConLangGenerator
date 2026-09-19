@@ -345,18 +345,28 @@ def _synthesize_sentence(client: tts.TTSClient, ipa_sentence: str) -> bytes | No
         return None
     temp_paths = [CACHE_DIR / "audio" / f"webui-{uuid.uuid4().hex}.wav" for _ in words]
     try:
-        for word_ipa, path in zip(words, temp_paths):
-            if not client.synthesize(word_ipa, path):
-                return None
         params = None
         silence = b""
         frames: list[bytes] = []
-        for path in temp_paths:
-            with wave.open(str(path), "rb") as wf:
-                if params is None:
-                    params = wf.getparams()
-                    silence = b"\x00" * int(0.15 * params.framerate) * params.sampwidth * params.nchannels
-                frames.append(wf.readframes(wf.getnframes()))
+        for word_ipa, path in zip(words, temp_paths):
+            # A word the backend can't render (or renders as an unreadable
+            # file) is skipped rather than failing the whole sentence.
+            try:
+                if not client.synthesize(word_ipa, path):
+                    continue
+                with wave.open(str(path), "rb") as wf:
+                    if params is None:
+                        params = wf.getparams()
+                        silence = b"\x00" * int(0.15 * params.framerate) * params.sampwidth * params.nchannels
+                    elif (wf.getframerate(), wf.getnchannels(), wf.getsampwidth()) != (
+                        params.framerate, params.nchannels, params.sampwidth,
+                    ):
+                        continue
+                    frames.append(wf.readframes(wf.getnframes()))
+            except (wave.Error, EOFError):
+                continue
+        if not frames:
+            return None
         buffer = io.BytesIO()
         with wave.open(buffer, "wb") as out:
             out.setparams(params)

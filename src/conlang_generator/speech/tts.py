@@ -27,6 +27,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+import unicodedata
 import xml.sax.saxutils
 from pathlib import Path
 from typing import Protocol
@@ -118,6 +119,10 @@ class SapiTTSClient:
         if not sys.platform.startswith("win"):
             return False
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        # SAPI silently writes an empty file for a precomposed character like
+        # the nasalized vowel "ã" (U+00E3); the decomposed form (a + combining
+        # tilde) is accepted.
+        ipa_text = unicodedata.normalize("NFD", ipa_text)
         escaped_ipa = xml.sax.saxutils.escape(ipa_text, {'"': "&quot;"})
         script = _SAPI_SCRIPT_TEMPLATE.format(
             output_path=str(output_path).replace('"', '`"'), ipa=escaped_ipa
@@ -126,7 +131,8 @@ class SapiTTSClient:
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
             capture_output=True,
         )
-        return result.returncode == 0 and output_path.is_file()
+        # A bare WAV header is 44 bytes -- anything that small is silence/empty.
+        return result.returncode == 0 and output_path.is_file() and output_path.stat().st_size > 44
 
 
 def build_tts_client(kind: str = "none") -> TTSClient:

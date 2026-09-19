@@ -353,6 +353,9 @@ async function loadOptions() {
       opt.textContent += " (unavailable on this machine)";
     }
   }
+  // Default to the best available backend: Windows SAPI, then espeak-ng.
+  const preferred = ["sapi", "espeak"].find(name => opts.tts_backends[name]);
+  if (preferred) $("tr-tts").value = preferred;
 }
 
 // --- language dropdown (translate tab) ---
