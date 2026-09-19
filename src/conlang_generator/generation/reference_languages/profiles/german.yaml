@@ -156,3 +156,4 @@ real_has_articles: true              # der/die/das, ein/eine
 real_has_overt_copula: true          # "sein" -- real German predicate-adjective sentences use an overt copula (der Berg ist hoch)
 real_adjective_after_noun: false     # real German attributive adjectives precede the noun (der hohe Berg)
 real_case_count: 4                   # nominative, accusative, dative, genitive -- real, well-documented
+foreign_name_handling: keep       # foreign personal names are used as written

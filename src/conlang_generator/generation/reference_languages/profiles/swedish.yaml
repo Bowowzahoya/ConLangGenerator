@@ -108,3 +108,4 @@ stress_driven_vowel_reduction: true  # real Swedish: unstressed syllables reduce
 word_accent_realization: pitch  # real Swedish "accent 1"/"accent 2" -- historically the same Common Scandinavian contrast Danish marks with glottalization (stød) instead
 word_accent_pattern: underived_monosyllable  # real Swedish: accent 1 default for underived monosyllables, accent 2 default for polysyllabic/suffixed/compound forms
 word_accent_deviation_rate: 0.2  # illustrative -- real minimal pairs (anden "the duck" vs. "the spirit") are a genuine but small minority of the lexicon
+foreign_name_handling: keep       # foreign personal names are used as written

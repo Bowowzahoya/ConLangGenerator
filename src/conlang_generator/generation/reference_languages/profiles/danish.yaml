@@ -111,3 +111,4 @@ stress_driven_vowel_reduction: true  # real Danish: unstressed syllables reduce 
 word_accent_realization: glottalization  # real Danish stød -- a binary word-accent contrast, historically the same Common Scandinavian accent-1/accent-2 split Swedish/Norwegian mark with pitch instead
 word_accent_pattern: monosyllabic_heavy  # real stød's own conditioning is more nuanced than this flat heavy/light split (a defensible approximation, not a full account) -- illustrative, same honesty standard as every other curated rate
 word_accent_deviation_rate: 0.15  # illustrative -- real stød has genuine lexical/dialectal exceptions to its own predictable-by-shape default
+foreign_name_handling: keep       # foreign personal names are used as written

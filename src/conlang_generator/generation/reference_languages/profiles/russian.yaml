@@ -132,3 +132,4 @@ real_has_articles: false             # no grammaticalized articles -- definitene
 real_has_overt_copula: false         # real Russian present tense is the textbook zero-copula case (on vysokiy = "he (is) tall") -- "byt'" only surfaces overtly in past/future
 real_adjective_after_noun: false     # real Russian attributive adjectives precede the noun (vysokaya gora = "tall mountain")
 real_case_count: 6                   # nominative, genitive, dative, accusative, instrumental, prepositional -- real, well-documented
+foreign_name_handling: keep       # foreign personal names are used as written

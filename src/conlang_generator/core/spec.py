@@ -79,3 +79,10 @@ class GenerationSpec(BaseModel, frozen=True):
     and the grammatical essentials are always included). Words outside it
     are still coined on demand when translation needs them, then reused --
     see ``translation/expansion.py``."""
+    foreign_names: str | None = None
+    """How this language treats a foreign proper name met in translation:
+    ``"keep"`` (used as written, Dutch-style) or ``"adapt"`` (re-fitted to
+    this language's own sounds, Chinese-style). ``None`` (default) derives
+    it from the matched ``source_languages`` (each profile's curated
+    ``foreign_name_handling``), falling back to ``"keep"`` -- see
+    ``translation/names.py``."""

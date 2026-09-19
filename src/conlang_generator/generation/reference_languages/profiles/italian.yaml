@@ -107,3 +107,4 @@ nucleus_frequency_tiers:
   common: [e, o]
   uncommon: ["ɛ", "ɔ"]  # open-mid qualities, mostly stressed-syllable-only and not predictable from spelling
   rare: [u]
+foreign_name_handling: keep       # foreign personal names are used as written

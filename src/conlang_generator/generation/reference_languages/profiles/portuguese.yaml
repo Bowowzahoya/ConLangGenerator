@@ -99,3 +99,4 @@ stress_pattern: final_unless_unstressed_vowel  # real Portuguese: penultimate on
 stress_deviation_rate: 0.15  # illustrative -- same figure as Spanish, the real exceptions are exactly what the written accent marks
 stress_accent_marking: irregular_only  # real Portuguese's own á/é/í/ó/ú and â/ê/ô: written only when a word's actual stress deviates from the predictable default above (café, órgão), never when it follows the rule (casa, comem)
 stress_driven_vowel_reduction: true  # real Portuguese: unstressed vowels (especially European Portuguese's own famously reduced/devoiced final -e) weaken toward a central "ə" quality, already curated in this profile's own orthography rule above
+foreign_name_handling: keep       # foreign personal names are used as written

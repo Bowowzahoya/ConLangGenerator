@@ -279,3 +279,4 @@ real_has_articles: true              # the, a/an
 real_has_overt_copula: true          # "be" -- real English predicate-adjective sentences use an overt copula (the mountain is high)
 real_adjective_after_noun: false     # real English attributive adjectives precede the noun (the high mountain)
 real_case_count: 0                   # modern English nouns don't decline for case at all (only pronouns retain a real nominative/oblique distinction: he/him)
+foreign_name_handling: keep       # foreign personal names are used as written

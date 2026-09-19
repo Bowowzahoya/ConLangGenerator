@@ -128,6 +128,14 @@
         <input type="number" id="gen-vocab-size" value="400" min="1" max="496" step="10">
       </div>
       <div>
+        <label for="gen-foreign-names">Foreign names</label>
+        <select id="gen-foreign-names">
+          <option value="">auto (from source language)</option>
+          <option value="keep">keep as written</option>
+          <option value="adapt">adapt to the language</option>
+        </select>
+      </div>
+      <div>
         <label for="gen-word-selection">Word selection</label>
         <select id="gen-word-selection">
           <option value="algorithmic">algorithmic (no LLM)</option>
@@ -395,6 +403,7 @@ function renderLanguageSummary(container, summary) {
         <span class="badge">adj after noun: ${g.adjective_after_noun}</span>
         <span class="badge">tonal: ${g.tonal}</span>
         <span class="badge">word selection: ${g.word_selection}</span>
+        <span class="badge">foreign names: ${g.foreign_names}</span>
         ${g.cases.length ? `<span class="badge">cases: ${g.cases.join(", ")}</span>` : ""}
         ${g.tenses.length ? `<span class="badge">tenses: ${g.tenses.join(", ")}</span>` : ""}
         <span class="badge">orthography: ${summary.orthography_category || "(unnamed)"}</span>
@@ -435,6 +444,7 @@ $("generate-btn").onclick = async () => {
     allow_all_caps: $("gen-allow-all-caps").checked,
     word_selection: $("gen-word-selection").value,
     vocabulary_size: parseInt($("gen-vocab-size").value || "400", 10),
+    foreign_names: $("gen-foreign-names").value || null,
     source_languages: collectSourceLanguages(),
     strictness: $("gen-strictness").value ? parseFloat($("gen-strictness").value) : null,
     examples: collectSeedExamples(),

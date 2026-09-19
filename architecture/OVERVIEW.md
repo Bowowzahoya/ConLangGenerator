@@ -1535,6 +1535,28 @@ both gaps.
   coordination but no multi-clause/relative-clause/subordinate structure;
   no question formation; negation is one particle slot with no
   per-language position typology).
+- **`names.py` (foreign proper names)**: the sentence plan has a `"name"`
+  slot kind (the LLM planner identifies people/place names and never
+  respells them; the fake planner treats a non-initial capitalized word as
+  one), so "Bruno" is never coined as an ordinary word. How a language
+  treats a name is the `GenerationSpec.foreign_names` trait (`"keep"` /
+  `"adapt"`; CLI `--foreign-names`, "Foreign names" in the web UI); unset
+  it derives from the matched `source_languages` via each reference
+  profile's curated `foreign_name_handling` (Mandarin/Cantonese/Japanese/
+  Korean/Thai/Vietnamese/Hawaiian adapt; Dutch/German/French/English/
+  Spanish/Italian/Portuguese/Polish/Russian/Latin/Swahili/Turkish/
+  Danish/Swedish/Norwegian keep), else keeps. **keep** uses the name as
+  written (its guessed IPA is stored for pronunciation; no case affix, since
+  its sounds may lie outside the inventory). **adapt** maps each guessed
+  sound to the nearest inventory phoneme by feature distance and repairs
+  the result to the language's syllable rules with an epenthetic vowel
+  (dropping a consonant only as a last resort) -- deterministic, so the same
+  name always gives the same form; it inflects like a noun. A name is stored
+  as a `LexicalEntry` (`notes="proper name"`), so it is made once, reused
+  after save/reload, decodes back through `by_form`, and is invisible to
+  ordinary word lookups (the name "Rose" never stands in for the word
+  "rose"). Known limits: possessive `'s` is dropped (no genitive marking
+  yet), and the fake planner misses a sentence-initial name.
 - **`expansion.py`**: `coin_word()` -- reuses `lexicon_gen.propose_word()`
   with a per-gloss RNG seed derived from `sha256(spec.seed, gloss)`, so
   coinage is reproducible independent of translation order.

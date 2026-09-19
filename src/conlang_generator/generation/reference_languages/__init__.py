@@ -82,6 +82,7 @@ real_has_articles: null             # optional, defaults null -- e.g. true
 real_has_overt_copula: null         # optional, defaults null -- e.g. false, real zero-copula present tense
 real_adjective_after_noun: null     # optional, defaults null -- e.g. true
 real_case_count: null               # optional, defaults null -- e.g. 4; 0 means a real, verified lack of case marking
+foreign_name_handling: null         # optional, defaults null -- "keep" (names used as written) | "adapt" (re-fitted to the language's own sounds)
 ```
 
 ``orthography`` entries are ``RomanizationRule``s -- see its docstring for
@@ -522,6 +523,14 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     large/contested to honestly reduce to one number (Finnish's 15,
     Georgian's own debated 7-vs-fewer count): abstaining is more honest
     than guessing a number for those."""
+    foreign_name_handling: str | None = None
+    """How this language treats a foreign proper name: ``"keep"`` (used as
+    written -- Dutch, German, English) or ``"adapt"`` (re-fitted to the
+    language's own sounds -- Chinese, Japanese, Korean, Thai, Hawaiian).
+    Resolved into a generated language's own behavior by
+    ``translation.names.resolve_foreign_names`` (an explicit
+    ``GenerationSpec.foreign_names`` wins). ``None`` means not curated --
+    abstains, same convention as every other optional field here."""
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

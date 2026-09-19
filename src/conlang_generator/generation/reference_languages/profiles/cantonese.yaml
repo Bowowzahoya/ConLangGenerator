@@ -82,3 +82,4 @@ coda_frequency_tiers:
   # sonorant-profile languages, where padding excluded symbols in here is
   # harmless "dead data") -- every legal coda symbol is already covered by
   # the two tiers above, so this one stays empty.
+foreign_name_handling: adapt      # same Sinitic habit as Mandarin

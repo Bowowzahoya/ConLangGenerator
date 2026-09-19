@@ -81,3 +81,4 @@ real_has_articles: false             # Classical Latin famously has no articles 
 real_has_overt_copula: true          # "esse" -- real Latin predicate-adjective sentences use an overt copula (mons altus est)
 real_adjective_after_noun: null      # genuinely too free/stylistically-driven to honestly reduce to one default (a real class of adjectives -- magnus/parvus/multus/alius and others -- conventionally precedes; most ordinary descriptive adjectives more often follow) -- same "abstain rather than force it" standard real_case_count already uses for Finnish/Georgian
 real_case_count: 6                   # nominative, genitive, dative, accusative, ablative, vocative -- real, well-documented
+foreign_name_handling: keep       # foreign personal names are used as written

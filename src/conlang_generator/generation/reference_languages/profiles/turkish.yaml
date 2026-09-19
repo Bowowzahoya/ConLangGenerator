@@ -88,3 +88,4 @@ real_has_articles: false             # no grammaticalized definite/indefinite ar
 real_has_overt_copula: false         # real Turkish present-tense predicate adjectives take a person-agreement suffix directly (guzel-dir/guzel), routinely dropped rather than realized as a separate copula word
 real_adjective_after_noun: false     # real Turkish attributive adjectives precede the noun (buyuk ev = "big house")
 real_case_count: 6                   # nominative, accusative, genitive, dative, locative, ablative -- real, well-documented
+foreign_name_handling: keep       # foreign personal names are used as written

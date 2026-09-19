@@ -88,3 +88,4 @@ real_has_articles: false             # no grammaticalized articles -- definitene
 real_has_overt_copula: false         # real Japanese i-adjective predicates need no copula at all (takai = "is tall"); na-adjective/noun predicates do take one (da/desu) -- curated for the more distinctive, purely-adjectival case this project's own predicate-adjective pattern models
 real_adjective_after_noun: false     # real Japanese attributive adjectives precede the noun (takai yama = "tall mountain")
 real_case_count: null                # real Japanese marks grammatical relations with postpositional particles (ga/wo/no/ni/de), not fused inflectional case suffixes -- genuinely different enough from the case systems this field otherwise describes to honestly abstain rather than force a count
+foreign_name_handling: adapt      # katakana rendering fits names to Japanese syllable structure

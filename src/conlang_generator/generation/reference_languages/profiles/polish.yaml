@@ -121,3 +121,4 @@ real_has_articles: false             # no grammaticalized articles, same as Russ
 real_has_overt_copula: true          # "byc" (jest) -- unlike Russian, real Polish keeps an overt present-tense copula (on jest wysoki = "he is tall")
 real_adjective_after_noun: false     # real Polish attributive adjectives precede the noun (wysoka gora = "tall mountain")
 real_case_count: 7                   # nominative, genitive, dative, accusative, instrumental, locative, vocative -- real, well-documented
+foreign_name_handling: keep       # foreign personal names are used as written

@@ -208,3 +208,26 @@ def test_generate_rejects_an_out_of_range_vocabulary_size(client):
 
 def test_options_endpoint_reports_the_max_vocabulary_size(client):
     assert client.get("/api/options").json()["max_vocabulary_size"] > 400
+
+
+def test_generate_reports_and_accepts_the_foreign_names_trait(client):
+    auto = client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": "Fn Auto", "seed": 2, "llm": "fake", "vocabulary_size": 40,
+              "source_languages": [{"name": "Mandarin", "weight": None}], "strictness": 1.0},
+    ).json()
+    assert auto["grammar"]["foreign_names"] == "adapt"  # derived from the source language
+    forced = client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": "Fn Keep", "seed": 2, "llm": "fake", "vocabulary_size": 40,
+              "foreign_names": "keep"},
+    ).json()
+    assert forced["grammar"]["foreign_names"] == "keep"
+
+
+def test_generate_rejects_an_invalid_foreign_names_value(client):
+    response = client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": "Fn Bad", "seed": 2, "llm": "fake", "foreign_names": "translate"},
+    )
+    assert response.status_code == 400

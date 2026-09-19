@@ -99,3 +99,4 @@ coda_frequency_tiers:
   # harmless "dead data" is fine) -- every legal coda symbol is already
   # covered by the three tiers above, so this one stays empty rather than
   # listing the restricted set here.
+foreign_name_handling: adapt      # foreign names are respelled in Vietnamese syllables

@@ -139,3 +139,4 @@ real_has_articles: true              # de/het, een
 real_has_overt_copula: true          # "zijn" -- real Dutch predicate-adjective sentences use an overt copula (de berg is hoog)
 real_adjective_after_noun: false     # real Dutch attributive adjectives precede the noun (de hoge berg)
 real_case_count: 0                   # modern Dutch has genuinely lost its real historical case system -- only vestigial in a few fixed expressions/pronouns
+foreign_name_handling: keep       # foreign personal names are used as written

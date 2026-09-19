@@ -61,7 +61,7 @@ from conlang_generator.generation import inflection_gen, stress_gen, word_accent
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
-from conlang_generator.translation import expansion, sentence_planner
+from conlang_generator.translation import expansion, names, sentence_planner
 
 _IRREGULAR_LEMMA_BY_PAST = {
     "went": "go", "saw": "see", "came": "come", "ate": "eat", "drank": "drink",
@@ -240,6 +240,16 @@ def _gloss_variants(gloss: str) -> list[str]:
     return variants
 
 
+def _find_word(language: Language, gloss: str) -> LexicalEntry | None:
+    """An ordinary word by gloss -- proper-name entries (see ``names``) are
+    skipped, so the name "Rose" never stands in for the word "rose"."""
+    wanted = gloss.lower()
+    for entry in language.lexicon.entries:
+        if not names.is_name_entry(entry) and wanted in (g.lower() for g in entry.glosses):
+            return entry
+    return None
+
+
 def _lookup_or_coin(
     language: Language,
     token: str,
@@ -249,7 +259,7 @@ def _lookup_or_coin(
     lemma_candidates: list[str],
 ) -> tuple[Language, LexicalEntry]:
     for candidate in [variant for lemma in lemma_candidates for variant in _gloss_variants(lemma)]:
-        entry = language.lexicon.by_gloss(candidate)
+        entry = _find_word(language, candidate)
         if entry is not None:
             return language, entry
 
@@ -288,6 +298,22 @@ def translate_to_conlang(
             rendered = (
                 _apply_verb_inflection(working_language, entry, slot.tense, slot.agreement or "default")
                 if pos is PartOfSpeech.VERB
+                else _apply_case(working_language, entry, slot.case)
+            )
+        elif slot.kind == "name" and slot.gloss:
+            entry = names.find_name_entry(working_language, slot.gloss)
+            if entry is None:
+                entry = names.make_name_entry(working_language, slot.gloss, llm_client)
+                coined.append(entry)
+                working_language = working_language.with_new_words(
+                    (entry,), reason=f"added the name '{slot.gloss}' during translation"
+                )
+            # A kept name stays exactly as written (its sounds may lie outside
+            # this language's inventory, so no case affix or re-spelling); an
+            # adapted one is native-sounding and inflects like any noun.
+            rendered = (
+                (entry.romanization, entry.ipa)
+                if names.resolve_foreign_names(working_language) == "keep"
                 else _apply_case(working_language, entry, slot.case)
             )
         elif slot.kind == "copula":

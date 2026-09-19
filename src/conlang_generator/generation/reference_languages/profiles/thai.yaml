@@ -117,3 +117,4 @@ real_has_articles: false             # no grammaticalized articles
 real_has_overt_copula: false         # real Thai adjectives function as stative verbs themselves (khao sung = "he (is) tall") -- no separate copula needed
 real_adjective_after_noun: true      # real Thai modifiers follow the noun (phu khao sung = "tall mountain")
 real_case_count: 0                   # Thai is a classic isolating/analytic language -- no case marking of any kind
+foreign_name_handling: adapt      # names are re-spelled to Thai phonotactics

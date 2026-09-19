@@ -47,6 +47,7 @@ from conlang_generator.llm.cost_tracker import CostTracker
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.speech import tts
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+from conlang_generator.translation import names
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
 
 CACHE_DIR = Path(".cache")
@@ -112,6 +113,7 @@ def _language_summary(language: Language) -> dict:
             "tenses": list(grammar.tenses),
             "tonal": language.tone_system.enabled,
             "word_selection": language.spec.word_selection,
+            "foreign_names": names.resolve_foreign_names(language),
         },
         "traits": {
             **nonzero_traits,
@@ -180,6 +182,7 @@ class GenerateRequest(BaseModel):
     allow_all_caps: bool = False
     word_selection: str = "algorithmic"
     vocabulary_size: int = 400
+    foreign_names: str | None = None
 
 
 class TranslateRequest(BaseModel):
@@ -237,6 +240,8 @@ def generate(request: GenerateRequest) -> dict:
         raise HTTPException(status_code=400, detail="strictness must be between 0.0 and 1.0")
     if not 1 <= request.vocabulary_size <= len(ALL_MEANINGS):
         raise HTTPException(status_code=400, detail=f"vocabulary_size must be between 1 and {len(ALL_MEANINGS)}")
+    if request.foreign_names not in (None, "keep", "adapt"):
+        raise HTTPException(status_code=400, detail="foreign_names must be 'keep' or 'adapt' (or omitted)")
     if request.word_selection not in ("algorithmic", "llm"):
         raise HTTPException(status_code=400, detail="word_selection must be 'algorithmic' or 'llm'")
 
@@ -279,6 +284,7 @@ def generate(request: GenerateRequest) -> dict:
         allow_all_caps=request.allow_all_caps,
         word_selection=request.word_selection,
         vocabulary_size=request.vocabulary_size,
+        foreign_names=request.foreign_names,
     )
     language = generate_language(request.name, spec, client)
     _repository().save(language)

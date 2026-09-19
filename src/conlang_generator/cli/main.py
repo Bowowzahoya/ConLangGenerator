@@ -164,6 +164,11 @@ def generate(
         help="How many basic meanings to pregenerate (most basic first; default 400, max 496). Grammatical "
         "essentials are always included, and any other word is coined on demand during translation, then reused.",
     ),
+    foreign_names: str = typer.Option(
+        None, "--foreign-names",
+        help="How the language treats a foreign proper name met in translation: 'keep' (as written, Dutch-style) or "
+        "'adapt' (re-fitted to its own sounds, Chinese-style). Default: derived from --source-language, else keep.",
+    ),
     word_selection: str = typer.Option(
         "algorithmic", "--word-selection",
         help="How the final pick among each word's already-built candidate spellings is made: 'algorithmic' (default, "
@@ -174,6 +179,9 @@ def generate(
     """Generate a new language and save it."""
     if not 1 <= vocabulary_size <= len(ALL_MEANINGS):
         typer.echo(f"error: --vocabulary-size must be between 1 and {len(ALL_MEANINGS)}, got {vocabulary_size}", err=True)
+        raise typer.Exit(code=1)
+    if foreign_names is not None and foreign_names not in ("keep", "adapt"):
+        typer.echo(f"error: --foreign-names must be 'keep' or 'adapt', got {foreign_names!r}", err=True)
         raise typer.Exit(code=1)
     if word_selection not in ("algorithmic", "llm"):
         typer.echo(f"error: --word-selection must be 'algorithmic' or 'llm', got {word_selection!r}", err=True)
@@ -249,6 +257,7 @@ def generate(
         allow_all_caps=allow_all_caps,
         word_selection=word_selection,
         vocabulary_size=vocabulary_size,
+        foreign_names=foreign_names,
     )
     language = generate_language(name, spec, client)
     _repository().save(language)

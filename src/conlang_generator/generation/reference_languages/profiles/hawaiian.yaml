@@ -51,3 +51,4 @@ real_has_articles: true              # ka/ke (definite), he (indefinite) -- real
 real_has_overt_copula: false         # real Hawaiian predicate-adjective sentences use the stative/adjective itself in the verbal-predicate slot (ua ki'eki'e ka mauna = "the mountain is tall") -- no separate copula lexeme
 real_adjective_after_noun: true      # real Hawaiian modifiers follow the noun (mauna ki'eki'e = "tall mountain")
 real_case_count: null                # real Hawaiian marks grammatical relations with preposed case-marking particles, not fused inflectional suffixes -- same abstention reasoning as Japanese/Korean's own profiles
+foreign_name_handling: adapt      # borrowings are fitted to Hawaiian's tiny inventory

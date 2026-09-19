@@ -119,6 +119,25 @@ def _fake_tense_label(detected: str, tenses: list[str]) -> str | None:
     return None
 
 
+def _fake_extract_names(prompt: str) -> tuple[str, dict[str, str]]:
+    """Swaps each capitalized word that is neither sentence-initial nor "I"
+    (a plausible proper name; a possessive 's is dropped) for a lowercase
+    placeholder token, so the rest of the heuristic sees an ordinary
+    noun-like token; returns the rewritten prompt and placeholder -> name."""
+    names: dict[str, str] = {}
+    first_word = re.search(r"[A-Za-z']+", prompt)
+    start_of_first = first_word.start() if first_word else 0
+
+    def swap(match: re.Match) -> str:
+        if match.start() == start_of_first or match.group(1) == "I":
+            return match.group(0)
+        placeholder = f"zzname{chr(97 + len(names) % 26)}zz"  # letters only: the tokenizer splits on digits
+        names[placeholder] = match.group(1)
+        return placeholder
+
+    return re.sub(r"\b([A-Z][a-z]+)(?:'s)?\b", swap, prompt), names
+
+
 def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
     """Deterministically reproduces, from ``prompt`` (the raw English
     input) and the grammar-shape ``metadata`` keys ``sentence_planner.
@@ -143,6 +162,7 @@ def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
     has_overt_copula = metadata.get("has_overt_copula") == "true"
     adjective_after_noun = metadata.get("adjective_after_noun") == "true"
 
+    prompt, name_by_placeholder = _fake_extract_names(prompt)
     raw_tokens = _fake_tokenize(prompt)
     used_article = any(t in _FAKE_ARTICLES for t in raw_tokens)
     tokens = [t for t in raw_tokens if t not in _FAKE_ARTICLES]
@@ -161,6 +181,11 @@ def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
         return slot
 
     def noun_phrase(tok: str, case: str | None) -> list[dict]:
+        if tok in name_by_placeholder:
+            name_slot: dict = {"kind": "name", "gloss": name_by_placeholder[tok]}
+            if case:
+                name_slot["case"] = case
+            return [name_slot]
         is_pronoun = tok in _FAKE_PRONOUN_TOKENS
         prefix = [] if is_pronoun or not (used_article and has_articles) else [{"kind": "article"}]
         return prefix + [content_slot(tok, "pronoun" if is_pronoun else "noun", case)]
@@ -202,7 +227,9 @@ def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
         slots = [s for role in _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O")) for s in role_slots[role]]
     else:
         slots = [
-            {"kind": "negation"} if t == "not" else content_slot(t, "adverb" if _fake_is_adverb(t) else "noun")
+            {"kind": "negation"} if t == "not"
+            else {"kind": "name", "gloss": name_by_placeholder[t]} if t in name_by_placeholder
+            else content_slot(t, "adverb" if _fake_is_adverb(t) else "noun")
             for t in tokens_no_copula
         ]
 

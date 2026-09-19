@@ -45,7 +45,7 @@ actually produces) to the real ``core.lexicon.PartOfSpeech`` enum
 ``translator.py``'s rendering step needs -- kept here, not in
 ``translator.py``, since this module owns the plan's own string vocabulary."""
 
-_SLOT_KINDS = ("content", "article", "copula", "negation", "conjunction")
+_SLOT_KINDS = ("content", "article", "copula", "negation", "conjunction", "name")
 
 _ARTICLES = {"a", "an", "the"}
 
@@ -56,10 +56,11 @@ class PlannedSlot:
     """One of ``"content"`` (an ordinary word), ``"article"`` (this
     language's own "the"), ``"copula"`` (this language's own "be"),
     ``"negation"`` (this language's own "not"), ``"conjunction"`` (this
-    language's own "and")."""
+    language's own "and"), ``"name"`` (a foreign proper name, handled per
+    the language's ``foreign_names`` trait -- see ``translation/names.py``)."""
     gloss: str = ""
-    """The base English lemma (e.g. "see", not "saw") -- only meaningful
-    for ``kind="content"``."""
+    """The base English lemma (e.g. "see", not "saw") for ``kind="content"``;
+    the name exactly as written, capitalization kept, for ``kind="name"``."""
     pos: str = ""
     """One of ``POS_BY_PLAN_STRING``'s own keys -- only meaningful for
     ``kind="content"``."""
@@ -129,7 +130,7 @@ adjective's own position relative to its subject.
 - optional slot kinds available in this language: {optional_desc}.
 
 Every slot is a JSON object with a "kind" field: "content", "article", \
-"negation", "conjunction" are always available; "copula" only when listed \
+"negation", "conjunction", "name" are always available; "copula" only when listed \
 above. A "content" slot also needs "gloss" (the base English lemma, e.g. \
 "see" not "saw", "mountain" not "mountains") and "pos" (one of "noun", \
 "verb", "adjective", "pronoun", "numeral", "adverb", "preposition", "other"). Never drop a meaningful word: degree words and adverbs ("very", "extremely", "quickly"), prepositions ("in", "on"), and every other content word each get their own "content" slot (pos "adverb"/"preposition"), placed next to the word they modify (a degree adverb directly before its adjective). A "content" slot may \
@@ -146,7 +147,14 @@ emit an "article" slot immediately next to a pronoun (I/you/he/we/this/\
 that) -- no real language does this, even when the English input itself \
 used "the".
 
-Five worked examples (illustrative field values only -- always use *this* \
+Proper names of people and places (Bruno, Maria, Amsterdam) get a "name" \
+slot with "gloss" set to the name exactly as written -- never translate, \
+respell, or turn a name into a content word; a "name" slot may also set \
+"case" like a noun. A possessive 's has no marking in this language yet: \
+emit the name slot directly before the possessed noun's own slot ("Bruno's \
+leg" -> name Bruno, then content leg).
+
+Six worked examples (illustrative field values only -- always use *this* \
 language's own real case/tense labels listed above, never these \
 placeholder names, and only emit "article"/"copula" slots when this \
 language actually has them):
@@ -174,6 +182,12 @@ placed next to the predicate it negates) -> [{{"kind":"article"}}, \
 "tense":"<a real tense label>","agreement":"default"}}, \
 {{"kind":"negation"}}, {{"kind":"content","gloss":"high",\
 "pos":"adjective"}}]
+
+"I see Bruno" (a proper name is a "name" slot, case-marked like any \
+object) -> [{{"kind":"content","gloss":"I","pos":"pronoun"}}, \
+{{"kind":"content","gloss":"see","pos":"verb","tense":"<a real tense \
+label>","agreement":"I"}}, {{"kind":"name","gloss":"Bruno","case":"<a real \
+case label, if this alignment marks the object>"}}]
 
 "I am very tired" (a degree adverb keeps its own slot right before the adjective it modifies -- never omit it) -> [{{"kind":"content","gloss":"I","pos":"pronoun"}}, {{"kind":"copula","tense":"<a real tense label>","agreement":"I"}}, {{"kind":"content","gloss":"very","pos":"adverb"}}, {{"kind":"content","gloss":"tired","pos":"adjective"}}]
 
@@ -238,7 +252,7 @@ def _parse(text: str) -> SentencePlan | None:
         if kind not in _SLOT_KINDS:
             continue
         gloss = item.get("gloss")
-        gloss = gloss.strip().lower() if isinstance(gloss, str) else ""
+        gloss = ((gloss.strip() if kind == "name" else gloss.strip().lower()) if isinstance(gloss, str) else "")
         pos = item.get("pos")
         pos = pos if pos in POS_BY_PLAN_STRING else "noun"
         slots.append(

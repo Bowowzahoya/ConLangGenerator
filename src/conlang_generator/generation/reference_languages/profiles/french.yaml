@@ -193,3 +193,4 @@ real_has_articles: true              # le/la/les, un/une -- real, grammaticalize
 real_has_overt_copula: true          # "être" -- real French predicate-adjective sentences use an overt copula (la montagne est haute)
 real_adjective_after_noun: true      # most real French descriptive adjectives follow the noun (une montagne haute) -- a smaller class (grand/petit/bon/beau/jeune/vieux/...) precedes, the less common pattern
 real_case_count: 0                   # modern French nouns don't decline for case at all (only a few pronouns retain a vestigial nominative/oblique distinction: je/moi)
+foreign_name_handling: keep       # foreign personal names are used as written

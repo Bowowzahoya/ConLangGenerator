@@ -92,3 +92,4 @@ real_has_articles: false             # no grammaticalized articles -- definitene
 real_has_overt_copula: true          # "ni" -- a real, invariant copula particle used in predicate-adjective/nominal sentences (yeye ni mrefu = "he is tall")
 real_adjective_after_noun: true      # real Swahili attributive adjectives follow the noun, agreeing via noun-class concord (mtu mrefu = "tall person")
 real_case_count: 0                   # Swahili (like other Bantu languages) marks grammatical relations via noun-class agreement, not case inflection
+foreign_name_handling: keep       # foreign personal names are used as written
