@@ -82,6 +82,13 @@ own irregular-past table -- this module can't import from ``translation``
 (``translator.py`` already imports from ``llm``, so the reverse would be
 circular), and this fake only needs enough to keep its own deterministic
 heuristic self-consistent, not a shared source of truth."""
+_FAKE_ADVERBS = {"very", "extremely", "quite", "really", "too", "so", "always", "never", "often"}
+
+
+def _fake_is_adverb(token: str) -> bool:
+    return token in _FAKE_ADVERBS or (token.endswith("ly") and len(token) > 4)
+
+
 _FAKE_ROLE_ORDER = {
     "SOV": ("S", "O", "V"), "SVO": ("S", "V", "O"), "VSO": ("V", "S", "O"),
     "VOS": ("V", "O", "S"), "OVS": ("O", "V", "S"), "OSV": ("O", "S", "V"),
@@ -143,7 +150,9 @@ def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
     has_copula = any(t in _FAKE_COPULAS for t in tokens)
     copula_tok = next((t for t in tokens if t in _FAKE_COPULAS), None)
     negated = "not" in tokens_no_copula
-    content_tokens = [t for t in tokens_no_copula if t != "not"]
+    adverb_tokens = [t for t in tokens_no_copula if _fake_is_adverb(t)]
+    content_tokens = [t for t in tokens_no_copula if t != "not" and not _fake_is_adverb(t)]
+    adverb_slots = [{"kind": "content", "gloss": t, "pos": "adverb"} for t in adverb_tokens]
 
     def content_slot(tok: str, pos: str, case: str | None = None) -> dict:
         slot: dict = {"kind": "content", "gloss": tok, "pos": pos}
@@ -160,6 +169,7 @@ def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
         subject_tok, adj_tok = content_tokens
         subject_np = noun_phrase(subject_tok, None)
         adjective_slot = content_slot(adj_tok, "adjective")
+        adjective_group = adverb_slots + [adjective_slot]
         copula_group: list[dict] = []
         if has_overt_copula:
             detected_tense = "past" if copula_tok in _FAKE_PAST_COPULAS else "non_past"
@@ -170,8 +180,8 @@ def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
             copula_group = [copula_slot]
         if negated:
             copula_group = copula_group + [{"kind": "negation"}]
-        slots = (subject_np + copula_group + [adjective_slot]) if adjective_after_noun else (
-            [adjective_slot] + copula_group + subject_np
+        slots = (subject_np + copula_group + adjective_group) if adjective_after_noun else (
+            adjective_group + copula_group + subject_np
         )
     elif len(content_tokens) == 3:
         subject_tok, verb_tok, obj_tok = content_tokens
@@ -187,12 +197,12 @@ def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
         }
         if tense_label:
             verb_slot["tense"] = tense_label
-        verb_group = [verb_slot] + ([{"kind": "negation"}] if negated else [])
+        verb_group = adverb_slots + [verb_slot] + ([{"kind": "negation"}] if negated else [])
         role_slots = {"S": subject_np, "V": verb_group, "O": object_np}
         slots = [s for role in _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O")) for s in role_slots[role]]
     else:
         slots = [
-            {"kind": "negation"} if t == "not" else content_slot(t, "noun")
+            {"kind": "negation"} if t == "not" else content_slot(t, "adverb" if _fake_is_adverb(t) else "noun")
             for t in tokens_no_copula
         ]
 

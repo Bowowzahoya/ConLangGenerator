@@ -36,6 +36,8 @@ POS_BY_PLAN_STRING: dict[str, PartOfSpeech] = {
     "adjective": PartOfSpeech.ADJECTIVE,
     "pronoun": PartOfSpeech.PRONOUN,
     "numeral": PartOfSpeech.NUMERAL,
+    "adverb": PartOfSpeech.PARTICLE,
+    "preposition": PartOfSpeech.PARTICLE,
     "other": PartOfSpeech.OTHER,
 }
 """Maps a ``PlannedSlot.pos`` string (JSON-friendly, what the LLM/parser
@@ -130,7 +132,7 @@ Every slot is a JSON object with a "kind" field: "content", "article", \
 "negation", "conjunction" are always available; "copula" only when listed \
 above. A "content" slot also needs "gloss" (the base English lemma, e.g. \
 "see" not "saw", "mountain" not "mountains") and "pos" (one of "noun", \
-"verb", "adjective", "pronoun", "numeral", "other"). A "content" slot may \
+"verb", "adjective", "pronoun", "numeral", "adverb", "preposition", "other"). Never drop a meaningful word: degree words and adverbs ("very", "extremely", "quickly"), prepositions ("in", "on"), and every other content word each get their own "content" slot (pos "adverb"/"preposition"), placed next to the word they modify (a degree adverb directly before its adjective). A "content" slot may \
 also set "case" (one of this language's own cases above -- only on a \
 noun/pronoun argument, and only when this sentence's own alignment \
 actually calls for marking that particular argument; omit otherwise). A \
@@ -144,7 +146,7 @@ emit an "article" slot immediately next to a pronoun (I/you/he/we/this/\
 that) -- no real language does this, even when the English input itself \
 used "the".
 
-Four worked examples (illustrative field values only -- always use *this* \
+Five worked examples (illustrative field values only -- always use *this* \
 language's own real case/tense labels listed above, never these \
 placeholder names, and only emit "article"/"copula" slots when this \
 language actually has them):
@@ -172,6 +174,8 @@ placed next to the predicate it negates) -> [{{"kind":"article"}}, \
 "tense":"<a real tense label>","agreement":"default"}}, \
 {{"kind":"negation"}}, {{"kind":"content","gloss":"high",\
 "pos":"adjective"}}]
+
+"I am very tired" (a degree adverb keeps its own slot right before the adjective it modifies -- never omit it) -> [{{"kind":"content","gloss":"I","pos":"pronoun"}}, {{"kind":"copula","tense":"<a real tense label>","agreement":"I"}}, {{"kind":"content","gloss":"very","pos":"adverb"}}, {{"kind":"content","gloss":"tired","pos":"adjective"}}]
 
 "I see the mountain and the river" (coordination -- each coordinated noun \
 phrase repeats its own article/case exactly as if it stood alone) -> \

@@ -41,7 +41,10 @@ def build_llm_client(
 
     tracker = CostTracker(cache_dir / "cost_ledger.jsonl")
     tracked = CostTrackingLLMClient(real, tracker)
-    return CachingLLMClient(tracked, cache_dir / "llm_cache.json")
+    # One cache file per backend: the key is request content only, so a
+    # shared file would serve a fake backend's placeholder answer to a later
+    # real request (and vice versa).
+    return CachingLLMClient(tracked, cache_dir / f"llm_cache_{kind}.json")
 
 
 __all__ = ["build_llm_client", "DEFAULT_MODEL", "DEFAULT_CACHE_DIR"]
