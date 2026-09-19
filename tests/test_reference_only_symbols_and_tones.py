@@ -90,3 +90,12 @@ def test_an_exact_tonal_real_word_keeps_its_tones_and_records_them(monkeypatch):
     water = language.lexicon.by_gloss("water")
     assert water.ipa == word and water.tones == (ToneLevel.FALLING,)
     assert language.lexicon.by_gloss("fire").tones == (ToneLevel.DIPPING,)
+
+
+def test_the_curated_mandarin_lexicon_makes_a_tonal_language_with_its_four_tones():
+    traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=1.0, source_word_strictness=1.0)
+    language = generate_language("T", GenerationSpec(prompt="p", seed=5, traits=traits), FakeLLMClient())
+    assert language.tone_system.enabled
+    assert set(language.tone_system.levels) == {ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.DIPPING, ToneLevel.FALLING}
+    water = language.lexicon.by_gloss("water")
+    assert water.romanization == "shuǐ" and water.tones == (ToneLevel.DIPPING,)
