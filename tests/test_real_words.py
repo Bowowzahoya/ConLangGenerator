@@ -27,7 +27,7 @@ def test_word_strictness_one_makes_exact_copies_of_the_real_words_with_correct_p
     assert language.lexicon.by_gloss("fire").romanization == "vuur"
     assert language.lexicon.by_gloss("mountain").pos is PartOfSpeech.NOUN
     assert language.lexicon.by_gloss("eat").pos is PartOfSpeech.VERB
-    assert len(_real(language)) == 49  # every curated Dutch meaning
+    assert len(_real(language)) >= 350  # nearly every pregenerated meaning is a curated Dutch word
 
 
 def test_exact_copies_force_their_sounds_into_the_inventory_even_at_low_sound_strictness():
@@ -56,7 +56,7 @@ def test_generation_with_real_words_is_deterministic():
 def test_partial_strictness_gives_looser_variants_using_only_the_languages_own_sounds():
     language = _language(0.5)
     based = _real(language)
-    assert 12 <= len(based) <= 38  # about half of the 49 curated meanings
+    assert 120 <= len(based) <= 280  # about half of the 400 pregenerated meanings
     inventory = tuple(language.phonology.all_symbols())
     vowels = {v.ipa for v in language.phonology.vowels}
     from conlang_generator.generation import ipa_tokenizer
@@ -105,15 +105,15 @@ class _StubClient:
 def test_the_llm_fills_meanings_a_language_has_no_curated_words_for():
     reply = "\n".join(f"{i}|palabra{i}|kata" for i in range(1, 101))
     client = _StubClient(reply)
-    language = _language(1.0, sound=1.0, source=("Spanish",), client=client)
-    filled = [e for e in _real(language) if e.notes == "real word: Spanish"]
+    language = _language(1.0, sound=1.0, source=("Welsh",), client=client)
+    filled = [e for e in _real(language) if e.notes == "real word: Welsh"]
     assert client.calls >= 1 and len(filled) > 50
     assert all(e.ipa == "kata" and e.romanization.startswith("palabra") for e in filled)
 
 
 def test_a_malformed_or_invalid_llm_reply_leaves_the_words_invented():
     for reply in ("I cannot help with that.", "\n".join(f"{i}|palabra|zzzz$$" for i in range(1, 101))):
-        language = _language(1.0, sound=1.0, source=("Spanish",), client=_StubClient(reply))
+        language = _language(1.0, sound=1.0, source=("Welsh",), client=_StubClient(reply))
         assert _real(language) == []
 
 
