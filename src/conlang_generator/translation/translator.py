@@ -224,6 +224,22 @@ def _apply_verb_inflection(
     return romanization, ipa
 
 
+def _gloss_variants(gloss: str) -> list[str]:
+    """The gloss itself, then its likely singular/base spellings -- so a
+    word coined earlier (e.g. "boat") is found again when a later request
+    phrases it slightly differently ("Boats", "boats"), instead of being
+    coined a second time under a different spelling."""
+    base = gloss.strip().lower()
+    variants = [base]
+    if base.endswith("ies") and len(base) > 4:
+        variants.append(base[:-3] + "y")
+    if base.endswith("es") and len(base) > 3:
+        variants.append(base[:-2])
+    if base.endswith("s") and len(base) > 2:
+        variants.append(base[:-1])
+    return variants
+
+
 def _lookup_or_coin(
     language: Language,
     token: str,
@@ -232,7 +248,7 @@ def _lookup_or_coin(
     llm_client: LLMClient,
     lemma_candidates: list[str],
 ) -> tuple[Language, LexicalEntry]:
-    for candidate in lemma_candidates:
+    for candidate in [variant for lemma in lemma_candidates for variant in _gloss_variants(lemma)]:
         entry = language.lexicon.by_gloss(candidate)
         if entry is not None:
             return language, entry

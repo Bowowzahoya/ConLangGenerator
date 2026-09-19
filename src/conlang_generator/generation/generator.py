@@ -115,7 +115,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     known_forms = {normalized_form(entry.romanization) for entry in seed_entries}
 
     eligible_meanings = []
-    for gloss, pos in lexicon_gen.CORE_MEANINGS:
+    for gloss, pos in lexicon_gen.select_meanings(spec.vocabulary_size):
         if gloss.lower() in seeded_glosses:
             continue
         gate_attr = lexicon_gen.CONDITIONAL_MEANINGS.get(gloss)
@@ -123,14 +123,14 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             continue
         eligible_meanings.append((gloss, pos))
 
-    def build_and_pick(meanings: list[tuple[str, PartOfSpeech]]) -> list[LexicalEntry]:
+    def build_and_pick(meanings: list[tuple[str, PartOfSpeech]], use_llm: bool) -> list[LexicalEntry]:
         # Build every word's candidate pool (algorithmic), then make every
         # pick at once -- one batched LLM request when word_selection is
         # "llm" (instead of one call per word), or a plain seeded pick, with
         # no LLM call at all, otherwise.
         built = [build_core_pending(gloss, pos) for gloss, pos in meanings]
         pending_words = [item for item in built if isinstance(item, lexicon_gen.PendingWord)]
-        if spec.word_selection == "llm":
+        if use_llm and spec.word_selection == "llm":
             chosen_candidates = lexicon_gen.choose_best_candidates_batch(
                 pending_words, llm_client, name, spec.traits.salient_context
             )
@@ -144,25 +144,25 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         chosen_iter = iter(chosen_candidates)
         return [item if isinstance(item, LexicalEntry) else item.finish(next(chosen_iter)) for item in built]
 
-    generated_entries = build_and_pick(eligible_meanings)
+    generated_entries = build_and_pick(eligible_meanings, use_llm=True)
 
     # Retry a romanization collision with a word already placed in this
     # lexicon (same discipline as translation.expansion.coin_word), since
     # Lexicon.by_form returns only the first match and a homograph would
-    # make the other word unreachable via it. Each retry round re-picks
-    # every still-colliding word together, so a batched run costs roughly
-    # one request per round, not one per colliding word; after 5 rounds a
-    # still-colliding word is accepted as-is.
+    # make the other word unreachable via it. Retries re-pick every still-
+    # colliding word together and never call the LLM (an aesthetic pick
+    # is pointless when the point is just to avoid a clash); after 20
+    # rounds a still-colliding word is accepted as-is.
     unresolved: list[int] = []
     for index, entry in enumerate(generated_entries):
         if normalized_form(entry.romanization) in known_forms:
             unresolved.append(index)
         else:
             known_forms.add(normalized_form(entry.romanization))
-    for _ in range(5):
+    for _ in range(20):
         if not unresolved:
             break
-        retried = build_and_pick([eligible_meanings[i] for i in unresolved])
+        retried = build_and_pick([eligible_meanings[i] for i in unresolved], use_llm=False)
         still_colliding: list[int] = []
         for index, entry in zip(unresolved, retried):
             generated_entries[index] = entry

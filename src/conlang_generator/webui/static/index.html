@@ -124,6 +124,10 @@
         </select>
       </div>
       <div>
+        <label for="gen-vocab-size">Pregenerated words</label>
+        <input type="number" id="gen-vocab-size" value="400" min="1" max="496" step="10">
+      </div>
+      <div>
         <label for="gen-word-selection">Word selection</label>
         <select id="gen-word-selection">
           <option value="algorithmic">algorithmic (no LLM)</option>
@@ -336,6 +340,7 @@ async function loadOptions() {
       select.appendChild(opt);
     }
   };
+  $("gen-vocab-size").max = opts.max_vocabulary_size;
   fill("gen-orthography-style", opts.orthography_styles);
   fill("gen-exotic-symbol-style", opts.exotic_symbol_styles);
   fill("gen-vowel-length-style", opts.vowel_length_styles);
@@ -426,6 +431,7 @@ $("generate-btn").onclick = async () => {
     tonal: $("gen-tonal").checked,
     allow_all_caps: $("gen-allow-all-caps").checked,
     word_selection: $("gen-word-selection").value,
+    vocabulary_size: parseInt($("gen-vocab-size").value || "400", 10),
     source_languages: collectSourceLanguages(),
     strictness: $("gen-strictness").value ? parseFloat($("gen-strictness").value) : null,
     examples: collectSeedExamples(),

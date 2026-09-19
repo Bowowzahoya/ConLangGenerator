@@ -26,6 +26,7 @@ from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, ToneSystem, WordAccentSystem
 from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
 from conlang_generator.generation import stress_gen, word_accent_gen, word_builder, word_class_gen
+from conlang_generator.generation.extended_meanings import EXTENDED_MEANINGS
 from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
@@ -86,6 +87,30 @@ CORE_MEANINGS: tuple[tuple[str, PartOfSpeech], ...] = (
     ("the", PartOfSpeech.PARTICLE),
     ("be", PartOfSpeech.VERB),
 )
+
+ALL_MEANINGS: tuple[tuple[str, PartOfSpeech], ...] = CORE_MEANINGS + EXTENDED_MEANINGS
+"""Every meaning this project can pregenerate, most basic first (the
+original 51, then ``extended_meanings.EXTENDED_MEANINGS``) --
+``GenerationSpec.vocabulary_size`` takes a prefix of this."""
+
+ESSENTIAL_GLOSSES: frozenset[str] = frozenset(
+    {"I", "you", "he", "we", "this", "that", "not", "and", "the", "be"}
+)
+"""Grammatical words translation itself relies on (pronouns for agreement,
+negation/coordination/article/copula slots) -- always pregenerated even for
+a very small ``vocabulary_size``."""
+
+
+def select_meanings(vocabulary_size: int) -> list[tuple[str, PartOfSpeech]]:
+    """The first ``vocabulary_size`` entries of ``ALL_MEANINGS``, plus any
+    ``ESSENTIAL_GLOSSES`` a small size would otherwise cut. Anything not
+    pregenerated is still coined on demand during translation
+    (``translation/expansion.py``) and then reused."""
+    chosen = list(ALL_MEANINGS[: max(0, vocabulary_size)])
+    present = {gloss for gloss, _ in chosen}
+    chosen.extend(entry for entry in ALL_MEANINGS if entry[0] in ESSENTIAL_GLOSSES and entry[0] not in present)
+    return chosen
+
 
 CONDITIONAL_MEANINGS: dict[str, str] = {"the": "has_articles", "be": "has_overt_copula"}
 """Maps a gloss in ``CORE_MEANINGS`` to the ``core.grammar.GrammarProfile``
@@ -351,7 +376,24 @@ class PendingWord:
     finish: Callable[[str], LexicalEntry]
 
 
+BATCH_CHUNK_SIZE = 100
+"""Most words per batched request -- a full 400-word vocabulary becomes a
+few requests of manageable size (and a bounded reply to parse) instead of
+one very long one."""
+
+
 def choose_best_candidates_batch(
+    pending: list[PendingWord], llm_client: LLMClient, language_name: str, context: str = ""
+) -> list[str]:
+    """Chooses for every pending word, ``BATCH_CHUNK_SIZE`` words per LLM
+    request (see ``_choose_chunk``)."""
+    chosen: list[str] = []
+    for start in range(0, len(pending), BATCH_CHUNK_SIZE):
+        chosen.extend(_choose_chunk(pending[start : start + BATCH_CHUNK_SIZE], llm_client, language_name, context))
+    return chosen
+
+
+def _choose_chunk(
     pending: list[PendingWord], llm_client: LLMClient, language_name: str, context: str = ""
 ) -> list[str]:
     """One LLM request choosing among every pending word's candidates at

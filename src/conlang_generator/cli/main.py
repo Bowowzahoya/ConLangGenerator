@@ -14,6 +14,7 @@ from conlang_generator.core.romanization import (
 )
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.generation.generator import generate_language
+from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.generation.seed_examples import resolve_seed_examples
@@ -158,6 +159,11 @@ def generate(
         False, "--allow-all-caps",
         help="Permit (not guarantee) a rare roll rendering a whole part-of-speech category in ALL CAPS. Off by default.",
     ),
+    vocabulary_size: int = typer.Option(
+        400, "--vocabulary-size",
+        help="How many basic meanings to pregenerate (most basic first; default 400, max 496). Grammatical "
+        "essentials are always included, and any other word is coined on demand during translation, then reused.",
+    ),
     word_selection: str = typer.Option(
         "algorithmic", "--word-selection",
         help="How the final pick among each word's already-built candidate spellings is made: 'algorithmic' (default, "
@@ -166,6 +172,9 @@ def generate(
     ),
 ) -> None:
     """Generate a new language and save it."""
+    if not 1 <= vocabulary_size <= len(ALL_MEANINGS):
+        typer.echo(f"error: --vocabulary-size must be between 1 and {len(ALL_MEANINGS)}, got {vocabulary_size}", err=True)
+        raise typer.Exit(code=1)
     if word_selection not in ("algorithmic", "llm"):
         typer.echo(f"error: --word-selection must be 'algorithmic' or 'llm', got {word_selection!r}", err=True)
         raise typer.Exit(code=1)
@@ -239,6 +248,7 @@ def generate(
         seed_examples=seed_examples,
         allow_all_caps=allow_all_caps,
         word_selection=word_selection,
+        vocabulary_size=vocabulary_size,
     )
     language = generate_language(name, spec, client)
     _repository().save(language)

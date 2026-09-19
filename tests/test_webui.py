@@ -187,3 +187,24 @@ def test_generate_rejects_an_invalid_word_selection(client):
         "/api/generate", json={"prompt": "p", "name": "Ws Bad", "seed": 2, "llm": "fake", "word_selection": "psychic"}
     )
     assert response.status_code == 400
+
+
+def test_generate_respects_vocabulary_size_and_defaults_to_400(client):
+    default = client.post("/api/generate", json={"prompt": "p", "name": "Vs Default", "seed": 2, "llm": "fake"}).json()
+    assert len(default["lexicon"]) >= 390
+    small = client.post(
+        "/api/generate", json={"prompt": "p", "name": "Vs Small", "seed": 2, "llm": "fake", "vocabulary_size": 60}
+    ).json()
+    assert 55 <= len(small["lexicon"]) <= 70
+
+
+def test_generate_rejects_an_out_of_range_vocabulary_size(client):
+    for bad in (0, 100000):
+        response = client.post(
+            "/api/generate", json={"prompt": "p", "name": "Vs Bad", "seed": 2, "llm": "fake", "vocabulary_size": bad}
+        )
+        assert response.status_code == 400
+
+
+def test_options_endpoint_reports_the_max_vocabulary_size(client):
+    assert client.get("/api/options").json()["max_vocabulary_size"] > 400

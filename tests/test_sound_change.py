@@ -525,10 +525,14 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # byte-identical to the base. (Re-found repeatedly as downstream rng
     # draws shift -- most recently against seed=0 after generator.py
     # started conditionally coining "the"/"be" for every language,
-    # shifting this once more, same "seed-shift from new content" pattern
-    # documented elsewhere in this project's history.)
+    # shifting this once more, and again against seed=2 after
+    # sonority.legal_*_pairs began excluding tokenizer-ambiguous clusters
+    # -- and again against seed=8 (valid with or without that sonority
+    # change) after the default vocabulary grew to 400 words -- same
+    # "seed-shift from new content" pattern documented elsewhere in this
+    # project's history.)
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=0)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=8)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)

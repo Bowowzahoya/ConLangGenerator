@@ -73,3 +73,9 @@ class GenerationSpec(BaseModel, frozen=True):
     prompt classification always uses the configured LLM backend
     regardless -- this only governs the last pick. Also honored for words
     coined later during translation (``translation/expansion.py``)."""
+    vocabulary_size: int = 400
+    """How many meanings to pregenerate (a prefix of ``generation/
+    lexicon_gen.ALL_MEANINGS``, most basic first; capped at what exists,
+    and the grammatical essentials are always included). Words outside it
+    are still coined on demand when translation needs them, then reused --
+    see ``translation/expansion.py``."""

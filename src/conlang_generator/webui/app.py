@@ -39,6 +39,7 @@ from conlang_generator.core.romanization import (
 )
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.generation.generator import generate_language
+from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.generation.seed_examples import resolve_seed_examples
@@ -178,6 +179,7 @@ class GenerateRequest(BaseModel):
     consonant_gemination_marked: bool | None = None
     allow_all_caps: bool = False
     word_selection: str = "algorithmic"
+    vocabulary_size: int = 400
 
 
 class TranslateRequest(BaseModel):
@@ -220,6 +222,7 @@ def get_options() -> dict:
         "tone_styles": [m.name.lower() for m in ToneMarkingStrategy],
         "syllable_boundary_markers": [m.name.lower() for m in SyllableBoundaryMarker],
         "tts_backends": tts.available_backends(),
+        "max_vocabulary_size": len(ALL_MEANINGS),
     }
 
 
@@ -232,6 +235,8 @@ def generate(request: GenerateRequest) -> dict:
         )
     if request.strictness is not None and not 0.0 <= request.strictness <= 1.0:
         raise HTTPException(status_code=400, detail="strictness must be between 0.0 and 1.0")
+    if not 1 <= request.vocabulary_size <= len(ALL_MEANINGS):
+        raise HTTPException(status_code=400, detail=f"vocabulary_size must be between 1 and {len(ALL_MEANINGS)}")
     if request.word_selection not in ("algorithmic", "llm"):
         raise HTTPException(status_code=400, detail="word_selection must be 'algorithmic' or 'llm'")
 
@@ -273,6 +278,7 @@ def generate(request: GenerateRequest) -> dict:
         seed_examples=seed_examples,
         allow_all_caps=request.allow_all_caps,
         word_selection=request.word_selection,
+        vocabulary_size=request.vocabulary_size,
     )
     language = generate_language(request.name, spec, client)
     _repository().save(language)

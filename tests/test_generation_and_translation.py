@@ -78,19 +78,41 @@ def test_translate_coins_new_word_and_can_be_persisted(tmp_path: Path):
     spec = GenerationSpec(prompt="test language", seed=7)
     client = FakeLLMClient()
     language = generate_language("Test", spec, client)
-    assert language.lexicon.by_gloss("boat") is None  # not core vocabulary
+    # Words outside the default 400-word vocabulary, so they must be coined.
+    assert language.lexicon.by_gloss("canoe") is None
+    assert language.lexicon.by_gloss("crimson") is None
 
-    result = translate_to_conlang("the boat is red", language, client)
+    result = translate_to_conlang("the canoe is crimson", language, client)
     assert len(result.coined) == 2
-    assert result.language.lexicon.by_gloss("boat") is not None
-    assert result.language.lexicon.by_gloss("red") is not None
-    assert language.lexicon.by_gloss("boat") is None  # original untouched
+    assert result.language.lexicon.by_gloss("canoe") is not None
+    assert result.language.lexicon.by_gloss("crimson") is not None
+    assert language.lexicon.by_gloss("canoe") is None  # original untouched
 
     repo = YamlLanguageRepository(tmp_path)
     repo.save(result.language)
     reloaded = repo.load(language.name)
-    assert reloaded.lexicon.by_gloss("boat") is not None
-    assert reloaded.lexicon.by_gloss("red") is not None
+    assert reloaded.lexicon.by_gloss("canoe") is not None
+    assert reloaded.lexicon.by_gloss("crimson") is not None
+
+
+def test_a_coined_word_is_reused_not_recoined_on_later_requests(tmp_path: Path):
+    client = FakeLLMClient()
+    language = generate_language("Test", GenerationSpec(prompt="p", seed=7), client)
+    first = translate_to_conlang("the canoe is crimson", language, client)
+    canoe = first.language.lexicon.by_gloss("canoe")
+
+    repo = YamlLanguageRepository(tmp_path)
+    repo.save(first.language)
+    reloaded = repo.load(language.name)  # a later session
+
+    again = translate_to_conlang("the canoe is crimson", reloaded, client)
+    assert again.coined == ()
+    assert again.text == first.text
+
+    plural = translate_to_conlang("the canoes are crimson", reloaded, client)
+    assert plural.coined == ()  # "canoes" finds the existing "canoe"
+    assert canoe.romanization in plural.text.split()
+
 
 
 def test_cache_hit_is_not_billed_again(tmp_path: Path):

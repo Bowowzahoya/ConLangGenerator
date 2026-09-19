@@ -90,14 +90,23 @@ def test_generate_language_algorithmic_makes_no_word_selection_calls():
     assert _word_selection_calls(client) == 0
 
 
-def test_generate_language_llm_batches_the_whole_core_vocabulary_into_one_call():
+def test_generate_language_llm_batches_the_whole_vocabulary_into_a_few_calls():
     client = _CountingClient()
     language = generate_language("T", GenerationSpec(prompt="p", seed=2, word_selection="llm"), client)
-    assert len(language.lexicon.entries) > 40  # a full core vocabulary, not a stub
-    # One batched request for the first pass, plus one per collision-retry
-    # round (a handful of words at most) -- never anywhere near one per word.
-    assert 1 <= _word_selection_calls(client) <= 6
-    assert "lexicon.propose_words_batch" in client.purposes
+    assert len(language.lexicon.entries) > 380  # the full default vocabulary, not a stub
+    # One request per BATCH_CHUNK_SIZE words -- collision retries never call
+    # the LLM -- so 400 words cost 4 requests, not ~400.
+    assert _word_selection_calls(client) == 4
+    assert client.purposes.count("lexicon.propose_words_batch") == 4
+
+
+def test_a_smaller_vocabulary_size_costs_fewer_batched_calls_and_words():
+    client = _CountingClient()
+    language = generate_language(
+        "T", GenerationSpec(prompt="p", seed=2, word_selection="llm", vocabulary_size=60), client
+    )
+    assert 55 <= len(language.lexicon.entries) <= 70
+    assert _word_selection_calls(client) == 1
 
 
 def test_word_selection_is_deterministic_per_seed_in_both_modes():

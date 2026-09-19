@@ -1069,7 +1069,25 @@ Everything here is a pure function of a `random.Random` seeded from
   duplicating it. Applies to `PartOfSpeech.NOUN`/`VERB`/`ADJECTIVE` only
   (`TEMPLATIC_POS`) -- pronouns/particles/numerals stay non-templatic, real
   Semitic function words aren't derived this way either.
-- **`lexicon_gen.py`**: `CORE_MEANINGS` (the ~51-word core vocabulary) and
+- **Vocabulary size**: `lexicon_gen.CORE_MEANINGS` (the original 51,
+  unchanged -- `experiments/` scripts index real-language lexicons against
+  its order) plus `extended_meanings.EXTENDED_MEANINGS` (~445 more basic
+  meanings, grouped and ordered by how basic they are: function words,
+  verbs, adjectives, then body/nature/animals/people/food/objects/abstract
+  nouns) make up `lexicon_gen.ALL_MEANINGS` (~496).
+  `GenerationSpec.vocabulary_size` (default **400**; `--vocabulary-size` on
+  the CLI, "Pregenerated words" in the web UI) pregenerates a prefix of it
+  via `lexicon_gen.select_meanings()`, which always adds
+  `ESSENTIAL_GLOSSES` (pronouns/not/and/the/be) so translation keeps
+  working at small sizes. Anything not pregenerated is **coined on demand**
+  when translation needs it (`translation/expansion.coin_word`), saved
+  with the language, and found again on later requests: lookups also try
+  simple base forms (`translator._gloss_variants`: plural `-s`/`-es`/`-ies`)
+  so "canoes" reuses the "canoe" entry instead of coining a second word.
+  Batched LLM word selection sends 100 words per request
+  (`BATCH_CHUNK_SIZE`), so a 400-word language is 4 requests; collision
+  retries are always algorithmic (up to 20 rounds), never an LLM call.
+- **`lexicon_gen.py`**: `CORE_MEANINGS` (the original 51-word core vocabulary) and
   `propose_word()` -- builds candidate forms deterministically
   (`build_pending_word()`, returning a `PendingWord` whose `finish` callback
   completes it once a candidate is chosen), then picks one via
