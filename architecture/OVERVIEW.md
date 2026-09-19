@@ -1090,6 +1090,21 @@ Everything here is a pure function of a `random.Random` seeded from
   Word strictness far above sound strictness (margin 0.25) allows a *split
   vocabulary* and is **warned about, never blocked**. Real-derived entries
   carry `notes="real word: X"` / `"real-based word: X"`.
+  **Reference-only symbols and tones:** real words need sounds the random
+  draw would rarely (or never) pick, so `phonology_gen._REFERENCE_ONLY_
+  CONSONANTS`/`_REFERENCE_ONLY_VOWELS` model them (β ɸ ɕ ʑ ɦ ʋ ɥ ɴ; the
+  retroflex ɭ ɽ ɽʱ ʈʂ ʈʂʰ ɖʐ; emphatic zˤ lˤ; the diphthong ou) but keep
+  them **out of every draw loop and out of `_ensure_floor` padding** -- they
+  enter an inventory only when a seed/real word forces them in, so every
+  existing seeded generation is unchanged. Tone marks in seed/real words
+  (`TONE_DIACRITICS` combining marks, e.g. Mandarin 1-4 as high/rising/
+  dipping/falling) make the language tonal with exactly those tones
+  (`_levels_covering`; the tonal roll still runs first, so other draws are
+  unchanged); `LexicalEntry.tones` records them, deviated words get their
+  tones re-attached vowel by vowel and mapped to the language's own tone
+  levels (none when it is not tonal). Not modeled: tone sandhi, the neutral
+  tone as its own value, and TTS never voices tones
+  (`speech/ipa_to_kirshenbaum.py` drops them).
   Fitting a pronunciation to a language (nearest inventory phoneme +
   syllable-rule repair) lives in `generation/phoneme_fit.py`, shared with
   foreign-name adaptation. `generator.generate_evolved_language` then runs

@@ -30,13 +30,15 @@ import unicodedata
 from dataclasses import dataclass
 
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
-from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure
+from conlang_generator.core.phonology import (
+    TONE_DIACRITICS, PhonemeInventory, SyllableStructure, ToneLevel, ToneSystem,
+)
 from conlang_generator.core.romanization import (
     STRESS_MARK, WORD_ACCENT_MARK, RomanizationScheme, apply_grammatical_spelling,
 )
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
-from conlang_generator.generation import phoneme_fit, real_words_llm
+from conlang_generator.generation import ipa_tokenizer, phoneme_fit, phonology_gen, real_words_llm
 from conlang_generator.generation.lexicon_gen import CONDITIONAL_MEANINGS
 from conlang_generator.generation.reference_languages import match_profiles_weighted
 from conlang_generator.generation.reference_languages.real_lexicon import real_words
@@ -129,6 +131,7 @@ def build_real_entries(
     inventory: PhonemeInventory,
     structure: SyllableStructure,
     romanization: RomanizationScheme,
+    tone_system: ToneSystem = ToneSystem(),
 ) -> tuple[LexicalEntry, ...]:
     rng = random.Random(f"{seed}:real-deviation")
     probability = (1.0 - strictness) * DEVIATION_SCALE
@@ -136,11 +139,14 @@ def build_real_entries(
     for choice in choices:
         exact = strictness >= 1.0
         ipa = choice.ipa
+        real_tones = ipa_tokenizer.tone_sequence(choice.ipa, _SYMBOLS)
         if not exact:
             deviated = phoneme_fit.deviate_ipa(choice.ipa, inventory, structure, rng, probability)
-            unmarked = choice.ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, "")
-            exact = deviated == unmarked  # unchanged: keep the real spelling too
-            ipa = deviated
+            unmarked = ipa_tokenizer.strip_tones(choice.ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, ""))
+            # unchanged: keep the real spelling too
+            exact = deviated == unmarked and _tones_fit(real_tones, tone_system)
+            ipa = _with_tones(deviated, _fit_tones(real_tones, tone_system))
+        tones = ipa_tokenizer.tone_sequence(ipa, _SYMBOLS)
         if exact:
             spelling = unicodedata.normalize("NFC", choice.form)
             notes = f"real word: {choice.language}"
@@ -148,6 +154,56 @@ def build_real_entries(
             spelling = apply_grammatical_spelling(romanization, romanization.apply(ipa), choice.pos)
             notes = f"real-based word: {choice.language}"
         entries.append(
-            LexicalEntry(ipa=ipa, romanization=spelling, glosses=(choice.gloss,), pos=choice.pos, notes=notes)
+            LexicalEntry(
+                ipa=ipa, romanization=spelling, glosses=(choice.gloss,), pos=choice.pos, tones=tones, notes=notes
+            )
         )
     return tuple(entries)
+
+
+_SYMBOLS = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+
+
+def _tones_fit(tones: tuple[ToneLevel, ...], tone_system: ToneSystem) -> bool:
+    """A word keeps its real tones only when the language has a tone system
+    holding every one of them (or the word has none)."""
+    return not tones or (tone_system.enabled and set(tones) <= set(tone_system.levels))
+
+
+# Nearest available level when the language lacks a tone: the same contour
+# family first (rising ~ dipping), then the other levels.
+_TONE_FALLBACKS = {
+    ToneLevel.RISING: (ToneLevel.DIPPING, ToneLevel.HIGH, ToneLevel.MID, ToneLevel.LOW),
+    ToneLevel.DIPPING: (ToneLevel.RISING, ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH),
+    ToneLevel.FALLING: (ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH),
+    ToneLevel.HIGH: (ToneLevel.RISING, ToneLevel.MID, ToneLevel.FALLING, ToneLevel.LOW),
+    ToneLevel.MID: (ToneLevel.HIGH, ToneLevel.LOW, ToneLevel.RISING, ToneLevel.FALLING),
+    ToneLevel.LOW: (ToneLevel.MID, ToneLevel.FALLING, ToneLevel.DIPPING, ToneLevel.HIGH),
+}
+
+
+def _fit_tones(tones: tuple[ToneLevel, ...], tone_system: ToneSystem) -> tuple[ToneLevel, ...]:
+    """The word's tones mapped onto the language's own tone levels (none at
+    all when the language is not tonal)."""
+    if not tone_system.enabled:
+        return ()
+    available = set(tone_system.levels)
+    return tuple(
+        tone if tone in available else next(t for t in _TONE_FALLBACKS[tone] if t in available)
+        for tone in tones
+    )
+
+
+def _with_tones(ipa: str, tones: tuple[ToneLevel, ...]) -> str:
+    """Attach ``tones`` to ``ipa``'s vowels in order (the last tone repeats
+    over any extra syllables); an untoned word or language leaves it as is."""
+    if not tones:
+        return ipa
+    vowels = {v.ipa for v in phonology_gen.ALL_VOWELS}
+    out, seen = [], 0
+    for symbol, deco in ipa_tokenizer.tokenize(ipa, _SYMBOLS):
+        if symbol in vowels:
+            symbol += TONE_DIACRITICS[tones[min(seen, len(tones) - 1)]]
+            seen += 1
+        out.append(symbol + deco)
+    return "".join(out)

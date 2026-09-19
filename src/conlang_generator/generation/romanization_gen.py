@@ -172,6 +172,11 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # ض=9', ظ=6'.
     "ɣ": "gh", "pʰ": "pH", "tʰ": "tH", "kʰ": "kH", "tsʰ": "tsH",
     "tˤ": "6", "dˤ": "9'", "sˤ": "9", "ðˤ": "6'",
+    # Reference-only series (real-word support): bilabial/alveolo-palatal/
+    # glottal fricatives, retroflex completion, emphatic z/l.
+    "β": "bh", "ɸ": "fh", "ɕ": "sy", "ʑ": "zy", "ɦ": "hj", "ʋ": "vh", "ɥ": "wy", "ɴ": "nq",
+    "ɭ": "lr", "ɽ": "rd", "ɽʱ": "rdH", "ʈʂ": "tsr", "ʈʂʰ": "tsrH", "ɖʐ": "dzr",
+    "zˤ": "9z", "lˤ": "6l",
     "aː": "a:", "iː": "i:", "uː": "u:", "eː": "e:", "oː": "o:",
     # Palatalization: a trailing "y" (Hungarian's own real ny/ty digraphs
     # use exactly this convention). Gemination: no marking convention in
@@ -334,6 +339,9 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # Latin, Japanese romaji, Hawaiian, Arabic transliteration all use this).
     "ɣ": "ğ", "pʰ": "pʰ", "tʰ": "tʰ", "kʰ": "kʰ", "tsʰ": "tsʰ",
     "tˤ": "tˤ", "dˤ": "dˤ", "sˤ": "sˤ", "ðˤ": "ðˤ",
+    "β": "ƀ", "ɸ": "ḟ", "ɕ": "ś", "ʑ": "ź", "ɦ": "ḩ", "ʋ": "ṽ", "ɥ": "ẅ", "ɴ": "ṅ",
+    "ɭ": "ḷ", "ɽ": "ṛ", "ɽʱ": "ṛʰ", "ʈʂ": "ṭṣ", "ʈʂʰ": "ṭṣʰ", "ɖʐ": "ḍẓ",
+    "zˤ": "zˤ", "lˤ": "lˤ",
     "aː": "ā", "iː": "ī", "uː": "ū", "eː": "ē", "oː": "ō",
     # Palatalization keeps its own IPA modifier letter (ʲ) as-is, same
     # treatment aspiration/pharyngealization's modifier letters already
@@ -474,6 +482,9 @@ _MONOLETTER_TABLE: dict[str, str] = {
     "ɪ": "i", "ʊ": "u", "æ": "e", "ɐ": "a", "ɑ": "a", "ø": "o", "œ": "o",
     "ɣ": "g", "pʰ": "p", "tʰ": "t", "kʰ": "k", "tsʰ": "c",
     "tˤ": "t", "dˤ": "d", "sˤ": "s", "ðˤ": "d",
+    "β": "b", "ɸ": "f", "ɕ": "s", "ʑ": "z", "ɦ": "h", "ʋ": "v", "ɥ": "w", "ɴ": "n",
+    "ɭ": "l", "ɽ": "r", "ɽʱ": "r", "ʈʂ": "c", "ʈʂʰ": "c", "ɖʐ": "j",
+    "zˤ": "z", "lˤ": "l",
     "aː": "a", "iː": "i", "uː": "u", "eː": "e", "oː": "o",
     # Palatalization dropped entirely (merged with the plain consonant),
     # same "shallow system accepts some merging" precedent ejectives

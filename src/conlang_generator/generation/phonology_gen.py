@@ -243,6 +243,41 @@ _PRE_ASPIRATED_GROUP = (
 )
 _PRE_ASPIRATED_GROUP_BASE_RATE = 0.08  # rarer cross-linguistically than post-aspiration
 
+# Reference-only consonants: symbols real source languages need for their
+# actual words (see ``reference_languages/lexicons``) that no random draw
+# below ever picks -- they enter an inventory only when a seed/real word
+# forces them in (``_force_include``), and are never used as padding by
+# ``_ensure_floor``. Keeping them out of the draw loops (no ``rng`` call per
+# symbol) leaves every existing seeded generation byte-identical. The
+# prevalence still weights them once present (invented words in a language
+# that carries them use them sparingly).
+_REFERENCE_ONLY_CONSONANTS = (
+    # Bilabial fricatives: Spanish/Korean-adjacent [β], Japanese [ɸ].
+    Consonant(ipa="β", place=Place.BILABIAL, manner=Manner.FRICATIVE, voiced=True, prevalence=0.08),
+    Consonant(ipa="ɸ", place=Place.BILABIAL, manner=Manner.FRICATIVE, voiced=False, prevalence=0.08),
+    # Alveolo-palatal fricatives (Polish ś/ź, Russian щ, Mandarin x, Japanese sh) --
+    # the fricative members alongside tɕ/dʑ in ``_ALVEOLO_PALATAL_GROUP``.
+    Consonant(ipa="ɕ", place=Place.PALATAL, manner=Manner.FRICATIVE, voiced=False, prevalence=0.08),
+    Consonant(ipa="ʑ", place=Place.PALATAL, manner=Manner.FRICATIVE, voiced=True, prevalence=0.05),
+    Consonant(ipa="ɦ", place=Place.GLOTTAL, manner=Manner.FRICATIVE, voiced=True, prevalence=0.06),
+    Consonant(ipa="ʋ", place=Place.LABIODENTAL, manner=Manner.APPROXIMANT, voiced=True, prevalence=0.08),
+    Consonant(ipa="ɥ", place=Place.PALATAL, manner=Manner.APPROXIMANT, voiced=True, prevalence=0.04),
+    Consonant(ipa="ɴ", place=Place.UVULAR, manner=Manner.NASAL, voiced=True, prevalence=0.04),
+    # Retroflex series completion: the lateral (Tamil/Malayalam ḷ), the tap
+    # (Hindi/Bengali ṛ), its breathy counterpart, and the retroflex
+    # affricates (Mandarin zh/ch) that sit beside ʈ/ɖ/ʂ/ʐ/ɳ/ɻ above.
+    Consonant(ipa="ɭ", place=Place.RETROFLEX, manner=Manner.LATERAL_APPROXIMANT, voiced=True, prevalence=0.06),
+    Consonant(ipa="ɽ", place=Place.RETROFLEX, manner=Manner.TAP, voiced=True, prevalence=0.06),
+    Consonant(ipa="ɽʱ", place=Place.RETROFLEX, manner=Manner.TAP, voiced=True, breathy=True, prevalence=0.03),
+    Consonant(ipa="ʈʂ", place=Place.RETROFLEX, manner=Manner.AFFRICATE, voiced=False, prevalence=0.08),
+    Consonant(ipa="ʈʂʰ", place=Place.RETROFLEX, manner=Manner.AFFRICATE, voiced=False, aspirated=True, prevalence=0.06),
+    Consonant(ipa="ɖʐ", place=Place.RETROFLEX, manner=Manner.AFFRICATE, voiced=True, prevalence=0.04),
+    # Pharyngealized (emphatic) counterparts beyond ``_PHARYNGEALIZED_GROUP``:
+    # Egyptian/Levantine emphatic z, and the emphatic l of "Allah".
+    Consonant(ipa="zˤ", place=Place.ALVEOLAR, manner=Manner.FRICATIVE, voiced=True, pharyngealized=True, prevalence=0.03),
+    Consonant(ipa="lˤ", place=Place.ALVEOLAR, manner=Manner.LATERAL_APPROXIMANT, voiced=True, pharyngealized=True, prevalence=0.03),
+)
+
 _m = Consonant(ipa="m", place=Place.BILABIAL, manner=Manner.NASAL, voiced=True, prevalence=0.95)
 _n = Consonant(ipa="n", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, prevalence=0.95)
 _ng = Consonant(ipa="ŋ", place=Place.VELAR, manner=Manner.NASAL, voiced=True, prevalence=0.55)
@@ -568,7 +603,7 @@ _BLACKLIST_MODE_BASE_RATE = 0.7
 _RANDOM_BLACKLIST_FRACTION = 0.15  # a modest slice of the full space -- plenty stays legal
 _RANDOM_WHITELIST_EXTRA_FRACTION = 0.5  # on top of the coverage floor, for realistic variety
 
-ALL_CONSONANTS: tuple[Consonant, ...] = (
+_DRAWN_CONSONANTS: tuple[Consonant, ...] = (
     tuple(x for pair in _STOP_AND_AFFRICATE_PAIRS for x in pair)
     + (_GLOTTAL_STOP,) + _EJECTIVES + _UVULAR_GROUP
     + _ASPIRATED_GROUP + _PHARYNGEALIZED_GROUP + _GEMINATE_GROUP + _PALATALIZED_GROUP
@@ -576,10 +611,16 @@ ALL_CONSONANTS: tuple[Consonant, ...] = (
     + _NASAL_POOL + _FRICATIVE_POOL + _APPROXIMANT_POOL + _EXOTIC_POOL
     + _BREATHY_GROUP + _PRE_ASPIRATED_GROUP
 )
+ALL_CONSONANTS: tuple[Consonant, ...] = _DRAWN_CONSONANTS + _REFERENCE_ONLY_CONSONANTS
 """Every consonant this package models, regardless of a given language's
 inventory -- shared with ``sound_change.py``, which needs to look up any
 symbol evolution might produce."""
-ALL_VOWELS: tuple[Vowel, ...] = _VOWEL_ANCHORS + _VOWEL_EXTRAS
+_REFERENCE_ONLY_VOWELS = (
+    # Mandarin/Hokkien-style falling diphthong (Mandarin ou), never drawn.
+    Vowel(ipa="ou", height=VowelHeight.CLOSE_MID, backness=VowelBackness.BACK, rounded=True, diphthong=True, prevalence=0.04),
+)
+_DRAWN_VOWELS: tuple[Vowel, ...] = _VOWEL_ANCHORS + _VOWEL_EXTRAS
+ALL_VOWELS: tuple[Vowel, ...] = _DRAWN_VOWELS + _REFERENCE_ONLY_VOWELS
 """See ``ALL_CONSONANTS``."""
 
 
@@ -693,6 +734,16 @@ def _reference_clamp(
     if strictness <= 0.0:
         return soft_probability
     return biased_probability(soft_probability, strictness * weighted_true if any_true else -strictness)
+
+
+def _levels_covering(needed: frozenset[ToneLevel]) -> tuple[ToneLevel, ...]:
+    """A tone-level tuple containing every tone in ``needed``: exactly those
+    tones (in ``ToneLevel`` order -- Mandarin's high/rising/dipping/falling
+    is not one of the stock ``_TONE_LEVEL_SETS``) when there are at least
+    two, else the smallest stock set that holds them."""
+    if len(needed) >= 2:
+        return tuple(level for level in ToneLevel if level in needed)
+    return next(levels for levels in _TONE_LEVEL_SETS if needed <= set(levels))
 
 
 def _choose_tone_levels(
@@ -933,7 +984,7 @@ def _select_consonants(
         consonants.extend(_strict_group_members(rng, _PRE_ASPIRATED_GROUP, reference_weights, strictness))
 
     consonants = _force_include(consonants, ALL_CONSONANTS, must_include)
-    return _ensure_floor(rng, consonants, ALL_CONSONANTS, _MIN_CONSONANTS, frozenset(reference_weights), strictness)
+    return _ensure_floor(rng, consonants, _DRAWN_CONSONANTS, _MIN_CONSONANTS, frozenset(reference_weights), strictness)
 
 
 def _select_vowels(
@@ -948,7 +999,7 @@ def _select_vowels(
         if rng.random() < rate:
             vowels.append(extra)
     vowels = _force_include(vowels, ALL_VOWELS, must_include)
-    return _ensure_floor(rng, vowels, ALL_VOWELS, _MIN_VOWELS, frozenset(reference_weights), strictness)
+    return _ensure_floor(rng, vowels, _DRAWN_VOWELS, _MIN_VOWELS, frozenset(reference_weights), strictness)
 
 
 def _sonorant_or_glottal_symbols(consonants: tuple[Consonant, ...]) -> tuple[str, ...]:
@@ -1459,6 +1510,12 @@ def generate_phonology(
         tone_system = ToneSystem(enabled=True, levels=levels)
     else:
         tone_system = ToneSystem(enabled=False)
+    # Tone marks in seed/real words (a Mandarin word with a falling tone)
+    # make the language tonal, whatever the roll above said (the roll itself
+    # still ran, so every other draw is unchanged).
+    seed_tones = frozenset(ipa_tokenizer.tone_sequence(seed_ipa_text, seed_tokenizer_pool))
+    if seed_tones and not (tone_system.enabled and seed_tones <= set(tone_system.levels)):
+        tone_system = ToneSystem(enabled=True, levels=_levels_covering(seed_tones))
 
     # Word accent (real Danish stød / Swedish-Norwegian pitch accent) has
     # no trait dial of its own -- unlike `tonal_friendliness`, a

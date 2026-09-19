@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import unicodedata
 
+from conlang_generator.core.phonology import TONE_DIACRITICS, ToneLevel
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
 
 _STANDALONE_MARKS = (STRESS_MARK, WORD_ACCENT_MARK)
@@ -68,3 +69,23 @@ def symbols_only(text: str, known_symbols: tuple[str, ...]) -> tuple[str, ...]:
     phoneme, and every caller of this function is asking "which sounds
     does this word use," a question stress/word accent have no part in."""
     return tuple(symbol for symbol, _ in tokenize(text, known_symbols) if symbol not in _STANDALONE_MARKS)
+
+
+_LEVEL_BY_MARK = {mark: level for level, mark in TONE_DIACRITICS.items()}
+
+
+def tone_sequence(text: str, known_symbols: tuple[str, ...]) -> tuple[ToneLevel, ...]:
+    """The tone (a ``TONE_DIACRITICS`` combining mark) carried by each
+    tone-bearing segment of ``text``, in order -- empty for an untoned word.
+    Only the tone marks count; any other combining decoration is ignored."""
+    tones = []
+    for _, deco in tokenize(text, known_symbols):
+        level = next((_LEVEL_BY_MARK[c] for c in deco if c in _LEVEL_BY_MARK), None)
+        if level is not None:
+            tones.append(level)
+    return tuple(tones)
+
+
+def strip_tones(text: str) -> str:
+    """``text`` without its tone marks (other combining marks stay)."""
+    return "".join(c for c in text if c not in _LEVEL_BY_MARK)

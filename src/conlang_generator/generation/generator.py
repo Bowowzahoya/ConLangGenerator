@@ -93,7 +93,8 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         for example in spec.seed_examples
     )
     real_entries = real_words.build_real_entries(
-        real_choices, spec.traits.source_word_strictness, spec.seed, inventory, syllable_structure, romanization
+        real_choices, spec.traits.source_word_strictness, spec.seed, inventory, syllable_structure, romanization,
+        tone_system,
     )
     seed_entries = seed_entries + real_entries
     seeded_glosses = {example.gloss.lower() for example in spec.seed_examples} | {
