@@ -127,6 +127,12 @@ class ToneLevel(str, Enum):
     RISING = "rising"
     FALLING = "falling"
     DIPPING = "dipping"
+    NEUTRAL = "neutral"
+    """An unstressed, pitch-underspecified syllable -- real Mandarin's
+    neutral tone (轻声). Not a stock member of any randomly drawn tone-level
+    set: it enters a language only via a reference profile's
+    ``neutral_tone`` flag or a real word carrying it, and is never the tone
+    of a word's first syllable (see ``lexicon_gen``)."""
     """A low tone that dips before rising again -- real Cantonese's own
     low-rising tone, and the standard English name for real Vietnamese's
     hỏi (whose own real orthographic diacritic, hook above, this
@@ -145,6 +151,7 @@ TONE_DIACRITICS: dict[ToneLevel, str] = {
     ToneLevel.HIGH: "́",  # combining acute
     ToneLevel.RISING: "̌",  # combining caron
     ToneLevel.FALLING: "̂",  # combining circumflex
+    ToneLevel.NEUTRAL: "̇",  # combining dot above -- a syllable with no pitch of its own
     ToneLevel.DIPPING: "̉",  # combining hook above -- real Vietnamese hỏi's own diacritic; distinct from combining tilde (already spoken for by this project's own nasalized vowels), which is why hỏi's mark, not ngã's, is the one reused here
 }
 """Public (not just an implementation detail of `ToneSystem.mark`) because
@@ -153,9 +160,22 @@ build a postposed-tone `core.romanization.OrthographyCategory`'s
 `tone_markers` table -- see that module."""
 
 
+class ToneSandhiRule(BaseModel, frozen=True):
+    """Adjacent-syllable tone change: a syllable whose tone is ``before``,
+    when the next syllable's tone is ``after``, surfaces with ``becomes``
+    (Mandarin's third-tone sandhi is dipping + dipping -> rising + dipping).
+    Applied right to left over an utterance's tone-bearing syllables by
+    ``generation.tone_sandhi``; citation forms keep their lexical tones."""
+
+    before: ToneLevel
+    after: ToneLevel
+    becomes: ToneLevel
+
+
 class ToneSystem(BaseModel, frozen=True):
     enabled: bool = False
     levels: tuple[ToneLevel, ...] = ()
+    sandhi: tuple[ToneSandhiRule, ...] = ()
 
     def mark(self, vowel_ipa: str, tone: ToneLevel) -> str:
         """Apply a tone's combining diacritic to a vowel symbol."""

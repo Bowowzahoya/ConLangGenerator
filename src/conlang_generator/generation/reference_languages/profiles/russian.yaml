@@ -1,6 +1,6 @@
 name: Russian
 aliases: [russkiy]
-consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ʒ", x, "tʃ", m, n, l, r, j, "tʲ", "dʲ", "nʲ", "lʲ", "pʲ", "bʲ", "mʲ", "fʲ", "vʲ", "sʲ", "zʲ", "kʲ", "xʲ", "rʲ"]
+consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ʒ", x, "tʃ", m, n, l, r, j, "tʲ", "dʲ", "nʲ", "lʲ", "pʲ", "bʲ", "mʲ", "fʲ", "vʲ", "sʲ", "zʲ", "kʲ", "xʲ", "rʲ", "ɕ"]
 vowels: [i, e, a, o, u, "ɨ", "ə"]
 coda_profile: unrestricted
 max_onset: 2
@@ -103,7 +103,7 @@ core_vocabulary_average_syllables: 1.86  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [s, t, k, p, n, v, m]
   common: [d, b, g, z, r, l, j, "tʃ"]
-  uncommon: [f, x, "ʃ", "ʒ", "tʲ", "dʲ", "nʲ", "lʲ"]
+  uncommon: [f, x, "ʃ", "ʒ", "ɕ", "tʲ", "dʲ", "nʲ", "lʲ"]
   rare: ["pʲ", "bʲ", "mʲ", "fʲ", "vʲ", "sʲ", "zʲ", "kʲ", "xʲ", "rʲ"]
 nucleus_frequency_tiers:
   very_common: [a, i]
@@ -119,7 +119,7 @@ coda_frequency_tiers:
   # Polish's own coda_frequency_tiers already has for the same real fact.
   very_common: [t, k, s, n]
   common: [r, l, m, p, "tʃ"]
-  uncommon: [f, x, "ʃ", j, "tʲ", "nʲ", "lʲ"]
+  uncommon: [f, x, "ʃ", "ɕ", j, "tʲ", "nʲ", "lʲ"]
   rare: [b, d, g, v, z, "ʒ", "dʲ", "bʲ", "vʲ", "zʲ", "pʲ", "fʲ", "sʲ", "kʲ", "xʲ", "rʲ", "mʲ"]
 stress_pattern: lexical  # real Russian stress is famously "free" -- lexically fixed per word (and can even move within a paradigm), not predictable from a word's shape, same "genuinely complex, no simple flat rule" status English/Arabic/Italian's own stress already has
 stress_deviation_rate: 0.45  # illustrative -- close to English's own near-coin-flip figure, reflecting how little a flat positional default actually predicts real Russian stress

@@ -14,13 +14,13 @@ name: Tamil
 # dishonestly. See mandarin.yaml's own note for why an empty
 # word_classes here doesn't suppress generation.word_class_gen's own
 # generic invented-class roll for an unmatched/uncurated POS.
-consonants: [p, t, "ʈ", k, "tʃ", m, n, "ɳ", "ɲ", "ŋ", l, r, "ɾ", v, j, "ɻ"]
+consonants: [p, t, "ʈ", k, "tʃ", m, n, "ɳ", "ɲ", "ŋ", l, r, "ɾ", v, j, "ɻ", "ɭ"]
 vowels: [a, "aː", i, "iː", u, "uː", e, "eː", o, "oː"]
 coda_profile: sonorant  # real Tamil codas are restricted to nasals, liquids, and the glide /j/ -- same real fact and same fix Italian's own perfected profile already curates for its own coda set
 max_onset: 1
 tonal: false
 orthography_category: scholarly-macron-style
-restricted_onset_consonants: ["ʈ", "ɳ", "ŋ", "ɻ"]
+restricted_onset_consonants: ["ʈ", "ɳ", "ŋ", "ɻ", "ɭ"]
 # Real Tamil: retroflex ʈ/ɳ, velar ŋ, and the retroflex approximant ɻ
 # categorically never open a native word -- they're medial/final only
 # (a well-documented fact of Tamil phonotactics, the same "certain places

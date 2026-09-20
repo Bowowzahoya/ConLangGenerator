@@ -3,7 +3,7 @@ name: Japanese
 # list) doesn't belong in its consonant inventory the way it does in,
 # say, Arabic or Hawaiian; removed as a genuine correction, not a
 # stylistic change.
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", m, n, s, "ʃ", h, z, "ɾ", j, w, "kː", "tː", "pː", "sː"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", m, n, s, "ɕ", h, z, "ɾ", j, w, "kː", "tː", "pː", "sː", "ɸ", "ɴ"]
 # Real Japanese sokuon (っ) productively geminates a following voiceless
 # obstruent (がっこう "gakkō" school, きって "kitte" stamp) -- the shared
 # `kː`/`tː`/`pː`/`sː` geminate pool, real and solidly attested for these
@@ -23,7 +23,7 @@ orthography_category: scholarly-macron-gemination-style
 # consonant letter -- both already the exact real convention this
 # existing category (built for Arabic) already marks; no new
 # architecture needed here either.
-restricted_onset_consonants: ["kː", "tː", "pː", "sː"]  # real Japanese gemination is never word-initial, the same real fact and same fix shape Italian's own geminate restriction already has
+restricted_onset_consonants: ["kː", "tː", "pː", "sː", "ɴ"]  # real Japanese gemination is never word-initial, the same real fact and same fix shape Italian's own geminate restriction already has
 restricted_coda_consonants: [m, "ɾ", j, w]
 # coda_profile: sonorant above already limits codas to the sonority-based
 # sonorant class, but real native Japanese codas are only the moraic
@@ -42,13 +42,13 @@ orthography:
   # actually models.
   - {ipa: "tʃ", latin: ch}
   - {ipa: "dʒ", latin: j}
-  - {ipa: "ʃ", latin: sh}
+  - {ipa: "ɕ", latin: sh}
   - {ipa: "ɾ", latin: r}
 core_vocabulary_average_syllables: 2.39  # hand-counted across this project's own CORE_MEANINGS glosses, counting real *syllables* (this project's own nucleus-per-syllable model), not morae -- real Japanese long vowels are famously 2 morae but this project's own generator (like every other profile) counts one syllable per nucleus symbol regardless of length, so this number is deliberately syllable-based, not the higher mora-based figure a mora-timed description of Japanese would otherwise cite; still clearly higher than Mandarin/Danish/Swedish, matching Japanese's own real reputation for comparatively polysyllabic words given its simple CV(N) syllable canon; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
 onset_frequency_tiers:
   very_common: [k, t, s, n, m, h]
   common: [b, d, g, "ɾ", j, w, z]
-  uncommon: ["tʃ", "dʒ", "ʃ"]
+  uncommon: ["tʃ", "dʒ", "ɕ", "ɸ"]
   rare: [p]  # real Japanese /p/ is famously rare word-initially in native vocabulary (largely loanwords/mimetic words) -- historically shifted to /h/ in most positions. The geminate series is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i, u]

@@ -50,6 +50,7 @@ from conlang_generator.core.phonology import (
     PhonemeInventory,
     SyllableStructure,
     ToneLevel,
+    ToneSandhiRule,
     ToneSystem,
     Vowel,
     VowelBackness,
@@ -736,6 +737,32 @@ def _reference_clamp(
     return biased_probability(soft_probability, strictness * weighted_true if any_true else -strictness)
 
 
+def _apply_reference_tone_profile(
+    tone_system: ToneSystem, weighted_profiles: WeightedProfiles, strictness: float, keep_levels: bool
+) -> ToneSystem:
+    """A strict source-language run takes the heaviest matched profile's own
+    real tone levels (plus its neutral tone) instead of a stock set, and
+    every run gets the matched profiles' tone-sandhi rules whose tones its
+    levels include. Draws nothing from the rng."""
+    levels = tone_system.levels
+    with_levels = [(p, w) for p, w in weighted_profiles if p.tone_levels]
+    if with_levels and strictness >= 0.5 and not keep_levels:
+        profile = max(with_levels, key=lambda pw: pw[1])[0]
+        wanted = tuple(ToneLevel(name) for name in profile.tone_levels)
+        if profile.neutral_tone:
+            wanted += (ToneLevel.NEUTRAL,)
+        levels = wanted
+    available = set(levels)
+    rules = tuple(
+        ToneSandhiRule(before=ToneLevel(b), after=ToneLevel(a), becomes=ToneLevel(c))
+        for profile, _ in weighted_profiles
+        if strictness > 0.0
+        for b, a, c in profile.tone_sandhi
+        if {ToneLevel(b), ToneLevel(a), ToneLevel(c)} <= available
+    )
+    return ToneSystem(enabled=True, levels=levels, sandhi=tuple(dict.fromkeys(rules)))
+
+
 def _levels_covering(needed: frozenset[ToneLevel]) -> tuple[ToneLevel, ...]:
     """A tone-level tuple containing every tone in ``needed``: exactly those
     tones (in ``ToneLevel`` order -- Mandarin's high/rising/dipping/falling
@@ -983,7 +1010,13 @@ def _select_consonants(
     if rng.random() < pre_aspirated_probability:
         consonants.extend(_strict_group_members(rng, _PRE_ASPIRATED_GROUP, reference_weights, strictness))
 
-    consonants = _force_include(consonants, ALL_CONSONANTS, must_include)
+    # Reference-only symbols (never drawn) join a source-language-strict
+    # inventory deterministically -- no rng -- when the matched profiles back
+    # them strongly enough.
+    reference_only = frozenset(
+        c.ipa for c in _REFERENCE_ONLY_CONSONANTS if reference_weights.get(c.ipa, 0.0) * strictness >= 0.5
+    )
+    consonants = _force_include(consonants, ALL_CONSONANTS, must_include | reference_only)
     return _ensure_floor(rng, consonants, _DRAWN_CONSONANTS, _MIN_CONSONANTS, frozenset(reference_weights), strictness)
 
 
@@ -998,7 +1031,10 @@ def _select_vowels(
         rate = _reference_biased_rate(extra.prevalence, extra.ipa, reference_weights, strictness)
         if rng.random() < rate:
             vowels.append(extra)
-    vowels = _force_include(vowels, ALL_VOWELS, must_include)
+    reference_only = frozenset(
+        v.ipa for v in _REFERENCE_ONLY_VOWELS if reference_weights.get(v.ipa, 0.0) * strictness >= 0.5
+    )
+    vowels = _force_include(vowels, ALL_VOWELS, must_include | reference_only)
     return _ensure_floor(rng, vowels, _DRAWN_VOWELS, _MIN_VOWELS, frozenset(reference_weights), strictness)
 
 
@@ -1516,6 +1552,8 @@ def generate_phonology(
     seed_tones = frozenset(ipa_tokenizer.tone_sequence(seed_ipa_text, seed_tokenizer_pool))
     if seed_tones and not (tone_system.enabled and seed_tones <= set(tone_system.levels)):
         tone_system = ToneSystem(enabled=True, levels=_levels_covering(seed_tones))
+    if tone_system.enabled:
+        tone_system = _apply_reference_tone_profile(tone_system, weighted_profiles, strictness, bool(seed_tones))
 
     # Word accent (real Danish stød / Swedish-Norwegian pitch accent) has
     # no trait dial of its own -- unlike `tonal_friendliness`, a

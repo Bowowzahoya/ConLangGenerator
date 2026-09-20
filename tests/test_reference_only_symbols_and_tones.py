@@ -4,10 +4,10 @@ tone marks in real/seed words make the generated language tonal."""
 
 import random
 
-from conlang_generator.core.phonology import TONE_DIACRITICS, ToneLevel, ToneSystem
+from conlang_generator.core.phonology import TONE_DIACRITICS, ToneLevel, ToneSandhiRule, ToneSystem
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
-from conlang_generator.generation import ipa_tokenizer, phonology_gen, real_words
+from conlang_generator.generation import ipa_tokenizer, phonology_gen, real_words, tone_sandhi
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.fake_client import FakeLLMClient
 
@@ -96,6 +96,67 @@ def test_the_curated_mandarin_lexicon_makes_a_tonal_language_with_its_four_tones
     traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=1.0, source_word_strictness=1.0)
     language = generate_language("T", GenerationSpec(prompt="p", seed=5, traits=traits), FakeLLMClient())
     assert language.tone_system.enabled
-    assert set(language.tone_system.levels) == {ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.DIPPING, ToneLevel.FALLING}
+    assert set(language.tone_system.levels) == {
+        ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.DIPPING, ToneLevel.FALLING, ToneLevel.NEUTRAL,
+    }
     water = language.lexicon.by_gloss("water")
     assert water.romanization == "shuǐ" and water.tones == (ToneLevel.DIPPING,)
+
+
+_THIRD = ToneSandhiRule(before=ToneLevel.DIPPING, after=ToneLevel.DIPPING, becomes=ToneLevel.RISING)
+
+
+def _marked(text: str, *tones: ToneLevel) -> str:
+    """``text`` with each tone attached to the next vowel in turn."""
+    out, remaining = [], list(tones)
+    for ch in text:
+        out.append(ch)
+        if ch in "aeiou" and remaining:
+            out.append(TONE_DIACRITICS[remaining.pop(0)])
+    return "".join(out)
+
+
+def test_third_tone_sandhi_changes_the_first_of_two_dipping_syllables():
+    system = ToneSystem(enabled=True, levels=(ToneLevel.RISING, ToneLevel.DIPPING), sandhi=(_THIRD,))
+    spoken = tone_sandhi.apply_sandhi([_marked("ni", ToneLevel.DIPPING), _marked("hao", ToneLevel.DIPPING)], system)
+    assert spoken == [_marked("ni", ToneLevel.RISING), _marked("hao", ToneLevel.DIPPING)]
+
+
+def test_sandhi_reads_citation_tones_and_leaves_other_tones_and_citation_forms_alone():
+    system = ToneSystem(enabled=True, levels=(ToneLevel.RISING, ToneLevel.DIPPING, ToneLevel.HIGH), sandhi=(_THIRD,))
+    three = [_marked("ma", ToneLevel.DIPPING)] * 3
+    assert tone_sandhi.apply_sandhi(three, system) == [_marked("ma", ToneLevel.RISING)] * 2 + [three[2]]
+    mixed = [_marked("ma", ToneLevel.HIGH), _marked("ma", ToneLevel.DIPPING)]
+    assert tone_sandhi.apply_sandhi(mixed, system) == mixed
+    assert tone_sandhi.apply_sandhi(three, ToneSystem(enabled=True, levels=system.levels)) == three  # no rules
+    assert three == [_marked("ma", ToneLevel.DIPPING)] * 3  # input untouched
+
+
+def test_a_strict_mandarin_run_takes_its_real_tones_neutral_tone_sandhi_and_retroflex_sounds():
+    traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=1.0)
+    inventory, _, tone_system, _ = phonology_gen.generate_phonology(
+        random.Random(3), GenerationSpec(prompt="p", seed=3, traits=traits)
+    )
+    assert tone_system.levels == (
+        ToneLevel.RISING, ToneLevel.DIPPING, ToneLevel.HIGH, ToneLevel.FALLING, ToneLevel.NEUTRAL,
+    ) or set(tone_system.levels) == {
+        ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.DIPPING, ToneLevel.FALLING, ToneLevel.NEUTRAL,
+    }
+    assert _THIRD in tone_system.sandhi
+    assert {"ʈʂ", "ʈʂʰ", "ɕ"} <= set(inventory.consonant_symbols())
+
+
+def test_a_source_language_run_without_the_needed_tones_gets_no_sandhi():
+    traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=0.2)
+    _, _, tone_system, _ = phonology_gen.generate_phonology(
+        random.Random(1), GenerationSpec(prompt="p", seed=1, traits=traits, force_tonal=True)
+    )
+    assert all({r.before, r.after, r.becomes} <= set(tone_system.levels) for r in tone_system.sandhi)
+
+
+def test_the_neutral_tone_never_opens_a_generated_word():
+    traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=1.0)
+    language = generate_language("T", GenerationSpec(prompt="p", seed=6, traits=traits), FakeLLMClient())
+    assert ToneLevel.NEUTRAL in language.tone_system.levels
+    firsts = [e.tones[0] for e in language.lexicon.entries if e.tones]
+    assert firsts and ToneLevel.NEUTRAL not in firsts

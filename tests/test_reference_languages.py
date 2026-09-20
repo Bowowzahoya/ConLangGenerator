@@ -603,7 +603,7 @@ def test_mandarin_x_only_combines_with_front_vowels():
     # precedes i/y (ü); "xang"/"xu"(plain u)/"xo"/"xe" aren't real pinyin
     # syllables, unlike "xi"/"xu"(ü-spelled).
     mandarin = next(p for p in REFERENCE_LANGUAGES if p.name == "Mandarin")
-    assert set(mandarin.restricted_onset_nucleus_pairs) == {("ʃ", "a"), ("ʃ", "u"), ("ʃ", "o"), ("ʃ", "e")}
+    assert set(mandarin.restricted_onset_nucleus_pairs) == {("ɕ", "a"), ("ɕ", "u"), ("ɕ", "o"), ("ɕ", "e")}
 
 
 def test_mandarin_u_before_the_velar_nasal_spells_as_ong_not_ung():

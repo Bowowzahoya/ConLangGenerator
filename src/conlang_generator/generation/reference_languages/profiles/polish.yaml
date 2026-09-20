@@ -1,6 +1,6 @@
 name: Polish
 aliases: [polski]
-consonants: [p, b, t, d, k, g, ts, dz, "tʃ", "dʒ", "tɕ", "dʑ", f, v, s, z, "ʃ", "ʒ", "ç", "ʝ", x, h, m, n, "ɲ", l, r, w, j]
+consonants: [p, b, t, d, k, g, ts, dz, "tʃ", "dʒ", "tɕ", "dʑ", f, v, s, z, "ʃ", "ʒ", "ɕ", "ʑ", x, h, m, n, "ɲ", l, r, w, j]
 vowels: [i, "ɨ", a, e, o, u, "ẽ", "õ"]
 coda_profile: unrestricted
 max_onset: 2
@@ -50,10 +50,10 @@ orthography:
                             # is what modern Polish "ł" actually is --
                             # not a dark l, despite the letter's shape
   - {ipa: x, latin: ch}
-  - {ipa: "ç", latin: "ś"}  # real Polish "ś" is genuinely alveolo-palatal
+  - {ipa: "ɕ", latin: "ś"}  # real Polish "ś" is genuinely alveolo-palatal
                             # /ɕ/ -- /ç/ is this project's closest
                             # available approximation, flagged as such
-  - {ipa: "ʝ", latin: "ź"}  # same approximation as "ś" above, for /ʑ/
+  - {ipa: "ʑ", latin: "ź"}  # same approximation as "ś" above, for /ʑ/
   - {ipa: "tɕ", latin: "ć"}
   - {ipa: "dʑ", latin: "dź"}
   - {ipa: "tʃ", latin: cz}
@@ -75,7 +75,7 @@ onset_frequency_tiers:
   very_common: [p, k, t, s, z, v, b]
   common: [d, g, m, n, r, w, "tʃ", "ʒ"]
   uncommon: [f, x, ts, "ʃ", j, l, h]
-  rare: [dz, "dʒ", "tɕ", "dʑ", "ç", "ʝ"]  # /ɲ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+  rare: [dz, "dʒ", "tɕ", "dʑ", "ɕ", "ʑ"]  # /ɲ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [e, o, u]
@@ -93,7 +93,7 @@ coda_frequency_tiers:
   very_common: [t, k, s, r]
   common: [n, l, m, w, "ʃ", p]
   uncommon: [f, x, ts, "ɲ", "tʃ", j]
-  rare: [h, "ç", "tɕ", b, d, g, dz, "dʒ", "dʑ", v, z, "ʒ", "ʝ"]
+  rare: [h, "ɕ", "tɕ", b, d, g, dz, "dʒ", "dʑ", v, z, "ʒ", "ʑ"]
 word_classes:
   # Real Polish noun gender, the same dominant citation-form correlation
   # already curated for Russian: masculine nouns are overwhelmingly

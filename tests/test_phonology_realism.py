@@ -699,7 +699,7 @@ def test_tone_level_sets_richest_entry_covers_all_six_levels():
     from conlang_generator.core.phonology import ToneLevel
 
     richest = max(phonology_gen._TONE_LEVEL_SETS, key=len)
-    assert set(richest) == set(ToneLevel)
+    assert set(richest) == set(ToneLevel) - {ToneLevel.NEUTRAL}
     assert len(richest) == 6
 
 
@@ -711,7 +711,7 @@ def test_tone_level_sets_has_a_five_level_entry_with_no_dipping():
     from conlang_generator.core.phonology import ToneLevel
 
     five_level = next(levels for levels in phonology_gen._TONE_LEVEL_SETS if len(levels) == 5)
-    assert set(five_level) == set(ToneLevel) - {ToneLevel.DIPPING}
+    assert set(five_level) == set(ToneLevel) - {ToneLevel.DIPPING, ToneLevel.NEUTRAL}
 
 
 def test_choose_tone_levels_biases_toward_a_five_tone_profile_too():

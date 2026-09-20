@@ -1102,9 +1102,21 @@ Everything here is a pure function of a `random.Random` seeded from
   (`_levels_covering`; the tonal roll still runs first, so other draws are
   unchanged); `LexicalEntry.tones` records them, deviated words get their
   tones re-attached vowel by vowel and mapped to the language's own tone
-  levels (none when it is not tonal). Not modeled: tone sandhi, the neutral
-  tone as its own value, and TTS never voices tones
-  (`speech/ipa_to_kirshenbaum.py` drops them).
+  levels (none when it is not tonal). Profiles can carry `tone_levels`,
+  `neutral_tone` and `tone_sandhi` (Mandarin: high/rising/dipping/falling +
+  `ToneLevel.NEUTRAL`, the combining dot above, never on a word's first
+  syllable; third-tone sandhi dipping+dipping -> rising): a run with source
+  strictness >= 0.5 takes those levels, and any run with strictness > 0 gets
+  the sandhi rules its levels can express (`ToneSystem.sandhi`). Sandhi is an
+  utterance-level surface rule (`generation/tone_sandhi.py`, applied to the
+  translation's IPA); lexicon entries keep citation tones. Profiles also
+  list the reference-only symbols their language really has (Mandarin
+  ʈʂ ʈʂʰ ɕ, Tamil ɭ, Hindi ɽ ɦ, Japanese ɸ ɕ ɴ, Polish ɕ ʑ, Russian ɕ,
+  Arabic zˤ lˤ, Bengali ɽ); those join a strict inventory deterministically
+  (weight x strictness >= 0.5, no rng). Not modeled: lexically specific
+  sandhi (Mandarin 不/一), Spanish β/ð/ɣ allophony in the profile, and TTS
+  voicing of tones (`speech/ipa_to_kirshenbaum.py` drops them; only
+  eSpeak's `cmn` voice can take tone numbers, SAPI's Huihui cannot).
   Fitting a pronunciation to a language (nearest inventory phoneme +
   syllable-rule repair) lives in `generation/phoneme_fit.py`, shared with
   foreign-name adaptation. `generator.generate_evolved_language` then runs

@@ -144,6 +144,22 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     receives, even at full strictness. `None` (the common case) means
     not curated -- abstains, same convention as every other curated
     field here."""
+    tone_levels: tuple[str, ...] = ()
+    """Only meaningful when ``tonal``: this language's own real tone
+    categories, as ``core.phonology.ToneLevel`` values (Mandarin: high,
+    rising, dipping, falling). A strict source-language run (strictness
+    >= 0.5) uses exactly these instead of a stock ``_TONE_LEVEL_SETS``
+    entry. Empty = not curated, abstains."""
+    neutral_tone: bool = False
+    """Whether the language has a neutral (unstressed, pitch-underspecified)
+    tone as a further category beyond ``tone_levels`` -- real Mandarin
+    (轻声). Adds ``ToneLevel.NEUTRAL`` to a strict run's tone levels."""
+    tone_sandhi: tuple[tuple[str, str, str], ...] = ()
+    """Adjacent-syllable tone rules as ``[before, after, becomes]``
+    ``ToneLevel`` values -- Mandarin's third-tone sandhi is
+    ``[dipping, dipping, rising]``. Attached to a generated language's
+    ``ToneSystem.sandhi`` whenever a matched profile carries them and the
+    language's tone levels include all three tones."""
     vowel_harmony: bool = False
     root_and_pattern: bool = False
     """Whether this language uses Semitic-style root-and-pattern

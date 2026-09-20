@@ -57,7 +57,7 @@ from conlang_generator.core.grammar import GrammarProfile, InflectionAffix
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.romanization import apply_grammatical_spelling
-from conlang_generator.generation import inflection_gen, stress_gen, word_accent_gen
+from conlang_generator.generation import inflection_gen, stress_gen, tone_sandhi, word_accent_gen
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
@@ -331,7 +331,7 @@ def translate_to_conlang(
 
     return TranslationResult(
         text=" ".join(romanization_parts),
-        ipa=" ".join(ipa_parts),
+        ipa=" ".join(tone_sandhi.apply_sandhi(ipa_parts, language.tone_system)),
         language=working_language,
         coined=tuple(coined),
         pattern="llm-plan",

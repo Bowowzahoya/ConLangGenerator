@@ -179,6 +179,7 @@ _TONE_FALLBACKS = {
     ToneLevel.HIGH: (ToneLevel.RISING, ToneLevel.MID, ToneLevel.FALLING, ToneLevel.LOW),
     ToneLevel.MID: (ToneLevel.HIGH, ToneLevel.LOW, ToneLevel.RISING, ToneLevel.FALLING),
     ToneLevel.LOW: (ToneLevel.MID, ToneLevel.FALLING, ToneLevel.DIPPING, ToneLevel.HIGH),
+    ToneLevel.NEUTRAL: (ToneLevel.MID, ToneLevel.LOW, ToneLevel.HIGH),
 }
 
 

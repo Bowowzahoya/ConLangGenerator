@@ -23,7 +23,9 @@ from dataclasses import dataclass
 
 from conlang_generator.core.grammar import WordClass
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
-from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, ToneSystem, WordAccentSystem
+from conlang_generator.core.phonology import (
+    Manner, PhonemeInventory, SyllableStructure, ToneLevel, ToneSystem, WordAccentSystem,
+)
 from conlang_generator.core.romanization import RomanizationScheme, apply_grammatical_spelling
 from conlang_generator.generation import stress_gen, word_accent_gen, word_builder, word_class_gen
 from conlang_generator.generation.extended_meanings import EXTENDED_MEANINGS
@@ -259,7 +261,7 @@ def _propose_kinship_word(
     """Try the mama/papa-style reduplicated pattern; ``None`` means the
     inventory has no matching consonant class and the caller should fall
     back to ``propose_word``'s normal candidate-build/LLM-choice path."""
-    tone = rng.choice(tone_system.levels) if tone_system.enabled else None
+    tone = rng.choice(_non_neutral(tone_system)) if tone_system.enabled else None
     tone_mark = tone_system.mark("", tone) if tone is not None else ""
     word = word_builder.build_reduplicated_word(
         rng, inventory, _KINSHIP_MANNER_CLASSES[gloss_key], tone_mark=tone_mark,
@@ -439,6 +441,15 @@ def _choose_chunk(
     return chosen
 
 
+def _non_neutral(tone_system: ToneSystem) -> tuple:
+    """The tone levels a word's *first* syllable may take: the neutral tone
+    (real Mandarin's) only ever follows another syllable. Identical to
+    ``tone_system.levels`` -- and draws the same -- for every language
+    without a neutral tone."""
+    levels = tuple(level for level in tone_system.levels if level is not ToneLevel.NEUTRAL)
+    return levels or tone_system.levels
+
+
 def build_pending_word(
     rng: random.Random,
     inventory: PhonemeInventory,
@@ -525,7 +536,10 @@ def build_pending_word(
     tones: tuple = ()
     tone_marks: tuple[str, ...] = ()
     if tone_system.enabled:
-        tones = tuple(rng.choice(tone_system.levels) for _ in range(num_syllables))
+        tones = tuple(
+            rng.choice(_non_neutral(tone_system) if position == 0 else tone_system.levels)
+            for position in range(num_syllables)
+        )
         tone_marks = tuple(tone_system.mark("", tone) for tone in tones)
 
     seen: set[str] = set()
