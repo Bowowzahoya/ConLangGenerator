@@ -120,3 +120,36 @@ def test_turkish_keeps_its_voiced_fricatives_word_finally():
     )
     _, structure, _, _ = phonology_gen.generate_phonology(random.Random(3), spec)
     assert "z" not in structure.excluded_final_coda_consonants
+
+
+def test_reference_only_geminate_twins_exist_and_are_never_drawn():
+    from conlang_generator.generation import phonology_gen
+
+    twins = {c.ipa for c in phonology_gen._REFERENCE_ONLY_CONSONANTS if c.long}
+    assert {"bː", "mː", "rː", "tʃː", "dˤː"} <= twins
+    assert not twins & {c.ipa for c in phonology_gen._DRAWN_CONSONANTS}
+
+
+def test_italian_words_carry_real_geminates_and_pass_the_audit():
+    from conlang_generator.generation.reference_languages.real_lexicon import real_words
+
+    ipa = real_words("Italian")
+    assert any("tː" in v[1] for v in ipa.values())  # fatto/otto-style words use one long consonant, not "tt"
+    assert not any("tt" in v[1].replace("tts", "") for v in ipa.values())  # (/tts/ is a geminate affricate, not modeled)
+
+
+def test_strict_italian_geminates_are_medial_only():
+    import random
+
+    from conlang_generator.generation import phonology_gen, word_builder
+
+    for seed in range(15):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("Italian",), source_language_strictness=1.0)
+        )
+        inventory, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        rng = random.Random(seed)
+        for _ in range(60):
+            word = word_builder.build_word(rng, inventory, structure, rng.choice((1, 2, 3)))
+            plain = word.replace("ˈ", "")
+            assert not plain.endswith(("kː", "tː", "pː", "sː", "nː", "lː", "mː", "rː", "fː", "bː")), word

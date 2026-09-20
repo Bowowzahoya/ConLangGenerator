@@ -4,7 +4,7 @@ aliases: ["íslenska"]
 # unmodeled ancestor) -- now that Old Norse has its own real profile
 # (see old_norse.yaml), those aliases moved there; Icelandic is its own
 # distinct, if closely related, modern language.
-consonants: [p, "pʰ", "ʰp", t, "tʰ", "ʰt", k, "kʰ", "ʰk", f, v, s, "θ", "ð", "ɣ", h, m, n, l, r, j]
+consonants: [p, "pʰ", "ʰp", t, "tʰ", "ʰt", k, "kʰ", "ʰk", f, v, s, "θ", "ð", "ɣ", h, m, n, l, r, j, "tː", "nː", "jː", "kː", "rː", "mː", "sː"]
 vowels: [i, "ɪ", "ɛ", a, "ɔ", u, "ʊ", "ø", "œ", y, ai, au, ei, "ɔi"]
 coda_profile: unrestricted
 max_onset: 2
@@ -49,7 +49,7 @@ orthography:
   - {ipa: "pʰ", latin: p}
   - {ipa: "tʰ", latin: t}
   - {ipa: "kʰ", latin: k}
-restricted_onset_consonants: ["ʰp", "ʰt", "ʰk"]  # real Icelandic pre-aspiration is a root-medial phenomenon (átta, ekki), never word-initial
+restricted_onset_consonants: ["ʰp", "ʰt", "ʰk", "tː", "nː", "jː", "kː", "rː", "mː", "sː"]  # real Icelandic pre-aspiration is a root-medial phenomenon (átta, ekki), never word-initial
 restricted_coda_consonants: ["pʰ", "tʰ", "kʰ", h]  # real Icelandic: aspiration is an onset-conditioned property (word-initial stops are aspirated, syllable-final stops are plain or pre-aspirated instead), and /h/ itself only ever opens a syllable (hv-, hl-, hn-, hr-), never closes one
 attested_onset_clusters:
   # Real, common Icelandic onset clusters, restricted to symbols this
@@ -92,7 +92,7 @@ coda_frequency_tiers:
   very_common: [r, n, t]
   common: [s, l, k, "ð"]
   uncommon: [m, "θ", f, v, p]
-  rare: ["ʰp", "ʰt", "ʰk", j, "ɣ"]
+  rare: ["ʰp", "ʰt", "ʰk", j, "ɣ", "tː", "nː", "jː", "kː", "rː", "mː", "sː"]
 stress_pattern: initial  # real Icelandic: stress is exceptionlessly the root's first syllable, the same Germanic default as German/Dutch/Danish/Swedish/Norwegian but held to more strictly
 stress_deviation_rate: 0.05  # illustrative -- real Icelandic stress is famously more rigidly initial than even German/Dutch, rarely deviates outside a handful of loanwords
 stress_driven_vowel_reduction: false  # real, deliberate typological call: Icelandic's own inflectional endings (-ur/-inn/-ins) keep distinct full vowel qualities rather than reducing to schwa the way mainland Scandinavian does

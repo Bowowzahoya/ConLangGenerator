@@ -3,7 +3,7 @@ name: Japanese
 # list) doesn't belong in its consonant inventory the way it does in,
 # say, Arabic or Hawaiian; removed as a genuine correction, not a
 # stylistic change.
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", m, n, s, "ɕ", h, z, "ɾ", j, w, "kː", "tː", "pː", "sː", "ɸ", "ɴ"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", m, n, s, "ɕ", h, z, "ɾ", j, w, "kː", "tː", "pː", "sː", "ɸ", "ɴ", "nː"]
 # Real Japanese sokuon (っ) productively geminates a following voiceless
 # obstruent (がっこう "gakkō" school, きって "kitte" stamp) -- the shared
 # `kː`/`tː`/`pː`/`sː` geminate pool, real and solidly attested for these
@@ -49,7 +49,7 @@ onset_frequency_tiers:
   very_common: [k, t, s, n, m, h]
   common: [b, d, g, "ɾ", j, w, z]
   uncommon: ["tʃ", "dʒ", "ɕ", "ɸ"]
-  rare: [p]  # real Japanese /p/ is famously rare word-initially in native vocabulary (largely loanwords/mimetic words) -- historically shifted to /h/ in most positions. The geminate series is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+  rare: [p, "nː"]  # real Japanese /p/ is famously rare word-initially in native vocabulary (largely loanwords/mimetic words) -- historically shifted to /h/ in most positions. The geminate series is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i, u]
   common: [e, o]

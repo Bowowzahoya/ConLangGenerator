@@ -1,6 +1,6 @@
 name: Welsh
 aliases: [cymraeg]
-consonants: [p, b, t, d, k, g, m, n, "ŋ", f, v, "θ", "ð", s, "ʃ", x, h, "ɬ", l, r, "r̥", j, w]
+consonants: [p, b, t, d, k, g, m, n, "ŋ", f, v, "θ", "ð", s, "ʃ", x, h, "ɬ", l, r, "r̥", j, w, "nː", "rː"]
 vowels: [a, "ə", i, u, e, o, "aː", "iː", "uː", "eː", "oː", ai, au, "ɔi"]
 # South Welsh merger modeled as the default (no separate front-central
 # /ɨ/ contrasting with /i/ the way North Welsh has) -- a real, deliberate
@@ -11,7 +11,7 @@ coda_profile: unrestricted
 max_onset: 2
 max_coda: 2  # real Welsh coda clusters exist (punt, gwallt, cerdd) but aren't as deep as onset-initial consonant mutation environments can get
 tonal: false
-restricted_onset_consonants: ["ŋ"]  # real Welsh /ŋ/ is medial/final only (cangen) -- never opens a native word
+restricted_onset_consonants: ["ŋ", "nː", "rː"]  # real Welsh /ŋ/ is medial/final only (cangen) -- never opens a native word
 restricted_coda_consonants: ["r̥", w, j, h]  # real Welsh: rh is word/morpheme-initial only; w/j pattern as diphthong components, not independent codas (the same real fact already curated for several other languages here); h is onset-only, cross-linguistically typical for a glottal fricative
 attested_onset_clusters:
   # Real, common Welsh initial clusters -- illustrative, not exhaustive.
@@ -82,4 +82,4 @@ coda_frequency_tiers:
   very_common: [n, t, r, s]
   common: [m, k, l, d, "ð"]
   uncommon: [p, g, f, v, "θ", "ŋ"]
-  rare: ["ʃ", x, "ɬ", b]
+  rare: ["ʃ", x, "ɬ", b, "nː", "rː"]

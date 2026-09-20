@@ -1,6 +1,6 @@
 name: Arabic
 aliases: [modern standard arabic]
-consonants: [b, t, d, k, q, "ʔ", "dʒ", m, n, s, "ʃ", x, "ɣ", z, f, h, "ħ", "ʕ", l, r, j, w, "θ", "ð", "tˤ", "dˤ", "sˤ", "ðˤ", "kː", "tː", "sː", "nː", "lː", "zˤ", "lˤ"]
+consonants: [b, t, d, k, q, "ʔ", "dʒ", m, n, s, "ʃ", x, "ɣ", z, f, h, "ħ", "ʕ", l, r, j, w, "θ", "ð", "tˤ", "dˤ", "sˤ", "ðˤ", "kː", "tː", "sː", "nː", "lː", "zˤ", "lˤ", "mː", "jː", "rː", "dː", "bː", "dˤː", "sˤː", "qː", "fː", "wː", "tˤː", "zː", "zˤː"]
 vowels: [i, a, u, "aː", "iː", "uː", ai, au]
 coda_profile: unrestricted
 max_onset: 1
@@ -20,7 +20,7 @@ word_classes:
   - {name: "masculine (unmarked)", pos: noun, prevalence: 0.65}
   - {name: "feminine (-a)", pos: noun, suffix: [a], prevalence: 0.35}
 word_class_deviation_rate: 0.15  # illustrative -- the -a marker is a strong, reliable real signal, but real natural-gender feminine nouns without it exist too (umm "mother", arḍ "land")
-restricted_onset_consonants: ["kː", "tː", "sː", "nː", "lː"]  # real Arabic shadda (gemination) is a medial/intervocalic phenomenon -- a word never *starts* with a geminated consonant, same fact already curated for Finnish's own geminates
+restricted_onset_consonants: ["kː", "tː", "sː", "nː", "lː", "mː", "jː", "rː", "dː", "bː", "dˤː", "sˤː", "qː", "fː", "wː", "tˤː", "zː", "zˤː"]  # real Arabic shadda (gemination) is a medial/intervocalic phenomenon -- a word never *starts* with a geminated consonant, same fact already curated for Finnish's own geminates
 restricted_coda_consonants: [j, w]  # real Arabic coda /j//w/ (bayt "house", yawm "day") form a diphthong with the preceding vowel rather than closing the syllable as a true consonant -- same real fact already curated for English's own restricted_coda_consonants
 attested_coda_clusters:
   # Real, common Arabic coda clusters, restricted to symbols this
@@ -74,7 +74,7 @@ coda_frequency_tiers:
   very_common: [t, n, m, s, r, l]
   common: [b, d, k, q, f, h, z, "ʕ", "ħ"]
   uncommon: [x, "ɣ", "ʃ", "dʒ", "θ", "ð", "ʔ"]
-  rare: ["tˤ", "dˤ", "sˤ", "ðˤ", "zˤ", "lˤ", "kː", "tː", "sː", "nː", "lː"]
+  rare: ["tˤ", "dˤ", "sˤ", "ðˤ", "zˤ", "lˤ", "kː", "tː", "sː", "nː", "lː", "mː", "jː", "rː", "dː", "bː", "dˤː", "sˤː", "qː", "fː", "wː", "tˤː", "zː", "zˤː"]
 stress_pattern: lexical  # real Arabic stress is genuinely quantity-sensitive (heavy syllables attract stress), not a flat position -- none of this project's other four patterns capture that; modeled the same "genuinely complex, no simple flat rule" way English's own real stress system is
 stress_deviation_rate: 0.35  # illustrative -- lower than English's own 0.5 (real Arabic's heavy-syllable rule is meaningfully more predictive in practice than English's genuinely idiosyncratic system, even though neither is a flat position)
 stress_driven_vowel_reduction: false  # real Arabic: keeps comparatively full vowel quality regardless of stress, unlike English/German/Dutch

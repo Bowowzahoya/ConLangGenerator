@@ -1,8 +1,9 @@
 name: Old Norse
 aliases: [norse, viking, "norrœnt mál"]
-consonants: [p, b, t, d, k, g, f, v, "θ", "ð", s, h, m, n, l, r, j]
+consonants: [p, b, t, d, k, g, f, v, "θ", "ð", s, h, m, n, l, r, j, "sː", "kː", "rː", "mː", "tː", "lː", "gː", "nː", "pː", "dː"]
 vowels: [a, e, i, o, u, y, "æ", "ø", "aː", "eː", "iː", "oː", "uː", "yː", "æː", "øː", au, ei, "œy"]
 coda_profile: unrestricted
+restricted_onset_consonants: ["sː", "kː", "rː", "mː", "tː", "lː", "gː", "nː", "pː", "dː"]  # geminates are word-medial only
 max_onset: 2
 max_coda: 2  # real Old Norse coda clusters exist (land, kaldr, fyrst, bjǫrn)
 tonal: false
@@ -86,4 +87,4 @@ coda_frequency_tiers:
   very_common: [n, r, t, s]
   common: [l, k, d, m]
   uncommon: [p, g, f, "ð"]
-  rare: [b, "θ"]
+  rare: [b, "θ", "sː", "kː", "rː", "mː", "tː", "lː", "gː", "nː", "pː", "dː"]

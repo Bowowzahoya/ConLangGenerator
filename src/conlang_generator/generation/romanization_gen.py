@@ -567,6 +567,16 @@ _MONOLETTER_TABLE: dict[str, str] = {
     "ʎ": "l",
 }
 
+# Reference-only geminate twins (``phonology_gen._GEMINATE_TWIN_BASES``) spell
+# like their short base in every style; length is marked separately by
+# ``consonant_gemination_marked``.
+from conlang_generator.generation import phonology_gen as _phonology_gen  # noqa: E402
+
+for _table in (_DIGRAPH_TABLE, _DIACRITIC_TABLE, _MONOLETTER_TABLE):
+    for _c in _phonology_gen.ALL_CONSONANTS:
+        if _c.long and _c.ipa not in _table and not _c.ipa.isascii():
+            _table[_c.ipa] = _table.get(_c.ipa[:-1], _c.ipa[:-1])
+
 # Digit/letter markers a postposed-tone category maps `core.phonology`'s
 # five `ToneLevel` diacritics onto. Arbitrary assignments (this project's
 # `ToneSystem` is a generic five-level illustrative model, not tied to any

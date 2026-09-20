@@ -256,7 +256,7 @@ def test_sonorant_only_coda_profile_only_allows_sonorants_or_glottal_stop():
             checked_any = True
             by_ipa = {c.ipa: c for c in inventory.consonants}
             for symbol in structure.allowed_coda_consonants:
-                assert symbol == "ʔ" or sonority.sonority(by_ipa[symbol]) >= 3
+                assert symbol == "ʔ" or by_ipa[symbol].long or sonority.sonority(by_ipa[symbol]) >= 3  # a geminate closes the first of its two syllables
     assert checked_any
 
 

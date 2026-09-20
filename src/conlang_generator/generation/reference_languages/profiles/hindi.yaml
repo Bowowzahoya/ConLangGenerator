@@ -1,13 +1,13 @@
 name: Hindi
 aliases: [hindustani]
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʈ", "ɖ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", s, "ʃ", h, m, n, "ɳ", l, r, j, v, "ɽ", "ɦ"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʈ", "ɖ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", s, "ʃ", h, m, n, "ɳ", l, r, j, v, "ɽ", "ɦ", "nː", "ʈː", "sː", "ɖː", "lː", "bː"]
 vowels: [i, "iː", u, "uː", e, "ɛ", a, "aː", o, "ɔ", "ə", "ã", "ĩ", "ũ"]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: scholarly-macron-style
 restricted_coda_consonants: ["ɦ"]  # real Hindi ह /ɦ/ never closes a syllable
-restricted_onset_consonants: ["ɳ", "ɽ"]  # real Hindi retroflex ɳ never opens a native word -- medial/final only, the same real fact already curated for Tamil's own ɳ
+restricted_onset_consonants: ["ɳ", "ɽ", "nː", "ʈː", "sː", "ɖː", "lː", "bː"]  # real Hindi retroflex ɳ never opens a native word -- medial/final only, the same real fact already curated for Tamil's own ɳ
 attested_onset_clusters:
   # Real, common Hindi onset clusters -- mostly Sanskrit-derived tatsam
   # vocabulary, restricted to symbols this profile models -- illustrative,
@@ -86,7 +86,7 @@ coda_frequency_tiers:
   very_common: [n, t, r, m]
   common: [k, s, l, h, "ʈ"]
   uncommon: [p, d, g, v, j, "ɳ", "ɖ", "ɽ"]
-  rare: [b, "tʃ", "dʒ", "ʃ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ"]  # the aspirated/breathy series is real but meaningfully rarer as a coda than as an onset
+  rare: [b, "tʃ", "dʒ", "ʃ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", "nː", "ʈː", "sː", "ɖː", "lː", "bː"]  # the aspirated/breathy series is real but meaningfully rarer as a coda than as an onset
 word_classes:
   # Real Hindi noun gender is genuinely messier than a single citation-
   # form suffix -- only a real, well-documented *subset* of masculine

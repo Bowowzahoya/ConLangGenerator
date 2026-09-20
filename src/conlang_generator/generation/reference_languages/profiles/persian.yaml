@@ -1,8 +1,9 @@
 name: Persian
 aliases: [farsi]
-consonants: [p, b, t, d, k, g, q, "tʃ", "dʒ", f, v, s, z, "ʃ", "ʒ", x, "ɣ", h, m, n, l, r, j]
+consonants: [p, b, t, d, k, g, q, "tʃ", "dʒ", f, v, s, z, "ʃ", "ʒ", x, "ɣ", h, m, n, l, r, j, "dː", "kː", "pː", "rː", "lː", "nː"]
 vowels: [i, e, a, o, u, "aː"]
 coda_profile: unrestricted
+restricted_onset_consonants: ["dː", "kː", "pː", "rː", "lː", "nː"]  # geminates are word-medial only
 max_onset: 1
 tonal: false
 orthography_category: diacritic-style
@@ -48,7 +49,7 @@ coda_frequency_tiers:
   very_common: [t, d, n, r]
   common: [s, m, k, g, l, b]
   uncommon: [z, "ʃ", x, f, v, h, j]
-  rare: [p, q, "tʃ", "dʒ", "ɣ", "ʒ"]
+  rare: [p, q, "tʃ", "dʒ", "ɣ", "ʒ", "dː", "kː", "pː", "rː", "lː", "nː"]
 word_classes:
   # Real Persian's own infinitive is genuinely conditioned by the
   # preceding (past) stem's own final-consonant voicing, not vowel

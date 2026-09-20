@@ -20,7 +20,7 @@ name: Sumerian
 # have. See mandarin.yaml's own note for why an empty word_classes here
 # doesn't suppress generation.word_class_gen's own generic invented-
 # class roll for an unmatched/uncurated POS.
-consonants: [b, p, d, t, g, k, z, s, "ʃ", m, n, "ŋ", r, l, h, j, w]
+consonants: [b, p, d, t, g, k, z, s, "ʃ", m, n, "ŋ", r, l, h, j, w, "bː", "mː", "sː"]
 # Real, live Sumerological dispute left deliberately unresolved: some
 # analyses argue for a 3-way stop contrast (plain voiceless/voiced plus a
 # geminate or "emphatic" series, by analogy with Akkadian, the language
@@ -51,7 +51,7 @@ onset_frequency_tiers:
   very_common: [g, d, m, n, s, l]
   common: [b, p, t, k, r, "ŋ"]
   uncommon: [z, "ʃ", h]
-  rare: [j, w]
+  rare: [j, w, "bː", "mː", "sː"]
 nucleus_frequency_tiers:
   very_common: [a, u]
   common: [i]

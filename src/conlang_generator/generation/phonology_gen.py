@@ -612,6 +612,22 @@ _DRAWN_CONSONANTS: tuple[Consonant, ...] = (
     + _NASAL_POOL + _FRICATIVE_POOL + _APPROXIMANT_POOL + _EXOTIC_POOL
     + _BREATHY_GROUP + _PRE_ASPIRATED_GROUP
 )
+# Long (geminate) twins of the common consonants, reference-only: Italian
+# *fatto*, Arabic *madda*, Finnish *mukka*, Latin *annus*, Tamil *pukku*.
+# Never drawn (the six already in ``_GEMINATE_GROUP`` are the only ones an
+# invented language gets), so seeded generations stay byte-identical; a
+# strict profile that lists one forces it in like any other reference-only
+# symbol.
+_GEMINATE_TWIN_BASES = frozenset((
+    "b", "d", "g", "m", "ɲ", "ɳ", "ŋ", "r", "ɾ", "f", "v", "z", "ʃ", "x", "ɣ", "j", "w",
+    "tʃ", "dʒ", "q", "ʈ", "ɖ", "ɭ", "tˤ", "dˤ", "sˤ", "zˤ",
+))
+_have = {c.ipa for c in _DRAWN_CONSONANTS + _REFERENCE_ONLY_CONSONANTS}
+_REFERENCE_ONLY_CONSONANTS = _REFERENCE_ONLY_CONSONANTS + tuple(
+    c.model_copy(update={"ipa": c.ipa + "ː", "long": True, "prevalence": 0.05})
+    for c in _DRAWN_CONSONANTS + _REFERENCE_ONLY_CONSONANTS
+    if c.ipa in _GEMINATE_TWIN_BASES and c.ipa + "ː" not in _have
+)
 ALL_CONSONANTS: tuple[Consonant, ...] = _DRAWN_CONSONANTS + _REFERENCE_ONLY_CONSONANTS
 """Every consonant this package models, regardless of a given language's
 inventory -- shared with ``sound_change.py``, which needs to look up any
@@ -1118,7 +1134,9 @@ def _select_vowels(
 
 
 def _sonorant_or_glottal_symbols(consonants: tuple[Consonant, ...]) -> tuple[str, ...]:
-    return tuple(c.ipa for c in consonants if c.ipa == "ʔ" or sonority.sonority(c) >= 3)
+    # A geminate counts too: it closes the first of its two syllables
+    # (Italian *at.to*), which a sonorant-coda language really has.
+    return tuple(c.ipa for c in consonants if c.ipa == "ʔ" or c.long or sonority.sonority(c) >= 3)
 
 
 def _resolve_pair_restriction(
@@ -1627,6 +1645,13 @@ def generate_phonology(
     coda_symbol_multipliers = _resolve_position_multipliers(
         coda_legal_symbols, weighted_profiles, strictness, "coda_frequency_tiers"
     )
+
+    # A geminate barred from word-initial position is medial-only, so it can't
+    # end a word either (real Italian/Latin/Finnish have no final geminates)
+    long_symbols = {c.ipa for c in consonants if c.long}
+    medial_only = tuple(s for s in excluded_onset_consonants if s in long_symbols)
+    if medial_only:
+        excluded_final_coda_consonants = tuple(dict.fromkeys(excluded_final_coda_consonants + medial_only))
 
     syllable_structure = SyllableStructure(
         max_onset=max_onset,

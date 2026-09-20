@@ -1,6 +1,6 @@
 name: Latin
 aliases: [classical latin, lingua latina]
-consonants: [p, b, t, d, k, g, f, s, h, m, n, l, r, j, w, "kː", "tː", "pː", "sː", "nː", "lː"]
+consonants: [p, b, t, d, k, g, f, s, h, m, n, l, r, j, w, "kː", "tː", "pː", "sː", "nː", "lː", "rː", "fː", "mː"]
 vowels: [a, e, i, o, u, "aː", "eː", "iː", "oː", "uː", ai, "ɔi", au]
 # Real Classical Latin has no phonemic /x/ at all -- the letter "x" spells
 # the real consonant sequence /ks/ (see restricted_coda_consonants and
@@ -20,7 +20,7 @@ word_classes:
   - {name: "2nd declension (masculine)", pos: noun, suffix: [u, s], prevalence: 0.40}
   - {name: "2nd declension (neuter)", pos: noun, suffix: [u, m], prevalence: 0.25}
 word_class_deviation_rate: 0.25  # illustrative -- this profile models only 2 of Latin's real 5 declensions, so a real 3rd/4th/5th-declension noun (or a genuine irregular like domus) shows up here as an "irregular exception" relative to the simplified 2-declension model
-restricted_onset_consonants: ["kː", "tː", "pː", "sː", "nː", "lː"]  # real Latin gemination is a medial/intervocalic phenomenon (real "vacca", "annus") -- a word never starts with a geminate; this project has no ambisyllabic modeling, so the coda-position half of a real geminate is what stays legal in coda
+restricted_onset_consonants: ["kː", "tː", "pː", "sː", "nː", "lː", "rː", "fː", "mː"]  # real Latin gemination is a medial/intervocalic phenomenon (real "vacca", "annus") -- a word never starts with a geminate; this project has no ambisyllabic modeling, so the coda-position half of a real geminate is what stays legal in coda
 restricted_coda_consonants: [h, j, w]  # real Latin: h is onset-only; the glides (spelled i/u when consonantal) don't independently close a syllable -- their vocalic counterparts already model Latin's real diphthongs (ae/oe/au) as their own atomic symbols
 attested_onset_clusters:
   # Real, common Latin initial clusters -- illustrative, not exhaustive.
@@ -87,7 +87,7 @@ coda_frequency_tiers:
   very_common: [t, s, n, m]
   common: [r, l, k, d]
   uncommon: [p, b, g, f, "kː", "tː"]
-  rare: ["pː", "sː", "nː", "lː"]
+  rare: ["pː", "sː", "nː", "lː", "rː", "fː", "mː"]
 
 # --- Grammar-level typology (source_language bias in grammar_gen.py) ---
 real_word_order: SOV                 # the standard citation order for Classical Latin, despite its own famously free surface order (case marking, not position, carries most grammatical relations)

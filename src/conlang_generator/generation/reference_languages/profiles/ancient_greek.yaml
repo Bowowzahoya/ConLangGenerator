@@ -1,6 +1,6 @@
 name: Ancient Greek
 aliases: [attic greek, classical greek, "hellenike"]
-consonants: [p, b, "pʰ", t, d, "tʰ", k, g, "kʰ", s, z, m, n, l, r, h, "lː", "nː", "sː", "tː"]
+consonants: [p, b, "pʰ", t, d, "tʰ", k, g, "kʰ", s, z, m, n, l, r, h, "lː", "nː", "sː", "tː", "mː", "pː"]
 # Real Attic Greek's own genuine 3-way stop series (voiceless/voiced/
 # aspirated) at every place this pool models -- π/β/φ, τ/δ/θ, κ/γ/χ --
 # maps directly onto this pool's own plain/voiced/aspirated trait
@@ -35,7 +35,7 @@ word_classes:
   - {name: "-ō (thematic)", pos: verb, suffix: ["ɔː"], prevalence: 0.9}
   - {name: "-mi (athematic)", pos: verb, suffix: [m, i], prevalence: 0.1}
 word_class_deviation_rate: 0.3  # illustrative -- this profile models only 2 of Greek's real 3 declensions, so a real 3rd-declension (consonant-stem) noun shows up here as an "irregular exception" relative to the simplified model, the same reasoning Latin's own higher-than-French/Portuguese rate already uses
-restricted_onset_consonants: ["lː", "nː", "sː", "tː"]  # real Greek gemination (ἄλλος, θάλαττα) is medial/intervocalic only, the same real fact and fix shape every other geminate-modeling profile here already uses
+restricted_onset_consonants: ["lː", "nː", "sː", "tː", "mː", "pː"]  # real Greek gemination (ἄλλος, θάλαττα) is medial/intervocalic only, the same real fact and fix shape every other geminate-modeling profile here already uses
 restricted_coda_consonants: [p, b, "pʰ", t, d, "tʰ", k, g, "kʰ", z, m, l, h, "lː", "nː", "sː", "tː"]
 # Real Attic Greek word-final consonants are a genuinely small, closed
 # set -- ν/ρ/ς (n/r/s) -- plus the real consonant-cluster letters ξ/ψ
@@ -93,4 +93,4 @@ coda_frequency_tiers:
   very_common: [n, s]
   common: [r]
   uncommon: []
-  rare: []
+  rare: ["mː", "pː"]

@@ -493,7 +493,7 @@ def _recompute_syllable_structure(
     if base.max_coda == 0:
         max_coda, allowed_coda_consonants, allowed_coda_clusters, excluded_coda_consonants = 0, None, (), ()
     elif base.allowed_coda_consonants is not None:
-        sonorants = tuple(c.ipa for c in consonants if c.ipa == "ʔ" or sonority.sonority(c) >= 3)
+        sonorants = tuple(c.ipa for c in consonants if c.ipa == "ʔ" or c.long or sonority.sonority(c) >= 3)
         max_coda, allowed_coda_consonants, allowed_coda_clusters, excluded_coda_consonants = (
             (1, sonorants, (), ()) if sonorants else (0, None, (), ())
         )

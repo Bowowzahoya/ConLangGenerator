@@ -63,9 +63,10 @@ multi-session feature.
   fix with a cluster list: (a) *word-final devoicing is done* (final-only field,
   Turkish exemptions); the Sanskrit pausa restriction (only `k ʈ t p ṅ ṇ n m ḥ`
   word-finally) and other final-only coda sets could now use the same
-  field via a profile setting, but no profile field exists for it yet; (b) doubled
-  consonants (`tt`, `ss`, `kk`, `jj`, `ll`) in Italian, Arabic, Hungarian,
-  Finnish; (c) three-consonant clusters (`str`, `spr`, `ʃpʁ`, `ndr`) —
+  field via a profile setting, but no profile field exists for it yet; (b) *doubled consonants are done* (long twins for the common consonants,
+  lexicons and profiles converted; still open: geminate affricates like Italian
+  `tts`, geminates in `coda_profile: none` languages such as Japanese *kitte*,
+  and word-initial geminates in the few languages that have them); (c) three-consonant clusters (`str`, `spr`, `ʃpʁ`, `ndr`) —
   the cap is 2; (d) glide+vowel sequences written as onset clusters
   (French `bw`, Italian `pj`); (e) languages not yet reviewed: Old Norse,
   Nahuatl, Mandarin, Icelandic, Welsh, Georgian, Korean, Ancient Greek,

@@ -1,6 +1,6 @@
 name: Hungarian
 aliases: [magyar]
-consonants: [p, b, t, d, k, g, c, "ɟ", ts, dz, "tʃ", "dʒ", f, v, s, "ʃ", z, "ʒ", h, m, n, "ɲ", l, r, j]
+consonants: [p, b, t, d, k, g, c, "ɟ", ts, dz, "tʃ", "dʒ", f, v, s, "ʃ", z, "ʒ", h, m, n, "ɲ", l, r, j, "lː", "rː", "tː", "zː", "sː", "ʃː", "ɲː", "jː", "gː"]
 vowels: [i, a, "ɛ", o, u, y, "ø", "aː", "eː", "iː", "oː", "uː", "øː", "yː"]
 coda_profile: unrestricted
 max_onset: 2
@@ -47,7 +47,7 @@ orthography:
   # already uses.
   - {ipa: j, latin: j, weight: 0.75}
   - {ipa: j, latin: ly, weight: 0.25}
-restricted_onset_consonants: ["ɲ"]  # a palatal nasal is cross-linguistically onset-only, same fact already curated for the Germanic profiles' /ŋ/
+restricted_onset_consonants: ["ɲ", "lː", "rː", "tː", "zː", "sː", "ʃː", "ɲː", "jː", "gː"]  # a palatal nasal is cross-linguistically onset-only, same fact already curated for the Germanic profiles' /ŋ/
 attested_onset_clusters:
   # Real, common Hungarian onset clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive. Real Hungarian native
@@ -83,7 +83,7 @@ coda_frequency_tiers:
   very_common: [t, k, n, s]
   common: [r, l, m, "ʃ", z]
   uncommon: [p, b, d, g, v, j, "ɲ"]
-  rare: [c, "ɟ", ts, dz, "tʃ", "dʒ", "ʒ", h, f]
+  rare: [c, "ɟ", ts, dz, "tʃ", "dʒ", "ʒ", h, f, "lː", "rː", "tː", "zː", "sː", "ʃː", "ɲː", "jː", "gː"]
 word_classes:
   # Real Hungarian has no grammatical gender/noun-class system at all --
   # no noun word_classes curated, an honest omission (contrast Polish/

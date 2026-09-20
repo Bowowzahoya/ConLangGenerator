@@ -1,6 +1,6 @@
 name: Sanskrit
 aliases: [classical sanskrit, "samskrtam"]
-consonants: [p, "pʰ", b, "bʱ", m, t, "tʰ", d, "dʱ", n, "ʈ", "ʈʰ", "ɖ", "ɖʱ", "ɳ", k, "kʰ", g, "ɡʱ", "ŋ", "tʃ", "tʃʰ", "dʒ", "dʒʱ", "ɲ", s, "ʃ", "ʂ", h, j, r, l, v]
+consonants: [p, "pʰ", b, "bʱ", m, t, "tʰ", d, "dʱ", n, "ʈ", "ʈʰ", "ɖ", "ɖʱ", "ɳ", k, "kʰ", g, "ɡʱ", "ŋ", "tʃ", "tʃʰ", "dʒ", "dʒʱ", "ɲ", s, "ʃ", "ʂ", h, j, r, l, v, "tʃː", "tː", "nː", "dʒː", "jː"]
 # Real Classical Sanskrit's own famous 4-way stop/affricate series
 # (voiceless / voiceless-aspirated / voiced / voiced-breathy) across
 # every one of its 5 real places -- labial, dental, retroflex, velar,
@@ -16,6 +16,7 @@ vowels: [a, i, u, "aː", "iː", "uː", "eː", "oː", ai, au]
 # e/o -- but see the orthography note below on how IAST still spells
 # them without a macron, since there's nothing to disambiguate from.
 coda_profile: unrestricted
+restricted_onset_consonants: ["tʃː", "tː", "nː", "dʒː", "jː"]  # geminates are word-medial only
 max_onset: 2
 max_coda: 1
 tonal: false
@@ -127,4 +128,4 @@ coda_frequency_tiers:
   very_common: [n, m, t, k]
   common: [r, s, d, g, l, v]
   uncommon: [p, b, h, j, "ʈ", "ɖ", "ʃ", "ʂ", "ŋ", "ɳ"]
-  rare: ["ɲ"]
+  rare: ["ɲ", "tʃː", "tː", "nː", "dʒː", "jː"]

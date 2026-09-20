@@ -1,6 +1,6 @@
 name: Bengali
 aliases: [bangla]
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", s, "ʃ", h, m, n, "ŋ", l, r, j, "ɽ"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", s, "ʃ", h, m, n, "ŋ", l, r, j, "ɽ", "nː", "tː", "ʃː", "gː", "dʒː", "kː", "lː"]
 vowels: [i, e, "ɛ", a, "ɔ", o, u, "ã", "ẽ", "õ"]
 coda_profile: unrestricted
 max_onset: 2
@@ -62,7 +62,7 @@ orthography:
   - {ipa: "ẽ", latin: en}
   - {ipa: "õ", latin: "on"}
 core_vocabulary_average_syllables: 1.67  # hand-counted across this project's own CORE_MEANINGS glosses (jol "water"=1, agun "fire"=2, ma "mother"=1, khawa "eat"=2, manush "person"=2) -- disyllabic-leaning but with a real monosyllabic minority, landing close to but a bit above this project's own already-curated Hindi figure (1.69); illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
-restricted_onset_consonants: ["ɽ"]  # real Bengali ড়/ঢ় flap never opens a word
+restricted_onset_consonants: ["ɽ", "nː", "tː", "ʃː", "gː", "dʒː", "kː", "lː"]  # real Bengali ড়/ঢ় flap never opens a word
 onset_frequency_tiers:
   very_common: [t, k, b, m, n, s, r, l]
   common: [p, d, g, "tʃ", "dʒ", h, j]
@@ -77,4 +77,4 @@ coda_frequency_tiers:
   very_common: [n, r, l, t, k]
   common: [m, "ŋ", s, b, d, g]
   uncommon: [p, "tʃ", "dʒ", j, "ɽ"]
-  rare: ["ʃ", h]
+  rare: ["ʃ", h, "nː", "tː", "ʃː", "gː", "dʒː", "kː", "lː"]

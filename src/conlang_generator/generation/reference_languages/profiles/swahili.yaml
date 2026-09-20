@@ -1,6 +1,6 @@
 name: Swahili
 aliases: [kiswahili]
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", h, m, n, "ɲ", "ŋ", l, r, j, w, "θ", "ð", "ɣ", x, mb, nd, "ŋg", nz]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", h, m, n, "ɲ", "ŋ", l, r, j, w, "θ", "ð", "ɣ", x, mb, nd, "ŋg", nz, "nː"]
 # Real Swahili's own core inventory plus the real Arabic-loan register
 # (θ/ð/ɣ/x -- th/dh/gh/kh, e.g. thelathini, dhahabu, ghali, khamsini)
 # many L1 speakers actually merge toward s/z/ɣ~h/h in casual speech, so
@@ -78,7 +78,7 @@ onset_frequency_tiers:
   very_common: [m, n, k, t, l, j, w, s]
   common: [p, b, d, g, f, v, z, h, "ŋ", "ɲ", r]
   uncommon: ["tʃ", "dʒ", "ʃ", mb, nd, "ŋg", nz]
-  rare: ["θ", "ð", "ɣ", x]
+  rare: ["θ", "ð", "ɣ", x, "nː"]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [u, e]

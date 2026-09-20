@@ -1,7 +1,7 @@
 name: Finnish
 # "kː" (real: kukka/kuka -- phonemic consonant length) is what Finnish is
 # the textbook example for; see orthography_category below.
-consonants: [p, t, k, "kː", "tː", "pː", d, m, n, "ŋ", s, "sː", h, l, "lː", r, j, v]
+consonants: [p, t, k, "kː", "tː", "pː", d, m, n, "ŋ", s, "sː", h, l, "lː", r, j, v, "nː", "mː", "rː"]
 vowels: [i, a, u, e, o, y, "ø", "æ", "aː", "eː", "iː", "oː", "uː", "æː", "øː", "yː", ai, au, ei]
 coda_profile: unrestricted
 max_onset: 1  # real Finnish: native words are essentially single-onset-consonant only; clusters are loanword-only
@@ -35,7 +35,7 @@ orthography:
   - {ipa: "æː", latin: "ää"}
   - {ipa: "øː", latin: "öö"}
   - {ipa: "yː", latin: yy}
-restricted_onset_consonants: ["ŋ", "kː", "tː", "pː", "sː", "lː"]  # /ŋ/: real Finnish is coda/medial-only (spelled "ng"/"nk"), never opens a syllable, same fact already curated for the Germanic profiles. Geminates: real Finnish gemination is a medial/intervocalic phenomenon (kukka) -- a word never *starts* with a geminate; this project has no ambisyllabic modeling, so the coda-position half of a real geminate is what stays legal below
+restricted_onset_consonants: ["ŋ", "kː", "tː", "pː", "sː", "lː", "nː", "mː", "rː"]  # /ŋ/: real Finnish is coda/medial-only (spelled "ng"/"nk"), never opens a syllable, same fact already curated for the Germanic profiles. Geminates: real Finnish gemination is a medial/intervocalic phenomenon (kukka) -- a word never *starts* with a geminate; this project has no ambisyllabic modeling, so the coda-position half of a real geminate is what stays legal below
 core_vocabulary_average_syllables: 1.65  # hand-counted across this project's own CORE_MEANINGS glosses -- Finnish's own agglutinative morphology means core root vocabulary is still comparatively short even though grammatical word-forms get long; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
 onset_frequency_tiers:
   very_common: [k, s, t, m, p]
@@ -55,7 +55,7 @@ coda_frequency_tiers:
   very_common: [n, t, s]
   common: [k, l, r, m, "kː", "tː"]
   uncommon: ["ŋ", h, v, j, "sː", "lː"]
-  rare: [p, d, "pː"]
+  rare: [p, d, "pː", "nː", "mː", "rː"]
 word_classes:
   # Real Finnish's own 1st infinitive is genuinely conditioned along two
   # independent axes: vowel harmony (front "-ä" vs. back "-a") *and*

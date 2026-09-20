@@ -1,5 +1,5 @@
 name: Italian
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", "ɲ", "lʲ", m, n, l, r, j, w, "kː", "tː", "pː", "sː", "nː", "lː", "ʎ"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", "ɲ", "lʲ", m, n, l, r, j, w, "kː", "tː", "pː", "sː", "nː", "lː", "ʎ", "mː", "rː", "fː", "tʃː", "bː"]
 vowels: [i, e, "ɛ", a, "ɔ", o, u]
 coda_profile: sonorant
 max_onset: 2
@@ -21,7 +21,7 @@ word_classes:
   - {name: "-ere verbs", pos: verb, suffix: [e, r, e], prevalence: 0.20}
   - {name: "-ire verbs", pos: verb, suffix: [i, r, e], prevalence: 0.15}
 word_class_deviation_rate: 0.12  # illustrative -- real Italian noun/verb classes are more reliable than Spanish's own (fewer real gender-ending mismatches), reflected in a lower rate
-restricted_onset_consonants: ["kː", "tː", "pː", "sː", "nː", "lː", z]
+restricted_onset_consonants: ["kː", "tː", "pː", "sː", "nː", "lː", "mː", "rː", "fː", "tʃː", "bː", z]
 # Gemination is strictly intervocalic in real Italian -- no geminate ever
 # opens a word. Word-initial /z/ doesn't occur either: an "s"-initial
 # word is always voiceless [s] (sole, sale) -- the voiced [z] allophone

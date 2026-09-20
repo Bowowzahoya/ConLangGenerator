@@ -1,8 +1,9 @@
 name: Turkish
 aliases: ["türkçe"]
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", "ʒ", "ɣ", h, m, n, l, r, j]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", "ʒ", "ɣ", h, m, n, l, r, j, "nː", "kː", "sː", "mː", "lː"]
 vowels: [i, y, "ɯ", u, e, "ø", a, o]
 coda_profile: unrestricted
+restricted_onset_consonants: ["nː", "kː", "sː", "mː", "lː"]  # geminates are word-medial only
 max_onset: 1
 tonal: false
 vowel_harmony: true
@@ -64,7 +65,7 @@ coda_frequency_tiers:
   very_common: [t, n, s, r, l]
   common: [k, m, p, f, j]
   uncommon: ["ʃ", "tʃ", h]
-  rare: [b, d, g, "dʒ", v, z, "ʒ", "ɣ"]
+  rare: [b, d, g, "dʒ", v, z, "ʒ", "ɣ", "nː", "kː", "sː", "mː", "lː"]
 word_classes:
   # Real Turkish's own famous vowel-harmony-conditioned infinitive:
   # front-vowel stems take "-mek" (gel- -> gelmek "to come"), back-vowel
