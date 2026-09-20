@@ -230,6 +230,7 @@ def get_options() -> dict:
         "tone_styles": [m.name.lower() for m in ToneMarkingStrategy],
         "syllable_boundary_markers": [m.name.lower() for m in SyllableBoundaryMarker],
         "tts_backends": tts.available_backends(),
+        "tts_capabilities": tts.backend_capabilities(),
         "max_vocabulary_size": len(ALL_MEANINGS),
     }
 
@@ -406,10 +407,26 @@ def pronounce(request: PronounceRequest) -> Response:
     if not request.ipa.strip():
         raise HTTPException(status_code=400, detail="ipa must not be empty")
     client = tts.build_tts_client(request.tts)
+    if hasattr(client, "for_utterance"):  # engines that pick a voice per sentence (eSpeak's tonal one)
+        client = client.for_utterance(request.ipa)
     audio = _synthesize_sentence(client, request.ipa)
     if audio is None:
         raise HTTPException(status_code=503, detail=f"'{request.tts}' TTS backend unavailable or synthesis failed.")
     return Response(content=audio, media_type="audio/wav")
+
+
+@app.post("/api/pronunciation-check")
+def pronunciation_check(request: PronounceRequest) -> dict:
+    """What the chosen pronunciation engine can't voice in this IPA (today:
+    tones), plus its own capability summary -- the UI shows the alerts before
+    (and again with) any playback."""
+    if request.tts not in ("none", "espeak", "sapi"):
+        raise HTTPException(status_code=400, detail="tts must be 'none', 'espeak' or 'sapi'")
+    capabilities = tts.build_tts_client(request.tts).capabilities()
+    return {
+        "capabilities": capabilities.as_dict(),
+        "warnings": tts.pronunciation_warnings(capabilities, request.ipa) if request.tts != "none" else [],
+    }
 
 
 if STATIC_DIR.exists():

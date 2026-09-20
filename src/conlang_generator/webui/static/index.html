@@ -72,6 +72,8 @@
   }
   button.primary:disabled { opacity: 0.5; cursor: default; }
   .error { color: #b3311d; font-size: 13px; margin-top: 10px; }
+  .engine-info { font-size: 12px; margin-top: 6px; opacity: 0.8; }
+  .engine-info ul { margin: 4px 0 0 16px; padding: 0; }
   .result { margin-top: 20px; }
   .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
   .badge {
@@ -242,6 +244,7 @@
           <option value="espeak">espeak-ng</option>
           <option value="sapi">Windows SAPI</option>
         </select>
+        <div class="engine-info" id="tr-tts-info"></div>
       </div>
     </div>
 
@@ -370,7 +373,37 @@ async function loadOptions() {
   // Default to the best available backend: Windows SAPI, then espeak-ng.
   const preferred = ["sapi", "espeak"].find(name => opts.tts_backends[name]);
   if (preferred) $("tr-tts").value = preferred;
+  ttsCapabilities = opts.tts_capabilities || {};
+  showEngineInfo();
 }
+
+// --- what the chosen pronunciation engine can and can't do ---
+let ttsCapabilities = {};
+let currentIpa = "";
+function showEngineInfo() {
+  const caps = ttsCapabilities[$("tr-tts").value];
+  if (!caps) { $("tr-tts-info").innerHTML = ""; return; }
+  const tones = caps.tones.length ? `Tones: ${caps.tones.join(", ")}` : "Tones: none";
+  $("tr-tts-info").innerHTML = `<strong>${tones}</strong><ul>${caps.notes.map(n => `<li>${n}</li>`).join("")}</ul>`;
+}
+async function refreshPronunciationWarning() {
+  const box = $("pronounce-warning");
+  if (!box) return;
+  box.hidden = true;
+  const backend = $("tr-tts").value;
+  if (!currentIpa || backend === "none") return;
+  try {
+    const res = await api("/api/pronunciation-check", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ipa: currentIpa, tts: backend }),
+    });
+    if (res.warnings.length) {
+      box.innerHTML = res.warnings.map(w => `⚠ ${w}`).join("<br>");
+      box.hidden = false;
+    }
+  } catch (e) { /* the check is advisory */ }
+}
+$("tr-tts").addEventListener("change", () => { showEngineInfo(); refreshPronunciationWarning(); });
 
 // --- language dropdown (translate tab) ---
 async function refreshLanguages() {
@@ -547,6 +580,7 @@ $("translate-btn").onclick = async () => {
           <button type="button" class="add-row" id="pronounce-btn">&#128266; Play pronunciation</button>
           <audio id="pronounce-audio" controls style="display:none; margin-left:10px; vertical-align:middle;"></audio>
         </div>
+        <div class="error" id="pronounce-warning" hidden></div>
         <div class="error" id="pronounce-error" hidden></div>` : "";
     $("translate-result").innerHTML = `
       <div class="card">
@@ -559,7 +593,8 @@ $("translate-btn").onclick = async () => {
         ${coined}
         ${pronounceBlock}
       </div>`;
-    if (result.ipa) wirePronounceButton(result.ipa);
+    currentIpa = result.ipa || "";
+    if (result.ipa) { wirePronounceButton(result.ipa); refreshPronunciationWarning(); }
     await refreshCost();
   } catch (e) {
     err.textContent = e.message;

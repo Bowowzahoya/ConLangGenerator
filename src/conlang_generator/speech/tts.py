@@ -29,9 +29,12 @@ import subprocess
 import sys
 import unicodedata
 import xml.sax.saxutils
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from conlang_generator.core.phonology import TONE_DIACRITICS, ToneLevel
+from conlang_generator.generation import ipa_tokenizer, phonology_gen
 from conlang_generator.speech import ipa_to_kirshenbaum
 
 _ESPEAK_FALLBACK_PATHS = (
@@ -43,6 +46,54 @@ on ``PATH`` -- its own installer doesn't always add it, and updating
 ``PATH`` for an already-running shell needs a fresh session anyway."""
 
 
+@dataclass(frozen=True)
+class TTSCapabilities:
+    """What a pronunciation engine can and cannot voice -- shown next to the
+    engine's name in the UI, and checked against a translation's IPA by
+    ``pronunciation_warnings`` so an unpronounceable tone is reported
+    instead of silently dropped."""
+
+    label: str
+    tones: frozenset[ToneLevel]
+    """The tones it can actually voice (empty: none, tone marks are dropped)."""
+    notes: tuple[str, ...]
+
+    def as_dict(self) -> dict:
+        return {
+            "label": self.label,
+            "tones": [level.value for level in ToneLevel if level in self.tones],
+            "notes": list(self.notes),
+        }
+
+
+_TONE_CHARACTERS = frozenset(TONE_DIACRITICS.values())
+_SYMBOLS = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+
+
+def tones_in(ipa_text: str) -> tuple[ToneLevel, ...]:
+    """The tones carried by ``ipa_text`` (in order, with repeats)."""
+    return ipa_tokenizer.tone_sequence(ipa_text, _SYMBOLS)
+
+
+def strip_tone_marks(ipa_text: str) -> str:
+    return "".join(ch for ch in ipa_text if ch not in _TONE_CHARACTERS)
+
+
+def pronunciation_warnings(capabilities: TTSCapabilities, ipa_text: str) -> list[str]:
+    """Human-readable alerts for the tones in ``ipa_text`` this engine cannot
+    voice (empty when there are none, or the text has no tones)."""
+    used = set(tones_in(ipa_text))
+    missing = [level for level in ToneLevel if level in used and level not in capabilities.tones]
+    if not missing:
+        return []
+    names = ", ".join(level.value for level in missing)
+    if not capabilities.tones:
+        return [
+            f"{capabilities.label} cannot voice tones: the {names} tone marks in this text will be spoken without them."
+        ]
+    return [f"{capabilities.label} cannot voice the {names} tone(s) in this text: those syllables will be spoken without them."]
+
+
 class TTSClient(Protocol):
     def synthesize(self, ipa_text: str, output_path: Path) -> bool:
         """Renders ``ipa_text`` to a ``.wav`` file at ``output_path``.
@@ -52,6 +103,17 @@ class TTSClient(Protocol):
         state this project's own CLI reports cleanly, not a bug)."""
         ...
 
+    def capabilities(self) -> TTSCapabilities:
+        """What this engine can and cannot pronounce."""
+        ...
+
+    def for_utterance(self, ipa_text: str) -> "TTSClient":
+        """The client to voice a whole sentence with -- ``self`` unless the
+        engine needs a different voice for the sentence as a whole (eSpeak
+        switches every word to its Mandarin voice when any word is tonal, so
+        the sentence keeps one voice)."""
+        ...
+
 
 class NoneTTSClient:
     """The default -- no audio synthesis, matching this project's
@@ -59,6 +121,12 @@ class NoneTTSClient:
 
     def synthesize(self, ipa_text: str, output_path: Path) -> bool:
         return False
+
+    def capabilities(self) -> TTSCapabilities:
+        return TTSCapabilities("No audio", frozenset(), ("Shows the IPA and romanization as text only.",))
+
+    def for_utterance(self, ipa_text: str) -> "TTSClient":
+        return self
 
 
 def _find_espeak_ng() -> str | None:
@@ -71,23 +139,63 @@ def _find_espeak_ng() -> str | None:
     return None
 
 
+_ESPEAK_TONE_VOICE = "cmn"
+_ESPEAK_TONE_NUMBERS: dict[ToneLevel, str] = {
+    # eSpeak's Mandarin voice reads a run of pitch-contour digits after a
+    # vowel as that syllable's tone (5 = highest, 1 = lowest): "55" high
+    # level, "35" rising, "214" dipping, "51" falling; "33"/"21" give a mid
+    # and a low tone, and "11" its short, weak neutral tone. Verified by
+    # synthesizing each and comparing lengths/pitch against the pinyin voice.
+    ToneLevel.HIGH: "55",
+    ToneLevel.RISING: "35",
+    ToneLevel.DIPPING: "214",
+    ToneLevel.FALLING: "51",
+    ToneLevel.MID: "33",
+    ToneLevel.LOW: "21",
+    ToneLevel.NEUTRAL: "11",
+}
+
+
 class EspeakTTSClient:
     """Shells out to espeak-ng's own ``[[...]]`` Kirshenbaum bracket
     syntax (see ``speech.ipa_to_kirshenbaum``'s own docstring for why
     that conversion is needed at all -- espeak-ng has no direct IPA
-    input)."""
+    input). Tonal IPA is voiced with eSpeak's Mandarin voice, the only one
+    with a tone mechanism: every tone becomes a contour-digit suffix on its
+    vowel, and the language's other sounds are approximated by that voice's
+    own inventory."""
 
-    def __init__(self, voice: str = "en-us") -> None:
+    def __init__(self, voice: str = "en-us", tones: bool = False) -> None:
         self.voice = voice
+        self.tones = tones
+
+    def capabilities(self) -> TTSCapabilities:
+        return TTSCapabilities(
+            "eSpeak NG",
+            frozenset(_ESPEAK_TONE_NUMBERS),
+            (
+                "Tones are voiced through eSpeak's Mandarin voice (contour digits 55/35/214/51, mid 33, "
+                "low 21, neutral 11); a tonal sentence is spoken entirely in that voice.",
+                "Sounds outside Mandarin's inventory, clicks and ejectives are approximated.",
+                "Word-accent marks (stod, pitch accent) are not voiced.",
+            ),
+        )
+
+    def for_utterance(self, ipa_text: str) -> "TTSClient":
+        if self.tones or not tones_in(ipa_text):
+            return self
+        return EspeakTTSClient(voice=_ESPEAK_TONE_VOICE, tones=True)
 
     def synthesize(self, ipa_text: str, output_path: Path) -> bool:
         exe = _find_espeak_ng()
         if exe is None:
             return False
-        kirshenbaum = ipa_to_kirshenbaum.convert_word(ipa_text)
+        tonal = self.tones or bool(tones_in(ipa_text))
+        voice = _ESPEAK_TONE_VOICE if tonal else self.voice
+        kirshenbaum = ipa_to_kirshenbaum.convert_word(ipa_text, _ESPEAK_TONE_NUMBERS if tonal else None)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         result = subprocess.run(
-            [exe, "-v", self.voice, "-w", str(output_path), f"[[{kirshenbaum}]]"],
+            [exe, "-v", voice, "-w", str(output_path), f"[[{kirshenbaum}]]"],
             capture_output=True,
         )
         return result.returncode == 0 and output_path.is_file()
@@ -115,9 +223,25 @@ class SapiTTSClient:
     the same "unavailable is a normal state" contract every ``TTSClient``
     has."""
 
+    def capabilities(self) -> TTSCapabilities:
+        return TTSCapabilities(
+            "Windows SAPI",
+            frozenset(),
+            (
+                "Takes IPA directly through the installed voice (English by default).",
+                "Cannot voice tones: SAPI rejects IPA tone marks (its Mandarin voices only accept grave/acute, "
+                "as stress), so they are removed before speaking -- the words are still spoken, toneless.",
+                "Sounds the voice lacks are approximated by it.",
+            ),
+        )
+
+    def for_utterance(self, ipa_text: str) -> "TTSClient":
+        return self
+
     def synthesize(self, ipa_text: str, output_path: Path) -> bool:
         if not sys.platform.startswith("win"):
             return False
+        ipa_text = strip_tone_marks(ipa_text)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         # SAPI silently writes an empty file for a precomposed character like
         # the nasalized vowel "ã" (U+00E3); the decomposed form (a + combining
@@ -157,7 +281,12 @@ def available_backends() -> dict[str, bool]:
     }
 
 
+def backend_capabilities() -> dict[str, dict]:
+    """``{backend: capabilities}`` for every backend, for the UI's info line."""
+    return {kind: build_tts_client(kind).capabilities().as_dict() for kind in ("none", "espeak", "sapi")}
+
+
 __all__ = [
-    "TTSClient", "NoneTTSClient", "EspeakTTSClient", "SapiTTSClient",
-    "build_tts_client", "available_backends",
+    "TTSClient", "TTSCapabilities", "NoneTTSClient", "EspeakTTSClient", "SapiTTSClient",
+    "build_tts_client", "available_backends", "backend_capabilities", "pronunciation_warnings", "tones_in",
 ]

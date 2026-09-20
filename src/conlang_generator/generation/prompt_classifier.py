@@ -43,7 +43,8 @@ _DIMENSION_POLES = """- isolation: + isolated/cut off from outsiders; - well-con
 - tonal_friendliness: + tonal/pitch-based meaning; - explicitly not tonal (e.g. stress-only)
 - taboo_register: + an avoidance/taboo speech register; - no such register
 - terrain_communication_distance: + need for loud/long-distance communication; - close-quarters, no such need
-- phonotactic_restrictiveness: + a tight, rigid set of allowed syllables (only a small fixed combination of sounds actually occurs); - loose/permissive, almost any sound combination goes"""
+- phonotactic_restrictiveness: + a tight, rigid set of allowed syllables (only a small fixed combination of sounds actually occurs); - loose/permissive, almost any sound combination goes
+- tone_sandhi: + tones change depending on neighbouring syllables in connected speech; - explicitly no such tone changes (only meaningful for a tonal language)"""
 
 _SYSTEM_PROMPT = f"""You classify a free-text description of a constructed language \
 against a fixed set of dimensions known to shape real languages. For each \

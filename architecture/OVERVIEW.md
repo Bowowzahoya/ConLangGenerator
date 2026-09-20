@@ -1106,17 +1106,31 @@ Everything here is a pure function of a `random.Random` seeded from
   `neutral_tone` and `tone_sandhi` (Mandarin: high/rising/dipping/falling +
   `ToneLevel.NEUTRAL`, the combining dot above, never on a word's first
   syllable; third-tone sandhi dipping+dipping -> rising): a run with source
-  strictness >= 0.5 takes those levels, and any run with strictness > 0 gets
-  the sandhi rules its levels can express (`ToneSystem.sandhi`). Sandhi is an
+  strictness >= 0.5 takes those levels. Sandhi is **probabilistic**
+  (`phonology_gen.resolve_tone_sandhi`, its own rng seeded from `spec.seed`, so
+  no other draw moves): each profile rule is kept with probability = the
+  weighted source strictness (certain at 1.0), otherwise it may be replaced by
+  a different invented rule (0.35 x (1 - strictness)), and a tonal language
+  with no source rule may invent one (0.15, rarely two); the graded
+  `TraitProfile.tone_sandhi` (-1..1, classifier-extracted) shifts all of those
+  chances, except that full strictness always keeps the real rules. Sandhi is an
   utterance-level surface rule (`generation/tone_sandhi.py`, applied to the
   translation's IPA); lexicon entries keep citation tones. Profiles also
   list the reference-only symbols their language really has (Mandarin
   ʈʂ ʈʂʰ ɕ, Tamil ɭ, Hindi ɽ ɦ, Japanese ɸ ɕ ɴ, Polish ɕ ʑ, Russian ɕ,
   Arabic zˤ lˤ, Bengali ɽ); those join a strict inventory deterministically
   (weight x strictness >= 0.5, no rng). Not modeled: lexically specific
-  sandhi (Mandarin 不/一), Spanish β/ð/ɣ allophony in the profile, and TTS
-  voicing of tones (`speech/ipa_to_kirshenbaum.py` drops them; only
-  eSpeak's `cmn` voice can take tone numbers, SAPI's Huihui cannot).
+  sandhi (Mandarin 不/一) and Spanish β/ð/ɣ allophony in the profile.
+  **Pronunciation engines** each report `TTSCapabilities` (which tones they
+  voice + notes; `/api/options` `tts_capabilities`, shown under the engine
+  select) and `tts.pronunciation_warnings` alerts for tones a translation
+  carries that the chosen engine can't voice (`/api/pronunciation-check`, a
+  banner in the UI). eSpeak voices tonal IPA through its Mandarin (`cmn`)
+  voice: each tone becomes contour digits after its vowel (55/35/214/51, mid
+  33, low 21, neutral 11) and a tonal sentence uses that one voice for every
+  word, so the language's other sounds are approximated by Mandarin's
+  inventory. SAPI cannot voice tones (its IPA input rejects tone marks); it
+  strips them so the word is still spoken, toneless.
   Fitting a pronunciation to a language (nearest inventory phoneme +
   syllable-rule repair) lives in `generation/phoneme_fit.py`, shared with
   foreign-name adaptation. `generator.generate_evolved_language` then runs

@@ -40,6 +40,7 @@ GRADED_TRAIT_FIELDS: tuple[str, ...] = (
     "taboo_register",
     "terrain_communication_distance",
     "phonotactic_restrictiveness",
+    "tone_sandhi",
 )
 
 
@@ -74,6 +75,15 @@ class TraitProfile(BaseModel, frozen=True):
     with only a handful of gaps (most Indo-European languages). Only
     matters when no source_languages are active -- see
     generation/phonology_gen.py's blacklist/whitelist mode roll."""
+
+    tone_sandhi: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: pervasive tone change between neighbouring syllables in
+    connected speech (Mandarin's third-tone rule and beyond) -- raises the
+    chance a tonal language keeps its source language's sandhi rules and
+    invents new ones. Negative: evidence the language has none. Only
+    matters for tonal languages. A source-language strictness of ``1.0``
+    keeps the matched profiles' real rules regardless (see
+    ``generation.phonology_gen.resolve_tone_sandhi``)."""
 
     # -- Extracted and stored, not yet consumed by generation --
     social_hierarchy: float = Field(default=0.0, ge=-1.0, le=1.0)

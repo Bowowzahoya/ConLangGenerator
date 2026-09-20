@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import unicodedata
 
+from conlang_generator.core.phonology import TONE_DIACRITICS, ToneLevel
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
 from conlang_generator.generation import ipa_tokenizer, phonology_gen
 
@@ -145,7 +146,7 @@ def convert_symbol(ipa_symbol: str) -> str:
     return remaining[:1] if remaining else "@"
 
 
-def convert_word(ipa_text: str) -> str:
+def convert_word(ipa_text: str, tone_numbers: dict[ToneLevel, str] | None = None) -> str:
     """Converts a whole word's own stored IPA (as ``LexicalEntry.ipa``
     stores it, including ``STRESS_MARK``/``WORD_ACCENT_MARK``/tone
     diacritics) into a Kirshenbaum phoneme string ready to wrap in
@@ -154,17 +155,24 @@ def convert_word(ipa_text: str) -> str:
     stressed syllable's own onset, matching Kirshenbaum's convention of
     marking stress on the syllable, not the vowel); tone diacritics and
     ``WORD_ACCENT_MARK`` are dropped entirely (no real espeak-ng
-    equivalent -- see this module's own docstring)."""
+    equivalent -- see this module's own docstring) unless ``tone_numbers``
+    is given: a ``ToneLevel`` -> pitch-contour digits map (eSpeak's Mandarin
+    voice reads ``A55``/``A35``/``A214``/``A51`` as its four tones), appended
+    right after the tone-bearing vowel."""
     raw_tokens = ipa_tokenizer.tokenize(ipa_text, _ALL_SYMBOLS + (STRESS_MARK, WORD_ACCENT_MARK))
     out: list[str] = []
     pending_stress = False
-    for symbol, _deco in raw_tokens:
+    for symbol, deco in raw_tokens:
         if symbol == STRESS_MARK:
             pending_stress = True
             continue
         if symbol == WORD_ACCENT_MARK:
             continue
         piece = convert_symbol(symbol)
+        if tone_numbers:
+            tone = next((level for level, mark in TONE_DIACRITICS.items() if mark in deco), None)
+            if tone is not None and tone in tone_numbers:
+                piece += tone_numbers[tone]
         if pending_stress:
             piece = "'" + piece
             pending_stress = False

@@ -738,12 +738,17 @@ def _reference_clamp(
 
 
 def _apply_reference_tone_profile(
-    tone_system: ToneSystem, weighted_profiles: WeightedProfiles, strictness: float, keep_levels: bool
+    tone_system: ToneSystem,
+    weighted_profiles: WeightedProfiles,
+    strictness: float,
+    keep_levels: bool,
+    seed: int,
+    tone_sandhi_strength: float,
 ) -> ToneSystem:
     """A strict source-language run takes the heaviest matched profile's own
-    real tone levels (plus its neutral tone) instead of a stock set, and
-    every run gets the matched profiles' tone-sandhi rules whose tones its
-    levels include. Draws nothing from the rng."""
+    real tone levels (plus its neutral tone) instead of a stock set, and the
+    language's tone-sandhi rules are resolved by ``resolve_tone_sandhi``.
+    Draws nothing from the main rng."""
     levels = tone_system.levels
     with_levels = [(p, w) for p, w in weighted_profiles if p.tone_levels]
     if with_levels and strictness >= 0.5 and not keep_levels:
@@ -752,15 +757,89 @@ def _apply_reference_tone_profile(
         if profile.neutral_tone:
             wanted += (ToneLevel.NEUTRAL,)
         levels = wanted
+    rules = resolve_tone_sandhi(levels, weighted_profiles, strictness, tone_sandhi_strength, seed)
+    return ToneSystem(enabled=True, levels=levels, sandhi=rules)
+
+
+_SANDHI_INVENTION_BASE_RATE = 0.15
+"""Chance an unmatched (or sandhi-less-profile) tonal language invents a
+sandhi rule at ``tone_sandhi`` 0."""
+_SANDHI_REPLACEMENT_BASE_RATE = 0.35
+"""Chance a source-language rule that was *not* kept is replaced by a
+different, invented rule -- scaled by ``1 - weighted strictness``."""
+
+
+def resolve_tone_sandhi(
+    levels: tuple[ToneLevel, ...],
+    weighted_profiles: WeightedProfiles,
+    strictness: float,
+    strength: float,
+    seed: int,
+) -> tuple[ToneSandhiRule, ...]:
+    """The tone-sandhi rules a tonal language ends up with, decided by its
+    own rng (seeded from ``seed`` -- the main generation draws are
+    untouched) as follows:
+
+    - Each rule a matched profile carries (and whose three tones the
+      language's levels include) is **kept** with probability equal to that
+      profile's weighted strictness -- so ``strictness=1.0`` (single
+      source) always keeps it, lower strictness sometimes drops it. The
+      ``tone_sandhi`` trait (``strength``, -1..1) shifts that chance up or
+      down except at full weighted strictness, which is certain.
+    - A rule that is *not* kept may be **replaced** by a different invented
+      rule (chance ``0.35 * (1 - weighted strictness)``, shifted by the
+      trait) -- "different sandhi" at lower strictness.
+    - A language with no rule from any profile may **invent** one
+      (chance 0.15, shifted by the trait), and rarely a second.
+
+    Invented rules use the language's own non-neutral levels and never map a
+    tone to itself.
+    """
+    rng = random.Random(f"{seed}:tone-sandhi")
     available = set(levels)
-    rules = tuple(
-        ToneSandhiRule(before=ToneLevel(b), after=ToneLevel(a), becomes=ToneLevel(c))
-        for profile, _ in weighted_profiles
-        if strictness > 0.0
-        for b, a, c in profile.tone_sandhi
-        if {ToneLevel(b), ToneLevel(a), ToneLevel(c)} <= available
-    )
-    return ToneSystem(enabled=True, levels=levels, sandhi=tuple(dict.fromkeys(rules)))
+    usable = [level for level in levels if level is not ToneLevel.NEUTRAL]
+    rules: list[ToneSandhiRule] = []
+
+    def invented() -> ToneSandhiRule | None:
+        if len(usable) < 2:
+            return None
+        for _ in range(10):
+            before = rng.choice(usable)
+            after = before if rng.random() < 0.6 else rng.choice(usable)
+            becomes = rng.choice([level for level in usable if level is not before])
+            rule = ToneSandhiRule(before=before, after=after, becomes=becomes)
+            if rule not in rules:
+                return rule
+        return None
+
+    carried = False
+    for profile, weight in weighted_profiles:
+        for b, a, c in profile.tone_sandhi:
+            rule = ToneSandhiRule(before=ToneLevel(b), after=ToneLevel(a), becomes=ToneLevel(c))
+            if not {rule.before, rule.after, rule.becomes} <= available:
+                continue
+            carried = True
+            weighted = min(1.0, strictness * weight)
+            keep = 1.0 if weighted >= 1.0 else max(0.0, biased_probability(weighted, strength))
+            if rng.random() < keep:
+                if rule not in rules:
+                    rules.append(rule)
+                continue
+            replace = biased_probability(_SANDHI_REPLACEMENT_BASE_RATE * (1.0 - weighted), strength)
+            if rng.random() < max(0.0, replace):
+                extra = invented()
+                if extra is not None:
+                    rules.append(extra)
+    if not carried:
+        if rng.random() < biased_probability(_SANDHI_INVENTION_BASE_RATE, strength):
+            extra = invented()
+            if extra is not None:
+                rules.append(extra)
+                if rng.random() < 0.3:
+                    second = invented()
+                    if second is not None:
+                        rules.append(second)
+    return tuple(rules)
 
 
 def _levels_covering(needed: frozenset[ToneLevel]) -> tuple[ToneLevel, ...]:
@@ -1553,7 +1632,9 @@ def generate_phonology(
     if seed_tones and not (tone_system.enabled and seed_tones <= set(tone_system.levels)):
         tone_system = ToneSystem(enabled=True, levels=_levels_covering(seed_tones))
     if tone_system.enabled:
-        tone_system = _apply_reference_tone_profile(tone_system, weighted_profiles, strictness, bool(seed_tones))
+        tone_system = _apply_reference_tone_profile(
+            tone_system, weighted_profiles, strictness, bool(seed_tones), spec.seed, traits.tone_sandhi
+        )
 
     # Word accent (real Danish stød / Swedish-Norwegian pitch accent) has
     # no trait dial of its own -- unlike `tonal_friendliness`, a
