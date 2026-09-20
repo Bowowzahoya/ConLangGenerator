@@ -27,8 +27,6 @@ Xhosa               52           19         14     63%
 Mandarin           494          216         97     63% 
 Zulu                84           31         19     60% 
 Georgian           169           74         22     57% 
-Icelandic          494          189         85     55% 
-Old Norse          490           98        172     55% 
 Korean             494          216         18     47% 
 Welsh              494          172         60     47% 
 Cantonese          494          222          3     46% 
@@ -59,12 +57,14 @@ Italian            494            0         25      5%
 Basque             494            7         16      5% 
 Danish             494           17          1      4% 
 Russian            494            1         16      3% 
+Old Norse          490            0         16      3% 
 Portuguese         494            0         15      3% 
 Thai               190            5          0      3% 
 Finnish            494            1         10      2% 
 German             494            1          9      2% 
 Turkish            494            0          7      1% 
 Latin              494            4          2      1% 
+Icelandic          494            0          5      1% 
 Malay              494            0          5      1% 
 Norwegian          494            0          5      1% 
 Serbo-Croatian     494            0          5      1% 
@@ -75,7 +75,7 @@ Swedish            494            0          2      0%
 Indonesian         494            0          1      0% 
 English            494            0          0      0% 
 Yoruba             102            0          0      0% 
-all              20845                             18%
+all              20845                             16%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being
@@ -112,6 +112,12 @@ word-final coda); a sonorant-coda profile such as Italian's lets geminates close
 `attested_coda_triples`. A triple is legal only when listed; invented languages stay at
 two. Curated for English, German, Polish, Russian, Italian, Serbo-Croatian, Dutch, the
 Scandinavian languages, French, Old Norse, Icelandic, Ancient Greek, Spanish, Latin.
+
+**Old Norse and Icelandic (fixed):** 55% -> 3% / 1%. Old Norse's lexicon used `ɛ ɔ w` where the
+profile has phonemic `e o v` (now aligned; `ŋ` added, `hv`/`kv` clusters); Icelandic's used
+voiced stops and palatal allophones the language lacks (`g d b c ɲ` -> `k t p kʰ ŋ`, intervocalic
+`g d` -> `ɣ ð`) and its profile lacked long vowels (`iː uː ɛː aː yː ɔː` added) and `ŋ`. New profile field
+`final_geminates` (both languages: *steinn*, *hverr*) exempts a language from the medial-only rule.
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet

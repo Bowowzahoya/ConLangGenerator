@@ -4,8 +4,9 @@ aliases: ["íslenska"]
 # unmodeled ancestor) -- now that Old Norse has its own real profile
 # (see old_norse.yaml), those aliases moved there; Icelandic is its own
 # distinct, if closely related, modern language.
-consonants: [p, "pʰ", "ʰp", t, "tʰ", "ʰt", k, "kʰ", "ʰk", f, v, s, "θ", "ð", "ɣ", h, m, n, l, r, j, "tː", "nː", "jː", "kː", "rː", "mː", "sː"]
-vowels: [i, "ɪ", "ɛ", a, "ɔ", u, "ʊ", "ø", "œ", y, ai, au, ei, "ɔi"]
+consonants: [p, "pʰ", "ʰp", t, "tʰ", "ʰt", k, "kʰ", "ʰk", f, v, s, "θ", "ð", "ɣ", h, m, n, l, r, j, "tː", "nː", "jː", "kː", "rː", "mː", "sː", "ŋ"]
+vowels: [i, "ɪ", "ɛ", a, "ɔ", u, "ʊ", "ø", "œ", y, ai, au, ei, "ɔi", "iː", "uː", "ɛː", "aː", "yː", "ɔː"]
+final_geminates: true  # steinn, hverr, fall: real word-final geminates
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
@@ -49,7 +50,7 @@ orthography:
   - {ipa: "pʰ", latin: p}
   - {ipa: "tʰ", latin: t}
   - {ipa: "kʰ", latin: k}
-restricted_onset_consonants: ["ʰp", "ʰt", "ʰk", "tː", "nː", "jː", "kː", "rː", "mː", "sː"]  # real Icelandic pre-aspiration is a root-medial phenomenon (átta, ekki), never word-initial
+restricted_onset_consonants: ["ʰp", "ʰt", "ʰk", "tː", "nː", "jː", "kː", "rː", "mː", "sː", "ŋ"]  # real Icelandic pre-aspiration is a root-medial phenomenon (átta, ekki), never word-initial
 restricted_coda_consonants: ["pʰ", "tʰ", "kʰ", h]  # real Icelandic: aspiration is an onset-conditioned property (word-initial stops are aspirated, syllable-final stops are plain or pre-aspirated instead), and /h/ itself only ever opens a syllable (hv-, hl-, hn-, hr-), never closes one
 attested_onset_clusters:
   # Real, common Icelandic onset clusters, restricted to symbols this
@@ -62,6 +63,29 @@ attested_onset_clusters:
   - [f, j]                   # "fjall"
   - [t, r]                   # "tré"
   - ["θ", r]                  # "þrír"
+  # real clusters found by `conlang audit-lexicons`
+  - [s, t]
+  - [s, p]
+  - [s, k]
+  - [s, l]
+  - [s, n]
+  - [s, m]
+  - [s, v]
+  - [s, j]
+  - [f, r]
+  - [p, r]
+  - [p, j]
+  - [m, j]
+  - [h, j]
+  - [h, v]
+  - [k, j]
+  - [t, v]
+  # real clusters found by `conlang audit-lexicons`
+  - ["kʰ", v]
+  - [l, j]
+  - ["θ", v]
+  - ["kʰ", j]
+  - [t, j]
 attested_coda_clusters:
   # Real, common Icelandic coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -72,6 +96,28 @@ attested_coda_clusters:
   - [f, t]                   # "haft"
   - [s, t]                   # "fast"
   - [s, k]                   # "fiskur"
+  # real clusters found by `conlang audit-lexicons`
+  - [r, "ð"]
+  - [l, s]
+  - [n, s]
+  - [k, s]
+  - [f, n]
+  - [t, n]
+  - [r, n]
+  - [k, l]
+  - [t, l]
+  - [r, p]
+  - [h, t]
+  - [h, p]
+  - [h, k]
+  - [h, n]
+  - [r, k]
+  - [n, "ð"]
+  - ["ŋ", k]
+  - ["ŋ", l]
+  # real clusters found by `conlang audit-lexicons`
+  - ["ŋ", t]
+  - [k, t]
 core_vocabulary_average_syllables: 1.42  # hand-counted across this project's own CORE_MEANINGS glosses -- Icelandic's own conservative, ending-rich morphology keeps words a bit longer than mainland Scandinavian's eroded forms; illustrative, same caveat as every newly-added language
 onset_frequency_tiers:
   # Aspirated pʰ/tʰ/kʰ, not plain p/t/k, are the real default onset
@@ -87,11 +133,11 @@ nucleus_frequency_tiers:
   very_common: [a, i]
   common: ["ɪ", "ɛ", u, "ɔ"]
   uncommon: [au, ei]
-  rare: ["ʊ", "ø", "œ", y, ai, "ɔi"]
+  rare: ["ʊ", "ø", "œ", y, ai, "ɔi", "iː", "uː", "ɛː", "aː", "yː", "ɔː"]
 coda_frequency_tiers:
   very_common: [r, n, t]
   common: [s, l, k, "ð"]
-  uncommon: [m, "θ", f, v, p]
+  uncommon: [m, "θ", f, v, p, "ŋ"]
   rare: ["ʰp", "ʰt", "ʰk", j, "ɣ", "tː", "nː", "jː", "kː", "rː", "mː", "sː"]
 stress_pattern: initial  # real Icelandic: stress is exceptionlessly the root's first syllable, the same Germanic default as German/Dutch/Danish/Swedish/Norwegian but held to more strictly
 stress_deviation_rate: 0.05  # illustrative -- real Icelandic stress is famously more rigidly initial than even German/Dutch, rarely deviates outside a handful of loanwords
@@ -107,6 +153,11 @@ attested_onset_triples:
   - [s, t, r]
   - [s, k, r]
   - [k, r, j]
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [p, r, j]
+  - [f, l, j]
+  - [k, l, j]
+  - [s, n, j]
 attested_coda_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [r, t, n]
@@ -116,3 +167,5 @@ attested_coda_triples:
   - [m, s, k]
   - [r, s, t]
   - [k, s, t]
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - ["ŋ", k, t]

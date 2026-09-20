@@ -199,3 +199,13 @@ def test_strict_english_generates_str_words_and_invented_languages_do_not():
 def test_audit_structure_carries_the_profiles_triples():
     structure = lexicon_audit.profile_structure("English")
     assert ("s", "t", "r") in structure.allowed_onset_triples
+
+
+def test_old_norse_and_icelandic_lexicons_fit_their_profiles_and_allow_final_geminates():
+    for name in ("Old Norse", "Icelandic"):
+        (audit,) = lexicon_audit.audit_all((name,))
+        assert not audit.off_inventory, (name, audit.off_symbols)
+        assert audit.flagged_rate < 0.05, name
+    icelandic = next(p for p in REFERENCE_LANGUAGES if p.name == "Icelandic")
+    assert icelandic.final_geminates and {"iː", "aː", "ɔː"} <= set(icelandic.vowels)
+    assert "ŋ" in icelandic.restricted_onset_consonants

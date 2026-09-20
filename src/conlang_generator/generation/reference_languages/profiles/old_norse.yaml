@@ -1,9 +1,10 @@
 name: Old Norse
 aliases: [norse, viking, "norrœnt mál"]
-consonants: [p, b, t, d, k, g, f, v, "θ", "ð", s, h, m, n, l, r, j, "sː", "kː", "rː", "mː", "tː", "lː", "gː", "nː", "pː", "dː"]
+consonants: [p, b, t, d, k, g, f, v, "θ", "ð", s, h, m, n, l, r, j, "sː", "kː", "rː", "mː", "tː", "lː", "gː", "nː", "pː", "dː", "ŋ"]
 vowels: [a, e, i, o, u, y, "æ", "ø", "aː", "eː", "iː", "oː", "uː", "yː", "æː", "øː", au, ei, "œy"]
+final_geminates: true  # steinn, hverr, fall: real word-final geminates
 coda_profile: unrestricted
-restricted_onset_consonants: ["sː", "kː", "rː", "mː", "tː", "lː", "gː", "nː", "pː", "dː"]  # geminates are word-medial only
+restricted_onset_consonants: ["sː", "kː", "rː", "mː", "tː", "lː", "gː", "nː", "pː", "dː", "ŋ"]  # geminates are word-medial only
 max_onset: 2
 max_coda: 2  # real Old Norse coda clusters exist (land, kaldr, fyrst, bjǫrn)
 tonal: false
@@ -40,6 +41,35 @@ attested_onset_clusters:
   - [f, r]   # "frost" (frost)
   - ["θ", r]  # "þrír" (three)
   - [v, r]   # "vreiðr" (angry)
+  # real clusters found by `conlang audit-lexicons`
+  - [s, k]
+  - [s, t]
+  - [s, p]
+  - [s, l]
+  - [s, n]
+  - [s, v]
+  - [s, j]
+  - [s, m]
+  - [b, r]
+  - [b, l]
+  - [g, l]
+  - [m, j]
+  - [l, j]
+  - [h, j]
+  - [k, v]
+  - [h, v]
+  - [k, n]
+  - [t, v]
+  - [f, j]
+  - ["θ", v]
+  - [b, j]
+  - [t, j]
+  - [p, l]
+  - [p, r]
+  # real clusters found by `conlang audit-lexicons`
+  - [g, j]
+  - [k, j]
+  - [d, j]
 attested_coda_clusters:
   # Real Old Norse coda clusters, restricted to symbols this profile
   # models -- illustrative, not exhaustive.
@@ -49,6 +79,40 @@ attested_coda_clusters:
   - [f, "θ"]  # "gift" (marriage, illustrative approximation)
   - [s, t]   # "fyrst" (first)
   - [r, n]   # "bjǫrn" (bear)
+  # real clusters found by `conlang audit-lexicons`
+  - [r, "ð"]
+  - [t, r]
+  - ["ð", r]
+  - [k, r]
+  - [g, r]
+  - [l, r]
+  - [m, r]
+  - [n, r]
+  - [g, l]
+  - [t, n]
+  - [l, s]
+  - [k, s]
+  - [p, t]
+  - [f, n]
+  - [v, n]
+  - [t, l]
+  - [r, r]
+  # real clusters found by `conlang audit-lexicons`
+  - ["tː", r]
+  - ["mː", r]
+  - ["gː", r]
+  - ["kː", r]
+  - ["nː", r]
+  - ["dː", r]
+  - [l, t]
+  - [r, p]
+  - [r, g]
+  - [l, k]
+  - ["ŋ", g]
+  - [g, n]
+  - [v, r]
+  - [f, r]
+  - ["ŋ", k]
 stress_pattern: initial  # real Old Norse: stress is the root's first syllable, the same reliable Germanic-wide default German/Dutch/Danish/Swedish/Norwegian/Icelandic all share
 stress_deviation_rate: 0.05  # illustrative -- as rigidly initial as modern Icelandic's own descendant value
 orthography_category: diacritic-style
@@ -86,7 +150,7 @@ nucleus_frequency_tiers:
 coda_frequency_tiers:
   very_common: [n, r, t, s]
   common: [l, k, d, m]
-  uncommon: [p, g, f, "ð"]
+  uncommon: [p, g, f, "ð", "ŋ"]
   rare: [b, "θ", "sː", "kː", "rː", "mː", "tː", "lː", "gː", "nː", "pː", "dː"]
 
 attested_onset_triples:
@@ -126,3 +190,6 @@ attested_coda_triples:
   - [r, k, r]
   - [n, k, r]
   - [n, s, k]
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [r, t, r]
+  - [k, t, r]

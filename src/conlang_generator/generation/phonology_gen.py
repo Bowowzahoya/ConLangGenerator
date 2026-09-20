@@ -1649,7 +1649,10 @@ def generate_phonology(
     # A geminate barred from word-initial position is medial-only, so it can't
     # end a word either (real Italian/Latin/Finnish have no final geminates)
     long_symbols = {c.ipa for c in consonants if c.long}
-    medial_only = tuple(s for s in excluded_onset_consonants if s in long_symbols)
+    medial_only = tuple(
+        s for s in excluded_onset_consonants
+        if s in long_symbols and not any(p.final_geminates for p, _ in weighted_profiles)
+    )
     if medial_only:
         excluded_final_coda_consonants = tuple(dict.fromkeys(excluded_final_coda_consonants + medial_only))
 
