@@ -5,6 +5,8 @@ reachable from the CLI."""
 from typer.testing import CliRunner
 
 from conlang_generator.cli.main import app
+from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, lexicon_audit
 
 
@@ -79,3 +81,42 @@ def test_german_words_can_end_in_uvular_r():
 
     structure = lexicon_audit.profile_structure("German")
     assert "ʁ" not in structure.excluded_coda_consonants
+
+
+def test_final_devoicing_only_bars_word_final_codas():
+    from conlang_generator.core.phonology import SyllableStructure
+
+    structure = SyllableStructure(max_coda=1, excluded_final_coda_consonants=("d",))
+    assert structure.is_valid_syllable((), "a", ("d",))  # medial coda: fine
+    assert not structure.is_valid_syllable((), "a", ("d",), final=True)
+    assert structure.is_valid_syllable((), "a", ("t",), final=True)
+
+
+def test_generated_strict_russian_words_never_end_in_a_voiced_obstruent():
+    import random
+
+    from conlang_generator.generation import phonology_gen, word_builder
+
+    for seed in range(15):
+        spec = GenerationSpec(
+            prompt="p", seed=seed, traits=TraitProfile(source_languages=("Russian",), source_language_strictness=1.0)
+        )
+        inventory, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        if not structure.excluded_final_coda_consonants:
+            continue
+        rng = random.Random(seed)
+        for _ in range(60):
+            word = word_builder.build_word(rng, inventory, structure, rng.choice((1, 2, 3)))
+            assert word[-1] not in structure.excluded_final_coda_consonants, word
+
+
+def test_turkish_keeps_its_voiced_fricatives_word_finally():
+    import random
+
+    from conlang_generator.generation import phonology_gen
+
+    spec = GenerationSpec(
+        prompt="p", seed=3, traits=TraitProfile(source_languages=("Turkish",), source_language_strictness=1.0)
+    )
+    _, structure, _, _ = phonology_gen.generate_phonology(random.Random(3), spec)
+    assert "z" not in structure.excluded_final_coda_consonants

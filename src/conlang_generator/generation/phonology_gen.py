@@ -1523,6 +1523,8 @@ def generate_phonology(
         )
 
     excluded_coda_consonants: tuple[str, ...] = ()
+    excluded_final_coda_consonants: tuple[str, ...] = ()
+    devoiced: tuple[str, ...] = ()
     if coda_profile == "none":
         max_coda, allowed_coda_consonants, allowed_coda_clusters = 0, None, ()
     elif coda_profile == "sonorant":
@@ -1540,18 +1542,33 @@ def generate_phonology(
         # an unmatched run never spends an rng draw here, matching the old
         # deterministic-false behavior exactly for that (by far the most
         # common) case.
+        devoicing_exempt = {
+            s for profile, _ in weighted_profiles if profile.coda_devoicing for s in profile.coda_devoicing_exempt
+        }
         if weighted_profiles and rng.random() < _reference_clamp(0.0, weighted_profiles, "coda_devoicing", strictness):
-            excluded_coda_consonants = tuple(
+            devoiced = tuple(
                 c.ipa
                 for c in consonants
                 # /ʁ/ is exempt: in German/French/Danish it is a rhotic that
                 # closes syllables (Ohr, mer) and is never devoiced to a
                 # fricative like the true voiced obstruents are
-                if c.voiced and c.ipa != "ʁ" and c.manner in (
+                if c.voiced and c.ipa != "ʁ" and c.ipa not in devoicing_exempt and c.manner in (
                     Manner.STOP, Manner.AFFRICATE, Manner.LATERAL_AFFRICATE, Manner.FRICATIVE, Manner.LATERAL_FRICATIVE,
                 )
             )
+        excluded_final_coda_consonants = devoiced
         excluded_coda_consonants = tuple(frozenset(excluded_coda_consonants) | restricted_coda)
+        if devoiced:
+            # Devoicing only bars these at the end of a word; inside one, a
+            # voiced obstruent closing a syllable assimilates to a voiceless
+            # obstruent starting the next (Russian /dn/ is fine, /dk/ is /tk/)
+            voiceless_obstruents = tuple(
+                c.ipa for c in consonants
+                if not c.voiced and c.manner in (Manner.STOP, Manner.AFFRICATE, Manner.FRICATIVE)
+            )
+            excluded_coda_onset_boundary_pairs = tuple(
+                dict.fromkeys(excluded_coda_onset_boundary_pairs + tuple((d, v) for d in devoiced for v in voiceless_obstruents))
+            )
         coda_pairs = sonority.exclude_final(sonority.legal_coda_pairs(consonants), excluded_coda_consonants)
         if reference_profiles and strictness > 0.0:
             attested_coda_clusters = frozenset().union(*(p.attested_coda_clusters for p, _ in weighted_profiles))
@@ -1618,6 +1635,7 @@ def generate_phonology(
         allowed_coda_clusters=allowed_coda_clusters,
         allowed_coda_consonants=allowed_coda_consonants,
         excluded_coda_consonants=excluded_coda_consonants,
+        excluded_final_coda_consonants=excluded_final_coda_consonants,
         excluded_onset_consonants=excluded_onset_consonants,
         allowed_onset_nucleus_pairs=allowed_onset_nucleus_pairs,
         excluded_onset_nucleus_pairs=excluded_onset_nucleus_pairs,

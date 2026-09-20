@@ -69,6 +69,16 @@ attested_onset_clusters:
   - [b, w]
   - [k, w]
   - ["ʒ", w]
+  # real clusters found by `conlang audit-lexicons`
+  - [d, w]
+  - [t, w]
+  - [d, m]
+  - [z, m]
+  - [m, w]
+  - [k, f]
+  - [t, f]
+  - [m, r]
+  - [d, "ʒ"]
 attested_coda_clusters:
   # Real, common Polish coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -91,6 +101,9 @@ attested_coda_clusters:
   - [r, "tɕ"]
   - [n, "ʃ"]
   - [l, t]
+  # real clusters found by `conlang audit-lexicons`
+  - [r, "ɕ"]
+  - [w, f]
 orthography:
   # Real Polish spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account.

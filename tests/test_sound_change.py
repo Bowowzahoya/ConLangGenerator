@@ -314,22 +314,22 @@ def test_evolved_dutch_lineage_keeps_coda_devoicing_with_no_new_contact():
     # Same consistency risk as cluster thinning, for the newer phonotactic
     # constraint: without threading lineage_profiles through
     # _recompute_syllable_structure, a Dutch-lineage language's
-    # excluded_coda_consonants would silently reset to empty the moment
+    # excluded_final_coda_consonants would silently reset to empty the moment
     # evolve_language recomputes SyllableStructure -- even on a run that
     # adds no *new* contact language, same failure mode as the romanization
     # lineage bug this mirrors.
     # seed=1 -- empirically-found (see the seed-search convention noted
     # elsewhere in this file); re-found after the ten-language batch's own
     # new phoneme-pool content shifted downstream rng draws enough that
-    # seed=0 stopped rolling a non-empty excluded_coda_consonants.
+    # seed=0 stopped rolling a non-empty excluded_final_coda_consonants.
     base = generate_language(
         "Dutch", GenerationSpec(prompt="Dutch", seed=1, traits=TraitProfile(source_languages=("Dutch",))), FakeLLMClient()
     )
-    assert base.syllable_structure.excluded_coda_consonants  # sanity: the base actually has the constraint
+    assert base.syllable_structure.excluded_final_coda_consonants  # sanity: the base actually has the constraint
     evolved = evolve_language("Evolved", base, 100, TraitProfile(), seed=1)
-    assert evolved.syllable_structure.excluded_coda_consonants
+    assert evolved.syllable_structure.excluded_final_coda_consonants
     by_ipa = {c.ipa: c for c in evolved.phonology.consonants}
-    for symbol in evolved.syllable_structure.excluded_coda_consonants:
+    for symbol in evolved.syllable_structure.excluded_final_coda_consonants:
         consonant = by_ipa[symbol]
         assert consonant.voiced
         assert consonant.manner.value in ("stop", "affricate", "fricative", "lateral_fricative")

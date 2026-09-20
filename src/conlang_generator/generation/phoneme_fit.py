@@ -137,7 +137,7 @@ def first_problem(tokens: list[tuple[str, bool]], structure: SyllableStructure) 
             onset = leading
 
         if n + 1 == len(nuclei):
-            if structure.is_valid_syllable(onset, nucleus, run):
+            if structure.is_valid_syllable(onset, nucleus, run, final=True):
                 return None
             return _fix_final(onset, nucleus, run, run_start, structure)
 

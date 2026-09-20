@@ -136,7 +136,7 @@ def _root_violates_structure(
             # single-consonant coda case, and matches
             # `is_valid_syllable`'s own "only the cluster's final member
             # is checked" precedent for a 2-consonant coda).
-            if symbol in structure.excluded_coda_consonants:
+            if symbol in structure.excluded_coda_consonants or symbol in structure.excluded_final_coda_consonants:
                 return True
         elif following in vowel_symbols:
             # Immediately followed by a fixed vowel -- a genuine onset,

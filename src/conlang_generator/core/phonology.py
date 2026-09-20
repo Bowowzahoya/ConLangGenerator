@@ -266,6 +266,12 @@ class SyllableStructure(BaseModel, frozen=True):
     unrestricted, or the sonorant-only coda profile's set); this is a
     negative constraint layered on top, checked independently -- see
     ``generation/phonology_gen.py``."""
+    excluded_final_coda_consonants: tuple[str, ...] = ()
+    """Symbols barred as the final segment of the *word-final* syllable's
+    coda only -- final-obstruent devoicing (real Dutch/German/Russian/Polish
+    /d/ is fine in ``Russian`` *sadnik* medially, never at the end of a word).
+    ``is_valid_syllable(..., final=True)`` checks this on top of
+    ``excluded_coda_consonants``, which applies everywhere."""
     excluded_onset_consonants: tuple[str, ...] = ()
     """Symbols that can never appear in an onset at all (single or as
     part of a cluster) -- e.g. /ŋ/ in real German/English, which is
@@ -335,8 +341,10 @@ class SyllableStructure(BaseModel, frozen=True):
     ``generation/word_builder.py``'s ``build_word``."""
 
     def is_valid_syllable(
-        self, onset: tuple[str, ...], nucleus: str, coda: tuple[str, ...]
+        self, onset: tuple[str, ...], nucleus: str, coda: tuple[str, ...], final: bool = False
     ) -> bool:
+        """``final``: this is the word's last syllable, so the word-final-only
+        coda restriction applies too."""
         if len(onset) > self.max_onset:
             return False
         if len(onset) == 2 and onset not in self.allowed_onset_clusters:
@@ -364,6 +372,8 @@ class SyllableStructure(BaseModel, frozen=True):
         ):
             return False
         if coda and coda[-1] in self.excluded_coda_consonants:
+            return False
+        if final and coda and coda[-1] in self.excluded_final_coda_consonants:
             return False
         if coda:
             nucleus_coda_pair = (nucleus, coda[0])

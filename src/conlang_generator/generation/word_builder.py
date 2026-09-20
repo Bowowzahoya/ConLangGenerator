@@ -102,7 +102,10 @@ def _build_coda(
     inventory: PhonemeInventory,
     structure: SyllableStructure,
     nucleus: str,
+    final: bool = True,
 ) -> tuple[str, ...]:
+    """``final``: the word's last syllable (also the default, for a lone
+    syllable or a suffix), which the word-final-only restriction applies to."""
     if structure.max_coda == 0 or rng.random() < 0.4:
         return ()
     coda_multipliers = dict(structure.coda_symbol_multipliers)
@@ -115,7 +118,10 @@ def _build_coda(
         return pair not in structure.excluded_nucleus_coda_pairs
 
     if structure.max_coda >= 2 and structure.allowed_coda_clusters and rng.random() < 0.2:
-        clusters = tuple(c for c in structure.allowed_coda_clusters if is_legal_nucleus_coda(c[0]))
+        clusters = tuple(
+            c for c in structure.allowed_coda_clusters
+            if is_legal_nucleus_coda(c[0]) and not (final and c[-1] in structure.excluded_final_coda_consonants)
+        )
         if clusters:
             weights = [_cluster_weight(c, by_symbol, coda_multipliers) for c in clusters]
             return rng.choices(clusters, weights=weights)[0]
@@ -126,6 +132,8 @@ def _build_coda(
         # an honest option here that doesn't exist for a mandatory onset).
 
     candidates = structure.allowed_coda_consonants or inventory.consonant_symbols()
+    if final and structure.excluded_final_coda_consonants:
+        candidates = tuple(c for c in candidates if c not in structure.excluded_final_coda_consonants) or candidates
     if structure.excluded_coda_consonants:
         # `or candidates` is defensive, not expected to fire in practice --
         # devoicing only excludes voiced obstruents, and the implicational
@@ -197,6 +205,7 @@ def _build_syllable_parts(
     harmony_class: VowelBackness | None = None,
     size_bias: str | None = None,
     prev_coda_final: str | None = None,
+    final: bool = True,
 ) -> tuple[tuple[str, ...], str, tuple[str, ...]]:
     """The shared core of ``build_syllable``/``build_word``: builds one
     syllable's ``(onset, nucleus, coda)``. ``prev_coda_final`` -- the
@@ -209,8 +218,8 @@ def _build_syllable_parts(
     onset = _build_onset(rng, inventory, structure, prev_coda_final)
     onset_final = onset[-1] if onset else None
     nucleus = _choose_nucleus(rng, inventory, structure, onset_final, harmony_class, size_bias).ipa
-    coda = _build_coda(rng, inventory, structure, nucleus)
-    assert structure.is_valid_syllable(onset, nucleus, coda), (onset, nucleus, coda)
+    coda = _build_coda(rng, inventory, structure, nucleus, final)
+    assert structure.is_valid_syllable(onset, nucleus, coda, final), (onset, nucleus, coda)
     # No assert on `is_valid_boundary` here, unlike the line above: unlike
     # a coda (always optional -- `_build_coda` can honestly return `()`
     # rather than fabricate an illegal one), an onset is mandatory
@@ -402,8 +411,10 @@ def build_word(
         harmony_class = rng.choice([VowelBackness.FRONT, VowelBackness.BACK])
     syllables: list[tuple[tuple[str, ...], str, tuple[str, ...]]] = []
     prev_coda_final: str | None = None
-    for _ in range(num_syllables):
-        onset, nucleus, coda = _build_syllable_parts(rng, inventory, structure, harmony_class, size_bias, prev_coda_final)
+    for syllable_index in range(num_syllables):
+        onset, nucleus, coda = _build_syllable_parts(
+            rng, inventory, structure, harmony_class, size_bias, prev_coda_final, syllable_index == num_syllables - 1
+        )
         syllables.append((onset, nucleus, coda))
         prev_coda_final = coda[-1] if coda else None
     # A monosyllable's own single syllable is trivially "the stressed
@@ -453,7 +464,7 @@ def build_word(
         for i, (onset, nucleus, coda) in enumerate(syllables):
             if i == stress_index or nucleus == "ə" or rng.random() >= reduction_rate:
                 continue
-            if structure.is_valid_syllable(onset, "ə", coda):
+            if structure.is_valid_syllable(onset, "ə", coda, i == num_syllables - 1):
                 syllables[i] = (onset, "ə", coda)
     parts: list[str] = []
     for i, (onset, nucleus, coda) in enumerate(syllables):

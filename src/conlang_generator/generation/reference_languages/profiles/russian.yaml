@@ -53,6 +53,50 @@ attested_onset_clusters:
   - [k, v]                   # "квас"
   - [p, "rʲ"]                 # "пряник" -- a palatalized consonant can
                               # follow just like its plain counterpart
+  # real clusters found by `conlang audit-lexicons`
+  - [s, t]
+  - [s, p]
+  - [s, k]
+  - [s, l]
+  - [s, m]
+  - [s, n]
+  - [s, v]
+  - [z, v]
+  - [z, m]
+  - [z, l]
+  - [r, v]
+  - ["ʃ", t]
+  - [g, d]
+  - [x, r]
+  - [x, v]
+  - [s, r]
+  - [p, t]
+  - [k, t]
+  - [t, s]
+  - [f, s]
+  - [z, d]
+  - [d, l]
+  - [s, "tʃ"]
+  # real clusters found by `conlang audit-lexicons`
+  - [s, "vʲ"]
+  - [s, "mʲ"]
+  - [p, "lʲ"]
+  - [b, "lʲ"]
+  - [d, "lʲ"]
+  - [f, "sʲ"]
+  - [z, "vʲ"]
+  - [g, "rʲ"]
+  - [s, "nʲ"]
+  - [s, "pʲ"]
+  - [p, "tʲ"]
+  - [g, "dʲ"]
+  - [s, "lʲ"]
+  - [s, "tʲ"]
+  - [s, "kʲ"]
+  - [z, "mʲ"]
+  - [z, "nʲ"]
+  - [v, "zʲ"]
+  - [x, "rʲ"]
 attested_coda_clusters:
   # Real, common Russian coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -66,6 +110,14 @@ attested_coda_clusters:
   - [z, m]                   # "организм"
   - [l, s]                   # "рельс"
   - [f, t]                   # illustrative
+  # real clusters found by `conlang audit-lexicons`
+  - [t, s]
+  - [k, t]
+  # real clusters found by `conlang audit-lexicons`
+  - [s, "tʲ"]
+  - ["ʃ", "tʲ"]
+  - [n, "tʲ"]
+  - [r, "tʲ"]
 orthography:
   # Real scholarly (ISO 9/scientific) transliteration conventions,
   # restricted to symbols this profile actually models -- illustrative,

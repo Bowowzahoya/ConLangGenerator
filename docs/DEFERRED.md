@@ -60,17 +60,17 @@ multi-session feature.
   "w never before a rounded vowel" restriction removed; Portuguese/Dutch
   lexicons' `r`/`ɾ` and `ʎ` aligned with their profiles.
 - **Profile widening, still open (M).** Modeling limits the audit cannot
-  fix with a cluster list: (a) word-position rules are applied to every coda
-  (Polish/Russian/Turkish final devoicing bars medial `dn`, `zm`; Sanskrit
-  pausa restrictions); needs a word-final-only restriction; (b) doubled
+  fix with a cluster list: (a) *word-final devoicing is done* (final-only field,
+  Turkish exemptions); the Sanskrit pausa restriction (only `k ʈ t p ṅ ṇ n m ḥ`
+  word-finally) and other final-only coda sets could now use the same
+  field via a profile setting, but no profile field exists for it yet; (b) doubled
   consonants (`tt`, `ss`, `kk`, `jj`, `ll`) in Italian, Arabic, Hungarian,
   Finnish; (c) three-consonant clusters (`str`, `spr`, `ʃpʁ`, `ndr`) —
   the cap is 2; (d) glide+vowel sequences written as onset clusters
   (French `bw`, Italian `pj`); (e) languages not yet reviewed: Old Norse,
   Nahuatl, Mandarin, Icelandic, Welsh, Georgian, Korean, Ancient Greek,
   Zulu/Xhosa, Tibetan, Tamil, Hungarian, Persian, Spanish (`β ð ɣ`),
-  Hindi; (f) lexicon-side slips: Russian/Turkish final voiced obstruents,
-  Danish `w`/`ɪ`, Swedish `ɧ`, Portuguese `carregar` rhotic.
+  Hindi; (f) lexicon-side slips: Danish `w`/`ɪ`, Swedish `ɧ`, Portuguese `carregar` rhotic.
 
 ## 2. Real lexicons (data)
 

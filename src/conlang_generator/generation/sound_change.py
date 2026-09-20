@@ -489,6 +489,7 @@ def _recompute_syllable_structure(
     allowed_onset_clusters = (
         sonority.thin_cluster_pairs(rng, onset_pairs, traits.contact_intensity) if base.max_onset >= 2 else ()
     )
+    excluded_final_coda_consonants: tuple[str, ...] = ()
     if base.max_coda == 0:
         max_coda, allowed_coda_consonants, allowed_coda_clusters, excluded_coda_consonants = 0, None, (), ()
     elif base.allowed_coda_consonants is not None:
@@ -499,7 +500,7 @@ def _recompute_syllable_structure(
     else:
         excluded_coda_consonants = ()
         if any(p.coda_devoicing for p in lineage_profiles):
-            excluded_coda_consonants = tuple(
+            excluded_final_coda_consonants = tuple(
                 c.ipa
                 for c in consonants
                 if c.voiced and c.manner in (
@@ -520,6 +521,7 @@ def _recompute_syllable_structure(
         allowed_coda_clusters=allowed_coda_clusters,
         allowed_coda_consonants=allowed_coda_consonants,
         excluded_coda_consonants=excluded_coda_consonants,
+        excluded_final_coda_consonants=excluded_final_coda_consonants,
         vowel_harmony=base.vowel_harmony,
     )
 

@@ -37,6 +37,7 @@ tone_level_count: null          # optional, defaults null -- only meaningful whe
 vowel_harmony: false            # optional, defaults false
 root_and_pattern: false         # optional, defaults false -- see the field's own docstring
 coda_devoicing: false           # optional, defaults false -- see the field's own docstring
+coda_devoicing_exempt: []       # optional, defaults empty -- voiced obstruents that keep their voicing finally
 orthography_category: ""        # optional, defaults "" -- see the field's own docstring
 syllable_boundary_marker: ""    # optional, defaults "" -- e.g. "diaeresis", overrides just this one axis
 onset_nucleus_spellings:        # optional, defaults empty -- joint spelling, consumes both letters
@@ -177,6 +178,10 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     when `coda_profile` is `"unrestricted"` -- moot for `"none"`/
     `"sonorant"`, which never allow obstruents in coda position at all.
     See `generation/phonology_gen.py`'s own `generate_phonology()`."""
+    coda_devoicing_exempt: tuple[str, ...] = ()
+    """Voiced obstruents that keep their voicing word-finally even though
+    ``coda_devoicing`` is on (Turkish devoices ``b d g dʒ`` but not
+    ``z v ɣ ʒ``: *biz*, *yaz*, *av*). Ignored when ``coda_devoicing`` is off."""
     orthography: tuple[RomanizationRule, ...] = ()
     """A handful of that language's own real spelling conventions,
     restricted to symbols this module's own ``consonants``/``vowels``

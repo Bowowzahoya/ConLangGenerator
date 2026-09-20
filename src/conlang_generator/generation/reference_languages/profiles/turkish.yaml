@@ -7,6 +7,7 @@ max_onset: 1
 tonal: false
 vowel_harmony: true
 coda_devoicing: true
+coda_devoicing_exempt: [z, v, "ɣ", "ʒ"]  # real Turkish devoices only b d g dʒ word-finally (biz, yaz, av, dağ keep theirs)
 orthography_category: diacritic-style
 orthography:
   # Real modern Turkish orthography -- unusually, these aren't invented
