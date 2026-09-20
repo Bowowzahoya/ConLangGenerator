@@ -27,15 +27,11 @@ Xhosa               52           19         14     63%
 Zulu                84           31         19     60% 
 Georgian           169           74         22     57% 
 Welsh              494          172         60     47% 
-Cantonese          494          222          3     46% 
-Tibetan            365          107         41     41% 
 Ancient Greek      494           58        117     35% 
 Hungarian          494          136         37     35% 
 Persian            494          107         52     32% 
 Spanish            494          125         34     32% 
-Hindi              494          114         20     27% 
 Khmer               52            0         14     27% 
-Tamil              494          128          4     27% 
 Nama                 4            0          1     25% 
 Sumerian            38            0          9     24% 
 Arabic             494            0        104     21% 
@@ -60,6 +56,7 @@ Portuguese         494            0         15      3%
 Thai               190            5          0      3% 
 Finnish            494            1         10      2% 
 German             494            1          9      2% 
+Tamil              494            1          8      2% 
 Turkish            494            0          7      1% 
 Latin              494            4          2      1% 
 Icelandic          494            0          5      1% 
@@ -71,11 +68,14 @@ French             494            2          1      1%
 Hawaiian           401            2          0      0% 
 Mandarin           494            0          2      0% 
 Swedish            494            0          2      0% 
+Hindi              494            0          1      0% 
 Indonesian         494            0          1      0% 
 Korean             494            0          1      0% 
+Cantonese          494            0          0      0% 
 English            494            0          0      0% 
+Tibetan            365            0          0      0% 
 Yoruba             102            0          0      0% 
-all              20845                             13%
+all              20845                             10%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being
@@ -124,6 +124,13 @@ affricates (`pʰ tʰ kʰ ts tsʰ tɕ tɕʰ`), `ɥ`, and `ə ɨ ɛ`; Korean gains
 glide onset clusters (`max_onset: 2`, attested `Cj`/`Cw`), since the medial glides are onsets in this
 model. Korean's lexicon was transcribed with voiced `g d b` and `ʒ ʃ r`, which the phonemic profile
 writes `k t p`, `tʃ s l`.
+
+**Cantonese, Tibetan, Tamil, Hindi (fixed):** 46% -> 0%, 41% -> 0%, 27% -> 2%, 27% -> 0.2%.
+Cantonese gains `ɔ ɛ ɪ ʊ y ø œ` and the `kw` glide cluster; Tibetan `ɛ y ø`, `ts dz tsʰ tʃʰ z ɕ`, the
+glottal-stop coda `ʔ` (its lexicon is now transcribed with final `k p g b` -> `ʔ`, as in Lhasa) and glide
+clusters; Hindi `ẽ õ`, `tʃʰ ʈʰ dʒʱ ɖʱ z f ŋ`, and its lexicon uses the profile's phonemic `i u e o ã`; Tamil's
+lexicon is transcribed phonemically (`ɖ`->`ʈ`, `g d b`->`k t p`, `s c ʃ`->`tʃ`) and `ʈ` may open a syllable
+(medial `ʈ` has no other onset slot in this model).
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet

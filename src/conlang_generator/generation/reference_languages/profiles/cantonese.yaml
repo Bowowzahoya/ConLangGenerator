@@ -11,13 +11,13 @@ consonants: [p, "pʰ", t, "tʰ", k, "kʰ", f, s, h, ts, "tsʰ", m, n, "ŋ", l, w
 # series is plain-unaspirated vs. aspirated (p/pʰ, t/tʰ, k/kʰ, ts/tsʰ),
 # never a real voiced series (no b/d/g/dz as real phonemes) -- and no
 # real /r/ either.
-vowels: [a, "aː", i, "iː", u, "uː", e, "eː", o, "oː", "ɐ", "ə"]
+vowels: [a, "aː", i, "iː", u, "uː", e, "eː", o, "oː", "ɐ", "ə", "ɔ", "ɛ", "ɪ", "ʊ", y, "ø", "œ"]
 # Real Cantonese vowel length is genuinely contrastive (an 11-vowel
 # system with real long/short pairs, e.g. /aː/ vs /ɐ/-ish short a) --
 # reuses this project's own existing long-vowel pool members rather than
 # any new mechanism.
 coda_profile: unrestricted
-max_onset: 1
+max_onset: 2
 max_coda: 1  # real Cantonese has no tautosyllabic coda clusters at all -- retroactively curated once phonology_gen.py's own coda-cluster roll gained the max_coda-biased mechanism (previously a flat, uncurated 30% roll this profile's own comments below already claimed didn't apply, but nothing actually enforced)
 tonal: true
 tone_levels: [high, rising, mid, falling, dipping, low]  # jyutping 1 55, 2 25, 3 33, 4 21, 5 23 (low rising, this project's dipping), 6 22
@@ -72,8 +72,8 @@ onset_frequency_tiers:
 nucleus_frequency_tiers:
   very_common: [a, i, u]
   common: ["aː", "iː", "uː"]
-  uncommon: [e, o, "ɐ"]
-  rare: ["eː", "oː", "ə"]
+  uncommon: [e, o, "ɐ", "ɔ", "ɛ", "ɪ", "ʊ"]
+  rare: ["eː", "oː", "ə", y, "ø", "œ"]
 coda_frequency_tiers:
   very_common: [n, k, "ŋ"]
   common: [t, m, p]

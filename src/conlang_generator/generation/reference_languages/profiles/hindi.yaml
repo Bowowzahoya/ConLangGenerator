@@ -1,13 +1,13 @@
 name: Hindi
 aliases: [hindustani]
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʈ", "ɖ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", s, "ʃ", h, m, n, "ɳ", l, r, j, v, "ɽ", "ɦ", "nː", "ʈː", "sː", "ɖː", "lː", "bː"]
-vowels: [i, "iː", u, "uː", e, "ɛ", a, "aː", o, "ɔ", "ə", "ã", "ĩ", "ũ"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʈ", "ɖ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", s, "ʃ", h, m, n, "ɳ", l, r, j, v, "ɽ", "ɦ", "nː", "ʈː", "sː", "ɖː", "lː", "bː", "tʃʰ", "ʈʰ", "dʒʱ", "ɖʱ", z, f, "ŋ"]
+vowels: [i, "iː", u, "uː", e, "ɛ", a, "aː", o, "ɔ", "ə", "ã", "ĩ", "ũ", "ẽ", "õ"]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
 orthography_category: scholarly-macron-style
 restricted_coda_consonants: ["ɦ"]  # real Hindi ह /ɦ/ never closes a syllable
-restricted_onset_consonants: ["ɳ", "ɽ", "nː", "ʈː", "sː", "ɖː", "lː", "bː"]  # real Hindi retroflex ɳ never opens a native word -- medial/final only, the same real fact already curated for Tamil's own ɳ
+restricted_onset_consonants: ["ɳ", "ɽ", "nː", "ʈː", "sː", "ɖː", "lː", "bː", "ŋ"]  # real Hindi retroflex ɳ never opens a native word -- medial/final only, the same real fact already curated for Tamil's own ɳ
 attested_onset_clusters:
   # Real, common Hindi onset clusters -- mostly Sanskrit-derived tatsam
   # vocabulary, restricted to symbols this profile models -- illustrative,
@@ -21,6 +21,18 @@ attested_onset_clusters:
   - [s, v]                   # "svar"/"svasth" (vowel-tone/healthy)
   - ["ʃ", r]                  # "śrī"/"śram" (honorific/labor)
   - ["bʱ", r]                 # "bhram" (illusion)
+  # real clusters found by `conlang audit-lexicons`
+  - [p, j]
+  - [k, j]
+  - [b, j]
+  - [m, j]
+  - [t, j]
+  - [g, j]
+  - [s, j]
+  - [f, j]
+  # real clusters found by `conlang audit-lexicons`
+  - [t, v]
+  - ["dʱ", v]
 attested_coda_clusters:
   # Real Hindi coda clusters, restricted to symbols this profile models --
   # illustrative, not exhaustive. Driven by real, productive schwa
@@ -36,6 +48,24 @@ attested_coda_clusters:
   - [k, t]                   # "bhakt" (devotee)
   - [p, t]                   # "gupt" (secret)
   - [t, r]                   # "mitr"/"patr" (friend/letter)
+  # real clusters found by `conlang audit-lexicons`
+  - [n, d]
+  - [n, s]
+  - [n, "tʃ"]
+  - [m, p]
+  - [b, d]
+  - ["ʃ", n]
+  - [r, "kʰ"]
+  - [n, "ʈ"]
+  - [n, k]
+  - [n, g]
+  - [m, b]
+  - [m, t]
+  # real clusters found by `conlang audit-lexicons`
+  - [r, f]
+  - ["ŋ", k]
+  - ["ŋ", g]
+  - ["ŋ", "kʰ"]
 orthography:
   # Real IAST (International Alphabet of Sanskrit Transliteration)
   # conventions, restricted to symbols this profile actually models --
@@ -75,18 +105,18 @@ core_vocabulary_average_syllables: 1.69  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [k, p, t, d, s, m, n, h]
   common: [b, g, "tʃ", "dʒ", j, v, l, r]
-  uncommon: ["ʃ", "pʰ", "tʰ", "kʰ", "ʈ", "ɖ"]
-  rare: ["bʱ", "dʱ", "ɡʱ", "ɦ"]  # /ɳ/ and the retroflex flap /ɽ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+  uncommon: ["ʃ", "pʰ", "tʰ", "kʰ", "ʈ", "ɖ", z, f]
+  rare: ["bʱ", "dʱ", "ɡʱ", "ɦ", "tʃʰ", "ʈʰ", "dʒʱ", "ɖʱ"]  # /ɳ/ and the retroflex flap /ɽ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i, u]
   common: ["aː", "iː", "uː", e, o]
   uncommon: ["ə", "ɛ", "ɔ"]
-  rare: ["ã", "ĩ", "ũ"]
+  rare: ["ã", "ĩ", "ũ", "ẽ", "õ"]
 coda_frequency_tiers:
   very_common: [n, t, r, m]
   common: [k, s, l, h, "ʈ"]
-  uncommon: [p, d, g, v, j, "ɳ", "ɖ", "ɽ"]
-  rare: [b, "tʃ", "dʒ", "ʃ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", "nː", "ʈː", "sː", "ɖː", "lː", "bː"]  # the aspirated/breathy series is real but meaningfully rarer as a coda than as an onset
+  uncommon: [p, d, g, v, j, "ɳ", "ɖ", "ɽ", z, f, "ŋ"]
+  rare: [b, "tʃ", "dʒ", "ʃ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", "nː", "ʈː", "sː", "ɖː", "lː", "bː", "tʃʰ", "ʈʰ", "dʒʱ", "ɖʱ"]  # the aspirated/breathy series is real but meaningfully rarer as a coda than as an onset
 word_classes:
   # Real Hindi noun gender is genuinely messier than a single citation-
   # form suffix -- only a real, well-documented *subset* of masculine

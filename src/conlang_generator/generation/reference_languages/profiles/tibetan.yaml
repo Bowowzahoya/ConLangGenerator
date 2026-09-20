@@ -8,14 +8,15 @@ name: Tibetan
 # mandarin.yaml's own note for why an empty word_classes here doesn't
 # suppress generation.word_class_gen's own generic invented-class roll
 # for an unmatched/uncurated POS.
-consonants: [p, "pʰ", b, t, "tʰ", d, k, "kʰ", g, "tʃ", "dʒ", s, "ʃ", h, m, n, "ŋ", "ɲ", l, r, w, j]
-vowels: [a, e, i, o, u, "ə", "ã", "ĩ", "ũ"]
+consonants: [p, "pʰ", b, t, "tʰ", d, k, "kʰ", g, "tʃ", "dʒ", s, "ʃ", h, m, n, "ŋ", "ɲ", l, r, w, j, ts, dz, "tsʰ", "tʃʰ", z, "ɕ", "ʔ"]
+vowels: [a, e, i, o, u, "ə", "ã", "ĩ", "ũ", "ɛ", y, "ø"]
 coda_profile: sonorant
-max_onset: 1
+max_onset: 2
 tonal: true
 tone_level_count: 2  # real Lhasa Tibetan tone is genuinely contested in the literature (some analyses cite 2, others 4 or 6), but the most robust, widely-agreed core claim is a 2-way High/Low register contrast -- the safe number to curate, not the richer subdivisions some fuller phonetic treatments fold in from rhyme-conditioned variants
 orthography_category: diacritic-style
 restricted_coda_consonants: ["ɲ", w, j]
+restricted_onset_consonants: ["ʔ"]  # the Lhasa glottal stop only closes syllables (written final -k/-p/-g/-b neutralize to it)
 # coda_profile: sonorant above already limits codas to the sonority-based
 # sonorant class (m/n/ŋ/ɲ/l/r/w/j here), but real modern (colloquial
 # Lhasa) codas are restricted further still, to nasals and liquids --
@@ -57,15 +58,27 @@ core_vocabulary_average_syllables: 1.37  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [t, k, m, n, s, l, "ŋ"]
   common: [p, b, d, g, "tʃ", r, j, h]
-  uncommon: ["pʰ", "tʰ", "kʰ", "dʒ", "ʃ", "ɲ"]
+  uncommon: ["pʰ", "tʰ", "kʰ", "dʒ", "ʃ", "ɲ", ts, dz, "tsʰ", "tʃʰ", z, "ɕ"]
   rare: [w]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [o, u, e]
-  uncommon: ["ə"]
-  rare: ["ã", "ĩ", "ũ"]
+  uncommon: ["ə", "ɛ"]
+  rare: ["ã", "ĩ", "ũ", y, "ø"]
 # No coda_frequency_tiers -- coda_profile: sonorant means the true legal
 # coda set is narrower than consonants-minus-restricted (sonority
 # filtering isn't expressible via restricted_coda_consonants alone), the
 # same real reason Italian's/Tamil's/Mandarin's/Japanese's own perfected
 # profiles leave this field uncurated too.
+
+attested_onset_clusters:
+  # real clusters found by `conlang audit-lexicons`
+  - [k, j]
+  - ["kʰ", j]
+  - [g, j]
+  - [m, j]
+  - [p, j]
+  - ["pʰ", j]
+  - [b, j]
+  - [k, w]
+  - [s, w]

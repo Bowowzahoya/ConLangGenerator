@@ -219,3 +219,13 @@ def test_mandarin_and_korean_lexicons_fit_their_profiles():
     mandarin = next(p for p in REFERENCE_LANGUAGES if p.name == "Mandarin")
     assert {"tʰ", "tɕʰ", "tsʰ", "ə", "ɨ", "ɛ", "ɥ"} <= set(mandarin.symbols())
     assert ("ɕ", "j") in mandarin.attested_onset_clusters  # medial glides are onset clusters
+
+
+def test_cantonese_tibetan_tamil_and_hindi_lexicons_fit_their_profiles():
+    for name, limit in (("Cantonese", 0.01), ("Tibetan", 0.01), ("Tamil", 0.03), ("Hindi", 0.02)):
+        (audit,) = lexicon_audit.audit_all((name,))
+        assert audit.flagged_rate <= limit, (name, audit.flagged_rate)
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert {"ɔ", "ø", "œ", "y"} <= set(by_name["Cantonese"].vowels)
+    assert "ʔ" in by_name["Tibetan"].consonants and "ʔ" in by_name["Tibetan"].restricted_onset_consonants
+    assert "ʈ" not in by_name["Tamil"].restricted_onset_consonants  # medial ʈ needs an onset slot

@@ -20,7 +20,7 @@ coda_profile: sonorant  # real Tamil codas are restricted to nasals, liquids, an
 max_onset: 1
 tonal: false
 orthography_category: scholarly-macron-style
-restricted_onset_consonants: ["ʈ", "ɳ", "ŋ", "ɻ", "ɭ"]
+restricted_onset_consonants: ["ɳ", "ŋ", "ɻ", "ɭ"]
 # Real Tamil: retroflex ʈ/ɳ, velar ŋ, and the retroflex approximant ɻ
 # categorically never open a native word -- they're medial/final only
 # (a well-documented fact of Tamil phonotactics, the same "certain places
@@ -69,7 +69,7 @@ onset_frequency_tiers:
   # established Italian precedent for "sonorant" coda_profile).
   very_common: [p, t, k, m, n, v]
   common: ["tʃ", l, j]
-  uncommon: [r, "ɾ"]
+  uncommon: [r, "ɾ", "ʈ"]
   rare: ["ɲ", "nː", "ʈː", "tː", "kː", "lː", "pː", "vː", "ɭː", "ɳː", "tʃː", "mː"]
 nucleus_frequency_tiers:
   very_common: [a, i]
