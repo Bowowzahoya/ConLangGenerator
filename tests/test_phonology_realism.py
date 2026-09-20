@@ -619,16 +619,6 @@ def _pair_legal(structure, onset_final: str, nucleus: str) -> bool:
     return (onset_final, nucleus) not in structure.excluded_onset_nucleus_pairs
 
 
-def test_full_strictness_never_admits_englishs_w_plus_rounded_vowel():
-    for seed in range(40):
-        spec = GenerationSpec(
-            prompt="p", seed=seed, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0)
-        )
-        _, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
-        for vowel in ("u", "o", "ʊ"):
-            assert not _pair_legal(structure, "w", vowel)
-
-
 def test_full_strictness_never_admits_frenchs_w_plus_unattested_vowel():
     # Real French /w/ only ever precedes a/i/ɛ (moi, oui, ouest) -- the
     # concrete "oueauy"/"moia" bug came from /w/+/o/ being generated at

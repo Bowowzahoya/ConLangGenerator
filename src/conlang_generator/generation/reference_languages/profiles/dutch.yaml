@@ -49,6 +49,11 @@ attested_onset_clusters:
   - [s, l]                   # "slaap"
   - [s, m]                   # "smal"
   - [s, n]                   # "snel"
+  # real clusters found by `conlang audit-lexicons`
+  - [s, t]
+  - [s, p]
+  - [s, x]
+  - [s, k]
 attested_coda_clusters:
   # Real, common Dutch coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -67,6 +72,17 @@ attested_coda_clusters:
   - [s, t]                   # "kust"
   - [s, p]                   # "wesp"
   - [x, t]                   # "nacht"
+  # real clusters found by `conlang audit-lexicons`
+  - [r, x]
+  - [l, s]
+  - [k, t]
+  - [f, t]
+  - [l, f]
+  - [m, p]
+  - [m, t]
+  - [t, s]
+  - [r, s]
+  - [r, p]
 orthography:
   # Real Dutch spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account. Long vowels that

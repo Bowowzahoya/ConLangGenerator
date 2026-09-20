@@ -1463,6 +1463,9 @@ def generate_phonology(
         # weight, same "a permissive floor doesn't weight down" rule
         # `_resolve_pair_restriction`'s own whitelist branch documents.
         attested_onset_clusters = frozenset().union(*(p.attested_onset_clusters for p, _ in weighted_profiles))
+        onset_pairs = sonority.with_attested(onset_pairs, tuple(sorted(attested_onset_clusters)), consonants)
+        if excluded_onset_consonants:
+            onset_pairs = tuple(p for p in onset_pairs if p[0] not in excluded_onset_consonants and p[1] not in excluded_onset_consonants)
         onset_pairs = sonority.grade_against_attested(rng, onset_pairs, tuple(attested_onset_clusters), strictness)
     onset_cluster_probability = 0.5
     if weighted_profiles:
@@ -1541,7 +1544,10 @@ def generate_phonology(
             excluded_coda_consonants = tuple(
                 c.ipa
                 for c in consonants
-                if c.voiced and c.manner in (
+                # /ʁ/ is exempt: in German/French/Danish it is a rhotic that
+                # closes syllables (Ohr, mer) and is never devoiced to a
+                # fricative like the true voiced obstruents are
+                if c.voiced and c.ipa != "ʁ" and c.manner in (
                     Manner.STOP, Manner.AFFRICATE, Manner.LATERAL_AFFRICATE, Manner.FRICATIVE, Manner.LATERAL_FRICATIVE,
                 )
             )
@@ -1549,6 +1555,10 @@ def generate_phonology(
         coda_pairs = sonority.exclude_final(sonority.legal_coda_pairs(consonants), excluded_coda_consonants)
         if reference_profiles and strictness > 0.0:
             attested_coda_clusters = frozenset().union(*(p.attested_coda_clusters for p, _ in weighted_profiles))
+            coda_pairs = sonority.exclude_final(
+                sonority.with_attested(coda_pairs, tuple(sorted(attested_coda_clusters)), consonants),
+                excluded_coda_consonants,
+            )
             coda_pairs = sonority.grade_against_attested(rng, coda_pairs, tuple(attested_coda_clusters), strictness)
         # Reference-biased the same shape onset_cluster_probability above
         # already is, keyed on max_coda instead of max_onset -- without

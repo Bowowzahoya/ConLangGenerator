@@ -1,7 +1,7 @@
 name: German
 aliases: [deutsch]
 consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ç", x, h, m, n, "ŋ", l, "ʁ", j]
-vowels: [i, "ɪ", e, "ɛ", a, "ɔ", o, u, "ʊ", y, "ø", "œ", "ə", "aː", "eː", "iː", "oː", "uː", ai, au, "œy"]
+vowels: [i, "ɪ", e, "ɛ", a, "ɔ", o, u, "ʊ", y, "ø", "œ", "ə", "aː", "eː", "iː", "oː", "uː", ai, au, "œy", "yː", "øː", "ɛː"]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
@@ -54,6 +54,9 @@ attested_onset_clusters:
   - ["ʃ", n]                  # "Schnee"
   - ["ʃ", "ʁ"]                 # "Schrift"
   - ["ʃ", v]                  # "Schwester"
+  # real clusters found by `conlang audit-lexicons`
+  - [t, s]
+  - [p, "ʃ"]
 attested_coda_clusters:
   # Real, common German coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -72,6 +75,24 @@ attested_coda_clusters:
   - [x, t]                   # "Nacht"
   - ["ç", t]                  # "nicht"
   - [s, t]                   # "ist"
+  # real clusters found by `conlang audit-lexicons`
+  - [n, s]
+  - [t, s]
+  - [k, s]
+  - [p, s]
+  - [l, s]
+  - [f, t]
+  - [n, f]
+  - ["ʁ", "ç"]
+  - ["ʁ", f]
+  - ["ʁ", s]
+  - ["ʁ", "ʃ"]
+  - ["ʃ", t]
+  - ["ʁ", b]
+  - ["ʁ", g]
+  - ["ʁ", l]
+  - ["ʁ", z]
+  - ["ʁ", h]
 orthography:
   # Real German spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account.
@@ -147,7 +168,7 @@ nucleus_frequency_tiers:
   very_common: ["ə", "ɪ", a]
   common: ["ɛ", ai, u, o, au]
   uncommon: [e, "ɔ", "ʊ", "iː", "aː", i, "eː"]
-  rare: [y, "ø", "œ", "œy", "oː", "uː"]
+  rare: [y, "ø", "œ", "œy", "oː", "uː", "yː", "øː", "ɛː"]
 
 # --- Grammar-level typology (source_language bias in grammar_gen.py) ---
 real_word_order: SVO                 # real German is verb-second (V2) in main clauses, which surfaces as SVO with an ordinary fronted subject -- the standard citation form; subordinate clauses are genuinely verb-final (SOV), an honest simplification for this project's own single-value field

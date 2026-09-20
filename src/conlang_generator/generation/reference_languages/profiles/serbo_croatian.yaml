@@ -30,6 +30,35 @@ attested_onset_clusters:
   - [s, k]                   # "skupo"
   - [m, n]                   # "mnogo"
   - [x, v]                   # "hvala"
+  # real clusters found by `conlang audit-lexicons`
+  - [p, r]
+  - [s, t]
+  - [s, l]
+  - [v, r]
+  - [s, j]
+  - [s, r]
+  - [m, j]
+  - [s, m]
+  - [s, p]
+  - [z, v]
+  - [x, r]
+  - ["ʃ", t]
+  - [t, k]
+  - [x, l]
+  - [v, j]
+  - [m, r]
+  - [p, j]
+  - [d, j]
+  - [d, r]
+  - [m, l]
+  - [b, l]
+  - [l, j]
+  - [s, n]
+  - [z, r]
+  - [z, m]
+  - ["ʃ", p]
+  - [d, v]
+  - [g, d]
 attested_coda_clusters:
   # Real, common Serbo-Croatian coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive. "list" and "prst"
@@ -40,6 +69,8 @@ attested_coda_clusters:
   - [z, d]                   # "grozd" ("grape cluster")
   - [n, k]                   # illustrative
   - [s, k]                   # "disk" -- illustrative
+  # real clusters found by `conlang audit-lexicons`
+  - [l, j]
 orthography:
   # Real Gaj's Latin alphabet (Serbo-Croatian/BCMS's own standard Latin
   # orthography) -- one letter (or a fixed digraph/trigraph) per sound,

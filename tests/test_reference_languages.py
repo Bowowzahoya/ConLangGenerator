@@ -156,12 +156,12 @@ def test_french_profile_declares_its_own_real_open_e_spelling():
     assert "ë" not in epsilon_spellings
 
 
-def test_english_profile_declares_its_own_w_plus_rounded_vowel_blacklist():
-    # Real English labial dissimilation: "dw-"/"tw-"/"kw-"/"gw-" (and
-    # plain "w-") never precede a rounded vowel.
+def test_english_profile_allows_w_before_rounded_vowels():
+    # water, walk, wood, wolf, would: /w/ + a rounded vowel is ordinary English
+    # (an earlier blacklist said otherwise; the lexicon audit caught it).
     english = next(p for p in REFERENCE_LANGUAGES if p.name == "English")
-    assert set(english.restricted_onset_nucleus_pairs) == {("w", "u"), ("w", "o"), ("w", "ʊ"), ("w", "ɔ")}
-    assert english.attested_onset_nucleus_pairs == ()  # blacklist mode, not whitelist
+    assert english.restricted_onset_nucleus_pairs == ()
+    assert english.attested_onset_nucleus_pairs == ()
 
 
 def test_dutch_profile_declares_its_own_onset_restrictions():

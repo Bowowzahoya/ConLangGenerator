@@ -1,7 +1,7 @@
 name: Swedish
 aliases: [svenska]
-consonants: [p, b, t, d, k, g, f, v, s, x, h, m, n, "ŋ", l, r, j, "ʈ", "ɖ", "ɳ", "ʂ"]
-vowels: [i, e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə", "aː", "iː", "uː", "eː", "oː"]
+consonants: [p, b, t, d, k, g, f, v, s, x, h, m, n, "ŋ", l, r, j, "ʈ", "ɖ", "ɳ", "ʂ", "ʃ", "ɕ"]
+vowels: [i, e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə", "aː", "iː", "uː", "eː", "oː", "ɑː", "ɛː", "øː", "yː", "ʊ"]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
@@ -25,6 +25,19 @@ attested_onset_clusters:
   - [g, r]                   # "gren"
   - [f, l]                   # "flagga"
   - [f, r]                   # "fri"
+  # real clusters found by `conlang audit-lexicons`
+  - [s, t]
+  - [s, p]
+  - [s, k]
+  - [s, v]
+  - [s, l]
+  - [s, n]
+  - [s, m]
+  - [t, v]
+  - [m, j]
+  - [b, j]
+  - [k, n]
+  - [s, j]
 attested_coda_clusters:
   # Real, common Swedish coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -42,6 +55,17 @@ attested_coda_clusters:
   - [s, t]                   # "fest"
   - [s, k]                   # "fisk"
   - [f, t]                   # "luft"
+  # real clusters found by `conlang audit-lexicons`
+  - [r, j]
+  - [k, t]
+  - [k, s]
+  - [t, s]
+  - [l, s]
+  - ["ŋ", t]
+  - [m, n]
+  - ["ŋ", n]
+  - [l, n]
+  - [l, j]
 orthography:
   # Real Swedish spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account. Swedish's own
@@ -79,17 +103,17 @@ core_vocabulary_average_syllables: 1.31  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [s, t, k, p, b, r]
   common: [d, f, g, h, l, m, n, v, j]
-  uncommon: [x]  # the sj-sound is real but comparatively low word-type productivity as a true onset
+  uncommon: [x, "ʃ", "ɕ"]  # the sj-sound is real but comparatively low word-type productivity as a true onset
   rare: []  # the retroflex series, this position's only other candidates, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
 nucleus_frequency_tiers:
   very_common: ["ə", a]
   common: ["e", "i", "ɔ", "u"]
-  uncommon: ["ɛ", "o", "ɑ"]
+  uncommon: ["ɛ", "o", "ɑ", "ɑː", "ɛː", "øː", "yː", "ʊ"]
   rare: [y, "ø", "œ", "aː", "iː", "uː", "eː", "oː"]
 coda_frequency_tiers:
   very_common: [n, t, s, r]
   common: [l, k, d, m, "ʈ", "ɖ", "ɳ", "ʂ"]  # the retroflex series is real and genuinely common as a coda (unlike onset) -- the surface outcome of real Swedish /r/+dental sandhi (kort, bord, barn, mars)
-  uncommon: [f, "ŋ", b, p, v, g]
+  uncommon: [f, "ŋ", b, p, v, g, "ʃ", "ɕ"]
   rare: [x, j]
 word_classes:
   # Real Swedish: no citation-form noun suffix distinguishes the real

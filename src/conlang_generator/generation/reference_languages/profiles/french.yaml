@@ -68,6 +68,40 @@ attested_onset_clusters:
   - [f, l]                   # "fleur"
   - [f, "ʁ"]                  # "froid"
   - [v, "ʁ"]                  # "vrai"
+  # real clusters found by `conlang audit-lexicons`
+  - [b, w]
+  - [p, j]
+  - [p, w]
+  - [v, j]
+  - [v, w]
+  - ["ʒ", w]
+  - [d, w]
+  - [l, w]
+  - [k, w]
+  - [f, w]
+  - [s, w]
+  - [t, w]
+  - [m, w]
+  - [n, w]
+  - ["ʁ", w]
+  - ["ʃ", w]
+  - [s, j]
+  - ["ʃ", j]
+  - [l, j]
+  - [m, j]
+  - [d, j]
+  - [s, t]
+  - [s, p]
+  - [s, k]
+  - [f, j]
+  - [t, j]
+  - [n, j]
+  - [g, w]
+  - [g, j]
+  - [b, j]
+  - [k, j]
+  - ["ʃ", "ʁ"]
+  - [s, "ʁ"]
 orthography:
   # Real French spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account (real French
@@ -194,3 +228,21 @@ real_has_overt_copula: true          # "être" -- real French predicate-adjectiv
 real_adjective_after_noun: true      # most real French descriptive adjectives follow the noun (une montagne haute) -- a smaller class (grand/petit/bon/beau/jeune/vieux/...) precedes, the less common pattern
 real_case_count: 0                   # modern French nouns don't decline for case at all (only a few pronouns retain a vestigial nominative/oblique distinction: je/moi)
 foreign_name_handling: keep       # foreign personal names are used as written
+
+attested_coda_clusters:
+  # real clusters found by `conlang audit-lexicons`
+  - [n, s]
+  - [n, "ʒ"]
+  - [m, b]
+  - ["ʁ", n]
+  - ["ʁ", b]
+  - ["ʁ", s]
+  - ["ʁ", t]
+  - ["ʁ", k]
+  - ["ʁ", d]
+  - ["ʁ", m]
+  - [s, k]
+  - [s, t]
+  - [s, p]
+  - [k, s]
+  - [p, s]

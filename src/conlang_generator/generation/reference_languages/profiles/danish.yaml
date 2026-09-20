@@ -1,7 +1,7 @@
 name: Danish
 aliases: [dansk]
 consonants: [p, b, t, d, k, g, f, v, s, "ð", h, m, n, "ŋ", l, "ʁ", j]
-vowels: [i, e, "ɛ", "æ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə", "aː", "iː", "uː", "eː", "oː"]
+vowels: [i, e, "ɛ", "æ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə", "aː", "iː", "uː", "eː", "oː", "ɔː", "ɑː", "yː", "ɛː", "øː"]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
@@ -26,6 +26,21 @@ attested_onset_clusters:
   - [g, "ʁ"]                  # "gren"
   - [f, l]                   # "flag"
   - [f, "ʁ"]                  # "fri"
+  # real clusters found by `conlang audit-lexicons`
+  - [s, t]
+  - [s, p]
+  - [s, k]
+  - [s, l]
+  - [s, m]
+  - [s, n]
+  - [s, v]
+  - [s, d]
+  - [s, g]
+  - [s, b]
+  - [v, "ʁ"]
+  - [k, n]
+  - [b, j]
+  - [f, j]
 attested_coda_clusters:
   # Real, common Danish coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -43,6 +58,18 @@ attested_coda_clusters:
   - [s, t]                   # "fest"
   - [s, k]                   # "fisk"
   - [f, t]                   # "luft"
+  # real clusters found by `conlang audit-lexicons`
+  - [g, d]
+  - [s, d]
+  - [k, s]
+  - ["ð", n]
+  - [l, s]
+  - [l, g]
+  - [l, v]
+  - [m, s]
+  - [f, d]
+  - [d, n]
+  - [s, g]
 orthography:
   # Real Danish spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account. Danish's own
@@ -85,7 +112,7 @@ nucleus_frequency_tiers:
   very_common: ["ə", a]
   common: ["e", "i", "ɔ", "u"]
   uncommon: ["ɛ", "æ", "o", "ɑ"]
-  rare: [y, "ø", "œ", "aː", "iː", "uː", "eː", "oː"]
+  rare: [y, "ø", "œ", "aː", "iː", "uː", "eː", "oː", "ɔː", "ɑː", "yː", "ɛː", "øː"]
 coda_frequency_tiers:
   very_common: [n, t, s]
   common: ["ʁ", l, k, d, m]

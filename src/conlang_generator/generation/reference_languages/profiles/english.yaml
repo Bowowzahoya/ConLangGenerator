@@ -21,16 +21,10 @@ stress_deviation_rate: 0.5  # illustrative -- genuinely close to a coin flip rel
 stress_driven_vowel_reduction: true  # real English: unstressed vowels reduce to schwa synchronically (about/sofa, item/silent) -- the single most famous fact about English vowels, already the reasoning behind /ə/'s own weighted-spelling curation above
 restricted_onset_consonants: ["ŋ", "ʒ"]  # /ŋ/ is coda/medial-only; /ʒ/ word-initial is loanword-only (genre, jete)
 restricted_coda_consonants: [j, w]  # what looks like a word-final glide in English spelling ("cow", "day") is really part of a diphthong vowel (ai/au/ɔi/ei), not a true consonant coda
-restricted_onset_nucleus_pairs:
-  # Real English labial dissimilation: "dw-"/"tw-"/"kw-"/"gw-" (and plain
-  # "w-") never precede a rounded vowel -- "dwoo"/"dwo" isn't a real
-  # combination, but "dwe"/"dwa"-shaped ones are (dwell, dwarf). Keyed on
-  # the shared final onset consonant "w", so this covers every cluster
-  # ending in it uniformly, not just one specific cluster.
-  - [w, u]
-  - [w, o]
-  - [w, "ʊ"]
-  - [w, "ɔ"]
+# No restricted_onset_nucleus_pairs: an earlier "w never precedes a rounded
+# vowel" blacklist was wrong -- water, walk, want, war, wood, wolf, woman,
+# would, wound all open with /w/ + a rounded vowel (found by
+# `conlang audit-lexicons`).
 restricted_nucleus_coda_pairs:
   # Real English /ŋ/ only closes a syllable after a lax/checked vowel
   # (sing, sung, hang, song) -- never a tense vowel or diphthong (no
@@ -75,6 +69,14 @@ attested_onset_clusters:
   - [s, n]                   # "snow"
   - [s, w]                   # "swim"
   - ["ʃ", r]                  # "shrimp"
+  # real clusters found by `conlang audit-lexicons`
+  - [s, p]
+  - [s, t]
+  - [s, k]
+  - [p, j]
+  - [b, j]
+  - [k, j]
+  - [m, j]
 attested_coda_clusters:
   # Real, common English coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -107,6 +109,21 @@ attested_coda_clusters:
   - [f, t]                   # "left"
   - [p, t]                   # "kept"
   - [k, t]                   # "act"
+  # real clusters found by `conlang audit-lexicons`
+  - [l, s]
+  - [r, "θ"]
+  - [n, "θ"]
+  - [l, "θ"]
+  - [n, "tʃ"]
+  - [n, "dʒ"]
+  - [r, "ʃ"]
+  - [r, "tʃ"]
+  - [r, "dʒ"]
+  - [l, "tʃ"]
+  - [l, "dʒ"]
+  - [r, l]
+  - [m, f]
+  - [m, "θ"]
 orthography:
   # Real English spelling conventions, restricted to symbols this
   # profile actually models -- illustrative, not a full account (real

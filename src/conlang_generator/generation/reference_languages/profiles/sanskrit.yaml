@@ -45,7 +45,7 @@ word_class_deviation_rate: 0.3  # illustrative -- real Sanskrit also has consona
 # aside, the same "real but predates/postdates the modeled standard"
 # honesty this project already practices elsewhere (e.g. Mandarin's own
 # neutral tone).
-restricted_coda_consonants: ["pʰ", b, "bʱ", "tʰ", d, "dʱ", "ʈʰ", "ɖ", "ɖʱ", "ɳ", "kʰ", g, "ɡʱ", "ŋ", "tʃ", "tʃʰ", "dʒ", "dʒʱ", "ɲ", s, "ʃ", "ʂ", h, j, r, l, v]
+restricted_coda_consonants: ["pʰ", "bʱ", "tʰ", "dʱ", "ʈʰ", "ɖʱ", "kʰ", "ɡʱ", "tʃ", "tʃʰ", "dʒ", "dʒʱ"]  # medial codas are unrestricted in real Sanskrit (the word-final pausa forms restrict to k ʈ t p ṅ ṇ n m ḥ -- word position is not modeled), so only aspirates and affricates are barred
 # Real Classical Sanskrit's own strict word-final sandhi neutralizes
 # every coda down to just the plain voiceless stop of each series (p/t/
 # ʈ/k) plus the two nasals (n/m) -- a genuine, citable fact (real
@@ -64,6 +64,20 @@ attested_onset_clusters:
   - [s, v]     # "svara" (vowel/sound)
   - ["ʃ", r]    # "shri"
   - [g, r]     # "graha" (planet)
+  # real clusters found by `conlang audit-lexicons`
+  - [s, t]
+  - [s, "tʰ"]
+  - [s, p]
+  - [s, k]
+  - [k, "ʂ"]
+  - ["ʃ", v]
+  - [t, v]
+  - [m, r]
+  - [d, r]
+  - [p, j]
+  - [k, j]
+  - [t, j]
+  - [d, j]
 orthography_category: scholarly-macron-style
 orthography:
   # Real IAST (International Alphabet of Sanskrit Transliteration)
@@ -110,7 +124,7 @@ nucleus_frequency_tiers:
   uncommon: ["eː", "oː"]
   rare: [ai, au]
 coda_frequency_tiers:
-  very_common: [n, m]
-  common: [t, k]
-  uncommon: [p]
-  rare: ["ʈ"]
+  very_common: [n, m, t, k]
+  common: [r, s, d, g, l, v]
+  uncommon: [p, b, h, j, "ʈ", "ɖ", "ʃ", "ʂ", "ŋ", "ɳ"]
+  rare: ["ɲ"]

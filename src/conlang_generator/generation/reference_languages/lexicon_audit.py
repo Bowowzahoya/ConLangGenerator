@@ -11,10 +11,11 @@ Every curated word is checked two ways:
   word is not a legal one.
 
 The structure comes from a strict-source-language phonology generation
-(sound strictness 1.0), with one correction: a profile that curates no
-attested clusters would otherwise get a *randomly thinned* cluster list, so
-its clusters are the full sonority-legal closure instead -- the audit should
-flag real transcription problems, not the luck of a seed.
+(sound strictness 1.0), with one correction: generation randomly *thins* the
+cluster list, so the audit uses the profile's whole curated cluster list
+(restricted to sonority-legal pairs), or the full sonority-legal closure when
+the profile curates none -- the audit should flag real transcription
+problems, not the luck of a seed.
 
 Run it with ``conlang audit-lexicons``. It is advisory: a flagged word is a
 prompt to look at the transcription *or* the profile, and either may be the
@@ -99,10 +100,28 @@ def profile_structure(name: str) -> SyllableStructure:
     _, structure, _, _ = phonology_gen.generate_phonology(random.Random(0), spec)
     updates: dict = {}
     consonants = tuple(_CONSONANTS[s] for s in profile.consonants if s in _CONSONANTS)
-    if not profile.attested_onset_clusters and structure.max_onset >= 2:
-        updates["allowed_onset_clusters"] = sonority.legal_onset_pairs(consonants)
-    if not profile.attested_coda_clusters and structure.max_coda != 0 and (structure.max_coda or 0) >= 2:
-        updates["allowed_coda_clusters"] = sonority.legal_coda_pairs(consonants)
+    # generation rolls whether clusters exist at all; the audit takes the
+    # profile's word for it
+    if profile.max_onset >= 2:
+        structure = structure.model_copy(update={"max_onset": 2})
+    if profile.max_coda is not None and profile.max_coda >= 2 and structure.max_coda != 0:
+        structure = structure.model_copy(update={"max_coda": 2})
+    elif profile.attested_coda_clusters and structure.max_coda == 1 and profile.coda_profile == "unrestricted":
+        structure = structure.model_copy(update={"max_coda": 2})
+    if structure.max_onset >= 2:
+        pairs = sonority.legal_onset_pairs(consonants)
+        attested = set(profile.attested_onset_clusters)
+        updates["allowed_onset_clusters"] = (
+            tuple(p for p in sonority.with_attested(pairs, tuple(sorted(attested)), consonants) if p in attested)
+            if attested else pairs
+        )
+    if structure.max_coda != 0 and (structure.max_coda or 0) >= 2:
+        pairs = sonority.legal_coda_pairs(consonants)
+        attested = set(profile.attested_coda_clusters)
+        updates["allowed_coda_clusters"] = (
+            tuple(p for p in sonority.with_attested(pairs, tuple(sorted(attested)), consonants) if p in attested)
+            if attested else pairs
+        )
     return structure.model_copy(update=updates) if updates else structure
 
 

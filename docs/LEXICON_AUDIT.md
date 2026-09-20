@@ -23,59 +23,59 @@ language can say which.
 ```
 language         words  off-profile  structure  flagged
 Nahuatl            246           23        172     79% 
-Sanskrit           494            3        340     69% 
-Old Norse          490           98        233     68% 
+Old Norse          490           98        213     63% 
 Xhosa               52           19         14     63% 
 Mandarin           494          216         97     63% 
-Icelandic          494          191        106     60% 
 Zulu                84           31         19     60% 
-Georgian           169           74         23     57% 
-Portuguese         494          244         14     52% 
-Welsh              494          172         72     49% 
+Icelandic          494          191         96     58% 
+Georgian           169           74         22     57% 
 Korean             494          216         18     47% 
-Swedish            494          123        107     47% 
+Welsh              494          172         60     47% 
 Cantonese          494          222          3     46% 
-Danish             494          131         90     45% 
-Dutch              494          167         47     43% 
-Ancient Greek      494           58        155     43% 
-German             494           34        173     42% 
-Polish             494            1        204     41% 
 Tibetan            365          107         41     41% 
-Norwegian          494           95         98     39% 
-Spanish            494          125         67     39% 
 Tamil              494          128         56     37% 
 Hungarian          494          150         31     37% 
-Persian            494          107         74     37% 
-Italian            494            5        158     33% 
-Serbo-Croatian     494            0        156     32% 
-Russian            494            1        143     29% 
+Ancient Greek      494           58        117     35% 
+Spanish            494          125         38     33% 
+Persian            494          107         52     32% 
 Sumerian            38            0         11     29% 
-Khmer               52            0         15     29% 
-Hindi              494          114         24     28% 
+Hindi              494          114         20     27% 
+Khmer               52            0         14     27% 
 Nama                 4            0          1     25% 
-Arabic             494            0        122     25% 
+Russian            494            1        119     24% 
+Arabic             494            0        113     23% 
+Italian            494            0        105     21% 
 Vietnamese         494           90          7     20% 
-English            494            0         94     19% 
-Bengali            494           64         22     17% 
+Bengali            494           64         21     17% 
 Swahili            494            4         81     17% 
-Mongolian          322           21         33     17% 
 Navajo              24            4          0     17% 
+Mongolian          322           21         32     16% 
 Arawakan            49            6          2     16% 
-French             494            2         77     16% 
-Turkish            494            1         68     14% 
-Latin              494            4         61     13% 
+Sanskrit           494            3         68     14% 
+Polish             494            1         69     14% 
 Japanese           494           12         50     13% 
+Turkish            494            1         60     12% 
 Hebrew             494            8         44     11% 
 Quechua            412           42          0     10% 
 Pama-Nyungan        61            1          5     10% 
-Thai               190            5          8      7% 
+German             494            1         25      5% 
+Danish             494           17          7      5% 
 Basque             494            7         16      5% 
 Finnish            494            7         10      3% 
+Portuguese         494            0         15      3% 
+Serbo-Croatian     494            0         15      3% 
+Thai               190            5          0      3% 
+Dutch              494            0         11      2% 
+French             494            2          8      2% 
+Norwegian          494            0         10      2% 
+Latin              494            4          4      2% 
+Swedish            494            0          7      1% 
 Malay              494            0          5      1% 
+English            494            0          4      1% 
 Hawaiian           401            2          0      0% 
 Indonesian         494            0          1      0% 
 Yoruba             102            0          0      0% 
-all              20845                             32% 
+all              20845                             21%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being
@@ -87,19 +87,17 @@ words and are deliberately small; the lexicons use the language's real sounds.
 **Transcription slips (fixed).** Sanskrit *e* and *o* are always long; the
 lexicon had them short (23 words, now `eː`/`oː`).
 
-**Profile gaps (open) -- the frequent causes**
+**Profile gaps fixed so far (group 1):** Sanskrit visarga `h`; `s`+stop and
+other real onset/coda clusters (English, German, Polish, Italian, French,
+Dutch, Latin, Serbo-Croatian, Sanskrit, the Scandinavian languages); coda `ʁ`
+(German/French/Danish); long and mid vowels in German, Danish, Swedish and
+Norwegian; Italian `ʎ`; Polish onset `ɲ`; English's incorrect "w never
+precedes a rounded vowel" restriction; Portuguese/Dutch rhotics in the
+lexicons. Attested clusters now also bypass the generic sonority check.
 
-| Cause | Where |
-|---|---|
-| Word-final `h` (visarga *-ḥ*) not allowed as a coda | Sanskrit (~120 words) |
-| `s`+stop onsets (`st sp sk`) and other real onset clusters missing from curated cluster lists | English, German, Italian, Russian, Polish, Latin, Ancient Greek, Old Norse, ... |
-| Affricate onsets/codas (`ts`, `tɬ`) and `kw` | Nahuatl, German, Italian |
-| Coda `ʁ` (vocalized in speech) | German, Danish, French |
-| Vowel sets missing long/mid vowels (`ɔ ɛ ɪ ə øː yː ɛː ɑː iː`) | English, German, Swedish, Norwegian, Danish, Persian, Welsh, Icelandic, ... |
-| Doubled consonants written as a cluster (`tt`, `ss`, `jj`, `ll`) | Italian, Arabic, Hungarian, Finnish |
-| Palatal lateral `ʎ`, tap `ɾ`, `r` vs `ɾ` | Portuguese, Italian, Spanish |
-| `w` restricted before rounded vowels (English *water*) | English |
-
-Fixing these means editing profile YAMLs (tiers, restricted lists, attested
-clusters) and, for doubled consonants, adding long consonants to the pool --
-see `docs/DEFERRED.md` section 1.
+**Still open** -- see `docs/DEFERRED.md` section 1: word-final-only
+restrictions (final devoicing is applied to every coda), doubled consonants,
+three-consonant clusters, glide+vowel sequences, and the languages not yet
+reviewed (Old Norse, Nahuatl, Mandarin, Icelandic, Welsh, Georgian, Korean,
+Ancient Greek, Zulu/Xhosa, Tibetan, Tamil, Hungarian, Persian, Spanish,
+Hindi).

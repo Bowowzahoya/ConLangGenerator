@@ -1,7 +1,7 @@
 name: Norwegian
 aliases: [norsk]
-consonants: [p, b, t, d, k, g, f, v, s, "ʃ", h, m, n, "ŋ", l, r, j, "ʈ", "ɖ", "ɳ", "ʂ"]
-vowels: [i, e, "ɛ", "æ", a, "ɔ", o, u, y, "ø", "œ", "ə", "aː", "iː", "uː", "eː", "oː"]
+consonants: [p, b, t, d, k, g, f, v, s, "ʃ", h, m, n, "ŋ", l, r, j, "ʈ", "ɖ", "ɳ", "ʂ", "ç"]
+vowels: [i, e, "ɛ", "æ", a, "ɔ", o, u, y, "ø", "œ", "ə", "aː", "iː", "uː", "eː", "oː", "ɑː", "yː", "øː", "ɑ", "æː", "ʊ", "ɔː"]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
@@ -25,6 +25,18 @@ attested_onset_clusters:
   - [g, r]                   # "grønn"
   - [f, l]                   # "flagg"
   - [f, r]                   # "fri"
+  # real clusters found by `conlang audit-lexicons`
+  - [s, t]
+  - [s, p]
+  - [s, k]
+  - [s, v]
+  - [s, n]
+  - [s, l]
+  - ["ʃ", l]
+  - [k, n]
+  - [b, j]
+  - [f, j]
+  - [m, j]
 attested_coda_clusters:
   # Real, common Norwegian coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -42,6 +54,16 @@ attested_coda_clusters:
   - [s, t]                   # "fest"
   - [s, k]                   # "fisk"
   - [f, t]                   # "luft"
+  # real clusters found by `conlang audit-lexicons`
+  - [k, t]
+  - [k, s]
+  - [l, s]
+  - ["ŋ", t]
+  - ["ʂ", t]
+  - [l, v]
+  - [r, v]
+  - [m, s]
+  - [t, s]
 orthography:
   # Real Norwegian spelling conventions, restricted to symbols this
   # profile actually models -- illustrative, not a full account.
@@ -74,17 +96,17 @@ core_vocabulary_average_syllables: 1.29  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [s, t, k, p, b, r]
   common: [d, f, g, h, l, m, n, v, j]
-  uncommon: ["ʃ"]  # the sj-sound is real but comparatively low word-type productivity as a true onset
+  uncommon: ["ʃ", "ç"]  # the sj-sound is real but comparatively low word-type productivity as a true onset
   rare: []  # the retroflex series, this position's only other candidates, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
 nucleus_frequency_tiers:
   very_common: ["ə", a]
   common: ["e", "i", "ɔ", "u"]
-  uncommon: ["ɛ", "æ", "o"]
+  uncommon: ["ɛ", "æ", "o", "ɑː", "yː", "øː", "ɑ", "æː", "ʊ", "ɔː"]
   rare: [y, "ø", "œ", "aː", "iː", "uː", "eː", "oː"]
 coda_frequency_tiers:
   very_common: [n, t, s, r]
   common: [l, k, d, m, "ʈ", "ɖ", "ɳ", "ʂ"]  # the retroflex series is real and genuinely common as a coda (unlike onset) -- the surface outcome of real Norwegian /r/+dental sandhi (kort, bord, barn)
-  uncommon: [f, "ŋ", b, p, v, g]
+  uncommon: [f, "ŋ", b, p, v, g, "ç"]
   rare: ["ʃ", j]
 word_classes:
   # Real Norwegian: no citation-form noun suffix distinguishes the real

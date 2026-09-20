@@ -62,3 +62,20 @@ def test_the_cli_command_reports_and_can_fail_on_a_threshold():
     strict = runner.invoke(app, ["audit-lexicons", "Finnish", "--fail-above", "0.0"])
     assert strict.exit_code == 1
     assert runner.invoke(app, ["audit-lexicons", "NoSuchLanguage"]).exit_code == 1
+
+
+def test_attested_pairs_bypass_the_sonority_check():
+    from conlang_generator.generation import phonology_gen, sonority
+
+    consonants = tuple(c for c in phonology_gen.ALL_CONSONANTS if c.ipa in ("s", "t", "ʃ", "p"))
+    base = sonority.legal_onset_pairs(consonants)
+    assert ("ʃ", "t") not in base  # falling sonority, not the plain s+stop exception
+    assert ("ʃ", "t") in sonority.with_attested(base, (("ʃ", "t"), ("x", "y")), consonants)  # unknown sounds ignored
+    assert ("x", "y") not in sonority.with_attested(base, (("x", "y"),), consonants)
+
+
+def test_german_words_can_end_in_uvular_r():
+    from conlang_generator.generation.reference_languages import lexicon_audit
+
+    structure = lexicon_audit.profile_structure("German")
+    assert "ʁ" not in structure.excluded_coda_consonants

@@ -179,6 +179,27 @@ def thin_cluster_pairs(
     return kept if kept else (rng.choice(pairs),)
 
 
+def with_attested(
+    pairs: tuple[tuple[str, str], ...],
+    attested: tuple[tuple[str, str], ...],
+    consonants: tuple[Consonant, ...],
+) -> tuple[tuple[str, str], ...]:
+    """``pairs`` plus every curated attested pair the sonority rules alone
+    reject (``st`` before a fricative-initial, ``ʃt``, ``ts``, ``kv``, ``mj``,
+    ``rt``...) -- real clusters a language really has are legal there even
+    where the generic cross-linguistic check would say no. Only pairs whose
+    two sounds are both in ``consonants`` and that read back as exactly that
+    pair are added; callers filter out excluded sounds afterwards."""
+    symbols = tuple(c.ipa for c in consonants)
+    have = set(pairs)
+    extra = tuple(
+        pair for pair in attested
+        if pair not in have and pair[0] in symbols and pair[1] in symbols
+        and pair[0] != pair[1] and _reads_back_as_pair(pair[0], pair[1], symbols)
+    )
+    return pairs + extra
+
+
 def grade_against_attested(
     rng: random.Random,
     pairs: tuple[tuple[str, str], ...],

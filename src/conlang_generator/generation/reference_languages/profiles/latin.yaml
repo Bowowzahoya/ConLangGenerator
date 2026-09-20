@@ -31,6 +31,16 @@ attested_onset_clusters:
   - [g, r]   # "gratia"
   - [k, l]   # "clarus"
   - [b, r]   # "brevis"
+  # real clusters found by `conlang audit-lexicons`
+  - [k, w]
+  - [s, p]
+  - [s, t]
+  - [s, k]
+  - [f, r]
+  - [p, l]
+  - [g, l]
+  - [d, w]
+  - [s, w]
 attested_coda_clusters:
   # Real Latin word-final clusters, restricted to symbols this profile
   # models -- illustrative, not exhaustive.
@@ -39,6 +49,11 @@ attested_coda_clusters:
   - [r, s]   # "pars" (part)
   - [k, s]   # "rex" (king) -- real Latin letter "x" spells the sequence /ks/
   - [k, t]   # "factum" (made/done)
+  # real clusters found by `conlang audit-lexicons`
+  - [p, s]
+  - [s, t]
+  - [m, p]
+  - [n, k]
 stress_pattern: lexical  # the real, famous weight-sensitive Latin Stress Rule -- penult if heavy, else antepenult; quantity-sensitive, no flat position captures it, the same shape this project's own Arabic/Hindi/Hawaiian profiles already use for their own quantity-sensitive systems
 stress_deviation_rate: 0.10  # illustrative -- the real rule is close to exceptionless once syllable weight is known, noticeably more regular than Hindi's own disputed 0.40
 orthography_category: scholarly-macron-gemination-style

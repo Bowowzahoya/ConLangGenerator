@@ -7,7 +7,7 @@ max_onset: 2
 tonal: false
 coda_devoicing: true  # real, well-documented Polish word-final obstruent devoicing (real "chleb" [xlep], spelled unchanged) -- same real fact already modeled for Dutch/German
 orthography_category: diacritic-style
-restricted_onset_consonants: ["ɲ"]  # a palatal nasal is cross-linguistically onset-only, same fact already curated for Hungarian/the Germanic profiles' /ŋ/
+# No restricted_onset_consonants: /ɲ/ opens Polish words freely (nie, niebo, nic) -- an earlier onset restriction was wrong (found by `conlang audit-lexicons`)
 attested_onset_clusters:
   # Real, common Polish onset clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive. Real Polish is
@@ -31,6 +31,44 @@ attested_onset_clusters:
   - [z, d]                   # "zdanie"
   - [t, v]                   # "twarz" -- real /t/+/v/ (spelled "tw")
   - [d, v]                   # "dwa" -- real /d/+/v/ (spelled "dw")
+  # real clusters found by `conlang audit-lexicons`
+  - [p, j]
+  - [b, j]
+  - [m, j]
+  - [v, j]
+  - [k, j]
+  - [g, j]
+  - [f, j]
+  - [p, "ʃ"]
+  - [s, w]
+  - [s, t]
+  - [s, p]
+  - [s, k]
+  - [s, m]
+  - [b, r]
+  - [z, w]
+  - [p, w]
+  - [x, w]
+  - [v, w]
+  - [k, "ɕ"]
+  - [d, l]
+  - [d, n]
+  - [v, n]
+  - [z, n]
+  - ["ʒ", d]
+  - [b, "ʒ"]
+  - ["ɕ", f]
+  - ["ɕ", m]
+  - ["ʃ", "tʃ"]
+  - ["ɕ", "tɕ"]
+  - [z, v]
+  - [v, r]
+  - [p, t]
+  - [k, t]
+  - [f, w]
+  - [b, w]
+  - [k, w]
+  - ["ʒ", w]
 attested_coda_clusters:
   # Real, common Polish coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -41,6 +79,18 @@ attested_coda_clusters:
   - [n, t]                   # "prąd"-adjacent, illustrative
   - [n, k]                   # "bank"
   - [f, t]                   # "szift"-style, illustrative
+  # real clusters found by `conlang audit-lexicons`
+  - ["ɕ", "tɕ"]
+  - ["ʃ", "tʃ"]
+  - [s, k]
+  - [n, s]
+  - [k, s]
+  - [r, s]
+  - [l, s]
+  - [n, "tɕ"]
+  - [r, "tɕ"]
+  - [n, "ʃ"]
+  - [l, t]
 orthography:
   # Real Polish spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account.
@@ -74,7 +124,7 @@ core_vocabulary_average_syllables: 1.5  # hand-counted across this project's own
 onset_frequency_tiers:
   very_common: [p, k, t, s, z, v, b]
   common: [d, g, m, n, r, w, "tʃ", "ʒ"]
-  uncommon: [f, x, ts, "ʃ", j, l, h]
+  uncommon: [f, x, ts, "ʃ", j, l, h, "ɲ"]
   rare: [dz, "dʒ", "tɕ", "dʑ", "ɕ", "ʑ"]  # /ɲ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i]

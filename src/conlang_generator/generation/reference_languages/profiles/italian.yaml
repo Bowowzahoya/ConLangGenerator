@@ -1,5 +1,5 @@
 name: Italian
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", "ɲ", "lʲ", m, n, l, r, j, w, "kː", "tː", "pː", "sː", "nː", "lː"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", "ɲ", "lʲ", m, n, l, r, j, w, "kː", "tː", "pː", "sː", "nː", "lː", "ʎ"]
 vowels: [i, e, "ɛ", a, "ɔ", o, u]
 coda_profile: sonorant
 max_onset: 2
@@ -55,6 +55,35 @@ attested_onset_clusters:
   - [s, n]                   # "snello"
   - [s, v]                   # "svegliare"
   - [s, l]                   # "slitta"
+  # real clusters found by `conlang audit-lexicons`
+  - [s, p]
+  - [s, t]
+  - [s, k]
+  - [p, j]
+  - [b, j]
+  - [k, j]
+  - [g, j]
+  - [f, j]
+  - [v, j]
+  - [n, w]
+  - [f, w]
+  - [b, w]
+  - [v, w]
+  - [d, j]
+  - [t, j]
+  - [s, b]
+  - [s, d]
+  - [s, g]
+  - [s, "tʃ"]
+  - [z, b]
+  - [z, d]
+  - [z, g]
+  - [z, v]
+  - [z, m]
+  - [z, n]
+  - [z, l]
+  - [z, r]
+  - ["ʃ", k]
 # No attested_coda_clusters -- coda_profile "sonorant" hardcodes
 # max_coda=1/allowed_coda_clusters=() regardless of any curated cluster
 # list (see generation/phonology_gen.py), so that field would be dead
@@ -100,7 +129,7 @@ core_vocabulary_average_syllables: 2.15  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [p, t, k, s, m, n, l, r]
   common: [b, d, g, f, v, "tʃ", "dʒ", "ʃ"]
-  uncommon: ["ɲ", j, w]  # ɲ- is a small closed word family (gnomo, gnocco); onset j/w are mostly loanwords, most real w/j-like sounds arise as glide realizations of i/u instead
+  uncommon: ["ɲ", j, w, "ʎ"]  # ɲ- is a small closed word family (gnomo, gnocco); onset j/w are mostly loanwords, most real w/j-like sounds arise as glide realizations of i/u instead
   rare: ["lʲ"]  # the "gli" sound is a handful of very frequent words (figlio, aglio, famiglia) but a tiny, unproductive onset class
 nucleus_frequency_tiers:
   very_common: [a, i]  # -a/-e feminine and -i masculine plural endings

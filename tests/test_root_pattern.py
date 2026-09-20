@@ -251,8 +251,8 @@ def test_generate_root_falls_back_gracefully_when_nothing_satisfies_the_structur
     assert len(root) == 3
 
 
-def test_forced_templatic_word_for_english_never_puts_w_before_a_rounded_vowel():
-    # Reproduces the original bug directly: build English's real
+def test_forced_templatic_word_for_french_never_puts_w_before_a_rounded_vowel():
+    # Reproduces the original bug directly: build French's real
     # strictness=1.0 inventory/SyllableStructure (which excludes
     # w+u/o/ʊ), then force the root-and-pattern path -- bypassing
     # grammar's own low-probability roll entirely -- against every one
@@ -261,10 +261,10 @@ def test_forced_templatic_word_for_english_never_puts_w_before_a_rounded_vowel()
     from conlang_generator.generation import phonology_gen
 
     spec = GenerationSpec(
-        prompt="p", seed=1, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0)
+        prompt="p", seed=1, traits=TraitProfile(source_languages=("French",), source_language_strictness=1.0)
     )
     inventory, structure, _, _ = phonology_gen.generate_phonology(random.Random(1), spec)
-    assert ("w", "u") in structure.excluded_onset_nucleus_pairs  # sanity: this run's structure really is restricted
+    assert ("w", "o") in structure.excluded_onset_nucleus_pairs  # sanity: this run's structure really is restricted
 
     templates = generate_templates(random.Random(1), inventory)
     rng = random.Random(2)
@@ -274,4 +274,4 @@ def test_forced_templatic_word_for_english_never_puts_w_before_a_rounded_vowel()
             root = generate_root(rng, inventory, structure, template.skeleton)
             word = fill_template(template, root)
             for i in range(len(word) - 1):
-                assert not (word[i] == "w" and word[i + 1] in ("u", "o", "ʊ")), word
+                assert not (word[i] == "w" and word[i + 1] in ("o", "u", "y", "ø", "œ", "ɔ", "e", "ə", "ɑ")), word
