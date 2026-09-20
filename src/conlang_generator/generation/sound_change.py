@@ -485,6 +485,7 @@ def _recompute_syllable_structure(
     traits: TraitProfile,
     lineage_profiles: tuple[reference_languages.ReferenceLanguageProfile, ...],
 ) -> SyllableStructure:
+    symbols = {c.ipa for c in consonants}
     onset_pairs = sonority.legal_onset_pairs(consonants)
     allowed_onset_clusters = (
         sonority.thin_cluster_pairs(rng, onset_pairs, traits.contact_intensity) if base.max_onset >= 2 else ()
@@ -519,6 +520,8 @@ def _recompute_syllable_structure(
         max_coda=max_coda,
         allowed_onset_clusters=allowed_onset_clusters,
         allowed_coda_clusters=allowed_coda_clusters,
+        allowed_onset_triples=tuple(t for t in base.allowed_onset_triples if all(s in symbols for s in t)),
+        allowed_coda_triples=tuple(t for t in base.allowed_coda_triples if all(s in symbols for s in t)) if max_coda >= 2 else (),
         allowed_coda_consonants=allowed_coda_consonants,
         excluded_coda_consonants=excluded_coda_consonants,
         excluded_final_coda_consonants=excluded_final_coda_consonants,

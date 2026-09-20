@@ -139,3 +139,13 @@ word_accent_realization: glottalization  # real Danish stød -- a binary word-ac
 word_accent_pattern: monosyllabic_heavy  # real stød's own conditioning is more nuanced than this flat heavy/light split (a defensible approximation, not a full account) -- illustrative, same honesty standard as every other curated rate
 word_accent_deviation_rate: 0.15  # illustrative -- real stød has genuine lexical/dialectal exceptions to its own predictable-by-shape default
 foreign_name_handling: keep       # foreign personal names are used as written
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [s, d, j]
+attested_coda_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [l, d, n]
+  - [l, s, g]
+  - [m, s, d]
+  - [f, d, n]

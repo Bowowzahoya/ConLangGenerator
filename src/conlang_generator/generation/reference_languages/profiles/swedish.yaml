@@ -133,3 +133,18 @@ word_accent_realization: pitch  # real Swedish "accent 1"/"accent 2" -- historic
 word_accent_pattern: underived_monosyllable  # real Swedish: accent 1 default for underived monosyllables, accent 2 default for polysyllabic/suffixed/compound forms
 word_accent_deviation_rate: 0.2  # illustrative -- real minimal pairs (anden "the duck" vs. "the spirit") are a genuine but small minority of the lexicon
 foreign_name_handling: keep       # foreign personal names are used as written
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [s, k, r]
+  - [s, p, r]
+  - [s, p, j]
+  - [s, t, r]
+  - [s, p, l]
+  - [s, k, v]
+attested_coda_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [l, s, k]
+  - [k, s, t]
+  - [r, s, t]
+  - [n, s, k]

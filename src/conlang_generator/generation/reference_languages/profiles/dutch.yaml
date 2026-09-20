@@ -156,3 +156,20 @@ real_has_overt_copula: true          # "zijn" -- real Dutch predicate-adjective 
 real_adjective_after_noun: false     # real Dutch attributive adjectives precede the noun (de hoge berg)
 real_case_count: 0                   # modern Dutch has genuinely lost its real historical case system -- only vestigial in a few fixed expressions/pronouns
 foreign_name_handling: keep       # foreign personal names are used as written
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [s, p, r]
+  - [s, t, r]
+  - [s, p, l]
+  - [s, k, r]
+  - [s, x, r]
+attested_coda_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [x, t, s]
+  - ["ŋ", k, s]
+  - [r, s, t]
+  - [r, f, t]
+  - [n, t, s]
+  - [l, s, t]
+  - [m, p, t]

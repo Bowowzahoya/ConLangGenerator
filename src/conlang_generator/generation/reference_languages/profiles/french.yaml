@@ -246,3 +246,16 @@ attested_coda_clusters:
   - [s, p]
   - [k, s]
   - [p, s]
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [p, l, w]
+  - [f, "ʁ", w]
+  - [t, "ʁ", w]
+  - [k, "ʁ", w]
+  - [d, "ʁ", w]
+  - [s, t, "ʁ"]
+  - [s, p, l]
+  - [s, k, "ʁ"]
+  - [s, p, "ʁ"]
+  - [b, "ʁ", w]
+  - [g, "ʁ", w]

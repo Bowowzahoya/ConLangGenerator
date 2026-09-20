@@ -178,3 +178,30 @@ real_has_overt_copula: true          # "sein" -- real German predicate-adjective
 real_adjective_after_noun: false     # real German attributive adjectives precede the noun (der hohe Berg)
 real_case_count: 4                   # nominative, accusative, dative, genitive -- real, well-documented
 foreign_name_handling: keep       # foreign personal names are used as written
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - ["ʃ", p, "ʁ"]
+  - ["ʃ", t, "ʁ"]
+  - [p, f, l]
+  - [t, s, v]
+  - ["ʃ", p, l]
+  - [p, f, "ʁ"]
+attested_coda_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - ["ʁ", t, s]
+  - [m, p, f]
+  - ["ç", t, s]
+  - ["ŋ", k, s]
+  - [n, t, s]
+  - [l, t, s]
+  - [k, s, t]
+  - ["ʁ", s, t]
+  - ["ʁ", "ʃ", t]
+  - [n, s, t]
+  - [l, s, t]
+  - ["ʁ", "ç", t]
+  - ["ŋ", s, t]
+  - ["ʁ", p, s]
+  - ["ʁ", k, s]
+  - ["ʁ", n, s]

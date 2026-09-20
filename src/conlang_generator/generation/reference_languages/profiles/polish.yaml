@@ -185,3 +185,28 @@ real_has_overt_copula: true          # "byc" (jest) -- unlike Russian, real Poli
 real_adjective_after_noun: false     # real Polish attributive adjectives precede the noun (wysoka gora = "tall mountain")
 real_case_count: 7                   # nominative, genitive, dative, accusative, instrumental, locative, vocative -- real, well-documented
 foreign_name_handling: keep       # foreign personal names are used as written
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [s, t, r]
+  - [s, p, r]
+  - [s, k, r]
+  - ["ɕ", m, j]
+  - ["ɕ", f, j]
+  - ["ɕ", p, j]
+  - [z, v, j]
+  - [g, v, j]
+  - [k, f, j]
+  - [f, s, p]
+  - [f, s, x]
+  - [s, p, "ʃ"]
+  - [s, k, "ʃ"]
+  - [v, z, g]
+  - [g, "ʒ", m]
+  - [k, "ʃ", t]
+  - [v, z, d]
+attested_coda_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [j, "ɕ", "tɕ"]
+  - [s, t, s]
+  - [r, s, t]

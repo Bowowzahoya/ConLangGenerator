@@ -122,6 +122,15 @@ def profile_structure(name: str) -> SyllableStructure:
             tuple(p for p in sonority.with_attested(pairs, tuple(sorted(attested)), consonants) if p in attested)
             if attested else pairs
         )
+    symbols = set(profile.consonants)
+    triples = {
+        "allowed_onset_triples": tuple(t for t in profile.attested_onset_triples if all(s in symbols for s in t)),
+        "allowed_coda_triples": tuple(t for t in profile.attested_coda_triples if all(s in symbols for s in t)),
+    }
+    if triples["allowed_onset_triples"] and structure.max_onset >= 2:
+        updates["allowed_onset_triples"] = triples["allowed_onset_triples"]
+    if triples["allowed_coda_triples"] and structure.max_coda >= 2:
+        updates["allowed_coda_triples"] = triples["allowed_coda_triples"]
     return structure.model_copy(update=updates) if updates else structure
 
 

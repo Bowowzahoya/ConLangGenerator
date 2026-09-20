@@ -66,8 +66,9 @@ multi-session feature.
   field via a profile setting, but no profile field exists for it yet; (b) *doubled consonants are done* (long twins for the common consonants,
   lexicons and profiles converted; still open: geminate affricates like Italian
   `tts`, geminates in `coda_profile: none` languages such as Japanese *kitte*,
-  and word-initial geminates in the few languages that have them); (c) three-consonant clusters (`str`, `spr`, `ʃpʁ`, `ndr`) —
-  the cap is 2; (d) glide+vowel sequences written as onset clusters
+  and word-initial geminates in the few languages that have them); (c) *three-consonant clusters are done* (curated triples, strict profiles only; Georgian, Hebrew,
+  Hungarian and the other unreviewed languages have none yet, and 4-consonant runs like
+  Polish *vzvʲ*+glide stay out of scope); (d) glide+vowel sequences written as onset clusters
   (French `bw`, Italian `pj`); (e) languages not yet reviewed: Old Norse,
   Nahuatl, Mandarin, Icelandic, Welsh, Georgian, Korean, Ancient Greek,
   Zulu/Xhosa, Tibetan, Tamil, Hungarian, Persian, Spanish (`β ð ɣ`),

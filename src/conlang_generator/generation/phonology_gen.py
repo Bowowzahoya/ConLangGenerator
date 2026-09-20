@@ -1653,11 +1653,39 @@ def generate_phonology(
     if medial_only:
         excluded_final_coda_consonants = tuple(dict.fromkeys(excluded_final_coda_consonants + medial_only))
 
+    onset_triples: tuple[tuple[str, str, str], ...] = ()
+    coda_triples: tuple[tuple[str, str, str], ...] = ()
+    if reference_profiles and strictness > 0.0:
+        # Own rng, so a language with no curated triples spends no draws at
+        # all and every seeded generation stays byte-identical.
+        triple_rng = random.Random(f"{spec.seed}:triples")
+        symbols = set(consonant_symbols)
+
+        def _keep(triples, allowed_first):
+            usable = tuple(sorted(
+                t for t in frozenset().union(*triples)
+                if all(s in symbols for s in t) and allowed_first(t)
+            ))
+            return tuple(t for t in usable if triple_rng.random() < strictness)
+
+        if max_onset >= 2:
+            onset_triples = _keep(
+                [p.attested_onset_triples for p, _ in weighted_profiles],
+                lambda t: not any(s in excluded_onset_consonants for s in t),
+            )
+        if max_coda >= 2:
+            coda_triples = _keep(
+                [p.attested_coda_triples for p, _ in weighted_profiles],
+                lambda t: t[-1] not in excluded_coda_consonants and t[-1] not in restricted_coda,
+            )
+
     syllable_structure = SyllableStructure(
         max_onset=max_onset,
         max_coda=max_coda,
         allowed_onset_clusters=allowed_onset_clusters,
         allowed_coda_clusters=allowed_coda_clusters,
+        allowed_onset_triples=onset_triples,
+        allowed_coda_triples=coda_triples,
         allowed_coda_consonants=allowed_coda_consonants,
         excluded_coda_consonants=excluded_coda_consonants,
         excluded_final_coda_consonants=excluded_final_coda_consonants,

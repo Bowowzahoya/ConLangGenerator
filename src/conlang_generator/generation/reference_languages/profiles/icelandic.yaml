@@ -96,3 +96,23 @@ coda_frequency_tiers:
 stress_pattern: initial  # real Icelandic: stress is exceptionlessly the root's first syllable, the same Germanic default as German/Dutch/Danish/Swedish/Norwegian but held to more strictly
 stress_deviation_rate: 0.05  # illustrative -- real Icelandic stress is famously more rigidly initial than even German/Dutch, rarely deviates outside a handful of loanwords
 stress_driven_vowel_reduction: false  # real, deliberate typological call: Icelandic's own inflectional endings (-ur/-inn/-ins) keep distinct full vowel qualities rather than reducing to schwa the way mainland Scandinavian does
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [s, l, j]
+  - [f, r, j]
+  - [s, t, j]
+  - [s, p, j]
+  - [s, k, j]
+  - [s, t, r]
+  - [s, k, r]
+  - [k, r, j]
+attested_coda_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [r, t, n]
+  - [k, s, l]
+  - [h, t, n]
+  - [l, s, k]
+  - [m, s, k]
+  - [r, s, t]
+  - [k, s, t]

@@ -94,3 +94,14 @@ coda_frequency_tiers:
   common: [r]
   uncommon: []
   rare: ["mː", "pː"]
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [s, t, r]
+  - [s, p, l]
+  - [s, k, r]
+attested_coda_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [r, k, s]
+  - [n, k, s]
+  - [r, p, s]

@@ -126,3 +126,17 @@ word_accent_realization: pitch  # real Norwegian "tonem 1"/"tonem 2" -- historic
 word_accent_pattern: underived_monosyllable  # real Norwegian: accent 1 default for underived monosyllables, accent 2 default for polysyllabic/suffixed/compound forms
 word_accent_deviation_rate: 0.2  # illustrative -- real minimal pairs are a genuine but small minority of the lexicon
 foreign_name_handling: keep       # foreign personal names are used as written
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [s, t, j]
+  - [s, k, r]
+  - [s, p, r]
+  - [s, t, r]
+  - [s, p, l]
+attested_coda_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [l, s, k]
+  - [m, s, t]
+  - [r, s, t]
+  - [n, s, k]

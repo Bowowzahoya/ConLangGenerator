@@ -73,6 +73,16 @@ def _build_onset(
     if structure.max_onset == 0:
         return ()
     onset_multipliers = dict(structure.onset_symbol_multipliers)
+    # Only a language with curated triples spends this draw (see `allowed_onset_triples`).
+    if structure.allowed_onset_triples and rng.random() < 0.1:
+        triples = structure.allowed_onset_triples
+        if prev_coda_final is not None:
+            triples = _filter_by_adjacency(
+                triples, key=lambda c: c[0], is_legal=lambda s: structure.is_valid_boundary(prev_coda_final, s)
+            )
+        if triples:
+            by_symbol = {c.ipa: c.prevalence for c in inventory.consonants}
+            return rng.choices(triples, weights=[_cluster_weight(c, by_symbol, onset_multipliers) for c in triples])[0]
     if structure.max_onset >= 2 and structure.allowed_onset_clusters and rng.random() < 0.3:
         clusters = structure.allowed_onset_clusters
         if prev_coda_final is not None:
@@ -117,6 +127,15 @@ def _build_coda(
             return False
         return pair not in structure.excluded_nucleus_coda_pairs
 
+    if structure.allowed_coda_triples and rng.random() < 0.08:
+        triples = tuple(
+            c for c in structure.allowed_coda_triples
+            if is_legal_nucleus_coda(c[0]) and not (final and c[-1] in structure.excluded_final_coda_consonants)
+            and c[-1] not in structure.excluded_coda_consonants
+        )
+        if triples:
+            by_symbol = {c.ipa: c.prevalence for c in inventory.consonants}
+            return rng.choices(triples, weights=[_cluster_weight(c, by_symbol, coda_multipliers) for c in triples])[0]
     if structure.max_coda >= 2 and structure.allowed_coda_clusters and rng.random() < 0.2:
         clusters = tuple(
             c for c in structure.allowed_coda_clusters

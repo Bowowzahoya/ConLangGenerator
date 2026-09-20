@@ -52,6 +52,8 @@ attested_onset_clusters: []      # optional, defaults empty -- e.g. [[s, p], [s,
 restricted_coda_consonants: []   # optional, defaults empty -- see the field's own docstring
 restricted_onset_nucleus_pairs: []  # optional, defaults empty -- e.g. [[w, u]] (blacklist mode)
 attested_onset_nucleus_pairs: []    # optional, defaults empty -- whitelist mode, mutually exclusive with the above
+attested_onset_triples: []       # optional, defaults empty -- 3-consonant onsets, e.g. [[s, t, r]]
+attested_coda_triples: []        # optional, defaults empty -- 3-consonant codas, e.g. [[l, s, t]]
 attested_coda_clusters: []          # optional, defaults empty -- e.g. [[s, t]]
 restricted_nucleus_coda_pairs: []   # optional, defaults empty -- e.g. [[i, "ŋ"]] (blacklist mode)
 attested_nucleus_coda_pairs: []     # optional, defaults empty -- whitelist mode, mutually exclusive with the above
@@ -275,6 +277,14 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     are the *only* ones legal (Mandarin-style small syllabary) -- see
     ``restricted_onset_nucleus_pairs`` above for the mode-inference rule
     and the abstain-when-empty semantics."""
+    attested_onset_triples: tuple[tuple[str, str, str], ...] = ()
+    """Real 3-consonant onsets (English *str*, *spr*, German *ʃpʁ*) -- legal
+    in a strict generation when all three sounds are in the inventory;
+    anything not listed stays illegal, so most profiles list none."""
+    attested_coda_triples: tuple[tuple[str, str, str], ...] = ()
+    """The coda-side mirror of ``attested_onset_triples`` (English *sixths*
+    stays out of scope; German *Herbst* /ʁpst/ and Polish clusters are the
+    target)."""
     attested_coda_clusters: tuple[tuple[str, str], ...] = ()
     """A curated, illustrative (not exhaustive) list of this language's
     own real 2-consonant coda clusters, restricted to symbols this

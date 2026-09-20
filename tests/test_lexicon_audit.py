@@ -153,3 +153,49 @@ def test_strict_italian_geminates_are_medial_only():
             word = word_builder.build_word(rng, inventory, structure, rng.choice((1, 2, 3)))
             plain = word.replace("ˈ", "")
             assert not plain.endswith(("kː", "tː", "pː", "sː", "nː", "lː", "mː", "rː", "fː", "bː")), word
+
+
+def test_three_consonant_onsets_and_codas_need_a_listed_triple():
+    from conlang_generator.core.phonology import SyllableStructure
+
+    structure = SyllableStructure(
+        max_onset=2, max_coda=2,
+        allowed_onset_clusters=(("s", "t"), ("t", "r")), allowed_coda_clusters=(("n", "t"),),
+        allowed_onset_triples=(("s", "t", "r"),), allowed_coda_triples=(("n", "t", "s"),),
+    )
+    assert structure.is_valid_syllable(("s", "t", "r"), "a", ())
+    assert not structure.is_valid_syllable(("s", "p", "r"), "a", ())
+    assert structure.is_valid_syllable((), "a", ("n", "t", "s"))
+    assert not structure.is_valid_syllable((), "a", ("n", "t", "s", "k"))
+    # without any triple listed, three consonants are never legal
+    assert not SyllableStructure(max_onset=2, allowed_onset_clusters=(("s", "t"),)).is_valid_syllable(("s", "t", "r"), "a", ())
+
+
+def test_strict_english_generates_str_words_and_invented_languages_do_not():
+    import random
+
+    from conlang_generator.generation import phonology_gen, word_builder
+
+    spec = GenerationSpec(prompt="p", seed=4, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0))
+    inventory, structure, _, _ = phonology_gen.generate_phonology(random.Random(4), spec)
+    for seed in range(8):  # the cluster roll decides per seed; most strict English seeds get triples
+        s = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=("English",), source_language_strictness=1.0))
+        inv, st, _, _ = phonology_gen.generate_phonology(random.Random(seed), s)
+        symbols = {c.ipa for c in inv.consonants}
+        assert all(x in symbols for triple in st.allowed_onset_triples for x in triple)
+        if st.allowed_onset_triples:
+            break
+    else:
+        raise AssertionError("no strict English seed produced onset triples")
+    plain = GenerationSpec(prompt="p", seed=4, traits=TraitProfile())
+    _, plain_structure, _, _ = phonology_gen.generate_phonology(random.Random(4), plain)
+    assert plain_structure.allowed_onset_triples == () and plain_structure.allowed_coda_triples == ()
+    rng = random.Random(1)
+    for _ in range(200):
+        word = word_builder.build_word(rng, inventory, structure, 2)
+        assert word  # builds without tripping the syllable-validity assertion
+
+
+def test_audit_structure_carries_the_profiles_triples():
+    structure = lexicon_audit.profile_structure("English")
+    assert ("s", "t", "r") in structure.allowed_onset_triples

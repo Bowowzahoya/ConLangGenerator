@@ -118,3 +118,11 @@ coda_frequency_tiers:
   uncommon: [k, t, b]         # loanword/learned-word-ish: tic, robot, club
   rare: [p, g, "tʃ", m, "ɲ", f, h, j, w]
 foreign_name_handling: keep       # foreign personal names are used as written
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [f, l, w]
+  - [g, "ɾ", w]
+  - [k, "ɾ", w]
+  - [t, "ɾ", w]
+  - [d, "ɾ", w]

@@ -138,3 +138,14 @@ word_accent_realization: pitch_and_length  # real BCMS's own genuine 4-way tone 
 word_accent_pattern: initial_falling_elsewhere_rising  # real, commonly-cited BCMS generalization (Neo-Stokavian): falling accent on a word-initial syllable (or any monosyllable), rising elsewhere
 word_accent_deviation_rate: 0.15  # illustrative -- real BCMS accent placement has genuine lexical/dialectal exceptions to its own predictable-by-position default, similar order of magnitude to Danish's own stød exceptions
 word_accent_length_rate: 0.5  # illustrative -- real BCMS length on the accented syllable is substantially lexical, not predictable from word shape, so modeled as an even split rather than derived from any structural cue
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [s, p, r]
+  - [s, t, r]
+  - [s, t, v]
+  - [s, v, j]
+  - [z, d, j]
+  - [g, d, j]
+  - [p, l, j]
+  - [k, l, j]

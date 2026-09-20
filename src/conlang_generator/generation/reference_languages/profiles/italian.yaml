@@ -137,3 +137,13 @@ nucleus_frequency_tiers:
   uncommon: ["ɛ", "ɔ"]  # open-mid qualities, mostly stressed-syllable-only and not predictable from spelling
   rare: [u]
 foreign_name_handling: keep       # foreign personal names are used as written
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [s, t, r]
+  - [s, p, r]
+  - [s, k, r]
+  - [s, p, l]
+  - [s, k, j]
+  - [s, k, w]
+  - [t, s, j]

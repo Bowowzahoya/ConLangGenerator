@@ -185,3 +185,17 @@ real_has_overt_copula: false         # real Russian present tense is the textboo
 real_adjective_after_noun: false     # real Russian attributive adjectives precede the noun (vysokaya gora = "tall mountain")
 real_case_count: 6                   # nominative, genitive, dative, accusative, instrumental, prepositional -- real, well-documented
 foreign_name_handling: keep       # foreign personal names are used as written
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [s, p, r]
+  - [s, t, r]
+  - [s, k, r]
+  - [v, z, "vʲ"]
+  - [t, s, "vʲ"]
+  - [f, s, "tʲ"]
+  - [s, t, "rʲ"]
+  - [v, z, d]
+attested_coda_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [n, t, r]

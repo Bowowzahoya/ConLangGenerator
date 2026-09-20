@@ -25,18 +25,18 @@ language         words  off-profile  structure  flagged
 Nahuatl            246            3        176     73% 
 Xhosa               52           19         14     63% 
 Mandarin           494          216         97     63% 
-Old Norse          490           98        209     63% 
 Zulu                84           31         19     60% 
-Icelandic          494          189         96     58% 
 Georgian           169           74         22     57% 
+Icelandic          494          189         85     55% 
+Old Norse          490           98        172     55% 
 Korean             494          216         18     47% 
 Welsh              494          172         60     47% 
 Cantonese          494          222          3     46% 
 Tibetan            365          107         41     41% 
-Ancient Greek      494           58        119     36% 
+Ancient Greek      494           58        117     35% 
 Hungarian          494          136         37     35% 
-Spanish            494          125         38     33% 
 Persian            494          107         52     32% 
+Spanish            494          125         34     32% 
 Hindi              494          114         20     27% 
 Khmer               52            0         14     27% 
 Tamil              494          128          4     27% 
@@ -54,28 +54,28 @@ Japanese           494           11         43     11%
 Hebrew             494            8         44     11% 
 Quechua            412           42          0     10% 
 Pama-Nyungan        61            1          5     10% 
-Polish             494            1         44      9% 
-Italian            494            0         36      7% 
-German             494            1         25      5% 
-Russian            494            1         25      5% 
-Danish             494           17          7      5% 
+Polish             494            1         25      5% 
+Italian            494            0         25      5% 
 Basque             494            7         16      5% 
+Danish             494           17          1      4% 
+Russian            494            1         16      3% 
 Portuguese         494            0         15      3% 
-Serbo-Croatian     494            0         15      3% 
 Thai               190            5          0      3% 
-Dutch              494            0         11      2% 
 Finnish            494            1         10      2% 
-French             494            2          8      2% 
-Norwegian          494            0         10      2% 
-Latin              494            4          3      1% 
-Swedish            494            0          7      1% 
+German             494            1          9      2% 
 Turkish            494            0          7      1% 
+Latin              494            4          2      1% 
 Malay              494            0          5      1% 
-English            494            0          4      1% 
+Norwegian          494            0          5      1% 
+Serbo-Croatian     494            0          5      1% 
+Dutch              494            0          3      1% 
+French             494            2          1      1% 
 Hawaiian           401            2          0      0% 
+Swedish            494            0          2      0% 
 Indonesian         494            0          1      0% 
+English            494            0          0      0% 
 Yoruba             102            0          0      0% 
-all              20845                             19%
+all              20845                             18%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being
@@ -106,6 +106,12 @@ already in the pool; lexicons write `tt` as `tː` (except where the doubling is 
 morpheme boundary: Korean, Indonesian, Malay, Mongolian, Russian, Polish); profiles list the
 geminates their lexicon uses. Geminates are word-medial only (barred from onset and from the
 word-final coda); a sonorant-coda profile such as Italian's lets geminates close a syllable.
+
+**Three-consonant clusters (fixed):** `SyllableStructure.allowed_onset_triples` /
+`allowed_coda_triples`, fed by the profile fields `attested_onset_triples` /
+`attested_coda_triples`. A triple is legal only when listed; invented languages stay at
+two. Curated for English, German, Polish, Russian, Italian, Serbo-Croatian, Dutch, the
+Scandinavian languages, French, Old Norse, Icelandic, Ancient Greek, Spanish, Latin.
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet
