@@ -160,3 +160,23 @@ def test_the_neutral_tone_never_opens_a_generated_word():
     assert ToneLevel.NEUTRAL in language.tone_system.levels
     firsts = [e.tones[0] for e in language.lexicon.entries if e.tones]
     assert firsts and ToneLevel.NEUTRAL not in firsts
+
+
+def test_the_tonal_language_lexicons_carry_their_own_tones():
+    from conlang_generator.generation.reference_languages.real_lexicon import real_words
+
+    expected = {
+        "Cantonese": {ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.MID, ToneLevel.FALLING, ToneLevel.DIPPING, ToneLevel.LOW},
+        "Vietnamese": {ToneLevel.MID, ToneLevel.LOW, ToneLevel.HIGH, ToneLevel.DIPPING, ToneLevel.RISING, ToneLevel.FALLING},
+        "Thai": {ToneLevel.MID, ToneLevel.LOW, ToneLevel.FALLING, ToneLevel.HIGH, ToneLevel.RISING},
+    }
+    for name, levels in expected.items():
+        used = {t for _, ipa in real_words(name).values() for t in ipa_tokenizer.tone_sequence(ipa, _SYMBOLS)}
+        assert used == levels, (name, used ^ levels)
+
+
+def test_a_strict_vietnamese_run_is_tonal_with_its_six_tones():
+    traits = TraitProfile(source_languages=("Vietnamese",), source_language_strictness=1.0, source_word_strictness=1.0)
+    language = generate_language("T", GenerationSpec(prompt="p", seed=4, traits=traits), FakeLLMClient())
+    assert language.tone_system.enabled
+    assert len(set(language.tone_system.levels)) == 6

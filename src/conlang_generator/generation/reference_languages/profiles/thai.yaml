@@ -20,6 +20,7 @@ coda_profile: unrestricted
 max_onset: 2
 max_coda: 1  # real Thai has no tautosyllabic coda clusters at all
 tonal: true
+tone_levels: [mid, low, falling, high, rising]
 tone_level_count: 5
 orthography_category: rtgs-style
 restricted_coda_consonants: ["pʰ", b, "tʰ", d, "kʰ", "ʔ", "tɕ", "tɕʰ", f, s, h, l, r]
