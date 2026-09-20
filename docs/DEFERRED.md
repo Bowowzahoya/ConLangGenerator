@@ -52,12 +52,15 @@ multi-session feature.
 
 ## 2. Real lexicons (data)
 
-- **Batches still to write (L).** Batch 4b: Persian, Arabic (new file),
-  Hebrew, Bengali, Tamil. Batch 5: Icelandic, Mongolian, Tibetan, Quechua,
-  Nahuatl, Arawakan, Pama-Nyungan. Profiles with no lexicon yet: Ancient
-  Greek, Basque, Cantonese, Danish, Finnish, Georgian, Hawaiian, Hungarian,
-  Khmer, Malay, Nama, Navajo, Norwegian, Old Norse, Sanskrit, Serbo-Croatian,
-  Sumerian, Swahili, Swedish, Thai, Vietnamese, Welsh, Xhosa, Yoruba, Zulu.
+- **Batches still to write (L).** Batch 5: Icelandic, Mongolian, Tibetan,
+  Quechua, Nahuatl, Arawakan, Pama-Nyungan (each still has only the original
+  49 words). Profiles with no lexicon yet: Ancient Greek, Basque, Cantonese,
+  Danish, Finnish, Georgian, Hawaiian, Hungarian, Khmer, Malay, Nama, Navajo,
+  Norwegian, Old Norse, Sanskrit, Serbo-Croatian, Sumerian, Swahili, Swedish,
+  Thai, Vietnamese, Welsh, Xhosa, Yoruba, Zulu. Curated to 494 words so far:
+  Dutch, French, German, English, Spanish, Italian, Portuguese, Latin,
+  Russian, Polish, Turkish, Indonesian, Korean, Japanese, Mandarin, Hindi,
+  Persian, Arabic, Hebrew, Bengali, Tamil.
   Until a language is curated the LLM fills the gaps.
 - **Linguist verification (L).** Every list is a best-effort transcription to
   the modeled phoneme set, not verified. A spot-check workflow (export a

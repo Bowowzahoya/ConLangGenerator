@@ -17,7 +17,7 @@ _CURATED = [p.name for p in curated_profiles()]
 
 
 def test_the_original_curated_languages_are_all_present():
-    assert len(_CURATED) >= 27
+    assert len(_CURATED) >= 28
     assert "Dutch" in _CURATED and "French" in _CURATED
 
 
