@@ -33,4 +33,7 @@ web = [
 testpaths = ["tests"]
 # The default OS temp dir is locked down in some sandboxed environments this
 # project is developed in; keep pytest's tmp_path fixture inside the repo.
-addopts = "--basetemp=.pytest_tmp"
+addopts = "--basetemp=.pytest_tmp -m 'not slow'"
+markers = [
+    "slow: takes more than a few seconds (hundreds of generated languages, real audio synthesis); skipped by default -- run with `pytest -m slow` (only these) or `pytest -m ''` (everything)",
+]

@@ -3,6 +3,8 @@ ordinary words), kept as written or adapted to the language's own phonology
 per the ``foreign_names`` trait, reused on later requests, and kept apart
 from a same-spelled ordinary word."""
 
+import pytest
+
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
@@ -43,6 +45,7 @@ def test_an_adapted_name_uses_only_the_languages_own_sounds_and_syllable_rules()
     assert "Bruno" in back.text
 
 
+@pytest.mark.slow
 def test_adapting_is_deterministic_and_always_legal_across_languages_and_names():
     for seed in range(15):
         for source in ((), ("Mandarin",), ("Hawaiian",)):

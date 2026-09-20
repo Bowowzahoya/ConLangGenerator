@@ -4,11 +4,12 @@ that ``force_*`` flags guarantee an outcome unconditionally, independent of
 ``traits`` -- the two structurally separate channels described in
 ``core/spec.py``."""
 
-from conlang_generator.core.language import Language
+import random
+
+from conlang_generator.core.phonology import PhonemeInventory
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
-from conlang_generator.generation.generator import generate_language
-from conlang_generator.llm.fake_client import FakeLLMClient
+from conlang_generator.generation import phonology_gen
 
 _SEEDS = range(200)
 
@@ -23,18 +24,21 @@ own flat prevalence rather than this altitude-biased group -- a generic
 exist in the pool."""
 
 
-def _has_ejectives(language: Language) -> bool:
-    return any(c.ipa in _ALTITUDE_LINKED_EJECTIVES for c in language.phonology.consonants)
+def _inventory(spec: GenerationSpec) -> PhonemeInventory:
+    """The inventory ``generate_language`` would give this spec. Phonology is
+    the first thing it draws from ``Random(spec.seed)``, so calling
+    ``generate_phonology`` directly is identical -- and skips generating a
+    whole lexicon for each of these hundreds of seeds."""
+    return phonology_gen.generate_phonology(random.Random(spec.seed), spec)[0]
+
+
+def _has_ejectives(inventory: PhonemeInventory) -> bool:
+    return any(c.ipa in _ALTITUDE_LINKED_EJECTIVES for c in inventory.consonants)
 
 
 def _ejective_rate(altitude: float) -> float:
-    client = FakeLLMClient()
     hits = sum(
-        _has_ejectives(
-            generate_language(
-                "Test", GenerationSpec(prompt="p", seed=s, traits=TraitProfile(altitude=altitude)), client
-            )
-        )
+        _has_ejectives(_inventory(GenerationSpec(prompt="p", seed=s, traits=TraitProfile(altitude=altitude))))
         for s in _SEEDS
     )
     return hits / len(_SEEDS)
@@ -62,7 +66,6 @@ def test_maximal_negative_trait_strength_suppresses_to_zero():
 
 
 def test_force_high_altitude_guarantees_ejectives_independent_of_traits():
-    client = FakeLLMClient()
     for seed in range(50):
         spec = GenerationSpec(prompt="p", seed=seed, force_high_altitude=True)
-        assert _has_ejectives(generate_language("Test", spec, client))
+        assert _has_ejectives(_inventory(spec))

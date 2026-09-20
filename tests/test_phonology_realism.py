@@ -68,6 +68,7 @@ def test_aspirated_consonants_appear_at_a_nonzero_base_rate():
     assert 0 < hits < len(_SEEDS)  # sometimes present, not forced, not absent
 
 
+@pytest.mark.slow
 def test_arabic_source_language_increases_pharyngealized_consonant_presence():
     def _hit_fraction(source_languages: tuple[str, ...]) -> float:
         hits = 0
@@ -1295,6 +1296,7 @@ def test_zero_strictness_and_no_source_language_leave_multiplier_fields_empty():
 # --- Word stress (milestone: primary lexical stress) ---
 
 
+@pytest.mark.slow
 def test_full_strictness_french_words_are_overwhelmingly_stressed_on_the_last_syllable():
     # Real French: essentially always final-syllable stress -- French's
     # own curated stress_deviation_rate is illustratively tiny. French's
@@ -1323,6 +1325,7 @@ def test_full_strictness_french_words_are_overwhelmingly_stressed_on_the_last_sy
     assert final_stressed / total > 0.85
 
 
+@pytest.mark.slow
 def test_full_strictness_spanish_and_italian_never_leak_the_stress_mark_into_romanization():
     for lang in ("Spanish", "Italian", "English", "German", "French", "Dutch"):
         for seed in range(5):
@@ -1581,6 +1584,7 @@ def test_resolve_pair_restriction_a_heavier_profiles_veto_outweighs_a_lighter_di
     assert ("t", "a") not in excluded  # only 0.1 of the weight forbids it
 
 
+@pytest.mark.slow
 def test_source_language_weights_bias_onset_cluster_probability_toward_the_heavier_language():
     # Real English allows onset clusters (max_onset=2); real Japanese
     # doesn't (max_onset=1). Weighting heavily toward English should

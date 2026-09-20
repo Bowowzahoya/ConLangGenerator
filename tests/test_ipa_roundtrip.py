@@ -3,6 +3,7 @@ trip against its own language's symbol set -- otherwise the tokenizer
 silently drops or re-splits symbols and e.g. ``evolve_language(years=0)``
 rewrites words that shouldn't have changed."""
 
+import pytest
 from conlang_generator.core.phonology import Consonant, Manner, Place
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
 from conlang_generator.core.spec import GenerationSpec
@@ -25,6 +26,7 @@ def test_cluster_pairs_never_concatenate_into_a_different_symbol_sequence():
         assert ipa_tokenizer.tokenize(first + second, symbols) == [(first, ""), (second, "")]
 
 
+@pytest.mark.slow
 def test_generated_lexicons_round_trip_through_the_ipa_tokenizer():
     failures = []
     for seed in range(41):

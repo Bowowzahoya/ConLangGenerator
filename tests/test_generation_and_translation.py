@@ -27,8 +27,12 @@ def test_generation_is_deterministic_for_identical_inputs():
 
 
 def test_the_and_be_are_coined_only_when_their_grammar_flag_is_set():
+    # A small vocabulary is enough: "the"/"be" are always in it (essential
+    # glosses) and the grammar flags are drawn long before the lexicon.
     for seed in range(60):
-        language = generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
+        language = generate_language(
+            "Test", GenerationSpec(prompt="p", seed=seed, vocabulary_size=20), FakeLLMClient()
+        )
         assert (language.lexicon.by_gloss("the") is not None) == language.grammar.has_articles
         assert (language.lexicon.by_gloss("be") is not None) == language.grammar.has_overt_copula
 

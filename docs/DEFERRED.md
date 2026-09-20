@@ -201,8 +201,12 @@ multi-session feature.
   profile.
 - **Strictness/pronunciation warnings (S).** Word-vs-sound strictness
   warnings print; tone/engine warnings do not (see §4).
-- **Full-suite runtime (S).** The suite takes 5–9 minutes; slow tests could be
-  marked and split so a fast subset runs by default.
+- **Test runtime (done).** The default `pytest` run skips tests marked `slow`
+  (about 3 minutes instead of 13; the 8 slow tests take about 70 s with
+  `pytest -m slow`; `pytest -m ""` runs everything). The three trait tests
+  that took 470 s now call `generate_phonology` directly instead of
+  generating whole languages. Still open: about 25 tests of 2-4 s each in
+  `test_phonology_realism.py` could share generated inventories.
 
 ## 8. Web app
 
@@ -245,5 +249,5 @@ was done.)*
 - **Line endings (fixed).** `.gitattributes` (`* text=auto eol=lf`) keeps
   everything LF in the repository and in working copies, ending the
   LF -> CRLF warnings.
-- **Suite runtime (open, S).** The full suite now takes about 13 minutes;
+- **Suite runtime (done).** Split into a fast default run and `slow` tests;
   see section 7.

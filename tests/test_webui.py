@@ -154,6 +154,7 @@ def test_pronounce_synthesizes_a_single_word_with_sapi(client):
 
 
 @pytest.mark.skipif(not _IS_WINDOWS, reason="SAPI is Windows-only")
+@pytest.mark.slow
 def test_pronounce_synthesizes_a_multi_word_sentence_with_sapi(client):
     single = client.post("/api/pronounce", json={"ipa": "kat", "tts": "sapi"}).content
     sentence = client.post("/api/pronounce", json={"ipa": "kat mat", "tts": "sapi"}).content

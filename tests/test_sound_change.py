@@ -9,6 +9,7 @@ rate" is guaranteed monotonic, not just statistically likely, and these
 tests can't be flaky.
 """
 
+import pytest
 import random
 from collections import Counter
 from dataclasses import replace
@@ -283,6 +284,7 @@ def test_half_life_calibration_reflects_the_intended_relative_speed_ordering():
     assert rates.palatalization > rates.ejective_drift
 
 
+@pytest.mark.slow
 def test_evolved_onset_clusters_stay_a_thinned_subset_of_the_sonority_legal_closure():
     # Post-evolution recomputation must apply the same cluster thinning as
     # initial generation, not silently un-thin back to the full closure --
