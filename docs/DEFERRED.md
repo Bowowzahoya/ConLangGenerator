@@ -201,12 +201,17 @@ multi-session feature.
   profile.
 - **Strictness/pronunciation warnings (S).** Word-vs-sound strictness
   warnings print; tone/engine warnings do not (see §4).
-- **Test runtime (done).** The default `pytest` run skips tests marked `slow`
-  (about 3 minutes instead of 13; the 8 slow tests take about 70 s with
-  `pytest -m slow`; `pytest -m ""` runs everything). The three trait tests
-  that took 470 s now call `generate_phonology` directly instead of
-  generating whole languages. Still open: about 25 tests of 2-4 s each in
-  `test_phonology_realism.py` could share generated inventories.
+- **Test runtime (done).** The default `pytest` run skips the 4 tests marked
+  `slow` and takes about 3 minutes (it was 13); `pytest -m slow` runs just
+  those, `pytest -m ""` everything. The three trait tests call
+  `generate_phonology` directly, and `test_phonology_realism.py` shares its
+  default-spec inventories through a memoized `_phonology(seed)` helper, uses
+  100 seeds for the "A is more common than B" comparisons and small
+  vocabularies where only stress marks are checked (file: ~80 s -> ~45 s).
+  What is left is spread thin (about 850 tests averaging 0.2 s, most of it
+  generating 400-word languages); a smaller test-only default vocabulary would
+  cut it further but reshuffles every seed-dependent fixture.
+
 
 ## 8. Web app
 

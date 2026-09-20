@@ -16,7 +16,7 @@ uv run conlang generate --prompt "isolated mountain language, tonal" --name test
 uv run conlang translate "the mountain is high" --lang test-lang --to conlang --llm fake
 uv run conlang pronounce "mountain" --lang test-lang
 uv run pytest            # fast run (~3 min); skips tests marked slow
-uv run pytest -m slow    # only the slow ones (~70 s)
+uv run pytest -m slow    # only the slow ones
 uv run pytest -m ""      # everything
 ```
 

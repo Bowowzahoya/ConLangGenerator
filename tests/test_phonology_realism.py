@@ -3,6 +3,7 @@ frequency realism, real phonotactics, word-length realism). These call
 ``phonology_gen``/``word_builder`` directly (no LLM involved) except the
 one word-length test, which needs ``lexicon_gen.propose_word``."""
 
+import functools
 import random
 
 import pytest
@@ -28,15 +29,27 @@ from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES
 from conlang_generator.llm.fake_client import FakeLLMClient
 
 _SEEDS = range(200)
+_DIRECTIONAL_SEEDS = range(100)
+"""Enough for the 'A is more common than B' comparisons (the rare-symbol
+base-rate tests keep the full ``_SEEDS``)."""
+
+
+@functools.lru_cache(maxsize=None)
+def _phonology(seed: int, source_languages: tuple[str, ...] = ()):
+    """``generate_phonology`` for a plain spec (optionally naming source
+    languages), memoized: dozens of tests draw the same 200 default-spec
+    inventories, and the result is immutable, so they can share them."""
+    traits = TraitProfile(source_languages=source_languages)
+    return phonology_gen.generate_phonology(random.Random(seed), GenerationSpec(prompt="p", seed=seed, traits=traits))
 
 
 def test_high_prevalence_consonants_are_more_common_in_inventories():
     common_hits = sum(
-        "p" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        "p" in _phonology(s)[0].consonant_symbols()
         for s in _SEEDS
     )
     rare_hits = sum(
-        "ǀ" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        "ǀ" in _phonology(s)[0].consonant_symbols()
         for s in _SEEDS
     )
     assert common_hits > rare_hits
@@ -62,28 +75,26 @@ def test_token_frequency_within_words_follows_prevalence():
 
 def test_aspirated_consonants_appear_at_a_nonzero_base_rate():
     hits = sum(
-        "pʰ" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        "pʰ" in _phonology(s)[0].consonant_symbols()
         for s in _SEEDS
     )
     assert 0 < hits < len(_SEEDS)  # sometimes present, not forced, not absent
 
 
-@pytest.mark.slow
 def test_arabic_source_language_increases_pharyngealized_consonant_presence():
     def _hit_fraction(source_languages: tuple[str, ...]) -> float:
         hits = 0
-        for seed in _SEEDS:
-            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
-            inventory, _, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        for seed in _DIRECTIONAL_SEEDS:
+            inventory, _, _, _ = _phonology(seed, source_languages)
             hits += "tˤ" in inventory.consonant_symbols()
-        return hits / len(_SEEDS)
+        return hits / len(_DIRECTIONAL_SEEDS)
 
     assert _hit_fraction(("Arabic",)) > _hit_fraction(())
 
 
 def test_geminate_consonants_appear_at_a_nonzero_base_rate():
     hits = sum(
-        "kː" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        "kː" in _phonology(s)[0].consonant_symbols()
         for s in _SEEDS
     )
     assert 0 < hits < len(_SEEDS)
@@ -91,7 +102,7 @@ def test_geminate_consonants_appear_at_a_nonzero_base_rate():
 
 def test_palatalized_consonants_appear_at_a_nonzero_base_rate():
     hits = sum(
-        "tʲ" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        "tʲ" in _phonology(s)[0].consonant_symbols()
         for s in _SEEDS
     )
     assert 0 < hits < len(_SEEDS)
@@ -99,7 +110,7 @@ def test_palatalized_consonants_appear_at_a_nonzero_base_rate():
 
 def test_diphthongs_appear_at_a_nonzero_base_rate():
     hits = sum(
-        "ai" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].vowel_symbols()
+        "ai" in _phonology(s)[0].vowel_symbols()
         for s in _SEEDS
     )
     assert 0 < hits < len(_SEEDS)
@@ -108,11 +119,10 @@ def test_diphthongs_appear_at_a_nonzero_base_rate():
 def test_dutch_source_language_increases_ei_diphthong_presence():
     def _hit_fraction(source_languages: tuple[str, ...]) -> float:
         hits = 0
-        for seed in _SEEDS:
-            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
-            inventory, _, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        for seed in _DIRECTIONAL_SEEDS:
+            inventory, _, _, _ = _phonology(seed, source_languages)
             hits += "ɛi" in inventory.vowel_symbols()
-        return hits / len(_SEEDS)
+        return hits / len(_DIRECTIONAL_SEEDS)
 
     assert _hit_fraction(("Dutch",)) > _hit_fraction(())
 
@@ -120,18 +130,17 @@ def test_dutch_source_language_increases_ei_diphthong_presence():
 def test_finnish_source_language_increases_geminate_consonant_presence():
     def _hit_fraction(source_languages: tuple[str, ...]) -> float:
         hits = 0
-        for seed in _SEEDS:
-            spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=source_languages))
-            inventory, _, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        for seed in _DIRECTIONAL_SEEDS:
+            inventory, _, _, _ = _phonology(seed, source_languages)
             hits += "kː" in inventory.consonant_symbols()
-        return hits / len(_SEEDS)
+        return hits / len(_DIRECTIONAL_SEEDS)
 
     assert _hit_fraction(("Finnish",)) > _hit_fraction(())
 
 
 def test_breathy_consonants_appear_at_a_nonzero_base_rate():
     hits = sum(
-        "bʱ" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        "bʱ" in _phonology(s)[0].consonant_symbols()
         for s in _SEEDS
     )
     assert 0 < hits < len(_SEEDS)
@@ -139,7 +148,7 @@ def test_breathy_consonants_appear_at_a_nonzero_base_rate():
 
 def test_pre_aspirated_consonants_appear_at_a_nonzero_base_rate():
     hits = sum(
-        "ʰp" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        "ʰp" in _phonology(s)[0].consonant_symbols()
         for s in _SEEDS
     )
     assert 0 < hits < len(_SEEDS)
@@ -147,7 +156,7 @@ def test_pre_aspirated_consonants_appear_at_a_nonzero_base_rate():
 
 def test_lateral_affricate_appears_at_a_nonzero_base_rate():
     hits = sum(
-        "tɬ" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].consonant_symbols()
+        "tɬ" in _phonology(s)[0].consonant_symbols()
         for s in _SEEDS
     )
     assert 0 < hits < len(_SEEDS)
@@ -155,7 +164,7 @@ def test_lateral_affricate_appears_at_a_nonzero_base_rate():
 
 def test_nasalized_vowels_appear_at_a_nonzero_base_rate():
     hits = sum(
-        "ã" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].vowel_symbols()
+        "ã" in _phonology(s)[0].vowel_symbols()
         for s in _SEEDS
     )
     assert 0 < hits < len(_SEEDS)
@@ -163,7 +172,7 @@ def test_nasalized_vowels_appear_at_a_nonzero_base_rate():
 
 def test_close_back_unrounded_vowel_appears_at_a_nonzero_base_rate():
     hits = sum(
-        "ɯ" in phonology_gen.generate_phonology(random.Random(s), GenerationSpec(prompt="p", seed=s))[0].vowel_symbols()
+        "ɯ" in _phonology(s)[0].vowel_symbols()
         for s in _SEEDS
     )
     assert 0 < hits < len(_SEEDS)
@@ -194,7 +203,7 @@ def test_new_phonemes_from_the_shared_pool_are_used_in_words():
 def test_onset_clusters_are_sonority_legal_or_the_s_stop_exception():
     checked_any_cluster = False
     for seed in range(50):
-        inventory, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), GenerationSpec(prompt="p", seed=seed))
+        inventory, structure, _, _ = _phonology(seed)
         by_ipa = {c.ipa: c for c in inventory.consonants}
         for c1_ipa, c2_ipa in structure.allowed_onset_clusters:
             checked_any_cluster = True
@@ -210,7 +219,7 @@ def test_allowed_onset_clusters_are_a_thinned_subset_of_the_full_sonority_legal_
     checked_any = False
     total_allowed, total_legal = 0, 0
     for seed in _SEEDS:
-        inventory, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), GenerationSpec(prompt="p", seed=seed))
+        inventory, structure, _, _ = _phonology(seed)
         if structure.max_onset >= 2:
             checked_any = True
             legal = sonority.legal_onset_pairs(inventory.consonants)
@@ -224,7 +233,7 @@ def test_allowed_onset_clusters_are_a_thinned_subset_of_the_full_sonority_legal_
 def test_contact_intensity_reduces_onset_cluster_count():
     def _avg_cluster_count(contact_intensity: float) -> float:
         total, hits = 0, 0
-        for seed in _SEEDS:
+        for seed in _DIRECTIONAL_SEEDS:
             spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(contact_intensity=contact_intensity))
             _, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
             if structure.max_onset >= 2:
@@ -1296,7 +1305,6 @@ def test_zero_strictness_and_no_source_language_leave_multiplier_fields_empty():
 # --- Word stress (milestone: primary lexical stress) ---
 
 
-@pytest.mark.slow
 def test_full_strictness_french_words_are_overwhelmingly_stressed_on_the_last_syllable():
     # Real French: essentially always final-syllable stress -- French's
     # own curated stress_deviation_rate is illustratively tiny. French's
@@ -1310,7 +1318,8 @@ def test_full_strictness_french_words_are_overwhelmingly_stressed_on_the_last_sy
     final_stressed = 0
     for seed in range(15):
         spec = GenerationSpec(
-            prompt="p", seed=seed, traits=TraitProfile(source_languages=("French",), source_language_strictness=1.0)
+            prompt="p", seed=seed, vocabulary_size=120,
+            traits=TraitProfile(source_languages=("French",), source_language_strictness=1.0),
         )
         language = generate_language("French", spec, FakeLLMClient())
         for entry in language.lexicon.entries:
@@ -1325,12 +1334,12 @@ def test_full_strictness_french_words_are_overwhelmingly_stressed_on_the_last_sy
     assert final_stressed / total > 0.85
 
 
-@pytest.mark.slow
 def test_full_strictness_spanish_and_italian_never_leak_the_stress_mark_into_romanization():
     for lang in ("Spanish", "Italian", "English", "German", "French", "Dutch"):
         for seed in range(5):
             spec = GenerationSpec(
-                prompt="p", seed=seed, traits=TraitProfile(source_languages=(lang,), source_language_strictness=1.0)
+                prompt="p", seed=seed, vocabulary_size=80,
+                traits=TraitProfile(source_languages=(lang,), source_language_strictness=1.0),
             )
             language = generate_language(lang, spec, FakeLLMClient())
             for entry in language.lexicon.entries:
@@ -1584,7 +1593,6 @@ def test_resolve_pair_restriction_a_heavier_profiles_veto_outweighs_a_lighter_di
     assert ("t", "a") not in excluded  # only 0.1 of the weight forbids it
 
 
-@pytest.mark.slow
 def test_source_language_weights_bias_onset_cluster_probability_toward_the_heavier_language():
     # Real English allows onset clusters (max_onset=2); real Japanese
     # doesn't (max_onset=1). Weighting heavily toward English should
@@ -1592,7 +1600,7 @@ def test_source_language_weights_bias_onset_cluster_probability_toward_the_heavi
     # toward Japanese, at full strictness.
     def _cluster_rate(weights: tuple[float, float]) -> float:
         hits = 0
-        n = 150
+        n = 60
         for seed in range(n):
             traits = TraitProfile(
                 source_languages=("English", "Japanese"),
