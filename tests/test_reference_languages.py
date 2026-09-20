@@ -594,7 +594,7 @@ def test_mandarin_and_korean_restrict_the_velar_nasal_from_onset():
 def test_mandarin_only_closes_a_syllable_in_n_or_ng():
     mandarin = next(p for p in REFERENCE_LANGUAGES if p.name == "Mandarin")
     assert mandarin.coda_profile == "sonorant"
-    assert set(mandarin.restricted_coda_consonants) == {"m", "l", "j", "w"}
+    assert set(mandarin.restricted_coda_consonants) == {"m", "l", "j", "w", "ɥ"}
 
 
 def test_mandarin_x_only_combines_with_front_vowels():

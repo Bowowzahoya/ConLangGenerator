@@ -69,8 +69,8 @@ multi-session feature.
   and word-initial geminates in the few languages that have them); (c) *three-consonant clusters are done* (curated triples, strict profiles only; Georgian, Hebrew,
   Hungarian and the other unreviewed languages have none yet, and 4-consonant runs like
   Polish *vzvʲ*+glide stay out of scope); (d) glide+vowel sequences written as onset clusters
-  (French `bw`, Italian `pj`); (e) languages not yet reviewed (Old Norse and Icelandic done):
-  Nahuatl, Mandarin, Welsh, Georgian, Korean, Ancient Greek,
+  (French `bw`, Italian `pj`); (e) languages not yet reviewed (Old Norse, Icelandic, Mandarin, Korean done):
+  Nahuatl, Welsh, Georgian, Ancient Greek,
   Zulu/Xhosa, Tibetan, Tamil, Hungarian, Persian, Spanish (`β ð ɣ`),
   Hindi; (f) lexicon-side slips: Danish `w`/`ɪ`, Swedish `ɧ`, Portuguese `carregar` rhotic.
 

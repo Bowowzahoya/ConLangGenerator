@@ -12,10 +12,10 @@ aliases: [chinese, mandarin chinese]
 # false" limitation `root_and_pattern`'s own default already has
 # elsewhere in this project. A Mandarin-biased run can still roll
 # invented classes, same as any other unmatched language would.
-consonants: [p, t, k, "ʈʂʰ", "ʈʂ", "ʂ", "ʐ", m, n, "ŋ", f, s, "ɕ", x, l, j, w]
-vowels: [i, a, u, e, o, y]
+consonants: [p, t, k, "ʈʂʰ", "ʈʂ", "ʂ", "ʐ", m, n, "ŋ", f, s, "ɕ", x, l, j, w, "pʰ", "tʰ", "kʰ", ts, "tsʰ", "tɕ", "tɕʰ", "ɥ"]
+vowels: [i, a, u, e, o, y, "ə", "ɨ", "ɛ"]
 coda_profile: sonorant
-max_onset: 1
+max_onset: 2
 tonal: true
 tone_levels: [high, rising, dipping, falling]
 neutral_tone: true
@@ -24,7 +24,7 @@ tone_sandhi:
 tone_level_count: 4  # real Standard Mandarin's own 4 lexical tones (阴平/阳平/上声/去声) -- the neutral tone (轻声) is a genuine 5th prosodic category but is lexically/grammatically conditioned rather than a flat 5th tone slot, see this profile's own note on it above
 orthography_category: wade-giles-style
 restricted_onset_consonants: ["ŋ"]  # real Mandarin /ŋ/ (ng) is coda-only -- no native syllable ever begins with it
-restricted_coda_consonants: [m, l, j, w]
+restricted_coda_consonants: [m, l, j, w, "ɥ"]
 restricted_onset_nucleus_pairs:
   # Real Mandarin /ɕ/ (pinyin x, this profile's own "ɕ") is in
   # complementary distribution with the retroflex/alveolar sibilant
@@ -94,13 +94,13 @@ core_vocabulary_average_syllables: 1.24  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [t, k, m, n, l, s]
   common: [p, f, x, j, w, "ɕ"]
-  uncommon: ["ʈʂʰ", "ʈʂ", "ʂ"]
-  rare: ["ʐ"]  # /ŋ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+  uncommon: ["ʈʂʰ", "ʈʂ", "ʂ", "pʰ", "tʰ", "kʰ", ts, "tsʰ", "tɕ", "tɕʰ"]
+  rare: ["ʐ", "ɥ"]  # /ŋ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i, u]
-  common: [e, o]
+  common: [e, o, "ə", "ɨ"]
   uncommon: [y]
-  rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has
+  rare: ["ɛ"]  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has
 # No coda_frequency_tiers -- coda_profile: sonorant means the true legal
 # coda set is narrower than consonants-minus-restricted (sonority
 # filtering isn't expressible via restricted_coda_consonants alone), the
@@ -115,3 +115,40 @@ real_has_overt_copula: false         # real Mandarin adjectival predicates need 
 real_adjective_after_noun: false     # real Mandarin attributive adjectives precede the noun (gao de shan = "tall mountain")
 real_case_count: 0                   # Mandarin is a classic isolating language -- no case marking of any kind
 foreign_name_handling: adapt      # Chinese-style: foreign names are re-spelled in the language's own syllables (Bruno -> Bulu'ni)
+
+attested_onset_clusters:
+  # glide onsets (Mandarin medial /j w ɥ/ are written as onset clusters)
+  - ["ɕ", j]
+  - ["tɕ", j]
+  - [x, w]
+  - [l, j]
+  - [ts, w]
+  - ["ʂ", w]
+  - [k, w]
+  - ["ʈʂʰ", w]
+  - ["ʈʂ", w]
+  - ["ʐ", w]
+  - [s, w]
+  - [n, w]
+  - [t, w]
+  - [n, j]
+  - [t, j]
+  - ["tɕʰ", j]
+  - [p, j]
+  - [m, j]
+  - ["tʰ", w]
+  - ["kʰ", w]
+  - ["tsʰ", w]
+  - ["tɕ", "ɥ"]
+  - ["ɕ", "ɥ"]
+  - [x, "ɥ"]
+  - [l, "ɥ"]
+  - [n, "ɥ"]
+  - [f, j]
+  - ["tɕʰ", "ɥ"]
+  - [p, w]
+  - [m, w]
+  - ["tɕ", w]
+  # real clusters found by `conlang audit-lexicons`
+  - ["tʰ", j]
+  - [l, w]

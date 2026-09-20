@@ -1,13 +1,13 @@
 name: Korean
-consonants: [p, "pʰ", "pʼ", t, "tʰ", "tʼ", k, "kʰ", "kʼ", "tʃ", s, h, m, n, "ŋ", l, j, w]
+consonants: [p, "pʰ", "pʼ", t, "tʰ", "tʼ", k, "kʰ", "kʼ", "tʃ", s, h, m, n, "ŋ", l, j, w, "tʃʰ", "tʃʼ"]
 vowels: [i, e, "ɛ", a, "ɔ", o, u, "ɯ"]
 coda_profile: unrestricted
-max_onset: 1
+max_onset: 2
 max_coda: 1  # see the seven-consonant-rule comment below -- real Korean has no tautosyllabic coda clusters at all
 tonal: false
 orthography_category: digraph-style
 restricted_onset_consonants: ["ŋ"]  # real Korean /ŋ/ (ㅇ) is a null/zero marker word-initially, never a real onset -- only ever realized as /ŋ/ in coda position
-restricted_coda_consonants: ["pʰ", "pʼ", "tʰ", "tʼ", "kʰ", "kʼ", "tʃ", s, h, j, w]
+restricted_coda_consonants: ["pʰ", "pʼ", "tʰ", "tʼ", "kʰ", "kʼ", "tʃ", s, h, j, w, "tʃʰ", "tʃʼ"]
 # Real Korean coda neutralization collapses the aspirated/tense stop
 # series and /tʃ, s, h/ down to their plain unreleased counterpart (옷
 # ot "clothes" surfaces coda as [t] not [s]; 꽃 kkot "flower" as [t] not
@@ -88,8 +88,8 @@ core_vocabulary_average_syllables: 1.88  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [k, t, s, n, m, h]
   common: [p, "tʃ", l, j, w, "kʰ"]
-  uncommon: ["pʰ", "tʰ", "kʼ", "tʼ"]
-  rare: ["pʼ"]  # /ŋ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+  uncommon: ["pʰ", "tʰ", "kʼ", "tʼ", "tʃʰ"]
+  rare: ["pʼ", "tʃʼ"]  # /ŋ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [o, u, "ɔ"]
@@ -114,3 +114,32 @@ real_has_overt_copula: false         # real Korean descriptive adjectives are th
 real_adjective_after_noun: false     # real Korean attributive adjectives precede the noun (nopeun san = "tall mountain")
 real_case_count: null                # real Korean marks grammatical relations with case particles, not fused inflectional suffixes -- same abstention reasoning as Japanese's own profile
 foreign_name_handling: adapt      # hangeul rendering fits names to Korean syllable structure
+
+attested_onset_clusters:
+  # glide onsets (Korean medial /j w/ are written as onset clusters)
+  - [h, j]
+  - [p, j]
+  - [h, w]
+  - [m, w]
+  - [m, j]
+  - [s, w]
+  - [k, w]
+  - ["pʼ", j]
+  - [n, w]
+  - ["tʃ", w]
+  - ["pʰ", j]
+  - [k, j]
+  - [n, j]
+  - [t, w]
+  - ["kʰ", j]
+  - ["kʰ", w]
+  - [l, j]
+  - [l, w]
+  - [t, j]
+  - ["tʃʰ", w]
+  - [s, j]
+  - [p, w]
+  - ["tʰ", w]
+  - ["tʼ", j]
+  # real clusters found by `conlang audit-lexicons`
+  - ["tʼ", w]

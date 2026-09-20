@@ -209,3 +209,13 @@ def test_old_norse_and_icelandic_lexicons_fit_their_profiles_and_allow_final_gem
     icelandic = next(p for p in REFERENCE_LANGUAGES if p.name == "Icelandic")
     assert icelandic.final_geminates and {"iː", "aː", "ɔː"} <= set(icelandic.vowels)
     assert "ŋ" in icelandic.restricted_onset_consonants
+
+
+def test_mandarin_and_korean_lexicons_fit_their_profiles():
+    for name in ("Mandarin", "Korean"):
+        (audit,) = lexicon_audit.audit_all((name,))
+        assert not audit.off_inventory, (name, audit.off_symbols)
+        assert audit.flagged_rate < 0.03, name
+    mandarin = next(p for p in REFERENCE_LANGUAGES if p.name == "Mandarin")
+    assert {"tʰ", "tɕʰ", "tsʰ", "ə", "ɨ", "ɛ", "ɥ"} <= set(mandarin.symbols())
+    assert ("ɕ", "j") in mandarin.attested_onset_clusters  # medial glides are onset clusters

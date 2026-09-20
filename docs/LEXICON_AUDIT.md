@@ -24,10 +24,8 @@ language can say which.
 language         words  off-profile  structure  flagged
 Nahuatl            246            3        176     73% 
 Xhosa               52           19         14     63% 
-Mandarin           494          216         97     63% 
 Zulu                84           31         19     60% 
 Georgian           169           74         22     57% 
-Korean             494          216         18     47% 
 Welsh              494          172         60     47% 
 Cantonese          494          222          3     46% 
 Tibetan            365          107         41     41% 
@@ -71,11 +69,13 @@ Serbo-Croatian     494            0          5      1%
 Dutch              494            0          3      1% 
 French             494            2          1      1% 
 Hawaiian           401            2          0      0% 
+Mandarin           494            0          2      0% 
 Swedish            494            0          2      0% 
 Indonesian         494            0          1      0% 
+Korean             494            0          1      0% 
 English            494            0          0      0% 
 Yoruba             102            0          0      0% 
-all              20845                             16%
+all              20845                             13%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being
@@ -118,6 +118,12 @@ profile has phonemic `e o v` (now aligned; `ŋ` added, `hv`/`kv` clusters); Icel
 voiced stops and palatal allophones the language lacks (`g d b c ɲ` -> `k t p kʰ ŋ`, intervocalic
 `g d` -> `ɣ ð`) and its profile lacked long vowels (`iː uː ɛː aː yː ɔː` added) and `ŋ`. New profile field
 `final_geminates` (both languages: *steinn*, *hverr*) exempts a language from the medial-only rule.
+
+**Mandarin and Korean (fixed):** 63% -> 0% / 47% -> 0%. Mandarin gains the aspirated stops and
+affricates (`pʰ tʰ kʰ ts tsʰ tɕ tɕʰ`), `ɥ`, and `ə ɨ ɛ`; Korean gains `tʃʰ tʃʼ`. Both now allow
+glide onset clusters (`max_onset: 2`, attested `Cj`/`Cw`), since the medial glides are onsets in this
+model. Korean's lexicon was transcribed with voiced `g d b` and `ʒ ʃ r`, which the phonemic profile
+writes `k t p`, `tʃ s l`.
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet
