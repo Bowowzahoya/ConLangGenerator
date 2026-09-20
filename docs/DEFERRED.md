@@ -55,17 +55,17 @@ multi-session feature.
 - **Batches still to write (L).** Curated to 494 words: Dutch, French,
   German, English, Spanish, Italian, Portuguese, Latin, Russian, Polish,
   Turkish, Indonesian, Korean, Japanese, Mandarin, Hindi, Persian, Arabic,
-  Hebrew, Bengali, Tamil, Icelandic, Swedish, Danish, Norwegian, Finnish.
+  Hebrew, Bengali, Tamil, Icelandic, Swedish, Danish, Norwegian, Finnish, Hungarian, Serbo-Croatian,
+  Malay, Swahili.
   **Partly curated (only words I was confident of; the rest is left to the
   LLM gap-fill):** Quechua (412), Tibetan (365), Mongolian (322), Nahuatl
   (246), Pama-Nyungan (61, Western Desert / Pitjantjatjara), Arawakan (49 --
   the original list only; no additions, I don't know Lokono well enough to
   transcribe hundreds of words). These need a native/linguist pass to
   finish; Tibetan is written toneless although its profile is tonal.
-  Profiles with no lexicon yet (21): Ancient Greek, Basque, Cantonese,
-  Georgian, Hawaiian, Hungarian, Khmer, Malay, Nama, Navajo, Old Norse,
-  Sanskrit, Serbo-Croatian, Sumerian, Swahili, Thai, Vietnamese, Welsh,
-  Xhosa, Yoruba, Zulu.
+  Profiles with no lexicon yet (17): Ancient Greek, Basque, Cantonese,
+  Georgian, Hawaiian, Khmer, Nama, Navajo, Old Norse, Sanskrit, Sumerian,
+  Thai, Vietnamese, Welsh, Xhosa, Yoruba, Zulu.
   Until a language is curated the LLM fills the gaps.
 - **Linguist verification (L).** Every list is a best-effort transcription to
   the modeled phoneme set, not verified. A spot-check workflow (export a
