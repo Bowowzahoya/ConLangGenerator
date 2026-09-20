@@ -105,15 +105,15 @@ class _StubClient:
 def test_the_llm_fills_meanings_a_language_has_no_curated_words_for():
     reply = "\n".join(f"{i}|palabra{i}|kata" for i in range(1, 101))
     client = _StubClient(reply)
-    language = _language(1.0, sound=1.0, source=("Georgian",), client=client)
-    filled = [e for e in _real(language) if e.notes == "real word: Georgian"]
+    language = _language(1.0, sound=1.0, source=("Zulu",), client=client)
+    filled = [e for e in _real(language) if e.notes == "real word: Zulu"]
     assert client.calls >= 1 and len(filled) > 50
     assert all(e.ipa == "kata" and e.romanization.startswith("palabra") for e in filled)
 
 
 def test_a_malformed_or_invalid_llm_reply_leaves_the_words_invented():
     for reply in ("I cannot help with that.", "\n".join(f"{i}|palabra|zzzz$$" for i in range(1, 101))):
-        language = _language(1.0, sound=1.0, source=("Georgian",), client=_StubClient(reply))
+        language = _language(1.0, sound=1.0, source=("Zulu",), client=_StubClient(reply))
         assert _real(language) == []
 
 
