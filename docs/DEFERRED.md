@@ -59,14 +59,17 @@ multi-session feature.
   Malay, Swahili, Welsh, Ancient Greek, Sanskrit, Basque, Old Norse (490), Cantonese, Vietnamese (the last two generated from jyutping / Vietnamese
   spelling by rule, tones included).
   **Partly curated (only words I was confident of; the rest is left to the
-  LLM gap-fill):** Hawaiian (401), Georgian (169), Khmer (52, mostly numbers
+  LLM gap-fill):** Yoruba (102, with its three tones), Zulu (84) and Xhosa (52)
+  written toneless with click consonants, Sumerian (38), Navajo (24,
+  toneless although the profile is tonal), Nama (4 -- I know too little of it
+  to go further), Hawaiian (401), Georgian (169), Khmer (52, mostly numbers
   and basic nouns -- needs a native pass), Thai (190, tones written by hand -- only words whose tone
   I was sure of), Quechua (412), Tibetan (365), Mongolian (322), Nahuatl
   (246), Pama-Nyungan (61, Western Desert / Pitjantjatjara), Arawakan (49 --
   the original list only; no additions, I don't know Lokono well enough to
   transcribe hundreds of words). These need a native/linguist pass to
   finish; Tibetan is written toneless although its profile is tonal.
-  Profiles with no lexicon yet (6): Nama, Navajo, Sumerian, Xhosa, Yoruba, Zulu.
+  Every reference profile now has at least a small curated lexicon.
   Until a language is curated the LLM fills the gaps.
 - **Linguist verification (L).** Every list is a best-effort transcription to
   the modeled phoneme set, not verified. A spot-check workflow (export a

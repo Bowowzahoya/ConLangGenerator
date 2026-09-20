@@ -29,6 +29,7 @@ max_onset: 1
 # mechanism, the same "below this project's modeled granularity" status
 # Swahili's own syllabic-nasal prefix gets.
 tonal: true
+tone_levels: [low, mid, high]
 tone_level_count: 3
 # Real Yoruba's own 3 level tones (High/Mid/Low), a register system --
 # exactly this project's own existing (LOW, MID, HIGH) set. Real Yoruba

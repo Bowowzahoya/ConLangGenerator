@@ -102,7 +102,14 @@ class _StubClient:
         return LLMResponse(text=self.text, model="stub", input_tokens=1, output_tokens=1)
 
 
-def test_the_llm_fills_meanings_a_language_has_no_curated_words_for():
+def _uncurated(monkeypatch, name="Zulu"):
+    """Pretend ``name`` has no curated words, whatever the data files hold."""
+    original = real_words.real_words
+    monkeypatch.setattr(real_words, "real_words", lambda n: {} if n == name else original(n))
+
+
+def test_the_llm_fills_meanings_a_language_has_no_curated_words_for(monkeypatch):
+    _uncurated(monkeypatch)
     reply = "\n".join(f"{i}|palabra{i}|kata" for i in range(1, 101))
     client = _StubClient(reply)
     language = _language(1.0, sound=1.0, source=("Zulu",), client=client)
@@ -111,7 +118,8 @@ def test_the_llm_fills_meanings_a_language_has_no_curated_words_for():
     assert all(e.ipa == "kata" and e.romanization.startswith("palabra") for e in filled)
 
 
-def test_a_malformed_or_invalid_llm_reply_leaves_the_words_invented():
+def test_a_malformed_or_invalid_llm_reply_leaves_the_words_invented(monkeypatch):
+    _uncurated(monkeypatch)
     for reply in ("I cannot help with that.", "\n".join(f"{i}|palabra|zzzz$$" for i in range(1, 101))):
         language = _language(1.0, sound=1.0, source=("Zulu",), client=_StubClient(reply))
         assert _real(language) == []

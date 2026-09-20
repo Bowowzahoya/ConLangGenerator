@@ -169,6 +169,7 @@ def test_the_tonal_language_lexicons_carry_their_own_tones():
         "Cantonese": {ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.MID, ToneLevel.FALLING, ToneLevel.DIPPING, ToneLevel.LOW},
         "Vietnamese": {ToneLevel.MID, ToneLevel.LOW, ToneLevel.HIGH, ToneLevel.DIPPING, ToneLevel.RISING, ToneLevel.FALLING},
         "Thai": {ToneLevel.MID, ToneLevel.LOW, ToneLevel.FALLING, ToneLevel.HIGH, ToneLevel.RISING},
+        "Yoruba": {ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH},
     }
     for name, levels in expected.items():
         used = {t for _, ipa in real_words(name).values() for t in ipa_tokenizer.tone_sequence(ipa, _SYMBOLS)}
