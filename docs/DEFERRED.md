@@ -221,14 +221,29 @@ multi-session feature.
 
 ## 9. Engineering and data hygiene
 
-- **`tests/test_ipa_roundtrip.py` (other session).** Failing on a generator
-  bug (stray length mark, e.g. `dʒ` + doubled) — owned by that session, not
-  fixed here.
-- **Uncommitted edits by another session** (`sonority.py`,
-  `test_sentence_planner.py`, `test_translator.py`) were deliberately left
-  alone.
-- **Classifier calibration (S).** The new `tone_sandhi` dimension and the
-  word-strictness field are prompt-engineered and only unit-tested against a
-  stub; a manual pass with `--llm anthropic` is still needed.
-- **Line endings (S).** Git warns about LF→CRLF on many files; a
-  `.gitattributes` would settle it.
+*(All of the earlier items here are resolved; this section now records what
+was done.)*
+
+- **IPA round trip (fixed).** Generated words could contain a cluster whose
+  concatenation the greedy tokenizer reads as something else (`t` + `sː` as
+  `ts` + a stray `ː`; `n` + `dʒ` as `nd` + `ʒ`). `sonority.legal_onset_pairs`/
+  `legal_coda_pairs` now drop within-syllable pairs that don't read back, and
+  `sonority.unreadable_boundary_pairs` adds the cross-syllable ones to
+  `SyllableStructure.excluded_coda_onset_boundary_pairs`.
+  `tests/test_ipa_roundtrip.py` covers both and every generated lexicon.
+- **Other session's edits (adopted).** `sonority.py`, `test_sentence_planner.py`
+  and `test_translator.py` (seed changes forced by the pair filtering) are
+  committed together with the boundary fix; the full suite passes.
+- **Classifier calibration (checked).** A manual pass with `--llm anthropic`
+  over eight prompts: the `tone_sandhi` trait comes out strongly positive when
+  sandhi is asked for (0.8-0.9), strongly negative when it is ruled out (-0.9)
+  and absent otherwise; `source_word_strictness` is high for "actual Dutch
+  words" (0.9-0.95), low (0.1) for "a few invented words", and 0 when words
+  are not mentioned. One remaining quirk, not new: a purely atmospheric
+  prompt ("guttural desert language") makes the classifier volunteer a source
+  language (Arabic, strictness 0.15).
+- **Line endings (fixed).** `.gitattributes` (`* text=auto eol=lf`) keeps
+  everything LF in the repository and in working copies, ending the
+  LF -> CRLF warnings.
+- **Suite runtime (open, S).** The full suite now takes about 13 minutes;
+  see section 7.

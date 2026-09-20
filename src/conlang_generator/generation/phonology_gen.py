@@ -1429,6 +1429,12 @@ def generate_phonology(
     allowed_coda_onset_boundary_pairs, excluded_coda_onset_boundary_pairs = _resolve_coda_onset_boundary_restriction(
         rng, weighted_profiles, strictness, consonant_symbols, traits.phonotactic_restrictiveness
     )
+    # A boundary whose two consonants would concatenate into a different
+    # symbol sequence (n + dʒ read as nd + ʒ) can't survive the lexicon's own
+    # IPA string -- never offer it (no rng involved).
+    excluded_coda_onset_boundary_pairs = tuple(
+        dict.fromkeys(excluded_coda_onset_boundary_pairs + sonority.unreadable_boundary_pairs(consonants))
+    )
 
     # Onset-position restriction (e.g. /ŋ/ never opens a syllable in real
     # German/English) -- the onset-side mirror of the coda-devoicing

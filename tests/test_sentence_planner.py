@@ -12,11 +12,11 @@ from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.translation import sentence_planner
 
 # Same fixtures as test_translator.py -- seed=2 (nominative-accusative,
-# SVO, has_articles/has_overt_copula both true) and seed=8 (ergative-
-# absolutive, SOV) -- redefined locally rather than imported, matching
+# SVO, has_articles/has_overt_copula both true) and seed=180 (ergative-
+# absolutive, VSO) -- redefined locally rather than imported, matching
 # this project's own "each test module owns its fixtures" convention.
 _NOM_ACC_SEED = 2
-_ERGATIVE_SEED = 8
+_ERGATIVE_SEED = 180
 
 
 def _language(seed: int):

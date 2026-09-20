@@ -12,6 +12,7 @@ from __future__ import annotations
 import random
 
 from conlang_generator.core.phonology import Consonant, Manner, Place
+from conlang_generator.generation import ipa_tokenizer
 from conlang_generator.generation.trait_bias import biased_probability
 
 _SONORITY_RANK: dict[Manner, int] = {
@@ -80,6 +81,33 @@ def is_legal_coda_cluster(c1: Consonant, c2: Consonant) -> bool:
     return sonority(c1) > sonority(c2)
 
 
+def _reads_back_as_pair(first: str, second: str, symbols: tuple[str, ...]) -> bool:
+    """False when ``first + second`` would be tokenized as something other
+    than exactly those two symbols -- e.g. /t/ + /sː/ concatenates to
+    "tsː", which the greedy-longest-match tokenizer reads as the affricate
+    /ts/ plus a stray, silently-dropped "ː". Such a cluster can't survive
+    a round trip through the lexicon's own IPA string, so it's never
+    offered as legal."""
+    return ipa_tokenizer.tokenize(first + second, symbols) == [(first, ""), (second, "")]
+
+
+def unreadable_boundary_pairs(consonants: tuple[Consonant, ...]) -> tuple[tuple[str, str], ...]:
+    """Every (coda-final, next-onset-initial) consonant pair whose
+    concatenation would not tokenize as exactly those two symbols -- e.g.
+    /n/ + /dʒ/ read back as the prenasalized /nd/ plus a stray "ʒ" when
+    both /nd/ and /dʒ/ are in the inventory. Such a syllable boundary is
+    added to ``SyllableStructure.excluded_coda_onset_boundary_pairs`` so no
+    word ever contains it (the cross-syllable counterpart of the
+    ``_reads_back_as_pair`` check on within-syllable clusters)."""
+    symbols = tuple(c.ipa for c in consonants)
+    return tuple(
+        (c1.ipa, c2.ipa)
+        for c1 in consonants
+        for c2 in consonants
+        if not _reads_back_as_pair(c1.ipa, c2.ipa, symbols)
+    )
+
+
 def legal_onset_pairs(consonants: tuple[Consonant, ...]) -> tuple[tuple[str, str], ...]:
     """Every legal 2-consonant onset cluster within a given consonant set,
     as ipa-symbol pairs -- shared by ``phonology_gen.generate_phonology``
@@ -88,8 +116,12 @@ def legal_onset_pairs(consonants: tuple[Consonant, ...]) -> tuple[tuple[str, str
     ``romanization_gen.py`` (which pairs let a syllable-conditioned
     romanization rule treat a whole cluster as belonging to the next
     syllable's onset, under the maximal-onset principle)."""
+    symbols = tuple(c.ipa for c in consonants)
     return tuple(
-        (c1.ipa, c2.ipa) for c1 in consonants for c2 in consonants if c1 is not c2 and is_legal_onset_cluster(c1, c2)
+        (c1.ipa, c2.ipa)
+        for c1 in consonants
+        for c2 in consonants
+        if c1 is not c2 and is_legal_onset_cluster(c1, c2) and _reads_back_as_pair(c1.ipa, c2.ipa, symbols)
     )
 
 
@@ -99,8 +131,12 @@ def legal_coda_pairs(consonants: tuple[Consonant, ...]) -> tuple[tuple[str, str]
     shared by ``phonology_gen.generate_phonology`` (initial generation) and
     ``sound_change._recompute_syllable_structure`` (post-evolution
     recomputation) so both stay in sync."""
+    symbols = tuple(c.ipa for c in consonants)
     return tuple(
-        (c1.ipa, c2.ipa) for c1 in consonants for c2 in consonants if c1 is not c2 and is_legal_coda_cluster(c1, c2)
+        (c1.ipa, c2.ipa)
+        for c1 in consonants
+        for c2 in consonants
+        if c1 is not c2 and is_legal_coda_cluster(c1, c2) and _reads_back_as_pair(c1.ipa, c2.ipa, symbols)
     )
 
 
