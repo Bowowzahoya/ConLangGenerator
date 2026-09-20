@@ -388,6 +388,30 @@ def pronounce(
             raise typer.Exit(code=1)
 
 
+@app.command("audit-lexicons")
+def audit_lexicons(
+    languages: list[str] = typer.Argument(None, help="Reference languages to audit (default: every curated one)."),
+    examples: int = typer.Option(0, "--examples", min=0, help="Also show up to N flagged words per language."),
+    fail_above: float = typer.Option(
+        None, "--fail-above", min=0.0, max=1.0, help="Exit with an error if any language's flagged fraction exceeds this."
+    ),
+) -> None:
+    """Check the curated real lexicons against their reference profiles.
+
+    Flags words that use a sound the profile doesn't list, or whose syllables
+    the profile's own phonotactics wouldn't allow -- a transcription slip, or
+    a profile missing something the language really has."""
+    from conlang_generator.generation.reference_languages import lexicon_audit
+
+    audits = lexicon_audit.audit_all(tuple(languages) if languages else None)
+    if not audits:
+        typer.echo("No curated lexicon matches.", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(lexicon_audit.format_report(audits, examples=examples))
+    if fail_above is not None and any(a.flagged_rate > fail_above for a in audits):
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def serve(
     port: int = typer.Option(8000, "--port", help="Port to serve the local web UI on."),

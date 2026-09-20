@@ -46,9 +46,13 @@ multi-session feature.
   (Japanese) marks; `stress_pattern` only affects invented words.
 - **Korean assimilation and Hindi schwa deletion (L)** *(known limitation)* —
   word-level algorithmic systems, not per-symbol rules.
-- **Phonotactic audit of real words (M).** No report of which curated words
-  violate their own profile's syllable structure (clusters, restricted
-  onsets); useful for spotting transcription errors.
+- **Phonotactic audit of real words (done).** `conlang audit-lexicons`
+  (see `docs/LEXICON_AUDIT.md`) flags words a profile cannot produce and
+  aggregates the illegal consonant runs and missing sounds per language.
+  Its baseline flags about a third of all words, almost all of it profile
+  narrowness; the follow-up is to widen the profiles where the audit shows
+  the language really has the sound or cluster (visarga *-h* in Sanskrit,
+  `s`+stop onsets, long vowels in the Germanic profiles).
 
 ## 2. Real lexicons (data)
 

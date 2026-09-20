@@ -1,0 +1,64 @@
+"""The curated-lexicon audit: flags words a reference profile cannot produce,
+reads sounds relative to the profile (no phantom prenasalized stops), and is
+reachable from the CLI."""
+
+from typer.testing import CliRunner
+
+from conlang_generator.cli.main import app
+from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, lexicon_audit
+
+
+def _profile(name):
+    return next(p for p in REFERENCE_LANGUAGES if p.name == name)
+
+
+def _audit_words(monkeypatch, language, words):
+    monkeypatch.setattr(lexicon_audit, "real_words", lambda name: words if name == language else {})
+    return lexicon_audit.audit_language(_profile(language))
+
+
+def test_a_sound_outside_the_profile_is_flagged_and_counted(monkeypatch):
+    audit = _audit_words(monkeypatch, "Finnish", {"a": ("kala", "kala"), "b": ("gala", "ʈala"), "c": ("gula", "ʈula")})
+    assert audit.words == 3 and len(audit.off_inventory) == 2
+    assert audit.off_symbols["ʈ"] == 2 and audit.flagged_rate == 2 / 3
+
+
+def test_an_illegal_cluster_is_flagged_with_its_position(monkeypatch):
+    audit = _audit_words(monkeypatch, "Finnish", {"a": ("ptak", "ptak"), "b": ("kala", "kala")})
+    assert [i.gloss for i in audit.structure] == ["a"]
+    assert audit.illegal_runs[("initial", "pt")] == 1
+
+
+def test_a_legal_word_is_not_flagged(monkeypatch):
+    audit = _audit_words(monkeypatch, "Finnish", {"a": ("kala", "kala"), "b": ("talo", "talo"), "c": ("kuu", "kuː")})
+    assert audit.flagged == 0
+
+
+def test_a_profile_without_prenasalized_stops_reads_nd_as_n_plus_d():
+    # Italian "andare" must not be audited as containing the pool's prenasalized /nd/.
+    for name in ("Italian", "Spanish", "Turkish", "Latin", "Portuguese"):
+        audit = lexicon_audit.audit_language(_profile(name))
+        assert not {"nd", "mb", "ŋg", "nz"} & set(audit.off_symbols), name
+
+
+def test_a_profile_that_lists_prenasalized_stops_keeps_them():
+    known = lexicon_audit._known_symbols("Swahili")
+    assert "mb" in known and "nd" in known
+    assert "nd" not in lexicon_audit._known_symbols("Italian")
+
+
+def test_the_report_summarizes_and_lists_examples():
+    audits = lexicon_audit.audit_all(("Finnish", "Malay"))
+    report = lexicon_audit.format_report(audits, examples=2)
+    assert report.splitlines()[0].startswith("language")
+    assert "Finnish" in report and "Malay" in report and "illegal consonant runs" in report
+    assert all(a.flagged == len(a.off_inventory) + len(a.structure) for a in audits)
+
+
+def test_the_cli_command_reports_and_can_fail_on_a_threshold():
+    runner = CliRunner()
+    ok = runner.invoke(app, ["audit-lexicons", "Yoruba"])
+    assert ok.exit_code == 0 and "Yoruba" in ok.output
+    strict = runner.invoke(app, ["audit-lexicons", "Finnish", "--fail-above", "0.0"])
+    assert strict.exit_code == 1
+    assert runner.invoke(app, ["audit-lexicons", "NoSuchLanguage"]).exit_code == 1
