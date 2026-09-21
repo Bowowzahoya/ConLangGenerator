@@ -294,3 +294,14 @@ def test_vietnamese_swahili_bengali_and_mongolian_lexicons_fit_their_profiles():
     assert ("m", "w") in by_name["Swahili"].attested_onset_clusters  # mwana, mwezi
     assert {"tʃʰ", "ʈ", "ɖ"} <= set(by_name["Bengali"].consonants) and by_name["Bengali"].final_geminates
     assert {"ts", "dz", "ɔː"} <= set(by_name["Mongolian"].symbols())
+
+
+def test_khmer_nama_sumerian_navajo_and_arawakan_lexicons_fit_their_profiles():
+    for name in ("Khmer", "Nama", "Sumerian", "Navajo", "Arawakan"):
+        (audit,) = lexicon_audit.audit_all((name,))
+        assert audit.flagged == 0, (name, audit.off_symbols, audit.illegal_runs)
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["Sumerian"].coda_profile == "unrestricted"  # gub, sag, diš
+    assert "tʃ" not in by_name["Khmer"].restricted_coda_consonants  # final -ch
+    assert "g" in by_name["Arawakan"].consonants
+    assert "d" not in by_name["Navajo"].consonants  # Navajo d is the unaspirated /t/, written d

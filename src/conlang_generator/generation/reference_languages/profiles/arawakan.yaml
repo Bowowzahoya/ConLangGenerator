@@ -16,7 +16,7 @@ name: Arawakan
 # empty word_classes here doesn't suppress generation.word_class_gen's
 # own generic invented-class roll for an unmatched/uncurated POS.
 aliases: [garifuna, lokono]
-consonants: [p, b, t, d, k, "tʃ", f, s, h, m, n, l, r, w, j]
+consonants: [p, b, t, d, k, "tʃ", f, s, h, m, n, l, r, w, j, g]
 vowels: [a, e, i, o, u, "ɨ"]
 # The 6th vowel here was previously modeled as schwa ("ə") -- real
 # Garifuna/Lokono sources (Taylor, Munro, Haurholm-Larsen 2016) analyze
@@ -24,8 +24,8 @@ vowels: [a, e, i, o, u, "ɨ"]
 # real standard Belize/Honduras practical orthography -- corrected here
 # rather than left as a schwa-suggestive approximation.
 coda_profile: sonorant
-max_onset: 1
-restricted_coda_consonants: [l, r, w, j]
+max_onset: 2
+restricted_coda_consonants: [l, r, j, w]
 # Real attested word-final consonants in both Lokono (Pet 2011) and
 # Garifuna (Taylor 1977) are overwhelmingly just /m n/ -- /l r w j/
 # closing a syllable isn't well attested for either language, despite
@@ -54,10 +54,18 @@ core_vocabulary_average_syllables: 2.2  # hand-counted across this project's own
 onset_frequency_tiers:
   very_common: [m, n, w, j, t, k]
   common: [p, b, d, s, l, r]
-  uncommon: ["tʃ", f]
+  uncommon: ["tʃ", f, g]
   rare: [h]
 nucleus_frequency_tiers:
   very_common: [a, i, u]
   common: [e, o]
   uncommon: ["ɨ"]
   rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has
+
+attested_onset_clusters:
+  # labialized onsets (Arawakan kw)
+  - [k, w]
+  - [g, w]
+  - [h, w]
+  - [t, w]
+  - [b, w]

@@ -13,7 +13,7 @@ coda_profile: unrestricted
 max_onset: 2  # real Khmer onset clusters run up to 3 members (e.g. real "st-" type); this profile models a representative 2-member subset, the same "illustrative, not exhaustive" scale this batch's own Latin/Ancient Greek profiles already use for their own richer real cluster inventories
 max_coda: 1
 tonal: false
-restricted_coda_consonants: [b, d, r, s, "pʰ", "tʰ", "kʰ", "tʃ", "tʃʰ"]  # real Khmer codas exclude the voiced stops, /r/, /s/, and the whole aspirated/affricate series -- a genuinely small, well-documented closed set
+restricted_coda_consonants: [b, d, r, s, "pʰ", "tʰ", "kʰ", "tʃʰ"]  # real Khmer codas exclude the voiced stops, /r/, /s/, and the whole aspirated/affricate series -- a genuinely small, well-documented closed set
 attested_onset_clusters:
   # Real, common Khmer initial clusters -- illustrative, not exhaustive.
   - [k, r]
@@ -22,6 +22,19 @@ attested_onset_clusters:
   - [k, l]
   - [p, l]
   - ["tʃ", r]
+  # real Khmer sesquisyllabic onset clusters found by `conlang audit-lexicons`
+  - [k, "ɲ"]
+  - ["pʰ", n]
+  - ["pʰ", l]
+  - ["kʰ", j]
+  - [m, n]
+  - [k, m]
+  - ["tʃʰ", m]
+  - [k, d]
+  - ["tʰ", m]
+  - ["tʰ", "ŋ"]
+  - ["tʃ", k]
+  - ["pʰ", t]
 restricted_onset_nucleus_pairs:
   # Real, historically-conditioned Khmer "register" system: Old Khmer's
   # onset-consonant voicing contrast was lost, but its effect survives as
@@ -88,5 +101,5 @@ nucleus_frequency_tiers:
 coda_frequency_tiers:
   very_common: [n, k, "ŋ", t]
   common: [m, p, l, "ʔ"]
-  uncommon: [j, w, h]
+  uncommon: [j, w, h, "tʃ"]
   rare: ["ɲ"]

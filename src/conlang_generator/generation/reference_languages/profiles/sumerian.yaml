@@ -32,7 +32,7 @@ vowels: [a, e, i, u]
 # Real, well-agreed Sumerological claim: a simple 4-vowel system with no
 # /o/ -- genuinely distinctive among this project's own profiles, not a
 # simplification of convenience.
-coda_profile: sonorant
+coda_profile: unrestricted
 max_onset: 1  # real Sumerian syllable structure is conservatively reconstructed as simple CV(C), no native onset clusters
 tonal: false
 # No stress_pattern/word_accent curated -- real Sumerian prosody isn't
@@ -57,3 +57,8 @@ nucleus_frequency_tiers:
   common: [i]
   uncommon: [e]
   rare: []  # this profile's own plain 4-vowel system has nothing left for this tier -- same legitimately-empty-tier precedent Georgian's own nucleus table already has
+coda_frequency_tiers:
+  very_common: [g, d, m, n, s, l, b]
+  common: [k, t, p, r, "ŋ", z, "ʃ"]
+  uncommon: [h, j, w]
+  rare: ["bː", "mː", "sː"]

@@ -22,11 +22,6 @@ language can say which.
 
 ```
 language         words  off-profile  structure  flagged
-Khmer               52            0         14     27% 
-Nama                 4            0          1     25% 
-Sumerian            38            0          9     24% 
-Navajo              24            4          0     17% 
-Arawakan            49            6          2     16% 
 Sanskrit           494            3         66     14% 
 Japanese           494           11         43     11% 
 Hebrew             494            8         44     11% 
@@ -68,14 +63,19 @@ Hindi              494            0          1      0%
 Indonesian         494            0          1      0% 
 Korean             494            0          1      0% 
 Spanish            494            0          1      0% 
+Arawakan            49            0          0      0% 
 Cantonese          494            0          0      0% 
 English            494            0          0      0% 
+Khmer               52            0          0      0% 
 Mongolian          322            0          0      0% 
+Nama                 4            0          0      0% 
+Navajo              24            0          0      0% 
+Sumerian            38            0          0      0% 
 Tibetan            365            0          0      0% 
 Vietnamese         494            0          0      0% 
 Welsh              494            0          0      0% 
 Yoruba             102            0          0      0% 
-all              20845                              3%
+all              20845                              2%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being
@@ -157,6 +157,13 @@ Vietnamese gains `c ʈ ɣ ɤ` (*ch*, *tr*, *g/gh*, *ơ*) and medial `Cw` onset c
 nasal+consonant and labialized onset clusters (*mw*, *mk*, *mbw*), `ʒ`, and `dʒ` clusters; Bengali `tʃʰ dʒʱ ʈ ʈʰ ɖ`,
 final aspirates (an old restriction was wrong: *kaʈʰ*), `final_geminates`, and its lexicon's `ɪ w ɦ` normalized;
 Mongolian `ts dz ɔː`, `max_coda: 2` and its real final clusters (`nd lt gd`), `v` -> `w`.
+
+**Khmer, Nama, Sumerian, Navajo, Arawakan (fixed):** all to 0%. Khmer gains 12 sesquisyllabic onset
+clusters (*phnum*, *khnhom*, *kmeng*) and final `-ch`; Nama the click+nasal onsets (`ǃn`); Sumerian unrestricted
+codas (*gub*, *sag*, *diš*) with curated coda tiers; Navajo's lexicon is written with the unaspirated stops
+`t k` (orthographic `d g`); Arawakan gains `g` and `kw`. **These lexicons are tiny (4-52 words), so the
+clusters rest on very little evidence** -- treat the Nama and Sumerian additions as a fit to the sample,
+not a description of the language.
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet

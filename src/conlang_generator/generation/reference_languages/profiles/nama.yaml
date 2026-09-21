@@ -12,7 +12,7 @@ consonants: [p, t, k, "kʰ", "ʔ", s, h, m, n, "ŋ", w, j, "ǀ", "ǃ", "ǁ", "ǂ
 # (which Nama genuinely lacks -- see phonology_gen.py's own comment).
 vowels: [a, e, i, o, u, "aː", "eː", "iː", "oː", "uː", "ã", "ẽ", "ĩ", "õ", "ũ"]
 coda_profile: sonorant
-max_onset: 1
+max_onset: 2
 tonal: true
 tone_level_count: 2  # real Khoekhoegowab: a 2-way High/Low register tone contrast
 restricted_coda_consonants: [m, "ŋ", w, j, "ŋǀ", "ŋǃ", "ŋǁ", "ŋǂ", "ŋǀʰ", "ŋǃʰ", "ŋǁʰ", "ŋǂʰ", "ŋǀʼ", "ŋǃʼ", "ŋǁʼ", "ŋǂʼ"]
@@ -82,3 +82,11 @@ nucleus_frequency_tiers:
   common: [e, o, "aː", "iː", "uː"]
   uncommon: ["eː", "oː", "ã", "ũ"]
   rare: ["ẽ", "ĩ", "õ"]
+
+attested_onset_clusters:
+  # click + nasal onset clusters
+  - ["ǃ", n]
+  - ["ǀ", n]
+  - ["ǁ", n]
+  - ["ǂ", n]
+  - ["ǃ", m]

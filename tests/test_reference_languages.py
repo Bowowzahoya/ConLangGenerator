@@ -1394,7 +1394,17 @@ def test_arawakan_declares_the_real_narrow_coda_set_and_the_real_sixth_vowel():
 
 
 def test_sumerian_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
-    _assert_onset_nucleus_only("Sumerian", coda_profile="sonorant")
+    # Sumerian roots close on any consonant (gub, sag, diš), so codas are unrestricted and curated too
+    sumerian = next(p for p in REFERENCE_LANGUAGES if p.name == "Sumerian")
+    assert sumerian.coda_profile == "unrestricted"
+    for position, tiers in (
+        ("onset", sumerian.onset_frequency_tiers),
+        ("coda", sumerian.coda_frequency_tiers),
+        ("nucleus", sumerian.nucleus_frequency_tiers),
+    ):
+        tiered = [s for members in tiers.values() for s in members]
+        assert len(tiered) == len(set(tiered)), position
+        assert set(tiered) == _legal_symbols(sumerian, position), position
 
 
 def test_sumerian_declares_no_stress_and_a_plain_four_vowel_system():
