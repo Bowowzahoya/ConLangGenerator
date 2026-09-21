@@ -52,6 +52,29 @@ attested_onset_clusters:
   - [f, "ɾ"]                  # "fruta"
   - [k, w]                   # "cuando", "cuatro", "cuidado" -- real Spanish /kw/, always spelled "cu" (see orthography -- unlike Italian's "qu")
   - [g, w]                   # "pingüino", "vergüenza", "antigüedad" -- real Spanish /gw/, disambiguated from plain /g/+vowel by the diaeresis below
+  # glide onsets (Spanish rising diphthongs are written as onset clusters)
+  - [s, j]
+  - [d, j]
+  - [m, w]
+  - [p, j]
+  - [p, w]
+  - [b, j]
+  - [t, j]
+  - [s, w]
+  - [b, w]
+  - [k, j]
+  - [f, w]
+  - [g, j]
+  - [m, j]
+  - [t, w]
+  - [l, j]
+  - [n, j]
+  - [n, w]
+  - [d, w]
+  - [l, w]
+  - [f, j]
+  - [r, w]
+  - [h, w]
 attested_coda_clusters:
   # Real Spanish coda clusters, restricted to symbols this profile
   # models -- illustrative, not exhaustive, kept short since real
@@ -126,3 +149,11 @@ attested_onset_triples:
   - [k, "ɾ", w]
   - [t, "ɾ", w]
   - [d, "ɾ", w]
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [g, "ɾ", j]
+  - [s, k, j]
+  - [b, "ɾ", j]
+  - [k, "ɾ", j]
+  - [t, "ɾ", j]
+  - [p, "ɾ", j]
+  - [f, "ɾ", j]

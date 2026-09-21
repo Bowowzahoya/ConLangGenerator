@@ -268,3 +268,17 @@ def test_nahuatl_hungarian_persian_and_ancient_greek_lexicons_fit_their_profiles
     assert "ɔ" in by_name["Hungarian"].vowels and by_name["Hungarian"].final_geminates
     assert "ɲ" not in by_name["Hungarian"].restricted_onset_consonants  # nyelv, nyár
     assert {"iː", "uː"} <= set(by_name["Persian"].vowels)
+
+
+def test_spanish_and_arabic_lexicons_fit_their_profiles():
+    from conlang_generator.generation.reference_languages.real_lexicon import real_words
+
+    for name, limit in (("Spanish", 0.01), ("Arabic", 0.05)):
+        (audit,) = lexicon_audit.audit_all((name,))
+        assert not audit.off_inventory, (name, audit.off_symbols)
+        assert audit.flagged_rate <= limit, (name, audit.flagged_rate)
+    # Spanish is written phonemically: /b d g/, not the [β ð ɣ] allophones
+    assert not any(c in ipa for _, ipa in real_words("Spanish").values() for c in "βðɣ")
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert by_name["Arabic"].final_geminates
+    assert ("s", "j") in by_name["Spanish"].attested_onset_clusters

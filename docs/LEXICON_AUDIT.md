@@ -22,11 +22,9 @@ language can say which.
 
 ```
 language         words  off-profile  structure  flagged
-Spanish            494          125         34     32% 
 Khmer               52            0         14     27% 
 Nama                 4            0          1     25% 
 Sumerian            38            0          9     24% 
-Arabic             494            0        104     21% 
 Vietnamese         494           90          7     20% 
 Swahili            494            4         80     17% 
 Navajo              24            4          0     17% 
@@ -44,6 +42,7 @@ Basque             494            7         16      5%
 Danish             494           17          1      4% 
 Russian            494            1         16      3% 
 Old Norse          490            0         16      3% 
+Arabic             494            0         16      3% 
 Portuguese         494            0         15      3% 
 Thai               190            5          0      3% 
 Finnish            494            1         10      2% 
@@ -70,12 +69,13 @@ Swedish            494            0          2      0%
 Hindi              494            0          1      0% 
 Indonesian         494            0          1      0% 
 Korean             494            0          1      0% 
+Spanish            494            0          1      0% 
 Cantonese          494            0          0      0% 
 English            494            0          0      0% 
 Tibetan            365            0          0      0% 
 Welsh              494            0          0      0% 
 Yoruba             102            0          0      0% 
-all              20845                              5%
+all              20845                              4%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being
@@ -145,6 +145,12 @@ words (*nyelv*) and takes `final_geminates`. Persian gains `iː uː ʔ`, `max_co
 (`rg rm ng ʃt`). Ancient Greek gets the new profile field `restricted_final_coda_consonants` (stops and `m l` may close
 a syllable inside a word but never end it; words end in `n r s`, `ks`, `ps`), plus the onset clusters `zd ps ks pt kt mn`
 and its lexicon aligned to `ɛː`/`y`.
+
+**Spanish and Arabic (fixed):** 32% -> 0.2%, 21% -> 3%. The Spanish lexicon is now written phonemically
+(`b d g`, not the intervocalic allophones `β ð ɣ`, which the profile deliberately omits) and its rising
+diphthongs (*sj pj mw*, with triples such as *gɾj*) are onset clusters. Arabic's lexicon writes
+`aw`/`aj` as the profile's diphthongs `au`/`ai`, and the profile gains `final_geminates` (*shadda* ends
+words) and ~70 real final clusters (*ʕd ħm dr ml*).
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet
