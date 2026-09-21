@@ -40,10 +40,9 @@ multi-session feature.
   normalized on input yet.
 - **Onset/coda clusters cap at 2 consonants (done).** Curated triples and quads for strict profiles.
 - **Stress and pitch accent in real words (mostly done).** 30 lexicons carry stress marks, Japanese carries
-  pitch accent for ~57% of its polysyllabic words (see `LEXICON_AUDIT.md`). Still open: (a) Arabic, Hindi,
+  pitch accent for ~91% of its polysyllabic words (see `LEXICON_AUDIT.md`). Still open: (a) Arabic, Hindi,
   Georgian, Basque, Hawaiian (no derivable rule; each needs per-word data or a language-specific weight rule),
-  Serbo-Croatian and Ancient Greek (pitch accent), Danish stød, Swedish/Norwegian tonal accents; (b) the other
-  ~43% of Japanese polysyllables; (c) fixed-pattern languages ignore their real exceptions (loanwords, verbs) --
+  Serbo-Croatian and Ancient Greek (pitch accent), Danish stød, Swedish/Norwegian tonal accents; (b) the ~9% of Japanese polysyllables left unmarked (phrases, homographs, conjugated forms, a few unknown accents); (c) fixed-pattern languages ignore their real exceptions (loanwords, verbs) --
   an `exceptions` pass per language would refine them; (d) secondary stress is not marked anywhere; (e) vowel
   harmony is still absent from the real words (harmony is a property of the *word*, so it is only lost if a
   looser copy is re-fitted).

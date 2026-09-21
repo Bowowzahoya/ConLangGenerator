@@ -91,10 +91,12 @@ def test_japanese_pitch_accent_is_encoded_as_per_syllable_high_low_marks():
     assert pattern("taberu") == "LHL"  # accent 2: the drop follows the second mora
     assert pattern("sakana") == "LHH"  # flat (heiban)
     assert pattern("kodomo") == "LHH" and pattern("tsuki") == "LH"
-    assert pattern("otoko") == "LHH" and real_stress.pitch_pattern("kaɾe", "Japanese") is None  # unmarked: no data curated
+    assert pattern("otoko") == "LHH" and pattern("sensei") == "LH" and pattern("uta") == "LH"  # senseː: 4 morae, the drop follows the third
+    # phrases with particles and words with several possible accents are left unmarked rather than guessed
+    assert real_stress.pitch_pattern(japanese["ni tsuite"], "Japanese") is None
     marked = [real_stress.pitch_pattern(ipa, "Japanese") for ipa in japanese.values()]
     marked = [p for p in marked if p]
-    assert len(marked) >= 240
+    assert len(marked) >= 380  # ~91% of the polysyllabic entries; phrases and homographs stay unmarked
     for p in marked:
         assert p[0] in "LH" and "HLH" not in p  # at most one drop, never a rise after it
         assert p.count("LH") <= 1 or p[0] == "H"

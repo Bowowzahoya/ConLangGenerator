@@ -38,8 +38,10 @@ How each language's marks were produced:
   segolate nouns, Turkish *anne*, *baba*, *-ında* adverbs.
 * **Fully lexical languages -- curated word by word:** English (non-initial stress) and Russian (every polysyllable).
 * **Japanese pitch accent:** per-syllable High/Low marks, the encoding generated Japanese words use, from Tokyo
-  dictionary accent numbers in morae (a long vowel or moraic `n` adds a mora), for the ~57% of polysyllabic words
-  whose accent I was confident of; the rest stay unmarked rather than guessed.
+  dictionary accent numbers in morae (a long vowel or moraic `n` adds a mora), for ~91% of the polysyllabic words
+  (413 of 454 distinct spellings). Left unmarked rather than guessed: phrases with particles (*ni tsuite*),
+  conjugated forms (*kawaita*), homographs with two accents (*hana*, *hashi*, *kaeru*, *kara*) and a few words
+  whose accent I did not know (*dōbutsu*, *yari*, *nameraka*).
 
 All of it is best-effort, like the rest of the lexicons: not linguist-verified, and the fixed patterns ignore the
 real exceptions (loanwords, verbs, compounds) unless listed above.
@@ -66,7 +68,7 @@ Hungarian       initial                               288       288
 Icelandic       initial                               346       346
 Indonesian      lexical                               476       476
 Italian         lexical                               473       473
-Japanese        -                                       0       446   (+260 pitch-accented)
+Japanese        -                                       0       446   (+388 pitch-accented)
 Khmer           -                                       0         7
 Korean          -                                       0       374
 Latin           lexical                               442       442
