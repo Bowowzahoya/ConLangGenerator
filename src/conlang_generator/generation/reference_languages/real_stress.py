@@ -113,6 +113,39 @@ def _is_heavy(toks: list[tuple[str, str]], starts: tuple[int, ...], syllable: in
     return "ː" in nucleus or nucleus in _DIPHTHONGS or off_glide or vowel + 1 < end
 
 
+_NASAL_VOWELS = frozenset("ãẽĩõũ") | {"ɛ̃", "ɔ̃"}
+
+
+def _hindi_weights(toks: list[tuple[str, str]], starts: tuple[int, ...]) -> list[int]:
+    """Hindi syllable weights: 1 light (short vowel, open), 2 medium (long vowel, or a
+    short vowel + one coda consonant), 3 heavy (long vowel + coda, or two coda consonants).
+    A nasal vowel counts as long and a geminate closes the syllable before it."""
+    weights = []
+    for k, start in enumerate(starts):
+        end = starts[k + 1] if k + 1 < len(starts) else len(toks)
+        vowel = next(i for i in range(start, end) if _is_vowel(toks[i][0]))
+        symbol = toks[vowel][0]
+        long_vowel = "ː" in symbol or symbol in _NASAL_VOWELS or toks[vowel][1].count("̃") > 0
+        coda = sum(1 for s, _ in toks[vowel + 1:end] if not _is_vowel(s))
+        if k + 1 < len(starts) and toks[starts[k + 1]][0].endswith("ː") and not _is_vowel(toks[starts[k + 1]][0]):
+            coda += 1  # a geminate's first half closes this syllable
+        weights.append(1 + (1 if long_vowel else 0) + min(coda, 2))
+    return weights
+
+
+def _hindi_stress(toks: list[tuple[str, str]], starts: tuple[int, ...]) -> int:
+    """The heaviest syllable of the last three (the profile's own description of
+    Hindi); on a tie the rightmost *non-final* one, so an all-equal word is penultimate;
+    the final syllable wins only if strictly heavier than the others in the window."""
+    weights = _hindi_weights(toks, starts)
+    count = len(weights)
+    window = list(range(max(0, count - 3), count))
+    best = max(weights[i] for i in window)
+    candidates = [i for i in window if weights[i] == best]
+    non_final = [i for i in candidates if i != count - 1]
+    return non_final[-1] if non_final else count - 1
+
+
 def default_stress_index(ipa: str, name: str) -> int | None:
     """The syllable ``name``'s own ``stress_pattern`` predicts, or ``None`` for a
     monosyllable or a pattern that cannot be derived from the sounds alone."""
@@ -126,6 +159,13 @@ def default_stress_index(ipa: str, name: str) -> int | None:
     if name == "Latin":
         # the classical rule: penult if heavy, else antepenult (a disyllable: the first)
         return count - 2 if _is_heavy(toks, starts, count - 2) or count == 2 else count - 3
+    if name == "Basque":
+        # Central/Gipuzkoan-style Batua: the second syllable of a word of three or more; a disyllable
+        # keeps its first (etxe, ura). The profile calls Basque accentuation a live dialect dispute --
+        # this is the commonly taught Central norm, not the only one.
+        return 1 if count >= 3 else 0
+    if name == "Hindi":
+        return _hindi_stress(toks, starts)
     if pattern in ("", "lexical"):
         return None
     vowels = _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES)
