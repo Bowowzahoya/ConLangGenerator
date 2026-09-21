@@ -1,6 +1,6 @@
 name: Zulu
 aliases: [isizulu]
-consonants: [p, "pʰ", "bʱ", t, "tʰ", "dʱ", k, "kʰ", "ɡʱ", m, n, "ɲ", "ŋ", f, v, s, z, "ʃ", h, "ɬ", l, j, w, "ǀ", "ǃ", "ǁ", "ǀʰ", "ǃʰ", "ǁʰ", "ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ"]
+consonants: [p, "pʰ", "bʱ", t, "tʰ", "dʱ", k, "kʰ", "ɡʱ", m, n, "ɲ", "ŋ", f, v, s, z, "ʃ", h, "ɬ", l, j, w, "ǀ", "ǃ", "ǁ", "ǀʰ", "ǃʰ", "ǁʰ", "ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ", b, d, g, "tʃʰ", mb, nd, "ŋg", nz]
 # One of the world's most complex real consonant inventories. The
 # 3-way p/pʰ/bʱ (etc.) stop series is real and citable, but its exact
 # phonetic character is simplified here: real Zulu's fortis series has
@@ -39,7 +39,7 @@ consonants: [p, "pʰ", "bʱ", t, "tʰ", "dʱ", k, "kʰ", "ɡʱ", m, n, "ɲ", "ŋ
 # symbol (Nahuatl's tɬ) is voiceless-only.
 vowels: [i, e, a, o, u]
 coda_profile: none
-max_onset: 1
+max_onset: 2
 # Real native Zulu syllables are predominantly open CV, the same
 # Bantu-wide canon Swahili's own profile documents -- the same real
 # syllabic-nasal-prefix exception applies and stays out of scope for
@@ -109,10 +109,50 @@ core_vocabulary_average_syllables: 2.22  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [m, n, l, k, t, w, j, s]
   common: [p, "bʱ", "dʱ", "ɡʱ", f, v, z, "ʃ", h, "ɲ", "ŋ"]
-  uncommon: ["pʰ", "tʰ", "kʰ", "ɬ", "ǀ", "ǃ", "ǁ"]
-  rare: ["ǀʰ", "ǃʰ", "ǁʰ", "ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ"]
+  uncommon: ["pʰ", "tʰ", "kʰ", "ɬ", "ǀ", "ǃ", "ǁ", b, d, g]
+  rare: ["ǀʰ", "ǃʰ", "ǁʰ", "ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ", "tʃʰ", mb, nd, "ŋg", nz]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [u, e]
   uncommon: [o]
   rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has
+
+attested_onset_clusters:
+  # nasal+consonant onsets (syllabic nasals and homorganic sequences)
+  - [n, t]
+  - ["ŋ", k]
+  - [m, v]
+  - [m, f]
+  - [m, l]
+  - [n, "ɬ"]
+  - [n, z]
+  - [m, b]
+  - [n, d]
+  - ["ŋ", g]
+  - [n, w]
+  - [l, w]
+  - [n, s]
+  - [n, "ʃ"]
+  - [m, p]
+  - [m, n]
+  - [n, k]
+  - [m, t]
+  - [m, z]
+  - [n, j]
+  - ["ŋ", "kʰ"]
+  - [n, "tʰ"]
+  - ["ɲ", j]
+  - ["ŋ", w]
+  - [m, w]
+  - [n, f]
+  # real clusters found by `conlang audit-lexicons`
+  - [d, "ɬ"]
+  - [m, "ɲ"]
+  # real clusters found by `conlang audit-lexicons`
+  - [nd, "ɬ"]
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [m, n, t]
+  - [n, t, w]
+  - ["ŋ", k, w]
+  - ["ŋ", g, w]

@@ -229,3 +229,15 @@ def test_cantonese_tibetan_tamil_and_hindi_lexicons_fit_their_profiles():
     assert {"ɔ", "ø", "œ", "y"} <= set(by_name["Cantonese"].vowels)
     assert "ʔ" in by_name["Tibetan"].consonants and "ʔ" in by_name["Tibetan"].restricted_onset_consonants
     assert "ʈ" not in by_name["Tamil"].restricted_onset_consonants  # medial ʈ needs an onset slot
+
+
+def test_welsh_georgian_zulu_and_xhosa_lexicons_fit_their_profiles():
+    for name, limit in (("Welsh", 0.02), ("Georgian", 0.02), ("Zulu", 0.05), ("Xhosa", 0.05)):
+        (audit,) = lexicon_audit.audit_all((name,))
+        assert not audit.off_inventory, (name, audit.off_symbols)
+        assert audit.flagged_rate <= limit, (name, audit.flagged_rate)
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert {"ɛ", "ɔ", "ɨ"} <= set(by_name["Welsh"].vowels)
+    assert {"tʰ", "tsʼ", "ɣ"} <= set(by_name["Georgian"].consonants)
+    assert {"mb", "nd", "ŋg"} <= set(by_name["Zulu"].consonants)  # prenasalized stops are units
+    assert ("m", "n", "t") in by_name["Xhosa"].attested_onset_triples  # umntu

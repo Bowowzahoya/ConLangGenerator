@@ -23,10 +23,6 @@ language can say which.
 ```
 language         words  off-profile  structure  flagged
 Nahuatl            246            3        176     73% 
-Xhosa               52           19         14     63% 
-Zulu                84           31         19     60% 
-Georgian           169           74         22     57% 
-Welsh              494          172         60     47% 
 Ancient Greek      494           58        117     35% 
 Hungarian          494          136         37     35% 
 Persian            494          107         52     32% 
@@ -56,9 +52,12 @@ Portuguese         494            0         15      3%
 Thai               190            5          0      3% 
 Finnish            494            1         10      2% 
 German             494            1          9      2% 
+Xhosa               52            0          1      2% 
 Tamil              494            1          8      2% 
 Turkish            494            0          7      1% 
 Latin              494            4          2      1% 
+Zulu                84            0          1      1% 
+Georgian           169            0          2      1% 
 Icelandic          494            0          5      1% 
 Malay              494            0          5      1% 
 Norwegian          494            0          5      1% 
@@ -74,8 +73,9 @@ Korean             494            0          1      0%
 Cantonese          494            0          0      0% 
 English            494            0          0      0% 
 Tibetan            365            0          0      0% 
+Welsh              494            0          0      0% 
 Yoruba             102            0          0      0% 
-all              20845                             10%
+all              20845                              8%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being
@@ -131,6 +131,12 @@ glottal-stop coda `ʔ` (its lexicon is now transcribed with final `k p g b` -> `
 clusters; Hindi `ẽ õ`, `tʃʰ ʈʰ dʒʱ ɖʱ z f ŋ`, and its lexicon uses the profile's phonemic `i u e o ã`; Tamil's
 lexicon is transcribed phonemically (`ɖ`->`ʈ`, `g d b`->`k t p`, `s c ʃ`->`tʃ`) and `ʈ` may open a syllable
 (medial `ʈ` has no other onset slot in this model).
+
+**Welsh, Georgian, Zulu, Xhosa (fixed):** 47% -> 0%, 57% -> 1%, 60% -> 1%, 63% -> 2%. Welsh gains
+`ɛ ɔ ɨ ɨː ɔː` and its real onset/coda clusters (`gw`, `br`, `bl`; `-fr`, `-dr`, `-gr` as in *llyfr*); Georgian
+gains the aspirated and ejective stops/affricates, `ts dz ɣ`, and the long initial clusters (with 3-consonant
+onsets such as `mtr`, `sxv`); Zulu and Xhosa gain plain `b d g`, `mb nd ŋg nz` prenasalized units, and
+nasal+consonant onset clusters (`nt`, `ŋk`, `ml`, triple `mnt` as in *umntu*).
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet

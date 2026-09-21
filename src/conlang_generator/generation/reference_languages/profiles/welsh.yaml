@@ -1,7 +1,7 @@
 name: Welsh
 aliases: [cymraeg]
 consonants: [p, b, t, d, k, g, m, n, "ŋ", f, v, "θ", "ð", s, "ʃ", x, h, "ɬ", l, r, "r̥", j, w, "nː", "rː"]
-vowels: [a, "ə", i, u, e, o, "aː", "iː", "uː", "eː", "oː", ai, au, "ɔi"]
+vowels: [a, "ə", i, u, e, o, "aː", "iː", "uː", "eː", "oː", ai, au, "ɔi", "ɛ", "ɔ", "ɨ", "ɨː", "ɔː"]
 # South Welsh merger modeled as the default (no separate front-central
 # /ɨ/ contrasting with /i/ the way North Welsh has) -- a real, deliberate
 # simplification, not an oversight: the shared vowel pool's own /ɨ/ could
@@ -22,6 +22,34 @@ attested_onset_clusters:
   - [d, r]   # "draig" (dragon)
   - [k, r]   # "craig" (rock)
   - [k, l]   # "clust" (ear)
+  # real clusters found by `conlang audit-lexicons`
+  - [g, w]
+  - [b, r]
+  - [b, l]
+  - [x, w]
+  - [g, n]
+  - [d, w]
+  - [p, r]
+  - [f, r]
+  - [t, l]
+  - [k, n]
+  - [s, t]
+  - ["ɬ", j]
+  - [g, j]
+  - [m, w]
+  - [b, w]
+  - [t, w]
+  - [k, w]
+  - [p, w]
+  - [k, j]
+  - [f, l]
+  - [f, j]
+  - [t, j]
+  - [d, j]
+  - [m, j]
+  - [n, w]
+  - [s, w]
+  - ["ð", r]
 attested_coda_clusters:
   # Real Welsh coda clusters, restricted to symbols this profile models --
   # illustrative, not exhaustive.
@@ -30,6 +58,41 @@ attested_coda_clusters:
   - [l, x]     # "balch" (proud)
   - ["ɬ", t]   # "gwallt" (hair)
   - [s, t]     # general s+stop
+  # real clusters found by `conlang audit-lexicons`
+  - [v, n]
+  - [m, p]
+  - [r, "θ"]
+  - [d, r]
+  - [r, n]
+  - [v, r]
+  - ["ŋ", k]
+  - [d, v]
+  - [b, r]
+  - [g, r]
+  - [k, r]
+  - [t, r]
+  - [f, r]
+  - [p, r]
+  - [k, l]
+  - [p, l]
+  - [b, l]
+  - [v, l]
+  - [g, l]
+  - [f, n]
+  - [d, n]
+  - [t, n]
+  - [k, n]
+  - [g, n]
+  - [r, m]
+  - [r, v]
+  - [r, x]
+  - [l, v]
+  - [l, n]
+  - [d, l]
+  # real clusters found by `conlang audit-lexicons`
+  - [n, d]
+  - [l, d]
+  - [x, r]
 stress_pattern: penultimate  # real Welsh: famously regular, almost exceptionless penultimate stress
 stress_deviation_rate: 0.05  # illustrative -- very low, matching how rigidly regular real Welsh stress placement is
 word_classes:
@@ -75,11 +138,18 @@ onset_frequency_tiers:
   rare: ["ʃ", "r̥"]
 nucleus_frequency_tiers:
   very_common: [a, "ə", i]
-  common: [u, e, o]
+  common: [u, e, o, "ɛ", "ɔ", "ɨ"]
   uncommon: ["aː", "iː", "uː", "eː", "oː"]
-  rare: [ai, au, "ɔi"]
+  rare: [ai, au, "ɔi", "ɨː", "ɔː"]
 coda_frequency_tiers:
   very_common: [n, t, r, s]
   common: [m, k, l, d, "ð"]
   uncommon: [p, g, f, v, "θ", "ŋ"]
   rare: ["ʃ", x, "ɬ", b, "nː", "rː"]
+
+attested_coda_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - ["ŋ", k, t]
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [g, w, r]

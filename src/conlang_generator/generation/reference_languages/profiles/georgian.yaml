@@ -1,5 +1,5 @@
 name: Georgian
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "pʼ", "tʼ", "kʼ", q, m, n, s, "ʃ", x, z, "ʒ", v, l, r, j, w]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "pʼ", "tʼ", "kʼ", q, m, n, s, "ʃ", x, z, "ʒ", v, l, r, j, w, "pʰ", "tʰ", "kʰ", ts, "tsʰ", "tʃʰ", "tsʼ", "tʃʼ", dz, "ɣ"]
 vowels: [i, a, u, e, o]
 coda_profile: unrestricted
 max_onset: 2
@@ -23,6 +23,53 @@ attested_onset_clusters:
   - [m, t]
   - [b, r]
   - [t, k]
+  # real clusters found by `conlang audit-lexicons`
+  - [dz, v]
+  - [m, z]
+  - ["ʃ", v]
+  - [r, v]
+  - [m, x]
+  - ["kʼ", b]
+  - ["tʼ", q]
+  - [q, v]
+  - [g, z]
+  - [dz, r]
+  - [m, g]
+  - [dz, m]
+  - [r, dz]
+  - [d, r]
+  - [ts, v]
+  - ["tsʼ", v]
+  - ["tsʰ", v]
+  - ["kʰ", v]
+  - ["tʰ", v]
+  - ["tʼ", v]
+  - ["kʼ", v]
+  - ["ʒ", v]
+  - [z, v]
+  - [x, v]
+  - [m, "ʃ"]
+  - [m, "tʼ"]
+  - [m, ts]
+  - [m, "tsʼ"]
+  - [m, "tʃ"]
+  # real clusters found by `conlang audit-lexicons`
+  - ["tsʰ", x]
+  - ["tʃʰ", v]
+  - ["tsʼ", q]
+  - [m, "tʰ"]
+  - ["pʰ", r]
+  - [z, "ɣ"]
+  - ["tʰ", m]
+  - ["tʰ", b]
+  - [d, "ɣ"]
+  - [r, "kʰ"]
+  - ["tʰ", x]
+  - ["ɣ", v]
+  - ["tsʰ", r]
+  - ["tsʰ", l]
+  - ["kʰ", l]
+  - ["kʰ", r]
 tonal: false
 stress_pattern: lexical
 stress_deviation_rate: 0.48  # illustrative -- Georgian stress is a genuine, live dispute over whether it's even phonetically real at all (Aronson describes it as barely perceptible; others argue prominence is purely phrase-level/intonational), modeled the same "disputed, no simple flat rule" way this project's own Indonesian profile already is, at a comparably high rate
@@ -47,7 +94,7 @@ core_vocabulary_average_syllables: 1.85  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [m, t, k, s, d, r]
   common: [p, b, g, n, l, v, j]
-  uncommon: ["tʃ", "dʒ", "ʃ", x, z, "ʒ", w]
+  uncommon: ["tʃ", "dʒ", "ʃ", x, z, "ʒ", w, "pʰ", "tʰ", "kʰ", ts, "tsʰ", "tʃʰ", "tsʼ", "tʃʼ", dz, "ɣ"]
   rare: ["pʼ", "tʼ", "kʼ", q]
 nucleus_frequency_tiers:
   very_common: [a, i]
@@ -57,7 +104,7 @@ nucleus_frequency_tiers:
 coda_frequency_tiers:
   very_common: [n, t, r, s]
   common: [m, k, l, d, v]
-  uncommon: [b, g, z, "ʃ", j]
+  uncommon: [b, g, z, "ʃ", j, "pʰ", "tʰ", "kʰ", ts, "tsʰ", "tʃʰ", "tsʼ", "tʃʼ", dz, "ɣ"]
   rare: [p, "tʃ", "dʒ", "pʼ", "tʼ", "kʼ", q, x, "ʒ", w]
 
 # --- Grammar-level typology (source_language bias in grammar_gen.py) ---
@@ -67,3 +114,21 @@ real_has_articles: false             # no grammaticalized articles, typical of C
 real_has_overt_copula: false         # real Georgian's present-tense copula is a bound suffix cliticized onto the predicate adjective itself (mta maghalia = "mountain tall-is"), not a separate free-standing word -- doesn't match this project's own "insert a separate copula lexeme" mechanism
 real_adjective_after_noun: false     # real Georgian attributive adjectives precede the noun (maghali mta = "tall mountain")
 real_case_count: 7                   # nominative, ergative, dative, genitive, instrumental, adverbial, vocative -- real, well-documented (the exact count is debated by some analyses, but 7 is the standard citation)
+
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [s, x, v]
+  - [m, t, r]
+  - [m, "ʃ", v]
+  - [s, x, l]
+  - ["tʼ", q, v]
+  - [m, "tʼ", r]
+  - [m, g, v]
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - ["tsʰ", x, v]
+  - ["tsʰ", x, r]
+  - ["tsʰ", x, l]
+  - [m, "tʰ", v]
+  - [m, "tsʼ", v]
+  - [z, "ɣ", v]
+  - [r, "kʰ", v]

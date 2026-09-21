@@ -9,7 +9,7 @@ aliases: [click language]
 # so Zulu now has its own profile (see zulu.yaml). "nguni" (the
 # language-family name covering Zulu/Xhosa/Swati/Ndebele) is dropped
 # too for the same reason -- it's not specifically Xhosa either.
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʔ", m, n, "ŋ", s, "ʃ", h, z, l, j, w, "ǀ", "ǃ", "ǁ", "ǀʰ", "ǃʰ", "ǁʰ", "ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʔ", m, n, "ŋ", s, "ʃ", h, z, l, j, w, "ǀ", "ǃ", "ǁ", "ǀʰ", "ǃʰ", "ǁʰ", "ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ", "ɲ", "tʰ", v, "ɬ", f, mb, nd, "ŋg", nz]
 # The real click-accompaniment series Zulu's own profile curates this
 # same session -- aspirated, voiced/breathy "depressor", and nasalized
 # -- applies the same real Nguni-wide way to Xhosa's own three click
@@ -34,7 +34,7 @@ coda_profile: none
 # to Xhosa -- the same real syllabic-nasal-prefix exception noted in
 # Zulu's own comment applies identically here too, and stays out of
 # scope for the same reason.
-max_onset: 1
+max_onset: 2
 tonal: true
 tone_level_count: 2
 # Same real 2-level H/L register system standard Nguni tonology already
@@ -92,9 +92,51 @@ onset_frequency_tiers:
   very_common: [m, n, l, k, t, w, j, s]
   common: [p, b, d, g, z, h, "ŋ", "ǀ", "ǃ", "ǁ"]
   uncommon: ["tʃ", "dʒ", "ʃ", "ʔ", "ǀʰ", "ǃʰ", "ǁʰ"]
-  rare: ["ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ"]
+  rare: ["ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ", "ɲ", "tʰ", v, "ɬ", f, mb, nd, "ŋg", nz]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [u, e]
   uncommon: [o]
   rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Persian's own nucleus table already has
+
+attested_onset_clusters:
+  # nasal+consonant onsets (syllabic nasals and homorganic sequences)
+  - [n, t]
+  - ["ŋ", k]
+  - [m, v]
+  - [m, f]
+  - [m, l]
+  - [n, "ɬ"]
+  - [n, z]
+  - [m, b]
+  - [n, d]
+  - ["ŋ", g]
+  - [n, w]
+  - [l, w]
+  - [n, s]
+  - [n, "ʃ"]
+  - [m, p]
+  - [m, n]
+  - [n, k]
+  - [m, t]
+  - [n, "tʃ"]
+  - [m, z]
+  - [n, j]
+  - [n, "tʰ"]
+  - ["ɲ", j]
+  - ["ŋ", w]
+  - [m, w]
+  - [n, f]
+  # real clusters found by `conlang audit-lexicons`
+  - [d, "ɬ"]
+  - ["ɲ", "dʒ"]
+  - [m, "tʰ"]
+  # real clusters found by `conlang audit-lexicons`
+  - [nd, "ɬ"]
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [m, n, t]
+  - [n, t, w]
+  - ["ŋ", k, w]
+  - ["ŋ", g, w]
+  - [n, t, "ɬ"]
