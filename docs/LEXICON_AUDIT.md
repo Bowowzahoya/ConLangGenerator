@@ -52,18 +52,31 @@ How each language's marks were produced:
   (413 of 454 distinct spellings). Left unmarked rather than guessed: phrases with particles (*ni tsuite*),
   conjugated forms (*kawaita*), homographs with two accents (*hana*, *hashi*, *kaeru*, *kara*) and a few words
   whose accent I did not know (*dōbutsu*, *yari*, *nameraka*).
+* **Ancient Greek accent:** the project's per-syllable High/Low encoding with the circumflex as the falling mark on
+  the kernel, from the accent placement of the LSJ lemma forms (I annotated 426 of 453 polysyllabic spellings; the
+  rest -- *eraō*, *synapto*, *koniā* and a few others -- I did not know and left unmarked). The circumflex follows the
+  real rule (a long penult under an accent with a short final syllable; final *-ai*/*-oi* count as short), with
+  hand-forced circumflexes where the lexicon does not show length (*sitos*, *mythos*, *pilos*, *pragma*, *houtos*,
+  *hēmeis*). Every accent sits in the last three syllables (the trimoric law); vowel length that the lexicon does not
+  write (α ι υ) limits the circumflex rule.
+* **Serbo-Croatian:** a stress mark on every polysyllable, and the four-way Neo-Stokavian accent (short/long x
+  falling/rising, falling only on the first syllable) on the 151 words whose length I knew. **The other 233 are
+  position only, and their position is the default initial stress** -- correct for most (a Neo-Stokavian
+  polysyllable usually stresses its first syllable) but not verified word by word; the non-initial words I
+  listed are 39, mostly *-ak/-ok* adjectives and prefixed verbs (*visòk*, *pokàzati*, *otvòriti*). The lexicon is
+  the Croatian (ijekavian) standard.
 
 All of it is best-effort, like the rest of the lexicons: not linguist-verified, and the fixed patterns ignore the
 real exceptions (loanwords, verbs, compounds) unless listed above.
 
 ```
 language        stress pattern                     marked polysyll.
-Ancient Greek   -                                       0       453
+Ancient Greek   positional_pitch_accent               433       453
 Arabic          lexical                               365       365
 Arawakan        -                                       0        42
 Basque          lexical                               468       468
 Bengali         initial                               393       393
-Cantonese       -                                       0       133
+Cantonese       -                                      43       133
 Danish          initial                               266       266
 Dutch           initial                               230       230
 English         lexical                               112       114
@@ -78,12 +91,12 @@ Hungarian       initial                               288       288
 Icelandic       initial                               346       346
 Indonesian      lexical                               476       476
 Italian         lexical                               473       473
-Japanese        -                                       0       446   (+388 pitch-accented)
+Japanese        positional_pitch_accent               405       446
 Khmer           -                                       0         7
 Korean          -                                       0       374
 Latin           lexical                               442       442
 Malay           lexical                               473       473
-Mandarin        -                                       0       155
+Mandarin        -                                       4       155
 Mongolian       first_long_vowel_else_initial         203       203
 Nahuatl         penultimate                           231       231
 Nama            -                                       0         4
@@ -97,25 +110,24 @@ Portuguese      final_unless_unstressed_vowel         431       431
 Quechua         penultimate                           387       387
 Russian         lexical                               379       379
 Sanskrit        -                                       0       371
-Serbo-Croatian  lexical                                 0       384
+Serbo-Croatian  lexical                               384       384
 Spanish         penultimate_or_final_by_coda          444       444
 Sumerian        -                                       0        17
 Swahili         penultimate                           469       469
 Swedish         initial                               240       240
 Tamil           initial                               441       441
-Thai            -                                       0        29
+Thai            -                                       3        29
 Tibetan         -                                       0       126
 Turkish         final                                 392       392
-Vietnamese      -                                       0       138
+Vietnamese      -                                      19       138
 Welsh           penultimate                           287       287
 Xhosa           -                                       0        48
-Yoruba          -                                       0        85
+Yoruba          -                                      24        85
 Zulu            -                                       0        80
 ```
 
-Not covered: Serbo-Croatian and Ancient Greek (lexical or pitch accent
-with no rule to compute it from), Sanskrit (Vedic accent), Danish stød and the Swedish/Norwegian tonal accents,
-and every tonal language (which mark tone, not stress).
+Not covered: Sanskrit (Vedic accent), Danish stød, the Swedish/Norwegian tonal accents, and every tonal language
+(which mark tone, not stress).
 
 ## Loanwords
 

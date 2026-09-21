@@ -39,15 +39,14 @@ multi-session feature.
   prenasalized `ŋg` eat the start of `ŋ` + `gʱ`. IPA typed with U+0261 by a user or an LLM is not
   normalized on input yet.
 - **Onset/coda clusters cap at 2 consonants (done).** Curated triples and quads for strict profiles.
-- **Stress and pitch accent in real words (mostly done).** 35 lexicons carry stress marks; Japanese carries
-  pitch accent for ~91% of its polysyllabic words (see `LEXICON_AUDIT.md`). Arabic, Basque, Georgian, Hawaiian
-  and Hindi use a best-effort position/weight rule that ignores dialect variation (and Hindi schwa deletion).
-  Still open: (a) Serbo-Croatian and Ancient Greek (pitch accent), Danish stød, Swedish/Norwegian tonal
-  accents; (b) the ~9% of Japanese polysyllables left unmarked (phrases, homographs, conjugated forms, a few
-  unknown accents); (c) fixed-pattern languages ignore their real exceptions (loanwords, verbs) -- an
-  `exceptions` pass per language would refine them; (d) secondary stress is not marked anywhere; (e) vowel
-  harmony is still absent from the real words (harmony is a property of the *word*, so it is only lost if a
-  looser copy is re-fitted).
+- **Stress and pitch accent in real words (mostly done).** 37 lexicons carry stress marks or pitch accent
+  (see `LEXICON_AUDIT.md`): Japanese and Ancient Greek carry H/L pitch accent, Serbo-Croatian the stress
+  position plus the four-way accent on 151 words. Arabic, Basque, Georgian, Hawaiian and Hindi use best-effort
+  position/weight rules. Still open: (a) Serbo-Croatian's length and pitch for the other 233 words (their stress
+  is the default initial, unverified); (b) Danish stød and the Swedish/Norwegian tonal accents, Sanskrit's Vedic
+  accent; (c) the ~9% of Japanese and ~4% of Ancient Greek polysyllables left unmarked; (d) fixed-pattern
+  languages ignore their real exceptions (loanwords, verbs) -- an `exceptions` pass per language would refine
+  them; (e) secondary stress is not marked anywhere; (f) vowel harmony is absent from the real words.
 - **Korean assimilation and Hindi schwa deletion (L)** *(known limitation)* —
   word-level algorithmic systems, not per-symbol rules.
 - **Phonotactic audit of real words (done).** `conlang audit-lexicons`
