@@ -20,7 +20,8 @@ word_classes:
   - {name: "2nd declension (masculine)", pos: noun, suffix: [u, s], prevalence: 0.40}
   - {name: "2nd declension (neuter)", pos: noun, suffix: [u, m], prevalence: 0.25}
 word_class_deviation_rate: 0.25  # illustrative -- this profile models only 2 of Latin's real 5 declensions, so a real 3rd/4th/5th-declension noun (or a genuine irregular like domus) shows up here as an "irregular exception" relative to the simplified 2-declension model
-restricted_onset_consonants: ["kː", "tː", "pː", "sː", "nː", "lː", "rː", "fː", "mː"]  # real Latin gemination is a medial/intervocalic phenomenon (real "vacca", "annus") -- a word never starts with a geminate; this project has no ambisyllabic modeling, so the coda-position half of a real geminate is what stays legal in coda
+restricted_onset_consonants: []  # real Latin gemination is a medial/intervocalic phenomenon (real "vacca", "annus") -- a word never starts with a geminate; this project has no ambisyllabic modeling, so the coda-position half of a real geminate is what stays legal in coda
+restricted_initial_consonants: ["kː", "tː", "pː", "sː", "nː", "lː", "rː", "fː", "mː"]  # geminates never open a word (medial only), but may open a later syllable
 restricted_coda_consonants: [h, j, w]  # real Latin: h is onset-only; the glides (spelled i/u when consonantal) don't independently close a syllable -- their vocalic counterparts already model Latin's real diphthongs (ae/oe/au) as their own atomic symbols
 attested_onset_clusters:
   # Real, common Latin initial clusters -- illustrative, not exhaustive.
@@ -79,7 +80,7 @@ onset_frequency_tiers:
   very_common: [t, k, s, m, n]
   common: [p, b, d, g, l, r]
   uncommon: [f, h, j]
-  rare: [w]
+  rare: [w, "kː", "tː", "pː", "sː", "nː", "lː", "rː", "fː", "mː"]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [u, e, o]

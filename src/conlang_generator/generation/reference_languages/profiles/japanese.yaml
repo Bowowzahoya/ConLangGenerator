@@ -23,7 +23,8 @@ orthography_category: scholarly-macron-gemination-style
 # consonant letter -- both already the exact real convention this
 # existing category (built for Arabic) already marks; no new
 # architecture needed here either.
-restricted_onset_consonants: ["kː", "tː", "pː", "sː", "ɴ"]  # real Japanese gemination is never word-initial, the same real fact and same fix shape Italian's own geminate restriction already has
+restricted_onset_consonants: ["ɴ"]  # real Japanese gemination is never word-initial, the same real fact and same fix shape Italian's own geminate restriction already has
+restricted_initial_consonants: ["kː", "tː", "pː", "sː", "nː"]  # geminates never open a word (medial only), but may open a later syllable
 restricted_coda_consonants: [m, "ɾ", j, w]
 # coda_profile: sonorant above already limits codas to the sonority-based
 # sonorant class, but real native Japanese codas are only the moraic
@@ -49,7 +50,7 @@ onset_frequency_tiers:
   very_common: [k, t, s, n, m, h]
   common: [b, d, g, "ɾ", j, w, z]
   uncommon: ["tʃ", "dʒ", "ɕ", "ɸ", ts]
-  rare: [p, "nː"]  # real Japanese /p/ is famously rare word-initially in native vocabulary (largely loanwords/mimetic words) -- historically shifted to /h/ in most positions. The geminate series is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+  rare: [p, "nː", "kː", "tː", "pː", "sː"]  # real Japanese /p/ is famously rare word-initially in native vocabulary (largely loanwords/mimetic words) -- historically shifted to /h/ in most positions. The geminate series is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i, u]
   common: [e, o]

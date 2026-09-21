@@ -16,7 +16,8 @@ vowels: [a, i, u, "aː", "iː", "uː", "eː", "oː", ai, au, "r̩", "ã"]
 # e/o -- but see the orthography note below on how IAST still spells
 # them without a macron, since there's nothing to disambiguate from.
 coda_profile: unrestricted
-restricted_onset_consonants: ["tʃː", "tː", "nː", "dʒː", "jː"]  # geminates are word-medial only
+restricted_onset_consonants: []  # geminates are word-medial only
+restricted_initial_consonants: ["tʃː", "tː", "nː", "dʒː", "jː"]  # geminates never open a word (medial only), but may open a later syllable
 max_onset: 2
 max_coda: 2
 tonal: false
@@ -133,7 +134,7 @@ onset_frequency_tiers:
   very_common: [k, t, p, m, n, s, r]
   common: [g, d, b, "tʃ", "dʒ", "ʃ", l, v, j, h]
   uncommon: ["kʰ", "tʰ", "pʰ", "ʈ", "ɖ", "ɳ", "ɲ", "ŋ", "ʂ"]
-  rare: ["ɡʱ", "dʱ", "bʱ", "tʃʰ", "dʒʱ", "ʈʰ", "ɖʱ"]
+  rare: ["ɡʱ", "dʱ", "bʱ", "tʃʰ", "dʒʱ", "ʈʰ", "ɖʱ", "tʃː", "tː", "nː", "dʒː", "jː"]
 nucleus_frequency_tiers:
   very_common: [a, i, u]
   common: ["aː", "iː", "uː"]

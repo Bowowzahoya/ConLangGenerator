@@ -301,7 +301,7 @@ def test_arabic_jim_is_voiced_and_gemination_is_curated():
     assert "dʒ" in arabic.consonants
     assert "tʃ" not in arabic.consonants
     assert "kː" in arabic.consonants
-    assert "kː" in arabic.restricted_onset_consonants
+    assert "kː" in arabic.restricted_initial_consonants  # never word-initial, but opens later syllables
     assert arabic.orthography_category == "scholarly-macron-gemination-style"
 
 
@@ -664,7 +664,7 @@ def test_japanese_declares_real_gemination_and_long_vowels():
     japanese = next(p for p in REFERENCE_LANGUAGES if p.name == "Japanese")
     assert {"kː", "tː", "pː", "sː"} <= set(japanese.consonants)
     assert {"aː", "iː", "uː", "eː", "oː"} <= set(japanese.vowels)
-    assert set(japanese.restricted_onset_consonants) >= {"kː", "tː", "pː", "sː"}  # real gemination is never word-initial
+    assert set(japanese.restricted_initial_consonants) >= {"kː", "tː", "pː", "sː"}  # real gemination is never word-initial
     assert set(japanese.restricted_coda_consonants) == {"m", "ɾ", "j", "w"}  # only the moraic nasal (n) and a geminate's own first half genuinely close a native syllable
 
 
@@ -1624,9 +1624,10 @@ def test_spanish_no_longer_aliases_italian():
 
 def test_italian_profile_declares_its_own_onset_restrictions():
     italian = next(p for p in REFERENCE_LANGUAGES if p.name == "Italian")
-    assert set(italian.restricted_onset_consonants) == {
+    assert set(italian.restricted_initial_consonants) == {
         "kː", "tː", "pː", "sː", "nː", "lː", "mː", "rː", "fː", "tʃː", "bː", "tsː",
-    }  # every geminate is word-medial only
+    }  # every geminate is barred word-initially only; it opens later syllables (at.to)
+    assert italian.restricted_onset_consonants == ()  # nothing is barred from every onset
     assert "z" not in italian.restricted_onset_consonants  # intervocalic /z/ (casa, usare) opens the next syllable
     assert ("k", "w") in italian.attested_onset_clusters  # "quattro"
     assert ("t", "l") not in italian.attested_onset_clusters  # never a real Italian onset

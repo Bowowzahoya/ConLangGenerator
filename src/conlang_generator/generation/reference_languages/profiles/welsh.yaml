@@ -11,7 +11,8 @@ coda_profile: unrestricted
 max_onset: 2
 max_coda: 2  # real Welsh coda clusters exist (punt, gwallt, cerdd) but aren't as deep as onset-initial consonant mutation environments can get
 tonal: false
-restricted_onset_consonants: ["ŋ", "nː", "rː"]  # real Welsh /ŋ/ is medial/final only (cangen) -- never opens a native word
+restricted_onset_consonants: ["ŋ"]  # real Welsh /ŋ/ is medial/final only (cangen) -- never opens a native word
+restricted_initial_consonants: ["nː", "rː"]  # geminates never open a word (medial only), but may open a later syllable
 restricted_coda_consonants: ["r̥", w, j, h]  # real Welsh: rh is word/morpheme-initial only; w/j pattern as diphthong components, not independent codas (the same real fact already curated for several other languages here); h is onset-only, cross-linguistically typical for a glottal fricative
 attested_onset_clusters:
   # Real, common Welsh initial clusters -- illustrative, not exhaustive.
@@ -135,7 +136,7 @@ onset_frequency_tiers:
   very_common: [k, t, d, m, n, s, l, r]
   common: [p, b, g, f, v, h, w, j]
   uncommon: ["θ", "ð", x, "ɬ"]
-  rare: ["ʃ", "r̥"]
+  rare: ["ʃ", "r̥", "nː", "rː"]
 nucleus_frequency_tiers:
   very_common: [a, "ə", i]
   common: [u, e, o, "ɛ", "ɔ", "ɨ"]

@@ -48,7 +48,8 @@ orthography:
   # already uses.
   - {ipa: j, latin: j, weight: 0.75}
   - {ipa: j, latin: ly, weight: 0.25}
-restricted_onset_consonants: ["lː", "rː", "tː", "zː", "sː", "ʃː", "ɲː", "jː", "gː", "ŋ"]  # a palatal nasal is cross-linguistically onset-only, same fact already curated for the Germanic profiles' /ŋ/
+restricted_onset_consonants: ["ŋ"]  # a palatal nasal is cross-linguistically onset-only, same fact already curated for the Germanic profiles' /ŋ/
+restricted_initial_consonants: ["lː", "rː", "tː", "zː", "sː", "ʃː", "ɲː", "jː", "gː"]  # geminates never open a word (medial only), but may open a later syllable
 attested_onset_clusters:
   # Real, common Hungarian onset clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive. Real Hungarian native
@@ -107,7 +108,7 @@ onset_frequency_tiers:
   very_common: [p, t, k, s, v, m]
   common: [b, d, g, f, n, r, h, j]
   uncommon: [c, "ɟ", ts, "ʃ", z, l, "ɲ"]
-  rare: [dz, "tʃ", "dʒ", "ʒ"]  # /ɲ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+  rare: [dz, "tʃ", "dʒ", "ʒ", "lː", "rː", "tː", "zː", "sː", "ʃː", "ɲː", "jː", "gː"]  # /ɲ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, "ɛ"]
   common: [i, o, u, "ɔ"]

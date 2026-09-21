@@ -7,7 +7,8 @@ max_onset: 2
 tonal: false
 orthography_category: scholarly-macron-style
 restricted_coda_consonants: ["ɦ"]  # real Hindi ह /ɦ/ never closes a syllable
-restricted_onset_consonants: ["ɳ", "ɽ", "nː", "ʈː", "sː", "ɖː", "lː", "bː", "ŋ"]  # real Hindi retroflex ɳ never opens a native word -- medial/final only, the same real fact already curated for Tamil's own ɳ
+restricted_onset_consonants: ["ɳ", "ɽ", "ŋ"]  # real Hindi retroflex ɳ never opens a native word -- medial/final only, the same real fact already curated for Tamil's own ɳ
+restricted_initial_consonants: ["nː", "ʈː", "sː", "ɖː", "lː", "bː"]  # geminates never open a word (medial only), but may open a later syllable
 attested_onset_clusters:
   # Real, common Hindi onset clusters -- mostly Sanskrit-derived tatsam
   # vocabulary, restricted to symbols this profile models -- illustrative,
@@ -106,7 +107,7 @@ onset_frequency_tiers:
   very_common: [k, p, t, d, s, m, n, h]
   common: [b, g, "tʃ", "dʒ", j, v, l, r]
   uncommon: ["ʃ", "pʰ", "tʰ", "kʰ", "ʈ", "ɖ", z, f]
-  rare: ["bʱ", "dʱ", "ɡʱ", "ɦ", "tʃʰ", "ʈʰ", "dʒʱ", "ɖʱ"]  # /ɳ/ and the retroflex flap /ɽ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+  rare: ["bʱ", "dʱ", "ɡʱ", "ɦ", "tʃʰ", "ʈʰ", "dʒʱ", "ɖʱ", "nː", "ʈː", "sː", "ɖː", "lː", "bː"]  # /ɳ/ and the retroflex flap /ɽ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i, u]
   common: ["aː", "iː", "uː", e, o]

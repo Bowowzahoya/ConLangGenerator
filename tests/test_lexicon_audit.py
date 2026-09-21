@@ -323,7 +323,7 @@ def test_basque_danish_polish_italian_russian_and_old_norse_lexicons_fit_their_p
         assert not audit.off_inventory, (name, audit.off_symbols)
         assert audit.flagged_rate <= limit, (name, audit.flagged_rate)
     by_name = {p.name: p for p in REFERENCE_LANGUAGES}
-    assert "tsː" in by_name["Italian"].restricted_onset_consonants and "ts" in by_name["Italian"].consonants
+    assert "tsː" in by_name["Italian"].restricted_initial_consonants and "ts" in by_name["Italian"].consonants
     assert "z" not in by_name["Italian"].restricted_onset_consonants
     from conlang_generator.generation.reference_languages.real_lexicon import real_words
 
@@ -419,3 +419,26 @@ def test_old_norse_and_russian_carry_their_four_consonant_runs():
     by_name = {p.name: p for p in REFERENCE_LANGUAGES}
     assert ("r", "s", "t", "r") in by_name["Old Norse"].attested_coda_quads  # þyrstr
     assert ("f", "s", "t", "rʲ") in by_name["Russian"].attested_onset_quads  # vstretit'
+
+
+def test_every_geminate_profile_bars_word_initial_geminates_only():
+    import random
+
+    from conlang_generator.generation import phonology_gen, word_builder
+
+    migrated = ("Italian", "Latin", "Arabic", "Hungarian", "Icelandic", "Old Norse", "Ancient Greek", "Japanese", "Turkish", "Welsh")
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    for name in migrated:
+        profile = by_name[name]
+        assert any(s.endswith("ː") for s in profile.restricted_initial_consonants), name
+        assert not any(s.endswith("ː") for s in profile.restricted_onset_consonants), name  # no longer barred everywhere
+        spec = GenerationSpec(prompt="p", seed=2, traits=TraitProfile(source_languages=(name,), source_language_strictness=1.0))
+        inventory, structure, _, _ = phonology_gen.generate_phonology(random.Random(2), spec)
+        geminates = tuple(c.ipa for c in inventory.consonants if c.long)
+        if not geminates:
+            continue
+        rng = random.Random(1)
+        words = [word_builder.build_word(rng, inventory, structure, rng.choice((1, 2, 3))) for _ in range(300)]
+        assert not any(w.lstrip("ˈ").startswith(geminates) for w in words), name
+        if not profile.final_geminates:
+            assert not any(w.endswith(geminates) for w in words), name

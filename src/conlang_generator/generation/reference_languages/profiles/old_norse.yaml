@@ -4,7 +4,8 @@ consonants: [p, b, t, d, k, g, f, v, "θ", "ð", s, h, m, n, l, r, j, "sː", "k�
 vowels: [a, e, i, o, u, y, "æ", "ø", "aː", "eː", "iː", "oː", "uː", "yː", "æː", "øː", au, ei, "œy"]
 final_geminates: true  # steinn, hverr, fall: real word-final geminates
 coda_profile: unrestricted
-restricted_onset_consonants: ["sː", "kː", "rː", "mː", "tː", "lː", "gː", "nː", "pː", "dː", "ŋ"]  # geminates are word-medial only
+restricted_onset_consonants: ["ŋ"]  # geminates are word-medial only
+restricted_initial_consonants: ["sː", "kː", "rː", "mː", "tː", "lː", "gː", "nː", "pː", "dː"]  # geminates never open a word (medial only), but may open a later syllable
 max_onset: 2
 max_coda: 2  # real Old Norse coda clusters exist (land, kaldr, fyrst, bjǫrn)
 tonal: false
@@ -145,7 +146,7 @@ onset_frequency_tiers:
   very_common: [k, t, s, m, n]
   common: [f, v, "ð", l, r, h]
   uncommon: [p, b, d, g, j]
-  rare: ["θ"]
+  rare: ["θ", "sː", "kː", "rː", "mː", "tː", "lː", "gː", "nː", "pː", "dː"]
 nucleus_frequency_tiers:
   very_common: [a, i, e]
   common: [u, o, y, "æ"]

@@ -21,7 +21,8 @@ word_classes:
   - {name: "masculine (unmarked)", pos: noun, prevalence: 0.65}
   - {name: "feminine (-a)", pos: noun, suffix: [a], prevalence: 0.35}
 word_class_deviation_rate: 0.15  # illustrative -- the -a marker is a strong, reliable real signal, but real natural-gender feminine nouns without it exist too (umm "mother", arḍ "land")
-restricted_onset_consonants: ["kː", "tː", "sː", "nː", "lː", "mː", "jː", "rː", "dː", "bː", "dˤː", "sˤː", "qː", "fː", "wː", "tˤː", "zː", "zˤː"]  # real Arabic shadda (gemination) is a medial/intervocalic phenomenon -- a word never *starts* with a geminated consonant, same fact already curated for Finnish's own geminates
+restricted_onset_consonants: []  # real Arabic shadda (gemination) is a medial/intervocalic phenomenon -- a word never *starts* with a geminated consonant, same fact already curated for Finnish's own geminates
+restricted_initial_consonants: ["kː", "tː", "sː", "nː", "lː", "mː", "jː", "rː", "dː", "bː", "dˤː", "sˤː", "qː", "fː", "wː", "tˤː", "zː", "zˤː"]  # geminates never open a word (medial only), but may open a later syllable
 restricted_coda_consonants: [j, w]  # real Arabic coda /j//w/ (bayt "house", yawm "day") form a diphthong with the preceding vowel rather than closing the syllable as a true consonant -- same real fact already curated for English's own restricted_coda_consonants
 attested_coda_clusters:
   # Real, common Arabic coda clusters, restricted to symbols this
@@ -150,7 +151,7 @@ onset_frequency_tiers:
   very_common: [t, k, m, n, s, l, r, b]
   common: [d, f, h, q, w, j, z, "ʔ"]
   uncommon: [x, "ɣ", "ʃ", "dʒ", "θ", "ð", "ħ", "ʕ"]
-  rare: ["tˤ", "dˤ", "sˤ", "ðˤ", "zˤ", "lˤ"]  # the geminate series, this position's only other candidates, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+  rare: ["tˤ", "dˤ", "sˤ", "ðˤ", "zˤ", "lˤ", "kː", "tː", "sː", "nː", "lː", "mː", "jː", "rː", "dː", "bː", "dˤː", "sˤː", "qː", "fː", "wː", "tˤː", "zː", "zˤː"]  # the geminate series, this position's only other candidates, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [u, "aː"]

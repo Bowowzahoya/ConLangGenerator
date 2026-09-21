@@ -3,7 +3,8 @@ aliases: ["türkçe"]
 consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", "ʒ", "ɣ", h, m, n, l, r, j, "nː", "kː", "sː", "mː", "lː"]
 vowels: [i, y, "ɯ", u, e, "ø", a, o]
 coda_profile: unrestricted
-restricted_onset_consonants: ["nː", "kː", "sː", "mː", "lː"]  # geminates are word-medial only
+restricted_onset_consonants: []  # geminates are word-medial only
+restricted_initial_consonants: ["nː", "kː", "sː", "mː", "lː"]  # geminates never open a word (medial only), but may open a later syllable
 max_onset: 1
 tonal: false
 vowel_harmony: true
@@ -52,7 +53,7 @@ onset_frequency_tiers:
   very_common: [t, k, m, n, s, l, r, b]
   common: [d, g, f, v, h, j, z, p]
   uncommon: ["ʃ", "tʃ", "dʒ", "ʒ", "ɣ"]
-  rare: []
+  rare: ["nː", "kː", "sː", "mː", "lː"]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [e, u]

@@ -3,7 +3,8 @@ aliases: [farsi]
 consonants: [p, b, t, d, k, g, q, "tʃ", "dʒ", f, v, s, z, "ʃ", "ʒ", x, "ɣ", h, m, n, l, r, j, "dː", "kː", "pː", "rː", "lː", "nː", "ʔ"]
 vowels: [i, e, a, o, u, "aː", "iː", "uː"]
 coda_profile: unrestricted
-restricted_onset_consonants: ["dː", "kː", "pː", "rː", "lː", "nː"]  # geminates are word-medial only
+restricted_onset_consonants: []  # geminates are word-medial only
+restricted_initial_consonants: ["dː", "kː", "pː", "rː", "lː", "nː"]  # geminates never open a word (medial only), but may open a later syllable
 max_onset: 1
 max_coda: 2  # real Persian words end in up to two consonants (dast, mard, gorg)
 tonal: false
@@ -85,7 +86,7 @@ onset_frequency_tiers:
   very_common: [p, t, k, b, d, s, m, n]
   common: [g, f, v, z, "ʃ", h, l, r, j]
   uncommon: ["tʃ", "dʒ", x]
-  rare: [q, "ɣ", "ʒ", "ʔ"]
+  rare: [q, "ɣ", "ʒ", "ʔ", "dː", "kː", "pː", "rː", "lː", "nː"]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [e, o, u, "iː", "uː"]

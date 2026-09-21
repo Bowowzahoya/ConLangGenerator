@@ -288,6 +288,6 @@ was done.)*
   see section 7.
 
 
-- **Migrate the other geminate profiles to the initial-only restriction (S).** Only Finnish and Basque
-  use `restricted_initial_consonants`; Italian, Latin, Arabic, Hungarian, Icelandic, Old Norse, Greek, ...
-  still bar geminates from every onset, so they are only ever coda-position in generated words.
+- **Initial-only restriction for geminates (done).** Every profile that barred geminates from all onsets
+  now bars them from word-initial position only (`restricted_initial_consonants`); Tamil, Nahuatl, Sumerian,
+  Swahili and Hawaiian, which never barred them, still allow word-initial geminates.

@@ -204,8 +204,11 @@ sequences in Finnish, and nasal-vowel spellings in French.
 (`excluded_initial_onset_consonants`, profile `restricted_initial_consonants`) replaces the all-onset ban for
 Finnish geminates -- they may open a later syllable (*kan.sːa*, *hel.pːo*) but never a word -- and Basque `ɾ`.
 Finnish went 2% -> 0%. Still flagged: Finnish *-sta* and *myrsky*, Old Norse *verkfæri*, Polish *ssać*, and
-the other one-off words, plus French nasal-vowel spellings. Other geminate profiles (Italian, Latin, Arabic,
-Hungarian, ...) still use the older all-onset ban and could migrate to the initial-only field.
+the other one-off words, plus French nasal-vowel spellings. The other geminate profiles (Ancient Greek, Arabic, Bengali, Hindi,
+Hungarian, Icelandic, Italian, Japanese, Latin, Old Norse, Persian, Sanskrit, Turkish, Welsh) now use the same
+initial-only field: their geminates are barred from opening a word, not from every onset, so they also occur as
+the onset of a later syllable (Italian *at.to*, Old Norse *nn.a*). The geminates moved into each profile's
+`onset_frequency_tiers` (rare).
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet

@@ -35,7 +35,8 @@ word_classes:
   - {name: "-ō (thematic)", pos: verb, suffix: ["ɔː"], prevalence: 0.9}
   - {name: "-mi (athematic)", pos: verb, suffix: [m, i], prevalence: 0.1}
 word_class_deviation_rate: 0.3  # illustrative -- this profile models only 2 of Greek's real 3 declensions, so a real 3rd-declension (consonant-stem) noun shows up here as an "irregular exception" relative to the simplified model, the same reasoning Latin's own higher-than-French/Portuguese rate already uses
-restricted_onset_consonants: ["lː", "nː", "sː", "tː", "mː", "pː"]  # real Greek gemination (ἄλλος, θάλαττα) is medial/intervocalic only, the same real fact and fix shape every other geminate-modeling profile here already uses
+restricted_onset_consonants: []  # real Greek gemination (ἄλλος, θάλαττα) is medial/intervocalic only, the same real fact and fix shape every other geminate-modeling profile here already uses
+restricted_initial_consonants: ["lː", "nː", "sː", "tː", "mː", "pː"]  # geminates never open a word (medial only), but may open a later syllable
 restricted_final_coda_consonants: [p, b, "pʰ", t, d, "tʰ", k, g, "kʰ", z, m, l, "lː", "nː", "sː", "tː", "mː", "pː"]  # real Greek words end only in n r s (plus ks/ps): a stop or m/l closes a syllable medially, never a word
 restricted_coda_consonants: [h]  # h is onset-only; every other consonant may close a syllable inside a word (pt, kt, ks, mn) -- see restricted_final_coda_consonants
 # Real Attic Greek word-final consonants are a genuinely small, closed
@@ -107,7 +108,7 @@ onset_frequency_tiers:
   very_common: [t, k, p, m, n, s]
   common: [d, g, b, l, r, h]
   uncommon: ["tʰ", "kʰ", "pʰ", z]
-  rare: []  # the geminate series is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
+  rare: ["lː", "nː", "sː", "tː", "mː", "pː"]  # the geminate series is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
 nucleus_frequency_tiers:
   very_common: [a, i, e]
   common: [o, y, "aː"]
