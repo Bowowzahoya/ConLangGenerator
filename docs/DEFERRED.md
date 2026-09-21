@@ -13,10 +13,10 @@ multi-session feature.
 
 ## 1. Sounds and phonology
 
-- **Spanish spirantization in the profile (S).** The lexicon writes `β ð ɣ`
-  between vowels, but the Spanish profile lists only `b d g`. Adding them
-  needs onset/coda tier entries and restrictions (they never open a word
-  after a pause) plus orthography rules.
+- **Spanish spirantization (decided, S).** The lexicon is now phonemic (`b d g`);
+  the surface allophones `β ð ɣ` stay out of the profile, since invented words
+  would place them word-initially. Revisit only with a positional-allophone
+  mechanism (intervocalic-only sounds).
 - **Russian palatalization gaps (M).** No `ʃʲ`/`ʒʲ`/`gʲ`, no hard/soft `l`
   contrast (`ɫ`), no long `ɕː` for щ (written `ɕ`), and vowel reduction
   (akan'e) is only partly reflected in the lexicon transcriptions.
