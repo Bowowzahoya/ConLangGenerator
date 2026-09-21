@@ -39,12 +39,13 @@ multi-session feature.
   prenasalized `ŋg` eat the start of `ŋ` + `gʱ`. IPA typed with U+0261 by a user or an LLM is not
   normalized on input yet.
 - **Onset/coda clusters cap at 2 consonants (done).** Curated triples and quads for strict profiles.
-- **Stress and pitch accent in real words (mostly done).** 37 lexicons carry stress marks or pitch accent
+- **Stress and pitch accent in real words (mostly done).** 40 lexicons carry stress marks, pitch accent or stød
   (see `LEXICON_AUDIT.md`): Japanese and Ancient Greek carry H/L pitch accent, Serbo-Croatian the stress
   position plus the four-way accent on 151 words. Arabic, Basque, Georgian, Hawaiian and Hindi use best-effort
   position/weight rules. Still open: (a) Serbo-Croatian's length and pitch for the other 233 words (their stress
-  is the default initial, unverified); (b) Danish stød and the Swedish/Norwegian tonal accents, Sanskrit's Vedic
-  accent; (c) the ~9% of Japanese and ~4% of Ancient Greek polysyllables left unmarked; (d) fixed-pattern
+  is the default initial, unverified); (b) Danish stød and the Swedish/Norwegian accents use each profile's default rule (monosyllable/heaviness,
+  final stress), not per-word data -- lexical exceptions (Swedish *anden*, -el/-en/-er words, compounds, stød on
+  polysyllabic inflected forms) are unknown; Sanskrit's Vedic accent; (c) the ~9% of Japanese and ~4% of Ancient Greek polysyllables left unmarked; (d) fixed-pattern
   languages ignore their real exceptions (loanwords, verbs) -- an `exceptions` pass per language would refine
   them; (e) secondary stress is not marked anywhere; (f) vowel harmony is absent from the real words.
 - **Korean assimilation and Hindi schwa deletion (L)** *(known limitation)* —

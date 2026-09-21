@@ -336,6 +336,75 @@ def with_sc_accent(ipa: str, syllable: int, long: bool | None = None) -> str:
     return "".join(out)
 
 
+# Danish stød: the consonants after a short vowel that make a syllable "heavy" (with r vocalized
+# and ð/v/j/w approximants), and the function words that never take it
+_DANISH_SONORANTS = frozenset({"n", "m", "ŋ", "l", "ʁ", "ð", "v", "j", "w"})
+_DANISH_NO_STOD = frozenset(
+    "jeg du han hun vi de den det og i på til fra med for af om hvis når hvor hvem hvad ved at som".split()
+)
+
+
+def stod_applies(ipa: str, spelling: str) -> bool:
+    """Whether a Danish monosyllable takes stød: a heavy syllable (a long vowel or diphthong, or a
+    short vowel + a sonorant coda) that is not a function word. Polysyllabic lemma forms are left
+    without it (stød on a polysyllable is a property of its inflected forms: *mand* + *-en*)."""
+    name = "Danish"
+    toks = tokens(ipa, name)
+    nuclei = _nuclei(toks)
+    if len(nuclei) != 1 or spelling.lower() in _DANISH_NO_STOD:
+        return False
+    nucleus = toks[nuclei[0]][0]
+    coda = [s for s, _ in toks[nuclei[0] + 1:] if not _is_vowel(s)]
+    long_vowel = "ː" in nucleus or (nuclei[0] + 1 < len(toks) and _is_vowel(toks[nuclei[0] + 1][0]))
+    return long_vowel or (bool(coda) and coda[-1] in _DANISH_SONORANTS)
+
+
+def with_stod(ipa: str, spelling: str) -> str:
+    """``ipa`` with the glottalization mark after its syllable when the word takes stød."""
+    name = "Danish"
+    toks = [(s, d) for s, d in tokens(ipa, name)]
+    plain = "".join(s + d for s, d in toks)
+    if not stod_applies(plain, spelling):
+        return plain
+    return plain + WORD_ACCENT_MARK
+
+
+def with_scandinavian_accent(ipa: str, name: str) -> str:
+    """Swedish/Norwegian word accent as the project encodes it: a High diacritic on the accented
+    syllable's vowel for accent 1, a Low one for accent 2. The accented syllable is the stressed
+    one (the word's first for a monosyllable). Accent 1 for a monosyllable or a word stressed on
+    its last syllable, accent 2 otherwise -- the profile's own ``underived_monosyllable`` default.
+    Real polysyllables have lexical exceptions (*anden*, and words in unstressed -el/-en/-er) that
+    this does not know."""
+    from conlang_generator.core.phonology import ToneLevel
+
+    stress = stressed_syllable(ipa, name)
+    toks = tokens(ipa, name)
+    starts = syllable_starts(toks, name)
+    accented = stress if stress is not None else 0
+    accented = min(accented, len(starts) - 1)
+    accent_one = len(starts) == 1 or accented == len(starts) - 1
+    mark = TONE_DIACRITICS[ToneLevel.HIGH if accent_one else ToneLevel.LOW]
+    end = starts[accented + 1] if accented + 1 < len(starts) else len(toks)
+    vowel = next(i for i in range(starts[accented], end) if _is_vowel(toks[i][0]))
+    out = []
+    for i, (s, d) in enumerate(toks):
+        out.append((STRESS_MARK if stress is not None and i == starts[stress] else "") + s + (mark if i == vowel else d))
+    return "".join(out)
+
+
+def scandinavian_accent(ipa: str, name: str) -> int | None:
+    """The word accent (1 or 2) a Swedish/Norwegian word carries, read from its High/Low mark."""
+    from conlang_generator.core.phonology import ToneLevel
+
+    marks = "".join(deco for _, deco in tokens(ipa, name))
+    if TONE_DIACRITICS[ToneLevel.HIGH] in marks:
+        return 1
+    if TONE_DIACRITICS[ToneLevel.LOW] in marks:
+        return 2
+    return None
+
+
 def coverage(name: str) -> tuple[int, int]:
     """``(marked, polysyllabic)``: how many polysyllabic words carry a stress mark or a
     pitch-accent pattern (Japanese, Ancient Greek)."""
@@ -343,5 +412,8 @@ def coverage(name: str) -> tuple[int, int]:
     for _, ipa in real_words(name).values():
         if syllable_count(ipa, name) > 1:
             total += 1
-            marked += STRESS_MARK in ipa or pitch_pattern(ipa, name) is not None
+            marked += (
+                STRESS_MARK in ipa or pitch_pattern(ipa, name) is not None
+                or (name in ("Swedish", "Norwegian") and scandinavian_accent(ipa, name) is not None)
+            )
     return marked, total

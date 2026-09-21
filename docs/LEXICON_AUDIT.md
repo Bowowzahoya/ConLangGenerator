@@ -59,6 +59,15 @@ How each language's marks were produced:
   hand-forced circumflexes where the lexicon does not show length (*sitos*, *mythos*, *pilos*, *pragma*, *houtos*,
   *hēmeis*). Every accent sits in the last three syllables (the trimoric law); vowel length that the lexicon does not
   write (α ι υ) limits the circumflex rule.
+* **Danish stød and the Swedish/Norwegian word accents:** encoded as generated words carry them (the glottalization
+  mark `ˀ` after the rime; a High or Low diacritic on the stressed vowel). **This applies each profile's own default,
+  not word-by-word data.** Danish: a monosyllable takes stød when its syllable is heavy (a long vowel or diphthong,
+  or a short vowel + `n m ŋ l ʁ ð v j w`) unless it is a function word (*jeg du han hun den det og ...*); polysyllabic
+  lemma forms take none. Swedish/Norwegian: accent 1 (High) on a monosyllable or a word stressed on its last syllable,
+  accent 2 (Low) on the stressed syllable of any other word. The real systems are lexical for polysyllables (Swedish
+  *anden* "duck" vs "spirit", the reduced -el/-en/-er endings, compounds), and Danish stød also occurs on
+  polysyllabic inflected forms and on transcribed short vowels the lexicon writes without length (*træ*) -- none of
+  that is known here.
 * **Serbo-Croatian:** a stress mark on every polysyllable, and the four-way Neo-Stokavian accent (short/long x
   falling/rising, falling only on the first syllable) on the 151 words whose length I knew. **The other 233 are
   position only, and their position is the default initial stress** -- correct for most (a Neo-Stokavian
@@ -126,7 +135,7 @@ Yoruba          -                                      24        85
 Zulu            -                                       0        80
 ```
 
-Not covered: Sanskrit (Vedic accent), Danish stød, the Swedish/Norwegian tonal accents, and every tonal language
+Not covered: Sanskrit (Vedic accent), and every tonal language
 (which mark tone, not stress).
 
 ## Loanwords

@@ -207,3 +207,30 @@ def test_serbo_croatian_has_stress_everywhere_and_the_four_way_accent_where_know
         before = ipa[: ipa.index("ˈ")] if "ˈ" in ipa else ""
         if before:
             assert "̏" not in ipa and "̂" not in ipa, ipa
+
+
+def test_danish_stod_marks_heavy_monosyllables_but_not_function_words_or_polysyllables():
+    from conlang_generator.core.romanization import WORD_ACCENT_MARK
+
+    danish = {spelling: ipa for spelling, ipa in real_words("Danish").values()}
+    for heavy in ("vand", "ild", "sol", "sten", "hånd", "barn", "god"):
+        assert danish[heavy].endswith(WORD_ACCENT_MARK), heavy  # a long vowel, or a short vowel + a sonorant
+    for plain in ("jeg", "du", "han", "den", "og", "fisk"):
+        assert WORD_ACCENT_MARK not in danish[plain], plain  # function words; a short vowel + an obstruent
+    polysyllables = [ipa for ipa in danish.values() if real_stress.syllable_count(ipa, "Danish") > 1]
+    assert polysyllables and not any(WORD_ACCENT_MARK in ipa for ipa in polysyllables)
+    assert real_stress.stod_applies("man", "mand") and not real_stress.stod_applies("mat", "mat")
+
+
+def test_swedish_and_norwegian_accent_follows_the_profile_default():
+    for name in ("Swedish", "Norwegian"):
+        words = {spelling: ipa for spelling, ipa in real_words(name).values()}
+        assert real_stress.scandinavian_accent(words["sten" if name == "Swedish" else "stein"], name) == 1  # a monosyllable: accent 1
+        polysyllables = [ipa for ipa in words.values() if real_stress.syllable_count(ipa, name) > 1]
+        two = [ipa for ipa in polysyllables if real_stress.scandinavian_accent(ipa, name) == 2]
+        assert len(two) / len(polysyllables) > 0.8  # accent 2 unless the stress falls on the last syllable
+        for ipa in polysyllables:
+            accent = real_stress.scandinavian_accent(ipa, name)
+            assert accent == (1 if real_stress.stressed_syllable(ipa, name) == real_stress.syllable_count(ipa, name) - 1 else 2), ipa
+    assert real_stress.scandinavian_accent("ˈfoː̀gɛl", "Swedish") == 2
+    assert real_stress.scandinavian_accent(real_stress.with_scandinavian_accent("förˈstoː", "Swedish"), "Swedish") == 1  # final stress
