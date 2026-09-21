@@ -1,9 +1,9 @@
 name: Hebrew
 aliases: ["ivrit"]
-consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", x, h, m, n, l, "ʁ", j, w, "ʔ", "ʕ", q, "tˤ", "sˤ"]
+consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", x, h, m, n, l, "ʁ", j, w, "ʔ", "ʕ", q, "tˤ", "sˤ", ts]
 vowels: [a, e, i, o, u, "aː", "eː", "iː", "oː", "uː"]
 coda_profile: unrestricted
-max_onset: 1
+max_onset: 2
 max_coda: 1  # see the segolate comment below -- real native Hebrew coda clusters are rare/avoided, not a productive modern pattern
 tonal: false
 root_and_pattern: true
@@ -54,7 +54,7 @@ core_vocabulary_average_syllables: 1.5  # hand-counted across this project's own
 onset_frequency_tiers:
   very_common: [t, k, m, n, s, l, b, "ʁ"]
   common: [p, d, g, f, v, h, z, j]
-  uncommon: ["ʃ", x, w, "ʔ", "ʕ", q]
+  uncommon: ["ʃ", x, w, "ʔ", "ʕ", q, ts]
   rare: ["tˤ", "sˤ"]
 nucleus_frequency_tiers:
   very_common: [a, e]
@@ -64,8 +64,49 @@ nucleus_frequency_tiers:
 coda_frequency_tiers:
   very_common: [t, n, m, s, l, "ʁ"]
   common: [k, b, d, f, v, z, x, "ʔ"]
-  uncommon: [p, g, h, "ʃ", "ʕ", q, j, w]
+  uncommon: [p, g, h, "ʃ", "ʕ", q, j, w, ts]
   rare: ["tˤ", "sˤ"]
 stress_pattern: final  # real Modern Hebrew: robustly word-final by default (milra) -- a distinctive fact unlike most European languages
 stress_deviation_rate: 0.28  # illustrative -- real penultimate ("milel") stress is a substantial minority class, not just a handful of loanword exceptions, so this sits meaningfully higher than a typical exceptions-only rate
 stress_driven_vowel_reduction: false  # real Modern Hebrew: keeps comparatively full vowel quality regardless of stress
+
+attested_onset_clusters:
+  # Hebrew initial clusters found by `conlang audit-lexicons`
+  - ["ʃ", n]
+  - ["ʃ", l]
+  - ["ʃ", m]
+  - ["ʃ", v]
+  - ["ʃ", "ʁ"]
+  - [s, m]
+  - [s, l]
+  - [s, v]
+  - [z, m]
+  - [z, "ʁ"]
+  - [b, l]
+  - [b, "ʁ"]
+  - [p, l]
+  - [p, "ʁ"]
+  - [k, l]
+  - [k, "ʁ"]
+  - [g, l]
+  - [g, "ʁ"]
+  - [t, "ʁ"]
+  - [d, "ʁ"]
+  - [d, v]
+  - [t, m]
+  - [t, v]
+  - [k, v]
+  - [k, f]
+  - [ts, l]
+  - [ts, f]
+  - [f, "ʁ"]
+  - [v, "ʁ"]
+  - [x, "ʁ"]
+  - [x, l]
+  - [x, m]
+  - [x, n]
+  - [s, p]
+  - [s, t]
+  - [s, k]
+  - ["ʃ", t]
+  - ["ʃ", k]

@@ -3,7 +3,7 @@ name: Japanese
 # list) doesn't belong in its consonant inventory the way it does in,
 # say, Arabic or Hawaiian; removed as a genuine correction, not a
 # stylistic change.
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", m, n, s, "ɕ", h, z, "ɾ", j, w, "kː", "tː", "pː", "sː", "ɸ", "ɴ", "nː"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", m, n, s, "ɕ", h, z, "ɾ", j, w, "kː", "tː", "pː", "sː", "ɸ", "ɴ", "nː", ts]
 # Real Japanese sokuon (っ) productively geminates a following voiceless
 # obstruent (がっこう "gakkō" school, きって "kitte" stamp) -- the shared
 # `kː`/`tː`/`pː`/`sː` geminate pool, real and solidly attested for these
@@ -16,7 +16,7 @@ vowels: [i, a, u, e, o, "aː", "iː", "uː", "eː", "oː"]
 # to mark both together, and it would be an incomplete account of real
 # Japanese phonology to model one without the other.
 coda_profile: sonorant
-max_onset: 1
+max_onset: 2
 tonal: false
 orthography_category: scholarly-macron-gemination-style
 # Real Hepburn: long vowels via macron (ā/ī/ū/ē/ō), sokuon via a doubled
@@ -48,7 +48,7 @@ core_vocabulary_average_syllables: 2.39  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [k, t, s, n, m, h]
   common: [b, d, g, "ɾ", j, w, z]
-  uncommon: ["tʃ", "dʒ", "ɕ", "ɸ"]
+  uncommon: ["tʃ", "dʒ", "ɕ", "ɸ", ts]
   rare: [p, "nː"]  # real Japanese /p/ is famously rare word-initially in native vocabulary (largely loanwords/mimetic words) -- historically shifted to /h/ in most positions. The geminate series is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i, u]
@@ -89,3 +89,15 @@ real_has_overt_copula: false         # real Japanese i-adjective predicates need
 real_adjective_after_noun: false     # real Japanese attributive adjectives precede the noun (takai yama = "tall mountain")
 real_case_count: null                # real Japanese marks grammatical relations with postpositional particles (ga/wo/no/ni/de), not fused inflectional case suffixes -- genuinely different enough from the case systems this field otherwise describes to honestly abstain rather than force a count
 foreign_name_handling: adapt      # katakana rendering fits names to Japanese syllable structure
+
+attested_onset_clusters:
+  # palatalized-mora onsets (kya, ryo, ...)
+  - [k, j]
+  - ["ɾ", j]
+  - [b, j]
+  - [g, j]
+  - [n, j]
+  - [h, j]
+  - [m, j]
+  - [p, j]
+  - [z, j]

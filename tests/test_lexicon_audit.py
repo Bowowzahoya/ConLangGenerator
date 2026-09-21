@@ -305,3 +305,13 @@ def test_khmer_nama_sumerian_navajo_and_arawakan_lexicons_fit_their_profiles():
     assert "tʃ" not in by_name["Khmer"].restricted_coda_consonants  # final -ch
     assert "g" in by_name["Arawakan"].consonants
     assert "d" not in by_name["Navajo"].consonants  # Navajo d is the unaspirated /t/, written d
+
+
+def test_quechua_hebrew_pama_nyungan_and_japanese_lexicons_fit_their_profiles():
+    for name in ("Quechua", "Hebrew", "Pama-Nyungan", "Japanese"):
+        (audit,) = lexicon_audit.audit_all((name,))
+        assert audit.flagged == 0, (name, audit.off_symbols, audit.illegal_runs)
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert "tʃʼ" in by_name["Quechua"].consonants and set(by_name["Quechua"].vowels) == {"a", "i", "u"}  # e o are allophones
+    assert "ts" in by_name["Hebrew"].consonants and "ts" in by_name["Japanese"].consonants
+    assert ("k", "j") in by_name["Japanese"].attested_onset_clusters  # kya, kyo

@@ -1,11 +1,11 @@
 name: Quechua
 aliases: [runasimi]
-consonants: [p, "pʰ", "pʼ", t, "tʰ", "tʼ", k, "kʰ", "kʼ", q, "tʃ", s, "ʃ", h, m, n, "ɲ", l, "lʲ", r, w, j]
+consonants: [p, "pʰ", "pʼ", t, "tʰ", "tʼ", k, "kʰ", "kʼ", q, "tʃ", s, "ʃ", h, m, n, "ɲ", l, "lʲ", r, w, j, "tʃʼ"]
 vowels: [a, i, u]
 coda_profile: unrestricted
 max_onset: 1
 max_coda: 1  # real Quechua's syllable template is maximally (C)V(C) -- coda position never holds more than one consonant
-restricted_coda_consonants: ["pʼ", "tʼ", "kʼ", "pʰ", "tʰ", "kʰ"]
+restricted_coda_consonants: ["pʼ", "tʼ", "kʼ", "pʰ", "tʰ", "kʰ", "tʃʼ"]
 # Real, citable coda restriction: the whole ejective/aspirated series is
 # onset-only in Quechua -- it never closes a syllable, distinct from
 # the plain series (p/t/k), which freely does.
@@ -41,7 +41,7 @@ onset_frequency_tiers:
   very_common: [k, t, m, n, s, r, w]
   common: [p, q, "tʃ", l, j, h]
   uncommon: ["pʰ", "tʰ", "kʰ", "ɲ", "lʲ"]
-  rare: ["pʼ", "tʼ", "kʼ", "ʃ"]
+  rare: ["pʼ", "tʼ", "kʼ", "ʃ", "tʃʼ"]
 nucleus_frequency_tiers:
   very_common: [a]
   common: [i]

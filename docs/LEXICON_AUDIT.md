@@ -23,10 +23,6 @@ language can say which.
 ```
 language         words  off-profile  structure  flagged
 Sanskrit           494            3         66     14% 
-Japanese           494           11         43     11% 
-Hebrew             494            8         44     11% 
-Quechua            412           42          0     10% 
-Pama-Nyungan        61            1          5     10% 
 Polish             494            1         25      5% 
 Italian            494            0         25      5% 
 Basque             494            7         16      5% 
@@ -66,10 +62,14 @@ Spanish            494            0          1      0%
 Arawakan            49            0          0      0% 
 Cantonese          494            0          0      0% 
 English            494            0          0      0% 
+Hebrew             494            0          0      0% 
+Japanese           494            0          0      0% 
 Khmer               52            0          0      0% 
 Mongolian          322            0          0      0% 
 Nama                 4            0          0      0% 
 Navajo              24            0          0      0% 
+Pama-Nyungan        61            0          0      0% 
+Quechua            412            0          0      0% 
 Sumerian            38            0          0      0% 
 Tibetan            365            0          0      0% 
 Vietnamese         494            0          0      0% 
@@ -164,6 +164,12 @@ codas (*gub*, *sag*, *diš*) with curated coda tiers; Navajo's lexicon is writte
 `t k` (orthographic `d g`); Arawakan gains `g` and `kw`. **These lexicons are tiny (4-52 words), so the
 clusters rest on very little evidence** -- treat the Nama and Sumerian additions as a fit to the sample,
 not a description of the language.
+
+**Quechua, Hebrew, Pama-Nyungan, Japanese (fixed):** all to 0%. Quechua's lexicon is phonemic (`a i u`; `e o` are
+allophones next to `q`) and the profile gains the ejective affricate `tʃʼ`; Hebrew's `r` is written `ʁ`, and it
+gains `ts` and its real initial clusters (`ʃn`, `bl`, `zʁ`); Japanese gains `ts` and the palatalized-mora onsets
+(`kya`, `ryo`, as `Cj`), with `ç` written as phonemic `h`; Pama-Nyungan's onset restriction on `ŋ` is removed (the
+profile barred a sound that Warlpiri and Yolngu words start with).
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet

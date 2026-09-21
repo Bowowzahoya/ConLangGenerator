@@ -1441,11 +1441,12 @@ def test_pama_nyungan_onset_and_nucleus_frequency_tiers_partition_its_legal_symb
 
 
 def test_pama_nyungan_restricts_the_real_onset_initial_consonants():
-    # One of the most-cited Australianist generalizations (Dixon 1980):
-    # no Australian language has word-initial /ŋ/, and initial rhotics
-    # and /l/ are likewise systematically rare to absent.
+    # Dixon (1980): initial rhotics and /l/ are systematically rare to absent across Australian
+    # languages. Initial /ŋ/ is NOT restricted (Warlpiri ngaju, Yolngu ŋarra); an earlier version of
+    # this profile barred it, and the lexicon audit showed five initial-ŋ words.
     pama_nyungan = next(p for p in REFERENCE_LANGUAGES if p.name == "Pama-Nyungan")
-    assert {"ŋ", "r", "ɾ", "l"} <= set(pama_nyungan.restricted_onset_consonants)
+    assert {"r", "ɾ", "l"} <= set(pama_nyungan.restricted_onset_consonants)
+    assert "ŋ" not in pama_nyungan.restricted_onset_consonants
     assert pama_nyungan.stress_pattern == "initial"
     assert {"aː", "iː", "uː"} <= set(pama_nyungan.vowels)
 

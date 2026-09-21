@@ -1584,16 +1584,16 @@ def test_resolve_pair_restriction_a_heavier_profiles_veto_outweighs_a_lighter_di
 
 
 def test_source_language_weights_bias_onset_cluster_probability_toward_the_heavier_language():
-    # Real English allows onset clusters (max_onset=2); real Japanese
+    # Real English allows onset clusters (max_onset=2); real Hawaiian
     # doesn't (max_onset=1). Weighting heavily toward English should
     # produce a real onset cluster far more often than weighting heavily
-    # toward Japanese, at full strictness.
+    # toward Hawaiian, at full strictness.
     def _cluster_rate(weights: tuple[float, float]) -> float:
         hits = 0
         n = 60
         for seed in range(n):
             traits = TraitProfile(
-                source_languages=("English", "Japanese"),
+                source_languages=("English", "Hawaiian"),
                 source_language_weights=weights,
                 source_language_strictness=1.0,
             )
@@ -1604,5 +1604,5 @@ def test_source_language_weights_bias_onset_cluster_probability_toward_the_heavi
         return hits / n
 
     english_heavy = _cluster_rate((0.9, 0.1))
-    japanese_heavy = _cluster_rate((0.1, 0.9))
-    assert english_heavy > japanese_heavy
+    hawaiian_heavy = _cluster_rate((0.1, 0.9))
+    assert english_heavy > hawaiian_heavy

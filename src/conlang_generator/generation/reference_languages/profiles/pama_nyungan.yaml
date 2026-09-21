@@ -29,7 +29,7 @@ vowels: [a, i, u, "aː", "iː", "uː"]
 # orthographies -- see the length rules below.
 coda_profile: sonorant
 max_onset: 1
-restricted_onset_consonants: ["ŋ", r, "ɾ", l, "ʈ", "ɳ"]
+restricted_onset_consonants: [r, "ɾ", l, "ʈ", "ɳ"]
 # One of the most-cited generalizations in Australianist phonology
 # (Dixon 1980): no Australian language has word-initial /ŋ/, and
 # initial /r/-type rhotics and /l/ are likewise systematically rare to
@@ -63,7 +63,7 @@ core_vocabulary_average_syllables: 2.55  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [p, t, k, m, n]
   common: [w, j, c]
-  uncommon: ["ɲ"]
+  uncommon: ["ɲ", "ŋ"]
   rare: []  # ŋ/r/ɾ/l/ʈ/ɳ, this position's only other candidates, are excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that tier
 nucleus_frequency_tiers:
   very_common: [a, i]
