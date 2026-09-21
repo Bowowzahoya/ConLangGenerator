@@ -395,6 +395,7 @@ def audit_lexicons(
     fail_above: float = typer.Option(
         None, "--fail-above", min=0.0, max=1.0, help="Exit with an error if any language's flagged fraction exceeds this."
     ),
+    include_loans: bool = typer.Option(False, "--include-loans", help="Also audit words tagged as loanwords."),
 ) -> None:
     """Check the curated real lexicons against their reference profiles.
 
@@ -403,7 +404,7 @@ def audit_lexicons(
     a profile missing something the language really has."""
     from conlang_generator.generation.reference_languages import lexicon_audit
 
-    audits = lexicon_audit.audit_all(tuple(languages) if languages else None)
+    audits = lexicon_audit.audit_all(tuple(languages) if languages else None, include_loans)
     if not audits:
         typer.echo("No curated lexicon matches.", err=True)
         raise typer.Exit(code=1)

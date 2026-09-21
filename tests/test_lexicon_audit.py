@@ -350,3 +350,23 @@ def test_the_whole_curated_set_is_within_two_percent_and_loan_clusters_stay_out(
     assert ("k", "r") not in by_name["Turkish"].attested_onset_clusters
     assert ("s", "t") not in by_name["Finnish"].attested_onset_clusters
     assert ("t", "ɾ") not in by_name["Basque"].attested_onset_clusters
+
+
+def test_loan_tagged_words_are_read_normally_but_skipped_by_the_audit():
+    from conlang_generator.generation.reference_languages.real_lexicon import loan_glosses, real_words
+
+    assert {"sad", "cool", "sugar"} <= loan_glosses("Basque")
+    assert "king" in loan_glosses("Turkish") and "king" in real_words("Turkish")  # still a usable real word
+    assert loan_glosses("Sumerian") == frozenset() and loan_glosses("Not A Language") == frozenset()
+    (default,) = lexicon_audit.audit_all(("Basque",))
+    (with_loans,) = lexicon_audit.audit_all(("Basque",), include_loans=True)
+    assert default.loans == len(loan_glosses("Basque")) and default.words == with_loans.words - default.loans
+    assert with_loans.loans == 0
+    assert with_loans.flagged > default.flagged  # triste, fruitua, ... only fail the native phonotactics
+
+
+def test_audit_cli_reports_loans_and_can_include_them():
+    result = CliRunner().invoke(app, ["audit-lexicons", "Basque"])
+    assert result.exit_code == 0 and "loans" in result.output.splitlines()[0]
+    with_loans = CliRunner().invoke(app, ["audit-lexicons", "Basque", "--include-loans"])
+    assert with_loans.exit_code == 0

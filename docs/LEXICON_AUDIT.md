@@ -18,64 +18,73 @@ not audited as having a prenasalized stop). The audit is advisory -- a flagged
 word means either the transcription or the profile is wrong, and only the
 language can say which.
 
-## Baseline (all curated lexicons)
+## Loanwords
+
+A lexicon entry may carry a third element, `[spelling, ipa, loan]`, marking an obvious loanword
+(`generation/reference_languages/real_lexicon.loan_glosses`). The audit skips those by default -- a loan may
+use clusters the native phonotactics rightly bar -- and reports them in a `loans` column;
+`conlang audit-lexicons --include-loans` audits them too. Tagging is deliberately partial: 32 words, chosen
+because they were flagged and are plainly borrowed (Basque *triste*, Turkish *kral*, Swahili *kabla*, Tamil
+*sakthi*, Malay *nasib*, ...). Loans still work as real words for word strictness; only the audit ignores them.
+
+## Baseline (all curated lexicons; loans excluded)
 
 ```
-language         words  off-profile  structure  flagged
-Finnish            494            1         10      2% 
-Basque             494            0         10      2% 
-Xhosa               52            0          1      2% 
-Tamil              494            1          8      2% 
-Portuguese         494            0          6      1% 
-Swahili            494            0          6      1% 
-Zulu                84            0          1      1% 
-Georgian           169            0          2      1% 
-Icelandic          494            0          5      1% 
-Malay              494            0          5      1% 
-Nahuatl            246            0          2      1% 
-Persian            494            0          4      1% 
-Old Norse          490            0          3      1% 
-Ancient Greek      494            0          3      1% 
-French             494            2          1      1% 
-Hawaiian           401            2          0      0% 
-Arabic             494            0          2      0% 
-Bengali            494            0          2      0% 
-Dutch              494            0          2      0% 
-German             494            1          1      0% 
-Mandarin           494            0          2      0% 
-Polish             494            0          2      0% 
-Turkish            494            0          2      0% 
-Hindi              494            0          1      0% 
-Indonesian         494            0          1      0% 
-Korean             494            0          1      0% 
-Norwegian          494            0          1      0% 
-Russian            494            0          1      0% 
-Serbo-Croatian     494            0          1      0% 
-Spanish            494            0          1      0% 
-Arawakan            49            0          0      0% 
-Cantonese          494            0          0      0% 
-Danish             494            0          0      0% 
-English            494            0          0      0% 
-Hebrew             494            0          0      0% 
-Hungarian          494            0          0      0% 
-Italian            494            0          0      0% 
-Japanese           494            0          0      0% 
-Khmer               52            0          0      0% 
-Latin              494            0          0      0% 
-Mongolian          322            0          0      0% 
-Nama                 4            0          0      0% 
-Navajo              24            0          0      0% 
-Pama-Nyungan        61            0          0      0% 
-Quechua            412            0          0      0% 
-Sanskrit           494            0          0      0% 
-Sumerian            38            0          0      0% 
-Swedish            494            0          0      0% 
-Thai               190            0          0      0% 
-Tibetan            365            0          0      0% 
-Vietnamese         494            0          0      0% 
-Welsh              494            0          0      0% 
-Yoruba             102            0          0      0% 
-all              20845                              0%
+language         words  loans  off-profile  structure  flagged
+Finnish            493      1            0         10      2% 
+Xhosa               52      0            0          1      2% 
+Portuguese         494      0            0          6      1% 
+Zulu                84      0            0          1      1% 
+Georgian           169      0            0          2      1% 
+Icelandic          494      0            0          5      1% 
+Tamil              489      5            0          4      1% 
+Nahuatl            246      0            0          2      1% 
+Old Norse          490      0            0          3      1% 
+Ancient Greek      494      0            0          3      1% 
+French             494      0            2          1      1% 
+Basque             486      8            0          2      0% 
+Arabic             494      0            0          2      0% 
+Bengali            494      0            0          2      0% 
+Dutch              494      0            0          2      0% 
+German             494      0            1          1      0% 
+Mandarin           494      0            0          2      0% 
+Polish             494      0            0          2      0% 
+Swahili            489      5            0          1      0% 
+Persian            491      3            0          1      0% 
+Turkish            493      1            0          1      0% 
+Korean             494      0            0          1      0% 
+Norwegian          494      0            0          1      0% 
+Russian            494      0            0          1      0% 
+Serbo-Croatian     494      0            0          1      0% 
+Spanish            494      0            0          1      0% 
+Arawakan            49      0            0          0      0% 
+Cantonese          494      0            0          0      0% 
+Danish             494      0            0          0      0% 
+English            494      0            0          0      0% 
+Hawaiian           399      2            0          0      0% 
+Hebrew             494      0            0          0      0% 
+Hindi              493      1            0          0      0% 
+Hungarian          494      0            0          0      0% 
+Indonesian         493      1            0          0      0% 
+Italian            494      0            0          0      0% 
+Japanese           494      0            0          0      0% 
+Khmer               52      0            0          0      0% 
+Latin              494      0            0          0      0% 
+Malay              489      5            0          0      0% 
+Mongolian          322      0            0          0      0% 
+Nama                 4      0            0          0      0% 
+Navajo              24      0            0          0      0% 
+Pama-Nyungan        61      0            0          0      0% 
+Quechua            412      0            0          0      0% 
+Sanskrit           494      0            0          0      0% 
+Sumerian            38      0            0          0      0% 
+Swedish            494      0            0          0      0% 
+Thai               190      0            0          0      0% 
+Tibetan            365      0            0          0      0% 
+Vietnamese         494      0            0          0      0% 
+Welsh              494      0            0          0      0% 
+Yoruba             102      0            0          0      0% 
+all              20813     32                              0%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being

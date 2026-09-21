@@ -35,7 +35,7 @@ from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, phoneme_fit, phonology_gen, sonority
 from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, ReferenceLanguageProfile
-from conlang_generator.generation.reference_languages.real_lexicon import real_words
+from conlang_generator.generation.reference_languages.real_lexicon import loan_glosses, real_words
 
 _CONSONANTS = {c.ipa: c for c in phonology_gen.ALL_CONSONANTS}
 _VOWEL_SYMBOLS = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
@@ -73,6 +73,9 @@ class WordIssue:
 class LanguageAudit:
     name: str
     words: int
+    """Words audited (loans excluded unless asked for)."""
+    loans: int = 0
+    """Tagged loanwords left out of the audit."""
     off_inventory: list[WordIssue] = field(default_factory=list)
     structure: list[WordIssue] = field(default_factory=list)
     off_symbols: Counter = field(default_factory=Counter)
@@ -163,9 +166,16 @@ def _run_around(tokens: list[tuple[str, bool]], index: int) -> tuple[str, str]:
     return position, "".join(s for s, _ in tokens[start:end + 1])
 
 
-def audit_language(profile: ReferenceLanguageProfile) -> LanguageAudit:
+def audit_language(profile: ReferenceLanguageProfile, include_loans: bool = False) -> LanguageAudit:
+    """Audits ``profile``'s curated words. Words tagged ``loan`` in the lexicon
+    are skipped by default -- a loanword may use clusters and sounds the
+    native phonotactics rightly bar (Basque *triste*, Turkish *kral*) -- and
+    counted in ``loans``; ``include_loans`` audits them too."""
     words = real_words(profile.name)
-    audit = LanguageAudit(profile.name, len(words))
+    loans = loan_glosses(profile.name)
+    if not include_loans:
+        words = {gloss: pair for gloss, pair in words.items() if gloss not in loans}
+    audit = LanguageAudit(profile.name, len(words), loans=0 if include_loans else len(loans & set(real_words(profile.name))))
     inventory = profile.symbols()
     structure = profile_structure(profile.name)
     for gloss, (spelling, ipa) in words.items():
@@ -188,10 +198,10 @@ def audit_language(profile: ReferenceLanguageProfile) -> LanguageAudit:
     return audit
 
 
-def audit_all(names: tuple[str, ...] | None = None) -> list[LanguageAudit]:
+def audit_all(names: tuple[str, ...] | None = None, include_loans: bool = False) -> list[LanguageAudit]:
     """Audits every curated language (or just ``names``), worst first."""
     audits = [
-        audit_language(p)
+        audit_language(p, include_loans)
         for p in REFERENCE_LANGUAGES
         if real_words(p.name) and (names is None or p.name.lower() in {n.lower() for n in names})
     ]
@@ -201,14 +211,14 @@ def audit_all(names: tuple[str, ...] | None = None) -> list[LanguageAudit]:
 def format_report(audits: list[LanguageAudit], examples: int = 0) -> str:
     """A summary table, then (with ``examples`` > 0) up to that many flagged
     words per language and the most common off-profile sounds."""
-    lines = [f"{'language':<16}{'words':>6}{'off-profile':>13}{'structure':>11}{'flagged':>9}"]
+    lines = [f"{'language':<16}{'words':>6}{'loans':>7}{'off-profile':>13}{'structure':>11}{'flagged':>9}"]
     for a in audits:
         lines.append(
-            f"{a.name:<16}{a.words:>6}{len(a.off_inventory):>13}{len(a.structure):>11}{a.flagged_rate:>8.0%} "
+            f"{a.name:<16}{a.words:>6}{a.loans:>7}{len(a.off_inventory):>13}{len(a.structure):>11}{a.flagged_rate:>8.0%} "
         )
     total = sum(a.words for a in audits)
     flagged = sum(a.flagged for a in audits)
-    lines.append(f"{'all':<16}{total:>6}{'':>13}{'':>11}{(flagged / total if total else 0):>8.0%} ")
+    lines.append(f"{'all':<16}{total:>6}{sum(a.loans for a in audits):>7}{'':>13}{'':>11}{(flagged / total if total else 0):>8.0%} ")
     if examples:
         for a in audits:
             if not a.flagged:

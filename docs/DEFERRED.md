@@ -281,3 +281,8 @@ was done.)*
   LF -> CRLF warnings.
 - **Suite runtime (done).** Split into a fast default run and `slow` tests;
   see section 7.
+
+- **Tag more loanwords (S).** Only 32 lexicon entries carry the `loan` tag (the flagged, obviously
+  borrowed ones). Heavy-loan languages (Swahili, Malay/Indonesian, Persian, Turkish, Hindi, Japanese)
+  have many more untagged Arabic/Sanskrit/Chinese/English loans; tagging them would let the audit
+  hold the rest to the native phonotactics more strictly.
