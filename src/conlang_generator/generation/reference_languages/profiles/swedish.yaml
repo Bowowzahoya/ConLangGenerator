@@ -38,6 +38,8 @@ attested_onset_clusters:
   - [b, j]
   - [k, n]
   - [s, j]
+  # real clusters found by `conlang audit-lexicons`
+  - [f, j]
 attested_coda_clusters:
   # Real, common Swedish coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -66,6 +68,8 @@ attested_coda_clusters:
   - ["ŋ", n]
   - [l, n]
   - [l, j]
+  # real clusters found by `conlang audit-lexicons`
+  - [n, s]
 orthography:
   # Real Swedish spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account. Swedish's own

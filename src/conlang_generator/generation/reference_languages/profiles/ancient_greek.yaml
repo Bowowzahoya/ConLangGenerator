@@ -80,6 +80,8 @@ attested_onset_clusters:
   - [p, "tʰ"]
   - [k, "tʰ"]
   - ["tʰ", m]
+  # real clusters found by `conlang audit-lexicons`
+  - [s, p]
 stress_pattern: ""  # real Attic Greek's own prosodic axis is its own positional pitch accent (curated below), the same "stress_pattern stays uncurated" choice Japanese's own profile already makes for the same realization
 word_accent_realization: positional_pitch_accent
 word_accent_pattern: lexical  # a sentinel, not a shape rule -- real Attic accent-kernel placement is genuinely lexically arbitrary within its own window (see word_accent_window below), the same "no shape-based default" reasoning Japanese's own profile already gives for its own unrestricted version
@@ -130,3 +132,5 @@ attested_coda_clusters:
   # real clusters found by `conlang audit-lexicons`
   - [k, s]
   - [p, s]
+  # real clusters found by `conlang audit-lexicons`
+  - [l, s]

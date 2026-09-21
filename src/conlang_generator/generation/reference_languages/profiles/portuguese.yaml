@@ -34,6 +34,15 @@ attested_onset_clusters:
   - [g, "ɾ"]                  # "grande"
   - [f, l]                   # "flor"
   - [f, "ɾ"]                  # "frio"
+  # native glide onsets (quatro, quando, quieto, guiar)
+  - [d, w]
+  - [g, j]
+  - [k, j]
+  - [k, w]
+  - [l, j]
+  - [p, w]
+  - [v, j]
+  - [g, w]
 # Real Portuguese codas are heavily restricted to a small set of single
 # consonants (s/z/ʃ/l/ɾ/ʁ/m/n -- see coda_frequency_tiers below), so true
 # coda *clusters* are essentially absent from native vocabulary --

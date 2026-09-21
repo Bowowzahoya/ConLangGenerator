@@ -93,6 +93,13 @@ attested_coda_clusters:
   - ["ʁ", l]
   - ["ʁ", z]
   - ["ʁ", h]
+  # real clusters found by `conlang audit-lexicons`
+  - [k, t]
+  - [l, f]
+  - [l, p]
+  - [l, "ç"]
+  - [l, "ʃ"]
+  - ["ʁ", p]
 orthography:
   # Real German spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account.

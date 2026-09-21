@@ -37,6 +37,8 @@ attested_onset_clusters:
   - [b, j]
   - [f, j]
   - [m, j]
+  # real clusters found by `conlang audit-lexicons`
+  - [s, m]
 attested_coda_clusters:
   # Real, common Norwegian coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -64,6 +66,9 @@ attested_coda_clusters:
   - [r, v]
   - [m, s]
   - [t, s]
+  # real clusters found by `conlang audit-lexicons`
+  - [r, p]
+  - [v, n]
 orthography:
   # Real Norwegian spelling conventions, restricted to symbols this
   # profile actually models -- illustrative, not a full account.

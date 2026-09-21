@@ -102,6 +102,21 @@ attested_coda_clusters:
   - [x, l]
   - [x, n]
   - [x, b]
+  # real clusters found by `conlang audit-lexicons`
+  - [b, z]
+  - [h, f]
+  - [h, m]
+  - [l, "dʒ"]
+  - [l, "ħ"]
+  - [m, "ħ"]
+  - [q, f]
+  - [q, m]
+  - [r, q]
+  - [x, t]
+  - [z, n]
+  - [z, "ʔ"]
+  - ["ħ", n]
+  - ["ʕ", z]
 orthography_category: scholarly-macron-gemination-style  # real Arabic transliteration marks both vowel length (macron) and shadda/gemination (doubled letter) in the same system -- see romanization_gen.py's own category
 orthography:
   # Real (scholarly/IJMES-style) Arabic transliteration conventions,

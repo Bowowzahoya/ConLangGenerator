@@ -328,3 +328,25 @@ def test_basque_danish_polish_italian_russian_and_old_norse_lexicons_fit_their_p
     from conlang_generator.generation.reference_languages.real_lexicon import real_words
 
     assert not any("w" in ipa or "ɪ" in ipa for _, ipa in real_words("Danish").values())
+
+
+def test_sanskrit_uses_syllabic_r_and_allows_root_final_consonants():
+    from conlang_generator.generation.reference_languages.real_lexicon import real_words
+
+    sanskrit = next(p for p in REFERENCE_LANGUAGES if p.name == "Sanskrit")
+    assert "r\u0329" in sanskrit.vowels and "ã" in sanskrit.vowels
+    assert sanskrit.restricted_coda_consonants == ()  # roots are cited bare: vac, labh, budh
+    assert not any("r\u0325" in ipa for _, ipa in real_words("Sanskrit").values())  # ṛ is syllabic, not a voiceless trill
+    (audit,) = lexicon_audit.audit_all(("Sanskrit",))
+    assert audit.flagged == 0, audit.illegal_runs
+
+
+def test_the_whole_curated_set_is_within_two_percent_and_loan_clusters_stay_out():
+    audits = lexicon_audit.audit_all()
+    total = sum(a.words for a in audits)
+    assert sum(a.flagged for a in audits) / total < 0.02
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    # loan-only initial clusters were deliberately not admitted
+    assert ("k", "r") not in by_name["Turkish"].attested_onset_clusters
+    assert ("s", "t") not in by_name["Finnish"].attested_onset_clusters
+    assert ("t", "ɾ") not in by_name["Basque"].attested_onset_clusters

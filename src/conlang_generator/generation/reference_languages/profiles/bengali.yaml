@@ -98,3 +98,7 @@ coda_frequency_tiers:
   common: [m, "ŋ", s, b, d, g]
   uncommon: [p, "tʃ", "dʒ", j, "ɽ", "tʃʰ", "dʒʱ", "ʈ", "ʈʰ", "ɖ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ"]
   rare: ["ʃ", h, "nː", "tː", "ʃː", "gː", "dʒː", "kː", "lː"]
+
+attested_coda_clusters:
+  # real clusters found by `conlang audit-lexicons`
+  - [n, "tʃ"]

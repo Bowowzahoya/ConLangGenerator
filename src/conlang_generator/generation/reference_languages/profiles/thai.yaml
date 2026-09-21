@@ -12,7 +12,7 @@ consonants: [p, "pʰ", b, t, "tʰ", d, k, "kʰ", "ʔ", "tɕ", "tɕʰ", f, s, h, 
 # (p/pʰ/b, t/tʰ/d) -- no real voiced /g/, velar is only k/kʰ. Real /ŋ/
 # genuinely opens a native syllable here (งู nguu "snake"), unlike
 # Mandarin/Korean's own coda-only /ŋ/ from an earlier batch.
-vowels: [i, e, "ɛ", a, "ɯ", "ɤ", u, o, "ɔ", "iː", "eː", "ɛː", "aː", "ɯː", "ɤː", "uː", "oː", "ɔː"]
+vowels: [i, e, "ɛ", a, "ɯ", "ɤ", u, o, "ɔ", "iː", "eː", "ɛː", "aː", "ɯː", "ɤː", "uː", "oː", "ɔː", "iə", "uə"]
 # Real Thai's own 9-quality vowel system x fully phonemic length (mit
 # vs. miːt) -- every quality has a real long counterpart, not just a
 # handful; see phonology_gen.py's own newly-added ɤ/ɛː/ɔː/ɯː/ɤː symbols.
@@ -104,7 +104,7 @@ nucleus_frequency_tiers:
   very_common: [a, i, "aː", "iː"]
   common: [u, e, "uː", "eː"]
   uncommon: ["ɛ", o, "ɛː", "oː"]
-  rare: ["ɯ", "ɤ", "ɔ", "ɯː", "ɤː", "ɔː"]
+  rare: ["ɯ", "ɤ", "ɔ", "ɯː", "ɤː", "ɔː", "iə", "uə"]
 coda_frequency_tiers:
   very_common: [n, k, "ŋ"]
   common: [t, m]

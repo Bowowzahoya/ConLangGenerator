@@ -54,6 +54,8 @@ attested_onset_clusters:
   - [s, p]
   - [s, x]
   - [s, k]
+  # real clusters found by `conlang audit-lexicons`
+  - [w, r]
 attested_coda_clusters:
   # Real, common Dutch coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.

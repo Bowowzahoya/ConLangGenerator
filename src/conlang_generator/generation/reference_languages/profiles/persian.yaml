@@ -61,6 +61,13 @@ attested_coda_clusters:
   - [l, m]
   - [l, t]
   - [n, k]
+  # real clusters found by `conlang audit-lexicons`
+  - [b, l]
+  - [m, q]
+  - [q, f]
+  - [r, q]
+  - ["ʃ", q]
+  - ["ʔ", d]
 orthography:
   # Real Persian transliteration conventions, restricted to symbols this
   # profile actually models -- illustrative, not a full account.

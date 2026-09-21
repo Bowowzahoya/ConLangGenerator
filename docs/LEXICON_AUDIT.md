@@ -22,60 +22,60 @@ language can say which.
 
 ```
 language         words  off-profile  structure  flagged
-Sanskrit           494            3         66     14% 
-Arabic             494            0         16      3% 
-Portuguese         494            0         15      3% 
-Thai               190            5          0      3% 
 Finnish            494            1         10      2% 
-Persian            494            0         11      2% 
 Basque             494            0         10      2% 
-German             494            1          9      2% 
 Xhosa               52            0          1      2% 
 Tamil              494            1          8      2% 
-Turkish            494            0          7      1% 
-Latin              494            4          2      1% 
+Portuguese         494            0          6      1% 
 Swahili            494            0          6      1% 
 Zulu                84            0          1      1% 
 Georgian           169            0          2      1% 
-Ancient Greek      494            0          5      1% 
 Icelandic          494            0          5      1% 
 Malay              494            0          5      1% 
-Norwegian          494            0          5      1% 
-Serbo-Croatian     494            0          5      1% 
 Nahuatl            246            0          2      1% 
-Hungarian          494            0          4      1% 
+Persian            494            0          4      1% 
 Old Norse          490            0          3      1% 
-Bengali            494            0          3      1% 
-Dutch              494            0          3      1% 
+Ancient Greek      494            0          3      1% 
 French             494            2          1      1% 
 Hawaiian           401            2          0      0% 
+Arabic             494            0          2      0% 
+Bengali            494            0          2      0% 
+Dutch              494            0          2      0% 
+German             494            1          1      0% 
 Mandarin           494            0          2      0% 
 Polish             494            0          2      0% 
-Swedish            494            0          2      0% 
+Turkish            494            0          2      0% 
 Hindi              494            0          1      0% 
 Indonesian         494            0          1      0% 
 Korean             494            0          1      0% 
+Norwegian          494            0          1      0% 
 Russian            494            0          1      0% 
+Serbo-Croatian     494            0          1      0% 
 Spanish            494            0          1      0% 
 Arawakan            49            0          0      0% 
 Cantonese          494            0          0      0% 
 Danish             494            0          0      0% 
 English            494            0          0      0% 
 Hebrew             494            0          0      0% 
+Hungarian          494            0          0      0% 
 Italian            494            0          0      0% 
 Japanese           494            0          0      0% 
 Khmer               52            0          0      0% 
+Latin              494            0          0      0% 
 Mongolian          322            0          0      0% 
 Nama                 4            0          0      0% 
 Navajo              24            0          0      0% 
 Pama-Nyungan        61            0          0      0% 
 Quechua            412            0          0      0% 
+Sanskrit           494            0          0      0% 
 Sumerian            38            0          0      0% 
+Swedish            494            0          0      0% 
+Thai               190            0          0      0% 
 Tibetan            365            0          0      0% 
 Vietnamese         494            0          0      0% 
 Welsh              494            0          0      0% 
 Yoruba             102            0          0      0% 
-all              20845                              1%
+all              20845                              0%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being
@@ -179,6 +179,15 @@ were normalized to the apical/laminal set and final *-ts* is a legal coda; Polis
 clusters were added from the lexicon's own words. **Left flagged on purpose:** Basque's Romance-loan clusters
 (*triste*, *fruitua*; the profile bars a lone `ɾ` from onsets, which also bars it inside a cluster), four-consonant
 runs in Old Norse and Russian, and Polish *ssać*/*miejsce*.
+
+**Sanskrit and the small remainders (fixed):** Sanskrit 14% -> 0%. Its lexicon wrote *ṛ* as a voiceless
+trill (`r̥`); it is the syllabic `r̩`, now a profile vowel, as is nasalized `ã` (anusvara). Verbal roots
+are cited bare (*vac*, *labh*, *budh*), so aspirates and affricates may close a syllable. The rest are one-line
+additions (Arabic/Persian/Turkish/Hungarian final clusters, Portuguese `kw`/`gj` glide onsets, Latin `gw`,
+Dutch `wr`, Thai `iə uə`). **Deliberately not admitted, because they occur only in loanwords:** Turkish
+initial `kr`, Finnish `st`, Basque `tɾ fɾ pɾ kɾ`, Tamil `kr` (Sanskrit loans), German `sv`, Hawaiian `b s`, and the
+Arabic-loan words in Swahili. What remains flagged (~0.7%) is these loans, four-consonant runs, geminate+cluster
+sequences in Finnish, and nasal-vowel spellings in French.
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet

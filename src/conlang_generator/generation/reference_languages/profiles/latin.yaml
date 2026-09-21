@@ -41,6 +41,8 @@ attested_onset_clusters:
   - [g, l]
   - [d, w]
   - [s, w]
+  # real clusters found by `conlang audit-lexicons`
+  - [g, w]
 attested_coda_clusters:
   # Real Latin word-final clusters, restricted to symbols this profile
   # models -- illustrative, not exhaustive.

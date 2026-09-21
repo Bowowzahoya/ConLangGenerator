@@ -10,7 +10,7 @@ consonants: [p, "pʰ", b, "bʱ", m, t, "tʰ", d, "dʱ", n, "ʈ", "ʈʰ", "ɖ", "
 # pool's own `r̩` models a comparable phenomenon but isn't drawn on here,
 # the same status Yoruba's own real syllabic nasal already has elsewhere
 # in this project.
-vowels: [a, i, u, "aː", "iː", "uː", "eː", "oː", ai, au]
+vowels: [a, i, u, "aː", "iː", "uː", "eː", "oː", ai, au, "r̩", "ã"]
 # Real Sanskrit e/o are phonetically always long (there's no short e/o
 # to contrast against), hence "eː"/"oː" here rather than a naive plain
 # e/o -- but see the orthography note below on how IAST still spells
@@ -18,7 +18,7 @@ vowels: [a, i, u, "aː", "iː", "uː", "eː", "oː", ai, au]
 coda_profile: unrestricted
 restricted_onset_consonants: ["tʃː", "tː", "nː", "dʒː", "jː"]  # geminates are word-medial only
 max_onset: 2
-max_coda: 1
+max_coda: 2
 tonal: false
 word_classes:
   # Real Sanskrit noun stem classes, cited by their own real stem form
@@ -46,7 +46,7 @@ word_class_deviation_rate: 0.3  # illustrative -- real Sanskrit also has consona
 # aside, the same "real but predates/postdates the modeled standard"
 # honesty this project already practices elsewhere (e.g. Mandarin's own
 # neutral tone).
-restricted_coda_consonants: ["pʰ", "bʱ", "tʰ", "dʱ", "ʈʰ", "ɖʱ", "kʰ", "ɡʱ", "tʃ", "tʃʰ", "dʒ", "dʒʱ"]  # medial codas are unrestricted in real Sanskrit (the word-final pausa forms restrict to k ʈ t p ṅ ṇ n m ḥ -- word position is not modeled), so only aspirates and affricates are barred
+restricted_coda_consonants: []  # verbal roots are cited bare (vac, labh, budh), so aspirates and affricates close syllables too; the pausa restriction is not modeled
 # Real Classical Sanskrit's own strict word-final sandhi neutralizes
 # every coda down to just the plain voiceless stop of each series (p/t/
 # ʈ/k) plus the two nasals (n/m) -- a genuine, citable fact (real
@@ -79,6 +79,21 @@ attested_onset_clusters:
   - [k, j]
   - [t, j]
   - [d, j]
+  # initial/final clusters of real words found by `conlang audit-lexicons`
+  - ["dʒ", "ɲ"]
+  - ["dʱ", v]
+  - [h, r]
+  - [h, v]
+  - [p, l]
+  - [s, j]
+  - [s, m]
+  - [s, r]
+  - [v, j]
+  - ["ɡʱ", r]
+  - ["ʂ", "ʈʰ"]
+  - ["ʃ", l]
+  # real clusters found by `conlang audit-lexicons`
+  - ["kʰ", j]
 orthography_category: scholarly-macron-style
 orthography:
   # Real IAST (International Alphabet of Sanskrit Transliteration)
@@ -122,10 +137,22 @@ onset_frequency_tiers:
 nucleus_frequency_tiers:
   very_common: [a, i, u]
   common: ["aː", "iː", "uː"]
-  uncommon: ["eː", "oː"]
-  rare: [ai, au]
+  uncommon: ["eː", "oː", "r̩"]
+  rare: [ai, au, "ã"]
 coda_frequency_tiers:
   very_common: [n, m, t, k]
   common: [r, s, d, g, l, v]
   uncommon: [p, b, h, j, "ʈ", "ɖ", "ʃ", "ʂ", "ŋ", "ɳ"]
-  rare: ["ɲ", "tʃː", "tː", "nː", "dʒː", "jː"]
+  rare: ["ɲ", "tʃː", "tː", "nː", "dʒː", "jː", "pʰ", "bʱ", "tʰ", "dʱ", "ʈʰ", "ɖʱ", "kʰ", "ɡʱ", "tʃ", "tʃʰ", "dʒ", "dʒʱ"]
+
+attested_coda_clusters:
+  # initial/final clusters of real words found by `conlang audit-lexicons`
+  - [k, "ʂ"]
+  # real clusters found by `conlang audit-lexicons`
+  - [n, "dʒ"]
+  - [n, "dʱ"]
+  - [m, "ʃ"]
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [s, t, j]
+  - [s, t, r]

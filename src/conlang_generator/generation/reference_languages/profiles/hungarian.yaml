@@ -97,6 +97,11 @@ attested_coda_clusters:
   - [r, m]
   - [r, n]
   - [r, b]
+  # real clusters found by `conlang audit-lexicons`
+  - [l, ts]
+  - [l, v]
+  - [r, ts]
+  - [r, v]
 core_vocabulary_average_syllables: 1.55  # hand-counted across this project's own CORE_MEANINGS glosses -- Hungarian's own agglutinative morphology means core root vocabulary is still comparatively short even though grammatical word-forms get long; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
 onset_frequency_tiers:
   very_common: [p, t, k, s, v, m]

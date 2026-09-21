@@ -42,6 +42,11 @@ attested_coda_clusters:
   - [l, t]                   # "alt" (bottom/lower)
   - [r, k]                   # "türk"-adjacent, illustrative
   - [n, t]                   # "kent" (city)
+  # real clusters found by `conlang audit-lexicons`
+  - [l, p]
+  - [n, k]
+  - [n, s]
+  - [n, "tʃ"]
 core_vocabulary_average_syllables: 1.45  # hand-counted across this project's own CORE_MEANINGS glosses -- illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
 onset_frequency_tiers:
   very_common: [t, k, m, n, s, l, r, b]
