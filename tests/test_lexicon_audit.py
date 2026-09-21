@@ -448,7 +448,7 @@ def test_french_and_portuguese_lexicons_use_real_nasal_vowels():
     from conlang_generator.generation.reference_languages.real_lexicon import real_words
 
     def by_spelling(name):
-        return {spelling: ipa for spelling, ipa in real_words(name).values()}
+        return {spelling: ipa.replace("ˈ", "") for spelling, ipa in real_words(name).values()}  # stress is tested elsewhere
 
     french, portuguese = by_spelling("French"), by_spelling("Portuguese")
     assert french["vent"] == "vã" and french["bon"] == "bɔ̃" and french["main"] == "mɛ̃" and french["un"] == "ɛ̃"

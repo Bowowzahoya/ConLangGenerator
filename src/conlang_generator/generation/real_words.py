@@ -38,9 +38,10 @@ from conlang_generator.core.romanization import (
 )
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
-from conlang_generator.generation import ipa_tokenizer, phoneme_fit, phonology_gen, real_words_llm
+from conlang_generator.generation import ipa_tokenizer, phoneme_fit, phonology_gen, real_words_llm, stress_gen
 from conlang_generator.generation.lexicon_gen import CONDITIONAL_MEANINGS
 from conlang_generator.generation.reference_languages import match_profiles_weighted
+from conlang_generator.generation.reference_languages import real_stress
 from conlang_generator.generation.reference_languages.real_lexicon import real_words
 from conlang_generator.llm.base import LLMClient
 
@@ -146,6 +147,8 @@ def build_real_entries(
             # unchanged: keep the real spelling too
             exact = deviated == unmarked and _tones_fit(real_tones, tone_system)
             ipa = _with_tones(deviated, _fit_tones(real_tones, tone_system))
+            # the real word's own stressed syllable carries over to the looser variant
+            ipa = _with_stress(ipa, _real_stress_syllable(choice), inventory)
         tones = ipa_tokenizer.tone_sequence(ipa, _SYMBOLS)
         if exact:
             spelling = unicodedata.normalize("NFC", choice.form)
@@ -162,6 +165,31 @@ def build_real_entries(
 
 
 _SYMBOLS = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+
+
+def _real_stress_syllable(choice: "RealChoice") -> int | None:
+    """Which syllable of the real word carries its curated stress mark (``None``
+    for an unmarked word, a monosyllable, or a word the profile cannot read)."""
+    if STRESS_MARK not in choice.ipa:
+        return None
+    try:
+        return real_stress.stressed_syllable(choice.ipa, choice.language)
+    except (StopIteration, ValueError, KeyError):
+        return None
+
+
+def _with_stress(ipa: str, syllable: int | None, inventory: PhonemeInventory) -> str:
+    """``ipa`` with the stress mark before ``syllable`` (clamped to the word's last
+    syllable); a monosyllable, or ``syllable is None``, stays unmarked."""
+    if syllable is None:
+        return ipa
+    vowels = frozenset(v.ipa for v in inventory.vowels)
+    tokens = [(s, d) for s, d in ipa_tokenizer.tokenize(ipa, _SYMBOLS) if s not in (STRESS_MARK, WORD_ACCENT_MARK)]
+    starts = stress_gen.syllable_onset_starts(tuple(s for s, _ in tokens), vowels)
+    if len(starts) < 2:
+        return "".join(s + d for s, d in tokens)
+    at = starts[min(syllable, len(starts) - 1)]
+    return "".join((STRESS_MARK if i == at else "") + s + d for i, (s, d) in enumerate(tokens))
 
 
 def _tones_fit(tones: tuple[ToneLevel, ...], tone_system: ToneSystem) -> bool:

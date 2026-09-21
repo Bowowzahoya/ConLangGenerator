@@ -18,6 +18,93 @@ not audited as having a prenasalized stop). The audit is advisory -- a flagged
 word means either the transcription or the profile is wrong, and only the
 language can say which.
 
+## Stress and pitch accent in real words
+
+A lexicon IPA string carries its stress as the usual mark `ˈ` before the stressed syllable's onset (none on a
+monosyllable), the convention generated words already use (`generation/reference_languages/real_stress.py`
+reads and writes it). Marks reach the language in three places: an exact copy (word strictness 1.0) keeps the
+real word verbatim, stress included; a looser real-based word keeps the *position* of the real word's stress
+(`real_words._with_stress`); and evolution, romanization and TTS already understand the mark.
+
+How each language's marks were produced:
+
+* **Fixed-pattern languages** -- stress computed from the profile's own `stress_pattern` on the real syllabification
+  (maximal onset under the profile's phonotactics): Bengali, Danish, Dutch, Finnish, French (never a final schwa),
+  German, Hebrew, Hungarian, Icelandic, Mongolian, Nahuatl, Norwegian, Old Norse, Pama-Nyungan, Persian, Polish,
+  Quechua, Swahili, Swedish, Tamil, Turkish, Welsh -- plus Spanish and Portuguese by their coda/vowel rules with
+  the written accent as an override, Latin by syllable weight, Italian penultimate with a hand-listed set of
+  antepenult words, Indonesian and Malay penultimate unless the penult is schwa.
+* **Exceptions I listed by hand:** unstressed prefixes (German/Dutch *be- ge- ver-*, Scandinavian *be- for-*), Hebrew
+  segolate nouns, Turkish *anne*, *baba*, *-ında* adverbs.
+* **Fully lexical languages -- curated word by word:** English (non-initial stress) and Russian (every polysyllable).
+* **Japanese pitch accent:** per-syllable High/Low marks, the encoding generated Japanese words use, from Tokyo
+  dictionary accent numbers in morae (a long vowel or moraic `n` adds a mora), for the ~57% of polysyllabic words
+  whose accent I was confident of; the rest stay unmarked rather than guessed.
+
+All of it is best-effort, like the rest of the lexicons: not linguist-verified, and the fixed patterns ignore the
+real exceptions (loanwords, verbs, compounds) unless listed above.
+
+```
+language        stress pattern                     marked polysyll.
+Ancient Greek   -                                       0       453
+Arabic          lexical                                 0       365
+Arawakan        -                                       0        42
+Basque          lexical                                 0       468
+Bengali         initial                               393       393
+Cantonese       -                                       0       133
+Danish          initial                               266       266
+Dutch           initial                               230       230
+English         lexical                               112       114
+Finnish         initial                               472       472
+French          final                                 286       286
+Georgian        lexical                                 0       127
+German          initial                               270       270
+Hawaiian        lexical                                 0       375
+Hebrew          final                                 378       378
+Hindi           lexical                                 0       366
+Hungarian       initial                               288       288
+Icelandic       initial                               346       346
+Indonesian      lexical                               476       476
+Italian         lexical                               473       473
+Japanese        -                                       0       446   (+260 pitch-accented)
+Khmer           -                                       0         7
+Korean          -                                       0       374
+Latin           lexical                               442       442
+Malay           lexical                               473       473
+Mandarin        -                                       0       155
+Mongolian       first_long_vowel_else_initial         203       203
+Nahuatl         penultimate                           231       231
+Nama            -                                       0         4
+Navajo          -                                       0        16
+Norwegian       initial                               228       228
+Old Norse       initial                               224       224
+Pama-Nyungan    initial                                61        61
+Persian         final                                 326       326
+Polish          penultimate                           362       362
+Portuguese      final_unless_unstressed_vowel         431       431
+Quechua         penultimate                           387       387
+Russian         lexical                               379       379
+Sanskrit        -                                       0       371
+Serbo-Croatian  lexical                                 0       384
+Spanish         penultimate_or_final_by_coda          444       444
+Sumerian        -                                       0        17
+Swahili         penultimate                           469       469
+Swedish         initial                               240       240
+Tamil           initial                               441       441
+Thai            -                                       0        29
+Tibetan         -                                       0       126
+Turkish         final                                 392       392
+Vietnamese      -                                       0       138
+Welsh           penultimate                           287       287
+Xhosa           -                                       0        48
+Yoruba          -                                       0        85
+Zulu            -                                       0        80
+```
+
+Not covered: Arabic, Hindi, Georgian, Basque, Hawaiian, Serbo-Croatian and Ancient Greek (lexical or pitch accent
+with no rule to compute it from), Sanskrit (Vedic accent), Danish stød and the Swedish/Norwegian tonal accents,
+and every tonal language (which mark tone, not stress).
+
 ## Loanwords
 
 A lexicon entry may carry a third element, `[spelling, ipa, loan]`, marking an obvious loanword

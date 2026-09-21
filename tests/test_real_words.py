@@ -23,7 +23,7 @@ def _real(language):
 def test_word_strictness_one_makes_exact_copies_of_the_real_words_with_correct_pos():
     language = _language(1.0, sound=1.0)
     water = language.lexicon.by_gloss("water")
-    assert (water.romanization, water.ipa, water.notes) == ("water", "watər", "real word: Dutch")
+    assert (water.romanization, water.ipa, water.notes) == ("water", "ˈwatər", "real word: Dutch")
     assert language.lexicon.by_gloss("fire").romanization == "vuur"
     assert language.lexicon.by_gloss("mountain").pos is PartOfSpeech.NOUN
     assert language.lexicon.by_gloss("eat").pos is PartOfSpeech.VERB
@@ -64,7 +64,7 @@ def test_partial_strictness_gives_looser_variants_using_only_the_languages_own_s
     for entry in based:
         if entry.notes.startswith("real-based"):
             symbols = ipa_tokenizer.symbols_only(entry.ipa, inventory)
-            assert "".join(symbols) == entry.ipa
+            assert "".join(symbols) == entry.ipa.replace("ˈ", "")
             assert phoneme_fit.first_problem([(s, s in vowels) for s in symbols], language.syllable_structure) is None
 
 
