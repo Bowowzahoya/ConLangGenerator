@@ -1,6 +1,6 @@
 name: Sanskrit
 aliases: [classical sanskrit, "samskrtam"]
-consonants: [p, "pʰ", b, "bʱ", m, t, "tʰ", d, "dʱ", n, "ʈ", "ʈʰ", "ɖ", "ɖʱ", "ɳ", k, "kʰ", g, "ɡʱ", "ŋ", "tʃ", "tʃʰ", "dʒ", "dʒʱ", "ɲ", s, "ʃ", "ʂ", h, j, r, l, v, "tʃː", "tː", "nː", "dʒː", "jː"]
+consonants: [p, "pʰ", b, "bʱ", m, t, "tʰ", d, "dʱ", n, "ʈ", "ʈʰ", "ɖ", "ɖʱ", "ɳ", k, "kʰ", g, "gʱ", "ŋ", "tʃ", "tʃʰ", "dʒ", "dʒʱ", "ɲ", s, "ʃ", "ʂ", h, j, r, l, v, "tʃː", "tː", "nː", "dʒː", "jː"]
 # Real Classical Sanskrit's own famous 4-way stop/affricate series
 # (voiceless / voiceless-aspirated / voiced / voiced-breathy) across
 # every one of its 5 real places -- labial, dental, retroflex, velar,
@@ -90,7 +90,7 @@ attested_onset_clusters:
   - [s, m]
   - [s, r]
   - [v, j]
-  - ["ɡʱ", r]
+  - ["gʱ", r]
   - ["ʂ", "ʈʰ"]
   - ["ʃ", l]
   # real clusters found by `conlang audit-lexicons`
@@ -119,7 +119,7 @@ orthography:
   - {ipa: "kʰ", latin: kh}
   - {ipa: "bʱ", latin: bh}
   - {ipa: "dʱ", latin: dh}
-  - {ipa: "ɡʱ", latin: gh}
+  - {ipa: "gʱ", latin: gh}
   - {ipa: j, latin: y}
   - {ipa: "aː", latin: "ā"}
   - {ipa: "iː", latin: "ī"}
@@ -134,7 +134,7 @@ onset_frequency_tiers:
   very_common: [k, t, p, m, n, s, r]
   common: [g, d, b, "tʃ", "dʒ", "ʃ", l, v, j, h]
   uncommon: ["kʰ", "tʰ", "pʰ", "ʈ", "ɖ", "ɳ", "ɲ", "ŋ", "ʂ"]
-  rare: ["ɡʱ", "dʱ", "bʱ", "tʃʰ", "dʒʱ", "ʈʰ", "ɖʱ", "tʃː", "tː", "nː", "dʒː", "jː"]
+  rare: ["gʱ", "dʱ", "bʱ", "tʃʰ", "dʒʱ", "ʈʰ", "ɖʱ", "tʃː", "tː", "nː", "dʒː", "jː"]
 nucleus_frequency_tiers:
   very_common: [a, i, u]
   common: ["aː", "iː", "uː"]
@@ -144,7 +144,7 @@ coda_frequency_tiers:
   very_common: [n, m, t, k]
   common: [r, s, d, g, l, v]
   uncommon: [p, b, h, j, "ʈ", "ɖ", "ʃ", "ʂ", "ŋ", "ɳ"]
-  rare: ["ɲ", "tʃː", "tː", "nː", "dʒː", "jː", "pʰ", "bʱ", "tʰ", "dʱ", "ʈʰ", "ɖʱ", "kʰ", "ɡʱ", "tʃ", "tʃʰ", "dʒ", "dʒʱ"]
+  rare: ["ɲ", "tʃː", "tː", "nː", "dʒː", "jː", "pʰ", "bʱ", "tʰ", "dʱ", "ʈʰ", "ɖʱ", "kʰ", "gʱ", "tʃ", "tʃʰ", "dʒ", "dʒʱ"]
 
 attested_coda_clusters:
   # initial/final clusters of real words found by `conlang audit-lexicons`

@@ -41,11 +41,6 @@ _ALL_SYMBOLS: tuple[str, ...] = tuple(c.ipa for c in phonology_gen.ALL_CONSONANT
 _BASE_BY_IPA: dict[str, str] = {
     # --- Plain stops ---
     "p": "p", "b": "b", "t": "t", "d": "d", "k": "k", "g": "g", "ʔ": "?",
-    "ɡ": "g",  # a handful of this project's own breathy/click-cluster symbols
-    # (ɡʱ, ɡǀ, ɡǃ, ɡǁ, ɡb) use the strict-IPA "script g" (U+0261) rather
-    # than the plain ASCII "g" this pool uses everywhere else -- same
-    # phoneme, so this alias lets the modifier-strip fallback below
-    # resolve them instead of leaving raw non-ASCII IPA unconverted.
     "ʈ": "t.", "ɖ": "d.",  # retroflex -- Kirshenbaum's own dotted-diacritic convention
     "c": "c", "ɟ": "gj",  # palatal stops -- no clean single letter, approximated
     "q": "q", "ɢ": "g<",  # uvular stops
@@ -70,7 +65,7 @@ _BASE_BY_IPA: dict[str, str] = {
     # --- Prenasalized/labial-velar clusters -- no real single-phoneme
     # equivalent; approximated as the plain oral stop (the nasal onset is
     # lost, an honest, documented simplification) ---
-    "mb": "b", "nd": "d", "ŋg": "g", "nz": "z", "ɡb": "gb",
+    "mb": "b", "nd": "d", "ŋg": "g", "nz": "z", "gb": "gb",
     # --- Plain vowels ---
     "i": "i", "a": "a", "u": "u", "e": "e", "o": "o", "ɛ": "E", "ɔ": "O",
     "ə": "@", "ɨ": "1", "ɪ": "I", "ʊ": "U", "æ": "&", "ɐ": "6", "ɑ": "A",

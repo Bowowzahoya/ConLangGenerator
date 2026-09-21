@@ -36,9 +36,10 @@ multi-session feature.
   are approximated as plain pitch), implosive/click coverage beyond a few
   illustrative symbols, and the pharyngealization of *vowels* next to
   emphatics (Arabic).
-- **Consistency of the script-g (S).** The pool mixes ASCII `g` and U+0261
-  `ɡ` (only in `ɡʱ`, `ɡb`, click clusters). Real-lexicon authors must know
-  which to write; normalizing would remove a trap.
+- **Consistency of the script-g (done).** Every /g/ is ASCII `g` now, including `gʱ`, `gb` and the
+  click clusters (`tests/test_pool_uses_ascii_g.py` guards it). The tokenizer no longer lets the
+  prenasalized `ŋg` eat the start of `ŋ` + `gʱ`. IPA typed with U+0261 by a user or an LLM is not
+  normalized on input yet.
 - **Onset/coda clusters cap at 2 consonants (M)** *(known limitation)* — no
   English "str".
 - **Vowel harmony, stress and word accent are not present in the real

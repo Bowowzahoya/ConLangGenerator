@@ -2832,13 +2832,13 @@ reading code or one-off ad hoc scripts.
     dental/postalveolar/lateral places and `c`/`q`/`x` letters Xhosa's
     own profile already curates), `phonology_gen.py`'s `_EXOTIC_POOL`
     gained 9 new click phonemes -- aspirated (`ǀʰ`/`ǃʰ`/`ǁʰ`), voiced/
-    breathy "depressor" (`ɡǀ`/`ɡǃ`/`ɡǁ`, reusing the exact `breathy`
-    trait Hindi's own murmured `bʱ`/`dʱ`/`ɡʱ` series already uses, since
+    breathy "depressor" (`gǀ`/`gǃ`/`gǁ`, reusing the exact `breathy`
+    trait Hindi's own murmured `bʱ`/`dʱ`/`gʱ` series already uses, since
     both are phonetically breathy voice), and nasalized (`ŋǀ`/`ŋǃ`/
     `ŋǁ`, tagged `Manner.NASAL` rather than their bare counterparts'
     own STOP/LATERAL_FRICATIVE, since nasalized clicks phonetically
     pattern with nasals). Zulu's own plain-obstruent depressor series
-    reuses the pre-existing `bʱ`/`dʱ`/`ɡʱ` symbols directly -- real
+    reuses the pre-existing `bʱ`/`dʱ`/`gʱ` symbols directly -- real
     Zulu "b"/"d"/"g" letters *are* this historically-breathy-voiced
     series, not a separate additional plain-voiced one, and no new
     phonemes were needed there. The real depressor-consonant tone-
@@ -2874,7 +2874,7 @@ reading code or one-off ad hoc scripts.
     real, near-exceptionless fixed penultimate stress
     (`stress_deviation_rate: 0.04`, close to Finnish's own famously
     rigid figure but for the opposite position).
-  - **Yoruba's real doubly-articulated labial-velar stop** `ɡb` (its
+  - **Yoruba's real doubly-articulated labial-velar stop** `gb` (its
     voiceless counterpart `k͡p` is markedly more marginal/dialectal and
     isn't modeled) was added to the pool as `Place.BILABIAL` -- no
     dedicated labial-velar place exists, the same simplification `/w/`
@@ -2950,7 +2950,7 @@ reading code or one-off ad hoc scripts.
     breathy system) stayed unchanged -- research didn't confirm Xhosa's
     stops work identically to Zulu's, so this wasn't force-matched.
   - Real, citable coda restrictions newly curated: **Bengali**'s
-    aspirated/breathy series (`pʰ tʰ kʰ bʱ dʱ ɡʱ`) essentially never
+    aspirated/breathy series (`pʰ tʰ kʰ bʱ dʱ gʱ`) essentially never
     closes a native syllable; **Quechua**'s ejective/aspirated series
     (`pʼ tʼ kʼ pʰ tʰ kʰ`) is onset-only, composing with its own already-
     curated `max_coda: 1`; **Arawakan**'s real attested finals are

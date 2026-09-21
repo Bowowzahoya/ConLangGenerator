@@ -36,13 +36,11 @@ def test_convert_symbol_nasalized_vowel_is_a_precomposed_codepoint_and_still_con
     assert ipa_to_kirshenbaum.convert_symbol("ã") == "a~"
 
 
-def test_convert_symbol_script_g_breathy_and_click_cluster_symbols_resolve_to_ascii():
-    # A handful of this project's own symbols use the strict-IPA "script
-    # g" (U+0261) rather than the plain ASCII "g" used everywhere else in
-    # the same pool -- regression guard for the alias that lets these
-    # resolve instead of leaving raw non-ASCII IPA unconverted.
-    assert ipa_to_kirshenbaum.convert_symbol("ɡʱ") == "g"
-    assert ipa_to_kirshenbaum.convert_symbol("ɡb") == "gb"
+def test_convert_symbol_breathy_and_click_cluster_g_symbols_resolve_to_ascii():
+    # The pool writes every g as ASCII "g" -- including the breathy and click-cluster symbols that
+    # used to carry the strict-IPA script g (U+0261); see tests/test_pool_uses_ascii_g.
+    assert ipa_to_kirshenbaum.convert_symbol("gʱ") == "g"
+    assert ipa_to_kirshenbaum.convert_symbol("gb") == "gb"
 
 
 def test_convert_symbol_diphthong_splits_into_two_known_vowels():

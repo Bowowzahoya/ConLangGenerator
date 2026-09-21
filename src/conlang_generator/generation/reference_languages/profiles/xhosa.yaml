@@ -9,7 +9,7 @@ aliases: [click language]
 # so Zulu now has its own profile (see zulu.yaml). "nguni" (the
 # language-family name covering Zulu/Xhosa/Swati/Ndebele) is dropped
 # too for the same reason -- it's not specifically Xhosa either.
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʔ", m, n, "ŋ", s, "ʃ", h, z, l, j, w, "ǀ", "ǃ", "ǁ", "ǀʰ", "ǃʰ", "ǁʰ", "ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ", "ɲ", "tʰ", v, "ɬ", f, mb, nd, "ŋg", nz]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʔ", m, n, "ŋ", s, "ʃ", h, z, l, j, w, "ǀ", "ǃ", "ǁ", "ǀʰ", "ǃʰ", "ǁʰ", "gǀ", "gǃ", "gǁ", "ŋǀ", "ŋǃ", "ŋǁ", "ɲ", "tʰ", v, "ɬ", f, mb, nd, "ŋg", nz]
 # The real click-accompaniment series Zulu's own profile curates this
 # same session -- aspirated, voiced/breathy "depressor", and nasalized
 # -- applies the same real Nguni-wide way to Xhosa's own three click
@@ -77,9 +77,9 @@ orthography:
   - {ipa: "ǀʰ", latin: ch}
   - {ipa: "ǃʰ", latin: qh}
   - {ipa: "ǁʰ", latin: xh}
-  - {ipa: "ɡǀ", latin: gc}
-  - {ipa: "ɡǃ", latin: gq}
-  - {ipa: "ɡǁ", latin: gx}
+  - {ipa: "gǀ", latin: gc}
+  - {ipa: "gǃ", latin: gq}
+  - {ipa: "gǁ", latin: gx}
   - {ipa: "ŋǀ", latin: nc}
   - {ipa: "ŋǃ", latin: nq}
   - {ipa: "ŋǁ", latin: nx}
@@ -92,7 +92,7 @@ onset_frequency_tiers:
   very_common: [m, n, l, k, t, w, j, s]
   common: [p, b, d, g, z, h, "ŋ", "ǀ", "ǃ", "ǁ"]
   uncommon: ["tʃ", "dʒ", "ʃ", "ʔ", "ǀʰ", "ǃʰ", "ǁʰ"]
-  rare: ["ɡǀ", "ɡǃ", "ɡǁ", "ŋǀ", "ŋǃ", "ŋǁ", "ɲ", "tʰ", v, "ɬ", f, mb, nd, "ŋg", nz]
+  rare: ["gǀ", "gǃ", "gǁ", "ŋǀ", "ŋǃ", "ŋǁ", "ɲ", "tʰ", v, "ɬ", f, mb, nd, "ŋg", nz]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [u, e]

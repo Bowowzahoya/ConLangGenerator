@@ -19,6 +19,17 @@ from conlang_generator.core.phonology import TONE_DIACRITICS, ToneLevel
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
 
 _STANDALONE_MARKS = (STRESS_MARK, WORD_ACCENT_MARK)
+_ARTICULATION_MODIFIERS = "ʱʰʼ"
+
+
+def _strands_a_modifier(text: str, end: int) -> bool:
+    """Whether a match ending at ``end`` leaves a breathy ``ʱ``, aspirated ``ʰ`` or
+    ejective ``ʼ`` mark stranded at the front of the rest -- a sign the greedy match
+    ate the wrong sounds: in ``ŋgʱ`` the prenasalized ``ŋg`` would leave ``ʱ``
+    orphaned, whereas ``ŋ`` + ``gʱ`` reads it whole. (Length ``ː`` is deliberately
+    not covered: ``tsː`` keeps reading as ``ts`` + a stray ``ː``, which is why
+    ``sonority`` refuses the pair ``t`` + ``sː``.)"""
+    return end < len(text) and text[end] in _ARTICULATION_MODIFIERS
 
 
 def tokenize(text: str, known_symbols: tuple[str, ...]) -> list[tuple[str, str]]:
@@ -46,7 +57,10 @@ def tokenize(text: str, known_symbols: tuple[str, ...]) -> list[tuple[str, str]]
             tokens.append((text[i], ""))
             i += 1
             continue
-        matched = next((s for s in ordered if text.startswith(s, i)), None)
+        candidates = [s for s in ordered if text.startswith(s, i)]
+        matched = next((s for s in candidates if not _strands_a_modifier(text, i + len(s))), None)
+        if matched is None and candidates:
+            matched = candidates[0]  # every reading strands one: keep plain longest-match
         if matched is None:
             if tokens and unicodedata.combining(text[i]):
                 symbol, deco = tokens[-1]

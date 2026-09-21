@@ -8,8 +8,8 @@ name: Yoruba
 # word_classes here doesn't suppress generation.word_class_gen's own
 # generic invented-class roll for an unmatched/uncurated POS.
 aliases: ["yorùbá", "èdè yorùbá"]
-consonants: [b, t, d, k, g, f, s, "ʃ", h, "dʒ", m, n, l, r, j, w, "ɡb"]
-# Real Yoruba's own doubly-articulated labial-velar stop /ɡb/ -- a
+consonants: [b, t, d, k, g, f, s, "ʃ", h, "dʒ", m, n, l, r, j, w, "gb"]
+# Real Yoruba's own doubly-articulated labial-velar stop /gb/ -- a
 # genuine, phonemically robust West African areal feature, one segment
 # occupying one onset slot, not a two-consonant cluster. Its real
 # voiceless counterpart /k͡p/ is markedly more marginal/dialectal in
@@ -56,13 +56,13 @@ orthography:
   - {ipa: "ɛ", latin: "ẹ"}
   - {ipa: "ɔ", latin: "ọ"}
   # Already correct by identity, curated explicitly for documentation.
-  - {ipa: "ɡb", latin: gb}
+  - {ipa: "gb", latin: gb}
 core_vocabulary_average_syllables: 1.92  # hand-counted across this project's own CORE_MEANINGS glosses (omi "water", iná "fire", jẹ "eat", mu "drink"...) -- many core verbs are genuinely monosyllabic, pulling this below the typical Bantu figures elsewhere in this batch despite Yoruba's own longer, often vowel-prefixed nouns; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
 onset_frequency_tiers:
   very_common: [m, n, l, r, j, w, k]
   common: [t, b, d, g, f, s]
   uncommon: ["ʃ", "dʒ", h]
-  rare: ["ɡb"]
+  rare: ["gb"]
 nucleus_frequency_tiers:
   very_common: [a, i, u]
   common: [e, o, "ɛ", "ɔ"]

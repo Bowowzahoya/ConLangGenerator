@@ -144,7 +144,7 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # conventions curated directly in zulu.yaml, generalized here as a
     # g-/n- prefix on this table's own base-click letter.
     "ǀʰ": "cH", "ǃʰ": "qH", "ǁʰ": "xhH",
-    "ɡǀ": "gc", "ɡǃ": "gq", "ɡǁ": "gxh",
+    "gǀ": "gc", "gǃ": "gq", "gǁ": "gxh",
     "ŋǀ": "nc", "ŋǃ": "nq", "ŋǁ": "nxh",
     # Real Nama's own 4th click place (ǂ, "tc" -- see the bare-click
     # entry above) plus its own independent aspirated/nasalized/
@@ -159,7 +159,7 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # Real Swahili's own prenasalized velar stop and real Yoruba's own
     # labial-velar stop -- both already spell exactly this way in their
     # real native orthographies (see swahili.yaml/yoruba.yaml).
-    "ŋg": "ng", "ɡb": "gb",
+    "ŋg": "ng", "gb": "gb",
     "ɓ": "bh", "ɗ": "d'", "ʄ": "j'", "ɠ": "gh",
     "ɪ": "i", "ʊ": "u", "æ": "ae", "ɐ": "uh", "ɑ": "aa", "ø": "eu", "œ": "ue",
     # Secondary articulations (aspiration, pharyngealization/"emphatics")
@@ -214,7 +214,7 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # deliberate, documented merge (same "shallow styles accept some
     # collisions" precedent ʃ/ʂ/ɕ already uses in monoletter style below),
     # not an oversight, and also the *authentic* Hindi spelling.
-    "bʱ": "bh", "dʱ": "dh", "ɡʱ": "gh",
+    "bʱ": "bh", "dʱ": "dh", "gʱ": "gh",
     # Nahuatl's own /tɬ/ -- "tl" is its real, common ASCII rendering
     # (literally how "Nahuatl" itself is spelled).
     "tɬ": "tl",
@@ -260,10 +260,10 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # itself (s -> apical, z -> laminal, ts/tz for the affricates), which
     # basque.yaml's own curated orthography also uses directly.
     "s̺": "s", "s̻": "z", "t̺s̺": "ts", "t̻s̻": "tz",
-    # Real Sanskrit's own breathy palatal affricate, completing bʱ/dʱ/ɡʱ's
+    # Real Sanskrit's own breathy palatal affricate, completing bʱ/dʱ/gʱ's
     # own capital-H aspiration-adjacent marker above -- "jh" happens to
     # also be the real Devanagari-derived romanization, and collides with
-    # ʝ's own "jh" above the same deliberate way bʱ/dʱ/ɡʱ already collide
+    # ʝ's own "jh" above the same deliberate way bʱ/dʱ/gʱ already collide
     # with the implosives.
     "dʒʱ": "jh",
     # Real Khmer's own long vowels and diphthongs not already covered
@@ -316,7 +316,7 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # table above, using this table's own aspiration-modifier-letter (ʰ)
     # treatment instead of a capital H.
     "ǀʰ": "cʰ", "ǃʰ": "qʰ", "ǁʰ": "xhʰ",
-    "ɡǀ": "gc", "ɡǃ": "gq", "ɡǁ": "gxh",
+    "gǀ": "gc", "gǃ": "gq", "gǁ": "gxh",
     "ŋǀ": "nc", "ŋǃ": "nq", "ŋǁ": "nxh",
     # Real Nama's own 4th click place and independent aspirated/
     # nasalized/glottalized accompaniment stacking -- same reasoning as
@@ -326,7 +326,7 @@ _DIACRITIC_TABLE: dict[str, str] = {
     "ǂʰ": "tcʰ", "ŋǂ": "ntc",
     "ŋǀʰ": "ncʰ", "ŋǃʰ": "nqʰ", "ŋǁʰ": "nxhʰ", "ŋǂʰ": "ntcʰ",
     "ŋǀʼ": "nc̓", "ŋǃʼ": "nq̓", "ŋǁʼ": "nxh̓", "ŋǂʼ": "ntc̓",
-    "ŋg": "ṅg", "ɡb": "gb",
+    "ŋg": "ṅg", "gb": "gb",
     "ɓ": "bh", "ɗ": "dh", "ʄ": "jh", "ɠ": "gh",
     "ɪ": "i", "ʊ": "u", "æ": "æ", "ɐ": "ă", "ɑ": "ȧ", "ø": "ø", "œ": "œ",
     # ɣ reuses Turkish "ğ" (a historically velar-fricative-derived sound in
@@ -369,7 +369,7 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # Breathy/murmured voice keeps its own real IPA modifier letter (ʱ),
     # identity, same treatment as aspiration's ʰ -- no collision here,
     # unlike the digraph style's bh/dh/gh (see its own comment).
-    "bʱ": "bʱ", "dʱ": "dʱ", "ɡʱ": "ɡʱ",
+    "bʱ": "bʱ", "dʱ": "dʱ", "gʱ": "gʱ",
     "tɬ": "tł",
     # Pre-aspiration keeps its own real IPA modifier letter (ʰ) as-is,
     # identity, same treatment as post-aspiration.
@@ -412,7 +412,7 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # every other already-Latin-Extended modifier gets in this table.
     "s̺": "s̺", "s̻": "s̻", "t̺s̺": "t̺s̺", "t̻s̻": "t̻s̻",
     # Real Sanskrit's own breathy palatal affricate -- dʒ's own "ǯ" plus
-    # the same real IPA breathy-voice modifier letter (ʱ) bʱ/dʱ/ɡʱ
+    # the same real IPA breathy-voice modifier letter (ʱ) bʱ/dʱ/gʱ
     # already carry identity above.
     "dʒʱ": "ǯʱ",
     # Real Khmer's own long vowels and diphthongs -- ɨː/ɑː follow the
@@ -466,7 +466,7 @@ _MONOLETTER_TABLE: dict[str, str] = {
     # drops secondary features" precedent every other marked feature in
     # this table already follows.
     "ǀʰ": "c", "ǃʰ": "q", "ǁʰ": "z",
-    "ɡǀ": "c", "ɡǃ": "q", "ɡǁ": "z",
+    "gǀ": "c", "gǃ": "q", "gǁ": "z",
     "ŋǀ": "c", "ŋǃ": "q", "ŋǁ": "z",
     # Real Nama's own 4th click place and independent aspirated/
     # nasalized/glottalized accompaniments -- all merge into their own
@@ -477,7 +477,7 @@ _MONOLETTER_TABLE: dict[str, str] = {
     "ŋǀʼ": "c", "ŋǃʼ": "q", "ŋǁʼ": "z", "ŋǂʼ": "x",
     # Real Swahili/Yoruba unit phonemes merge toward their own primary
     # place of articulation, same shallow-merging treatment.
-    "ŋg": "g", "ɡb": "b",
+    "ŋg": "g", "gb": "b",
     "ɓ": "b", "ɗ": "d", "ʄ": "j", "ɠ": "g",
     "ɪ": "i", "ʊ": "u", "æ": "e", "ɐ": "a", "ɑ": "a", "ø": "o", "œ": "o",
     "ɣ": "g", "pʰ": "p", "tʰ": "t", "kʰ": "k", "tsʰ": "c",
@@ -508,7 +508,7 @@ _MONOLETTER_TABLE: dict[str, str] = {
     "ã": "a", "ẽ": "e", "ĩ": "i", "õ": "o", "ũ": "u",
     "ɛ̃": "e", "ɔ̃": "o",
     # Breathy voice dropped, merges with the plain voiced stop.
-    "bʱ": "b", "dʱ": "d", "ɡʱ": "g",
+    "bʱ": "b", "dʱ": "d", "gʱ": "g",
     "tɬ": "l",
     # Pre-aspiration dropped, merges with the plain voiceless stop.
     "ʰp": "p", "ʰt": "t", "ʰk": "k",

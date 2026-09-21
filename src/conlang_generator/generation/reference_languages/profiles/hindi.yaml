@@ -1,6 +1,6 @@
 name: Hindi
 aliases: [hindustani]
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʈ", "ɖ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", s, "ʃ", h, m, n, "ɳ", l, r, j, v, "ɽ", "ɦ", "nː", "ʈː", "sː", "ɖː", "lː", "bː", "tʃʰ", "ʈʰ", "dʒʱ", "ɖʱ", z, f, "ŋ"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʈ", "ɖ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "gʱ", s, "ʃ", h, m, n, "ɳ", l, r, j, v, "ɽ", "ɦ", "nː", "ʈː", "sː", "ɖː", "lː", "bː", "tʃʰ", "ʈʰ", "dʒʱ", "ɖʱ", z, f, "ŋ"]
 vowels: [i, "iː", u, "uː", e, "ɛ", a, "aː", o, "ɔ", "ə", "ã", "ĩ", "ũ", "ẽ", "õ"]
 coda_profile: unrestricted
 max_onset: 2
@@ -97,7 +97,7 @@ orthography:
   - {ipa: "kʰ", latin: kh}
   - {ipa: "bʱ", latin: bh}
   - {ipa: "dʱ", latin: dh}
-  - {ipa: "ɡʱ", latin: gh}
+  - {ipa: "gʱ", latin: gh}
   # Nasalized vowels -- real IAST anusvara convention.
   - {ipa: "ã", latin: "aṃ"}
   - {ipa: "ĩ", latin: "iṃ"}
@@ -107,7 +107,7 @@ onset_frequency_tiers:
   very_common: [k, p, t, d, s, m, n, h]
   common: [b, g, "tʃ", "dʒ", j, v, l, r]
   uncommon: ["ʃ", "pʰ", "tʰ", "kʰ", "ʈ", "ɖ", z, f]
-  rare: ["bʱ", "dʱ", "ɡʱ", "ɦ", "tʃʰ", "ʈʰ", "dʒʱ", "ɖʱ", "nː", "ʈː", "sː", "ɖː", "lː", "bː"]  # /ɳ/ and the retroflex flap /ɽ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
+  rare: ["bʱ", "dʱ", "gʱ", "ɦ", "tʃʰ", "ʈʰ", "dʒʱ", "ɖʱ", "nː", "ʈː", "sː", "ɖː", "lː", "bː"]  # /ɳ/ and the retroflex flap /ɽ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i, u]
   common: ["aː", "iː", "uː", e, o]
@@ -117,7 +117,7 @@ coda_frequency_tiers:
   very_common: [n, t, r, m]
   common: [k, s, l, h, "ʈ"]
   uncommon: [p, d, g, v, j, "ɳ", "ɖ", "ɽ", z, f, "ŋ"]
-  rare: [b, "tʃ", "dʒ", "ʃ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", "nː", "ʈː", "sː", "ɖː", "lː", "bː", "tʃʰ", "ʈʰ", "dʒʱ", "ɖʱ"]  # the aspirated/breathy series is real but meaningfully rarer as a coda than as an onset
+  rare: [b, "tʃ", "dʒ", "ʃ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "gʱ", "nː", "ʈː", "sː", "ɖː", "lː", "bː", "tʃʰ", "ʈʰ", "dʒʱ", "ɖʱ"]  # the aspirated/breathy series is real but meaningfully rarer as a coda than as an onset
 word_classes:
   # Real Hindi noun gender is genuinely messier than a single citation-
   # form suffix -- only a real, well-documented *subset* of masculine

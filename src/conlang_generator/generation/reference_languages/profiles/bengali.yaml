@@ -1,6 +1,6 @@
 name: Bengali
 aliases: [bangla]
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", s, "ʃ", h, m, n, "ŋ", l, r, j, "ɽ", "nː", "tː", "ʃː", "gː", "dʒː", "kː", "lː", "tʃʰ", "dʒʱ", "ʈ", "ʈʰ", "ɖ"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "gʱ", s, "ʃ", h, m, n, "ŋ", l, r, j, "ɽ", "nː", "tː", "ʃː", "gː", "dʒː", "kː", "lː", "tʃʰ", "dʒʱ", "ʈ", "ʈʰ", "ɖ"]
 vowels: [i, e, "ɛ", a, "ɔ", o, u, "ã", "ẽ", "õ"]
 final_geminates: true  # real word-final geminates
 coda_profile: unrestricted
@@ -23,7 +23,7 @@ attested_onset_clusters:
   - [g, r]
   - [t, r]
   # real clusters found by `conlang audit-lexicons`
-  - ["ɡʱ", r]
+  - ["gʱ", r]
   - [h, r]
   - [d, r]
   - [k, l]
@@ -76,7 +76,7 @@ orthography:
   - {ipa: "kʰ", latin: kh}
   - {ipa: "bʱ", latin: bh}
   - {ipa: "dʱ", latin: dh}
-  - {ipa: "ɡʱ", latin: gh}
+  - {ipa: "gʱ", latin: gh}
   - {ipa: "ɔ", latin: o}
   - {ipa: "ã", latin: an}
   - {ipa: "ẽ", latin: en}
@@ -88,7 +88,7 @@ onset_frequency_tiers:
   very_common: [t, k, b, m, n, s, r, l]
   common: [p, d, g, "tʃ", "dʒ", h, j]
   uncommon: ["ʃ", "ŋ", "tʃʰ", "dʒʱ", "ʈ", "ʈʰ", "ɖ"]
-  rare: ["pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ", "nː", "tː", "ʃː", "gː", "dʒː", "kː", "lː"]
+  rare: ["pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "gʱ", "nː", "tː", "ʃː", "gː", "dʒː", "kː", "lː"]
 nucleus_frequency_tiers:
   very_common: [a, i, o]
   common: [e, u, "ɔ"]
@@ -97,7 +97,7 @@ nucleus_frequency_tiers:
 coda_frequency_tiers:
   very_common: [n, r, l, t, k]
   common: [m, "ŋ", s, b, d, g]
-  uncommon: [p, "tʃ", "dʒ", j, "ɽ", "tʃʰ", "dʒʱ", "ʈ", "ʈʰ", "ɖ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ"]
+  uncommon: [p, "tʃ", "dʒ", j, "ɽ", "tʃʰ", "dʒʱ", "ʈ", "ʈʰ", "ɖ", "pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "gʱ"]
   rare: ["ʃ", h, "nː", "tː", "ʃː", "gː", "dʒː", "kː", "lː"]
 
 attested_coda_clusters:

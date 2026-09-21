@@ -1330,7 +1330,7 @@ def test_zulu_declares_its_own_tone_level_count_and_click_series():
     zulu = next(p for p in REFERENCE_LANGUAGES if p.name == "Zulu")
     assert zulu.tone_level_count == 2
     assert {"ǀ", "ǃ", "ǁ"} <= set(zulu.consonants)
-    assert {"ǀʰ", "ɡǀ", "ŋǀ"} <= set(zulu.consonants)  # a full accompaniment series exists for at least one place
+    assert {"ǀʰ", "gǀ", "ŋǀ"} <= set(zulu.consonants)  # a full accompaniment series exists for at least one place
     assert "r" not in zulu.consonants  # real Zulu genuinely lacks native /r/
 
 
@@ -1343,18 +1343,18 @@ def test_zulu_click_series_romanizes_with_the_real_nguni_letters():
     )
     assert scheme.apply("ǀ") == "c"
     assert scheme.apply("ǁ") == "x"
-    assert scheme.apply("ɡǃ") == "gq"
+    assert scheme.apply("gǃ") == "gq"
     assert scheme.apply("ŋǁ") == "nx"
     # Real depressor spelling: plain letters, not this category's own
     # generic Hindi-style "bh"/"dh"/"gh" breathy default.
     assert scheme.apply("bʱ") == "b"
-    assert scheme.apply("ɡʱ") == "g"
+    assert scheme.apply("gʱ") == "g"
 
 
 def test_yoruba_declares_its_own_tone_level_count_and_nasal_vowels():
     yoruba = next(p for p in REFERENCE_LANGUAGES if p.name == "Yoruba")
     assert yoruba.tone_level_count == 3
-    assert "ɡb" in yoruba.consonants
+    assert "gb" in yoruba.consonants
     assert {"ɛ̃", "ɔ̃"} <= set(yoruba.vowels)
 
 
@@ -1456,7 +1456,7 @@ def test_bengali_allows_final_aspirates_and_declares_loan_clusters():
     # the lexicon audit caught it
     bengali = next(p for p in REFERENCE_LANGUAGES if p.name == "Bengali")
     legal_codas = set(bengali.consonants) - set(bengali.restricted_coda_consonants)
-    assert {"pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ"} <= legal_codas
+    assert {"pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "gʱ"} <= legal_codas
     assert ("p", "r") in bengali.attested_onset_clusters
     assert bengali.stress_pattern == "initial"
 
@@ -1528,14 +1528,14 @@ def test_xhosa_matches_zulus_real_open_syllable_canon_and_tone_and_clicks():
     xhosa = next(p for p in REFERENCE_LANGUAGES if p.name == "Xhosa")
     assert xhosa.tone_level_count == 2
     assert "ǂ" not in xhosa.consonants  # no standard Nguni letter for this click, dropped to match Zulu's own choice
-    assert {"ǀʰ", "ɡǀ", "ŋǀ"} <= set(xhosa.consonants)  # a full click-accompaniment series exists for at least one place
+    assert {"ǀʰ", "gǀ", "ŋǀ"} <= set(xhosa.consonants)  # a full click-accompaniment series exists for at least one place
     inventory = _inventory_for(xhosa)
     scheme = generate_romanization(
         random.Random(1), inventory, source_languages=("Xhosa",),
         requested_orthography_style=xhosa.orthography_category, strictness=1.0,
     )
     assert scheme.apply("ǁ") == "x"
-    assert scheme.apply("ɡǃ") == "gq"
+    assert scheme.apply("gǃ") == "gq"
     assert scheme.apply("ŋǁ") == "nx"
 
 

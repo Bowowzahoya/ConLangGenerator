@@ -216,10 +216,10 @@ _ALVEOLO_PALATAL_GROUP_BASE_RATE = 0.08
 _BREATHY_GROUP = (
     Consonant(ipa="bʱ", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.30),
     Consonant(ipa="dʱ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.30),
-    Consonant(ipa="ɡʱ", place=Place.VELAR, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.30),
+    Consonant(ipa="gʱ", place=Place.VELAR, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.30),
     # Real Sanskrit's own 5-way-per-place stop/affricate series (voiceless
     # / voiceless-aspirated / voiced / voiced-breathy) completes its
-    # palatal member here -- bʱ/dʱ/ɡʱ above already cover labial/dental/
+    # palatal member here -- bʱ/dʱ/gʱ above already cover labial/dental/
     # velar, and this pool already has plain/aspirated tʃ/tʃʰ for the
     # voiceless side.
     Consonant(ipa="dʒʱ", place=Place.POSTALVEOLAR, manner=Manner.AFFRICATE, voiced=True, breathy=True, prevalence=0.30),
@@ -361,11 +361,11 @@ _EXOTIC_POOL = (
     # breathy-voiced click series, which lowers the tone of a following
     # vowel (see zulu.yaml's own comment; not modeled mechanically, no
     # onset-conditioned tone logic exists in this project). `breathy`
-    # here is the exact same trait Hindi's own bʱ/dʱ/ɡʱ murmured series
+    # here is the exact same trait Hindi's own bʱ/dʱ/gʱ murmured series
     # already uses -- both are phonetically breathy voice.
-    Consonant(ipa="ɡǀ", place=Place.DENTAL, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.008),
-    Consonant(ipa="ɡǃ", place=Place.POSTALVEOLAR, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.008),
-    Consonant(ipa="ɡǁ", place=Place.ALVEOLAR, manner=Manner.LATERAL_FRICATIVE, voiced=True, breathy=True, prevalence=0.006),
+    Consonant(ipa="gǀ", place=Place.DENTAL, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.008),
+    Consonant(ipa="gǃ", place=Place.POSTALVEOLAR, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.008),
+    Consonant(ipa="gǁ", place=Place.ALVEOLAR, manner=Manner.LATERAL_FRICATIVE, voiced=True, breathy=True, prevalence=0.006),
     # Nasalized clicks -- phonetically pattern with nasals (voiced,
     # sonorant-like), unlike the plain/aspirated/breathy series above,
     # which all stay STOP/LATERAL_FRICATIVE like their bare counterparts.
@@ -419,7 +419,7 @@ _EXOTIC_POOL = (
     # labial-velar) already lives with elsewhere in this pool. The real
     # voiceless counterpart /k͡p/ is markedly more marginal/dialectal in
     # standard descriptions, so it isn't modeled here.
-    Consonant(ipa="ɡb", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, prevalence=0.05),
+    Consonant(ipa="gb", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, prevalence=0.05),
     # Real Navajo's own ejective series extends across all three
     # affricate places this pool already has plain members for (tɬ just
     # above, ts/tʃ in `_STOP_AND_AFFRICATE_PAIRS`), not just the stops

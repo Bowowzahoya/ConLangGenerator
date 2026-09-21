@@ -143,7 +143,7 @@ orthography:
   - {ipa: "ʔ", latin: "'"}
   - {ipa: x, latin: kh}
   - {ipa: "ɣ", latin: gh}
-  - {ipa: "dʒ", latin: j}  # real MSA jīm is voiced /dʒ/ (dialects vary: Egyptian /ɡ/, Levantine /ʒ/) -- "j" is the standard IJMES-style transliteration
+  - {ipa: "dʒ", latin: j}  # real MSA jīm is voiced /dʒ/ (dialects vary: Egyptian /g/, Levantine /ʒ/) -- "j" is the standard IJMES-style transliteration
   - {ipa: "θ", latin: th}  # ث
   - {ipa: "ð", latin: dh}  # ذ
 core_vocabulary_average_syllables: 1.6  # hand-counted across this project's own CORE_MEANINGS glosses -- illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
