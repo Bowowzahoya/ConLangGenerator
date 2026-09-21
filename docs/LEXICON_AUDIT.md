@@ -34,7 +34,9 @@ How each language's marks were produced:
   Quechua, Swahili, Swedish, Tamil, Turkish, Welsh -- plus Spanish and Portuguese by their coda/vowel rules with
   the written accent as an override, Latin by syllable weight, Italian penultimate with a hand-listed set of
   antepenult words, Indonesian and Malay penultimate unless the penult is schwa.
-* **Two languages with a weight or position rule of their own:** Hindi by syllable weight (the heaviest of the last
+* **Three languages with a weight or position rule of their own:** Arabic by the Cairene / Modern Standard rule
+  (a superheavy final syllable, else a heavy penult, else the antepenult; a disyllable with a light penult takes its
+  first -- Classical and colloquial dialects differ), Hindi by syllable weight (the heaviest of the last
   three syllables; a tie goes to the rightmost non-final one, so an all-equal word is penultimate; light = short open,
   medium = long vowel or one coda, heavy = both or two codas; nasal vowels count long, a geminate closes the syllable
   before it), and Basque by the commonly taught Central/Gipuzkoan norm (the second syllable of a word of three or more,
@@ -54,7 +56,7 @@ real exceptions (loanwords, verbs, compounds) unless listed above.
 ```
 language        stress pattern                     marked polysyll.
 Ancient Greek   -                                       0       453
-Arabic          lexical                                 0       365
+Arabic          lexical                               365       365
 Arawakan        -                                       0        42
 Basque          lexical                               468       468
 Bengali         initial                               393       393
@@ -108,7 +110,7 @@ Yoruba          -                                       0        85
 Zulu            -                                       0        80
 ```
 
-Not covered: Arabic, Georgian, Hawaiian, Serbo-Croatian and Ancient Greek (lexical or pitch accent
+Not covered: Georgian, Hawaiian, Serbo-Croatian and Ancient Greek (lexical or pitch accent
 with no rule to compute it from), Sanskrit (Vedic accent), Danish stød and the Swedish/Norwegian tonal accents,
 and every tonal language (which mark tone, not stress).
 

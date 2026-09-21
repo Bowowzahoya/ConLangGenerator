@@ -12,7 +12,7 @@ from conlang_generator.llm.fake_client import FakeLLMClient
 
 # languages whose lexicons carry a stress mark on (nearly) every polysyllabic word
 _STRESS_LANGUAGES = (
-    "Basque", "Bengali", "Danish", "Dutch", "English", "Finnish", "French", "German", "Hebrew", "Hindi", "Hungarian", "Icelandic",
+    "Arabic", "Basque", "Bengali", "Danish", "Dutch", "English", "Finnish", "French", "German", "Hebrew", "Hindi", "Hungarian", "Icelandic",
     "Indonesian", "Italian", "Latin", "Malay", "Mongolian", "Nahuatl", "Norwegian", "Old Norse", "Pama-Nyungan",
     "Persian", "Polish", "Portuguese", "Quechua", "Russian", "Spanish", "Swahili", "Swedish", "Tamil", "Turkish", "Welsh",
 )
@@ -58,6 +58,7 @@ def test_known_stress_positions_across_the_kinds_of_language():
     assert stressed("Latin", "aqua") == 0 and stressed("Latin", "ignis") == 0  # a light or two-syllable word: the first
     assert stressed("Basque", "mendia") == 1 and stressed("Basque", "ura") == 0 and stressed("Basque", "ilargia") == 1
     assert stressed("Hindi", "bahut") == 1 and stressed("Hindi", "paani") == 0 and stressed("Hindi", "zaroorat") == 1
+    assert stressed("Arabic", "hayawan") == 2 and stressed("Arabic", "kabir") == 1 and stressed("Arabic", "ana") == 0
     assert stressed("Polish", "woda") == 0 and stressed("Turkish", "kapı") == 1 and stressed("Turkish", "anne") == 0
 
 
@@ -128,7 +129,7 @@ def test_hindi_stress_follows_syllable_weight_in_the_last_three_syllables():
     assert index("pəhaːɖ") == 1 and index("kitaːb") == 1  # a superheavy final syllable
     assert index("dʒaːnvər") == 0 and index("bənaːnaː") == 1  # the heaviest of the last three
     assert index("dʒaːnːaː") == 0  # a geminate closes the syllable before it: dʒaːn.naː
-    weights = real_stress._hindi_weights(real_stress.tokens("kitaːb", "Hindi"), real_stress.syllable_starts(real_stress.tokens("kitaːb", "Hindi"), "Hindi"))
+    weights = real_stress._syllable_weights(real_stress.tokens("kitaːb", "Hindi"), real_stress.syllable_starts(real_stress.tokens("kitaːb", "Hindi"), "Hindi"))
     assert weights == [1, 3]  # ki (light), taːb (long vowel + coda)
 
 
@@ -137,3 +138,15 @@ def test_basque_takes_the_second_syllable_of_a_word_of_three_or_more():
     assert real_stress.default_stress_index("etxe", "Basque") == 0  # a disyllable keeps its first
     assert real_stress.default_stress_index("bedeɾat̻s̻i", "Basque") == 1
     assert real_stress.default_stress_index("ur", "Basque") is None
+
+
+def test_arabic_stress_is_the_cairene_weight_rule():
+    def index(ipa):
+        return real_stress.default_stress_index(ipa, "Arabic")
+
+    assert index("kataba") == 0 and index("madrasa") == 0  # all light: the antepenult
+    assert index("katabtu") == 1 and index("maktab") == 0  # a heavy (closed) penult; a disyllable's first
+    assert index("kabiːr") == 1 and index("hajawaːn") == 2 and index("kitaːb") == 1  # superheavy final
+    assert index("ʔistiʕmaːl") == 2 and index("taʕalama") == 1
+    assert index("baina") == 0  # a diphthong is a long vowel: the heavy penult of a disyllable
+    assert real_stress.default_stress_index("ʕuː", "Arabic") is None  # a monosyllable

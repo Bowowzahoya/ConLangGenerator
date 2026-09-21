@@ -116,16 +116,19 @@ def _is_heavy(toks: list[tuple[str, str]], starts: tuple[int, ...], syllable: in
 _NASAL_VOWELS = frozenset("ãẽĩõũ") | {"ɛ̃", "ɔ̃"}
 
 
-def _hindi_weights(toks: list[tuple[str, str]], starts: tuple[int, ...]) -> list[int]:
-    """Hindi syllable weights: 1 light (short vowel, open), 2 medium (long vowel, or a
-    short vowel + one coda consonant), 3 heavy (long vowel + coda, or two coda consonants).
-    A nasal vowel counts as long and a geminate closes the syllable before it."""
+def _syllable_weights(toks: list[tuple[str, str]], starts: tuple[int, ...]) -> list[int]:
+    """Syllable weights: 1 light (short vowel, open), 2 medium/heavy (long vowel, or a
+    short vowel + one coda consonant), 3 heavy/superheavy (long vowel + coda, or two coda
+    consonants). A nasal vowel or a diphthong counts as long and a geminate closes the
+    syllable before it. Shared by Hindi and Arabic."""
     weights = []
     for k, start in enumerate(starts):
         end = starts[k + 1] if k + 1 < len(starts) else len(toks)
         vowel = next(i for i in range(start, end) if _is_vowel(toks[i][0]))
         symbol = toks[vowel][0]
-        long_vowel = "ː" in symbol or symbol in _NASAL_VOWELS or toks[vowel][1].count("̃") > 0
+        long_vowel = (
+            "ː" in symbol or symbol in _NASAL_VOWELS or symbol in _DIPHTHONGS or toks[vowel][1].count("̃") > 0
+        )
         coda = sum(1 for s, _ in toks[vowel + 1:end] if not _is_vowel(s))
         if k + 1 < len(starts) and toks[starts[k + 1]][0].endswith("ː") and not _is_vowel(toks[starts[k + 1]][0]):
             coda += 1  # a geminate's first half closes this syllable
@@ -137,13 +140,28 @@ def _hindi_stress(toks: list[tuple[str, str]], starts: tuple[int, ...]) -> int:
     """The heaviest syllable of the last three (the profile's own description of
     Hindi); on a tie the rightmost *non-final* one, so an all-equal word is penultimate;
     the final syllable wins only if strictly heavier than the others in the window."""
-    weights = _hindi_weights(toks, starts)
+    weights = _syllable_weights(toks, starts)
     count = len(weights)
     window = list(range(max(0, count - 3), count))
     best = max(weights[i] for i in window)
     candidates = [i for i in window if weights[i] == best]
     non_final = [i for i in candidates if i != count - 1]
     return non_final[-1] if non_final else count - 1
+
+
+def _arabic_stress(toks: list[tuple[str, str]], starts: tuple[int, ...]) -> int:
+    """The Cairene / Modern Standard rule: a superheavy final syllable (long vowel + coda,
+    or two codas) is stressed; otherwise the penult if it is heavy (a long vowel or a
+    closed syllable); otherwise the antepenult (a disyllable with a light penult: its first).
+    Classical and other colloquial dialects differ, which is why the profile calls Arabic
+    stress dialect-dependent; this is the one rule taught for the standard language."""
+    weights = _syllable_weights(toks, starts)
+    count = len(weights)
+    if weights[-1] >= 3:
+        return count - 1
+    if weights[-2] >= 2 or count == 2:
+        return count - 2
+    return count - 3
 
 
 def default_stress_index(ipa: str, name: str) -> int | None:
@@ -166,6 +184,8 @@ def default_stress_index(ipa: str, name: str) -> int | None:
         return 1 if count >= 3 else 0
     if name == "Hindi":
         return _hindi_stress(toks, starts)
+    if name == "Arabic":
+        return _arabic_stress(toks, starts)
     if pattern in ("", "lexical"):
         return None
     vowels = _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES)
