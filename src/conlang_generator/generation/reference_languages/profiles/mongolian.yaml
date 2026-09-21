@@ -1,6 +1,6 @@
 name: Mongolian
-consonants: [p, b, t, d, k, g, q, "ɢ", "tʃ", "dʒ", s, "ʃ", x, "ɣ", m, n, "ŋ", l, r, j, w]
-vowels: [a, e, i, o, u, "ɔ", "ʊ", "ə", "aː", "eː", "iː", "oː", "uː"]
+consonants: [p, b, t, d, k, g, q, "ɢ", "tʃ", "dʒ", s, "ʃ", x, "ɣ", m, n, "ŋ", l, r, j, w, ts, dz]
+vowels: [a, e, i, o, u, "ɔ", "ʊ", "ə", "aː", "eː", "iː", "oː", "uː", "ɔː"]
 # Real Mongolian vowel length is phonemic and highly productive (уул uul
 # "mountain", чулуу chuluu "stone", халуун khaluun "hot" all have a real
 # long vowel) -- added here because the new stress pattern below (real
@@ -9,7 +9,8 @@ vowels: [a, e, i, o, u, "ɔ", "ʊ", "ə", "aː", "eː", "iː", "oː", "uː"]
 # profile's own inventory to have any effect at all; without them this
 # pattern would silently degrade to plain "initial" every time.
 coda_profile: unrestricted
-max_onset: 1
+max_onset: 2
+max_coda: 2  # real Mongolian words end in up to two consonants (mordo, altan, ...)
 tonal: false
 vowel_harmony: true
 orthography_category: digraph-style
@@ -24,6 +25,36 @@ attested_coda_clusters:
   # pair -- isn't cleanly resolvable without deeper sourcing).
   - [d, n]                   # гадна "gadn" (outside)
   - [l, d]                   # далд "dald" (hidden/secret)
+  # real clusters found by `conlang audit-lexicons`
+  - [n, d]
+  - [l, t]
+  - [g, d]
+  - [l, "dʒ"]
+  - [m, "dʒ"]
+  - [g, "tʃ"]
+  - [g, "ʃ"]
+  - ["ŋ", x]
+  - [l, x]
+  - [r, x]
+  - [n, ts]
+  - [l, ts]
+  - [n, k]
+  - [n, "tʃ"]
+  - [n, s]
+  - [n, t]
+  - [r, t]
+  - [r, d]
+  - [r, g]
+  - [r, s]
+  - [l, g]
+  - [m, b]
+  - [m, p]
+  - ["ŋ", g]
+  - [b, t]
+  - [g, t]
+  - [s, t]
+  - [s, k]
+  - ["ʃ", t]
 orthography:
   # Real (scientific, Cyrillic-derived) Mongolian transliteration
   # conventions, restricted to symbols this profile actually models --
@@ -52,17 +83,17 @@ core_vocabulary_average_syllables: 1.51  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [t, k, g, m, n, s]
   common: [b, d, "tʃ", "dʒ", l, r]
-  uncommon: [x, "ɣ", "ʃ", j, w]
+  uncommon: [x, "ɣ", "ʃ", j, w, ts, dz]
   rare: [p, q, "ɢ", "ŋ"]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [e, o, u]
   uncommon: ["ɔ", "ʊ", "ə"]
-  rare: ["aː", "eː", "iː", "oː", "uː"]
+  rare: ["aː", "eː", "iː", "oː", "uː", "ɔː"]
 coda_frequency_tiers:
   very_common: [n, g, l, r]
   common: [t, k, m, s]
-  uncommon: [b, d, x, "ɣ", "ŋ"]
+  uncommon: [b, d, x, "ɣ", "ŋ", ts, dz]
   rare: [p, q, "ɢ", "tʃ", "dʒ", "ʃ", j, w]
 word_classes:
   # Real Mongolian's own citation-form verb suffix (traditionally
@@ -79,3 +110,8 @@ word_classes:
 word_class_deviation_rate: 0.08  # illustrative -- real Mongolian citation-form marking is fairly regular once harmony correctly resolves the surface form
 stress_pattern: first_long_vowel_else_initial  # real Mongolian (Svantesson et al.): stress falls on the first syllable with a long vowel or diphthong, else the initial syllable -- a defensible first-order approximation of a genuinely more complex real system (some analyses describe Khalkha stress as one of the most complex regularly-stressed systems in the world, with real weight-sensitivity and directionality interactions beyond this flat rule)
 stress_deviation_rate: 0.25  # illustrative -- reflects the real complexity beyond the simple "first long vowel" statement, without treating it as fully unpredictable the way a genuinely lexical system would be
+
+attested_onset_clusters:
+  # real clusters found by `conlang audit-lexicons`
+  - [m, j]
+  - [g, j]

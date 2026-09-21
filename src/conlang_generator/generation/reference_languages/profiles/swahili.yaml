@@ -1,6 +1,6 @@
 name: Swahili
 aliases: [kiswahili]
-consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", h, m, n, "ɲ", "ŋ", l, r, j, w, "θ", "ð", "ɣ", x, mb, nd, "ŋg", nz, "nː"]
+consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", h, m, n, "ɲ", "ŋ", l, r, j, w, "θ", "ð", "ɣ", x, mb, nd, "ŋg", nz, "nː", "ʒ"]
 # Real Swahili's own core inventory plus the real Arabic-loan register
 # (θ/ð/ɣ/x -- th/dh/gh/kh, e.g. thelathini, dhahabu, ghali, khamsini)
 # many L1 speakers actually merge toward s/z/ɣ~h/h in casual speech, so
@@ -12,7 +12,7 @@ consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", h, m, n, "ɲ", "�
 # two consonants.
 vowels: [i, e, a, o, u]
 coda_profile: none
-max_onset: 1
+max_onset: 2
 # Real native Swahili syllables are strictly (C)V -- fully open, no
 # codas at all. The one real exception, a syllabic nasal realizing a
 # noun-class prefix (mtu "person", nchi "country"), is modeled below via
@@ -78,7 +78,7 @@ onset_frequency_tiers:
   very_common: [m, n, k, t, l, j, w, s]
   common: [p, b, d, g, f, v, z, h, "ŋ", "ɲ", r]
   uncommon: ["tʃ", "dʒ", "ʃ", mb, nd, "ŋg", nz]
-  rare: ["θ", "ð", "ɣ", x, "nː"]
+  rare: ["θ", "ð", "ɣ", x, "nː", "ʒ"]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [u, e]
@@ -93,3 +93,74 @@ real_has_overt_copula: true          # "ni" -- a real, invariant copula particle
 real_adjective_after_noun: true      # real Swahili attributive adjectives follow the noun, agreeing via noun-class concord (mtu mrefu = "tall person")
 real_case_count: 0                   # Swahili (like other Bantu languages) marks grammatical relations via noun-class agreement, not case inflection
 foreign_name_handling: keep       # foreign personal names are used as written
+
+attested_onset_clusters:
+  # nasal+consonant and glide onset clusters (syllabic nasals, labialization)
+  - [m, w]
+  - [k, w]
+  - [m, k]
+  - [m, t]
+  - [m, f]
+  - ["ɲ", "dʒ"]
+  - [m, v]
+  - [b, w]
+  - [n, j]
+  - [m, d]
+  - [m, g]
+  - [m, "tʃ"]
+  - [m, l]
+  - [m, "ɲ"]
+  - [n, g]
+  - [m, s]
+  - [m, p]
+  - [m, "ʃ"]
+  - [m, r]
+  - [m, "dʒ"]
+  - [s, w]
+  - ["ɲ", w]
+  - ["tʃ", w]
+  - [m, j]
+  - [d, w]
+  - [g, w]
+  - [v, w]
+  - [z, w]
+  - [t, w]
+  - [p, w]
+  - [f, w]
+  - [l, w]
+  - [n, w]
+  - ["ŋ", w]
+  - ["dʒ", w]
+  - ["ʃ", w]
+  - [x, w]
+  - [h, w]
+  - [n, z]
+  - [m, b]
+  - [n, d]
+  - ["ŋ", g]
+  - [n, s]
+  - [n, "tʃ"]
+  # real clusters found by `conlang audit-lexicons`
+  - [nd, "ʒ"]
+  - [mb, w]
+  - [nd, w]
+  - ["ŋg", w]
+  - [nz, w]
+attested_onset_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [m, b, w]
+  - [m, p, j]
+  - [n, d, w]
+  - ["ŋ", g, w]
+  - [m, t, w]
+  - [m, k, w]
+  - [m, g, w]
+  - [m, d, w]
+  - [m, v, w]
+  - [m, f, w]
+  - [m, s, w]
+  - [m, z, w]
+  - [m, l, w]
+  - [n, z, w]
+  - [m, "tʃ", w]
+  - [n, j, w]

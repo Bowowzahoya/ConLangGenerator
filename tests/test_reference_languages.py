@@ -711,12 +711,13 @@ def test_mandarin_vietnamese_cantonese_tibetan_declare_their_real_tone_level_cou
 def test_vietnamese_declares_the_real_p_onset_restriction_and_coda_set():
     # Real Vietnamese /p/ never opens a native syllable -- the reverse of
     # most languages' own onset/coda asymmetries -- and codas are
-    # restricted to exactly /p t k m n ŋ/ plus the /j/ /w/ offglides.
+    # restricted to /p t k m n ŋ/, the final palatal -ch (/c/), plus the /j/ /w/ offglides.
     vietnamese = next(p for p in REFERENCE_LANGUAGES if p.name == "Vietnamese")
     assert vietnamese.restricted_onset_consonants == ("p",)
     legal_codas = set(vietnamese.consonants) - set(vietnamese.restricted_coda_consonants)
-    assert legal_codas == {"p", "t", "k", "m", "n", "ŋ", "j", "w"}
-    assert vietnamese.max_onset == 1  # no native onset clusters at all
+    assert legal_codas == {"p", "t", "k", "c", "m", "n", "ŋ", "j", "w"}
+    # the medial /w/ (qu-, hu-) is an onset cluster in this model; nothing else clusters
+    assert vietnamese.max_onset == 2 and all(pair[1] == "w" for pair in vietnamese.attested_onset_clusters)
 
 
 def test_vietnamese_quoc_ngu_letter_swaps_romanize_correctly():
@@ -1439,10 +1440,12 @@ def test_pama_nyungan_restricts_the_real_onset_initial_consonants():
     assert {"aː", "iː", "uː"} <= set(pama_nyungan.vowels)
 
 
-def test_bengali_declares_the_real_aspirate_coda_restriction_and_loan_clusters():
+def test_bengali_allows_final_aspirates_and_declares_loan_clusters():
+    # an earlier restriction barred aspirated codas, but real words end in them (kaʈʰ "wood");
+    # the lexicon audit caught it
     bengali = next(p for p in REFERENCE_LANGUAGES if p.name == "Bengali")
     legal_codas = set(bengali.consonants) - set(bengali.restricted_coda_consonants)
-    assert legal_codas & {"pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ"} == set()
+    assert {"pʰ", "tʰ", "kʰ", "bʱ", "dʱ", "ɡʱ"} <= legal_codas
     assert ("p", "r") in bengali.attested_onset_clusters
     assert bengali.stress_pattern == "initial"
 

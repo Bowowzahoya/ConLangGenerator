@@ -282,3 +282,15 @@ def test_spanish_and_arabic_lexicons_fit_their_profiles():
     by_name = {p.name: p for p in REFERENCE_LANGUAGES}
     assert by_name["Arabic"].final_geminates
     assert ("s", "j") in by_name["Spanish"].attested_onset_clusters
+
+
+def test_vietnamese_swahili_bengali_and_mongolian_lexicons_fit_their_profiles():
+    for name, limit in (("Vietnamese", 0.01), ("Swahili", 0.03), ("Bengali", 0.02), ("Mongolian", 0.03)):
+        (audit,) = lexicon_audit.audit_all((name,))
+        assert not audit.off_inventory, (name, audit.off_symbols)
+        assert audit.flagged_rate <= limit, (name, audit.flagged_rate)
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert {"c", "ʈ", "ɣ", "ɤ"} <= set(by_name["Vietnamese"].symbols())
+    assert ("m", "w") in by_name["Swahili"].attested_onset_clusters  # mwana, mwezi
+    assert {"tʃʰ", "ʈ", "ɖ"} <= set(by_name["Bengali"].consonants) and by_name["Bengali"].final_geminates
+    assert {"ts", "dz", "ɔː"} <= set(by_name["Mongolian"].symbols())

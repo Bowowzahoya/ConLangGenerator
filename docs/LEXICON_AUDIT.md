@@ -25,11 +25,7 @@ language         words  off-profile  structure  flagged
 Khmer               52            0         14     27% 
 Nama                 4            0          1     25% 
 Sumerian            38            0          9     24% 
-Vietnamese         494           90          7     20% 
-Swahili            494            4         80     17% 
 Navajo              24            4          0     17% 
-Bengali            494           61         21     17% 
-Mongolian          322           21         32     16% 
 Arawakan            49            6          2     16% 
 Sanskrit           494            3         66     14% 
 Japanese           494           11         43     11% 
@@ -52,6 +48,7 @@ Xhosa               52            0          1      2%
 Tamil              494            1          8      2% 
 Turkish            494            0          7      1% 
 Latin              494            4          2      1% 
+Swahili            494            0          6      1% 
 Zulu                84            0          1      1% 
 Georgian           169            0          2      1% 
 Ancient Greek      494            0          5      1% 
@@ -61,6 +58,7 @@ Norwegian          494            0          5      1%
 Serbo-Croatian     494            0          5      1% 
 Nahuatl            246            0          2      1% 
 Hungarian          494            0          4      1% 
+Bengali            494            0          3      1% 
 Dutch              494            0          3      1% 
 French             494            2          1      1% 
 Hawaiian           401            2          0      0% 
@@ -72,10 +70,12 @@ Korean             494            0          1      0%
 Spanish            494            0          1      0% 
 Cantonese          494            0          0      0% 
 English            494            0          0      0% 
+Mongolian          322            0          0      0% 
 Tibetan            365            0          0      0% 
+Vietnamese         494            0          0      0% 
 Welsh              494            0          0      0% 
 Yoruba             102            0          0      0% 
-all              20845                              4%
+all              20845                              3%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being
@@ -151,6 +151,12 @@ and its lexicon aligned to `ɛː`/`y`.
 diphthongs (*sj pj mw*, with triples such as *gɾj*) are onset clusters. Arabic's lexicon writes
 `aw`/`aj` as the profile's diphthongs `au`/`ai`, and the profile gains `final_geminates` (*shadda* ends
 words) and ~70 real final clusters (*ʕd ħm dr ml*).
+
+**Vietnamese, Swahili, Bengali, Mongolian (fixed):** 20% -> 0%, 17% -> 1%, 17% -> 1%, 16% -> 0%.
+Vietnamese gains `c ʈ ɣ ɤ` (*ch*, *tr*, *g/gh*, *ơ*) and medial `Cw` onset clusters (*qu-*, *hu-*); Swahili the
+nasal+consonant and labialized onset clusters (*mw*, *mk*, *mbw*), `ʒ`, and `dʒ` clusters; Bengali `tʃʰ dʒʱ ʈ ʈʰ ɖ`,
+final aspirates (an old restriction was wrong: *kaʈʰ*), `final_geminates`, and its lexicon's `ɪ w ɦ` normalized;
+Mongolian `ts dz ɔː`, `max_coda: 2` and its real final clusters (`nd lt gd`), `v` -> `w`.
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet

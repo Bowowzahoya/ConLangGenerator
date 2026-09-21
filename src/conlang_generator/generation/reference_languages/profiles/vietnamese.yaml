@@ -7,10 +7,10 @@ name: Vietnamese
 # class_gen's own generic invented-class roll for an unmatched/
 # uncurated POS.
 aliases: ["tiếng việt"]
-consonants: [p, b, t, "tʰ", d, k, g, f, v, s, z, "ʃ", "ʒ", x, h, m, n, "ɲ", "ŋ", l, w, j]
-vowels: [i, e, "ɛ", a, "ɔ", o, u, "ɯ", "ə"]
+consonants: [p, b, t, "tʰ", d, k, g, f, v, s, z, "ʃ", "ʒ", x, h, m, n, "ɲ", "ŋ", l, w, j, c, "ʈ", "ɣ"]
+vowels: [i, e, "ɛ", a, "ɔ", o, u, "ɯ", "ə", "ɤ"]
 coda_profile: unrestricted
-max_onset: 1
+max_onset: 2
 max_coda: 1  # real Vietnamese has no tautosyllabic coda clusters at all -- retroactively curated once phonology_gen.py's own coda-cluster roll gained the max_coda-biased mechanism (previously a flat, uncurated 30% roll this profile's own comments below already claimed didn't apply, but nothing actually enforced)
 tonal: true
 tone_levels: [mid, low, high, dipping, rising, falling]  # ngang, huyen, sac, hoi, nga (approximated as rising), nang (approximated as falling)
@@ -20,7 +20,7 @@ restricted_onset_consonants: [p]
 # Real Vietnamese /p/ never opens a native syllable -- it only ever
 # closes one (an asymmetry the reverse of most languages' own onset/coda
 # restrictions).
-restricted_coda_consonants: [b, "tʰ", d, g, f, v, s, z, "ʃ", "ʒ", x, h, "ɲ", l]
+restricted_coda_consonants: [b, "tʰ", d, g, f, v, s, z, "ʃ", "ʒ", x, h, "ɲ", l, "ʈ", "ɣ"]
 # Real native Vietnamese syllables are strictly (C)V(G|C) -- no
 # tautosyllabic onset *or* coda clusters (max_onset: 1 above, and a
 # single coda slot) -- and the coda itself is restricted to exactly
@@ -83,17 +83,17 @@ core_vocabulary_average_syllables: 1.12  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [t, k, m, n, s, h]
   common: [b, d, "tʰ", g, v, l, "ɲ", "ŋ"]
-  uncommon: [f, z, "ʃ", "ʒ", x]
+  uncommon: [f, z, "ʃ", "ʒ", x, c, "ʈ", "ɣ"]
   rare: [w, j]  # /p/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [e, o, u]
-  uncommon: ["ɛ", "ɔ", "ɯ"]
+  uncommon: ["ɛ", "ɔ", "ɯ", "ɤ"]
   rare: ["ə"]
 coda_frequency_tiers:
   very_common: [n, k, "ŋ"]
   common: [t, m, p]
-  uncommon: [j, w]
+  uncommon: [j, w, c]
   rare: []  # coda_profile: unrestricted (not "sonorant") means restricted_coda_consonants
   # above *does* directly narrow this profile's own legal coda set (unlike the
   # sonorant-profile languages, where padding excluded symbols in here as
@@ -101,3 +101,22 @@ coda_frequency_tiers:
   # covered by the three tiers above, so this one stays empty rather than
   # listing the restricted set here.
 foreign_name_handling: adapt      # foreign names are respelled in Vietnamese syllables
+
+attested_onset_clusters:
+  # glide onsets (Vietnamese medial /w/ is an onset cluster)
+  - [k, w]
+  - [h, w]
+  - [t, w]
+  - [s, w]
+  - [n, w]
+  - [l, w]
+  - [x, w]
+  - ["ŋ", w]
+  - ["ʈ", w]
+  - ["ʃ", w]
+  - [z, w]
+  - ["ɣ", w]
+  - ["ɲ", w]
+  - [d, w]
+  - [b, w]
+  - [m, w]
