@@ -259,12 +259,17 @@ def with_pitch_accent(ipa: str, name: str, accent: int) -> str:
 
 
 def pitch_pattern(ipa: str, name: str) -> str | None:
-    """The word's H/L pattern as a string (``"LHH"``), or ``None`` if unmarked."""
+    """The word's H/L pattern as a string (``"LHH"``; ``F`` marks a falling/circumflex
+    syllable), or ``None`` if unmarked."""
     high, low = TONE_DIACRITICS_BY_LEVEL()
+    from conlang_generator.core.phonology import ToneLevel
+
+    falling = TONE_DIACRITICS[ToneLevel.FALLING]
     pattern = ""
-    for symbol, deco in tokens(ipa, name):
-        if _is_vowel(symbol):
-            pattern += "H" if high in deco else "L" if low in deco else "?"
+    toks = tokens(ipa, name)
+    for i in _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES, _pairs(name)):
+        deco = toks[i][1]
+        pattern += "H" if high in deco else "L" if low in deco else "F" if falling in deco else "?"
     return pattern if pattern and "?" not in pattern else None
 
 
@@ -274,11 +279,69 @@ def TONE_DIACRITICS_BY_LEVEL():
     return TONE_DIACRITICS[ToneLevel.HIGH], TONE_DIACRITICS[ToneLevel.LOW]
 
 
+def _greek_long(toks: list[tuple[str, str]], starts: tuple[int, ...], syllable: int) -> bool:
+    end = starts[syllable + 1] if syllable + 1 < len(starts) else len(toks)
+    vowel = next(i for i in range(starts[syllable], end) if _is_vowel(toks[i][0]))
+    diphthong = vowel + 1 < end and _is_vowel(toks[vowel + 1][0])
+    return "ː" in toks[vowel][0] or diphthong
+
+
+def with_greek_accent(ipa: str, kernel: int, circumflex: bool | None = None) -> str:
+    """Attic accent as the project encodes it (per-syllable High/Low marks with the
+    circumflex as the falling mark on the kernel, ``mark_positional_pitch_accent``).
+    ``circumflex=None`` applies the real rule: a circumflex needs a long penult under an
+    accent with a short final syllable (final ``-ai``/``-oi`` count as short)."""
+    from conlang_generator.generation.word_accent_gen import mark_positional_pitch_accent
+
+    name = "Ancient Greek"
+    toks = [(s, "") for s, _ in tokens(ipa, name)]
+    starts = syllable_starts(toks, name)
+    count = len(starts)
+    kernel = max(0, min(kernel, count - 1))
+    if circumflex is None:
+        final_symbol = toks[next(i for i in range(starts[-1], len(toks)) if _is_vowel(toks[i][0]))][0]
+        final_vowel = next(i for i in range(starts[-1], len(toks)) if _is_vowel(toks[i][0]))
+        diph = final_vowel + 1 < len(toks) and _is_vowel(toks[final_vowel + 1][0])
+        final_short = "ː" not in final_symbol and (not diph or (final_symbol + toks[final_vowel + 1][0]) in ("ai", "oi"))
+        circumflex = kernel == count - 2 and _greek_long(toks, starts, kernel) and final_short
+    marks = mark_positional_pitch_accent(kernel, count, circumflex)
+    vowels = [next(i for i in range(starts[k], starts[k + 1] if k + 1 < count else len(toks)) if _is_vowel(toks[i][0])) for k in range(count)]
+    return "".join(s + (marks[vowels.index(i)] if i in vowels else "") for i, (s, _) in enumerate(toks))
+
+
+def with_sc_accent(ipa: str, syllable: int, long: bool | None = None) -> str:
+    """Serbo-Croatian (Neo-Stokavian) accent: the stress mark before ``syllable`` plus, when
+    the syllable's length is known, the four-way pitch x length diacritic on its vowel --
+    falling on the word's first syllable, rising on any other (a Neo-Stokavian accent never
+    falls anywhere else). ``long=None`` marks position only."""
+    from conlang_generator.core.phonology import WordAccentCategory
+    from conlang_generator.generation.word_accent_gen import _TONE_LENGTH_DIACRITICS
+
+    name = "Serbo-Croatian"
+    stressed = with_stress(ipa, name, syllable)
+    if long is None:
+        return stressed
+    toks = tokens(stressed if STRESS_MARK not in stressed else stressed.replace(STRESS_MARK, ""), name)
+    starts = syllable_starts(toks, name)
+    if len(starts) < 2:
+        return "".join(s + d for s, d in toks)
+    syllable = max(0, min(syllable, len(starts) - 1))
+    end = starts[syllable + 1] if syllable + 1 < len(starts) else len(toks)
+    vowel = next(i for i in range(starts[syllable], end) if _is_vowel(toks[i][0]))
+    category = WordAccentCategory.ACCENT_1 if syllable == 0 else WordAccentCategory.ACCENT_2
+    mark = _TONE_LENGTH_DIACRITICS[(category, long)]
+    out = []
+    for i, (s, d) in enumerate(toks):
+        out.append((STRESS_MARK if i == starts[syllable] else "") + s + (mark if i == vowel else d))
+    return "".join(out)
+
+
 def coverage(name: str) -> tuple[int, int]:
-    """``(marked, polysyllabic)``: how many polysyllabic words carry a stress mark."""
+    """``(marked, polysyllabic)``: how many polysyllabic words carry a stress mark or a
+    pitch-accent pattern (Japanese, Ancient Greek)."""
     marked = total = 0
     for _, ipa in real_words(name).values():
         if syllable_count(ipa, name) > 1:
             total += 1
-            marked += STRESS_MARK in ipa
+            marked += STRESS_MARK in ipa or pitch_pattern(ipa, name) is not None
     return marked, total

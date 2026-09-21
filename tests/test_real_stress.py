@@ -14,7 +14,7 @@ from conlang_generator.llm.fake_client import FakeLLMClient
 _STRESS_LANGUAGES = (
     "Arabic", "Basque", "Bengali", "Danish", "Dutch", "English", "Finnish", "French", "Georgian", "German", "Hawaiian", "Hebrew", "Hindi", "Hungarian", "Icelandic",
     "Indonesian", "Italian", "Latin", "Malay", "Mongolian", "Nahuatl", "Norwegian", "Old Norse", "Pama-Nyungan",
-    "Persian", "Polish", "Portuguese", "Quechua", "Russian", "Spanish", "Swahili", "Swedish", "Tamil", "Turkish", "Welsh",
+    "Persian", "Polish", "Portuguese", "Quechua", "Russian", "Serbo-Croatian", "Spanish", "Swahili", "Swedish", "Tamil", "Turkish", "Welsh",
 )
 
 
@@ -163,3 +163,47 @@ def test_georgian_and_hawaiian_rules():
     assert hawaiian("keiki") == 0 and hawaiian("maikaʔi") == 1  # ei/ai are one syllable
     assert hawaiian("maːkou") == 1 and hawaiian("ʔoe") == 0  # a final diphthong is heavy; oe is a hiatus
     assert real_stress.syllable_count("hawaʔi", "Hawaiian") == 3 and real_stress.syllable_count("ia", "Hawaiian") == 2
+
+
+def test_ancient_greek_accent_is_one_kernel_with_the_real_circumflex_rule():
+    greek = {spelling: ipa for spelling, ipa in real_words("Ancient Greek").values()}
+    pattern = lambda spelling: real_stress.pitch_pattern(greek[spelling], "Ancient Greek")
+    assert pattern("theos") == "LH" and pattern("hēlios") == "HLL"  # oxytone; a long antepenult stays acute
+    assert pattern("oida") == "FL" and pattern("keimai") == "FL" and pattern("glōssa") == "FL"  # long penult, short final
+    assert pattern("andreios") == "LFL" and pattern("hydōr") == "HL"  # a short penult, or a long final, stays acute
+    assert pattern("hēmeis") == "LF" and pattern("houtos") == "FL"  # forced circumflexes (perispomenon; ου written y)
+    marked = total = 0
+    for ipa in greek.values():
+        if real_stress.syllable_count(ipa, "Ancient Greek") > 1:
+            total += 1
+            p = real_stress.pitch_pattern(ipa, "Ancient Greek")
+            if p:
+                marked += 1
+                assert p.count("F") <= 1 and ("F" in p or "H" in p), (ipa, p)
+                kernel = p.index("F") if "F" in p else p.rindex("H")
+                assert kernel >= len(p) - 3, f"{ipa}: the accent falls before the antepenult"  # the trimoric law
+                assert set(p[kernel + 1:]) <= {"L"}
+    assert marked / total >= 0.95
+
+
+def test_greek_circumflex_needs_a_long_penult_and_a_short_final_syllable():
+    accent = lambda ipa, k: real_stress.pitch_pattern(real_stress.with_greek_accent(ipa, k), "Ancient Greek")
+    assert accent("gluːkos", 0) is not None
+    assert accent("kɛːpos", 0) == "FL"  # long penult, short final -> circumflex
+    assert accent("kɛːpɔː", 0) == "HL"  # a long final syllable rules the circumflex out
+    assert accent("logos", 0) == "HL"  # a short penult is acute
+
+
+def test_serbo_croatian_has_stress_everywhere_and_the_four_way_accent_where_known():
+    sc = {spelling: ipa for spelling, ipa in real_words("Serbo-Croatian").values()}
+    assert sc["voda"] == "ˈvȍda"  # short falling on the first syllable
+    assert sc["planina"] == "plaˈnìna" and sc["dijete"] == "diˈjète"  # short rising on a later syllable
+    assert sc["ovo"] == "ˈovo"  # position only: the length was not curated
+    with_accent = [ipa for ipa in sc.values() if any(m in ipa for m in ("̏", "̀", "́", "̂"))]
+    assert len(with_accent) >= 140
+    # a Neo-Stokavian accent never falls on a non-initial syllable: every accented vowel after the
+    # first syllable carries a rising mark
+    for ipa in with_accent:
+        before = ipa[: ipa.index("ˈ")] if "ˈ" in ipa else ""
+        if before:
+            assert "̏" not in ipa and "̂" not in ipa, ipa
