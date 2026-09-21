@@ -3,6 +3,7 @@ aliases: [aztec, "náhuatl"]
 consonants: [p, t, k, "tʃ", "tɬ", s, "ʃ", h, m, n, l, w, j, "ʔ", "lː", "tː", "kː", ts]
 vowels: [a, e, i, o, "aː", "eː", "iː", "oː"]
 coda_profile: unrestricted
+restricted_initial_consonants: ["lː", "tː", "kː"]  # geminates never open a word
 max_onset: 2
 restricted_coda_consonants: []
 # The generic "sonorant" coda_profile's own sonority filter (see

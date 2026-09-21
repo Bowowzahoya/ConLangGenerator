@@ -556,7 +556,7 @@ def test_tamil_declares_the_retroflex_approximant_and_restricts_it_from_onset():
     # retroflex consonants and /ŋ/) never opens a native word.
     tamil = next(p for p in REFERENCE_LANGUAGES if p.name == "Tamil")
     assert "ɻ" in tamil.consonants
-    assert "ɻ" in tamil.restricted_onset_consonants
+    assert "ɻ" in tamil.restricted_initial_consonants  # never word-initial, but an ordinary medial onset (maɻai)
     assert tamil.coda_profile == "sonorant"
 
 
@@ -577,7 +577,7 @@ def test_hindi_and_persian_declare_real_attested_clusters():
     hindi = by_name["Hindi"]
     assert ("p", "r") in hindi.attested_onset_clusters  # "prem"
     assert ("r", "m") in hindi.attested_coda_clusters  # "dharm"
-    assert "ɳ" in hindi.restricted_onset_consonants  # real Hindi retroflex ɳ never opens a native word
+    assert "ɳ" in hindi.restricted_initial_consonants  # real Hindi retroflex ɳ never opens a native word
     persian = by_name["Persian"]
     assert persian.attested_onset_clusters == ()  # real Persian has no native onset clusters at all
     assert ("s", "t") in persian.attested_coda_clusters  # "dast"
@@ -1445,7 +1445,7 @@ def test_pama_nyungan_restricts_the_real_onset_initial_consonants():
     # languages. Initial /ŋ/ is NOT restricted (Warlpiri ngaju, Yolngu ŋarra); an earlier version of
     # this profile barred it, and the lexicon audit showed five initial-ŋ words.
     pama_nyungan = next(p for p in REFERENCE_LANGUAGES if p.name == "Pama-Nyungan")
-    assert {"r", "ɾ", "l"} <= set(pama_nyungan.restricted_onset_consonants)
+    assert {"r", "ɾ", "l"} <= set(pama_nyungan.restricted_initial_consonants)  # word-initial only
     assert "ŋ" not in pama_nyungan.restricted_onset_consonants
     assert pama_nyungan.stress_pattern == "initial"
     assert {"aː", "iː", "uː"} <= set(pama_nyungan.vowels)

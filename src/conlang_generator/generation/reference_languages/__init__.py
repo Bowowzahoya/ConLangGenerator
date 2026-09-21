@@ -57,6 +57,7 @@ attested_onset_nucleus_pairs: []    # optional, defaults empty -- whitelist mode
 attested_onset_triples: []       # optional, defaults empty -- 3-consonant onsets, e.g. [[s, t, r]]
 attested_onset_quads: []         # optional, defaults empty -- 4-consonant onsets
 attested_coda_quads: []          # optional, defaults empty -- 4-consonant codas
+medial_only_consonants: []       # optional, defaults empty -- neither begin nor end a word
 restricted_initial_consonants: []  # optional, defaults empty -- never open a word, may open a later syllable
 attested_coda_triples: []        # optional, defaults empty -- 3-consonant codas, e.g. [[l, s, t]]
 attested_coda_clusters: []          # optional, defaults empty -- e.g. [[s, t]]
@@ -304,6 +305,13 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     """Real 4-consonant onsets (Russian *fstrʲ-*, Xhosa *mntw-*); see ``attested_onset_triples``."""
     attested_coda_quads: tuple[tuple[str, str, str, str], ...] = ()
     """Real 4-consonant codas (Old Norse *þyrstr*, *heimskr*); see ``attested_onset_triples``."""
+    medial_only_consonants: tuple[str, ...] = ()
+    """Consonants that neither begin nor end a word but occur inside one
+    (Icelandic pre-aspirated ``ʰp ʰt ʰk``: *átta*, *ekki*). Shorthand for listing the
+    sound in both ``restricted_initial_consonants`` and
+    ``restricted_final_coda_consonants``; like them it only applies when the
+    profile's weight times the strictness is at least 0.5, and the sounds stay legal
+    onsets, so they belong in ``onset_frequency_tiers``."""
     restricted_initial_consonants: tuple[str, ...] = ()
     """Consonants that never open a *word* but may open a later syllable --
     geminates (Finnish *kanssa*: ``kan.sːa``) and Basque ``ɾ``. Applied when the

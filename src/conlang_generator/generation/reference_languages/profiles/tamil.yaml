@@ -17,10 +17,11 @@ name: Tamil
 consonants: [p, t, "ʈ", k, "tʃ", m, n, "ɳ", "ɲ", "ŋ", l, r, "ɾ", v, j, "ɻ", "ɭ", "nː", "ʈː", "tː", "kː", "lː", "pː", "vː", "ɭː", "ɳː", "tʃː", "mː"]
 vowels: [a, "aː", i, "iː", u, "uː", e, "eː", o, "oː"]
 coda_profile: sonorant  # real Tamil codas are restricted to nasals, liquids, and the glide /j/ -- same real fact and same fix Italian's own perfected profile already curates for its own coda set
+restricted_initial_consonants: ["ʈ", "ɳ", "ɻ", "ɭ", "nː", "ʈː", "tː", "kː", "lː", "pː", "vː", "ɭː", "ɳː", "tʃː", "mː"]  # ɳ ɻ ɭ never open a word but occur between vowels
 max_onset: 1
 tonal: false
 orthography_category: scholarly-macron-style
-restricted_onset_consonants: ["ɳ", "ŋ", "ɻ", "ɭ"]
+restricted_onset_consonants: ["ŋ"]
 # Real Tamil: retroflex ʈ/ɳ, velar ŋ, and the retroflex approximant ɻ
 # categorically never open a native word -- they're medial/final only
 # (a well-documented fact of Tamil phonotactics, the same "certain places
@@ -70,7 +71,7 @@ onset_frequency_tiers:
   very_common: [p, t, k, m, n, v]
   common: ["tʃ", l, j]
   uncommon: [r, "ɾ", "ʈ"]
-  rare: ["ɲ", "nː", "ʈː", "tː", "kː", "lː", "pː", "vː", "ɭː", "ɳː", "tʃː", "mː"]
+  rare: ["ɲ", "nː", "ʈː", "tː", "kː", "lː", "pː", "vː", "ɭː", "ɳː", "tʃː", "mː", "ɳ", "ɻ", "ɭ"]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [u, e, o]

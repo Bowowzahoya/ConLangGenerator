@@ -497,7 +497,8 @@ def test_full_strictness_never_admits_englishs_restricted_onset_consonants():
         )
         _, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
         assert "ŋ" in structure.excluded_onset_consonants
-        assert "ʒ" in structure.excluded_onset_consonants
+        assert "ʒ" in structure.excluded_initial_onset_consonants  # a medial onset (vision) but never word-initial
+        assert "ʒ" not in structure.excluded_onset_consonants
 
 
 def test_full_strictness_never_admits_a_restricted_coda_consonant():

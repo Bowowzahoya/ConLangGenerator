@@ -33,6 +33,7 @@ vowels: [a, e, i, u]
 # /o/ -- genuinely distinctive among this project's own profiles, not a
 # simplification of convenience.
 coda_profile: unrestricted
+restricted_initial_consonants: ["bː", "mː", "sː"]  # geminates never open a word
 max_onset: 1  # real Sumerian syllable structure is conservatively reconstructed as simple CV(C), no native onset clusters
 tonal: false
 # No stress_pattern/word_accent curated -- real Sumerian prosody isn't

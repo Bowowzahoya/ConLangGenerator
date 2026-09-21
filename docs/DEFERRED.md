@@ -23,10 +23,8 @@ multi-session feature.
 - **Nasal vowels in French and Portuguese (done).** The lexicons use real nasal vowels (`vã`, `bɔ̃`,
   `mɛ̃`; `sĩku`, `kõ`), French gains `ã ɛ̃ ɔ̃`. `ɑ̃` is written `ã` and `œ̃` merged into `ɛ̃`. Portuguese
   diphthongal nasals (`ãw`, `õj`) and French `œ̃` vs `ɛ̃` are still not distinguished.
-- **Geminates as doubled consonants (S).** Italian geminates are written
-  `tt`, `ss` (a cluster) rather than the modeled long consonants; the pool has
-  long forms only for `k t p s n l`. Extending the long-consonant set (`b d g
-  m r ʃ …`) and re-transcribing Italian/Japanese/Arabic would be more faithful.
+- **Geminates as doubled consonants (done).** Long twins exist for the common consonants (see
+  `LEXICON_AUDIT.md`); lexicons and profiles use them.
 - **Reference-only symbols are never drawn (design choice, S to change).**
   `ɭ ɽ ʈʂ β ɸ ɕ …` appear only via seed/real words or a strict source
   profile. A low-probability draw group would let exotic prompts pick them,
@@ -40,8 +38,7 @@ multi-session feature.
   click clusters (`tests/test_pool_uses_ascii_g.py` guards it). The tokenizer no longer lets the
   prenasalized `ŋg` eat the start of `ŋ` + `gʱ`. IPA typed with U+0261 by a user or an LLM is not
   normalized on input yet.
-- **Onset/coda clusters cap at 2 consonants (M)** *(known limitation)* — no
-  English "str".
+- **Onset/coda clusters cap at 2 consonants (done).** Curated triples and quads for strict profiles.
 - **Vowel harmony, stress and word accent are not present in the real
   lexicons (M).** Real words carry no stress marks and no pitch-accent
   (Japanese) marks; `stress_pattern` only affects invented words.
@@ -60,21 +57,17 @@ multi-session feature.
   Norwegian; `ʎ` for Italian; Polish `ɲ` onset; English's wrong
   "w never before a rounded vowel" restriction removed; Portuguese/Dutch
   lexicons' `r`/`ɾ` and `ʎ` aligned with their profiles.
-- **Profile widening, still open (M).** Modeling limits the audit cannot
-  fix with a cluster list: (a) *word-final devoicing is done* (final-only field,
-  Turkish exemptions); the profile field `restricted_final_coda_consonants` now exists (Ancient Greek uses it); Sanskrit's
-  pausa restriction (only `k ʈ t p ṅ ṇ n m ḥ` word-finally) could use it too, but its lexicon holds bare stems
-  (*vāc*, *tejas*), so it is left off; (b) *doubled consonants are done* (long twins for the common consonants,
-  lexicons and profiles converted; still open: geminate affricates like Italian
-  `tts`, geminates in `coda_profile: none` languages such as Japanese *kitte*,
-  and word-initial geminates in the few languages that have them); (c) *three- and four-consonant clusters are done* (curated triples, strict profiles only; Georgian, Hebrew,
-  Hungarian and the other unreviewed languages have none yet; four-consonant runs are curated for
-  Old Norse, Russian and Xhosa); (d) glide+vowel sequences written as onset clusters
-  (French `bw`, Italian `pj`); (e) languages not yet reviewed (Old Norse, Icelandic, Mandarin, Korean, Cantonese, Tibetan, Tamil,
-  Hindi, Welsh, Georgian, Zulu, Xhosa, Nahuatl, Hungarian, Persian, Ancient Greek, Spanish, Arabic, Vietnamese, Swahili, Bengali, Mongolian, Khmer, Nama, Sumerian, Navajo, Arawakan, Quechua, Hebrew, Pama-Nyungan, Japanese, Basque, Danish, Polish, Italian, Russian, Old Norse, Sanskrit
-  and the small remainders done; Basque loan clusters need an initial-only onset restriction):
-  Spanish surface allophones `β ð ɣ` are deliberately not in the profile (the lexicon is phonemic); a medial-only onset (Tamil `ʈ`) and word-final geminates in Tamil are
-  not modeled; (f) lexicon-side slips: Danish `w`/`ɪ`, Swedish `ɧ`, Portuguese `carregar` rhotic.
+- **Profile widening: what is still open (S-M).** The audit is at ~0% (loans excluded); what remains:
+  (a) glide+vowel sequences written as onset clusters (French `bw`, Italian `pj`) are modeled as
+  clusters, not diphthongs; (b) geminate affricates beyond Italian `tsː`, and geminates in languages with
+  `coda_profile: none` (Japanese *kitte*); (c) Basque loan clusters (`tɾ`, `fɾ`) are tagged as loans, not
+  admitted; (d) Portuguese diphthongal nasals (`ãw`, `õj`) and French `œ̃` vs `ɛ̃`; (e) Sanskrit's pausa
+  restriction (its lexicon holds bare stems); (f) Spanish surface allophones `β ð ɣ` are not in the profile
+  (the lexicon is phonemic) -- they need an intervocalic-only mechanism; (g) lexicon slips: Swedish `ɧ`,
+  Portuguese *carregar* rhotic.
+- **Word-position restrictions (done).** `restricted_onset_consonants` / `restricted_initial_consonants` /
+  `restricted_final_coda_consonants` / `medial_only_consonants` cover onset-anywhere, word-initial,
+  word-final and both; devoicing is final-only. Not covered: an *intervocalic*-only sound.
 
 ## 2. Real lexicons (data)
 

@@ -12,6 +12,7 @@ consonants: [p, b, t, d, k, g, "tʃ", "dʒ", f, v, s, z, "ʃ", h, m, n, "ɲ", "�
 # two consonants.
 vowels: [i, e, a, o, u]
 coda_profile: none
+restricted_initial_consonants: ["nː"]  # geminates never open a word
 max_onset: 2
 # Real native Swahili syllables are strictly (C)V -- fully open, no
 # codas at all. The one real exception, a syllabic nasal realizing a

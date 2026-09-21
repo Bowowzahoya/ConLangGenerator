@@ -8,6 +8,7 @@ consonants: [p, "pʰ", "ʰp", t, "tʰ", "ʰt", k, "kʰ", "ʰk", f, v, s, "θ", "
 vowels: [i, "ɪ", "ɛ", a, "ɔ", u, "ʊ", "ø", "œ", y, ai, au, ei, "ɔi", "iː", "uː", "ɛː", "aː", "yː", "ɔː"]
 final_geminates: true  # steinn, hverr, fall: real word-final geminates
 coda_profile: unrestricted
+medial_only_consonants: ["ʰp", "ʰt", "ʰk"]  # pre-aspirated stops occur only inside a word (átta, ekki)
 max_onset: 2
 tonal: false
 word_classes:
@@ -50,7 +51,7 @@ orthography:
   - {ipa: "pʰ", latin: p}
   - {ipa: "tʰ", latin: t}
   - {ipa: "kʰ", latin: k}
-restricted_onset_consonants: ["ʰp", "ʰt", "ʰk", "ŋ"]  # real Icelandic pre-aspiration is a root-medial phenomenon (átta, ekki), never word-initial
+restricted_onset_consonants: ["ŋ"]  # real Icelandic pre-aspiration is a root-medial phenomenon (átta, ekki), never word-initial
 restricted_initial_consonants: ["tː", "nː", "jː", "kː", "rː", "mː", "sː"]  # geminates never open a word (medial only), but may open a later syllable
 restricted_coda_consonants: ["pʰ", "tʰ", "kʰ", h]  # real Icelandic: aspiration is an onset-conditioned property (word-initial stops are aspirated, syllable-final stops are plain or pre-aspirated instead), and /h/ itself only ever opens a syllable (hv-, hl-, hn-, hr-), never closes one
 attested_onset_clusters:
@@ -129,7 +130,7 @@ onset_frequency_tiers:
   very_common: ["pʰ", "tʰ", "kʰ", s, f]
   common: [h, m, n, l, v, "θ", r]
   uncommon: [t, k, p, "ð", j]
-  rare: ["ɣ", "tː", "nː", "jː", "kː", "rː", "mː", "sː"]  # real Icelandic /ɣ/ is essentially a medial allophone of g -- rare as a true onset
+  rare: ["ɣ", "tː", "nː", "jː", "kː", "rː", "mː", "sː", "ʰp", "ʰt", "ʰk"]  # real Icelandic /ɣ/ is essentially a medial allophone of g -- rare as a true onset
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: ["ɪ", "ɛ", u, "ɔ"]

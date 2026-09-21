@@ -1655,17 +1655,25 @@ def generate_phonology(
 
     # A geminate barred from word-initial position is medial-only, so it can't
     # end a word either (real Italian/Latin/Finnish have no final geminates)
-    excluded_initial_onset_consonants = tuple(dict.fromkeys(
+    medial_only = tuple(dict.fromkeys(
         s for profile, weight in weighted_profiles if weight * strictness >= 0.5
-        for s in profile.restricted_initial_consonants if s in consonant_symbols
+        for s in profile.medial_only_consonants if s in consonant_symbols
     ))
+    excluded_initial_onset_consonants = tuple(dict.fromkeys(
+        medial_only + tuple(
+            s for profile, weight in weighted_profiles if weight * strictness >= 0.5
+            for s in profile.restricted_initial_consonants if s in consonant_symbols
+        )
+    ))
+    if medial_only:
+        excluded_final_coda_consonants = tuple(dict.fromkeys(excluded_final_coda_consonants + medial_only))
     long_symbols = {c.ipa for c in consonants if c.long}
-    medial_only = tuple(
+    medial_geminates = tuple(
         s for s in excluded_onset_consonants + excluded_initial_onset_consonants
         if s in long_symbols and not any(p.final_geminates for p, _ in weighted_profiles)
     )
-    if medial_only:
-        excluded_final_coda_consonants = tuple(dict.fromkeys(excluded_final_coda_consonants + medial_only))
+    if medial_geminates:
+        excluded_final_coda_consonants = tuple(dict.fromkeys(excluded_final_coda_consonants + medial_geminates))
 
     onset_triples: tuple[tuple[str, str, str], ...] = ()
     coda_triples: tuple[tuple[str, str, str], ...] = ()

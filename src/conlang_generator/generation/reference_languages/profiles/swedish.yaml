@@ -3,10 +3,11 @@ aliases: [svenska]
 consonants: [p, b, t, d, k, g, f, v, s, x, h, m, n, "ŋ", l, r, j, "ʈ", "ɖ", "ɳ", "ʂ", "ʃ", "ɕ"]
 vowels: [i, e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə", "aː", "iː", "uː", "eː", "oː", "ɑː", "ɛː", "øː", "yː", "ʊ"]
 coda_profile: unrestricted
+restricted_initial_consonants: ["ʈ", "ɖ", "ɳ", "ʂ"]  # retroflexes arise inside words (sandhi), never word-initially
 max_onset: 2
 tonal: false
 orthography_category: diacritic-style
-restricted_onset_consonants: ["ŋ", "ʈ", "ɖ", "ɳ", "ʂ"]  # /ŋ/: same robust Germanic onset-exclusion fact as Danish/German/Dutch/English. Retroflex ʈ/ɖ/ɳ/ʂ: real Swedish, no native word starts with these -- they only ever arise medially from an /r/+dental sandhi, never word-initially.
+restricted_onset_consonants: ["ŋ"]  # /ŋ/: same robust Germanic onset-exclusion fact as Danish/German/Dutch/English. Retroflex ʈ/ɖ/ɳ/ʂ: real Swedish, no native word starts with these -- they only ever arise medially from an /r/+dental sandhi, never word-initially.
 restricted_coda_consonants: [h]  # /h/ is onset-only in real Swedish, same robust Germanic fact as Danish/Icelandic's own /h/ restriction
 attested_onset_clusters:
   # Real, common Swedish onset clusters, restricted to symbols this
@@ -108,7 +109,7 @@ onset_frequency_tiers:
   very_common: [s, t, k, p, b, r]
   common: [d, f, g, h, l, m, n, v, j]
   uncommon: [x, "ʃ", "ɕ"]  # the sj-sound is real but comparatively low word-type productivity as a true onset
-  rare: []  # the retroflex series, this position's only other candidates, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
+  rare: ["ʈ", "ɖ", "ɳ", "ʂ"]  # the retroflex series, this position's only other candidates, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
 nucleus_frequency_tiers:
   very_common: ["ə", a]
   common: ["e", "i", "ɔ", "u"]

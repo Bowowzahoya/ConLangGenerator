@@ -28,8 +28,9 @@ vowels: [a, i, u, "aː", "iː", "uː"]
 # spelled with a doubled letter (aa/ii/uu) in real practical
 # orthographies -- see the length rules below.
 coda_profile: sonorant
+restricted_initial_consonants: [r, "ɾ", l, "ʈ", "ɳ"]  # initial rhotics, /l/ and retroflexes are rare-to-absent (Dixon 1980) but occur between vowels
 max_onset: 1
-restricted_onset_consonants: [r, "ɾ", l, "ʈ", "ɳ"]
+restricted_onset_consonants: []
 # One of the most-cited generalizations in Australianist phonology
 # (Dixon 1980): no Australian language has word-initial /ŋ/, and
 # initial /r/-type rhotics and /l/ are likewise systematically rare to
@@ -64,7 +65,7 @@ onset_frequency_tiers:
   very_common: [p, t, k, m, n]
   common: [w, j, c]
   uncommon: ["ɲ", "ŋ"]
-  rare: []  # ŋ/r/ɾ/l/ʈ/ɳ, this position's only other candidates, are excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that tier
+  rare: [r, "ɾ", l, "ʈ", "ɳ"]  # ŋ/r/ɾ/l/ʈ/ɳ, this position's only other candidates, are excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that tier
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [u, "aː"]

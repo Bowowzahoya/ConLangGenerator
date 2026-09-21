@@ -458,3 +458,31 @@ def test_french_and_portuguese_lexicons_use_real_nasal_vowels():
     assert french["personne"] == "pɛʁsɔn" and french["jaune"] == "ʒon" and french["comment"] == "kɔmã"
     by_name = {p.name: p for p in REFERENCE_LANGUAGES}
     assert {"ã", "ɛ̃", "ɔ̃"} <= set(by_name["French"].vowels)
+
+
+def test_word_position_restrictions_keep_medial_only_sounds_off_the_edges():
+    import random
+
+    from conlang_generator.generation import phonology_gen, word_builder
+
+    def words(name, seed=2, count=300):
+        spec = GenerationSpec(prompt="p", seed=seed, traits=TraitProfile(source_languages=(name,), source_language_strictness=1.0))
+        inventory, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+        rng = random.Random(1)
+        return inventory, structure, [word_builder.build_word(rng, inventory, structure, rng.choice((1, 2, 3))) for _ in range(count)]
+
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    # Tamil: retroflexes and geminates never open or (geminates) end a word, yet occur inside one
+    inventory, structure, tamil = words("Tamil")
+    edge = tuple(s for s in ("ʈ", "ɳ", "ɻ", "ɭ") + tuple(c.ipa for c in inventory.consonants if c.long) if s in {c.ipa for c in inventory.consonants})
+    assert not any(w.lstrip("ˈ").startswith(edge) for w in tamil)
+    assert not any(w.endswith(tuple(c.ipa for c in inventory.consonants if c.long)) for w in tamil)
+    assert any(s in w[1:] for w in tamil for s in edge)  # a medial onset now
+    # Icelandic: pre-aspirated stops are medial only (the new medial_only_consonants field)
+    assert set(by_name["Icelandic"].medial_only_consonants) == {"ʰp", "ʰt", "ʰk"}
+    inventory, structure, icelandic = words("Icelandic")
+    pre = tuple(s for s in ("ʰp", "ʰt", "ʰk") if s in {c.ipa for c in inventory.consonants})
+    assert set(pre) <= set(structure.excluded_initial_onset_consonants) & set(structure.excluded_final_coda_consonants)
+    assert not any(w.lstrip("ˈ").startswith(pre) or w.endswith(pre) for w in icelandic)
+    # English /ʒ/ is a legal medial onset (vision) but never opens a word
+    assert "ʒ" in by_name["English"].restricted_initial_consonants and "ʒ" not in by_name["English"].restricted_onset_consonants

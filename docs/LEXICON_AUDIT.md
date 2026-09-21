@@ -31,24 +31,24 @@ because they were flagged and are plainly borrowed (Basque *triste*, Turkish *kr
 
 ```
 language         words  loans  off-profile  structure  flagged
-Portuguese         494      0            0          6      1% 
 Georgian           169      0            0          2      1% 
 Icelandic          494      0            0          5      1% 
+Portuguese         494      0            0          5      1% 
 Tamil              489      5            0          4      1% 
 Nahuatl            246      0            0          2      1% 
 Ancient Greek      494      0            0          3      1% 
 French             494      0            2          1      1% 
+Swahili            489      5            0          2      0% 
 Finnish            493      1            0          2      0% 
 Arabic             494      0            0          2      0% 
-Bengali            494      0            0          2      0% 
 Dutch              494      0            0          2      0% 
 German             494      0            1          1      0% 
 Mandarin           494      0            0          2      0% 
 Basque             486      8            0          1      0% 
-Swahili            489      5            0          1      0% 
 Old Norse          490      0            0          1      0% 
 Persian            491      3            0          1      0% 
 Turkish            493      1            0          1      0% 
+Bengali            494      0            0          1      0% 
 Korean             494      0            0          1      0% 
 Norwegian          494      0            0          1      0% 
 Polish             494      0            0          1      0% 
@@ -209,6 +209,13 @@ Hungarian, Icelandic, Italian, Japanese, Latin, Old Norse, Persian, Sanskrit, Tu
 initial-only field: their geminates are barred from opening a word, not from every onset, so they also occur as
 the onset of a later syllable (Italian *at.to*, Old Norse *nn.a*). The geminates moved into each profile's
 `onset_frequency_tiers` (rare).
+
+**Position restrictions (cleanup).** Word-position rules now share one vocabulary: `restricted_onset_consonants`
+(barred from every onset: `ŋ`, Vietnamese `p`), `restricted_initial_consonants` (never open a word, but open
+later syllables: geminates, retroflexes, English `ʒ`, Bengali/Hindi `ɽ`, Tamil `ɭ ɻ ɳ ʈ`, Pama-Nyungan `r l`),
+`restricted_final_coda_consonants` (never end a word) and `medial_only_consonants` (both: Icelandic `ʰp ʰt ʰk`).
+Tamil, Nahuatl, Sumerian and Swahili geminates are now word-medial too. French and Portuguese lexicons use real
+nasal vowels, and every /g/ is ASCII `g`.
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet
