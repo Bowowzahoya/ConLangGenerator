@@ -620,7 +620,7 @@ _DRAWN_CONSONANTS: tuple[Consonant, ...] = (
 # symbol.
 _GEMINATE_TWIN_BASES = frozenset((
     "b", "d", "g", "m", "ɲ", "ɳ", "ŋ", "r", "ɾ", "f", "v", "z", "ʃ", "x", "ɣ", "j", "w",
-    "tʃ", "dʒ", "q", "ʈ", "ɖ", "ɭ", "tˤ", "dˤ", "sˤ", "zˤ",
+    "tʃ", "dʒ", "q", "ʈ", "ɖ", "ɭ", "tˤ", "dˤ", "sˤ", "zˤ", "ts", "dz",
 ))
 _have = {c.ipa for c in _DRAWN_CONSONANTS + _REFERENCE_ONLY_CONSONANTS}
 _REFERENCE_ONLY_CONSONANTS = _REFERENCE_ONLY_CONSONANTS + tuple(

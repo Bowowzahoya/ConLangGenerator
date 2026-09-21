@@ -10,7 +10,7 @@ max_onset: 1  # real native Basque syllable structure is simple and strictly CV(
 max_coda: 1   # real native Basque codas are always a single consonant
 tonal: false
 restricted_onset_consonants: ["ɾ"]  # real Basque, like Spanish: the tap can't open a word -- only the trill r can (word-initial /r/ is always the "strong" rhotic)
-restricted_coda_consonants: ["ɲ", "ʃ", "tʃ", "t̺s̺", "t̻s̻", "ʎ", j, w, f]  # real Basque: the palatal series, affricates, and glides don't close a native syllable; f stays marginal (mostly loans) in any position
+restricted_coda_consonants: ["ɲ", "ʃ", "tʃ", "ʎ", j, w, f]  # real Basque: the palatal series, affricates, and glides don't close a native syllable; f stays marginal (mostly loans) in any position
 stress_pattern: lexical  # real Basque accentuation is a genuine, live dialectal dispute (Basque-French dialects lean fixed-initial/penultimate, Basque-Spanish dialects vary, standard Batua has no single agreed rule) -- no flat position captures this honestly
 stress_deviation_rate: 0.45  # illustrative -- comparably high to this project's own disputed-accent profiles (Georgian, Indonesian), reflecting genuine unsettled variation rather than a single robust rule
 orthography_category: digraph-style
@@ -44,4 +44,8 @@ coda_frequency_tiers:
   very_common: [n, k, r, l]
   common: [t, "s̺", "s̻", m]
   uncommon: [x, "ɾ", p, d]
-  rare: [b, g]
+  rare: [b, g, "t̺s̺", "t̻s̻"]
+
+attested_coda_clusters:
+  # real clusters found by `conlang audit-lexicons`
+  - ["s̺", t]

@@ -315,3 +315,16 @@ def test_quechua_hebrew_pama_nyungan_and_japanese_lexicons_fit_their_profiles():
     assert "tʃʼ" in by_name["Quechua"].consonants and set(by_name["Quechua"].vowels) == {"a", "i", "u"}  # e o are allophones
     assert "ts" in by_name["Hebrew"].consonants and "ts" in by_name["Japanese"].consonants
     assert ("k", "j") in by_name["Japanese"].attested_onset_clusters  # kya, kyo
+
+
+def test_basque_danish_polish_italian_russian_and_old_norse_lexicons_fit_their_profiles():
+    for name, limit in (("Basque", 0.03), ("Danish", 0.01), ("Polish", 0.01), ("Italian", 0.0), ("Russian", 0.01), ("Old Norse", 0.02)):
+        (audit,) = lexicon_audit.audit_all((name,))
+        assert not audit.off_inventory, (name, audit.off_symbols)
+        assert audit.flagged_rate <= limit, (name, audit.flagged_rate)
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert "tsː" in by_name["Italian"].restricted_onset_consonants and "ts" in by_name["Italian"].consonants
+    assert "z" not in by_name["Italian"].restricted_onset_consonants
+    from conlang_generator.generation.reference_languages.real_lexicon import real_words
+
+    assert not any("w" in ipa or "ɪ" in ipa for _, ipa in real_words("Danish").values())

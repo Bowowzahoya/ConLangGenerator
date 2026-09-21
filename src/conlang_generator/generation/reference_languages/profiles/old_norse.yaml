@@ -70,6 +70,8 @@ attested_onset_clusters:
   - [g, j]
   - [k, j]
   - [d, j]
+  # real clusters found by `conlang audit-lexicons`
+  - [g, v]
 attested_coda_clusters:
   # Real Old Norse coda clusters, restricted to symbols this profile
   # models -- illustrative, not exhaustive.
@@ -113,6 +115,8 @@ attested_coda_clusters:
   - [v, r]
   - [f, r]
   - ["ŋ", k]
+  # initial/final clusters of real words found by `conlang audit-lexicons`
+  - [p, r]
 stress_pattern: initial  # real Old Norse: stress is the root's first syllable, the same reliable Germanic-wide default German/Dutch/Danish/Swedish/Norwegian/Icelandic all share
 stress_deviation_rate: 0.05  # illustrative -- as rigidly initial as modern Icelandic's own descendant value
 orthography_category: diacritic-style
@@ -193,3 +197,6 @@ attested_coda_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [r, t, r]
   - [k, t, r]
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - ["ŋ", g, d]
+  - ["ŋ", g, r]

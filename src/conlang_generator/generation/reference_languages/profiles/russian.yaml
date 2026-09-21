@@ -97,6 +97,16 @@ attested_onset_clusters:
   - [z, "nʲ"]
   - [v, "zʲ"]
   - [x, "rʲ"]
+  # initial/final clusters of real words found by `conlang audit-lexicons`
+  - [d, n]
+  - [d, "vʲ"]
+  - [k, "lʲ"]
+  - [k, "nʲ"]
+  - [t, k]
+  - [v, "rʲ"]
+  - [x, "lʲ"]
+  - ["ʃ", "lʲ"]
+  - ["ʒ", d]
 attested_coda_clusters:
   # Real, common Russian coda clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive.
@@ -118,6 +128,13 @@ attested_coda_clusters:
   - ["ʃ", "tʲ"]
   - [n, "tʲ"]
   - [r, "tʲ"]
+  # initial/final clusters of real words found by `conlang audit-lexicons`
+  - [b, "lʲ"]
+  - [l, m]
+  - [r, "fʲ"]
+  - [r, x]
+  - ["sʲ", "tʲ"]
+  - [z, "nʲ"]
 orthography:
   # Real scholarly (ISO 9/scientific) transliteration conventions,
   # restricted to symbols this profile actually models -- illustrative,

@@ -70,7 +70,8 @@ multi-session feature.
   Hungarian and the other unreviewed languages have none yet, and 4-consonant runs like
   Polish *vzvʲ*+glide stay out of scope); (d) glide+vowel sequences written as onset clusters
   (French `bw`, Italian `pj`); (e) languages not yet reviewed (Old Norse, Icelandic, Mandarin, Korean, Cantonese, Tibetan, Tamil,
-  Hindi, Welsh, Georgian, Zulu, Xhosa, Nahuatl, Hungarian, Persian, Ancient Greek, Spanish, Arabic, Vietnamese, Swahili, Bengali, Mongolian, Khmer, Nama, Sumerian, Navajo, Arawakan, Quechua, Hebrew, Pama-Nyungan, Japanese done):
+  Hindi, Welsh, Georgian, Zulu, Xhosa, Nahuatl, Hungarian, Persian, Ancient Greek, Spanish, Arabic, Vietnamese, Swahili, Bengali, Mongolian, Khmer, Nama, Sumerian, Navajo, Arawakan, Quechua, Hebrew, Pama-Nyungan, Japanese, Basque, Danish, Polish, Italian, Russian, Old Norse
+  done; Basque loan clusters need an initial-only onset restriction):
   Spanish surface allophones `β ð ɣ` are deliberately not in the profile (the lexicon is phonemic); a medial-only onset (Tamil `ʈ`) and word-final geminates in Tamil are
   not modeled; (f) lexicon-side slips: Danish `w`/`ɪ`, Swedish `ɧ`, Portuguese `carregar` rhotic.
 

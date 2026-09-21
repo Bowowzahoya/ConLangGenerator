@@ -70,6 +70,11 @@ attested_coda_clusters:
   - [f, d]
   - [d, n]
   - [s, g]
+  # initial/final clusters of real words found by `conlang audit-lexicons`
+  - [j, l]
+  - [j, "ð"]
+  # real clusters found by `conlang audit-lexicons`
+  - [n, s]
 orthography:
   # Real Danish spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account. Danish's own

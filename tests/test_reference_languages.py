@@ -1625,8 +1625,9 @@ def test_spanish_no_longer_aliases_italian():
 def test_italian_profile_declares_its_own_onset_restrictions():
     italian = next(p for p in REFERENCE_LANGUAGES if p.name == "Italian")
     assert set(italian.restricted_onset_consonants) == {
-        "kː", "tː", "pː", "sː", "nː", "lː", "mː", "rː", "fː", "tʃː", "bː", "z",
-    }  # every geminate is word-medial only, plus voiced /z/
+        "kː", "tː", "pː", "sː", "nː", "lː", "mː", "rː", "fː", "tʃː", "bː", "tsː",
+    }  # every geminate is word-medial only
+    assert "z" not in italian.restricted_onset_consonants  # intervocalic /z/ (casa, usare) opens the next syllable
     assert ("k", "w") in italian.attested_onset_clusters  # "quattro"
     assert ("t", "l") not in italian.attested_onset_clusters  # never a real Italian onset
 

@@ -23,17 +23,12 @@ language can say which.
 ```
 language         words  off-profile  structure  flagged
 Sanskrit           494            3         66     14% 
-Polish             494            1         25      5% 
-Italian            494            0         25      5% 
-Basque             494            7         16      5% 
-Danish             494           17          1      4% 
-Russian            494            1         16      3% 
-Old Norse          490            0         16      3% 
 Arabic             494            0         16      3% 
 Portuguese         494            0         15      3% 
 Thai               190            5          0      3% 
 Finnish            494            1         10      2% 
 Persian            494            0         11      2% 
+Basque             494            0         10      2% 
 German             494            1          9      2% 
 Xhosa               52            0          1      2% 
 Tamil              494            1          8      2% 
@@ -49,20 +44,25 @@ Norwegian          494            0          5      1%
 Serbo-Croatian     494            0          5      1% 
 Nahuatl            246            0          2      1% 
 Hungarian          494            0          4      1% 
+Old Norse          490            0          3      1% 
 Bengali            494            0          3      1% 
 Dutch              494            0          3      1% 
 French             494            2          1      1% 
 Hawaiian           401            2          0      0% 
 Mandarin           494            0          2      0% 
+Polish             494            0          2      0% 
 Swedish            494            0          2      0% 
 Hindi              494            0          1      0% 
 Indonesian         494            0          1      0% 
 Korean             494            0          1      0% 
+Russian            494            0          1      0% 
 Spanish            494            0          1      0% 
 Arawakan            49            0          0      0% 
 Cantonese          494            0          0      0% 
+Danish             494            0          0      0% 
 English            494            0          0      0% 
 Hebrew             494            0          0      0% 
+Italian            494            0          0      0% 
 Japanese           494            0          0      0% 
 Khmer               52            0          0      0% 
 Mongolian          322            0          0      0% 
@@ -75,7 +75,7 @@ Tibetan            365            0          0      0%
 Vietnamese         494            0          0      0% 
 Welsh              494            0          0      0% 
 Yoruba             102            0          0      0% 
-all              20845                              2%
+all              20845                              1%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being
@@ -170,6 +170,15 @@ allophones next to `q`) and the profile gains the ejective affricate `tʃʼ`; He
 gains `ts` and its real initial clusters (`ʃn`, `bl`, `zʁ`); Japanese gains `ts` and the palatalized-mora onsets
 (`kya`, `ryo`, as `Cj`), with `ç` written as phonemic `h`; Pama-Nyungan's onset restriction on `ŋ` is removed (the
 profile barred a sound that Warlpiri and Yolngu words start with).
+
+**Basque, Danish, Polish, Italian, Russian, Old Norse (fixed):** 5% -> 2%, 4% -> 0%, 5% -> 0%, 5% -> 0%,
+3% -> 0%, 3% -> 1%. Italian gets `ts`/`tsː` (*senza*, *ragazzo*), an onset slot for intervocalic `z`
+(*casa*, *usare*) and `tw`/`rw`/`lw` glide onsets; Old Norse's lexicon writes `ng` as `ŋg` and final *f* as
+`f`; Danish's `w`/`ɪ` slips became `v`/`j`; Russian's `h` became `x`; Basque's plain `s`, `tz` and silent `h`
+were normalized to the apical/laminal set and final *-ts* is a legal coda; Polish and Russian initial/final
+clusters were added from the lexicon's own words. **Left flagged on purpose:** Basque's Romance-loan clusters
+(*triste*, *fruitua*; the profile bars a lone `ɾ` from onsets, which also bars it inside a cluster), four-consonant
+runs in Old Norse and Russian, and Polish *ssać*/*miejsce*.
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet
