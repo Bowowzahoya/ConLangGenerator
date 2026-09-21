@@ -37,6 +37,7 @@ tone_level_count: null          # optional, defaults null -- only meaningful whe
 vowel_harmony: false            # optional, defaults false
 root_and_pattern: false         # optional, defaults false -- see the field's own docstring
 coda_devoicing: false           # optional, defaults false -- see the field's own docstring
+restricted_final_coda_consonants: []  # optional, defaults empty -- may close a syllable inside a word but not end one
 final_geminates: false          # optional, defaults false -- geminates may end a word
 coda_devoicing_exempt: []       # optional, defaults empty -- voiced obstruents that keep their voicing finally
 orthography_category: ""        # optional, defaults "" -- see the field's own docstring
@@ -185,6 +186,12 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     """Voiced obstruents that keep their voicing word-finally even though
     ``coda_devoicing`` is on (Turkish devoices ``b d g dʒ`` but not
     ``z v ɣ ʒ``: *biz*, *yaz*, *av*). Ignored when ``coda_devoicing`` is off."""
+    restricted_final_coda_consonants: tuple[str, ...] = ()
+    """Consonants that may close a syllable inside a word but never end one
+    (Ancient Greek words end only in ``n r s`` -- ``ks``/``ps`` aside -- yet
+    *pt*, *kt*, *mn* are ordinary medially). Word-final only, unlike
+    ``restricted_coda_consonants``; applied when the profile's weight times
+    the source-language strictness is at least 0.5."""
     final_geminates: bool = False
     """Whether words may end in a geminate (Old Norse/Icelandic *steinn*,
     *hverr*, *fall*). Off, a geminate barred from word-initial position is

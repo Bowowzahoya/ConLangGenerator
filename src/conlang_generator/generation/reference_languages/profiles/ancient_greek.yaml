@@ -15,7 +15,7 @@ vowels: [a, e, i, o, y, "aː", "ɛː", "iː", "ɔː", "yː", ai, "ɔi", au, ei]
 # aː-style pairing, which would misrepresent this real asymmetry.
 coda_profile: unrestricted
 max_onset: 2
-max_coda: 1
+max_coda: 2
 tonal: false
 word_classes:
   # Real Attic noun declension -- an illustrative subset (real Greek has
@@ -36,7 +36,8 @@ word_classes:
   - {name: "-mi (athematic)", pos: verb, suffix: [m, i], prevalence: 0.1}
 word_class_deviation_rate: 0.3  # illustrative -- this profile models only 2 of Greek's real 3 declensions, so a real 3rd-declension (consonant-stem) noun shows up here as an "irregular exception" relative to the simplified model, the same reasoning Latin's own higher-than-French/Portuguese rate already uses
 restricted_onset_consonants: ["lː", "nː", "sː", "tː", "mː", "pː"]  # real Greek gemination (ἄλλος, θάλαττα) is medial/intervocalic only, the same real fact and fix shape every other geminate-modeling profile here already uses
-restricted_coda_consonants: [p, b, "pʰ", t, d, "tʰ", k, g, "kʰ", z, m, l, h, "lː", "nː", "sː", "tː"]
+restricted_final_coda_consonants: [p, b, "pʰ", t, d, "tʰ", k, g, "kʰ", z, m, l, "lː", "nː", "sː", "tː", "mː", "pː"]  # real Greek words end only in n r s (plus ks/ps): a stop or m/l closes a syllable medially, never a word
+restricted_coda_consonants: [h]  # h is onset-only; every other consonant may close a syllable inside a word (pt, kt, ks, mn) -- see restricted_final_coda_consonants
 # Real Attic Greek word-final consonants are a genuinely small, closed
 # set -- ν/ρ/ς (n/r/s) -- plus the real consonant-cluster letters ξ/ψ
 # (ks/ps, spelled as single letters but phonemically sequences, the same
@@ -58,6 +59,27 @@ attested_onset_clusters:
   - ["tʰ", r]  # "θρ" (thronos)
   - ["kʰ", r]  # "χρ" (chronos)
   - [g, n]    # "γν" (gnosis)
+  # real clusters found by `conlang audit-lexicons`
+  - [z, d]
+  - [b, r]
+  - [p, s]
+  - [k, s]
+  - [s, t]
+  - [s, k]
+  - [p, n]
+  - [s, "kʰ"]
+  - [g, l]
+  - [b, l]
+  - ["kʰ", l]
+  - [p, t]
+  - [k, t]
+  - [m, n]
+  - [k, n]
+  - ["kʰ", n]
+  - ["tʰ", n]
+  - [p, "tʰ"]
+  - [k, "tʰ"]
+  - ["tʰ", m]
 stress_pattern: ""  # real Attic Greek's own prosodic axis is its own positional pitch accent (curated below), the same "stress_pattern stays uncurated" choice Japanese's own profile already makes for the same realization
 word_accent_realization: positional_pitch_accent
 word_accent_pattern: lexical  # a sentinel, not a shape rule -- real Attic accent-kernel placement is genuinely lexically arbitrary within its own window (see word_accent_window below), the same "no shape-based default" reasoning Japanese's own profile already gives for its own unrestricted version
@@ -90,11 +112,10 @@ nucleus_frequency_tiers:
   uncommon: ["iː", "ɛː", "ɔː", "yː"]
   rare: [ai, au, ei, "ɔi"]
 coda_frequency_tiers:
-  very_common: [n, s]
-  common: [r]
-  uncommon: []
-  rare: ["mː", "pː"]
-
+  very_common: [n, s, r]
+  common: [k, t, p, l, m]
+  uncommon: ["pʰ", "tʰ", "kʰ", b, d, g, z]
+  rare: ["lː", "nː", "sː", "tː", "mː", "pː"]
 attested_onset_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [s, t, r]
@@ -105,3 +126,7 @@ attested_coda_triples:
   - [r, k, s]
   - [n, k, s]
   - [r, p, s]
+attested_coda_clusters:
+  # real clusters found by `conlang audit-lexicons`
+  - [k, s]
+  - [p, s]

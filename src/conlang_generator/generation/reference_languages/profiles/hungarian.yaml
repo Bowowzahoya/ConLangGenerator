@@ -1,7 +1,8 @@
 name: Hungarian
 aliases: [magyar]
-consonants: [p, b, t, d, k, g, c, "ɟ", ts, dz, "tʃ", "dʒ", f, v, s, "ʃ", z, "ʒ", h, m, n, "ɲ", l, r, j, "lː", "rː", "tː", "zː", "sː", "ʃː", "ɲː", "jː", "gː"]
-vowels: [i, a, "ɛ", o, u, y, "ø", "aː", "eː", "iː", "oː", "uː", "øː", "yː"]
+consonants: [p, b, t, d, k, g, c, "ɟ", ts, dz, "tʃ", "dʒ", f, v, s, "ʃ", z, "ʒ", h, m, n, "ɲ", l, r, j, "lː", "rː", "tː", "zː", "sː", "ʃː", "ɲː", "jː", "gː", "ŋ"]
+vowels: [i, a, "ɛ", o, u, y, "ø", "aː", "eː", "iː", "oː", "uː", "øː", "yː", "ɔ"]
+final_geminates: true  # tett, kell, hall: real word-final geminates
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
@@ -47,7 +48,7 @@ orthography:
   # already uses.
   - {ipa: j, latin: j, weight: 0.75}
   - {ipa: j, latin: ly, weight: 0.25}
-restricted_onset_consonants: ["ɲ", "lː", "rː", "tː", "zː", "sː", "ʃː", "ɲː", "jː", "gː"]  # a palatal nasal is cross-linguistically onset-only, same fact already curated for the Germanic profiles' /ŋ/
+restricted_onset_consonants: ["lː", "rː", "tː", "zː", "sː", "ʃː", "ɲː", "jː", "gː", "ŋ"]  # a palatal nasal is cross-linguistically onset-only, same fact already curated for the Germanic profiles' /ŋ/
 attested_onset_clusters:
   # Real, common Hungarian onset clusters, restricted to symbols this
   # profile models -- illustrative, not exhaustive. Real Hungarian native
@@ -68,21 +69,49 @@ attested_coda_clusters:
   - [l, t]                   # "olt"
   - [n, t]                   # "kant"-adjacent, illustrative
   - [n, k]                   # "bank"
+  # real clusters found by `conlang audit-lexicons`
+  - [l, d]
+  - [l, "tʃ"]
+  - ["ʃ", t]
+  - [n, d]
+  - [n, ts]
+  - [j, t]
+  - [z, d]
+  - [r, "ʃ"]
+  - [r, d]
+  - [r, "ɲ"]
+  - [m, b]
+  - [l, "ɟ"]
+  - [n, z]
+  - [l, "ʃ"]
+  - ["ɲ", v]
+  - [j, k]
+  - [j, d]
+  - ["ŋ", k]
+  - ["ŋ", g]
+  - [r, k]
+  - [l, k]
+  - [l, p]
+  - [m, p]
+  - [n, g]
+  - [r, m]
+  - [r, n]
+  - [r, b]
 core_vocabulary_average_syllables: 1.55  # hand-counted across this project's own CORE_MEANINGS glosses -- Hungarian's own agglutinative morphology means core root vocabulary is still comparatively short even though grammatical word-forms get long; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
 onset_frequency_tiers:
   very_common: [p, t, k, s, v, m]
   common: [b, d, g, f, n, r, h, j]
-  uncommon: [c, "ɟ", ts, "ʃ", z, l]
+  uncommon: [c, "ɟ", ts, "ʃ", z, l, "ɲ"]
   rare: [dz, "tʃ", "dʒ", "ʒ"]  # /ɲ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for that slot
 nucleus_frequency_tiers:
   very_common: [a, "ɛ"]
-  common: [i, o, u]
+  common: [i, o, u, "ɔ"]
   uncommon: [y, "ø", "aː", "eː"]
   rare: ["iː", "oː", "uː", "øː", "yː"]
 coda_frequency_tiers:
   very_common: [t, k, n, s]
   common: [r, l, m, "ʃ", z]
-  uncommon: [p, b, d, g, v, j, "ɲ"]
+  uncommon: [p, b, d, g, v, j, "ɲ", "ŋ"]
   rare: [c, "ɟ", ts, dz, "tʃ", "dʒ", "ʒ", h, f, "lː", "rː", "tː", "zː", "sː", "ʃː", "ɲː", "jː", "gː"]
 word_classes:
   # Real Hungarian has no grammatical gender/noun-class system at all --
@@ -103,3 +132,10 @@ word_class_deviation_rate: 0.1  # illustrative -- mainly stands in for real Hung
 stress_pattern: initial  # real Hungarian: essentially exceptionless -- always the word's first syllable, even more rigidly than German/Dutch's own initial default
 stress_deviation_rate: 0.03  # illustrative -- real Hungarian stress is famously the most rigidly initial of any commonly-cited European language
 stress_driven_vowel_reduction: false  # real Hungarian: a conservative, syllable-timed language that keeps full vowel quality regardless of stress
+
+attested_coda_triples:
+  # real 3-consonant clusters found by `conlang audit-lexicons`
+  - [l, d, "ʃ"]
+  - [n, d, "ʃ"]
+  - [r, s, t]
+  - [l, s, t]

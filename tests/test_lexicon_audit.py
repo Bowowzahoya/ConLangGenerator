@@ -241,3 +241,30 @@ def test_welsh_georgian_zulu_and_xhosa_lexicons_fit_their_profiles():
     assert {"tʰ", "tsʼ", "ɣ"} <= set(by_name["Georgian"].consonants)
     assert {"mb", "nd", "ŋg"} <= set(by_name["Zulu"].consonants)  # prenasalized stops are units
     assert ("m", "n", "t") in by_name["Xhosa"].attested_onset_triples  # umntu
+
+
+def test_word_final_only_profile_restriction_reaches_the_structure():
+    import random
+
+    from conlang_generator.generation import phonology_gen, word_builder
+
+    spec = GenerationSpec(prompt="p", seed=2, traits=TraitProfile(source_languages=("Ancient Greek",), source_language_strictness=1.0))
+    inventory, structure, _, _ = phonology_gen.generate_phonology(random.Random(2), spec)
+    present = {s for s in ("p", "t", "k", "m", "l") if s in inventory.consonant_symbols()}
+    assert present <= set(structure.excluded_final_coda_consonants)
+    assert not set(structure.excluded_coda_consonants) & present  # but they may close a syllable inside a word
+    rng = random.Random(1)
+    for _ in range(100):
+        word = word_builder.build_word(rng, inventory, structure, rng.choice((1, 2, 3)))
+        assert word[-1] not in structure.excluded_final_coda_consonants, word
+
+
+def test_nahuatl_hungarian_persian_and_ancient_greek_lexicons_fit_their_profiles():
+    for name, limit in (("Nahuatl", 0.02), ("Hungarian", 0.02), ("Persian", 0.03), ("Ancient Greek", 0.03)):
+        (audit,) = lexicon_audit.audit_all((name,))
+        assert not audit.off_inventory, (name, audit.off_symbols)
+        assert audit.flagged_rate <= limit, (name, audit.flagged_rate)
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert "ɔ" in by_name["Hungarian"].vowels and by_name["Hungarian"].final_geminates
+    assert "ɲ" not in by_name["Hungarian"].restricted_onset_consonants  # nyelv, nyár
+    assert {"iː", "uː"} <= set(by_name["Persian"].vowels)

@@ -1473,16 +1473,26 @@ def test_hawaiian_declares_real_phonemic_vowel_length_with_macron_spelling():
 
 
 def test_nahuatl_onset_and_nucleus_frequency_tiers_partition_its_legal_symbols():
-    _assert_onset_nucleus_only("Nahuatl", coda_profile="sonorant")
+    # Nahuatl's codas are unrestricted now (final -tl and -n, medial ktl/shtl), so all three tiers
+    # blocks are curated; they must exactly partition the legal sets
+    nahuatl = next(p for p in REFERENCE_LANGUAGES if p.name == "Nahuatl")
+    assert nahuatl.coda_profile == "unrestricted"
+    for position, tiers in (
+        ("onset", nahuatl.onset_frequency_tiers),
+        ("coda", nahuatl.coda_frequency_tiers),
+        ("nucleus", nahuatl.nucleus_frequency_tiers),
+    ):
+        tiered = [s for members in tiers.values() for s in members]
+        assert len(tiered) == len(set(tiered)), position
+        assert set(tiered) == _legal_symbols(nahuatl, position), position
 
 
-def test_nahuatl_narrows_the_sonorant_coda_set_and_declares_penultimate_stress():
-    # The generic "sonorant" filter would also legalize m/n as codas --
-    # real Classical Nahuatl codas are narrower, restricted to /l w j ʔ/.
+def test_nahuatl_allows_any_coda_and_declares_penultimate_stress():
+    # An earlier curation barred m/n as codas; the lexicon audit showed real words ending in -n and
+    # medial n/k/h/s/tl codas, so codas are unrestricted (final -tl is the absolutive suffix).
     nahuatl = next(p for p in REFERENCE_LANGUAGES if p.name == "Nahuatl")
     legal_codas = set(nahuatl.consonants) - set(nahuatl.restricted_coda_consonants)
-    assert legal_codas & {"m", "n"} == set()
-    assert legal_codas & {"l", "w", "j", "ʔ"} == {"l", "w", "j", "ʔ"}
+    assert {"n", "m", "l", "w", "j", "ʔ", "tɬ", "k"} <= legal_codas
     assert nahuatl.stress_pattern == "penultimate"
 
 

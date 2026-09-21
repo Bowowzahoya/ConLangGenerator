@@ -61,16 +61,16 @@ multi-session feature.
   lexicons' `r`/`ɾ` and `ʎ` aligned with their profiles.
 - **Profile widening, still open (M).** Modeling limits the audit cannot
   fix with a cluster list: (a) *word-final devoicing is done* (final-only field,
-  Turkish exemptions); the Sanskrit pausa restriction (only `k ʈ t p ṅ ṇ n m ḥ`
-  word-finally) and other final-only coda sets could now use the same
-  field via a profile setting, but no profile field exists for it yet; (b) *doubled consonants are done* (long twins for the common consonants,
+  Turkish exemptions); the profile field `restricted_final_coda_consonants` now exists (Ancient Greek uses it); Sanskrit's
+  pausa restriction (only `k ʈ t p ṅ ṇ n m ḥ` word-finally) could use it too, but its lexicon holds bare stems
+  (*vāc*, *tejas*), so it is left off; (b) *doubled consonants are done* (long twins for the common consonants,
   lexicons and profiles converted; still open: geminate affricates like Italian
   `tts`, geminates in `coda_profile: none` languages such as Japanese *kitte*,
   and word-initial geminates in the few languages that have them); (c) *three-consonant clusters are done* (curated triples, strict profiles only; Georgian, Hebrew,
   Hungarian and the other unreviewed languages have none yet, and 4-consonant runs like
   Polish *vzvʲ*+glide stay out of scope); (d) glide+vowel sequences written as onset clusters
   (French `bw`, Italian `pj`); (e) languages not yet reviewed (Old Norse, Icelandic, Mandarin, Korean, Cantonese, Tibetan, Tamil,
-  Hindi, Welsh, Georgian, Zulu, Xhosa done): Nahuatl, Ancient Greek, Hungarian, Persian,
+  Hindi, Welsh, Georgian, Zulu, Xhosa, Nahuatl, Hungarian, Persian, Ancient Greek done):
   Spanish (`β ð ɣ`); a medial-only onset (Tamil `ʈ`) and word-final geminates in Tamil are
   not modeled; (f) lexicon-side slips: Danish `w`/`ɪ`, Swedish `ɧ`, Portuguese `carregar` rhotic.
 

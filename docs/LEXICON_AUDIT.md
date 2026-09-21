@@ -22,10 +22,6 @@ language can say which.
 
 ```
 language         words  off-profile  structure  flagged
-Nahuatl            246            3        176     73% 
-Ancient Greek      494           58        117     35% 
-Hungarian          494          136         37     35% 
-Persian            494          107         52     32% 
 Spanish            494          125         34     32% 
 Khmer               52            0         14     27% 
 Nama                 4            0          1     25% 
@@ -51,6 +47,7 @@ Old Norse          490            0         16      3%
 Portuguese         494            0         15      3% 
 Thai               190            5          0      3% 
 Finnish            494            1         10      2% 
+Persian            494            0         11      2% 
 German             494            1          9      2% 
 Xhosa               52            0          1      2% 
 Tamil              494            1          8      2% 
@@ -58,10 +55,13 @@ Turkish            494            0          7      1%
 Latin              494            4          2      1% 
 Zulu                84            0          1      1% 
 Georgian           169            0          2      1% 
+Ancient Greek      494            0          5      1% 
 Icelandic          494            0          5      1% 
 Malay              494            0          5      1% 
 Norwegian          494            0          5      1% 
 Serbo-Croatian     494            0          5      1% 
+Nahuatl            246            0          2      1% 
+Hungarian          494            0          4      1% 
 Dutch              494            0          3      1% 
 French             494            2          1      1% 
 Hawaiian           401            2          0      0% 
@@ -75,7 +75,7 @@ English            494            0          0      0%
 Tibetan            365            0          0      0% 
 Welsh              494            0          0      0% 
 Yoruba             102            0          0      0% 
-all              20845                              8%
+all              20845                              5%
 ```
 
 A flagged fraction is **not** an error rate: most flags are the profile being
@@ -137,6 +137,14 @@ lexicon is transcribed phonemically (`ɖ`->`ʈ`, `g d b`->`k t p`, `s c ʃ`->`t�
 gains the aspirated and ejective stops/affricates, `ts dz ɣ`, and the long initial clusters (with 3-consonant
 onsets such as `mtr`, `sxv`); Zulu and Xhosa gain plain `b d g`, `mb nd ŋg nz` prenasalized units, and
 nasal+consonant onset clusters (`nt`, `ŋk`, `ml`, triple `mnt` as in *umntu*).
+
+**Nahuatl, Hungarian, Persian, Ancient Greek (fixed):** 73% -> 1%, 33% -> 1%, 32% -> 2%, 36% -> 1%.
+Nahuatl's codas were wrongly restricted (no `m n`); real words end in `-tl`, `-n` and have medial `k h s tl` codas, so
+codas are unrestricted, with `ts`, `kw`/`kj` clusters. Hungarian gains `ɔ` (short *a*) and `ŋ`, frees `ɲ` to open
+words (*nyelv*) and takes `final_geminates`. Persian gains `iː uː ʔ`, `max_coda: 2` and its real final clusters
+(`rg rm ng ʃt`). Ancient Greek gets the new profile field `restricted_final_coda_consonants` (stops and `m l` may close
+a syllable inside a word but never end it; words end in `n r s`, `ks`, `ps`), plus the onset clusters `zd ps ks pt kt mn`
+and its lexicon aligned to `ɛː`/`y`.
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet

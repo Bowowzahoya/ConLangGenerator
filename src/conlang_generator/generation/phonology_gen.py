@@ -1646,6 +1646,13 @@ def generate_phonology(
         coda_legal_symbols, weighted_profiles, strictness, "coda_frequency_tiers"
     )
 
+    final_only = tuple(
+        s for profile, weight in weighted_profiles if weight * strictness >= 0.5
+        for s in profile.restricted_final_coda_consonants if s in consonant_symbols
+    )
+    if final_only:
+        excluded_final_coda_consonants = tuple(dict.fromkeys(excluded_final_coda_consonants + final_only))
+
     # A geminate barred from word-initial position is medial-only, so it can't
     # end a word either (real Italian/Latin/Finnish have no final geminates)
     long_symbols = {c.ipa for c in consonants if c.long}

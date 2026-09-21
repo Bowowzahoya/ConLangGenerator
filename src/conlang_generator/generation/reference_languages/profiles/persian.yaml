@@ -1,10 +1,11 @@
 name: Persian
 aliases: [farsi]
-consonants: [p, b, t, d, k, g, q, "tʃ", "dʒ", f, v, s, z, "ʃ", "ʒ", x, "ɣ", h, m, n, l, r, j, "dː", "kː", "pː", "rː", "lː", "nː"]
-vowels: [i, e, a, o, u, "aː"]
+consonants: [p, b, t, d, k, g, q, "tʃ", "dʒ", f, v, s, z, "ʃ", "ʒ", x, "ɣ", h, m, n, l, r, j, "dː", "kː", "pː", "rː", "lː", "nː", "ʔ"]
+vowels: [i, e, a, o, u, "aː", "iː", "uː"]
 coda_profile: unrestricted
 restricted_onset_consonants: ["dː", "kː", "pː", "rː", "lː", "nː"]  # geminates are word-medial only
 max_onset: 1
+max_coda: 2  # real Persian words end in up to two consonants (dast, mard, gorg)
 tonal: false
 orthography_category: diacritic-style
 # No attested_onset_clusters -- real Persian genuinely has no native
@@ -22,6 +23,44 @@ attested_coda_clusters:
   - [r, d]                   # "særd" (cold)
   - [f, t]                   # "goft" (said)
   - [n, "dʒ"]                 # "gænj" (treasure)
+  # real clusters found by `conlang audit-lexicons`
+  - ["ʃ", t]
+  - [r, g]
+  - [r, m]
+  - [n, g]
+  - [x, m]
+  - [z, n]
+  - [b, r]
+  - [r, x]
+  - [x, s]
+  - [s, m]
+  - [j, n]
+  - [r, f]
+  - [m, s]
+  - [h, n]
+  - ["ʃ", k]
+  - [b, z]
+  - [r, "ʃ"]
+  - [l, x]
+  - ["ɣ", z]
+  - [b, h]
+  - [s, r]
+  - [s, b]
+  - [r, s]
+  - [r, z]
+  - [h, r]
+  - [l, h]
+  - [f, "ʃ"]
+  - [k, l]
+  - [n, s]
+  - [r, k]
+  - [r, t]
+  - [r, b]
+  - [r, n]
+  - [l, k]
+  - [l, m]
+  - [l, t]
+  - [n, k]
 orthography:
   # Real Persian transliteration conventions, restricted to symbols this
   # profile actually models -- illustrative, not a full account.
@@ -39,17 +78,17 @@ onset_frequency_tiers:
   very_common: [p, t, k, b, d, s, m, n]
   common: [g, f, v, z, "ʃ", h, l, r, j]
   uncommon: ["tʃ", "dʒ", x]
-  rare: [q, "ɣ", "ʒ"]
+  rare: [q, "ɣ", "ʒ", "ʔ"]
 nucleus_frequency_tiers:
   very_common: [a, i]
-  common: [e, o, u]
+  common: [e, o, u, "iː", "uː"]
   uncommon: ["aː"]
   rare: []  # this profile's own vowel set has nothing left for this tier -- same legitimately-empty-tier precedent Danish's own onset table already has
 coda_frequency_tiers:
   very_common: [t, d, n, r]
   common: [s, m, k, g, l, b]
   uncommon: [z, "ʃ", x, f, v, h, j]
-  rare: [p, q, "tʃ", "dʒ", "ɣ", "ʒ", "dː", "kː", "pː", "rː", "lː", "nː"]
+  rare: [p, q, "tʃ", "dʒ", "ɣ", "ʒ", "dː", "kː", "pː", "rː", "lː", "nː", "ʔ"]
 word_classes:
   # Real Persian's own infinitive is genuinely conditioned by the
   # preceding (past) stem's own final-consonant voicing, not vowel

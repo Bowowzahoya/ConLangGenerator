@@ -1,10 +1,10 @@
 name: Nahuatl
 aliases: [aztec, "náhuatl"]
-consonants: [p, t, k, "tʃ", "tɬ", s, "ʃ", h, m, n, l, w, j, "ʔ", "lː", "tː", "kː"]
+consonants: [p, t, k, "tʃ", "tɬ", s, "ʃ", h, m, n, l, w, j, "ʔ", "lː", "tː", "kː", ts]
 vowels: [a, e, i, o, "aː", "eː", "iː", "oː"]
-coda_profile: sonorant
-max_onset: 1
-restricted_coda_consonants: [m, n]
+coda_profile: unrestricted
+max_onset: 2
+restricted_coda_consonants: []
 # The generic "sonorant" coda_profile's own sonority filter (see
 # phonology_gen.py's _sonorant_or_glottal_symbols) would otherwise
 # legalize m/n/l/w/j/ʔ all as codas -- real Classical Nahuatl codas are
@@ -65,10 +65,22 @@ core_vocabulary_average_syllables: 2.15  # hand-counted across this project's ow
 onset_frequency_tiers:
   very_common: [t, k, m, n, l]
   common: [p, s, w, j, h]
-  uncommon: ["tʃ", "ʃ", "tɬ"]
+  uncommon: ["tʃ", "ʃ", "tɬ", ts]
   rare: ["ʔ", "lː", "tː", "kː"]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [e, o]
   uncommon: ["aː", "iː"]
   rare: ["eː", "oː"]
+coda_frequency_tiers:
+  very_common: ["tɬ", n, k, l]
+  common: ["ʔ", h, s, "ʃ", "tʃ", m, p, t]
+  uncommon: [w, j, ts]
+  rare: ["lː", "tː", "kː"]
+
+attested_onset_clusters:
+  # real clusters (labialized k written kw, ...)
+  - [k, w]
+  - [k, j]
+  - [t, j]
+  - [k, "ʃ"]
