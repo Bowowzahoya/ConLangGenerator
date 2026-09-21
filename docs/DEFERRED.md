@@ -39,12 +39,13 @@ multi-session feature.
   prenasalized `ŋg` eat the start of `ŋ` + `gʱ`. IPA typed with U+0261 by a user or an LLM is not
   normalized on input yet.
 - **Onset/coda clusters cap at 2 consonants (done).** Curated triples and quads for strict profiles.
-- **Stress and pitch accent in real words (mostly done).** 33 lexicons carry stress marks, Japanese carries
-  pitch accent for ~91% of its polysyllabic words (see `LEXICON_AUDIT.md`). Still open: (a) Georgian,
-  Hawaiian (no derivable rule; each needs per-word data or a language-specific weight rule; Arabic, Basque and Hindi
-  now use a position/weight rule, which ignores dialect variation and Hindi schwa deletion),
-  Serbo-Croatian and Ancient Greek (pitch accent), Danish stød, Swedish/Norwegian tonal accents; (b) the ~9% of Japanese polysyllables left unmarked (phrases, homographs, conjugated forms, a few unknown accents); (c) fixed-pattern languages ignore their real exceptions (loanwords, verbs) --
-  an `exceptions` pass per language would refine them; (d) secondary stress is not marked anywhere; (e) vowel
+- **Stress and pitch accent in real words (mostly done).** 35 lexicons carry stress marks; Japanese carries
+  pitch accent for ~91% of its polysyllabic words (see `LEXICON_AUDIT.md`). Arabic, Basque, Georgian, Hawaiian
+  and Hindi use a best-effort position/weight rule that ignores dialect variation (and Hindi schwa deletion).
+  Still open: (a) Serbo-Croatian and Ancient Greek (pitch accent), Danish stød, Swedish/Norwegian tonal
+  accents; (b) the ~9% of Japanese polysyllables left unmarked (phrases, homographs, conjugated forms, a few
+  unknown accents); (c) fixed-pattern languages ignore their real exceptions (loanwords, verbs) -- an
+  `exceptions` pass per language would refine them; (d) secondary stress is not marked anywhere; (e) vowel
   harmony is still absent from the real words (harmony is a property of the *word*, so it is only lost if a
   looser copy is re-fitted).
 - **Korean assimilation and Hindi schwa deletion (L)** *(known limitation)* —

@@ -34,7 +34,10 @@ How each language's marks were produced:
   Quechua, Swahili, Swedish, Tamil, Turkish, Welsh -- plus Spanish and Portuguese by their coda/vowel rules with
   the written accent as an override, Latin by syllable weight, Italian penultimate with a hand-listed set of
   antepenult words, Indonesian and Malay penultimate unless the penult is schwa.
-* **Three languages with a weight or position rule of their own:** Arabic by the Cairene / Modern Standard rule
+* **Five languages with a weight or position rule of their own:** Georgian (Aronson: initial in two- and
+  three-syllable words, the antepenult in longer ones; whether Georgian stress is phonetically real at all is
+  disputed) and Hawaiian (a right-to-left moraic trochee in which a long vowel or diphthong is a foot of its own: a
+  heavy final syllable is stressed, otherwise the penult; ten listed diphthongs are one syllable), Arabic by the Cairene / Modern Standard rule
   (a superheavy final syllable, else a heavy penult, else the antepenult; a disyllable with a light penult takes its
   first -- Classical and colloquial dialects differ), Hindi by syllable weight (the heaviest of the last
   three syllables; a tie goes to the rightmost non-final one, so an all-equal word is penultimate; light = short open,
@@ -66,9 +69,9 @@ Dutch           initial                               230       230
 English         lexical                               112       114
 Finnish         initial                               472       472
 French          final                                 286       286
-Georgian        lexical                                 0       127
+Georgian        lexical                               127       127
 German          initial                               270       270
-Hawaiian        lexical                                 0       375
+Hawaiian        lexical                               369       369
 Hebrew          final                                 378       378
 Hindi           lexical                               366       366
 Hungarian       initial                               288       288
@@ -110,7 +113,7 @@ Yoruba          -                                       0        85
 Zulu            -                                       0        80
 ```
 
-Not covered: Georgian, Hawaiian, Serbo-Croatian and Ancient Greek (lexical or pitch accent
+Not covered: Serbo-Croatian and Ancient Greek (lexical or pitch accent
 with no rule to compute it from), Sanskrit (Vedic accent), Danish stød and the Swedish/Norwegian tonal accents,
 and every tonal language (which mark tone, not stress).
 

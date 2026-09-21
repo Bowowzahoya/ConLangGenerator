@@ -29,6 +29,8 @@ _PITCH_MARKS = frozenset(TONE_DIACRITICS.values())
 _DIPHTHONGS = frozenset({"ai", "au", "ei", "ɔi", "œy", "ou", "oi", "eu"})
 _HIGH_OFFGLIDES = frozenset({"i", "u", "ɪ", "ʊ", "y"})
 _FINAL_GLIDE_LANGUAGES = frozenset({"Portuguese"})
+# Hawaiian's ten diphthongs (a vowel + a second vowel in one syllable): everything else in a row is a hiatus
+_HAWAIIAN_DIPHTHONGS = frozenset({"ae", "ai", "ao", "au", "ei", "eu", "iu", "oi", "ou", "ui"})
 
 
 def _profile(name: str) -> ReferenceLanguageProfile:
@@ -48,13 +50,22 @@ def _is_vowel(symbol: str) -> bool:
     return symbol in lexicon_audit._VOWEL_SYMBOLS
 
 
-def _nuclei(toks: list[tuple[str, str]], final_glide: bool = False) -> list[int]:
+def _pairs(name: str) -> frozenset[str] | None:
+    return _HAWAIIAN_DIPHTHONGS if name == "Hawaiian" else None
+
+
+def _nuclei(toks: list[tuple[str, str]], final_glide: bool = False, pairs: frozenset[str] | None = None) -> list[int]:
     """Token index of each syllable's (first) vowel. Two vowels in a row make one
     syllable when the second is a high off-glide after a non-high vowel (``æ`` +
     ``i``, ``a`` + ``u``: a falling diphthong); otherwise they are a hiatus."""
     nuclei: list[int] = []
     for i, (symbol, _) in enumerate(toks):
         if not _is_vowel(symbol):
+            continue
+        if pairs is not None:  # a language with an explicit diphthong list
+            if nuclei and nuclei[-1] == i - 1 and toks[i - 1][0] + symbol in pairs:
+                continue
+            nuclei.append(i)
             continue
         if nuclei and nuclei[-1] == i - 1 and symbol in _HIGH_OFFGLIDES and toks[i - 1][0] not in _HIGH_OFFGLIDES:
             continue
@@ -67,7 +78,7 @@ def _nuclei(toks: list[tuple[str, str]], final_glide: bool = False) -> list[int]
 def syllable_starts(toks: list[tuple[str, str]], name: str) -> tuple[int, ...]:
     """Token index where each syllable's onset begins (first entry 0)."""
     structure = lexicon_audit.profile_structure(name)
-    vowels = _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES)
+    vowels = _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES, _pairs(name))
     starts = [0]
     for prev, nxt in zip(vowels, vowels[1:]):
         run = tuple(s for s, _ in toks[prev + 1:nxt])
@@ -82,7 +93,7 @@ def syllable_starts(toks: list[tuple[str, str]], name: str) -> tuple[int, ...]:
 
 
 def syllable_count(ipa: str, name: str) -> int:
-    return len(_nuclei(tokens(ipa, name), name in _FINAL_GLIDE_LANGUAGES))
+    return len(_nuclei(tokens(ipa, name), name in _FINAL_GLIDE_LANGUAGES, _pairs(name)))
 
 
 def stressed_syllable(ipa: str, name: str) -> int | None:
@@ -164,6 +175,16 @@ def _arabic_stress(toks: list[tuple[str, str]], starts: tuple[int, ...]) -> int:
     return count - 3
 
 
+def _hawaiian_stress(toks: list[tuple[str, str]], starts: tuple[int, ...]) -> int:
+    """Hawaiian is a right-to-left moraic trochee in which a long vowel or diphthong is a foot
+    of its own: a heavy final syllable takes the stress (ʔehaː, inaː); otherwise the last
+    foot is headed by the penult (a-LO-ha, KAː-ne, wa-HI-ne)."""
+    count = len(starts)
+    vowel = next(i for i in range(starts[-1], len(toks)) if _is_vowel(toks[i][0]))
+    heavy = "ː" in toks[vowel][0] or (vowel + 1 < len(toks) and _is_vowel(toks[vowel + 1][0]))
+    return count - 1 if heavy else count - 2
+
+
 def default_stress_index(ipa: str, name: str) -> int | None:
     """The syllable ``name``'s own ``stress_pattern`` predicts, or ``None`` for a
     monosyllable or a pattern that cannot be derived from the sounds alone."""
@@ -186,9 +207,15 @@ def default_stress_index(ipa: str, name: str) -> int | None:
         return _hindi_stress(toks, starts)
     if name == "Arabic":
         return _arabic_stress(toks, starts)
+    if name == "Georgian":
+        # Aronson's description: initial in words of two or three syllables, the antepenult in longer
+        # ones. Whether Georgian stress is phonetically real at all is disputed (see the profile).
+        return max(0, count - 3)
+    if name == "Hawaiian":
+        return _hawaiian_stress(toks, starts)
     if pattern in ("", "lexical"):
         return None
-    vowels = _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES)
+    vowels = _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES, _pairs(name))
     final_coda = tuple(s for s, _ in toks[vowels[-1] + 1:] if not _is_vowel(s))
     first_long = next((k for k, i in enumerate(vowels) if "ː" in toks[i][0]), None)
     index = predict_default_stress(count, pattern, final_coda, toks[vowels[-1]][0], first_long)

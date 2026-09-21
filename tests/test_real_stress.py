@@ -12,7 +12,7 @@ from conlang_generator.llm.fake_client import FakeLLMClient
 
 # languages whose lexicons carry a stress mark on (nearly) every polysyllabic word
 _STRESS_LANGUAGES = (
-    "Arabic", "Basque", "Bengali", "Danish", "Dutch", "English", "Finnish", "French", "German", "Hebrew", "Hindi", "Hungarian", "Icelandic",
+    "Arabic", "Basque", "Bengali", "Danish", "Dutch", "English", "Finnish", "French", "Georgian", "German", "Hawaiian", "Hebrew", "Hindi", "Hungarian", "Icelandic",
     "Indonesian", "Italian", "Latin", "Malay", "Mongolian", "Nahuatl", "Norwegian", "Old Norse", "Pama-Nyungan",
     "Persian", "Polish", "Portuguese", "Quechua", "Russian", "Spanish", "Swahili", "Swedish", "Tamil", "Turkish", "Welsh",
 )
@@ -59,6 +59,8 @@ def test_known_stress_positions_across_the_kinds_of_language():
     assert stressed("Basque", "mendia") == 1 and stressed("Basque", "ura") == 0 and stressed("Basque", "ilargia") == 1
     assert stressed("Hindi", "bahut") == 1 and stressed("Hindi", "paani") == 0 and stressed("Hindi", "zaroorat") == 1
     assert stressed("Arabic", "hayawan") == 2 and stressed("Arabic", "kabir") == 1 and stressed("Arabic", "ana") == 0
+    assert stressed("Georgian", "deda") == 0 and stressed("Georgian", "adamiani") == 2  # initial; antepenult of a longer word
+    assert stressed("Hawaiian", "aloha") == 1 and stressed("Hawaiian", "kēlā") == 1 and stressed("Hawaiian", "keiki") == 0
     assert stressed("Polish", "woda") == 0 and stressed("Turkish", "kapı") == 1 and stressed("Turkish", "anne") == 0
 
 
@@ -150,3 +152,14 @@ def test_arabic_stress_is_the_cairene_weight_rule():
     assert index("ʔistiʕmaːl") == 2 and index("taʕalama") == 1
     assert index("baina") == 0  # a diphthong is a long vowel: the heavy penult of a disyllable
     assert real_stress.default_stress_index("ʕuː", "Arabic") is None  # a monosyllable
+
+
+def test_georgian_and_hawaiian_rules():
+    georgian = lambda ipa: real_stress.default_stress_index(ipa, "Georgian")
+    assert georgian("deda") == 0 and georgian("saxeli") == 0 and georgian("adamiani") == 2 and georgian("mama") == 0
+    hawaiian = lambda ipa: real_stress.default_stress_index(ipa, "Hawaiian")
+    assert hawaiian("aloha") == 1 and hawaiian("wahine") == 1 and hawaiian("kaːne") == 0  # penult
+    assert hawaiian("ʔehaː") == 1 and hawaiian("inaː") == 1  # a final long vowel is a foot of its own
+    assert hawaiian("keiki") == 0 and hawaiian("maikaʔi") == 1  # ei/ai are one syllable
+    assert hawaiian("maːkou") == 1 and hawaiian("ʔoe") == 0  # a final diphthong is heavy; oe is a hiatus
+    assert real_stress.syllable_count("hawaʔi", "Hawaiian") == 3 and real_stress.syllable_count("ia", "Hawaiian") == 2
