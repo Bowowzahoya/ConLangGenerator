@@ -130,6 +130,14 @@ def profile_structure(name: str) -> SyllableStructure:
         "allowed_onset_triples": tuple(t for t in profile.attested_onset_triples if all(s in symbols for s in t)),
         "allowed_coda_triples": tuple(t for t in profile.attested_coda_triples if all(s in symbols for s in t)),
     }
+    quads = {
+        "allowed_onset_quads": tuple(t for t in profile.attested_onset_quads if all(s in symbols for s in t)),
+        "allowed_coda_quads": tuple(t for t in profile.attested_coda_quads if all(s in symbols for s in t)),
+    }
+    if quads["allowed_onset_quads"] and structure.max_onset >= 2:
+        updates["allowed_onset_quads"] = quads["allowed_onset_quads"]
+    if quads["allowed_coda_quads"] and structure.max_coda >= 2:
+        updates["allowed_coda_quads"] = quads["allowed_coda_quads"]
     if triples["allowed_onset_triples"] and structure.max_onset >= 2:
         updates["allowed_onset_triples"] = triples["allowed_onset_triples"]
     if triples["allowed_coda_triples"] and structure.max_coda >= 2:

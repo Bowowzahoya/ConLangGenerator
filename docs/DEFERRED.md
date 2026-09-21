@@ -66,9 +66,9 @@ multi-session feature.
   (*vāc*, *tejas*), so it is left off; (b) *doubled consonants are done* (long twins for the common consonants,
   lexicons and profiles converted; still open: geminate affricates like Italian
   `tts`, geminates in `coda_profile: none` languages such as Japanese *kitte*,
-  and word-initial geminates in the few languages that have them); (c) *three-consonant clusters are done* (curated triples, strict profiles only; Georgian, Hebrew,
-  Hungarian and the other unreviewed languages have none yet, and 4-consonant runs like
-  Polish *vzvʲ*+glide stay out of scope); (d) glide+vowel sequences written as onset clusters
+  and word-initial geminates in the few languages that have them); (c) *three- and four-consonant clusters are done* (curated triples, strict profiles only; Georgian, Hebrew,
+  Hungarian and the other unreviewed languages have none yet; four-consonant runs are curated for
+  Old Norse, Russian and Xhosa); (d) glide+vowel sequences written as onset clusters
   (French `bw`, Italian `pj`); (e) languages not yet reviewed (Old Norse, Icelandic, Mandarin, Korean, Cantonese, Tibetan, Tamil,
   Hindi, Welsh, Georgian, Zulu, Xhosa, Nahuatl, Hungarian, Persian, Ancient Greek, Spanish, Arabic, Vietnamese, Swahili, Bengali, Mongolian, Khmer, Nama, Sumerian, Navajo, Arawakan, Quechua, Hebrew, Pama-Nyungan, Japanese, Basque, Danish, Polish, Italian, Russian, Old Norse, Sanskrit
   and the small remainders done; Basque loan clusters need an initial-only onset restriction):
@@ -123,6 +123,11 @@ multi-session feature.
   is taken from one language by weight; there is no cognate blending.
 - **Proper-name lexicon (S).** Names are recognized and kept/adapted, but no
   gazetteer of common real names per language.
+
+- **Tag more loanwords (S).** Only 32 lexicon entries carry the `loan` tag (the flagged, obviously
+  borrowed ones). Heavy-loan languages (Swahili, Malay/Indonesian, Persian, Turkish, Hindi, Japanese)
+  have many more untagged Arabic/Sanskrit/Chinese/English loans; tagging them would let the audit
+  hold the rest to the native phonotactics more strictly.
 
 ## 3. Tones
 
@@ -282,7 +287,7 @@ was done.)*
 - **Suite runtime (done).** Split into a fast default run and `slow` tests;
   see section 7.
 
-- **Tag more loanwords (S).** Only 32 lexicon entries carry the `loan` tag (the flagged, obviously
-  borrowed ones). Heavy-loan languages (Swahili, Malay/Indonesian, Persian, Turkish, Hindi, Japanese)
-  have many more untagged Arabic/Sanskrit/Chinese/English loans; tagging them would let the audit
-  hold the rest to the native phonotactics more strictly.
+
+- **Migrate the other geminate profiles to the initial-only restriction (S).** Only Finnish and Basque
+  use `restricted_initial_consonants`; Italian, Latin, Arabic, Hungarian, Icelandic, Old Norse, Greek, ...
+  still bar geminates from every onset, so they are only ever coda-position in generated words.

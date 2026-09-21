@@ -132,17 +132,17 @@ def first_problem(tokens: list[tuple[str, bool]], structure: SyllableStructure) 
         run = tuple(symbol for symbol, _ in tokens[run_start:run_end])
         if n == 0:
             leading = tuple(symbol for symbol, _ in tokens[:nucleus_index])
-            if not structure.is_valid_syllable(leading, nucleus, ()):
+            if not structure.is_valid_syllable(leading, nucleus, (), initial=True):
                 return _fix_leading(leading, nucleus, structure)
             onset = leading
 
         if n + 1 == len(nuclei):
-            if structure.is_valid_syllable(onset, nucleus, run, final=True):
+            if structure.is_valid_syllable(onset, nucleus, run, final=True, initial=(n == 0)):
                 return None
             return _fix_final(onset, nucleus, run, run_start, structure)
 
         next_nucleus = tokens[nuclei[n + 1]][0]
-        split = _find_split(onset, nucleus, run, next_nucleus, structure)
+        split = _find_split(onset, nucleus, run, next_nucleus, structure, initial=(n == 0))
         if split is None:
             if len(run) == 1:
                 return run_start, True
@@ -152,13 +152,14 @@ def first_problem(tokens: list[tuple[str, bool]], structure: SyllableStructure) 
 
 
 def _find_split(
-    onset: tuple[str, ...], nucleus: str, run: tuple[str, ...], next_nucleus: str, structure: SyllableStructure
+    onset: tuple[str, ...], nucleus: str, run: tuple[str, ...], next_nucleus: str, structure: SyllableStructure,
+    initial: bool = False,
 ) -> int | None:
     """How many of ``run``'s consonants close this syllable as its coda (the
     rest open the next syllable as its onset) -- maximal onset first."""
     for coda_len in range(len(run) + 1):
         coda, next_onset = run[:coda_len], run[coda_len:]
-        if not structure.is_valid_syllable(onset, nucleus, coda):
+        if not structure.is_valid_syllable(onset, nucleus, coda, initial=initial):
             continue
         if not structure.is_valid_syllable(next_onset, next_nucleus, ()):
             continue

@@ -200,3 +200,7 @@ attested_coda_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - ["ŋ", g, d]
   - ["ŋ", g, r]
+attested_coda_quads:
+  # real 4-consonant clusters found by `conlang audit-lexicons`
+  - [r, s, t, r]
+  - [m, s, k, r]

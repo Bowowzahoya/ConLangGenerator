@@ -140,3 +140,6 @@ attested_onset_triples:
   - ["ŋ", k, w]
   - ["ŋ", g, w]
   - [n, t, "ɬ"]
+attested_onset_quads:
+  # real 4-consonant clusters found by `conlang audit-lexicons`
+  - [m, n, t, w]

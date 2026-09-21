@@ -35,13 +35,14 @@ orthography:
   - {ipa: "æː", latin: "ää"}
   - {ipa: "øː", latin: "öö"}
   - {ipa: "yː", latin: yy}
-restricted_onset_consonants: ["ŋ", "kː", "tː", "pː", "sː", "lː", "nː", "mː", "rː"]  # /ŋ/: real Finnish is coda/medial-only (spelled "ng"/"nk"), never opens a syllable, same fact already curated for the Germanic profiles. Geminates: real Finnish gemination is a medial/intervocalic phenomenon (kukka) -- a word never *starts* with a geminate; this project has no ambisyllabic modeling, so the coda-position half of a real geminate is what stays legal below
+restricted_onset_consonants: ["ŋ"]  # /ŋ/: real Finnish is coda/medial-only (spelled "ng"/"nk"), never opens a syllable
+restricted_initial_consonants: ["kː", "tː", "pː", "sː", "lː", "nː", "mː", "rː"]  # a geminate never starts a word (kukka) but opens later syllables after a vowel or a consonant (kan.sːa, hel.pːo)
 core_vocabulary_average_syllables: 1.65  # hand-counted across this project's own CORE_MEANINGS glosses -- Finnish's own agglutinative morphology means core root vocabulary is still comparatively short even though grammatical word-forms get long; more counting uncertainty than the perfected profiles, same caveat as every newly-added language
 onset_frequency_tiers:
   very_common: [k, s, t, m, p]
   common: [v, l, n, j, h]
   uncommon: [r, d]
-  rare: []  # /ŋ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
+  rare: ["kː", "tː", "pː", "sː", "lː", "nː", "mː", "rː"]  # /ŋ/, this position's only other candidate, is excluded from onset entirely (see restricted_onset_consonants above) -- nothing legal left for this tier
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [e, u, "æ"]

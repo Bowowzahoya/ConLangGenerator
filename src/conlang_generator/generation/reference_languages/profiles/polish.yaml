@@ -127,6 +127,8 @@ attested_coda_clusters:
   - [s, "tɕ"]
   - [t, r]
   - [w, t]
+  # real clusters found by `conlang audit-lexicons`
+  - [j, s]
 orthography:
   # Real Polish spelling conventions, restricted to symbols this profile
   # actually models -- illustrative, not a full account.

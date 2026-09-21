@@ -263,6 +263,15 @@ class SyllableStructure(BaseModel, frozen=True):
     any -- invented languages stay at two."""
     allowed_coda_triples: tuple[tuple[str, str, str], ...] = ()
     """The 3-consonant codas (``mpf``, ``nts``, ``lst``), same rule."""
+    allowed_onset_quads: tuple[tuple[str, str, str, str], ...] = ()
+    """The only 4-consonant onsets (Russian *fstrʲ-*, Xhosa *mntw-*), same rule."""
+    allowed_coda_quads: tuple[tuple[str, str, str, str], ...] = ()
+    """The 4-consonant codas (Old Norse *-rstr*, *-mskr*), same rule."""
+    excluded_initial_onset_consonants: tuple[str, ...] = ()
+    """Symbols that may not open a *word* (its first onset consonant) but may
+    open any later syllable: geminates (Finnish *kanssa* is ``kan`` + ``sː``)
+    and Basque ``ɾ``. Unlike ``excluded_onset_consonants`` this is checked only
+    on the word-initial syllable (``is_valid_syllable(..., initial=True)``)."""
     allowed_coda_consonants: tuple[str, ...] | None = None  # None = any consonant
     excluded_coda_consonants: tuple[str, ...] = ()
     """Symbols that can never be the *final* segment of a coda (single or
@@ -347,17 +356,23 @@ class SyllableStructure(BaseModel, frozen=True):
     ``generation/word_builder.py``'s ``build_word``."""
 
     def is_valid_syllable(
-        self, onset: tuple[str, ...], nucleus: str, coda: tuple[str, ...], final: bool = False
+        self, onset: tuple[str, ...], nucleus: str, coda: tuple[str, ...], final: bool = False,
+        initial: bool = False,
     ) -> bool:
         """``final``: this is the word's last syllable, so the word-final-only
-        coda restriction applies too."""
-        if len(onset) > (3 if self.allowed_onset_triples and self.max_onset >= 2 else self.max_onset):
+        coda restriction applies too; ``initial``: its first, so the
+        word-initial-only onset restriction does."""
+        if initial and onset and onset[0] in self.excluded_initial_onset_consonants:
+            return False
+        if len(onset) > self._longest(self.max_onset, self.allowed_onset_triples, self.allowed_onset_quads):
             return False
         if len(onset) == 2 and onset not in self.allowed_onset_clusters:
             return False
         if len(onset) == 3 and onset not in self.allowed_onset_triples:
             return False
-        if len(onset) > 3:
+        if len(onset) == 4 and onset not in self.allowed_onset_quads:
+            return False
+        if len(onset) > 4:
             return False
         if any(c in self.excluded_onset_consonants for c in onset):
             return False
@@ -367,13 +382,15 @@ class SyllableStructure(BaseModel, frozen=True):
                 return False
             if pair in self.excluded_onset_nucleus_pairs:
                 return False
-        if len(coda) > (3 if self.allowed_coda_triples and self.max_coda >= 2 else self.max_coda):
+        if len(coda) > self._longest(self.max_coda, self.allowed_coda_triples, self.allowed_coda_quads):
             return False
         if len(coda) == 2 and coda not in self.allowed_coda_clusters:
             return False
         if len(coda) == 3 and coda not in self.allowed_coda_triples:
             return False
-        if len(coda) > 3:
+        if len(coda) == 4 and coda not in self.allowed_coda_quads:
+            return False
+        if len(coda) > 4:
             return False
         if (
             self.allowed_coda_consonants is not None
@@ -392,6 +409,12 @@ class SyllableStructure(BaseModel, frozen=True):
             if nucleus_coda_pair in self.excluded_nucleus_coda_pairs:
                 return False
         return True
+
+    @staticmethod
+    def _longest(limit: int, triples: tuple, quads: tuple) -> int:
+        if limit < 2:
+            return limit
+        return 4 if quads else 3 if triples else limit
 
     def is_valid_boundary(self, prev_coda_final: str | None, next_onset_initial: str | None) -> bool:
         """Whether a word-internal syllable boundary is legal: the pair

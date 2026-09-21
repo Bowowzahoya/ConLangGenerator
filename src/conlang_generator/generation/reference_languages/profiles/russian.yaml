@@ -216,3 +216,6 @@ attested_onset_triples:
 attested_coda_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [n, t, r]
+attested_onset_quads:
+  # real 4-consonant clusters found by `conlang audit-lexicons`
+  - [f, s, t, "rʲ"]

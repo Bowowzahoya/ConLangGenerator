@@ -1655,9 +1655,13 @@ def generate_phonology(
 
     # A geminate barred from word-initial position is medial-only, so it can't
     # end a word either (real Italian/Latin/Finnish have no final geminates)
+    excluded_initial_onset_consonants = tuple(dict.fromkeys(
+        s for profile, weight in weighted_profiles if weight * strictness >= 0.5
+        for s in profile.restricted_initial_consonants if s in consonant_symbols
+    ))
     long_symbols = {c.ipa for c in consonants if c.long}
     medial_only = tuple(
-        s for s in excluded_onset_consonants
+        s for s in excluded_onset_consonants + excluded_initial_onset_consonants
         if s in long_symbols and not any(p.final_geminates for p, _ in weighted_profiles)
     )
     if medial_only:
@@ -1665,29 +1669,29 @@ def generate_phonology(
 
     onset_triples: tuple[tuple[str, str, str], ...] = ()
     coda_triples: tuple[tuple[str, str, str], ...] = ()
+    onset_quads: tuple[tuple[str, str, str, str], ...] = ()
+    coda_quads: tuple[tuple[str, str, str, str], ...] = ()
     if reference_profiles and strictness > 0.0:
         # Own rng, so a language with no curated triples spends no draws at
         # all and every seeded generation stays byte-identical.
         triple_rng = random.Random(f"{spec.seed}:triples")
         symbols = set(consonant_symbols)
 
-        def _keep(triples, allowed_first):
+        def _keep(clusters, allowed_first):
             usable = tuple(sorted(
-                t for t in frozenset().union(*triples)
+                t for t in frozenset().union(*clusters)
                 if all(s in symbols for s in t) and allowed_first(t)
             ))
             return tuple(t for t in usable if triple_rng.random() < strictness)
 
+        onset_ok = lambda t: not any(s in excluded_onset_consonants for s in t)
+        coda_ok = lambda t: t[-1] not in excluded_coda_consonants and t[-1] not in restricted_coda
         if max_onset >= 2:
-            onset_triples = _keep(
-                [p.attested_onset_triples for p, _ in weighted_profiles],
-                lambda t: not any(s in excluded_onset_consonants for s in t),
-            )
+            onset_triples = _keep([p.attested_onset_triples for p, _ in weighted_profiles], onset_ok)
+            onset_quads = _keep([p.attested_onset_quads for p, _ in weighted_profiles], onset_ok)
         if max_coda >= 2:
-            coda_triples = _keep(
-                [p.attested_coda_triples for p, _ in weighted_profiles],
-                lambda t: t[-1] not in excluded_coda_consonants and t[-1] not in restricted_coda,
-            )
+            coda_triples = _keep([p.attested_coda_triples for p, _ in weighted_profiles], coda_ok)
+            coda_quads = _keep([p.attested_coda_quads for p, _ in weighted_profiles], coda_ok)
 
     syllable_structure = SyllableStructure(
         max_onset=max_onset,
@@ -1696,6 +1700,9 @@ def generate_phonology(
         allowed_coda_clusters=allowed_coda_clusters,
         allowed_onset_triples=onset_triples,
         allowed_coda_triples=coda_triples,
+        allowed_onset_quads=onset_quads,
+        allowed_coda_quads=coda_quads,
+        excluded_initial_onset_consonants=excluded_initial_onset_consonants,
         allowed_coda_consonants=allowed_coda_consonants,
         excluded_coda_consonants=excluded_coda_consonants,
         excluded_final_coda_consonants=excluded_final_coda_consonants,

@@ -150,6 +150,8 @@ attested_onset_clusters:
   - [m, "ɲ"]
   # real clusters found by `conlang audit-lexicons`
   - [nd, "ɬ"]
+  # real clusters found by `conlang audit-lexicons`
+  - [m, "ŋg"]
 attested_onset_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [m, n, t]

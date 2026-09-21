@@ -370,3 +370,52 @@ def test_audit_cli_reports_loans_and_can_include_them():
     assert result.exit_code == 0 and "loans" in result.output.splitlines()[0]
     with_loans = CliRunner().invoke(app, ["audit-lexicons", "Basque", "--include-loans"])
     assert with_loans.exit_code == 0
+
+
+def test_four_consonant_clusters_need_a_listed_quad():
+    from conlang_generator.core.phonology import SyllableStructure
+
+    structure = SyllableStructure(
+        max_onset=2, max_coda=2, allowed_onset_clusters=(("s", "t"),), allowed_coda_clusters=(("r", "s"),),
+        allowed_onset_quads=(("f", "s", "t", "r"),), allowed_coda_quads=(("r", "s", "t", "r"),),
+    )
+    assert structure.is_valid_syllable(("f", "s", "t", "r"), "e", ())
+    assert not structure.is_valid_syllable(("f", "s", "t", "l"), "e", ())
+    assert structure.is_valid_syllable((), "y", ("r", "s", "t", "r"))
+    assert not structure.is_valid_syllable((), "y", ("r", "s", "t", "r", "s"))
+    assert not SyllableStructure(max_onset=2, allowed_onset_clusters=(("s", "t"),)).is_valid_syllable(("f", "s", "t", "r"), "e", ())
+
+
+def test_word_initial_only_restriction_bars_the_first_syllable_alone():
+    from conlang_generator.core.phonology import SyllableStructure
+
+    structure = SyllableStructure(excluded_initial_onset_consonants=("sː",))
+    assert not structure.is_valid_syllable(("sː",), "a", (), initial=True)
+    assert structure.is_valid_syllable(("sː",), "a", ())  # a later syllable may open with it
+    assert structure.is_valid_syllable(("s",), "a", (), initial=True)
+
+
+def test_finnish_geminates_open_later_syllables_but_never_a_word():
+    import random
+
+    from conlang_generator.generation import phonology_gen, word_builder
+
+    for name in ("Finnish", "Old Norse", "Russian", "Xhosa"):
+        (audit,) = lexicon_audit.audit_all((name,))
+        assert audit.flagged_rate < 0.02, (name, audit.flagged_rate)
+    finnish = next(p for p in REFERENCE_LANGUAGES if p.name == "Finnish")
+    assert set(finnish.restricted_initial_consonants) >= {"kː", "sː"} and "kː" not in finnish.restricted_onset_consonants
+    spec = GenerationSpec(prompt="p", seed=3, traits=TraitProfile(source_languages=("Finnish",), source_language_strictness=1.0))
+    inventory, structure, _, _ = phonology_gen.generate_phonology(random.Random(3), spec)
+    geminates = tuple(c.ipa for c in inventory.consonants if c.long)
+    rng = random.Random(1)
+    words = [word_builder.build_word(rng, inventory, structure, rng.choice((1, 2, 3))) for _ in range(300)]
+    assert not any(w.lstrip("ˈ").startswith(geminates) for w in words)
+    assert not any(w.endswith(geminates) for w in words)
+    assert any(g in w[1:-1] for w in words for g in geminates)
+
+
+def test_old_norse_and_russian_carry_their_four_consonant_runs():
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert ("r", "s", "t", "r") in by_name["Old Norse"].attested_coda_quads  # þyrstr
+    assert ("f", "s", "t", "rʲ") in by_name["Russian"].attested_onset_quads  # vstretit'

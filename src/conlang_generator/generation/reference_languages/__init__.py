@@ -55,6 +55,9 @@ restricted_coda_consonants: []   # optional, defaults empty -- see the field's o
 restricted_onset_nucleus_pairs: []  # optional, defaults empty -- e.g. [[w, u]] (blacklist mode)
 attested_onset_nucleus_pairs: []    # optional, defaults empty -- whitelist mode, mutually exclusive with the above
 attested_onset_triples: []       # optional, defaults empty -- 3-consonant onsets, e.g. [[s, t, r]]
+attested_onset_quads: []         # optional, defaults empty -- 4-consonant onsets
+attested_coda_quads: []          # optional, defaults empty -- 4-consonant codas
+restricted_initial_consonants: []  # optional, defaults empty -- never open a word, may open a later syllable
 attested_coda_triples: []        # optional, defaults empty -- 3-consonant codas, e.g. [[l, s, t]]
 attested_coda_clusters: []          # optional, defaults empty -- e.g. [[s, t]]
 restricted_nucleus_coda_pairs: []   # optional, defaults empty -- e.g. [[i, "ŋ"]] (blacklist mode)
@@ -297,6 +300,16 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     """The coda-side mirror of ``attested_onset_triples`` (English *sixths*
     stays out of scope; German *Herbst* /ʁpst/ and Polish clusters are the
     target)."""
+    attested_onset_quads: tuple[tuple[str, str, str, str], ...] = ()
+    """Real 4-consonant onsets (Russian *fstrʲ-*, Xhosa *mntw-*); see ``attested_onset_triples``."""
+    attested_coda_quads: tuple[tuple[str, str, str, str], ...] = ()
+    """Real 4-consonant codas (Old Norse *þyrstr*, *heimskr*); see ``attested_onset_triples``."""
+    restricted_initial_consonants: tuple[str, ...] = ()
+    """Consonants that never open a *word* but may open a later syllable --
+    geminates (Finnish *kanssa*: ``kan.sːa``) and Basque ``ɾ``. Applied when the
+    profile's weight times the source-language strictness is at least 0.5.
+    Unlike ``restricted_onset_consonants`` (barred from every onset) these stay
+    legal onsets, so they belong in ``onset_frequency_tiers``."""
     attested_coda_clusters: tuple[tuple[str, str], ...] = ()
     """A curated, illustrative (not exhaustive) list of this language's
     own real 2-consonant coda clusters, restricted to symbols this

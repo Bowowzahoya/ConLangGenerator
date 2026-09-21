@@ -31,30 +31,27 @@ because they were flagged and are plainly borrowed (Basque *triste*, Turkish *kr
 
 ```
 language         words  loans  off-profile  structure  flagged
-Finnish            493      1            0         10      2% 
-Xhosa               52      0            0          1      2% 
 Portuguese         494      0            0          6      1% 
-Zulu                84      0            0          1      1% 
 Georgian           169      0            0          2      1% 
 Icelandic          494      0            0          5      1% 
 Tamil              489      5            0          4      1% 
 Nahuatl            246      0            0          2      1% 
-Old Norse          490      0            0          3      1% 
 Ancient Greek      494      0            0          3      1% 
 French             494      0            2          1      1% 
-Basque             486      8            0          2      0% 
+Finnish            493      1            0          2      0% 
 Arabic             494      0            0          2      0% 
 Bengali            494      0            0          2      0% 
 Dutch              494      0            0          2      0% 
 German             494      0            1          1      0% 
 Mandarin           494      0            0          2      0% 
-Polish             494      0            0          2      0% 
+Basque             486      8            0          1      0% 
 Swahili            489      5            0          1      0% 
+Old Norse          490      0            0          1      0% 
 Persian            491      3            0          1      0% 
 Turkish            493      1            0          1      0% 
 Korean             494      0            0          1      0% 
 Norwegian          494      0            0          1      0% 
-Russian            494      0            0          1      0% 
+Polish             494      0            0          1      0% 
 Serbo-Croatian     494      0            0          1      0% 
 Spanish            494      0            0          1      0% 
 Arawakan            49      0            0          0      0% 
@@ -76,6 +73,7 @@ Nama                 4      0            0          0      0%
 Navajo              24      0            0          0      0% 
 Pama-Nyungan        61      0            0          0      0% 
 Quechua            412      0            0          0      0% 
+Russian            494      0            0          0      0% 
 Sanskrit           494      0            0          0      0% 
 Sumerian            38      0            0          0      0% 
 Swedish            494      0            0          0      0% 
@@ -83,7 +81,9 @@ Thai               190      0            0          0      0%
 Tibetan            365      0            0          0      0% 
 Vietnamese         494      0            0          0      0% 
 Welsh              494      0            0          0      0% 
+Xhosa               52      0            0          0      0% 
 Yoruba             102      0            0          0      0% 
+Zulu                84      0            0          0      0% 
 all              20813     32                              0%
 ```
 
@@ -197,6 +197,15 @@ Dutch `wr`, Thai `iə uə`). **Deliberately not admitted, because they occur onl
 initial `kr`, Finnish `st`, Basque `tɾ fɾ pɾ kɾ`, Tamil `kr` (Sanskrit loans), German `sv`, Hawaiian `b s`, and the
 Arabic-loan words in Swahili. What remains flagged (~0.7%) is these loans, four-consonant runs, geminate+cluster
 sequences in Finnish, and nasal-vowel spellings in French.
+
+**Four-consonant runs and Finnish geminate+cluster (fixed):** `SyllableStructure.allowed_onset_quads` /
+`allowed_coda_quads` (profile `attested_onset_quads` / `attested_coda_quads`) carry Old Norse *þyrstr* and
+*heimskr*, Russian *vstretit'* and Xhosa *umntwana*. A new word-initial-only restriction
+(`excluded_initial_onset_consonants`, profile `restricted_initial_consonants`) replaces the all-onset ban for
+Finnish geminates -- they may open a later syllable (*kan.sːa*, *hel.pːo*) but never a word -- and Basque `ɾ`.
+Finnish went 2% -> 0%. Still flagged: Finnish *-sta* and *myrsky*, Old Norse *verkfæri*, Polish *ssać*, and
+the other one-off words, plus French nasal-vowel spellings. Other geminate profiles (Italian, Latin, Arabic,
+Hungarian, ...) still use the older all-onset ban and could migrate to the initial-only field.
 
 **Still open** -- see `docs/DEFERRED.md` section 1:
 three-consonant clusters, glide+vowel sequences, and the languages not yet

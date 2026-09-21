@@ -69,13 +69,19 @@ def _build_onset(
     inventory: PhonemeInventory,
     structure: SyllableStructure,
     prev_coda_final: str | None = None,
+    initial: bool = True,
 ) -> tuple[str, ...]:
+    """``initial``: the word's first syllable (also the default, for a lone
+    syllable), which the word-initial-only restriction applies to."""
     if structure.max_onset == 0:
         return ()
     onset_multipliers = dict(structure.onset_symbol_multipliers)
+    excluded_first = structure.excluded_initial_onset_consonants if initial else ()
     # Only a language with curated triples spends this draw (see `allowed_onset_triples`).
-    if structure.allowed_onset_triples and rng.random() < 0.1:
-        triples = structure.allowed_onset_triples
+    if (structure.allowed_onset_triples or structure.allowed_onset_quads) and rng.random() < 0.1:
+        triples = tuple(
+            t for t in structure.allowed_onset_triples + structure.allowed_onset_quads if t[0] not in excluded_first
+        )
         if prev_coda_final is not None:
             triples = _filter_by_adjacency(
                 triples, key=lambda c: c[0], is_legal=lambda s: structure.is_valid_boundary(prev_coda_final, s)
@@ -84,7 +90,7 @@ def _build_onset(
             by_symbol = {c.ipa: c.prevalence for c in inventory.consonants}
             return rng.choices(triples, weights=[_cluster_weight(c, by_symbol, onset_multipliers) for c in triples])[0]
     if structure.max_onset >= 2 and structure.allowed_onset_clusters and rng.random() < 0.3:
-        clusters = structure.allowed_onset_clusters
+        clusters = tuple(c for c in structure.allowed_onset_clusters if c[0] not in excluded_first) or structure.allowed_onset_clusters
         if prev_coda_final is not None:
             clusters = _filter_by_adjacency(
                 clusters, key=lambda c: c[0], is_legal=lambda s: structure.is_valid_boundary(prev_coda_final, s)
@@ -93,6 +99,8 @@ def _build_onset(
         weights = [_cluster_weight(c, by_symbol, onset_multipliers) for c in clusters]
         return rng.choices(clusters, weights=weights)[0]
     candidates = inventory.consonants
+    if excluded_first:
+        candidates = tuple(c for c in candidates if c.ipa not in excluded_first) or candidates
     if structure.excluded_onset_consonants:
         # `or candidates` is defensive, same fallback shape `_build_coda`
         # already uses for `excluded_coda_consonants` -- not expected to
@@ -127,9 +135,9 @@ def _build_coda(
             return False
         return pair not in structure.excluded_nucleus_coda_pairs
 
-    if structure.allowed_coda_triples and rng.random() < 0.08:
+    if (structure.allowed_coda_triples or structure.allowed_coda_quads) and rng.random() < 0.08:
         triples = tuple(
-            c for c in structure.allowed_coda_triples
+            c for c in structure.allowed_coda_triples + structure.allowed_coda_quads
             if is_legal_nucleus_coda(c[0]) and not (final and c[-1] in structure.excluded_final_coda_consonants)
             and c[-1] not in structure.excluded_coda_consonants
         )
@@ -225,6 +233,7 @@ def _build_syllable_parts(
     size_bias: str | None = None,
     prev_coda_final: str | None = None,
     final: bool = True,
+    initial: bool = True,
 ) -> tuple[tuple[str, ...], str, tuple[str, ...]]:
     """The shared core of ``build_syllable``/``build_word``: builds one
     syllable's ``(onset, nucleus, coda)``. ``prev_coda_final`` -- the
@@ -234,11 +243,11 @@ def _build_syllable_parts(
     standalone single-syllable use like ``build_syllable``) skips that
     check entirely, same as every other position-dependent filter in this
     module being a no-op when its trigger is absent."""
-    onset = _build_onset(rng, inventory, structure, prev_coda_final)
+    onset = _build_onset(rng, inventory, structure, prev_coda_final, initial)
     onset_final = onset[-1] if onset else None
     nucleus = _choose_nucleus(rng, inventory, structure, onset_final, harmony_class, size_bias).ipa
     coda = _build_coda(rng, inventory, structure, nucleus, final)
-    assert structure.is_valid_syllable(onset, nucleus, coda, final), (onset, nucleus, coda)
+    assert structure.is_valid_syllable(onset, nucleus, coda, final, initial), (onset, nucleus, coda)
     # No assert on `is_valid_boundary` here, unlike the line above: unlike
     # a coda (always optional -- `_build_coda` can honestly return `()`
     # rather than fabricate an illegal one), an onset is mandatory
@@ -432,7 +441,8 @@ def build_word(
     prev_coda_final: str | None = None
     for syllable_index in range(num_syllables):
         onset, nucleus, coda = _build_syllable_parts(
-            rng, inventory, structure, harmony_class, size_bias, prev_coda_final, syllable_index == num_syllables - 1
+            rng, inventory, structure, harmony_class, size_bias, prev_coda_final, syllable_index == num_syllables - 1,
+            syllable_index == 0,
         )
         syllables.append((onset, nucleus, coda))
         prev_coda_final = coda[-1] if coda else None
@@ -483,7 +493,7 @@ def build_word(
         for i, (onset, nucleus, coda) in enumerate(syllables):
             if i == stress_index or nucleus == "ə" or rng.random() >= reduction_rate:
                 continue
-            if structure.is_valid_syllable(onset, "ə", coda, i == num_syllables - 1):
+            if structure.is_valid_syllable(onset, "ə", coda, i == num_syllables - 1, i == 0):
                 syllables[i] = (onset, "ə", coda)
     parts: list[str] = []
     for i, (onset, nucleus, coda) in enumerate(syllables):
