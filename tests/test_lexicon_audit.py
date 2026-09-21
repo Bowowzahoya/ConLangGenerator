@@ -442,3 +442,19 @@ def test_every_geminate_profile_bars_word_initial_geminates_only():
         assert not any(w.lstrip("ˈ").startswith(geminates) for w in words), name
         if not profile.final_geminates:
             assert not any(w.endswith(geminates) for w in words), name
+
+
+def test_french_and_portuguese_lexicons_use_real_nasal_vowels():
+    from conlang_generator.generation.reference_languages.real_lexicon import real_words
+
+    def by_spelling(name):
+        return {spelling: ipa for spelling, ipa in real_words(name).values()}
+
+    french, portuguese = by_spelling("French"), by_spelling("Portuguese")
+    assert french["vent"] == "vã" and french["bon"] == "bɔ̃" and french["main"] == "mɛ̃" and french["un"] == "ɛ̃"
+    assert french["montagne"] == "mɔ̃taɲ" and french["enfant"] == "ãfã"
+    assert portuguese["cinco"] == "sĩku" and portuguese["com"] == "kõ" and portuguese["entender"] == "ẽtẽdeɾ"
+    # a consonant n stays before a vowel (comment, manière) and in a final "-ne"/"-nne" (personne, jaune)
+    assert french["personne"] == "pɛʁsɔn" and french["jaune"] == "ʒon" and french["comment"] == "kɔmã"
+    by_name = {p.name: p for p in REFERENCE_LANGUAGES}
+    assert {"ã", "ɛ̃", "ɔ̃"} <= set(by_name["French"].vowels)

@@ -20,9 +20,9 @@ multi-session feature.
 - **Russian palatalization gaps (M).** No `ʃʲ`/`ʒʲ`/`gʲ`, no hard/soft `l`
   contrast (`ɫ`), no long `ɕː` for щ (written `ɕ`), and vowel reduction
   (akan'e) is only partly reflected in the lexicon transcriptions.
-- **Nasal vowels written as vowel + `n` (S).** French and Portuguese words
-  approximate nasal vowels as `V+n` in the lexicons although `ɛ̃ ɔ̃ ã õ ĩ ũ`
-  exist in the pool. A second pass could use the real symbols.
+- **Nasal vowels in French and Portuguese (done).** The lexicons use real nasal vowels (`vã`, `bɔ̃`,
+  `mɛ̃`; `sĩku`, `kõ`), French gains `ã ɛ̃ ɔ̃`. `ɑ̃` is written `ã` and `œ̃` merged into `ɛ̃`. Portuguese
+  diphthongal nasals (`ãw`, `õj`) and French `œ̃` vs `ɛ̃` are still not distinguished.
 - **Geminates as doubled consonants (S).** Italian geminates are written
   `tt`, `ss` (a cluster) rather than the modeled long consonants; the pool has
   long forms only for `k t p s n l`. Extending the long-consonant set (`b d g

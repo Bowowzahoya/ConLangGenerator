@@ -1,7 +1,7 @@
 name: French
 aliases: [francais, français]
 consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ʒ", m, n, "ɲ", l, "ʁ", j, w]
-vowels: [i, e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə"]
+vowels: [i, e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə", "ã", "ɛ̃", "ɔ̃"]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
@@ -47,6 +47,8 @@ restricted_onset_nucleus_pairs:
   - [w, "œ"]
   - [w, "ɔ"]
   - [w, e]
+  - [w, "ã"]      # /w/ before nasal vowels: only ɛ̃ (loin, point) is real
+  - [w, "ɔ̃"]
   - [w, "ə"]
   - [w, "ɑ"]
 attested_onset_clusters:
@@ -216,7 +218,7 @@ coda_frequency_tiers:
   rare: ["ɲ"]
 nucleus_frequency_tiers:
   very_common: ["ə", a]
-  common: [e, "ɛ", i, u, o]
+  common: [e, "ɛ", i, u, o, "ã", "ɛ̃", "ɔ̃"]
   uncommon: ["ɔ", "ɑ"]
   rare: [y, "ø", "œ"]
 

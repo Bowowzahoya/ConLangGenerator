@@ -1590,7 +1590,7 @@ def test_french_restricts_w_to_its_three_real_attested_vowels():
     # /v/, not /w/, in real French).
     french = next(p for p in REFERENCE_LANGUAGES if p.name == "French")
     blacklisted_vowels = {pair[1] for pair in french.restricted_onset_nucleus_pairs if pair[0] == "w"}
-    assert blacklisted_vowels == set(french.vowels) - {"a", "i", "ɛ"}
+    assert blacklisted_vowels == set(french.vowels) - {"a", "i", "ɛ", "ɛ̃"}  # loin, point: /w/ + the nasal ɛ̃
 
 
 def test_french_declares_the_real_wa_joint_spelling():
