@@ -284,6 +284,25 @@ def test_a_strict_mandarin_run_takes_its_real_tones_neutral_tone_sandhi_and_retr
     assert {"ʈʂ", "ʈʂʰ", "ɕ"} <= set(inventory.consonant_symbols())
 
 
+def test_mandarin_kinship_reduplication_puts_neutral_tone_on_the_second_syllable():
+    # Neutral tone as grammar: real Mandarin kinship reduplication (妈妈
+    # māma, 爸爸 bàba) carries its own real tone only on the first
+    # syllable, with the second surfacing neutral -- seed=1 rolls the
+    # mama/papa-style reduplicated pattern for "mother" (the common,
+    # ~80%-of-the-time path -- see lexicon_gen._KINSHIP_PATTERN_PROBABILITY)
+    # at this strict Mandarin-sourced run.
+    traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=1.0)
+    language = generate_language("T", GenerationSpec(prompt="p", seed=1, traits=traits), FakeLLMClient())
+    mother = language.lexicon.by_gloss("mother")
+    assert len(mother.tones) == 2
+    assert mother.tones[0] is not ToneLevel.NEUTRAL  # the real, drawn citation tone
+    assert mother.tones[1] is ToneLevel.NEUTRAL
+    # The stored IPA itself reflects this too, not just the separate
+    # `tones` field -- the second syllable's own tone mark is literally
+    # the neutral one, not a second copy of the first syllable's mark.
+    assert mother.ipa.count(TONE_DIACRITICS[ToneLevel.NEUTRAL]) == 1
+
+
 def test_a_source_language_run_without_the_needed_tones_gets_no_sandhi():
     traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=0.2)
     _, _, tone_system, _ = phonology_gen.generate_phonology(

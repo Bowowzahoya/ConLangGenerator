@@ -546,6 +546,7 @@ def build_reduplicated_word(
     inventory: PhonemeInventory,
     manner_classes: tuple[Manner, ...],
     tone_mark: str = "",
+    second_tone_mark: str | None = None,
     excluded_onset_consonants: tuple[str, ...] = (),
     stress_pattern: str = "",
     stress_deviation_rate: float | None = None,
@@ -587,6 +588,16 @@ def build_reduplicated_word(
 
     Returns ``None`` if the inventory has no consonant in any of
     ``manner_classes`` (the caller should fall back to normal generation).
+
+    ``second_tone_mark`` (``None`` -- the common, non-tonal-language case --
+    means "same as ``tone_mark``", the original behavior): real Mandarin
+    kinship reduplication (妈妈 māma, 爸爸 bàba, 哥哥 gēge) canonically
+    carries its own real tone only on the *first* syllable, with the
+    second surfacing neutral -- ``_propose_kinship_word`` passes the
+    language's own neutral-tone mark here whenever one exists, so the two
+    syllables of a tonal-language kinship word are deliberately *not*
+    just two copies of the same marked syllable the way every other axis
+    of this function's own output is.
     """
     candidates: tuple[Consonant, ...] = tuple(
         c
@@ -601,7 +612,8 @@ def build_reduplicated_word(
     simple_vowels = tuple(v for v in inventory.vowels if not v.diphthong and not v.nasalized)
     open_vowels = tuple(v for v in simple_vowels if v.height in _OPEN_HEIGHTS)
     vowel = weighted_choice(rng, open_vowels or simple_vowels or inventory.vowels)
-    syllable = consonant.ipa + vowel.ipa + tone_mark
+    base_syllable = consonant.ipa + vowel.ipa
+    second_mark = tone_mark if second_tone_mark is None else second_tone_mark
     reduplicated_first_long = stress_gen.first_long_vowel_index((vowel.ipa, vowel.ipa))
     stress_index = stress_gen.assign_stress(
         rng, 2, (), stress_pattern, stress_deviation_rate, stress_strictness, vowel.ipa, reduplicated_first_long
@@ -627,8 +639,8 @@ def build_reduplicated_word(
             )
             accent_mark = word_accent_gen.mark_word_accent(accent_category, word_accent_realization)
             accent_marks = (accent_mark if stress_index == 0 else "", accent_mark if stress_index == 1 else "")
-    first_syllable = syllable + accent_marks[0]
-    second_syllable = syllable + accent_marks[1]
+    first_syllable = base_syllable + tone_mark + accent_marks[0]
+    second_syllable = base_syllable + second_mark + accent_marks[1]
     first = (stress_gen.STRESS_MARK if stress_index == 0 else "") + first_syllable
     second = (stress_gen.STRESS_MARK if stress_index == 1 else "") + second_syllable
     return first + second

@@ -263,8 +263,19 @@ def _propose_kinship_word(
     back to ``propose_word``'s normal candidate-build/LLM-choice path."""
     tone = rng.choice(_non_neutral(tone_system)) if tone_system.enabled else None
     tone_mark = tone_system.mark("", tone) if tone is not None else ""
+    # Real Mandarin kinship reduplication (妈妈 māma, 爸爸 bàba, 哥哥 gēge)
+    # canonically carries its own real tone only on the first syllable,
+    # with the second surfacing neutral -- when this language's own tone
+    # system actually has a neutral category (Mandarin's own
+    # `neutral_tone: true`; most tonal languages this project curates
+    # don't), the second syllable gets that instead of just repeating the
+    # first syllable's own tone the way every other reduplicated word's
+    # own two identical syllables do.
+    has_neutral = tone_system.enabled and ToneLevel.NEUTRAL in tone_system.levels
+    second_tone = ToneLevel.NEUTRAL if has_neutral and tone is not None else tone
+    second_tone_mark = tone_system.mark("", ToneLevel.NEUTRAL) if has_neutral and tone is not None else None
     word = word_builder.build_reduplicated_word(
-        rng, inventory, _KINSHIP_MANNER_CLASSES[gloss_key], tone_mark=tone_mark,
+        rng, inventory, _KINSHIP_MANNER_CLASSES[gloss_key], tone_mark=tone_mark, second_tone_mark=second_tone_mark,
         excluded_onset_consonants=structure.excluded_onset_consonants,
         stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=stress_strictness,
         word_accent_realization=word_accent_realization, word_accent_pattern=word_accent_pattern,
@@ -286,7 +297,7 @@ def _propose_kinship_word(
         romanization=apply_grammatical_spelling(romanization, romanization.apply(word), pos),
         glosses=(gloss,),
         pos=pos,
-        tones=(tone, tone) if tone is not None else (),
+        tones=(tone, second_tone) if tone is not None else (),
         word_class=assigned_class.name if assigned_class is not None else None,
     )
 

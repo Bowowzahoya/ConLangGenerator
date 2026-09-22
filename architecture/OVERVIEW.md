@@ -3493,3 +3493,52 @@ reading code or one-off ad hoc scripts.
   independently-seeded rng stream meant no other draw sequence moved -- confirmed by the full
   suite passing with zero reseeding needed, unlike the phoneme-pool batches earlier in this
   history. Full suite: 1016 passed, 2 skipped (up from 1011 -- the 5 new tests).
+- **Neutral tone as grammar -- kinship half done, particle half investigated and declined.**
+  Real Mandarin kinship reduplication (妈妈 māma, 爸爸 bàba, 哥哥 gēge) canonically carries its
+  own real tone only on the *first* syllable, with the second surfacing neutral --
+  `word_builder.build_reduplicated_word` (previously baking one `tone_mark` into a single
+  `syllable` string reused for both halves) now builds an untoned `base_syllable` once and
+  applies `tone_mark`/a new `second_tone_mark` independently to each half, so the two
+  syllables of a reduplicated word are no longer necessarily two copies of the same marked
+  syllable. `second_tone_mark` defaults to `None` ("same as `tone_mark`", the original
+  behavior, unchanged for every non-Mandarin tonal language's own kinship words).
+  `lexicon_gen._propose_kinship_word` passes the language's own real neutral-tone mark there
+  whenever `ToneLevel.NEUTRAL` is actually in `tone_system.levels` (only Mandarin's own
+  curated `neutral_tone: true` triggers this among currently-curated profiles) -- gated on the
+  tone system's own real content, not a new profile flag, the same "derive from what's already
+  curated" economy this project's own axes generally prefer. `LexicalEntry.tones` was updated
+  to store the real `(tone, ToneLevel.NEUTRAL)` pair too, not just the IPA's own mark, keeping
+  the two in sync the way every other field on a generated entry already is. The choice between
+  `tone`/`ToneLevel.NEUTRAL` is derived, not rolled -- no new `rng` call, so (unlike every
+  phoneme-pool batch this session) this needed zero reseeding of any fixed-seed test.
+
+  **Grammatical particles (的/了/吗), investigated and declined.** These are a real
+  possessive/attributive marker, an aspect/tense marker, and a sentence-final question
+  particle respectively -- traced each against what this project actually generates before
+  writing any code, and none of them map onto an existing word. Real Mandarin has no articles
+  at all (checked its own profile: `real_has_articles: false`), so "the" was never a stand-in
+  for 的 to begin with -- 的 isn't an article. This project's own case/tense-affix machinery is
+  switched off entirely for isolating morphology (`grammar_gen.py`'s own `cases` stays empty
+  whenever `morphological_type is ISOLATING`) rather than realized as separate analytic
+  particle words the way real Mandarin's 了/着/过 actually are, and there's no modeled
+  sentence-final question-particle mechanic anywhere in `sentence_planner.py` either. Checked
+  the remaining candidates directly too: none of this project's own already-generated function
+  words ("the", "not", "and", "be") are genuinely neutral-tone in real Mandarin -- 不 and 一
+  specifically get their own real, non-neutral tone-sandhi behavior, already curated
+  separately (see the lexically-specific-sandhi entry above). Marking a particle neutral is the
+  trivial part; there's no particle to mark neutral until this project has real isolating-
+  language analytic grammar (a possessive marker, an aspect particle, a question particle) to
+  generate in the first place -- a materially bigger feature, closer in size to this project's
+  own already-bracketed-off case/tense-affix architecture gaps than to "add a tone rule." Left
+  open rather than forced onto an existing word that wouldn't actually be linguistically
+  correct.
+
+  3 new tests: 2 in a new `test_word_builder.py` (this project's first dedicated test file for
+  `word_builder.py` -- `build_reduplicated_word`'s own `second_tone_mark` axis in isolation:
+  defaults to matching the first syllable; overrides only the second syllable, base
+  consonant+vowel unchanged) plus one integration test in
+  `test_reference_only_symbols_and_tones.py` against a real strict-Mandarin-sourced generated
+  language (seed hand-found so "mother" naturally rolls the ~80%-likely kinship-reduplication
+  path), confirming both the `tones` field and the stored IPA's own mark. No new `rng` call
+  meant no reseeding needed -- confirmed by the full suite passing clean. Full suite: 1019
+  passed, 2 skipped (up from 1016 -- the 3 new tests).

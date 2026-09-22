@@ -310,9 +310,44 @@ multi-session feature.
   Chain grouping (3-3-3 within a prosodic phrase) remains a simple
   citation-tone pairing, not phrase-structure aware -- a genuinely
   separate, harder problem (real prosodic phrasing) left for its own pass.
-- **Neutral tone as grammar (M).** Neutral tone is stored per word;
-  nothing generates it for grammatical particles (的 了 吗) or reduplicated
-  kinship terms by rule.
+- **Neutral tone as grammar (kinship half done).** Real Mandarin kinship
+  reduplication (妈妈 māma, 爸爸 bàba, 哥哥 gēge) canonically carries its
+  own real tone only on the *first* syllable, with the second surfacing
+  neutral -- `word_builder.build_reduplicated_word` gained a
+  `second_tone_mark` parameter (`None` keeps the original "both
+  syllables share one tone" behavior for every other tonal language's
+  own kinship words), and `lexicon_gen._propose_kinship_word` passes the
+  language's own neutral-tone mark there whenever `ToneLevel.NEUTRAL` is
+  actually in its own `tone_system.levels` (only Mandarin's own curated
+  `neutral_tone: true` triggers this among currently-curated profiles).
+  `LexicalEntry.tones` reflects the real pair too (`(dipping, neutral)`,
+  not `(dipping, dipping)`), not just the stored IPA's own mark. No new
+  rng draw added (the choice is derived, not rolled), so this needed no
+  reseeding of any fixed-seed test.
+
+  **Grammatical particles (的/了/吗) investigated, declined.** These are a
+  possessive/attributive marker, an aspect/tense marker, and a sentence-
+  final question particle respectively -- none of them map onto anything
+  this project currently generates as its own word. Real Mandarin has no
+  articles at all (`real_has_articles: false`, so "the" doesn't even
+  correspond to 的, which isn't an article to begin with); this project's
+  own case/tense-affix machinery is switched off entirely for isolating
+  morphology (`grammar_gen.py`: `cases` stays empty when
+  `morphological_type is ISOLATING`) rather than realized as separate
+  analytic particle words the way real Mandarin's 了/着/过 actually are;
+  and there's no modeled sentence-final question-particle mechanic at
+  all. None of this project's own already-generated function words
+  (`"the"`, `"not"`, `"and"`, `"be"`) are genuinely neutral-tone in real
+  Mandarin either (不 and 一 specifically get their own real, non-neutral
+  tone-sandhi behavior, already curated separately). Marking a particle
+  neutral is the easy part; there's no particle to mark until this
+  project has real isolating-language analytic grammar (a possessive
+  marker, an aspect particle, a question particle) to generate in the
+  first place -- a materially bigger feature than "add a tone rule,"
+  closer in size to the still-open case/tense-affix architecture this
+  project's own grammar generation already brackets off. Left open
+  rather than forced onto an existing word that wouldn't actually be
+  correct.
 - **Other tone systems (M each).** No `tone_levels`/sandhi data for
   Cantonese (6 tones + sandhi), Thai (5 + tone rules), Vietnamese (6, with
   glottalized ngã/nặng), Tibetan, Yoruba, Zulu/Xhosa/Swahili (tone
