@@ -1,4 +1,4 @@
-from conlang_generator.core.phonology import SyllableStructure
+from conlang_generator.core.phonology import TONE_CONTOURS, ToneLevel, SyllableStructure, chao_letters
 
 
 def test_onset_cluster_requires_allowlist():
@@ -126,3 +126,27 @@ def test_allowed_coda_onset_boundary_pairs_is_a_whitelist():
     assert structure.is_valid_boundary("n", "d")
     assert not structure.is_valid_boundary("n", "t")
     assert not structure.is_valid_boundary("k", "d")  # prev coda itself never attested at all
+
+
+def test_chao_letters_covers_every_tone_level_with_real_mandarin_contours():
+    # Real Standard Mandarin's own 4 lexical tones, the textbook Chao
+    # (1930) numerals: 55 high level, 35 rising, 214 dipping, 51 falling.
+    assert TONE_CONTOURS[ToneLevel.HIGH] == "55"
+    assert TONE_CONTOURS[ToneLevel.RISING] == "35"
+    assert TONE_CONTOURS[ToneLevel.DIPPING] == "214"
+    assert TONE_CONTOURS[ToneLevel.FALLING] == "51"
+    # Every ToneLevel member has contour data -- chao_letters never falls
+    # back to the "no data" branch for a real member of the enum.
+    for tone in ToneLevel:
+        assert tone in TONE_CONTOURS
+        assert chao_letters(tone) != ""
+
+
+def test_chao_letters_converts_each_pitch_digit_to_its_own_real_ipa_bar():
+    # 5 = extra-high (˥), 1 = extra-low (˩) -- falling is the textbook
+    # two-bar contour, dipping the three-bar one.
+    assert chao_letters(ToneLevel.FALLING) == "˥˩"
+    assert chao_letters(ToneLevel.RISING) == "˧˥"
+    assert chao_letters(ToneLevel.DIPPING) == "˨˩˦"
+    assert chao_letters(ToneLevel.HIGH) == "˥˥"
+    assert len(chao_letters(ToneLevel.DIPPING)) == len(TONE_CONTOURS[ToneLevel.DIPPING])  # one bar per digit

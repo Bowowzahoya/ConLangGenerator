@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from conlang_generator.core.phonology import TONE_DIACRITICS, ToneLevel, ToneSandhiRule
+from conlang_generator.core.phonology import TONE_CONTOURS, TONE_DIACRITICS, ToneLevel, ToneSandhiRule
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS, TraitProfile
 from conlang_generator.generation import phonology_gen
 from conlang_generator.generation.reference_languages import match_profiles_weighted
@@ -68,6 +68,15 @@ def test_convert_word_appends_contour_digits_only_when_asked():
     assert with_tones == ipa_to_kirshenbaum.convert_word("ma") + "214"
     two = ipa_to_kirshenbaum.convert_word(_tone("ma", ToneLevel.HIGH) + _tone("ta", ToneLevel.FALLING), tts._ESPEAK_TONE_NUMBERS)
     assert two.count("55") == 1 and two.count("51") == 1
+
+
+def test_espeak_tone_numbers_is_the_same_canonical_contour_data_everywhere_else():
+    # Contour representation: this engine's own pitch-contour digits used
+    # to be a private, eSpeak-specific table; now they're sourced from
+    # core.phonology.TONE_CONTOURS, the same real Chao pitch-level numbers
+    # chao_letters()/reader.describe() use for display -- one real fact,
+    # not two tables that could quietly drift apart.
+    assert tts._ESPEAK_TONE_NUMBERS is TONE_CONTOURS
 
 
 def test_espeak_voices_a_tonal_word_with_its_mandarin_voice_and_tone_digits(monkeypatch, tmp_path):

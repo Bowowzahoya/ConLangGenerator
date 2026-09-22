@@ -353,9 +353,28 @@ multi-session feature.
   glottalized ngã/nặng), Tibetan, Yoruba, Zulu/Xhosa/Swahili (tone
   languages with their own tone-depression patterns). Only Mandarin is
   curated.
-- **Contour representation (M).** Tones are single diacritics (level names).
-  Chao tone letters (˥˩) / two-digit contours would represent register +
-  contour properly and give TTS the actual pitch targets.
+- **Contour representation (done).** `ToneLevel`/`TONE_DIACRITICS` (one combining
+  mark per category) stay this project's own *stored*, phonemic representation --
+  unchanged, since that's what a word's IPA is actually built/read/romanized from
+  everywhere else. New `core.phonology.TONE_CONTOURS` (`ToneLevel` -> real Chao
+  (1930) pitch-level digits, 5=highest/1=lowest -- Standard Mandarin's own four
+  tones are exactly 55/35/214/51 in this convention) and `chao_letters()` (converts
+  those digits into the real IPA tone-letter bars, e.g. `"51"` -> `"˥˩"`) give a
+  separate, phonetically fuller *display*/synthesis view derived from the same
+  stored tone, not a replacement for it. This data already existed, just privately
+  and only for eSpeak (`speech/tts.py`'s own `_ESPEAK_TONE_NUMBERS`, "verified by
+  synthesizing each and comparing lengths/pitch against the pinyin voice") --
+  refactored to source from the new canonical `TONE_CONTOURS` instead of
+  duplicating it, so eSpeak's own real pitch targets and the new human-readable
+  display share one real fact. `speech/reader.py`'s `describe()` (the CLI
+  `conlang pronounce` command's own text output) now appends a
+  `Tone contour: ˥˩ (51)`-shaped line, one pair per tone-bearing syllable, only
+  when the word actually has tones. **Not done:** exposing per-language
+  `tone_levels` with their own contour in the web UI (currently just a bare
+  `tonal: true/false` badge) -- backend data is trivial to add
+  (`TONE_CONTOURS`/`chao_letters` already do the work), but showing it needs new
+  frontend surface, not just wiring existing data, so it's left as a natural,
+  disclosed next step rather than built speculatively here.
 - **Tone in evolution (L).** Sound change does not model tonogenesis,
   tone splits/mergers, or sandhi becoming lexical.
 - **Tone in real-based words (S).** A deviated word re-spells through the

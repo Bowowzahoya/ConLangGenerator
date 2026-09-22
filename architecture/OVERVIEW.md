@@ -3542,3 +3542,50 @@ reading code or one-off ad hoc scripts.
   path), confirming both the `tones` field and the stored IPA's own mark. No new `rng` call
   meant no reseeding needed -- confirmed by the full suite passing clean. Full suite: 1019
   passed, 2 skipped (up from 1016 -- the 3 new tests).
+- **Contour representation**: `ToneLevel`/`TONE_DIACRITICS` (one combining mark per category)
+  stay this project's own *stored*, phonemic representation, unchanged -- that's what a word's
+  IPA is actually built/read/romanized from everywhere else in this codebase, and nothing about
+  this batch touches it. New `core.phonology.TONE_CONTOURS` (`ToneLevel` -> real Chao (1930)
+  pitch-level digits, 5=highest/1=lowest -- Standard Mandarin's own four tones are exactly
+  55/35/214/51 in this convention) and `chao_letters()` (converts those digits into the real
+  IPA tone-letter bars one at a time, e.g. `"51"` -> `"˥˩"`, `"214"` -> `"˨˩˦"`) are a separate,
+  phonetically fuller *display*/synthesis view derived from the same stored tone, not a
+  replacement for it -- the same "add a derived table, don't touch the underlying category
+  system" shape this whole tone subsystem's history already has.
+
+  This data already existed in the codebase before this batch, just privately and only for one
+  consumer: `speech/tts.py`'s own `_ESPEAK_TONE_NUMBERS` ("verified by synthesizing each and
+  comparing lengths/pitch against the pinyin voice" -- real, already-checked data, not
+  something invented for this batch). Checked its exact values before writing any new data of
+  my own, confirmed they already *are* the standard Chao numerals, and refactored
+  `_ESPEAK_TONE_NUMBERS` to source from the new canonical `TONE_CONTOURS` instead of
+  duplicating it (`_ESPEAK_TONE_NUMBERS = TONE_CONTOURS`, same variable name so every existing
+  caller in that module stays untouched) -- eSpeak's own real pitch targets and the new
+  human-readable display now share one real fact instead of two tables that could quietly
+  drift apart.
+
+  `speech/reader.py`'s `describe()` (the CLI `conlang pronounce` command's own text output,
+  previously just `IPA: /.../  Romanized: ...`) now appends a `Tone contour: ˥˩ (51)`-shaped
+  line, one Chao-letter/digit pair per tone-bearing syllable in order, derived directly from
+  `LexicalEntry.tones` (already-stored data, no language object needed) -- only when the word
+  actually has tones, so a non-tonal language's own output is byte-identical to before.
+  Smoke-tested against a real strict-Mandarin-sourced generated language: `conlang pronounce
+  mother` (the kinship-reduplicated word from the batch right above, its own real+neutral tone
+  pair) showed `Tone contour: ˨˩˦ (214) ˩˩ (11)`, and an ordinary word showed matching
+  contours for its own two same-tone syllables -- both exactly as expected, a nice
+  cross-check that the two most recent batches compose correctly together.
+
+  **Not done, disclosed rather than built speculatively:** exposing per-language `tone_levels`
+  with their own contour in the web UI, which currently shows only a bare `tonal: true/false`
+  badge (checked `static/index.html` directly). The backend data is trivial to add
+  (`TONE_CONTOURS`/`chao_letters` already do the actual work) -- what's missing is new
+  frontend surface to display it, not wiring existing data, so this is left as a natural,
+  named next step rather than scope-crept into this batch.
+
+  6 new tests: 2 in `test_phonology.py` (every `ToneLevel` member has real contour data; the
+  digit-to-bar conversion for falling/rising/dipping/high, checked against the textbook
+  Mandarin numerals directly) plus one in `test_tts_capabilities_and_sandhi.py` (asserting the
+  refactor's own identity: `tts._ESPEAK_TONE_NUMBERS is TONE_CONTOURS`, not just equal values)
+  plus 3 in a new `test_reader.py` (a toneless word's own output unchanged; a single-syllable
+  tonal word's exact contour line; a multi-syllable word's own contours in the right order).
+  Full suite: 1025 passed, 2 skipped (up from 1019 -- the 6 new tests).

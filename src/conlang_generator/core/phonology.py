@@ -160,6 +160,53 @@ build a postposed-tone `core.romanization.OrthographyCategory`'s
 `tone_markers` table -- see that module."""
 
 
+TONE_CONTOURS: dict[ToneLevel, str] = {
+    ToneLevel.HIGH: "55",
+    ToneLevel.RISING: "35",
+    ToneLevel.DIPPING: "214",
+    ToneLevel.FALLING: "51",
+    ToneLevel.MID: "33",
+    ToneLevel.LOW: "21",
+    ToneLevel.NEUTRAL: "11",
+}
+"""Chao (1930) pitch-level numerals -- 5 = highest, 1 = lowest, read as a
+sequence of pitch *targets* the voice moves through across the syllable
+(real Standard Mandarin's own four lexical tones are exactly 55/35/214/51
+in this convention). ``TONE_DIACRITICS`` above is this project's own
+*stored*, phonemic representation (one combining mark per ``ToneLevel``,
+used everywhere a word's IPA is built, read, or romanized); this is a
+separate, phonetically fuller *display*/synthesis representation derived
+from it, not a replacement -- the register+contour target data
+``speech.tts``'s eSpeak integration already needs to give its Mandarin
+voice a real pitch to aim for (these exact digits, verified there by
+synthesizing each and comparing lengths/pitch against the pinyin voice),
+and what ``chao_letters`` below converts into the real IPA tone-letter
+glyphs for human-readable display."""
+
+_CHAO_TONE_LETTERS: dict[str, str] = {
+    "1": "˩", "2": "˨", "3": "˧", "4": "˦", "5": "˥",
+}
+"""The 5 real IPA tone-letter bars (U+02E9..U+02E5, extra-low to
+extra-high) -- each ``TONE_CONTOURS`` digit maps onto its own bar,
+concatenated in order to build the real Chao tone-letter contour glyph
+(e.g. ``"51"`` -> ``"˥˩"``)."""
+
+
+def chao_letters(tone: ToneLevel) -> str:
+    """``tone``'s own real IPA Chao tone-letter contour (e.g. ``˥˩`` for
+    ``FALLING``) -- the standard human-readable phonetic notation for
+    register+contour, built by converting ``TONE_CONTOURS``'s own pitch
+    digits one bar at a time. Falls back to the bare digit string for a
+    level this project doesn't have contour data for (never actually
+    reached today -- every ``ToneLevel`` member has an entry -- but this
+    stays a safe default rather than a ``KeyError`` if that ever
+    changes)."""
+    digits = TONE_CONTOURS.get(tone)
+    if digits is None:
+        return ""
+    return "".join(_CHAO_TONE_LETTERS.get(d, d) for d in digits)
+
+
 class ToneSandhiRule(BaseModel, frozen=True):
     """Adjacent-syllable tone change: a syllable whose tone is ``before``,
     when the next syllable's tone is ``after``, surfaces with ``becomes``

@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from conlang_generator.core.phonology import TONE_DIACRITICS, ToneLevel
+from conlang_generator.core.phonology import TONE_CONTOURS, TONE_DIACRITICS, ToneLevel
 from conlang_generator.generation import ipa_tokenizer, phonology_gen
 from conlang_generator.speech import ipa_to_kirshenbaum
 
@@ -140,20 +140,16 @@ def _find_espeak_ng() -> str | None:
 
 
 _ESPEAK_TONE_VOICE = "cmn"
-_ESPEAK_TONE_NUMBERS: dict[ToneLevel, str] = {
-    # eSpeak's Mandarin voice reads a run of pitch-contour digits after a
-    # vowel as that syllable's tone (5 = highest, 1 = lowest): "55" high
-    # level, "35" rising, "214" dipping, "51" falling; "33"/"21" give a mid
-    # and a low tone, and "11" its short, weak neutral tone. Verified by
-    # synthesizing each and comparing lengths/pitch against the pinyin voice.
-    ToneLevel.HIGH: "55",
-    ToneLevel.RISING: "35",
-    ToneLevel.DIPPING: "214",
-    ToneLevel.FALLING: "51",
-    ToneLevel.MID: "33",
-    ToneLevel.LOW: "21",
-    ToneLevel.NEUTRAL: "11",
-}
+# eSpeak's Mandarin voice reads a run of pitch-contour digits after a vowel
+# as that syllable's tone (5 = highest, 1 = lowest): "55" high level, "35"
+# rising, "214" dipping, "51" falling; "33"/"21" give a mid and a low tone,
+# and "11" its short, weak neutral tone. Verified by synthesizing each and
+# comparing lengths/pitch against the pinyin voice -- now
+# `core.phonology.TONE_CONTOURS`'s own canonical data (this engine was the
+# original reason it was worked out, but the same real Chao pitch-level
+# numbers are useful anywhere else a tone needs an actual pitch target, not
+# just here), reused rather than duplicated.
+_ESPEAK_TONE_NUMBERS: dict[ToneLevel, str] = TONE_CONTOURS
 
 
 class EspeakTTSClient:
