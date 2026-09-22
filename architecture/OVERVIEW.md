@@ -3286,3 +3286,58 @@ reading code or one-off ad hoc scripts.
   --source-language Korean --strictness 1.0`: generated lexicons visibly show all three
   patterns (tense onsets, "ŋ" codas, doubled "ll") across 3 seeds. Full suite: 1009 passed, 2
   skipped (up from 1003 -- the 6 new tests).
+- **"Missing symbols still"**: closed most of `DEFERRED.md`'s own list of generically-missing
+  IPA symbols (as opposed to the two items right above, which needed new *mechanisms* --
+  these just needed the symbol itself). `ɰ` (velar approximant) and `ɱ` (labiodental nasal)
+  joined `_REFERENCE_ONLY_CONSONANTS` -- real, but not tied to any one curated profile's own
+  flagship sound the way most of that pool's members are. Rhotacized schwa `ɚ` and Mandarin's
+  own syllabic `ɻ̩` (儿/二, modeled the same "atomic Vowel-pool member with the real syllabic
+  diacritic" way the already-existing Serbo-Croatian `r̩` is) joined the *drawn* `_VOWEL_EXTRAS`
+  pool; both romanize identically ("er") in all three `romanization_gen.py` styles and in
+  `ipa_to_kirshenbaum.py` -- a deliberate collision, real Hanyu Pinyin already spells 儿/二
+  "er" itself, and the two sounds really are the same "er" quality one way or another, the
+  same "shallow styles accept some collisions" precedent this project already has elsewhere.
+  Completed the real 5-place click series (bilabial `ʘ`, the rarest place, plus its own
+  aspirated/breathy/nasalized accompaniments, matching the 3-member baseline the other 4
+  places already have) and the real 5-place implosive series (uvular `ʛ`). Added epiglottal
+  fricatives `ʜ ʢ` -- genuinely obscure (Agul and a handful of other Northeast Caucasian
+  languages, Haida), reusing `Place.PHARYNGEAL` (the closest existing place; no dedicated
+  `Place.EPIGLOTTAL` exists or is needed elsewhere, the same "no dedicated category, reuse
+  the closest existing shape" precedent `tɬ`'s own comment already states). All 11 new symbols
+  wired through every downstream completeness-tested table; `ipa_to_kirshenbaum.py` needed
+  explicit entries for the click/implosive/epiglottal/velar-approximant/labiodental-nasal
+  additions (no real Kirshenbaum letter exists for most of these, so each extends its own
+  nearest-cousin symbol's letter rather than failing outright -- the same honesty-over-
+  authenticity approach that module's own docstring already commits to) but not for
+  `gʲ`/`ɕː`-style modified consonants, which already resolve through the existing modifier-
+  strip/length-suffix fallback. Verified drawable (400 seeds at `isolation=1.0`; every new
+  symbol except the rarest, `gʘ`, showed up at least once) and force-includable via a seed
+  example (all 8 tested, `gʘ`/`ŋʘ` following the identical mechanism as `ʘ`/`ʘʰ`).
+
+  Extending `_EXOTIC_POOL`/`_VOWEL_EXTRAS` -- both *drawn* groups, unlike the two
+  reference-only additions -- shifted downstream rng draws far more broadly than any single
+  prior phoneme-pool batch (22 fixed-seed tests failed on the first full-suite run after this
+  change, versus 4 for the Russian `gʲ` addition and 2 for the French/reform-seed shifts
+  earlier in this project's history), simply because this batch touched *two* drawn pools at
+  once rather than one. Re-found working seeds for every affected fixture, same "seed-shift
+  from new content, not a functional regression" pattern as always: `test_translator.py`/
+  `test_sentence_planner.py`'s shared nom-acc (2 -> 83 -> 278), ergative (283 -> 28), and
+  no-features (4 -> 11) grammar-shape fixtures (the nom-acc seed needed two hops -- 83 passed
+  the basic grammar-shape search but failed three deeper behavioral assertions, e.g. present-
+  vs-past copula tense marking actually differing, that the search script hadn't checked for,
+  a reminder that a pure grammar-shape search is necessary but not always sufficient); the
+  Latin-declension seed (1 -> 2); an untoned-seed tone-roll seed
+  (`test_reference_only_symbols_and_tones.py`, 3 -> 1); and the Dutch orthography-reform evolve
+  seed in `test_sound_change.py` (kept generation seed=3, evolve seed 0 -> 1, the smallest
+  working change once found by holding the generation seed fixed and searching evolve seeds
+  alone). Full suite: 1009 passed, 2 skipped (unchanged from the Korean batch -- no new tests
+  this time, only new pool content and reseeded fixtures). `conlang audit-lexicons`: still 0%
+  flagged (a phoneme-pool-only change, doesn't touch curated real lexicons at all).
+
+  **Still open, documented in `DEFERRED.md`**: Vietnamese's own creaky/glottalized ngã/nặng
+  phonation (needs a new tone-adjacent phonation-marking dimension, not just a missing symbol)
+  and Arabic's coarticulatory pharyngealization spreading onto *vowels* next to emphatic
+  consonants (a positional-allophone question, the same kind of gap Spanish spirantization
+  is already deliberately left for) -- both considered and declined for this batch since
+  they need new machinery, not a symbol addition, the same distinction that separated this
+  batch from the Hindi/Bengali/Korean one right above it.

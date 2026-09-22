@@ -179,9 +179,11 @@ _LATIN_NOUN_CLASS_SUFFIXES = {("a",), ("u", "s"), ("u", "m")}  # 1st / 2nd-masc 
 
 
 def test_latin_biased_language_gives_its_noun_entries_a_real_declension():
-    # seed=1 rolls Latin's own real word_classes adoption for NOUN and
-    # actually assigns (not deviates) at least one core-vocabulary noun.
-    spec = GenerationSpec(prompt="test", seed=1, traits=TraitProfile(source_languages=("Latin",)))
+    # seed=2 (re-found from seed=1 after the "Missing symbols still"
+    # batch's own new phoneme-pool content shifted downstream rng draws)
+    # rolls Latin's own real word_classes adoption for NOUN and actually
+    # assigns (not deviates) at least one core-vocabulary noun.
+    spec = GenerationSpec(prompt="test", seed=2, traits=TraitProfile(source_languages=("Latin",)))
     language = generate_language("Test", spec, FakeLLMClient())
     nouns = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.NOUN]
     assert nouns

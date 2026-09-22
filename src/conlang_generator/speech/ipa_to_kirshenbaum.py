@@ -44,25 +44,27 @@ _BASE_BY_IPA: dict[str, str] = {
     "ʈ": "t.", "ɖ": "d.",  # retroflex -- Kirshenbaum's own dotted-diacritic convention
     "c": "c", "ɟ": "gj",  # palatal stops -- no clean single letter, approximated
     "q": "q", "ɢ": "g<",  # uvular stops
-    "ɓ": "b`", "ɗ": "d`", "ʄ": "gj`", "ɠ": "g`",  # implosives -- Kirshenbaum's own trailing backtick
+    "ɓ": "b`", "ɗ": "d`", "ʄ": "gj`", "ɠ": "g`", "ʛ": "q`",  # implosives -- Kirshenbaum's own trailing backtick
     # --- Affricates ---
     "tʃ": "tS", "dʒ": "dZ", "ts": "ts", "dz": "dz", "tɕ": "tS'", "dʑ": "dZ'",
     "tɬ": "tL", "tsʼ": "ts`", "tʃʼ": "tS`", "tɬʼ": "tL`",
     # --- Fricatives ---
     "s": "s", "z": "z", "ʃ": "S", "ʒ": "Z", "x": "x", "ɣ": "Q",
     "ʂ": "s.", "ʐ": "z.", "ɬ": "L", "ħ": "H", "ʕ": "?<",
+    "ʜ": "H2", "ʢ": "?2",  # epiglottal fricatives -- no real Kirshenbaum letter exists for these (genuinely obscure), so this extends their own nearest pharyngeal cousins' letters above rather than failing outright
     "f": "f", "v": "v", "h": "h", "θ": "T", "ð": "D", "ç": "C", "ʝ": "C<",
     "χ": "X", "ʁ": "g<",
     "β": "B", "ɸ": "P", "ɕ": "S'", "ʑ": "Z'", "ɦ": "h<",
     "ɭ": "l.", "ɽ": "*.", "ʈʂ": "ts.", "ɖʐ": "dz.", "ɴ": "N<", "ʋ": "v", "ɥ": "w",
     "ɫ": "l~",  # velarized ("dark") l -- Kirshenbaum's own tilde velarization mark
+    "ɰ": "M2",  # velar approximant -- no real Kirshenbaum letter exists; nearest cousin ɯ already has "M" above, so this extends it the same way ʜ/ʢ extend theirs
     # --- Nasals ---
-    "m": "m", "n": "n", "ŋ": "N", "ɳ": "n.", "ɲ": "nj",
+    "m": "m", "n": "n", "ŋ": "N", "ɳ": "n.", "ɲ": "nj", "ɱ": "m2",  # labiodental nasal -- no real Kirshenbaum letter; nearest cousin "m" extended the same way
     # --- Liquids/approximants ---
     "l": "l", "ɾ": "*", "r": "r", "j": "j", "w": "w", "ɻ": "r.", "ʎ": "lj",
     "rʲ": "r'",
     # --- Clicks (Kirshenbaum's own real click letters) ---
-    "ǀ": "l!", "ǃ": "!", "ǂ": "c!", "ǁ": "lZ!",
+    "ǀ": "l!", "ǃ": "!", "ǂ": "c!", "ǁ": "lZ!", "ʘ": "O!",
     # --- Prenasalized/labial-velar clusters -- no real single-phoneme
     # equivalent; approximated as the plain oral stop (the nasal onset is
     # lost, an honest, documented simplification) ---
@@ -72,6 +74,14 @@ _BASE_BY_IPA: dict[str, str] = {
     "ə": "@", "ɨ": "1", "ɪ": "I", "ʊ": "U", "æ": "&", "ɐ": "6", "ɑ": "A",
     "y": "y", "ø": "Y", "œ": "&2", "ɯ": "M", "ɤ": "7",
     "r̩": "3",  # syllabic r -- Kirshenbaum's own rhotic-vowel letter
+    # Rhotacized schwa and Mandarin syllabic ɻ̩ -- the real X-SAMPA/
+    # Kirshenbaum-family convention for an r-colored vowel is this same
+    # "3" (r̩'s own letter just above) plus a trailing backtick, the same
+    # rhotic marker the implosive series above reuses for a different
+    # purpose. Deliberately identical for both -- see romanization_gen.py's
+    # own comment on this pair for why the same collision is intentional
+    # there too.
+    "ɚ": "3`", "ɻ̩": "3`",
 }
 """Every *plain*, unmodified symbol this project's own phoneme pool has --
 see this module's own docstring for the fallback strategy covering
@@ -134,7 +144,7 @@ def convert_symbol(ipa_symbol: str) -> str:
     # A click cluster (e.g. "ŋǀʼ") or other genuinely unmapped combination
     # -- fall back to whichever click letter it contains, else "n" for an
     # unmapped nasal cluster, else the first character as a last resort.
-    for click, mnemonic in (("ǀ", "l!"), ("ǃ", "!"), ("ǂ", "c!"), ("ǁ", "lZ!")):
+    for click, mnemonic in (("ǀ", "l!"), ("ǃ", "!"), ("ǂ", "c!"), ("ǁ", "lZ!"), ("ʘ", "O!")):
         if click in ipa_symbol:
             return mnemonic
     if ipa_symbol.startswith("ŋ"):

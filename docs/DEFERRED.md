@@ -49,12 +49,32 @@ multi-session feature.
   `ɭ ɽ ʈʂ β ɸ ɕ …` appear only via seed/real words or a strict source
   profile. A low-probability draw group would let exotic prompts pick them,
   at the cost of re-seeding existing output.
-- **Missing symbols still (M).** `ɰ`, rhotacized vowels (`ɚ`, Mandarin erhua),
-  syllabic `ɻ̩`, `ʜ ʢ`, `ɱ`, breathy/creaky vowels (Vietnamese ngã/nặng
-  are approximated as plain pitch), implosive/click coverage beyond a few
-  illustrative symbols, and the pharyngealization of *vowels* next to
-  emphatics (Arabic). (`ɫ` used to be on this list -- added as part of
-  Russian's own palatalization-gaps fix above.)
+- **Missing symbols (mostly done).** `ɰ` (velar approximant) and `ɱ`
+  (labiodental nasal) added as `_REFERENCE_ONLY_CONSONANTS`; rhotacized
+  schwa `ɚ` and Mandarin's own syllabic `ɻ̩` (儿/二) added to the drawable
+  vowel pool, both romanizing as real Pinyin's own "er" (a deliberate
+  collision, not an oversight); click coverage completed with the 5th,
+  rarest real place (bilabial `ʘ`, plus its own aspirated/breathy/
+  nasalized accompaniments); implosive coverage completed with the 5th
+  place (uvular `ʛ`); epiglottal fricatives `ʜ ʢ` added (reusing
+  `Place.PHARYNGEAL`, the closest existing place -- no dedicated
+  epiglottal place exists or is needed elsewhere). All wired through
+  every downstream completeness-tested table (`romanization_gen.py`'s
+  three exotic styles, `ipa_to_kirshenbaum.py`); verified drawable (400
+  seeds at `isolation=1.0`) and force-includable via a seed example.
+  Extending `_EXOTIC_POOL`/`_VOWEL_EXTRAS` (both *drawn* groups) shifted
+  downstream rng draws broadly -- re-found working seeds for every
+  affected fixed-seed test (`test_translator.py`/`test_sentence_planner.py`'s
+  shared nom-acc/ergative/no-features fixtures, the Latin-declension
+  seed, an untoned-seed tone-roll seed, the Dutch orthography-reform
+  evolve seed), same "seed-shift from new content, not a functional
+  regression" pattern as every prior phoneme-pool batch. **Still open:**
+  Vietnamese's own creaky/glottalized ngã/nặng phonation (needs a new
+  tone-adjacent phonation-marking dimension, not just a missing symbol --
+  approximated as plain pitch for now) and Arabic's coarticulatory
+  pharyngealization spreading onto *vowels* next to emphatic consonants
+  (a positional-allophone question, the same kind of gap Spanish
+  spirantization above is deliberately left for).
 - **Consistency of the script-g (done).** Every /g/ is ASCII `g` now, including `gʱ`, `gb` and the
   click clusters (`tests/test_pool_uses_ascii_g.py` guards it). The tokenizer no longer lets the
   prenasalized `ŋg` eat the start of `ŋ` + `gʱ`. IPA typed with U+0261 by a user or an LLM is not

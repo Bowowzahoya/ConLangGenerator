@@ -11,7 +11,10 @@ from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.translation import sentence_planner
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
 
-_SEED = 2
+# seed=83 (re-found from seed=2 after the "Missing symbols still" batch's
+# own new phoneme-pool content shifted downstream rng draws -- needs
+# has_overt_copula=True for the copula slot these tests check).
+_SEED = 83
 
 
 def _language():

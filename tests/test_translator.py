@@ -9,27 +9,30 @@ from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
 
-# seed=2 (default traits): has_articles=True, has_overt_copula=True,
+# seed=278 (default traits): has_articles=True, has_overt_copula=True,
 # cases=("nominative", "accusative"), alignment=nominative_accusative,
 # word_order=SVO, adjective_after_noun=True -- every core word this file's
 # own tests need is already core vocabulary at this seed (translate_to_
 # conlang never needs to coin anything, confirmed via `.coined == ()`
 # below), so these tests stay fully deterministic with no LLM involved.
-_NOM_ACC_SEED = 2
+# (Re-found from seed=2 -> 83 -> 278 after the "Missing symbols still" batch's own new
+# _EXOTIC_POOL/_VOWEL_EXTRAS content (ʘ/ʛ/ʜ/ʢ and ɚ/ɻ̩, among others)
+# shifted downstream rng draws -- same "seed-shift from new content, not a
+# functional regression" pattern this file's own history already has.)
+_NOM_ACC_SEED = 278
 
-# seed=283 (default traits): alignment=ergative_absolutive,
+# seed=28 (default traits): alignment=ergative_absolutive,
 # cases=("ergative", "absolutive"), word_order=SOV, has_overt_copula=True,
 # adjective_after_noun=False -- same "no coinage needed" property.
-# (Re-found from seed=180 after the Russian palatalization-gap phoneme-pool
-# addition (gʲ) shifted downstream rng draws -- same "seed-shift from new
-# content, not a functional regression" pattern as the seed=8 -> 180 note
-# this comment used to have, and tests/test_sound_change.py's own history.)
-_ERGATIVE_SEED = 283
+# (Re-found from seed=283, same "Missing symbols still" batch and reason
+# as _NOM_ACC_SEED just above.)
+_ERGATIVE_SEED = 28
 
-# seed=4 (default traits): has_articles=False, has_overt_copula=False,
+# seed=11 (default traits): has_articles=False, has_overt_copula=False,
 # cases=() -- the "none of these features exist" baseline, confirming
 # nothing spurious gets inserted when a language genuinely lacks them.
-_NO_FEATURES_SEED = 4
+# (Re-found from seed=4, same batch/reason as the two seeds just above.)
+_NO_FEATURES_SEED = 11
 
 
 def _language(seed: int):
@@ -38,9 +41,9 @@ def _language(seed: int):
 
 def test_nom_acc_language_has_the_expected_grammar_shape():
     # Pins down this file's own fixture assumptions -- if a future change
-    # shifts seed=2's own rolled grammar, this fails first and clearly,
-    # rather than the more specific tests below failing for a confusing
-    # reason.
+    # shifts _NOM_ACC_SEED's own rolled grammar, this fails first and
+    # clearly, rather than the more specific tests below failing for a
+    # confusing reason.
     grammar = _language(_NOM_ACC_SEED).grammar
     assert grammar.has_articles is True
     assert grammar.has_overt_copula is True

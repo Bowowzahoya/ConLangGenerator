@@ -268,7 +268,19 @@ _REFERENCE_ONLY_CONSONANTS = (
     Consonant(ipa="ɦ", place=Place.GLOTTAL, manner=Manner.FRICATIVE, voiced=True, prevalence=0.06),
     Consonant(ipa="ʋ", place=Place.LABIODENTAL, manner=Manner.APPROXIMANT, voiced=True, prevalence=0.08),
     Consonant(ipa="ɥ", place=Place.PALATAL, manner=Manner.APPROXIMANT, voiced=True, prevalence=0.04),
+    # Velar approximant -- a real, if narrow, allophone/phoneme in several
+    # already-curated languages' own broader sound systems (weakened
+    # intervocalic Spanish/Danish /g/, a documented realization of
+    # Japanese が-row /g/, marginal Korean), not tied to any one profile's
+    # own flagship sound the way most of this pool's members are.
+    Consonant(ipa="ɰ", place=Place.VELAR, manner=Manner.APPROXIMANT, voiced=True, prevalence=0.04),
     Consonant(ipa="ɴ", place=Place.UVULAR, manner=Manner.NASAL, voiced=True, prevalence=0.04),
+    # Labiodental nasal -- cross-linguistically common as a positional
+    # allophone of /m/ before /f/ or /v/ (real English "comfort", Spanish
+    # "enfermo"), and genuinely phonemic in a smaller set of languages
+    # (Teke and other Bantu languages of Central Africa) this project
+    # doesn't currently curate a profile for.
+    Consonant(ipa="ɱ", place=Place.LABIODENTAL, manner=Manner.NASAL, voiced=True, prevalence=0.04),
     # Retroflex series completion: the lateral (Tamil/Malayalam ḷ), the tap
     # (Hindi/Bengali ṛ), its breathy counterpart, and the retroflex
     # affricates (Mandarin zh/ch) that sit beside ʈ/ɖ/ʂ/ʐ/ɳ/ɻ above.
@@ -364,6 +376,14 @@ _EXOTIC_POOL = (
     Consonant(ipa="ǃ", place=Place.POSTALVEOLAR, manner=Manner.STOP, voiced=False, prevalence=0.015),
     Consonant(ipa="ǂ", place=Place.PALATAL, manner=Manner.STOP, voiced=False, prevalence=0.01),
     Consonant(ipa="ǁ", place=Place.ALVEOLAR, manner=Manner.LATERAL_FRICATIVE, voiced=False, prevalence=0.01),
+    # The bilabial click -- the rarest of the real 5 click places
+    # (attested in only a handful of languages, e.g. the Taa/!Xóõ
+    # cluster), completing the series alongside the 4 already above.
+    # Given its own bare accompaniment series (aspirated/breathy/
+    # nasalized), the same 3-member baseline the dental/postalveolar/
+    # lateral places below already get, rather than leaving it a
+    # second-class single bare entry.
+    Consonant(ipa="ʘ", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, prevalence=0.008),
     # Real Zulu's own click-accompaniment series, alongside the 3 bare
     # clicks above (dental ǀ, postalveolar ǃ, lateral ǁ -- the same 3
     # places, spelled c/q/x, that Xhosa's own profile already uses; the
@@ -376,6 +396,7 @@ _EXOTIC_POOL = (
     Consonant(ipa="ǀʰ", place=Place.DENTAL, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.008),
     Consonant(ipa="ǃʰ", place=Place.POSTALVEOLAR, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.008),
     Consonant(ipa="ǁʰ", place=Place.ALVEOLAR, manner=Manner.LATERAL_FRICATIVE, voiced=False, aspirated=True, prevalence=0.006),
+    Consonant(ipa="ʘʰ", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, aspirated=True, prevalence=0.005),
     # Voiced/breathy "depressor" clicks -- real Zulu's own historically
     # breathy-voiced click series, which lowers the tone of a following
     # vowel (see zulu.yaml's own comment; not modeled mechanically, no
@@ -385,12 +406,14 @@ _EXOTIC_POOL = (
     Consonant(ipa="gǀ", place=Place.DENTAL, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.008),
     Consonant(ipa="gǃ", place=Place.POSTALVEOLAR, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.008),
     Consonant(ipa="gǁ", place=Place.ALVEOLAR, manner=Manner.LATERAL_FRICATIVE, voiced=True, breathy=True, prevalence=0.006),
+    Consonant(ipa="gʘ", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, breathy=True, prevalence=0.005),
     # Nasalized clicks -- phonetically pattern with nasals (voiced,
     # sonorant-like), unlike the plain/aspirated/breathy series above,
     # which all stay STOP/LATERAL_FRICATIVE like their bare counterparts.
     Consonant(ipa="ŋǀ", place=Place.DENTAL, manner=Manner.NASAL, voiced=True, prevalence=0.008),
     Consonant(ipa="ŋǃ", place=Place.POSTALVEOLAR, manner=Manner.NASAL, voiced=True, prevalence=0.008),
     Consonant(ipa="ŋǁ", place=Place.ALVEOLAR, manner=Manner.NASAL, voiced=True, prevalence=0.006),
+    Consonant(ipa="ŋʘ", place=Place.BILABIAL, manner=Manner.NASAL, voiced=True, prevalence=0.005),
     # Real Nama (Khoekhoegowab)'s own primary click inventory -- the 4th
     # click place (ǂ, already declared bare above but left unused by
     # Zulu/Xhosa) plus a genuinely different accompaniment set from
@@ -415,6 +438,25 @@ _EXOTIC_POOL = (
     Consonant(ipa="ɗ", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, prevalence=0.08),
     Consonant(ipa="ʄ", place=Place.PALATAL, manner=Manner.STOP, voiced=True, prevalence=0.05),
     Consonant(ipa="ɠ", place=Place.VELAR, manner=Manner.STOP, voiced=True, prevalence=0.05),
+    # Completes the real 5-place implosive series (bilabial/alveolar/
+    # palatal/velar above, uvular here) -- typologically the rarest of
+    # the five (Mam and a handful of other Mayan/African languages),
+    # matching this pool's own "rarer place, lower prevalence" pattern.
+    Consonant(ipa="ʛ", place=Place.UVULAR, manner=Manner.STOP, voiced=True, prevalence=0.02),
+    # Epiglottal fricatives -- attested in only a handful of languages
+    # (Agul and other Northeast Caucasian languages, Haida, Somali's own
+    # marginal ʢ), areally concentrated the same way clicks/implosives
+    # above are, so they join this pool rather than the broadly-common
+    # `_FRICATIVE_POOL`. No dedicated `Place.EPIGLOTTAL` exists (a place
+    # this fine-grained has no other consumer in this project), so these
+    # reuse `PHARYNGEAL`, the closest already-modeled place -- the same
+    # "no dedicated category, reuse the closest existing shape" precedent
+    # `tɬ`'s own comment just below already states, distinguished from
+    # the already-modeled pharyngeal ħ/ʕ purely by their own IPA symbol
+    # (sonority-wise indistinguishable fricatives either way, which is
+    # phonetically accurate -- both pairs really are fricatives).
+    Consonant(ipa="ʜ", place=Place.PHARYNGEAL, manner=Manner.FRICATIVE, voiced=False, prevalence=0.01),
+    Consonant(ipa="ʢ", place=Place.PHARYNGEAL, manner=Manner.FRICATIVE, voiced=True, prevalence=0.01),
     # Nahuatl's own /tɬ/ -- deliberately voiceless-only, not a
     # voiced/voiceless pair like _STOP_AND_AFFRICATE_PAIRS: a voiced
     # lateral affricate is real but markedly rarer cross-linguistically.
@@ -566,6 +608,23 @@ _VOWEL_EXTRAS = (
     # /r/ "is" a close central vowel. Low prevalence, matching this
     # pool's own established "rare exotic member" rate (y/ø/œ).
     Vowel(ipa="r̩", height=VowelHeight.CLOSE, backness=VowelBackness.CENTRAL, rounded=False, prevalence=0.04),
+    # Rhotacized schwa -- real American English "er" (nurse/bird, often
+    # written ɝ in stressed position and ɚ unstressed; this pool doesn't
+    # distinguish the two, the same "one symbol per real distinction this
+    # project actually tracks" economy r̩ above already practices) and
+    # real Mandarin erhua (儿化), the rhotacizing diminutive suffix that
+    # colors a preceding syllable's own final vowel. Classified the same
+    # MID/CENTRAL as plain "ə" above, its own un-rhotacized starting
+    # point, not a claim that rhotacization is itself a height/backness
+    # feature. Same low "rare exotic pool member" prevalence as r̩.
+    Vowel(ipa="ɚ", height=VowelHeight.MID, backness=VowelBackness.CENTRAL, rounded=False, prevalence=0.04),
+    # Syllabic retroflex approximant -- real Mandarin's own citation form
+    # for 儿/二 (ér/èr), a whole syllable with no separate vowel at all,
+    # much the way r̩ above is for Serbo-Croatian -- distinct from ɚ just
+    # above (that one colors an *existing* vowel; this one, like r̩, *is*
+    # the nucleus on its own). Same syllabic-diacritic-on-a-Vowel-pool-
+    # member modeling r̩'s own comment already explains in full.
+    Vowel(ipa="ɻ̩", height=VowelHeight.CLOSE, backness=VowelBackness.CENTRAL, rounded=False, prevalence=0.03),
     # Real Navajo's own 4-way vowel contrast (oral/nasal x short/long)
     # needs long counterparts of the already-existing short nasal vowels
     # ã/ẽ/ĩ/õ -- same same-quality length-pair strategy as every other

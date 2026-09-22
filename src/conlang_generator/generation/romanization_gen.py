@@ -136,16 +136,25 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # Real Tamil /ɻ/'s own popular informal transliteration (Tamizh).
     "ɻ": "zh",
     "ħ": "hh", "ʕ": "3", "θ": "th", "ð": "dh", "ç": "hy", "ʝ": "jh",
+    # Epiglottal fricatives -- "further back" than the pharyngeals just
+    # above, so this extends each of their own digraphs with a trailing
+    # "q" marker rather than inventing an unrelated spelling.
+    "ʜ": "hq", "ʢ": "3q",
     "ǀ": "c", "ǃ": "q", "ǂ": "tc", "ǁ": "xh",
+    # The bilabial click -- no real click-language romanization exists
+    # for this, the rarest of the 5 places (see phonology_gen.py's own
+    # comment), so this picks a free 2-letter code in the same style as
+    # the 4 real ones just above/below.
+    "ʘ": "pc",
     # Real Zulu's own click-accompaniment series -- aspirated follows
     # this table's own base-click letter + capital-H aspiration suffix
     # (the same pʰ/tʰ/kʰ -> pH/tH/kH convention just below); voiced/
     # breathy and nasalized follow the real Nguni gc/gq/gx and nc/nq/nx
     # conventions curated directly in zulu.yaml, generalized here as a
     # g-/n- prefix on this table's own base-click letter.
-    "ǀʰ": "cH", "ǃʰ": "qH", "ǁʰ": "xhH",
-    "gǀ": "gc", "gǃ": "gq", "gǁ": "gxh",
-    "ŋǀ": "nc", "ŋǃ": "nq", "ŋǁ": "nxh",
+    "ǀʰ": "cH", "ǃʰ": "qH", "ǁʰ": "xhH", "ʘʰ": "pcH",
+    "gǀ": "gc", "gǃ": "gq", "gǁ": "gxh", "gʘ": "gpc",
+    "ŋǀ": "nc", "ŋǃ": "nq", "ŋǁ": "nxh", "ŋʘ": "npc",
     # Real Nama's own 4th click place (ǂ, "tc" -- see the bare-click
     # entry above) plus its own independent aspirated/nasalized/
     # glottalized accompaniment stacking (unlike Zulu's own separate
@@ -161,6 +170,10 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # real native orthographies (see swahili.yaml/yoruba.yaml).
     "ŋg": "ng", "gb": "gb",
     "ɓ": "bh", "ɗ": "d'", "ʄ": "j'", "ɠ": "gh",
+    # Completes the real 5-place implosive series -- "q" already denotes
+    # uvular elsewhere in this table, so this reuses the ɗ/ʄ apostrophe
+    # convention on that same base letter.
+    "ʛ": "q'",
     "ɪ": "i", "ʊ": "u", "æ": "ae", "ɐ": "uh", "ɑ": "aa", "ø": "eu", "œ": "ue",
     # Secondary articulations (aspiration, pharyngealization/"emphatics")
     # and phonemic vowel length. "ph"/"th"/"kh" (the standard aspiration
@@ -172,6 +185,13 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # ض=9', ظ=6'.
     "ɣ": "gh", "pʰ": "pH", "tʰ": "tH", "kʰ": "kH", "tsʰ": "tsH",
     "tˤ": "6", "dˤ": "9'", "sˤ": "9", "ðˤ": "6'",
+    # Velar approximant -- "gh" is already spoken for twice over (ɣ and
+    # ɠ above), so this gets its own free digraph instead of a third
+    # collision.
+    "ɰ": "wh",
+    # Labiodental nasal -- a labiodental mnemonic on the existing
+    # labiodental-fricative-style "f" letter.
+    "ɱ": "mf",
     # Reference-only series (real-word support): bilabial/alveolo-palatal/
     # glottal fricatives, retroflex completion, emphatic z/l.
     "β": "bh", "ɸ": "fh", "ɕ": "sy", "ʑ": "zy", "ɦ": "hj", "ʋ": "vh", "ɥ": "wy", "ɴ": "nq",
@@ -201,6 +221,15 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # identically to consonantal /r/ in every real orthography, no
     # special marking in any style.
     "r̩": "r",
+    # Rhotacized schwa: this style's own existing "ə" -> "e" spelling plus
+    # a trailing "r", the same additive-suffix idiom vowel length/nasal-
+    # ization already use elsewhere in this table. Real Mandarin syllabic
+    # /ɻ̩/ (儿/二) deliberately reuses the exact same "er" spelling --
+    # real Hanyu Pinyin already spells 儿/二 "er" itself, and the two
+    # sounds really are the same "er" quality one way or another, the
+    # same "shallow styles accept some collisions" precedent ʃ/ʂ/ɕ's own
+    # merge in the monoletter style below already has.
+    "ɚ": "er", "ɻ̩": "er",
     "kː": "k", "tː": "t", "pː": "p", "sː": "s", "nː": "n", "lː": "l",
     # Diphthongs -- "ai"/"au"/"ei" need no entry at all (already plain
     # ASCII, so the identity fallback already spells them correctly); the
@@ -318,13 +347,22 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # same retroflex dot-under convention ʈ/ɖ/ɳ above already use.
     "ɻ": "ḻ",
     "ħ": "ḫ", "ʕ": "ʿ", "θ": "ŧ", "ð": "đ", "ç": "ç", "ʝ": "ĵ",
+    # Epiglottal fricatives -- the pharyngeals' own ḫ/ʿ plus a combining
+    # dot below, the same "already-Latin-Extended base plus one more
+    # combining mark" composition the long-Khmer-vowel entries below
+    # already use.
+    "ʜ": "ḫ̣", "ʢ": "ʿ̣",
     "ǀ": "c", "ǃ": "q", "ǂ": "tc", "ǁ": "xh",
+    # The bilabial click -- same free 2-letter code as the digraph style
+    # above (clicks share one plain-letter convention across both
+    # styles, per this table's own header comment).
+    "ʘ": "pc",
     # Same real Zulu click-accompaniment conventions as the digraph
     # table above, using this table's own aspiration-modifier-letter (ʰ)
     # treatment instead of a capital H.
-    "ǀʰ": "cʰ", "ǃʰ": "qʰ", "ǁʰ": "xhʰ",
-    "gǀ": "gc", "gǃ": "gq", "gǁ": "gxh",
-    "ŋǀ": "nc", "ŋǃ": "nq", "ŋǁ": "nxh",
+    "ǀʰ": "cʰ", "ǃʰ": "qʰ", "ǁʰ": "xhʰ", "ʘʰ": "pcʰ",
+    "gǀ": "gc", "gǃ": "gq", "gǁ": "gxh", "gʘ": "gpc",
+    "ŋǀ": "nc", "ŋǃ": "nq", "ŋǁ": "nxh", "ŋʘ": "npc",
     # Real Nama's own 4th click place and independent aspirated/
     # nasalized/glottalized accompaniment stacking -- same reasoning as
     # the digraph table's own equivalent comment above. Glottalized
@@ -335,6 +373,10 @@ _DIACRITIC_TABLE: dict[str, str] = {
     "ŋǀʼ": "nc̓", "ŋǃʼ": "nq̓", "ŋǁʼ": "nxh̓", "ŋǂʼ": "ntc̓",
     "ŋg": "ṅg", "gb": "gb",
     "ɓ": "bh", "ɗ": "dh", "ʄ": "jh", "ɠ": "gh",
+    # Completes the real 5-place implosive series, this table's own
+    # h-suffix convention on "q" (already this table's own uvular letter,
+    # see ɢ/ʁ above).
+    "ʛ": "qh",
     "ɪ": "i", "ʊ": "u", "æ": "æ", "ɐ": "ă", "ɑ": "ȧ", "ø": "ø", "œ": "œ",
     # ɣ reuses Turkish "ğ" (a historically velar-fricative-derived sound in
     # that language) -- ɢ already has "ġ" above, so this stays distinct.
@@ -346,6 +388,13 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # Latin, Japanese romaji, Hawaiian, Arabic transliteration all use this).
     "ɣ": "ğ", "pʰ": "pʰ", "tʰ": "tʰ", "kʰ": "kʰ", "tsʰ": "tsʰ",
     "tˤ": "tˤ", "dˤ": "dˤ", "sˤ": "sˤ", "ðˤ": "ðˤ",
+    # Velar approximant -- "ğ" (ɣ) and "ġ" (ɢ, see above) are both
+    # already taken, so this gets its own real, distinct Latin-Extended
+    # letter (g with stroke, U+01E5) instead of a third g-diacritic.
+    "ɰ": "ǥ",
+    # Labiodental nasal -- the retroflex series' own dot-under convention
+    # (ɳ -> ṇ above), on "m" instead.
+    "ɱ": "ṃ",
     "β": "ƀ", "ɸ": "ḟ", "ɕ": "ś", "ʑ": "ź", "ɦ": "ḩ", "ʋ": "ṽ", "ɥ": "ẅ", "ɴ": "ṅ",
     "ɭ": "ḷ", "ɽ": "ṛ", "ɽʱ": "ṛʰ", "ʈʂ": "ṭṣ", "ʈʂʰ": "ṭṣʰ", "ɖʐ": "ḍẓ",
     "zˤ": "zˤ", "lˤ": "lˤ",
@@ -369,6 +418,10 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # Real Serbo-Croatian syllabic /r/ -- no special marking in any style
     # (see the digraph table's own comment).
     "r̩": "r",
+    # Rhotacized schwa and Mandarin syllabic /ɻ̩/ -- same "ě" + "r" and
+    # deliberate real-Pinyin-spelling collision as the digraph table's
+    # own comment on this pair already explains in full.
+    "ɚ": "ěr", "ɻ̩": "er",
     "kː": "k", "tː": "t", "pː": "p", "sː": "s", "nː": "n", "lː": "l",
     # Diphthongs (see the digraph table's own comment for "ai"/"au"/"ei").
     # "ɛi" stays distinct from the plain "ei" diphthong here (unlike
@@ -474,15 +527,19 @@ _MONOLETTER_TABLE: dict[str, str] = {
     # Merges with plain "r", same "shallow style accepts some merging"
     # precedent every other marked feature above already has.
     "ɻ": "r",
+    # Epiglottal fricatives merge with the already-modeled pharyngeals'
+    # own monoletter values -- both pairs are the same "further back"
+    # fricative distinction this shallow style doesn't keep.
+    "ʜ": "h", "ʢ": "a",
     "ħ": "h", "ʕ": "a", "θ": "t", "ð": "d", "ç": "h", "ʝ": "y",
-    "ǀ": "c", "ǃ": "q", "ǂ": "x", "ǁ": "z",
+    "ǀ": "c", "ǃ": "q", "ǂ": "x", "ǁ": "z", "ʘ": "v",
     # Aspirated/voiced/nasalized click accompaniments all merge into
     # their own bare click's own monoletter value, same "shallow style
     # drops secondary features" precedent every other marked feature in
     # this table already follows.
-    "ǀʰ": "c", "ǃʰ": "q", "ǁʰ": "z",
-    "gǀ": "c", "gǃ": "q", "gǁ": "z",
-    "ŋǀ": "c", "ŋǃ": "q", "ŋǁ": "z",
+    "ǀʰ": "c", "ǃʰ": "q", "ǁʰ": "z", "ʘʰ": "v",
+    "gǀ": "c", "gǃ": "q", "gǁ": "z", "gʘ": "v",
+    "ŋǀ": "c", "ŋǃ": "q", "ŋǁ": "z", "ŋʘ": "v",
     # Real Nama's own 4th click place and independent aspirated/
     # nasalized/glottalized accompaniments -- all merge into their own
     # bare click's own monoletter value, same "shallow style drops
@@ -493,10 +550,16 @@ _MONOLETTER_TABLE: dict[str, str] = {
     # Real Swahili/Yoruba unit phonemes merge toward their own primary
     # place of articulation, same shallow-merging treatment.
     "ŋg": "g", "gb": "b",
-    "ɓ": "b", "ɗ": "d", "ʄ": "j", "ɠ": "g",
+    "ɓ": "b", "ɗ": "d", "ʄ": "j", "ɠ": "g", "ʛ": "g",
     "ɪ": "i", "ʊ": "u", "æ": "e", "ɐ": "a", "ɑ": "a", "ø": "o", "œ": "o",
     "ɣ": "g", "pʰ": "p", "tʰ": "t", "kʰ": "k", "tsʰ": "c",
     "tˤ": "t", "dˤ": "d", "sˤ": "s", "ðˤ": "d",
+    # Velar approximant merges with the same plain "g" its own fricative
+    # cousin ɣ already merges to.
+    "ɰ": "g",
+    # Labiodental nasal merges with plain "m", same shallow "drop the
+    # secondary place" treatment ɳ/ɲ already get above.
+    "ɱ": "m",
     "β": "b", "ɸ": "f", "ɕ": "s", "ʑ": "z", "ɦ": "h", "ʋ": "v", "ɥ": "w", "ɴ": "n",
     "ɭ": "l", "ɽ": "r", "ɽʱ": "r", "ʈʂ": "c", "ʈʂʰ": "c", "ɖʐ": "j",
     "zˤ": "z", "lˤ": "l",
@@ -517,6 +580,11 @@ _MONOLETTER_TABLE: dict[str, str] = {
     "ɕː": "s",
     # Real Serbo-Croatian syllabic /r/ -- no special marking in any style.
     "r̩": "r",
+    # Rhotacized schwa and Mandarin syllabic /ɻ̩/ -- another inherently
+    # two-part sound, the same diphthong exception to this style's own
+    # one-letter philosophy noted just below, spelled identically to the
+    # other two styles' own real-Pinyin-matching choice.
+    "ɚ": "er", "ɻ̩": "er",
     "kː": "k", "tː": "t", "pː": "p", "sː": "s", "nː": "n", "lː": "l",
     # Diphthongs are the one deliberate exception to this style's own
     # one-letter philosophy -- they're inherently two-part sounds, and no
