@@ -77,6 +77,7 @@ stress_pattern: ""                  # optional, defaults empty -- e.g. "penultim
 stress_deviation_rate: null         # optional, defaults null -- e.g. 0.15, how often a word deviates from that default
 stress_accent_marking: ""           # optional, defaults empty -- e.g. "irregular_only" (real Spanish's á/é/í/ó/ú)
 stress_driven_vowel_reduction: false  # optional, defaults false -- true for English/German/Dutch's own real synchronic schwa reduction
+word_level_phonology: ""            # optional, defaults empty -- e.g. "hindi_schwa_deletion", see generation/word_phonology.py
 word_accent_realization: ""         # optional, defaults empty -- "glottalization" | "pitch" | "pitch_and_length", e.g. real Danish stød
 word_accent_pattern: ""             # optional, defaults empty -- e.g. "monosyllabic_heavy"
 word_accent_deviation_rate: null    # optional, defaults null -- e.g. 0.15
@@ -439,6 +440,26 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     only in a word's own non-stressed syllables, and only when "ə" is
     actually in this run's generated vowel inventory. Only consulted
     when ``source_language_strictness`` > 0."""
+    word_level_phonology: str = ""
+    """A named, holistic word-internal phonological rule that a per-symbol
+    romanization/adjacency rule can't express -- unlike every other axis
+    on this profile, which conditions on at most one immediate neighbor,
+    this needs to scan a word's own full syllable sequence (e.g. real
+    Hindi schwa deletion depends on whether the *preceding* syllable is
+    itself closed, not just on this schwa's own immediate neighbor).
+    Dispatched by name in ``generation.word_phonology`` (``""`` -- the
+    default, most languages -- is a no-op); applied once, inside
+    ``word_builder.build_word``, to the freshly built syllable sequence,
+    *before* stress is assigned (schwa deletion can shorten a word by a
+    whole syllable, which stress assignment needs to already know about)
+    and before any word-class affix attaches (so e.g. Hindi's own "-nā"
+    infinitive suffix attaches to the already-reduced stem, matching real
+    "kar-nā" not "kara-nā"). Only consulted when
+    ``source_language_strictness`` > 0, the same gate
+    ``stress_driven_vowel_reduction`` above already uses -- this is real,
+    citable phonology, not a generic tendency, so it should only bias a
+    generation that's actually leaning toward this specific real
+    language."""
     word_accent_realization: str = ""
     """Whether/how this language marks the binary word-accent contrast on
     its own stressed syllable -- ``""`` (the common case: most languages,

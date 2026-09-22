@@ -102,8 +102,41 @@ multi-session feature.
   this scale, and it belongs to a different historical layer (Vedic, not the modeled Classical register) than
   the rest of the profile -- adding it piecemeal for the handful of Rigveda-famous words I could verify (agni,
   deva, ...) would misrepresent coverage, so none was added.
-- **Korean assimilation and Hindi schwa deletion (L)** *(known limitation)* —
-  word-level algorithmic systems, not per-symbol rules.
+- **Word-level algorithmic phonology (L, partly done)** *(known limitation, narrowed)* — a
+  survey of every curated profile for the same shape of gap Hindi schwa deletion already
+  named (a word's own real pronunciation depends on scanning its *whole* syllable sequence,
+  not just one adjacent symbol, so it can't be a per-symbol romanization rule) turned up one
+  close sibling, Bengali's own inherent-vowel deletion, and confirmed several other real
+  candidates (Finnish consonant gradation, Turkish/Icelandic morpheme-boundary alternations,
+  Arabic/Hebrew definite-article assimilation, Welsh initial mutation, Japanese rendaku) are a
+  *different* kind of gap -- each needs live inflection or a cross-word/morpheme trigger this
+  project's citation-form-only, no-live-morphology architecture has nowhere to hang, not a
+  missing algorithm. Mandarin's neutral tone and Tibetan's diachronic coda-reduction/tone
+  culmination were already in the same "real but not rule-capturable" bucket as Hindi's own
+  schwa deletion (see `LEXICON_AUDIT.md`'s Ancient Greek/Danish sections' own neighbors);
+  nothing new needed there.
+
+  **Hindi schwa deletion and Bengali's own word-final counterpart are now built** (new
+  `ReferenceLanguageProfile.word_level_phonology`, dispatched in `generation/word_phonology.py`,
+  applied inside `word_builder.build_word` to a freshly built word's own syllable sequence,
+  before stress is assigned and before any word-class affix attaches). Hindi uses the
+  standard, widely-cited computational formulation (Ohala 1983; Narasimhan, Sproat & Kiraz
+  2004's own "ə -> ∅ / VC_CV" rule): a word-final inherent vowel always deletes (unless it's
+  the word's only vowel), and an internal one deletes when the syllable to its own left is
+  itself closed. Bengali gets only the word-final half -- its own real medial pattern targets
+  a genuinely different inherent vowel (/ɔ/, not schwa) and isn't documented confidently
+  enough for this project's own honesty standard to assert a specific medial rule, so it stays
+  open rather than guessed at. Every deletion is checked against the language's own legal
+  cluster set first and skipped, not forced through, when illegal -- smoke-tested via
+  `conlang generate --source-language Hindi/Bengali --strictness 1.0`: word-final schwa/ɔ
+  survives almost exclusively on monosyllables (correctly never deleted, a word needs at
+  least one vowel) or where the merge would be an illegal cluster.
+
+  **Still open: Korean's own cross-syllable consonant assimilation** (nasal/lateral/place
+  assimilation across syllable-block boundaries) -- a genuinely different algorithm shape
+  (consonant rewriting conditioned on a full neighbor pair, not vowel deletion scanning
+  rightward for syllable weight), not yet attempted; the mechanism above (`word_level_phonology`
+  dispatch) is reusable for it once designed.
 - **Phonotactic audit of real words (done).** `conlang audit-lexicons`
   (see `docs/LEXICON_AUDIT.md`) flags words a profile cannot produce and
   aggregates the illegal consonant runs and missing sounds per language.

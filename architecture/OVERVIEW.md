@@ -2529,8 +2529,11 @@ reading code or one-off ad hoc scripts.
   `consonant_gemination_marked`, the `gemination-style` anchor; see
   `phonology_gen.py`/`romanization_gen.py` above). Korean's cross-syllable
   consonant assimilation and Hindi/Devanagari's schwa deletion, from that
-  same survey, stay out of reach for the reason already given above
-  (word-level algorithmic systems, not per-symbol rules).
+  same survey, stayed out of reach for the reason already given above
+  (word-level algorithmic systems, not per-symbol rules) until the
+  word-level-phonology batch much further down this history built a
+  reusable mechanism and closed schwa deletion (Hindi and, as a sibling,
+  Bengali); Korean's own consonant assimilation is still open.
 - Grammar generation (`grammar_gen.py`) is intentionally not being iterated
   on right now -- current focus is word-level (phonology/lexicon) quality.
   Notably, word order isn't linked to any trait yet (only morphological
@@ -3173,3 +3176,71 @@ reading code or one-off ad hoc scripts.
     (e.g. the pre-existing syllabic `r̩`) could raise `StopIteration` --
     fixed to use `ipa_tokenizer.symbols_only`, the same greedy-longest-
     match tokenization the real generation pipeline itself already uses.
+- **Word-level algorithmic phonology**: closing the "Korean assimilation and Hindi schwa
+  deletion" limitation named much earlier in this history, starting with a survey (the same
+  "ask before major work" pattern this whole history already follows) of every curated profile
+  for the same shape of gap -- a word's own real pronunciation depends on scanning its *whole*
+  syllable sequence, not one adjacent symbol, so no per-symbol `RomanizationRule` (however many
+  `preceding`/`following` conditions it stacks) can express it. Confirmed real but *architecturally
+  different* candidates (Finnish consonant gradation, Turkish/Icelandic morpheme-boundary
+  alternations, Arabic/Hebrew definite-article assimilation, Welsh initial mutation, Japanese
+  rendaku) all need live inflection or a cross-word/morpheme trigger this project's citation-
+  form-only, no-live-morphology architecture has nowhere to hang -- a different, deeper gap than
+  Hindi's own, not new instances of it. Mandarin's neutral tone and Tibetan's diachronic coda-
+  reduction were already documented in the same "real but not rule-capturable" bucket. Found one
+  genuine sibling: Bengali's own inherent-vowel deletion, real and citable for its word-final
+  half, distinct enough from Hindi's own rule (a different vowel, /ɔ/ not /ə/, and a real but
+  much less confidently documented medial pattern this project declines to guess at) to need its
+  own curation rather than reusing Hindi's.
+
+  New mechanism: `ReferenceLanguageProfile.word_level_phonology` (a string-keyed rule name, the
+  same dispatch shape `stress_pattern`/`word_accent_realization` already use, not a boolean --
+  each of these is a bespoke real algorithm, not a universal toggle like `vowel_harmony`),
+  consulted in a new `generation/word_phonology.py`. Deliberately hooks into
+  `word_builder.build_word` at the syllable-tuple-list stage (each `(onset, nucleus, coda)`
+  already an unambiguous per-syllable decision made while that syllable was built) rather than
+  re-tokenizing the finished flat IPA string afterward -- the latter would have to re-solve the
+  maximal-onset resyllabification ambiguity the syllable-list representation already sidesteps
+  for free, a real architectural dead end considered and rejected before writing any code. Runs
+  once, right after every syllable is built, *before* `stress_gen.assign_stress` (deletion can
+  shorten a word by a whole syllable, which stress assignment needs to already see -- doing this
+  the other way around would either assign stress to a syllable about to disappear or need a
+  second, re-triggered stress pass) and before any word-class affix attaches (so Hindi's own
+  real "-nā" infinitive suffix attaches to the already-reduced stem, matching real "kar-nā" not
+  "kara-nā"). Gated by one all-or-nothing roll against `word_level_phonology_strictness` per
+  word (unlike `reduce_unstressed_vowels`'s own per-*syllable* rate just below it in the same
+  function) -- this is real, citable phonology that always applies to a real word meeting its
+  environment, not a generic tendency to lean into harder at higher strictness. Deliberately
+  *not* threaded into `build_reduplicated_word` -- kinship words already bypass most of
+  `SyllableStructure` (no coda, no cluster modeling at all) for the same Jakobson-1960
+  simplest-possible-shape reason `reduce_unstressed_vowels` skips them too, so there's nothing
+  here for either rule to meaningfully act on.
+
+  Hindi's own rule is the standard, widely-cited computational formulation (Ohala 1983;
+  Narasimhan, Sproat & Kiraz 2004's own "ə -> ∅ / VC_CV"): a word-final inherent vowel always
+  deletes unless it's the word's only vowel (a word needs at least one nucleus); an internal one
+  deletes when the syllable to its own *left* is closed (has a coda) -- the rule's own left
+  context; the right context ("followed by an ordinary onset+vowel") is trivially true for any
+  internal syllable, so only the left-context check actually does any work. This is where real
+  "dharm"/"mitr"-shaped Hindi words come from: an underlying tri-syllabic C-schwa-C-schwa-C-schwa
+  form collapsing to one syllable once both its own inherent vowels delete. Every merge is
+  checked against `SyllableStructure.is_valid_syllable` first and skipped, not forced through,
+  when illegal -- the same "abstain rather than fabricate" discipline
+  `word_builder._STRESS_REDUCTION_RATE`'s own legality check already practices. Bengali gets only
+  the word-final half of the same mechanism (`allow_medial=False`), left that narrow on purpose
+  given the genuine documentation-confidence gap noted above.
+
+  Verification: 10 new tests in `test_word_phonology.py` (the pure function directly -- final
+  deletion, medial deletion gated on a closed preceding syllable, the medial rule correctly
+  *not* firing when that syllable is open, an illegal merge correctly skipped, the Bengali
+  variant correctly firing only word-finally, both profiles' own declared rule names, and no
+  other curated profile accidentally opting in) plus one `build_word`-level integration test
+  proving the wiring itself (an inventory with only "ə" as its own vowel forces every nucleus,
+  so `strictness=0.0` deterministically keeps all three across 20 seeds while `strictness=1.0`
+  visibly reduces at least one -- a statistical check across seeds rather than one hand-picked
+  seed, since a legal-merge outcome genuinely varies by rng draw the same way the pure-function
+  "illegal merge" test already demonstrates it can). Smoke-tested via real `conlang generate
+  --source-language Hindi/Bengali --strictness 1.0`: across 3 seeds each (~400 words), a
+  word-final inherent vowel survives almost exclusively on monosyllables (correctly never
+  touched) or where the merge would be illegal -- exactly the two documented abstention cases,
+  nothing unexplained. Full suite: 1003 passed, 2 skipped (up from 993 -- the 10 new tests).

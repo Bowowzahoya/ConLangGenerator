@@ -44,14 +44,17 @@ attested_onset_clusters:
 tonal: false
 stress_pattern: initial
 stress_deviation_rate: 0.15  # illustrative -- real Bengali fixed word-initial stress (primary on the first syllable, secondary on alternating syllables after) is considerably more reliable/exceptionless than Hindi's own quantity-sensitive system (Chatterji; Ferguson & Chowdhury), genuine consensus rather than a live dispute, so this sits well below Hindi's own 0.40
-# A real, genuinely distinctive fact stays deliberately unmodeled,
-# parallel to Hindi's own already-curated schwa deletion: Bengali's own
-# inherent-vowel deletion/reduction (orthographic word-final "অ" /ɔ/ is
+# Real Bengali inherent-vowel deletion (orthographic word-final "অ" /ɔ/
 # regularly unpronounced, e.g. কম "kom" said without its own final
-# inherent vowel, and other schwa-like reductions occur medially) is
-# real but not a simple per-symbol rule this project's architecture can
-# capture -- the same "real but not currently rule-capturable" status
-# every other language's own comparable complexity already gets.
+# inherent vowel) is now modeled -- see word_level_phonology below --
+# but only its word-final half. Bengali's own *medial* deletion/
+# reduction pattern is real too but genuinely less confidently
+# documented than Hindi's own citable VC_CV rule (see
+# generation/word_phonology.py's own docstring for exactly why), so it
+# stays deliberately unmodeled rather than guessed at -- the same "real
+# but not currently rule-capturable" status every other language's own
+# comparable complexity gets, just narrower than it used to be.
+word_level_phonology: bengali_final_vowel_deletion
 word_classes:
   # Real Bengali famously has no grammatical gender at all (unlike
   # Hindi/Sanskrit) -- no noun word_classes curated, an honest omission

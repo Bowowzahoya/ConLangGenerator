@@ -532,6 +532,7 @@ def build_pending_word(
     num_syllables = choose_syllable_count(rng, pos, favor_short, average_syllables, strictness)
     size_bias = _SIZE_BIAS_GLOSSES.get(gloss_key)
     reduce_unstressed_vowels = any(p.stress_driven_vowel_reduction for p in reference_profiles)
+    word_level_phonology = next((p.word_level_phonology for p in reference_profiles if p.word_level_phonology), "")
 
     tones: tuple = ()
     tone_marks: tuple[str, ...] = ()
@@ -552,6 +553,7 @@ def build_pending_word(
             word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
             word_accent_deviation_rate=word_accent_deviation_rate, word_accent_strictness=strictness,
             word_accent_length_rate=word_accent_length_rate, word_accent_window=word_accent_window,
+            word_level_phonology=word_level_phonology, word_level_phonology_strictness=strictness,
         )
         if word not in seen:
             seen.add(word)

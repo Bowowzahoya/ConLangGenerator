@@ -25,7 +25,7 @@ from conlang_generator.core.phonology import (
     VowelBackness,
     VowelHeight,
 )
-from conlang_generator.generation import stress_gen, word_accent_gen
+from conlang_generator.generation import stress_gen, word_accent_gen, word_phonology
 
 _SMALL_HEIGHTS = (VowelHeight.CLOSE, VowelHeight.NEAR_CLOSE)
 _BIG_HEIGHTS = (VowelHeight.OPEN, VowelHeight.NEAR_OPEN)
@@ -379,6 +379,8 @@ def build_word(
     word_accent_strictness: float = 0.0,
     word_accent_length_rate: float | None = None,
     word_accent_window: int | None = None,
+    word_level_phonology: str = "",
+    word_level_phonology_strictness: float = 0.0,
 ) -> str:
     """``stress_pattern``/``stress_deviation_rate``/``stress_strictness``
     are the already-resolved values from whichever matched
@@ -395,6 +397,19 @@ def build_word(
     coda, and only then assembles the final string with
     ``stress_gen.STRESS_MARK`` prepended to the stressed syllable's own
     onset.
+
+    ``word_level_phonology`` (this run's matched
+    ``ReferenceLanguageProfile.word_level_phonology`` -- see its own
+    docstring) runs first, right after every syllable's own
+    ``(onset, nucleus, coda)`` is chosen and before anything downstream
+    reads ``num_syllables`` again -- see ``word_phonology.py`` for the
+    actual rules (Hindi schwa deletion, Bengali's own narrower word-final
+    counterpart). Gated by one all-or-nothing roll against
+    ``word_level_phonology_strictness`` per word, not a per-syllable rate
+    the way ``reduce_unstressed_vowels`` below is -- this is real,
+    citable phonology that always applies to a real word meeting its
+    environment, not a generic tendency to lean into more at higher
+    strictness.
 
     ``reduce_unstressed_vowels`` (this run's matched
     ``ReferenceLanguageProfile.stress_driven_vowel_reduction`` -- see
@@ -446,6 +461,21 @@ def build_word(
         )
         syllables.append((onset, nucleus, coda))
         prev_coda_final = coda[-1] if coda else None
+    if word_level_phonology and rng.random() < word_level_phonology_strictness:
+        # Before stress is assigned (this can shorten the word by a whole
+        # syllable, which the stress rule needs to already see) and before
+        # any word-class affix attaches (see word_phonology.py's own
+        # docstring for why). Gated by a single per-word roll, the same
+        # "certain at strictness 1.0, a no-op at 0.0" shape every other
+        # probabilistic reference-language bias in this project already
+        # uses -- unlike `reduce_unstressed_vowels` below, this is real,
+        # citable phonology (Hindi schwa deletion *always* applies to a
+        # real word that meets its environment), not a generic tendency,
+        # so it's an all-or-nothing draw per word rather than a per-vowel
+        # rate.
+        syllables = word_phonology.apply(syllables, word_level_phonology, structure)
+        num_syllables = len(syllables)
+        marks = marks[:num_syllables] + ("",) * max(0, num_syllables - len(marks))
     # A monosyllable's own single syllable is trivially "the stressed
     # one" -- marking it conveys nothing (there's no other syllable to
     # contrast it with), the same reasoning real dictionary transcription
