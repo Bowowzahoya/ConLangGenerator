@@ -3244,3 +3244,45 @@ reading code or one-off ad hoc scripts.
   word-final inherent vowel survives almost exclusively on monosyllables (correctly never
   touched) or where the merge would be illegal -- exactly the two documented abstention cases,
   nothing unexplained. Full suite: 1003 passed, 2 skipped (up from 993 -- the 10 new tests).
+
+  **Korean's own cross-syllable consonant assimilation**, closing the other half of the
+  original "Korean assimilation and Hindi schwa deletion" limitation, followed right behind in
+  the same session, reusing the `word_level_phonology` dispatch with a genuinely different
+  algorithm shape: unlike Hindi/Bengali's vowel deletion (which scans rightward and can shorten
+  a word by a whole syllable), this only ever rewrites one coda or onset consonant's own
+  identity at a coda/onset boundary, never syllable count -- so a single left-to-right pass over
+  every adjacent syllable pair, independent of each other, is enough (no cascading risk: a
+  coda-side rewrite only ever touches syllable *i*, an onset-side rewrite only ever touches
+  syllable *i+1*, and the next pair's own check reads syllable *i+1*'s coda, which neither kind
+  of rewrite from the previous pair ever touched). Three real, purely phonetically-conditioned
+  rules, all triggered on mutually exclusive conditions so there's no ordering question between
+  them: nasalization (an obstruent-stop coda before a nasal onset takes that nasal's own place
+  of articulation -- real *국물* gungmul "soup" /k/+/m/ -> [ŋ]+[m]), lateralization (/n/+/l/ or
+  /l/+/n/ both converge on [l]+[l] -- real *신라* Silla), tensification (an obstruent-stop coda
+  before a plain obstruent onset makes that onset tense -- real *학교* hakgyo "school" /k/+/k/ ->
+  [k]+[kʼ]; real Korean also tensifies a following /s/, but this project's own Korean profile
+  doesn't model a distinct tense /s/ at all, so that one member of the real series stays out of
+  reach for the same "no symbol to render it with" reason a handful of other profiles' own gaps
+  already have). Considered and declined real Korean **palatalization** (*같이* gachi "together",
+  from an underlying /t/+/i/) for the same reason the wider survey above declined Welsh
+  mutation/Japanese rendaku/Arabic-Hebrew article assimilation: it's conditioned on a specific
+  morpheme boundary (a t/tʰ-final root meeting an i-initial suffix/particle), not a purely
+  phonetic environment, so it needs live morphology this project doesn't have -- a different
+  kind of gap, not a harder instance of the same one. Every rewrite is checked against
+  `SyllableStructure.is_valid_syllable` first and skipped, not forced through, when illegal,
+  the same discipline the deletion rules above already practice. This project's own Korean
+  profile already enforces the real "seven-consonant rule" coda neutralization
+  (`restricted_coda_consonants`), so every coda this function ever looks at is already one of
+  the real surface seven the assimilation rules are themselves stated over -- no extra
+  neutralization logic needed here.
+
+  6 more tests in the same `test_word_phonology.py` (nasalization and lateralization each in
+  both directions with real cited examples, tensification, a no-op case where neither trigger
+  matches, an illegal-rewrite-skipped case, the profile's own declared rule name) plus one more
+  `build_word`-level integration test (a 2-consonant/1-vowel inventory that never draws "ŋ" on
+  its own, so its appearance in the output only ever comes from nasalization actually firing --
+  the same "rewrite target excluded from the drawing pool" trick the Hindi integration test's
+  own schwa-only inventory already uses). Smoke-tested via real `conlang generate
+  --source-language Korean --strictness 1.0`: generated lexicons visibly show all three
+  patterns (tense onsets, "ŋ" codas, doubled "ll") across 3 seeds. Full suite: 1009 passed, 2
+  skipped (up from 1003 -- the 6 new tests).

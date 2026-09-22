@@ -1,8 +1,8 @@
 """Tests for word_phonology.py -- the named, holistic word-internal
 phonological rules a per-symbol romanization rule can't express (Hindi
-schwa deletion, Bengali's own narrower word-final counterpart), plus one
-integration check that word_builder.build_word actually wires the rule in
-at the right point (before stress is assigned)."""
+schwa deletion, Bengali's own narrower word-final counterpart, Korean's
+own cross-syllable consonant assimilation), plus integration checks that
+word_builder.build_word actually wires each rule in at the right point."""
 
 import random
 
@@ -97,16 +97,78 @@ def test_bengali_rule_is_a_no_op_when_the_final_vowel_isnt_the_inherent_one():
     assert result == syllables
 
 
-def test_hindi_and_bengali_profiles_declare_their_own_rule():
+def test_hindi_bengali_korean_profiles_declare_their_own_rule():
     by_name = {p.name: p for p in REFERENCE_LANGUAGES}
     assert by_name["Hindi"].word_level_phonology == "hindi_schwa_deletion"
     assert by_name["Bengali"].word_level_phonology == "bengali_final_vowel_deletion"
-    # No other curated profile has opted into either rule -- the whole
-    # point of dispatching by name is that it stays a no-op everywhere
-    # else.
+    assert by_name["Korean"].word_level_phonology == "korean_assimilation"
+    # No other curated profile has opted into any rule -- the whole point
+    # of dispatching by name is that it stays a no-op everywhere else.
     for name, profile in by_name.items():
-        if name not in ("Hindi", "Bengali"):
+        if name not in ("Hindi", "Bengali", "Korean"):
             assert profile.word_level_phonology == ""
+
+
+# A permissive structure for the Korean assimilation tests below -- every
+# rewrite target this module's own rules ever produce (m/n/ŋ/l codas,
+# pʼ/tʼ/kʼ/tʃʼ/l onsets) is left unrestricted, so a test can isolate the
+# rule's own trigger logic without also fighting legality checks (those
+# get their own dedicated test further down).
+_KOREAN_STRUCTURE = SyllableStructure(max_onset=1, max_coda=1)
+
+
+def test_nasalization_of_a_stop_coda_before_a_nasal_onset():
+    # real 국물 gungmul "soup": /k/+/m/ -> [ŋ]+[m].
+    syllables = [(("k",), "u", ("k",)), (("m",), "u", ("l",))]
+    result = word_phonology.apply(syllables, "korean_assimilation", _KOREAN_STRUCTURE)
+    assert result == [(("k",), "u", ("ŋ",)), (("m",), "u", ("l",))]
+    # real 낱말 nanmal "word": /t/+/n/ -> [n]+[n].
+    syllables = [(("n",), "a", ("t",)), (("m",), "a", ("l",))]
+    result = word_phonology.apply(syllables, "korean_assimilation", _KOREAN_STRUCTURE)
+    assert result == [(("n",), "a", ("n",)), (("m",), "a", ("l",))]
+
+
+def test_lateralization_converges_on_double_l_from_either_direction():
+    # real 신라 Silla: /n/+/l/ -> [l]+[l].
+    syllables = [(("s",), "i", ("n",)), (("l",), "a", ())]
+    result = word_phonology.apply(syllables, "korean_assimilation", _KOREAN_STRUCTURE)
+    assert result == [(("s",), "i", ("l",)), (("l",), "a", ())]
+    # real 칼날 kalnal "knife blade": /l/+/n/ -> [l]+[l].
+    syllables = [(("k",), "a", ("l",)), (("n",), "a", ("l",))]
+    result = word_phonology.apply(syllables, "korean_assimilation", _KOREAN_STRUCTURE)
+    assert result == [(("k",), "a", ("l",)), (("l",), "a", ("l",))]
+
+
+def test_tensification_of_a_plain_obstruent_onset_after_an_obstruent_coda():
+    # real 학교 hakgyo "school": /k/+/k/ -> [k]+[kʼ].
+    syllables = [(("h",), "a", ("k",)), (("k",), "jo", ())]
+    result = word_phonology.apply(syllables, "korean_assimilation", _KOREAN_STRUCTURE)
+    assert result == [(("h",), "a", ("k",)), (("kʼ",), "jo", ())]
+    # real 잡지 japji "magazine": /p/+/tʃ/ -> [p]+[tʃʼ].
+    syllables = [(("tʃ",), "a", ("p",)), (("tʃ",), "i", ())]
+    result = word_phonology.apply(syllables, "korean_assimilation", _KOREAN_STRUCTURE)
+    assert result == [(("tʃ",), "a", ("p",)), (("tʃʼ",), "i", ())]
+
+
+def test_korean_assimilation_is_a_no_op_when_no_rule_is_triggered():
+    # an obstruent coda before a glide onset triggers none of the three
+    # rules (not nasal, not {n,l}, not a plain obstruent).
+    syllables = [(("k",), "a", ("k",)), (("w",), "a", ())]
+    assert word_phonology.apply(syllables, "korean_assimilation", _KOREAN_STRUCTURE) == syllables
+    # an open syllable (no coda at all) has nothing to assimilate.
+    syllables = [(("k",), "a", ()), (("m",), "a", ())]
+    assert word_phonology.apply(syllables, "korean_assimilation", _KOREAN_STRUCTURE) == syllables
+
+
+def test_korean_assimilation_skips_a_rewrite_the_language_wouldnt_actually_allow():
+    # Same nasalization-triggering shape as the passing test above, but
+    # under a structure that excludes "ŋ" from coda position entirely --
+    # the rewrite is skipped, not forced through, and the pair is left
+    # exactly as it started.
+    no_velar_nasal_coda = SyllableStructure(max_onset=1, max_coda=1, excluded_coda_consonants=("ŋ",))
+    syllables = [(("k",), "u", ("k",)), (("m",), "u", ("l",))]
+    result = word_phonology.apply(syllables, "korean_assimilation", no_velar_nasal_coda)
+    assert result == syllables
 
 
 def _schwa_only_inventory() -> PhonemeInventory:
@@ -153,3 +215,44 @@ def test_build_word_applies_word_level_phonology_before_stress_is_assigned():
         < 3
     )
     assert reduced_count > 0
+
+
+def _k_m_inventory() -> PhonemeInventory:
+    """A tiny 2-consonant/1-vowel inventory -- "ŋ" is deliberately absent,
+    so it can only ever appear in build_word's own output via nasalization
+    actually firing (never from ordinary phoneme selection), the same
+    "rewrite target not in the drawing pool at all" trick the schwa-only
+    inventory above uses for a clean before/after signal."""
+    consonants = (
+        Consonant(ipa="k", place=Place.VELAR, manner=Manner.STOP, voiced=False, prevalence=1.0),
+        Consonant(ipa="m", place=Place.BILABIAL, manner=Manner.NASAL, voiced=True, prevalence=1.0),
+    )
+    vowels = (Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),)
+    return PhonemeInventory(consonants=consonants, vowels=vowels)
+
+
+def test_build_word_applies_korean_assimilation():
+    inventory = _k_m_inventory()
+    structure = SyllableStructure(max_onset=1, max_coda=1)
+    # "ŋ" is never drawn by ordinary phoneme selection (see the inventory
+    # above) -- with the rule off, it can never appear, whatever the rng
+    # draws for onset/coda presence.
+    for seed in range(20):
+        baseline = word_builder.build_word(
+            random.Random(seed), inventory, structure, num_syllables=2,
+            word_level_phonology="korean_assimilation", word_level_phonology_strictness=0.0,
+        )
+        assert "ŋ" not in baseline
+    # With the rule on, a "k" coda immediately before an "m" onset -- bound
+    # to happen for at least one of enough seeds, given only two
+    # consonants to draw from -- nasalizes to "ŋ", proving the rule is
+    # actually wired into build_word.
+    has_nasalization = any(
+        "ŋ"
+        in word_builder.build_word(
+            random.Random(seed), inventory, structure, num_syllables=2,
+            word_level_phonology="korean_assimilation", word_level_phonology_strictness=1.0,
+        )
+        for seed in range(20)
+    )
+    assert has_nasalization

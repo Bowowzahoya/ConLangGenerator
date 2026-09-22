@@ -34,6 +34,8 @@ def apply(syllables: list[Syllable], rule: str, structure: SyllableStructure) ->
         return _delete_inherent_vowel(syllables, structure, _SCHWA, allow_medial=True)
     if rule == "bengali_final_vowel_deletion":
         return _delete_inherent_vowel(syllables, structure, _BENGALI_INHERENT_VOWEL, allow_medial=False)
+    if rule == "korean_assimilation":
+        return _apply_korean_assimilation(syllables, structure)
     return syllables
 
 
@@ -106,4 +108,90 @@ def _delete_inherent_vowel(
                 merge_into_previous(i)
             i -= 1
 
+    return syls
+
+
+# Real Korean coda neutralization (this profile's own "seven-consonant
+# rule", already enforced by korean.yaml's restricted_coda_consonants)
+# means a generated word's own coda, wherever this function looks at one,
+# is always already one of exactly these seven -- the same real surface
+# inventory the assimilation rules below are stated over.
+_HOMORGANIC_NASAL = {"p": "m", "t": "n", "k": "ŋ"}
+"""Nasalization (비음화): an obstruent-stop coda followed by a nasal-onset
+next syllable becomes that nasal's own place of articulation -- real 국물
+gungmul "soup" (/k/+/m/ -> [ŋ]+[m]), 앞문 apmun "front door" (/p/+/m/ ->
+[m]+[m]), 낱말 nanmal "word" (/t/+/n/ -> [n]+[n]). A productive, largely
+exceptionless low-level phonetic rule (unlike palatalization, below),
+triggered purely by the coda/onset pair -- no morpheme-boundary condition
+to track."""
+
+_TENSE_COUNTERPART = {"p": "pʼ", "t": "tʼ", "k": "kʼ", "tʃ": "tʃʼ"}
+"""Tensification (경음화): an obstruent-stop coda followed by a plain
+obstruent onset makes that onset tense -- real 학교 hakgyo "school"
+(/k/+/k/ -> [k]+[kʼ]), 잡지 japji "magazine" (/p/+/tʃ/ -> [p]+[tʃʼ]).
+Real Korean also tensifies a following /s/ (ㅆ), but this project's own
+Korean profile doesn't model a distinct tense /s/ at all, so that one
+member of the real series stays out of reach for the same "no symbol to
+render it with" reason a handful of other profiles' own gaps already
+have."""
+
+
+def _apply_korean_assimilation(syllables: list[Syllable], structure: SyllableStructure) -> list[Syllable]:
+    """Cross-syllable consonant assimilation at a coda/onset boundary --
+    real Korean pronunciation regularly differs from what its own
+    syllable blocks would suggest read one at a time. Unlike Hindi/Bengali
+    inherent-vowel deletion above, this never changes syllable count or
+    which nucleus is where -- it only ever rewrites one coda or onset
+    consonant's own identity, so it's safe to scan every adjacent syllable
+    pair once, left to right, independently.
+
+    Three real, purely phonetically-conditioned rules (see
+    ``_HOMORGANIC_NASAL``/``_TENSE_COUNTERPART``'s own docstrings for
+    nasalization/tensification, and the lateralization branch below for
+    real 신라 Silla -> [실라] sil-la / 칼날 kalnal -> [칼랄] kal-lal, /n/+/l/
+    and /l/+/n/ both converging on /l/+/l/ regardless of direction). Their
+    own trigger conditions are mutually exclusive (nasalization keys on the
+    *onset* being nasal, tensification on it being a plain obstruent,
+    lateralization on the pair being exactly {n, l}), so there's no
+    ordering question between them -- at most one ever matches a given
+    pair.
+
+    Deliberately **not** modeled: real Korean palatalization (같이 gachi
+    "together", from an underlying /t/+/i/) -- unlike the three rules
+    above, that one is conditioned on a specific morpheme boundary (a
+    t/tʰ-final root meeting an i-initial grammatical suffix/particle), not
+    a purely phonetic environment, the same "needs live morphology this
+    project doesn't have" gap the wider word-level-phonology survey
+    already declined for Welsh mutation/Japanese rendaku/Arabic-Hebrew
+    article assimilation.
+
+    Every rewrite is checked against ``structure.is_valid_syllable``
+    before committing and simply skipped, not forced through, when the
+    result wouldn't actually be legal for this language -- the same
+    "abstain rather than fabricate" discipline the inherent-vowel-deletion
+    rules above already practice."""
+    syls = list(syllables)
+    for i in range(len(syls) - 1):
+        onset, nucleus, coda = syls[i]
+        next_onset, next_nucleus, next_coda = syls[i + 1]
+        if not coda or not next_onset:
+            continue
+        c1, c2 = coda[-1], next_onset[0]
+        new_c1, new_c2 = c1, c2
+        if c1 in _HOMORGANIC_NASAL and c2 in ("m", "n"):
+            new_c1 = _HOMORGANIC_NASAL[c1]
+        elif {c1, c2} == {"n", "l"}:
+            new_c1, new_c2 = "l", "l"
+        elif c1 in _TENSE_COUNTERPART and c2 in _TENSE_COUNTERPART:
+            new_c2 = _TENSE_COUNTERPART[c2]
+        if new_c1 == c1 and new_c2 == c2:
+            continue
+        new_coda = coda[:-1] + (new_c1,)
+        new_next_onset = (new_c2,) + next_onset[1:]
+        if not structure.is_valid_syllable(onset, nucleus, new_coda, False, i == 0) or not structure.is_valid_syllable(
+            new_next_onset, next_nucleus, next_coda, i + 1 == len(syls) - 1, False
+        ):
+            continue
+        syls[i] = (onset, nucleus, new_coda)
+        syls[i + 1] = (new_next_onset, next_nucleus, next_coda)
     return syls

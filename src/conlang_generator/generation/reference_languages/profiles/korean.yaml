@@ -46,6 +46,17 @@ word_classes:
   - {name: "-da citation form", pos: verb, suffix: [t, a], prevalence: 1.0}
   - {name: "-da citation form", pos: adjective, suffix: [t, a], prevalence: 1.0}
 word_class_deviation_rate: 0.03  # illustrative -- real Korean -da citation marking is about as close to exceptionless as any fact curated in this project
+# Real, productive cross-syllable consonant assimilation at a coda/onset
+# boundary -- nasalization (국물 gungmul "soup" /k/+/m/ -> [ŋ]+[m]),
+# lateralization (신라 Silla /n/+/l/ -> [l]+[l]), tensification (학교
+# hakgyo "school" /k/+/k/ -> [k]+[kʼ]) -- see generation/word_phonology.py
+# for the actual rules. Real Korean palatalization (같이 gachi "together")
+# stays deliberately unmodeled: unlike the three rules above, it's
+# conditioned on a specific morpheme boundary, not a purely phonetic
+# environment, the same "needs live morphology this project doesn't have"
+# gap as Welsh mutation/Japanese rendaku/Arabic-Hebrew article
+# assimilation.
+word_level_phonology: korean_assimilation
 orthography:
   # Real Revised Romanization (the current official South Korean
   # standard) conventions, restricted to symbols this profile actually

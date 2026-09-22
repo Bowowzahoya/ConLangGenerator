@@ -102,7 +102,7 @@ multi-session feature.
   this scale, and it belongs to a different historical layer (Vedic, not the modeled Classical register) than
   the rest of the profile -- adding it piecemeal for the handful of Rigveda-famous words I could verify (agni,
   deva, ...) would misrepresent coverage, so none was added.
-- **Word-level algorithmic phonology (L, partly done)** *(known limitation, narrowed)* — a
+- **Word-level algorithmic phonology (done for Hindi/Bengali/Korean)** *(narrowed further)* — a
   survey of every curated profile for the same shape of gap Hindi schwa deletion already
   named (a word's own real pronunciation depends on scanning its *whole* syllable sequence,
   not just one adjacent symbol, so it can't be a per-symbol romanization rule) turned up one
@@ -132,11 +132,25 @@ multi-session feature.
   survives almost exclusively on monosyllables (correctly never deleted, a word needs at
   least one vowel) or where the merge would be an illegal cluster.
 
-  **Still open: Korean's own cross-syllable consonant assimilation** (nasal/lateral/place
-  assimilation across syllable-block boundaries) -- a genuinely different algorithm shape
-  (consonant rewriting conditioned on a full neighbor pair, not vowel deletion scanning
-  rightward for syllable weight), not yet attempted; the mechanism above (`word_level_phonology`
-  dispatch) is reusable for it once designed.
+  **Korean's own cross-syllable consonant assimilation is now built too**, reusing the same
+  `word_level_phonology` dispatch with a genuinely different algorithm shape (consonant
+  rewriting conditioned on a full coda/onset neighbor pair, not vowel deletion scanning for
+  syllable weight): nasalization (an obstruent-stop coda before a nasal onset takes that
+  nasal's own place of articulation -- real *국물* gungmul "soup" /k/+/m/ -> [ŋ]+[m]),
+  lateralization (/n/+/l/ or /l/+/n/ both converge on [l]+[l] -- real *신라* Silla), and
+  tensification (an obstruent-stop coda before a plain obstruent onset makes that onset tense
+  -- real *학교* hakgyo "school" /k/+/k/ -> [k]+[kʼ]; real Korean also tensifies a following /s/,
+  but this project's own Korean profile doesn't model a distinct tense /s/, so that one member
+  of the real series stays out of reach). All three are purely phonetically conditioned (no
+  morpheme-boundary tracking needed), unlike real Korean **palatalization** (*같이* gachi
+  "together", from an underlying /t/+/i/ across a root+suffix boundary) -- that one is
+  deliberately left unmodeled, the same "needs live morphology this project doesn't have" gap
+  the wider survey above already declined for Welsh mutation/Japanese rendaku/Arabic-Hebrew
+  article assimilation, not a new instance of Korean's own already-closed gap. Every rewrite is
+  checked against the language's own legal onset/coda set first and skipped when illegal, same
+  discipline as Hindi/Bengali's own deletion rules. Smoke-tested via real `conlang generate
+  --source-language Korean --strictness 1.0`: generated lexicons visibly show all three
+  patterns (tense onsets, "ŋ" codas, doubled "ll").
 - **Phonotactic audit of real words (done).** `conlang audit-lexicons`
   (see `docs/LEXICON_AUDIT.md`) flags words a profile cannot produce and
   aggregates the illegal consonant runs and missing sounds per language.
