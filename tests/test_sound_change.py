@@ -17,7 +17,7 @@ from dataclasses import replace
 from conlang_generator.core.grammar import Alignment, GrammarProfile, MorphologicalType, WordOrder, WordTemplate
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
-from conlang_generator.core.phonology import TONE_DIACRITICS, Consonant, Manner, Place, PhonemeInventory, SyllableStructure, ToneLevel, ToneSystem, Vowel, VowelBackness, VowelHeight, WordAccentSystem
+from conlang_generator.core.phonology import TONE_DIACRITICS, Consonant, LexicalToneSandhiRule, Manner, Place, PhonemeInventory, SyllableStructure, ToneLevel, ToneSandhiRule, ToneSystem, Vowel, VowelBackness, VowelHeight, WordAccentSystem
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK, RomanizationRule, RomanizationScheme, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
@@ -815,7 +815,7 @@ def test_tonogenesis_fires_when_a_qualifying_word_exists_at_a_long_enough_time_d
     vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
     final_ipas = ["kaʔta", "tata"]
     new_tone_system, transform = sound_change._evolve_tone_system(
-        random.Random(1), ToneSystem(enabled=False), 5000, 0.0, final_ipas, known, vowel_symbols,
+        random.Random(1), ToneSystem(enabled=False), 5000, 0.0, final_ipas, known, vowel_symbols, _CONSONANT_BY_IPA,
     )
     assert new_tone_system.enabled
     assert set(new_tone_system.levels) == {ToneLevel.HIGH, ToneLevel.LOW}
@@ -832,7 +832,7 @@ def test_tonogenesis_never_fires_with_no_qualifying_word_in_the_lexicon():
     known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
     vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
     new_tone_system, transform = sound_change._evolve_tone_system(
-        random.Random(1), ToneSystem(enabled=False), 5000, 0.0, ["kata", "tata"], known, vowel_symbols,
+        random.Random(1), ToneSystem(enabled=False), 5000, 0.0, ["kata", "tata"], known, vowel_symbols, _CONSONANT_BY_IPA,
     )
     assert not new_tone_system.enabled
     assert transform is None
@@ -883,7 +883,7 @@ def test_detonalization_fires_under_long_time_depth_and_strips_every_tone_mark()
 
 
 def test_zero_years_never_changes_the_tone_system_either_direction():
-    for base in (_tonogenesis_base(with_glottal_coda=True), _detonalization_base()):
+    for base in (_tonogenesis_base(with_glottal_coda=True), _detonalization_base(), _merger_base(), _split_base()):
         evolved = evolve_language("Evolved", base, 0, TraitProfile(contact_intensity=1.0), seed=1)
         assert evolved.tone_system == base.tone_system
         assert [e.tones for e in evolved.lexicon.entries] == [e.tones for e in base.lexicon.entries]
@@ -903,3 +903,321 @@ def test_a_tonogenesis_runs_own_spelling_stays_consistent_with_its_own_new_ipa(m
     assert evolved.tone_system.enabled  # confirms tonogenesis, not a no-op, actually happened
     assert "ʔ" not in one.ipa
     assert "'" not in one.romanization  # the apostrophe this profile's own scheme uses to spell ʔ
+
+
+# --- Tone splits / mergers ---------------------------------------------
+
+
+def _tonal_inventory_with_voicing() -> tuple[PhonemeInventory, SyllableStructure]:
+    consonants = (
+        Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, prevalence=0.9),
+        Consonant(ipa="b", place=Place.BILABIAL, manner=Manner.STOP, voiced=True, prevalence=0.9),
+        Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, prevalence=0.9),
+    )
+    vowels = (Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),)
+    phonology = PhonemeInventory(consonants=consonants, vowels=vowels)
+    structure = SyllableStructure(max_onset=1, max_coda=0)
+    return phonology, structure
+
+
+def _tonal_romanization() -> RomanizationScheme:
+    return RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="a", latin="a"), RomanizationRule(ipa="p", latin="p"),
+            RomanizationRule(ipa="b", latin="b"), RomanizationRule(ipa="t", latin="t"),
+        ),
+        vowel_symbols=("a",),
+    )
+
+
+def _merger_base() -> Language:
+    # Three real tone categories (HIGH/LOW/RISING) -- a merger needs at
+    # least two eligible (non-NEUTRAL) categories to have anything to pick
+    # from. One ToneSandhiRule and one LexicalToneSandhiRule each mention
+    # RISING, so a merger that happens to absorb it must be seen to remap
+    # or drop them, never leave them dangling.
+    entries = (
+        LexicalEntry(
+            ipa="p" + _tone("a", ToneLevel.HIGH), romanization="pa", glosses=("one",),
+            pos=PartOfSpeech.NOUN, tones=(ToneLevel.HIGH,),
+        ),
+        LexicalEntry(
+            ipa="t" + _tone("a", ToneLevel.RISING), romanization="ta", glosses=("two",),
+            pos=PartOfSpeech.NOUN, tones=(ToneLevel.RISING,),
+        ),
+    )
+    phonology, structure = _tonal_inventory_with_voicing()
+    tone_system = ToneSystem(
+        enabled=True, levels=(ToneLevel.HIGH, ToneLevel.LOW, ToneLevel.RISING),
+        sandhi=(ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.LOW, becomes=ToneLevel.RISING),),
+        lexical_sandhi=(LexicalToneSandhiRule(gloss="two", before=ToneLevel.RISING, becomes=ToneLevel.HIGH),),
+    )
+    return Language(
+        name="Base", spec=GenerationSpec(prompt="p", seed=0), phonology=phonology, syllable_structure=structure,
+        tone_system=tone_system, romanization=_tonal_romanization(), grammar=_glottal_grammar(),
+        lexicon=Lexicon(entries=entries),
+    )
+
+
+def _split_base() -> Language:
+    # "ba" -- syllable-initial *voiced* onset before a HIGH-toned vowel (a
+    # real yin/yang split candidate); "pa" -- voiceless onset, never a
+    # split candidate -- keeps both its own onset and its own tone, so a
+    # split's real per-word selectivity is directly checkable against it.
+    entries = (
+        LexicalEntry(
+            ipa="b" + _tone("a", ToneLevel.HIGH), romanization="ba", glosses=("one",),
+            pos=PartOfSpeech.NOUN, tones=(ToneLevel.HIGH,),
+        ),
+        LexicalEntry(
+            ipa="p" + _tone("a", ToneLevel.HIGH), romanization="pa", glosses=("two",),
+            pos=PartOfSpeech.NOUN, tones=(ToneLevel.HIGH,),
+        ),
+    )
+    phonology, structure = _tonal_inventory_with_voicing()
+    tone_system = ToneSystem(enabled=True, levels=(ToneLevel.HIGH, ToneLevel.LOW))
+    return Language(
+        name="Base", spec=GenerationSpec(prompt="p", seed=0), phonology=phonology, syllable_structure=structure,
+        tone_system=tone_system, romanization=_tonal_romanization(), grammar=_glottal_grammar(),
+        lexicon=Lexicon(entries=entries),
+    )
+
+
+def test_is_syllable_initial_true_for_word_initial_and_after_a_vowel():
+    vowel_symbols = frozenset({"a"})
+    tokens = [("p", ""), ("a", ""), ("t", ""), ("a", "")]
+    assert sound_change._is_syllable_initial(tokens, 0, vowel_symbols)  # word-initial
+    assert sound_change._is_syllable_initial(tokens, 2, vowel_symbols)  # follows a vowel
+
+
+def test_is_syllable_initial_false_for_the_second_member_of_an_onset_cluster():
+    vowel_symbols = frozenset({"a"})
+    tokens = [("p", ""), ("t", ""), ("a", "")]
+    assert sound_change._is_syllable_initial(tokens, 0, vowel_symbols)
+    assert not sound_change._is_syllable_initial(tokens, 1, vowel_symbols)
+
+
+def test_is_syllable_initial_skips_past_stress_and_word_accent_marks():
+    vowel_symbols = frozenset({"a"})
+    tokens = [("p", ""), ("a", ""), (STRESS_MARK, ""), ("t", ""), ("a", "")]
+    assert sound_change._is_syllable_initial(tokens, 3, vowel_symbols)
+
+
+def test_has_qualifying_voiced_onset_true_for_a_syllable_initial_voiced_obstruent_before_a_yang_eligible_tone():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    tokens = ipa_tokenizer.tokenize("b" + _tone("a", ToneLevel.HIGH), known)
+    assert sound_change._has_qualifying_voiced_onset(tokens, _CONSONANT_BY_IPA, vowel_symbols)
+
+
+def test_has_qualifying_voiced_onset_false_for_a_voiceless_onset():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    tokens = ipa_tokenizer.tokenize("p" + _tone("a", ToneLevel.HIGH), known)
+    assert not sound_change._has_qualifying_voiced_onset(tokens, _CONSONANT_BY_IPA, vowel_symbols)
+
+
+def test_has_qualifying_voiced_onset_false_when_the_tone_has_no_yang_partner():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    tokens = ipa_tokenizer.tokenize("b" + _tone("a", ToneLevel.FALLING), known)
+    assert not sound_change._has_qualifying_voiced_onset(tokens, _CONSONANT_BY_IPA, vowel_symbols)
+
+
+def test_tone_split_ipa_devoices_a_qualifying_onset_and_lowers_its_register():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    ipa, tones = sound_change._tone_split_ipa("b" + _tone("a", ToneLevel.HIGH), known, _CONSONANT_BY_IPA, vowel_symbols)
+    assert ipa == "p" + _tone("a", ToneLevel.LOW)
+    assert tones == (ToneLevel.LOW,)
+
+
+def test_tone_split_ipa_leaves_a_voiceless_onset_and_its_tone_unchanged():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    ipa, tones = sound_change._tone_split_ipa("p" + _tone("a", ToneLevel.HIGH), known, _CONSONANT_BY_IPA, vowel_symbols)
+    assert ipa == "p" + _tone("a", ToneLevel.HIGH)
+    assert tones == (ToneLevel.HIGH,)
+
+
+def test_tone_split_ipa_devoices_a_falling_tone_onset_but_keeps_its_tone():
+    # FALLING has no defensible entry in _YANG_TONE -- the onset still
+    # devoices (the conditioning contrast is still lost), but the tone
+    # itself is left alone rather than forced into a fabricated pairing.
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    ipa, tones = sound_change._tone_split_ipa("b" + _tone("a", ToneLevel.FALLING), known, _CONSONANT_BY_IPA, vowel_symbols)
+    assert ipa == "p" + _tone("a", ToneLevel.FALLING)
+    assert tones == (ToneLevel.FALLING,)
+
+
+def test_tone_merger_pair_picks_two_distinct_eligible_levels():
+    pair = sound_change._tone_merger_pair(random.Random(1), (ToneLevel.HIGH, ToneLevel.LOW, ToneLevel.RISING))
+    assert pair is not None
+    survivor, absorbed = pair
+    assert survivor != absorbed
+    assert {survivor, absorbed} <= {ToneLevel.HIGH, ToneLevel.LOW, ToneLevel.RISING}
+
+
+def test_tone_merger_pair_never_picks_neutral():
+    for seed in range(20):
+        pair = sound_change._tone_merger_pair(random.Random(seed), (ToneLevel.HIGH, ToneLevel.NEUTRAL, ToneLevel.LOW))
+        assert pair is not None
+        assert ToneLevel.NEUTRAL not in pair
+
+
+def test_tone_merger_pair_abstains_with_fewer_than_two_eligible_levels():
+    assert sound_change._tone_merger_pair(random.Random(1), (ToneLevel.HIGH,)) is None
+    assert sound_change._tone_merger_pair(random.Random(1), (ToneLevel.HIGH, ToneLevel.NEUTRAL)) is None
+
+
+def test_tone_merger_ipa_replaces_every_occurrence_of_the_absorbed_mark():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    ipa = "p" + _tone("a", ToneLevel.RISING) + "t" + _tone("a", ToneLevel.HIGH)
+    new_ipa, tones = sound_change._tone_merger_ipa(ipa, known, vowel_symbols, ToneLevel.LOW, ToneLevel.RISING)
+    assert new_ipa == "p" + _tone("a", ToneLevel.LOW) + "t" + _tone("a", ToneLevel.HIGH)
+    assert tones == (ToneLevel.LOW, ToneLevel.HIGH)
+
+
+def test_remap_tone_sandhi_substitutes_and_drops_degenerate_rules():
+    rules = (
+        ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.HIGH, becomes=ToneLevel.MID),
+        # before == becomes == RISING -- after remapping both become LOW,
+        # a rule that would map a tone to itself, so it must be dropped.
+        ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.LOW, becomes=ToneLevel.RISING),
+    )
+    remapped = sound_change._remap_tone_sandhi(rules, survivor=ToneLevel.LOW, absorbed=ToneLevel.RISING)
+    assert remapped == (ToneSandhiRule(before=ToneLevel.LOW, after=ToneLevel.HIGH, becomes=ToneLevel.MID),)
+
+
+def test_remap_lexical_tone_sandhi_substitutes_and_drops_degenerate_rules():
+    rules = (
+        LexicalToneSandhiRule(gloss="one", before=ToneLevel.RISING, becomes=ToneLevel.HIGH),
+        LexicalToneSandhiRule(gloss="two", before=ToneLevel.RISING, becomes=ToneLevel.RISING),
+    )
+    remapped = sound_change._remap_lexical_tone_sandhi(rules, survivor=ToneLevel.LOW, absorbed=ToneLevel.RISING)
+    assert remapped == (LexicalToneSandhiRule(gloss="one", before=ToneLevel.LOW, becomes=ToneLevel.HIGH),)
+
+
+def test_tone_merger_fires_at_a_long_enough_time_depth_and_shrinks_the_level_set():
+    # Direct _evolve_tone_system call, same rationale as the tonogenesis
+    # tests above -- isolates this to the mechanism itself, not lexical
+    # replacement/segmental change at the same saturated time depth.
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    base = _merger_base()
+    final_ipas = [e.ipa for e in base.lexicon.entries]
+    new_tone_system = None
+    transform = None
+    # Detonalization and split are also live at this same time depth (all
+    # three of a tonal language's own directions share the same
+    # `if base_tone_system.enabled` branch, checked in that fixed order)
+    # -- deliberately a *moderate* years value, not an extreme one: at a
+    # huge years value detonalization's own rate saturates near 1.0 and,
+    # being checked first, would dominate every seed, leaving no room for
+    # merger to ever be reached at all. Seed-search for one that
+    # specifically lands on merger, the same convention this file's other
+    # seed-dependent tests already use for a specific-branch outcome.
+    for seed in range(300):
+        candidate_system, candidate_transform = sound_change._evolve_tone_system(
+            random.Random(seed), base.tone_system, 200, 0.0, final_ipas, known, vowel_symbols, _CONSONANT_BY_IPA,
+        )
+        if candidate_system.enabled and len(candidate_system.levels) < len(base.tone_system.levels):
+            new_tone_system, transform = candidate_system, candidate_transform
+            break
+    assert new_tone_system is not None, "no seed in range produced a tone merger"
+    assert len(new_tone_system.levels) == len(base.tone_system.levels) - 1
+    absorbed = next(iter(set(base.tone_system.levels) - set(new_tone_system.levels)))
+    assert all(absorbed not in (r.before, r.after, r.becomes) for r in new_tone_system.sandhi)
+    assert all(absorbed not in (r.before, r.becomes) for r in new_tone_system.lexical_sandhi)
+    new_ipas, tones = transform(final_ipas)
+    for ipa in new_ipas:
+        assert TONE_DIACRITICS[absorbed] not in ipa
+
+
+def test_tone_split_fires_at_a_long_enough_time_depth_when_raw_material_exists():
+    # A split (unlike a merger, which only ever shrinks the level set, or
+    # detonalization, which disables tone outright) is the only one of the
+    # three tonal-branch outcomes that ever *grows* `levels` -- see
+    # `_evolve_tone_system`'s own docstring -- so that's enough to identify
+    # it uniquely among this fixture's own three possible outcomes.
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    base = _split_base()
+    final_ipas = [e.ipa for e in base.lexicon.entries]
+    new_tone_system = None
+    transform = None
+    # Same moderate-years reasoning as the merger test above -- and this
+    # fixture's own tone system also has 2 eligible (non-NEUTRAL) levels,
+    # so merger competes for the very same seeds here too (checked first);
+    # the search just needs enough seeds where merger's own roll fails but
+    # split's own succeeds.
+    for seed in range(300):
+        candidate_system, candidate_transform = sound_change._evolve_tone_system(
+            random.Random(seed), base.tone_system, 200, 0.0, final_ipas, known, vowel_symbols, _CONSONANT_BY_IPA,
+        )
+        if candidate_system.enabled and len(candidate_system.levels) > len(base.tone_system.levels):
+            new_tone_system, transform = candidate_system, candidate_transform
+            break
+    assert new_tone_system is not None, "no seed in range produced a tone split"
+    assert ToneLevel.DIPPING in new_tone_system.levels
+    new_ipas, tones = transform(final_ipas)
+    assert new_ipas[0] == "p" + _tone("a", ToneLevel.LOW)  # devoiced onset, register-lowered tone
+    assert new_ipas[1] == final_ipas[1]  # already-voiceless onset -- untouched
+    assert tones[0] == (ToneLevel.LOW,)
+    assert tones[1] == (ToneLevel.HIGH,)
+
+
+def test_tone_split_never_fires_with_no_qualifying_voiced_onset_in_the_lexicon():
+    # Structural gating, the same discipline tonogenesis's own gating
+    # test above already checks: no word anywhere in this language has a
+    # real qualifying voiced onset before a YANG-eligible tone, so there's
+    # no raw material for a split at all this run, regardless of years.
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    tone_system = ToneSystem(enabled=True, levels=(ToneLevel.HIGH, ToneLevel.LOW))
+    final_ipas = ["p" + _tone("a", ToneLevel.HIGH), "t" + _tone("a", ToneLevel.LOW)]
+    for seed in range(50):
+        candidate_system, _ = sound_change._evolve_tone_system(
+            random.Random(seed), tone_system, 5000, 0.0, final_ipas, known, vowel_symbols, _CONSONANT_BY_IPA,
+        )
+        assert ToneLevel.DIPPING not in candidate_system.levels
+
+
+def test_tone_merger_wires_correctly_through_the_full_evolve_language_pipeline(monkeypatch):
+    # Same segmental-rules/replacement silencing as the tonogenesis wiring
+    # test above, for the same reason: isolates this to the plumbing
+    # between _evolve_tone_system and the rest of evolve_language.
+    monkeypatch.setattr(sound_change, "_compute_rates", lambda years, traits: _ZERO_RATES)
+    monkeypatch.setattr(sound_change, "_replacement_rate", lambda years, traits, pos: 0.0)
+    base = _merger_base()
+    evolved = None
+    for seed in range(300):
+        candidate = evolve_language("Evolved", base, 200, TraitProfile(), seed)
+        if candidate.tone_system.enabled and len(candidate.tone_system.levels) < len(base.tone_system.levels):
+            evolved = candidate
+            break
+    assert evolved is not None, "no seed in range produced a tone merger through the full pipeline"
+    absorbed = next(iter(set(base.tone_system.levels) - set(evolved.tone_system.levels)))
+    for entry in evolved.lexicon.entries:
+        assert TONE_DIACRITICS[absorbed] not in entry.ipa
+        assert absorbed not in entry.tones
+
+
+def test_tone_split_wires_correctly_through_the_full_evolve_language_pipeline(monkeypatch):
+    monkeypatch.setattr(sound_change, "_compute_rates", lambda years, traits: _ZERO_RATES)
+    monkeypatch.setattr(sound_change, "_replacement_rate", lambda years, traits, pos: 0.0)
+    base = _split_base()
+    evolved = None
+    for seed in range(300):
+        candidate = evolve_language("Evolved", base, 200, TraitProfile(), seed)
+        if candidate.tone_system.enabled and len(candidate.tone_system.levels) > len(base.tone_system.levels):
+            evolved = candidate
+            break
+    assert evolved is not None, "no seed in range produced a tone split through the full pipeline"
+    one = next(e for e in evolved.lexicon.entries if "one" in e.glosses)
+    two = next(e for e in evolved.lexicon.entries if "two" in e.glosses)
+    assert "b" not in ipa_tokenizer.symbols_only(one.ipa, _KNOWN_SYMBOLS)  # its own voiced onset devoiced
+    assert one.tones == (ToneLevel.LOW,)
+    assert two.ipa == "p" + _tone("a", ToneLevel.HIGH)  # never had a voiced onset -- untouched

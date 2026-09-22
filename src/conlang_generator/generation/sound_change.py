@@ -95,10 +95,12 @@ from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon
 from conlang_generator.core.phonology import (
     TONE_DIACRITICS,
+    LexicalToneSandhiRule,
     Manner,
     PhonemeInventory,
     SyllableStructure,
     ToneLevel,
+    ToneSandhiRule,
     ToneSystem,
     VowelBackness,
 )
@@ -185,6 +187,25 @@ _HALF_LIVES = {
     # machinery can actually detect and simulate; see
     # `_evolve_tone_system`'s own docstring for exactly how.
     "tonogenesis": 400.0,
+    # Tone split: the *already-tonal* counterpart of tonogenesis -- the
+    # same onset-voicing-loss mechanism (a voiced onset historically
+    # lowered a following syllable's own pitch; once the voicing
+    # contrast itself merges away, that pitch difference is what's left
+    # to carry the distinction), just applied to a language that already
+    # has some tone rather than none. Real anchor: Middle Chinese's own
+    # 4-tone-into-8-tone register split, substantially complete by
+    # around the Song-Yuan transition -- a comparable multi-century
+    # timescale to tonogenesis's own Vietnamese/Punjabi cases, so this
+    # shares roughly the same half-life. See `_YANG_TONE`'s own
+    # docstring for exactly which existing tone categories this project
+    # reuses as the "split into" outcome.
+    "tone_split": 420.0,
+    # Tone merger: real Middle Chinese's own "entering" (checked-syllable)
+    # tone category dispersing into the other tones on the way to modern
+    # Mandarin -- often described as a protracted, somewhat irregular
+    # process rather than one clean cutover, so this stays the slowest of
+    # the four tone-system-level half-lives.
+    "tone_merger": 450.0,
 }
 
 Token = tuple[str, str]  # (base symbol, trailing combining-mark decoration)
@@ -617,6 +638,204 @@ def _tonogenesis_ipa(ipa: str, known_symbols: tuple[str, ...], vowel_symbols: fr
     return "".join(out), tuple(tones)
 
 
+def _tone_of(deco: str) -> ToneLevel | None:
+    return next((level for level, mark in TONE_DIACRITICS.items() if mark in deco), None)
+
+
+def _is_syllable_initial(tokens: list[Token], index: int, vowel_symbols: frozenset[str]) -> bool:
+    """Whether the consonant at ``index`` opens its own syllable -- the
+    position real onset-voicing-conditioned tone register-splitting (and
+    tonogenesis more generally) actually cares about, not a second
+    member of an onset cluster. Walks back past any
+    ``STRESS_MARK``/``WORD_ACCENT_MARK`` token first (neither is a real
+    phoneme position) -- the same skip ``_apply_final_devoicing``'s own
+    docstring already documents needing, mirrored here for the onset
+    side instead of the coda side."""
+    i = index - 1
+    while i >= 0 and tokens[i][0] in (STRESS_MARK, WORD_ACCENT_MARK):
+        i -= 1
+    return i < 0 or tokens[i][0] in vowel_symbols
+
+
+_YANG_TONE: dict[ToneLevel, ToneLevel] = {
+    # Real yin/yang tonal register splits (the same historical mechanism
+    # behind Middle Chinese's own 4-tone-to-8-tone division, and the
+    # onset-voicing-loss pathway behind Punjabi/Sino-Tibetan tonogenesis
+    # more generally, see `_tonogenesis_ipa` above): once a syllable's
+    # own onset voicing contrast merges away, its own tone splits into
+    # two registers -- a syllable that used to have a *voiced* onset
+    # surfaces distinctly lower than one that used to have a voiceless
+    # one. This project's own `ToneLevel` doesn't separate register from
+    # contour the way a full Chao-letter system would (see
+    # `core.phonology.TONE_CONTOURS`'s own docstring) -- rather than
+    # inventing new register-marked tone categories, this reuses
+    # whichever *existing* category is this project's own closest real
+    # match: `HIGH` (level, "55") pairs with `LOW` (near-level, "21",
+    # real Standard Mandarin's own textbook register-low counterpart);
+    # `RISING` ("35") pairs with `DIPPING` ("214") -- already documented
+    # on `ToneLevel.DIPPING` itself as "a low tone that dips," i.e.
+    # already this project's own low-register member of that exact pair,
+    # not a new claim invented for this rule. `FALLING`/`MID` have no
+    # defensible low-register partner in this project's own simplified
+    # 7-category inventory and are deliberately left out of this table --
+    # a voiced-onset `FALLING`/`MID` syllable still devoices its own
+    # onset when a split fires (see `_tone_split_ipa` below), but keeps
+    # its own tone unchanged, an honest partial coverage rather than a
+    # fabricated pairing.
+    ToneLevel.HIGH: ToneLevel.LOW,
+    ToneLevel.RISING: ToneLevel.DIPPING,
+}
+
+
+def _has_qualifying_voiced_onset(
+    tokens: list[Token], consonant_by_ipa: dict, vowel_symbols: frozenset[str]
+) -> bool:
+    """Whether this word has at least one real syllable-initial voiced
+    obstruent onset immediately followed (possibly across the rest of
+    its own onset cluster) by a vowel whose own current tone has a real
+    register partner in ``_YANG_TONE`` -- the structural precondition
+    for ``_tone_split_ipa`` to actually change anything (a voiced onset
+    before a ``FALLING``/``MID``/untoned nucleus still devoices under a
+    real split, but produces no *visible* tone change on its own, so it
+    alone isn't "raw material" for this specific check)."""
+    pending_yang = False
+    for i, (symbol, deco) in enumerate(tokens):
+        if symbol in vowel_symbols:
+            if pending_yang and _tone_of(deco) in _YANG_TONE:
+                return True
+            pending_yang = False
+            continue
+        consonant = consonant_by_ipa.get(symbol)
+        if (
+            consonant is not None and consonant.voiced and symbol in _VOICED_TO_VOICELESS
+            and _is_syllable_initial(tokens, i, vowel_symbols)
+        ):
+            pending_yang = True
+    return False
+
+
+def _tone_split_ipa(
+    ipa: str, known_symbols: tuple[str, ...], consonant_by_ipa: dict, vowel_symbols: frozenset[str]
+) -> tuple[str, tuple]:
+    """One word's own real register-split tonogenesis-on-an-already-tonal
+    language: a syllable-initial voiced obstruent onset devoices (the
+    conditioning contrast this rule is *about* losing) and, when its own
+    following vowel's current tone has a real partner in ``_YANG_TONE``,
+    that vowel's own tone becomes that lower-register partner. Every
+    other syllable -- voiceless/sonorant onset, or a tone with no
+    defensible partner -- keeps both its own onset and its own tone
+    exactly as they were. Returns the new ``(ipa, tones)`` pair, ``tones``
+    covering every tone-bearing syllable in left-to-right order (unchanged
+    ones included), the same shape ``LexicalEntry.tones`` already uses
+    everywhere else, so this can simply replace an entry's own ``tones``
+    outright rather than patching it."""
+    tokens = ipa_tokenizer.tokenize(ipa, known_symbols)
+    out: list[str] = []
+    tones: list[ToneLevel] = []
+    pending_yang = False
+    for i, (symbol, deco) in enumerate(tokens):
+        if symbol in vowel_symbols:
+            tone = _tone_of(deco)
+            if tone is not None:
+                new_tone = _YANG_TONE.get(tone, tone) if pending_yang else tone
+                tones.append(new_tone)
+                if new_tone != tone:
+                    deco = deco.replace(TONE_DIACRITICS[tone], TONE_DIACRITICS[new_tone])
+            pending_yang = False
+            out.append(symbol + deco)
+            continue
+        consonant = consonant_by_ipa.get(symbol)
+        if (
+            consonant is not None and consonant.voiced and symbol in _VOICED_TO_VOICELESS
+            and _is_syllable_initial(tokens, i, vowel_symbols)
+        ):
+            out.append(_VOICED_TO_VOICELESS[symbol] + deco)
+            pending_yang = True
+            continue
+        out.append(symbol + deco)
+        # a non-onset-initial consonant (the coda of the *previous*
+        # syllable, or the 2nd member of this syllable's own onset
+        # cluster) doesn't reset `pending_yang` -- still "between" a
+        # devoiced onset and its own vowel either way.
+    return "".join(out), tuple(tones)
+
+
+_MERGE_EXCLUDED_LEVELS = frozenset({ToneLevel.NEUTRAL})
+"""Never a merger source or target: `NEUTRAL` is a real, but categorically
+different, unstressed/pitch-underspecified status (see its own docstring
+on `core.phonology.ToneLevel`), not a pitch register competing with the
+others the way a genuine merger's own two categories are."""
+
+
+def _tone_merger_pair(rng: random.Random, levels: tuple[ToneLevel, ...]) -> tuple[ToneLevel, ToneLevel] | None:
+    """Picks ``(survivor, absorbed)`` from ``levels``'s own real pitch
+    categories (see ``_MERGE_EXCLUDED_LEVELS``) -- ``None`` when fewer
+    than 2 are eligible, an honest "nothing left to merge" abstention
+    rather than a forced pick."""
+    eligible = tuple(level for level in levels if level not in _MERGE_EXCLUDED_LEVELS)
+    if len(eligible) < 2:
+        return None
+    survivor, absorbed = rng.sample(eligible, 2)
+    return survivor, absorbed
+
+
+def _tone_merger_ipa(
+    ipa: str, known_symbols: tuple[str, ...], vowel_symbols: frozenset[str], survivor: ToneLevel, absorbed: ToneLevel
+) -> tuple[str, tuple]:
+    """``absorbed``'s own mark becomes ``survivor``'s wherever it occurs
+    -- a plain character substitution is enough (unlike a split, a
+    merger needs no onset/syllable inspection at all, real or invented:
+    every instance of the absorbed category becomes the survivor,
+    unconditionally). ``tones`` is read back from the *result*, the same
+    "authoritative source is the IPA's own marks" approach every other
+    tone-system transform here already uses, rather than threading the
+    original ``tones`` tuple through a second, parallel code path."""
+    replaced = ipa.replace(TONE_DIACRITICS[absorbed], TONE_DIACRITICS[survivor])
+    tokens = ipa_tokenizer.tokenize(replaced, known_symbols)
+    tones = tuple(_tone_of(deco) for symbol, deco in tokens if symbol in vowel_symbols and _tone_of(deco) is not None)
+    return replaced, tones
+
+
+def _remap_tone_sandhi(
+    rules: tuple[ToneSandhiRule, ...], survivor: ToneLevel, absorbed: ToneLevel
+) -> tuple[ToneSandhiRule, ...]:
+    """A merger doesn't just rewrite lexicon entries -- any existing
+    context-sandhi rule that mentions the now-gone ``absorbed`` category
+    (in any of its own three fields) needs the same substitution, or it
+    would keep referencing a tone this language no longer has. A rule
+    that becomes degenerate after remapping (``becomes == before`` --
+    it would now map a tone to itself) is dropped rather than kept as a
+    harmless no-op, the same "never map a tone to itself" discipline
+    ``resolve_tone_sandhi``'s own invented-rule branch already holds
+    itself to."""
+    remapped = []
+    for rule in rules:
+        before = survivor if rule.before == absorbed else rule.before
+        after = survivor if rule.after == absorbed else rule.after
+        becomes = survivor if rule.becomes == absorbed else rule.becomes
+        if becomes == before:
+            continue
+        remapped.append(ToneSandhiRule(before=before, after=after, becomes=becomes))
+    return tuple(remapped)
+
+
+def _remap_lexical_tone_sandhi(
+    rules: tuple[LexicalToneSandhiRule, ...], survivor: ToneLevel, absorbed: ToneLevel
+) -> tuple[LexicalToneSandhiRule, ...]:
+    """The word-specific counterpart of ``_remap_tone_sandhi`` above, for
+    ``ToneSystem.lexical_sandhi`` (real Mandarin 不/一 -- see
+    ``LexicalToneSandhiRule``'s own docstring) -- same remap-or-drop
+    logic, just across its own two tone-bearing fields instead of three."""
+    remapped = []
+    for rule in rules:
+        before = survivor if rule.before == absorbed else rule.before
+        becomes = survivor if rule.becomes == absorbed else rule.becomes
+        if becomes == before:
+            continue
+        remapped.append(LexicalToneSandhiRule(gloss=rule.gloss, before=before, becomes=becomes))
+    return tuple(remapped)
+
+
 def _evolve_tone_system(
     rng: random.Random,
     base_tone_system: ToneSystem,
@@ -625,32 +844,37 @@ def _evolve_tone_system(
     final_ipas: list[str],
     known_symbols: tuple[str, ...],
     vowel_symbols: frozenset[str],
+    consonant_by_ipa: dict,
 ):
     """Whether this evolution run's own tone *system* itself changes --
     genuinely a different kind of change from the six gradient,
     per-position rules ``_evolve_ipa`` already applies (those adjust
-    individual sounds; this decides whether the language has phonemic
-    tone at all), so it's its own single whole-language roll, not a rate
-    applied independently per eligible position the way e.g. lenition is.
-    Real tone contrastiveness is a systemic property -- once a language
-    has tone, every syllable carries one, not just the syllables that
-    happen to sit in a marked environment -- so unlike lenition or
-    palatalization, this can't sensibly leave the change half-applied
-    across the lexicon; either it fires for the whole language this run,
-    or it doesn't yet.
+    individual sounds; this decides whether/how the language's own tone
+    *categories* themselves change), so each of the four directions below
+    is its own single whole-language roll, not a rate applied
+    independently per eligible position the way e.g. lenition is. Real
+    tone contrastiveness is a systemic property -- once a language has
+    tone, every syllable carries one, not just the syllables that happen
+    to sit in a marked environment -- so unlike lenition or
+    palatalization, none of these four can sensibly leave the change
+    half-applied across the lexicon; each either fires for the whole
+    language this run, or it doesn't yet. Checked in a fixed order, at
+    most one firing per run: detonalization, then (only if still tonal)
+    merger, then (only if still tonal and no merger fired) split; then
+    (only if still non-tonal) tonogenesis -- a language's own tonal
+    status this run can only ever move in one of these four ways once,
+    not compound multiple in the same call.
 
     Returns ``(new_tone_system, transform)``: ``transform`` is ``None``
-    when neither direction fired (the common case -- ``final_ipas``
-    passed in decides *whether* the structural precondition for
-    tonogenesis exists, but is otherwise unused by this function itself),
-    or a pure ``list[str] -> (list[str], list[tuple])`` function when one
-    did, applying that same real per-word transformation deterministically
-    to *any* list of this language's own IPA strings -- the caller runs
-    it over both ``final_ipas`` (the word's own new stored IPA) and
+    when nothing fired (the common case), or a pure
+    ``list[str] -> (list[str], list[tuple])`` function when one did,
+    applying that same real per-word transformation deterministically to
+    *any* list of this language's own IPA strings -- the caller runs it
+    over both ``final_ipas`` (a word's own new stored IPA) and
     ``spelling_ipas`` (the separate, sometimes-different basis
     ``evolve_language`` reconstructs a word's spelling from, e.g. a
     word-final-devoicing hint) so the two stay consistent with each
-    other, without rolling this function's own random decision twice.
+    other, without rolling this function's own random decisions twice.
 
     **Detonalization** (a currently tonal language loses tone): real
     Swahili's own well-documented loss of the reconstructed Bantu tone
@@ -662,6 +886,24 @@ def _evolve_tone_system(
     are stripped from its IPA (``ipa_tokenizer.strip_tones``) and its own
     ``tones`` tuple collapses to ``()``, the same "genuinely toneless"
     shape a from-scratch non-tonal language already has.
+
+    **Tone merger** (two of a currently tonal language's own real pitch
+    categories collapse into one): see ``_tone_merger_pair``/
+    ``_tone_merger_ipa``/``_remap_tone_sandhi``/``_remap_lexical_tone_sandhi``'s
+    own docstrings -- `NEUTRAL` is never a merger participant, and any
+    existing `sandhi`/`lexical_sandhi` rule mentioning the now-gone
+    category is remapped or dropped, never left dangling.
+
+    **Tone split** (a currently tonal language's own existing categories
+    partly divide by register): the *already-tonal* counterpart of
+    tonogenesis, via the same real onset-voicing-loss mechanism (see
+    ``_YANG_TONE``/``_tone_split_ipa``/``_has_qualifying_voiced_onset``'s
+    own docstrings) -- structurally gated the same way tonogenesis is
+    below: no qualifying voiced-onset word, no split, regardless of
+    ``years``. A split can *add* to ``levels`` (real `LOW`/`DIPPING`
+    that weren't previously in use, if this language's own tone system
+    didn't already include them) but never removes anything, unlike a
+    merger.
 
     **Tonogenesis** (a currently non-tonal language gains tone): modeled
     via the one mechanism this project's own phoneme/coda machinery can
@@ -681,6 +923,42 @@ def _evolve_tone_system(
             return [ipa_tokenizer.strip_tones(ipa) for ipa in ipas], [() for _ in ipas]
 
         return ToneSystem(enabled=False), detonalize
+
+    if base_tone_system.enabled:
+        merger_rate = _saturating_rate(years, _HALF_LIVES["tone_merger"], 0.0)
+        if rng.random() < merger_rate:
+            pair = _tone_merger_pair(rng, base_tone_system.levels)
+            if pair is not None:
+                survivor, absorbed = pair
+
+                def merge(ipas: list[str]) -> tuple[list[str], list[tuple]]:
+                    converted = [_tone_merger_ipa(ipa, known_symbols, vowel_symbols, survivor, absorbed) for ipa in ipas]
+                    return [ipa for ipa, _ in converted], [tones for _, tones in converted]
+
+                new_levels = tuple(level for level in base_tone_system.levels if level != absorbed)
+                new_system = ToneSystem(
+                    enabled=True, levels=new_levels,
+                    sandhi=_remap_tone_sandhi(base_tone_system.sandhi, survivor, absorbed),
+                    lexical_sandhi=_remap_lexical_tone_sandhi(base_tone_system.lexical_sandhi, survivor, absorbed),
+                )
+                return new_system, merge
+
+        split_rate = _saturating_rate(years, _HALF_LIVES["tone_split"], 0.0)
+        if rng.random() < split_rate:
+            has_raw_material = any(
+                _has_qualifying_voiced_onset(ipa_tokenizer.tokenize(ipa, known_symbols), consonant_by_ipa, vowel_symbols)
+                for ipa in final_ipas
+            )
+            if has_raw_material:
+                def split(ipas: list[str]) -> tuple[list[str], list[tuple]]:
+                    converted = [_tone_split_ipa(ipa, known_symbols, consonant_by_ipa, vowel_symbols) for ipa in ipas]
+                    return [ipa for ipa, _ in converted], [tones for _, tones in converted]
+
+                new_levels = tuple(dict.fromkeys((*base_tone_system.levels, *_YANG_TONE.values())))
+                return ToneSystem(
+                    enabled=True, levels=new_levels,
+                    sandhi=base_tone_system.sandhi, lexical_sandhi=base_tone_system.lexical_sandhi,
+                ), split
 
     if not base_tone_system.enabled:
         has_raw_material = any(
@@ -993,7 +1271,7 @@ def evolve_language(
     # differently, desyncing a word's own stored IPA from its own spelling.
     new_tone_system, tone_transform = _evolve_tone_system(
         rng, base.tone_system, years, traits.contact_intensity, final_ipas,
-        final_reconstruction_symbols, frozenset(vowel_by_ipa),
+        final_reconstruction_symbols, frozenset(vowel_by_ipa), consonant_by_ipa,
     )
     tones_by_entry: list[tuple] | None = None
     if tone_transform is not None:

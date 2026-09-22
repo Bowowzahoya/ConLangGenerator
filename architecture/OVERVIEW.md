@@ -3673,9 +3673,116 @@ reading code or one-off ad hoc scripts.
   tests). `conlang audit-lexicons`: still 0% flagged (a generation/evolution-only change,
   doesn't touch curated real lexicons).
 
-  **Still open, genuinely harder, left for a later pass** (see `DEFERRED.md` for the full
-  reasoning): tone splits/mergers (would need this project to track a *historical* fact about a
-  symbol past the point the segmental rule that neutralized it already ran -- a materially
-  different kind of state than anything this file currently threads through) and sandhi
-  becoming lexical (needs its own design for exactly when/how a *rule*, not a single symbol or
-  the whole system, transitions into per-word data).
+  **Still open at the time, left for a later pass:** tone splits/mergers, and sandhi becoming
+  lexical. The next entry below closes out splits/mergers; sandhi becoming lexical remains open
+  (see `DEFERRED.md`).
+- **Tone in evolution -- splits and mergers (closing out the tones survey).** Asked to "go ahead
+  with tone splits and mergers," the two sub-items the tonogenesis/detonalization batch above
+  had explicitly left open. Both slot into `_evolve_tone_system` alongside the existing two
+  directions, all four now checked in one fixed order for a tonal language --
+  detonalization, then merger, then split -- each its own independent, mutually exclusive roll
+  (a non-tonal language still only ever considers tonogenesis, unchanged from the batch above).
+
+  **Mergers are tractable with the existing flat `ToneLevel` enum** -- two of a language's own
+  real pitch categories collapse into one, no new representational machinery needed. New
+  `_HALF_LIVES["tone_merger"] = 450.0`, the slowest of the four tone-system half-lives: real
+  Middle Chinese's own "entering" (checked-syllable) tone category dispersing into modern
+  Mandarin's other tones is this project's own citable case, and that dispersal is usually
+  described as protracted and somewhat irregular rather than one clean cutover, which the
+  slower half-life reflects. `_tone_merger_pair` picks `(survivor, absorbed)` from a tonal
+  language's own current `levels`, excluding `NEUTRAL` (a real but categorically different
+  unstressed/underspecified status, never a genuine register competing for survival the way two
+  real pitch categories are) -- `None`, an honest abstention, when fewer than two categories are
+  eligible. `_tone_merger_ipa` does a plain string substitution of the absorbed category's own
+  diacritic for the survivor's, then re-tokenizes the *result* to recompute `tones` -- the same
+  "the IPA's own marks are the authoritative source" discipline tonogenesis's own transform
+  already uses, rather than threading the old `tones` tuple through a second, parallel path.
+
+  A merger doesn't just rewrite lexicon entries -- an existing `ToneSandhiRule` or
+  `LexicalToneSandhiRule` that mentions the now-gone category would otherwise keep referencing a
+  tone this language no longer has. New `_remap_tone_sandhi`/`_remap_lexical_tone_sandhi`
+  substitute the absorbed category for the survivor across every relevant field, and drop the
+  rule outright if that remapping makes it map a tone to itself (`becomes == before`) --
+  matching the "never map a tone to itself" discipline `resolve_tone_sandhi`'s own invented-rule
+  branch already holds itself to for genuinely new rules, applied here to *existing* ones a
+  merger would otherwise orphan.
+
+  **Splits are genuinely harder** -- a real register split (Middle Chinese's own 4-tone-to-
+  8-tone division, the same "yin/yang" story that motivated the "still open" note above) doubles
+  each tone category by register, conditioned on the onset's own voicing before that voicing
+  contrast merges away. This project's `ToneLevel` conflates register and contour into one flat
+  enum (no separate register axis the way a full Chao-letter system would give it), so a
+  faithful implementation isn't directly representable without inventing new tone categories
+  with no real basis in this project's own curated data. Rather than do that, this reuses
+  `ToneLevel`'s own *existing* categories as split outcomes wherever this project already has a
+  defensible real pairing: new `_YANG_TONE = {HIGH: LOW, RISING: DIPPING}` -- `HIGH` ("55"
+  contour) pairs with `LOW` ("21"), real Standard Mandarin's own textbook register-low
+  counterpart; `RISING` ("35") pairs with `DIPPING` ("214"), already documented on
+  `ToneLevel.DIPPING` itself (`core/phonology.py`) as "a low tone that dips" -- already this
+  project's own low-register member of that pair, not a new claim invented for this feature.
+  `FALLING`/`MID` have no defensible low-register partner in this project's own simplified
+  7-category inventory and are deliberately left out of the table: a voiced-onset syllable with
+  either tone still devoices its onset when a split fires (the conditioning contrast is still
+  genuinely lost), but keeps its own tone unchanged -- an honest partial coverage rather than a
+  fabricated pairing. New `_HALF_LIVES["tone_split"] = 420.0`, sharing tonogenesis's own real
+  Middle-Chinese/Song-Yuan-transition anchor, since a split is the same onset-voicing-loss
+  mechanism as tonogenesis applied to a language that already has tone.
+
+  New `_is_syllable_initial` (mirrors `_apply_final_devoicing`'s own coda-side skip of
+  `STRESS_MARK`/`WORD_ACCENT_MARK`, applied to the onset side instead) identifies the position
+  the mechanism actually cares about -- a syllable's own first consonant, not the second member
+  of an onset cluster. `_has_qualifying_voiced_onset` is the structural gate, true only when a
+  real syllable-initial voiced obstruent onset (reusing the existing `_VOICED_TO_VOICELESS`
+  table, originally built for lenition's own reverse direction) sits immediately before a vowel
+  whose current tone has a real partner in `_YANG_TONE` -- a language with no such word anywhere
+  in its own current lexicon has no raw material for a split at all, regardless of `years`, the
+  same structural-gating discipline tonogenesis's own check already uses. `_tone_split_ipa` does
+  a single left-to-right pass with a `pending_yang` flag that persists across any intervening
+  consonants (a previous syllable's own coda, or the 2nd+ member of the *same* onset cluster --
+  neither resets it) until the conditioned vowel is reached, devoicing the onset and, where a
+  register partner exists, lowering the tone in the same pass. Deliberately *not* a new general
+  onset-devoicing rule alongside the six segmental ones -- it only ever fires bundled inside a
+  split's own transform, since most languages that devoice onsets don't also develop
+  compensatory tone, and coupling the two here avoids opening up a separate, unresolved general
+  onset-devoicing design question this batch doesn't need to answer.
+
+  `_evolve_tone_system` gained a `consonant_by_ipa` parameter (the split's own onset-voicing
+  check needs it; the caller in `evolve_language` already had it in scope) and now returns a
+  merger's or split's own `(new_tone_system, transform)` through the same shared contract the
+  other two directions already use -- a merger's `new_tone_system` drops the absorbed category
+  from `levels` (and carries the remapped sandhi/lexical-sandhi forward); a split's `new_tone_system`
+  adds `_YANG_TONE`'s own value categories to `levels` wherever they weren't already present
+  (never removes anything, unlike a merger).
+
+  20 new tests in `test_sound_change.py`: pure-function coverage for `_is_syllable_initial`,
+  `_has_qualifying_voiced_onset` (a qualifying voiced onset, a voiceless one, and a tone with no
+  `_YANG_TONE` partner), `_tone_split_ipa` (devoices-and-lowers, leaves a voiceless onset alone,
+  devoices-but-keeps-tone for `FALLING`), `_tone_merger_pair` (picks two distinct eligible
+  levels, never picks `NEUTRAL`, abstains with fewer than two eligible), `_tone_merger_ipa`, and
+  `_remap_tone_sandhi`/`_remap_lexical_tone_sandhi` (substitutes and drops a rule that becomes
+  degenerate); direct `_evolve_tone_system` calls for both mechanisms firing at a moderate time
+  depth and the split's own structural-gating abstention; a `years=0` no-op check extended to
+  cover both new fixtures; and full `evolve_language` pipeline wiring tests for both, following
+  the tonogenesis batch's own established isolation pattern (silencing the six segmental rules
+  and lexical replacement via `monkeypatch`, since their half-lives all overlap the tone-system
+  ones and there's no "safer" `years` value to pick instead). One real tuning finding during this
+  batch: an extreme `years` value (5000, reused from the tonogenesis tests) made detonalization's
+  own rate saturate near 1.0, and since detonalization is checked first, it dominated essentially
+  every seed and left no room for merger/split to ever be reached at all in a seed search --
+  fixed by testing at a *moderate* `years` value (200) instead, where all of a tonal language's
+  own competing directions still have comparable, non-saturated probability.
+
+  Smoke-tested against real generation: a strict-Mandarin-sourced language merged `DIPPING` into
+  `HIGH` under moderate time depth (`sỉn -> sín`, tone `DIPPING -> HIGH`, `levels` shrinking by
+  one); strict-Thai-, Zulu-, and Yoruba-sourced languages each produced a real split, devoicing a
+  voiced onset and lowering its register where `_YANG_TONE` has a partner (Thai `díw (HIGH) ->
+  tìw (LOW)`, `dǎŋ (RISING) -> tảŋ (DIPPING)`; Zulu `dèˈvùjú -> tèˈfùjú`, `d`/`v` both devoiced;
+  Yoruba `dāˈdā -> tāˈtā`) and devoicing-only where no partner exists (Thai `bîn (FALLING) -> pîn
+  (FALLING)`, tone genuinely unchanged). Full suite: 1053 passed, 2 skipped (up from 1033 -- the
+  20 new tests). `conlang audit-lexicons`: still 0% flagged (a generation/evolution-only change,
+  doesn't touch curated real lexicons).
+
+  That closes out every item the original tones survey opened. **Still open, left for a later
+  pass** (see `DEFERRED.md`): sandhi becoming lexical -- needs its own design for exactly
+  when/how a *rule*, not a single symbol or the whole tone system, transitions into per-word
+  `LexicalToneSandhiRule`-style data.
