@@ -198,9 +198,9 @@ def test_serbo_croatian_has_stress_everywhere_and_the_four_way_accent_where_know
     sc = {spelling: ipa for spelling, ipa in real_words("Serbo-Croatian").values()}
     assert sc["voda"] == "ˈvȍda"  # short falling on the first syllable
     assert sc["planina"] == "plaˈnìna" and sc["dijete"] == "diˈjète"  # short rising on a later syllable
-    assert sc["ovo"] == "ˈovo"  # position only: the length was not curated
+    assert sc["ovo"] == "ˈȍvo"  # every polysyllable now carries the four-way mark
     with_accent = [ipa for ipa in sc.values() if any(m in ipa for m in ("̏", "̀", "́", "̂"))]
-    assert len(with_accent) >= 140
+    assert len(with_accent) >= 370
     # a Neo-Stokavian accent never falls on a non-initial syllable: every accented vowel after the
     # first syllable carries a rising mark
     for ipa in with_accent:

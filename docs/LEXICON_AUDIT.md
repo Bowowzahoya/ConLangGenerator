@@ -68,12 +68,20 @@ How each language's marks were produced:
   *anden* "duck" vs "spirit", the reduced -el/-en/-er endings, compounds), and Danish stød also occurs on
   polysyllabic inflected forms and on transcribed short vowels the lexicon writes without length (*træ*) -- none of
   that is known here.
-* **Serbo-Croatian:** a stress mark on every polysyllable, and the four-way Neo-Stokavian accent (short/long x
-  falling/rising, falling only on the first syllable) on the 151 words whose length I knew. **The other 233 are
-  position only, and their position is the default initial stress** -- correct for most (a Neo-Stokavian
-  polysyllable usually stresses its first syllable) but not verified word by word; the non-initial words I
-  listed are 39, mostly *-ak/-ok* adjectives and prefixed verbs (*visòk*, *pokàzati*, *otvòriti*). The lexicon is
-  the Croatian (ijekavian) standard.
+* **Serbo-Croatian:** every polysyllable now carries the four-way Neo-Stokavian accent (short/long x
+  falling/rising, falling only on the first syllable) -- 151 words from the first pass, the other 233 from a
+  second, hand-curated pass. **This second batch is the least reliable data in this project.** Unlike every
+  other stress rule here, BCMS pitch accent is not recoverable from a word's shape or from a general position
+  rule -- it is lexical, word by word, and I could not reach a source that exposes it to automated lookup
+  (dictionary sites like the Hrvatski jezični portal need an interactive search a page fetch can't drive;
+  Wiktionary has it for some words but not reliably, and cross-checking one word, *vrijeme*, surfaced a real
+  wrinkle: this project's syllabifier treats `ije` as two vowels, which does not always match how it is
+  pronounced). So the 233 are my own best recollection of standard Croatian accentuation, with a few
+  systematic guesses layered in (unstressed prefixes *do- po- s- o-* usually keep the root syllable stressed;
+  everything else defaults to initial, short). Expect real errors in this batch specifically -- more than
+  the rest of the project's "best-effort, not linguist-verified" caveat already implies -- and treat it as a
+  first pass a fluent speaker should check, not as curated data. The lexicon is the Croatian (ijekavian)
+  standard.
 
 All of it is best-effort, like the rest of the lexicons: not linguist-verified, and the fixed patterns ignore the
 real exceptions (loanwords, verbs, compounds) unless listed above.

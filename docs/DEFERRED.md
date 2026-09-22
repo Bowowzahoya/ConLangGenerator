@@ -40,10 +40,13 @@ multi-session feature.
   normalized on input yet.
 - **Onset/coda clusters cap at 2 consonants (done).** Curated triples and quads for strict profiles.
 - **Stress and pitch accent in real words (mostly done).** 40 lexicons carry stress marks, pitch accent or stød
-  (see `LEXICON_AUDIT.md`): Japanese and Ancient Greek carry H/L pitch accent, Serbo-Croatian the stress
-  position plus the four-way accent on 151 words. Arabic, Basque, Georgian, Hawaiian and Hindi use best-effort
-  position/weight rules. Still open: (a) Serbo-Croatian's length and pitch for the other 233 words (their stress
-  is the default initial, unverified); (b) Danish stød and the Swedish/Norwegian accents use each profile's default rule (monosyllable/heaviness,
+  (see `LEXICON_AUDIT.md`): Japanese and Ancient Greek carry H/L pitch accent, Serbo-Croatian the full
+  four-way accent on every polysyllable (151 words from a rule-consistent first pass, 233 from hand recall --
+  **this second batch is this project's least reliable data**; BCMS pitch accent is lexical, not derivable
+  from shape, and I could not reach an automatable source for it -- expect real per-word errors, more than the
+  project's usual best-effort caveat implies). Arabic, Basque, Georgian, Hawaiian and Hindi use best-effort
+  position/weight rules. Still open: (a) verifying the 233 Serbo-Croatian words against a real dictionary;
+  (b) Danish stød and the Swedish/Norwegian accents use each profile's default rule (monosyllable/heaviness,
   final stress), not per-word data -- lexical exceptions (Swedish *anden*, -el/-en/-er words, compounds, stød on
   polysyllabic inflected forms) are unknown; Sanskrit's Vedic accent; (c) the ~9% of Japanese and ~4% of Ancient Greek polysyllables left unmarked; (d) fixed-pattern
   languages ignore their real exceptions (loanwords, verbs) -- an `exceptions` pass per language would refine
