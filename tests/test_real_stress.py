@@ -280,3 +280,44 @@ def test_swedish_and_norwegian_accent_follows_the_profile_default():
     assert real_stress.scandinavian_accent(real_words("Swedish")["under"][1], "Swedish") == 2
     assert real_stress.scandinavian_accent(real_words("Swedish")["news"][1], "Swedish") == 2
     assert real_stress.scandinavian_accent(real_stress.with_scandinavian_accent("förˈstoː", "Swedish"), "Swedish") == 1  # final stress
+
+
+def test_slavic_and_bantu_and_nahuatl_have_no_diphthong_fusion():
+    # regression: the generic vowel+high-offglide fusion rule (built for Greek/Germanic-style
+    # languages) was wrongly applied to language families that genuinely lack phonemic
+    # diphthongs -- every written vowel sequence is a hiatus of separate syllables. Found by
+    # scanning each curated lexicon for a fusable sequence and checking whether the real
+    # language actually fuses it (the same way the Japanese bug was found).
+    assert real_stress.syllable_count("pauk", "Serbo-Croatian") == 2  # pa-uk "spider", not "pauk"
+    assert real_stress.syllable_count("pauk", "Russian") == 2  # spider is the same word, same fact
+    assert real_stress.syllable_count("nauˈʃitɕel", "Polish") == 4  # na-u-czy-ciel "teacher"
+    assert real_stress.syllable_count("kusahau", "Swahili") == 4  # ku-sa-ha-u "to forget" (Bantu: no closed syllables, no diphthongs)
+    assert real_stress.syllable_count("maitɬ", "Nahuatl") == 2  # ma-itl "hand"
+    sw = dict(real_words("Serbo-Croatian").values())
+    assert sw["pauk"] == "ˈpauk"  # falling, word-initial
+    ru = dict(real_words("Russian").values())
+    assert real_stress.stressed_syllable(ru["pauk"], "Russian") == 1  # оксито́н: stress on -ук
+    na = dict(real_words("Nahuatl").values())
+    assert real_stress.stressed_syllable(na["maitl"], "Nahuatl") == 0  # penultimate of 2: the first
+
+
+def test_spanish_and_swedish_named_hiatus_exceptions_round_trip_correctly():
+    # regression: oír/reír/raíz (Spanish, a written tilde marks hiatus not a diphthong) and
+    # nio/tio (Swedish "nine"/"ten", a real ni-o/ti-o hiatus) used to get fused by the generic
+    # rule; a hand-corrected string alone isn't enough, since re-reading it would re-fuse and
+    # desync the stress index from the true syllable count -- _NEVER_FUSE_WORDS fixes the
+    # underlying read, not just the stored string.
+    es = dict(real_words("Spanish").values())
+    for spelling in ("oír", "reír", "raíz"):
+        ipa = es[spelling]
+        assert real_stress.syllable_count(ipa, "Spanish") == 2
+        index = real_stress.stressed_syllable(ipa, "Spanish")
+        assert index == 1  # the tilde marks final stress
+        assert real_stress.with_stress(ipa, "Spanish", index) == ipa  # round-trips
+    sv = dict(real_words("Swedish").values())
+    for spelling in ("nio", "tio"):
+        ipa = sv[spelling]
+        assert real_stress.syllable_count(ipa, "Swedish") == 2
+        assert real_stress.scandinavian_accent(ipa, "Swedish") == 2  # non-final stress, no reduced syllable
+    # the same symbol sequence in a word NOT on the exception list still fuses normally
+    assert real_stress.syllable_count("boi", "Spanish") == 1

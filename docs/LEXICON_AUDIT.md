@@ -69,6 +69,42 @@ How each language's marks were produced:
   fused diphthong offglide (*poieō*, *pisteuō*, *pauō*, *homoios*, *ploion*, ...) got its mark on the offglide instead
   of the real nucleus, leaving the true nucleus unmarked and the word unparseable -- 8 spellings affected, all among
   the ones this session's own "still unmarked" count already listed, so nothing already counted as done was wrong.
+* **A systematic check for the same two bug shapes across every other curated language.** With the Greek and
+  Japanese bugs fixed, every language that has *ever* been given real stress marks was re-audited for the same
+  two failure modes: (a) a writer computing its own nucleus positions instead of reusing the shared reader (only
+  `with_greek_accent` did this); (b) the generic vowel + high-offglide fusion rule (built for Greek/Germanic-style
+  diphthongs) applied to a language that doesn't have that phonology. For (b), every curated lexicon was scanned
+  for a fusable vowel sequence, and each hit checked against whether the real language actually fuses it (the same
+  way the Japanese bug itself was found). Confirmed real bugs, fixed:
+  - **Serbo-Croatian, Polish, Russian (Slavic: no phonemic diphthongs at all).** *pauk* "spider" (Serbo-Croatian
+    and Russian, the same word) is *pa-uk*, two syllables, not one; Polish *nauczyciel* "teacher" is *na-u-czy-ciel*,
+    four syllables. Both words round-tripped through this project's "stress a monosyllable never carries a mark"
+    convention as silently unmarked, or (Polish) had their mark on the wrong syllable of an undercounted word.
+  - **Swahili (Bantu: strict open-syllable CV structure, no diphthongs and no closed syllables at all).**
+    *kusahau* "to forget" is *ku-sa-ha-u* (four syllables, not three); 14 words' stress moved to the correct
+    penultimate syllable once the true syllable count was restored.
+  - **Nahuatl (a plain 4-vowel system with no diphthong phonemes in the profile itself).** *maitl* "hand" is
+    *ma-itl*, two syllables, not one.
+  - **Two individual, named exceptions**, fixed as specific words rather than a language-wide rule (the general
+    fusion behavior is correct for the rest of each language): Spanish *oír*/*reír*/*raíz*, where a written tilde
+    on í/ú next to another vowel marks real hiatus, not a diphthong; Swedish *nio*/*tio* ("nine"/"ten"), a genuine
+    *ni-o*/*ti-o* hiatus the generic rule wrongly fused. A hand-edited string alone would not have been enough for
+    these (re-reading it would re-fuse the vowels and desync the stress index from the true syllable count), so
+    `_NEVER_FUSE_WORDS` fixes the underlying read, keyed per word per language.
+
+  **Checked and left alone** (real diphthongs, fusion is correct): Ancient Greek, Basque, Danish, Finnish,
+  Hawaiian (already its own explicit pair list), Icelandic, Italian, Latin, Norwegian, Old Norse, Portuguese
+  (already its own rule), Tamil (ai/au are traditional unit vowels in the Tamil vowel inventory), Thai, Welsh.
+
+  **Not resolved, lower confidence, left as-is:** Indonesian and Malay have a large hit count (25, 23) but the
+  real facts are genuinely mixed -- Indonesian *does* have real word-final /ai/, /au/, /oi/ diphthongs in most
+  positions, but a handful of specific words (*air* "water" is the standard example) are known exceptions
+  pronounced as hiatus; I don't have reliable per-word knowledge of which is which, and a blanket rule would
+  introduce more errors than it fixes. Persian's 2 hits (*davidan*, *qahvei*) look more like a transcription
+  choice (و as vowel "u" rather than consonant "v") than a fusion-rule bug, and are left alone. Bengali,
+  Hebrew, Korean, Mongolian, Turkish had small hit counts (2-17) I did not have time to individually verify;
+  Cantonese and Mandarin's large counts are irrelevant noise -- they are tonal languages this project's stress
+  mechanism never touches (they use a separate tone-marking pipeline).
 * **Danish stød and the Swedish/Norwegian word accents:** encoded as generated words carry them (the glottalization
   mark `ˀ` after the stressed syllable's rime; a High or Low diacritic on the stressed vowel). Beyond each profile's
   own shape default (Danish: a monosyllable takes stød when its syllable is heavy -- a long vowel or diphthong, or a
@@ -131,7 +167,7 @@ Latin           lexical                               442       442
 Malay           lexical                               473       473
 Mandarin        -                                       4       155
 Mongolian       first_long_vowel_else_initial         203       203
-Nahuatl         penultimate                           231       231
+Nahuatl         penultimate                           234       234
 Nama            -                                       0         4
 Navajo          -                                       0        16
 Norwegian       initial                               228       228
@@ -141,13 +177,13 @@ Persian         final                                 326       326
 Polish          penultimate                           362       362
 Portuguese      final_unless_unstressed_vowel         431       431
 Quechua         penultimate                           387       387
-Russian         lexical                               379       379
+Russian         lexical                               380       380
 Sanskrit        -                                       0       371
-Serbo-Croatian  lexical                               384       384
-Spanish         penultimate_or_final_by_coda          444       444
+Serbo-Croatian  lexical                               385       385
+Spanish         penultimate_or_final_by_coda          447       447
 Sumerian        -                                       0        17
-Swahili         penultimate                           469       469
-Swedish         initial                               240       240
+Swahili         penultimate                           471       471
+Swedish         initial                               242       242
 Tamil           initial                               441       441
 Thai            -                                       3        29
 Tibetan         -                                       0       126

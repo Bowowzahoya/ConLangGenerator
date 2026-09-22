@@ -63,6 +63,16 @@ multi-session feature.
   generic offglide-fusion rule was wrongly applied to Japanese, which has none (every written vowel is its own
   mora) -- this only broke *reading* the already-correct stored marks, so the coverage number didn't move, but
   `syllable_count`/`pitch_pattern` were silently wrong for any word containing a fusable vowel sequence.
+  A systematic follow-up check across every other curated language found the same fusion-rule bug applied to
+  three more families that have no phonemic diphthongs at all -- Slavic (Polish, Russian, Serbo-Croatian:
+  *pauk* "spider" is *pa-uk*, two syllables), Bantu (Swahili: strict open-CV structure, *kusahau* is
+  *ku-sa-ha-u*, four syllables, 14 words affected), Nahuatl (a plain 4-vowel system, *maitl* "hand" is
+  *ma-itl*, two syllables) -- plus two individual named exceptions where the language's general fusion rule
+  is otherwise correct: Spanish *oír*/*reír*/*raíz* (a written tilde marks real hiatus, not a diphthong) and
+  Swedish *nio*/*tio* "nine"/"ten" (a genuine *ni-o*/*ti-o* hiatus). All six fixed with regression tests; see
+  `LEXICON_AUDIT.md` for the full list of languages checked and the ones left open (Indonesian/Malay's mixed
+  diphthong-vs-hiatus facts, Persian's 2 low-confidence hits) because a blanket rule would trade one error for
+  another.
 - **Sanskrit's Vedic accent (declined).** Considered and rejected, not just left open: the profile already
   deliberately targets accentless Classical Sanskrit (see its own comment); the lexicon's 129 verbs are cited
   as bare roots, and real Vedic finite-verb accent is a sentence-level syntactic rule, not a property of the

@@ -54,21 +54,44 @@ def _is_vowel(symbol: str) -> bool:
     return symbol in lexicon_audit._VOWEL_SYMBOLS
 
 
+# Languages with no phonemic diphthongs at all: every written vowel-vowel sequence is a
+# hiatus (two syllables), never a fused offglide -- the generic _HIGH_OFFGLIDES rule (built
+# for Greek/Germanic-style languages) is wrong for these. Japanese: every written vowel is its
+# own mora. Serbo-Croatian (and Slavic generally): no phonemic diphthongs (pauk "spider" is
+# pa-uk, two syllables, not one; found the same way the Japanese bug was -- scanning the
+# lexicon for a vowel + _HIGH_OFFGLIDES sequence and checking whether real pronunciation
+# actually fuses it).
+_NO_DIPHTHONG_LANGUAGES = frozenset({"Japanese", "Serbo-Croatian", "Polish", "Russian", "Swahili", "Nahuatl"})
+
+
 def _pairs(name: str) -> frozenset[str] | None:
     if name == "Hawaiian":
         return _HAWAIIAN_DIPHTHONGS
-    if name == "Japanese":
-        # real Japanese has no vowel-hiatus fusion at all -- every written vowel is its own
-        # mora (taiyō "sun" is four morae ta-i-yo-o, not the two a European offglide rule would
-        # give it). An empty pairs set (not None) reuses the "explicit list" branch of _nuclei to
-        # turn every vowel into its own nucleus unconditionally.
+    if name in _NO_DIPHTHONG_LANGUAGES:
+        # An empty pairs set (not None) reuses the "explicit list" branch of _nuclei to turn
+        # every vowel into its own nucleus unconditionally, with no fusion at all.
         return frozenset()
     return None
 
 
+# A handful of individual words are real, named exceptions to their own language's usual
+# fusion behaviour -- not worth a language-wide rule change, since the general behaviour is
+# right for everything else. Keyed by the word's own plain (unmarked, undecorated) IPA symbol
+# sequence, language-specific, so an identical sequence in another word or another language
+# still fuses normally. Spanish oír/reír/raíz: a written tilde on í/ú next to another vowel
+# marks hiatus, not a diphthong, in real Spanish orthography. Swedish nio/tio (nine/ten): a
+# real ni-o/ti-o hiatus, not the diphthong the generic vowel+high-offglide rule would give them.
+_NEVER_FUSE_WORDS: dict[str, frozenset[tuple[str, ...]]] = {
+    "Spanish": frozenset({("o", "i", "ɾ"), ("r", "e", "i", "ɾ"), ("r", "a", "i", "s")}),
+    "Swedish": frozenset({("n", "iː", "u"), ("t", "iː", "u")}),
+}
+
+
 def _nuclei_for(toks: list[tuple[str, str]], name: str) -> list[int]:
     """``_nuclei`` with this language's own diphthong/offglide/fusion rules applied."""
-    return _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES, _pairs(name), _ALWAYS_FUSES_AFTER_A_VOWEL.get(name))
+    plain = tuple(s for s, _ in toks)
+    pairs = frozenset() if plain in _NEVER_FUSE_WORDS.get(name, ()) else _pairs(name)
+    return _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES, pairs, _ALWAYS_FUSES_AFTER_A_VOWEL.get(name))
 
 
 def _nuclei(
