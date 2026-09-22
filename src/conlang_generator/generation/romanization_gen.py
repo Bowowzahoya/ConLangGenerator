@@ -189,7 +189,14 @@ _DIGRAPH_TABLE: dict[str, str] = {
     # phonology_gen.py's own extended `_PALATALIZED_GROUP`) -- same
     # trailing-"y" convention as the original four above.
     "pʲ": "py", "bʲ": "by", "mʲ": "my", "fʲ": "fy", "vʲ": "vy",
-    "sʲ": "sy", "zʲ": "zy", "kʲ": "ky", "xʲ": "xy", "rʲ": "ry",
+    "sʲ": "sy", "zʲ": "zy", "kʲ": "ky", "xʲ": "xy", "rʲ": "ry", "gʲ": "gy",
+    # Velarized ("dark") l -- no real Russian romanization scheme marks
+    # this distinctly from plain л, so it spells the same as the already-
+    # unmarked plain "l" this style falls back to by default.
+    "ɫ": "l",
+    # Long alveolo-palatal fricative (щ) -- the real, common BGN/PCGN-style
+    # digraph.
+    "ɕː": "shch",
     # Real Serbo-Croatian syllabic /r/ (vrt, trg, Krk) -- spelled
     # identically to consonantal /r/ in every real orthography, no
     # special marking in any style.
@@ -350,7 +357,15 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # Real Russian's much broader palatalization series -- same identity
     # IPA-modifier-letter treatment as the original four above.
     "pʲ": "pʲ", "bʲ": "bʲ", "mʲ": "mʲ", "fʲ": "fʲ", "vʲ": "vʲ",
-    "sʲ": "sʲ", "zʲ": "zʲ", "kʲ": "kʲ", "xʲ": "xʲ", "rʲ": "rʲ",
+    "sʲ": "sʲ", "zʲ": "zʲ", "kʲ": "kʲ", "xʲ": "xʲ", "rʲ": "rʲ", "gʲ": "gʲ",
+    # Velarized ("dark") l -- no real Russian romanization scheme marks
+    # this distinctly from plain л, same unmarked-"l" treatment as the
+    # digraph style above.
+    "ɫ": "l",
+    # Long alveolo-palatal fricative (щ) -- the real ISO 9 scholarly
+    # single-letter transliteration, distinct from plain ɕ's own "ś"
+    # above.
+    "ɕː": "ŝ",
     # Real Serbo-Croatian syllabic /r/ -- no special marking in any style
     # (see the digraph table's own comment).
     "r̩": "r",
@@ -493,7 +508,13 @@ _MONOLETTER_TABLE: dict[str, str] = {
     # Real Russian's much broader palatalization series -- same
     # merge-with-plain-consonant treatment as the original four above.
     "pʲ": "p", "bʲ": "b", "mʲ": "m", "fʲ": "f", "vʲ": "v",
-    "sʲ": "s", "zʲ": "z", "kʲ": "k", "xʲ": "x", "rʲ": "r",
+    "sʲ": "s", "zʲ": "z", "kʲ": "k", "xʲ": "x", "rʲ": "r", "gʲ": "g",
+    # Velarized ("dark") l merges with plain "l", same shallow-merging
+    # treatment every other marked feature in this table gets.
+    "ɫ": "l",
+    # Long alveolo-palatal fricative (щ) merges with plain ɕ's own
+    # monoletter value.
+    "ɕː": "s",
     # Real Serbo-Croatian syllabic /r/ -- no special marking in any style.
     "r̩": "r",
     "kː": "k", "tː": "t", "pː": "p", "sː": "s", "nː": "n", "lː": "l",

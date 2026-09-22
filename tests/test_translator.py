@@ -17,13 +17,14 @@ from conlang_generator.translation.translator import translate_to_conlang, trans
 # below), so these tests stay fully deterministic with no LLM involved.
 _NOM_ACC_SEED = 2
 
-# seed=180 (default traits): alignment=ergative_absolutive,
-# cases=("ergative", "absolutive"), word_order=VSO, has_overt_copula=True,
+# seed=283 (default traits): alignment=ergative_absolutive,
+# cases=("ergative", "absolutive"), word_order=SOV, has_overt_copula=True,
 # adjective_after_noun=False -- same "no coinage needed" property.
-# (Re-found from seed=8 after sonority.legal_*_pairs started excluding
-# clusters that don't round-trip through ipa_tokenizer shifted downstream
-# rng draws -- same "seed-shift" pattern as tests/test_sound_change.py.)
-_ERGATIVE_SEED = 180
+# (Re-found from seed=180 after the Russian palatalization-gap phoneme-pool
+# addition (gʲ) shifted downstream rng draws -- same "seed-shift from new
+# content, not a functional regression" pattern as the seed=8 -> 180 note
+# this comment used to have, and tests/test_sound_change.py's own history.)
+_ERGATIVE_SEED = 283
 
 # seed=4 (default traits): has_articles=False, has_overt_copula=False,
 # cases=() -- the "none of these features exist" baseline, confirming

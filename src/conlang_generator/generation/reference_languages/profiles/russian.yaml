@@ -1,6 +1,13 @@
 name: Russian
 aliases: [russkiy]
-consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ʒ", x, "tʃ", m, n, l, r, j, "tʲ", "dʲ", "nʲ", "lʲ", "pʲ", "bʲ", "mʲ", "fʲ", "vʲ", "sʲ", "zʲ", "kʲ", "xʲ", "rʲ", "ɕ"]
+consonants: [p, b, t, d, k, g, f, v, s, z, "ʃ", "ʒ", x, "tʃ", m, n, "ɫ", r, j, "tʲ", "dʲ", "nʲ", "lʲ", "pʲ", "bʲ", "mʲ", "fʲ", "vʲ", "sʲ", "zʲ", "kʲ", "xʲ", "rʲ", "gʲ", "ɕː"]
+# "ɫ" (not plain "l") is deliberate: real Russian's plain, non-palatalized
+# л is phonetically velarized ("dark l"), contrasting with the already-
+# modeled palatalized "lʲ" the same way every other hard/soft pair here
+# does -- see phonology_gen.py's own comment on this symbol. "ɕː" (not
+# plain "ɕ") likewise reflects that real щ is always long, with no plain
+# short counterpart, unlike every other member of this profile's
+# palatalization series.
 vowels: [i, e, a, o, u, "ɨ", "ə"]
 coda_profile: unrestricted
 max_onset: 2
@@ -33,18 +40,20 @@ attested_onset_clusters:
   # excluded -- already covered by sonority's own generic exception, same
   # convention every other profile uses.
   - [p, r]                   # "право"
-  - [p, l]                   # "плохой"
+  - [p, "ɫ"]                  # "плохой" -- plain (non-palatalized) л is
+                              # phonetically velarized; see the profile
+                              # header's own "ɫ" comment.
   - [t, r]                   # "три"
   - [d, r]                   # "друг"
   - [k, r]                   # "кровь"
-  - [k, l]                   # "класс"
+  - [k, "ɫ"]                  # "класс"
   - [g, r]                   # "гром"
-  - [g, l]                   # "глаз"
+  - [g, "ɫ"]                  # "глаз"
   - [b, r]                   # "брат"
-  - [b, l]                   # "блин"
+  - [b, "ɫ"]                  # "блин"
   - [f, r]                   # "фрукт"
   - [v, r]                   # "врач"
-  - [v, l]                   # "власть"
+  - [v, "ɫ"]                  # "власть"
   - [z, n]                   # "знать"
   - [m, n]                   # "много"
   - [v, z]                   # "взять"
@@ -57,13 +66,13 @@ attested_onset_clusters:
   - [s, t]
   - [s, p]
   - [s, k]
-  - [s, l]
+  - [s, "ɫ"]                  # "слово" etc. -- see the profile header's own "ɫ" comment
   - [s, m]
   - [s, n]
   - [s, v]
   - [z, v]
   - [z, m]
-  - [z, l]
+  - [z, "ɫ"]                  # "злой"
   - [r, v]
   - ["ʃ", t]
   - [g, d]
@@ -75,7 +84,6 @@ attested_onset_clusters:
   - [t, s]
   - [f, s]
   - [z, d]
-  - [d, l]
   - [s, "tʃ"]
   # real clusters found by `conlang audit-lexicons`
   - [s, "vʲ"]
@@ -112,13 +120,14 @@ attested_coda_clusters:
   # profile models -- illustrative, not exhaustive.
   - [s, t]                   # "мост"
   - [r, k]                   # "парк"
-  - [l, k]                   # "полк"
+  - ["ɫ", k]                  # "полк" -- see the profile header's own "ɫ" comment
   - [n, k]                   # "банк"
   - [n, t]                   # "студент"
   - [r, t]                   # "спорт"
   - [s, k]                   # "риск"
   - [z, m]                   # "организм"
-  - [l, s]                   # "рельс"
+  - ["lʲ", s]                 # "рельс" -- the soft sign before л makes this
+                              # one genuinely palatalized, unlike "полк" above
   - [f, t]                   # illustrative
   # real clusters found by `conlang audit-lexicons`
   - [t, s]
@@ -130,7 +139,7 @@ attested_coda_clusters:
   - [r, "tʲ"]
   # initial/final clusters of real words found by `conlang audit-lexicons`
   - [b, "lʲ"]
-  - [l, m]
+  - ["ɫ", m]                  # "холм"
   - [r, "fʲ"]
   - [r, x]
   - ["sʲ", "tʲ"]
@@ -168,12 +177,20 @@ orthography:
   - {ipa: "kʲ", latin: "k'"}
   - {ipa: "xʲ", latin: "kh'"}
   - {ipa: "rʲ", latin: "r'"}
+  - {ipa: "gʲ", latin: "g'"}
+  # Real Russian orthography never marks hard vs. soft л differently in
+  # transliteration beyond the soft sign already on "lʲ" above -- plain
+  # "l" is the standard, correct rendering of velarized "ɫ" too.
+  - {ipa: "ɫ", latin: l}
+  # Real scholarly transliteration of щ -- distinct from ш's own "š"
+  # above, following the same digraph tradition BGN/PCGN uses.
+  - {ipa: "ɕː", latin: "shch"}
 core_vocabulary_average_syllables: 1.86  # hand-counted across this project's own CORE_MEANINGS glosses -- higher than every Germanic profile, reflecting Russian's own richer nominal/verbal morphology even at the bare-root level; illustrative, more counting uncertainty than the perfected profiles, same caveat as every newly-added language
 onset_frequency_tiers:
   very_common: [s, t, k, p, n, v, m]
-  common: [d, b, g, z, r, l, j, "tʃ"]
-  uncommon: [f, x, "ʃ", "ʒ", "ɕ", "tʲ", "dʲ", "nʲ", "lʲ"]
-  rare: ["pʲ", "bʲ", "mʲ", "fʲ", "vʲ", "sʲ", "zʲ", "kʲ", "xʲ", "rʲ"]
+  common: [d, b, g, z, r, "ɫ", j, "tʃ"]
+  uncommon: [f, x, "ʃ", "ʒ", "ɕː", "tʲ", "dʲ", "nʲ", "lʲ"]
+  rare: ["pʲ", "bʲ", "mʲ", "fʲ", "vʲ", "sʲ", "zʲ", "kʲ", "xʲ", "rʲ", "gʲ"]
 nucleus_frequency_tiers:
   very_common: [a, i]
   common: [o, e, u]
@@ -187,9 +204,9 @@ coda_frequency_tiers:
   # this table is ever queried), same dead-data-but-harmless status
   # Polish's own coda_frequency_tiers already has for the same real fact.
   very_common: [t, k, s, n]
-  common: [r, l, m, p, "tʃ"]
-  uncommon: [f, x, "ʃ", "ɕ", j, "tʲ", "nʲ", "lʲ"]
-  rare: [b, d, g, v, z, "ʒ", "dʲ", "bʲ", "vʲ", "zʲ", "pʲ", "fʲ", "sʲ", "kʲ", "xʲ", "rʲ", "mʲ"]
+  common: [r, "ɫ", m, p, "tʃ"]
+  uncommon: [f, x, "ʃ", "ɕː", j, "tʲ", "nʲ", "lʲ"]
+  rare: [b, d, g, v, z, "ʒ", "dʲ", "bʲ", "vʲ", "zʲ", "pʲ", "fʲ", "sʲ", "kʲ", "xʲ", "rʲ", "mʲ", "gʲ"]
 stress_pattern: lexical  # real Russian stress is famously "free" -- lexically fixed per word (and can even move within a paradigm), not predictable from a word's shape, same "genuinely complex, no simple flat rule" status English/Arabic/Italian's own stress already has
 stress_deviation_rate: 0.45  # illustrative -- close to English's own near-coin-flip figure, reflecting how little a flat positional default actually predicts real Russian stress
 stress_driven_vowel_reduction: true  # real Russian akanye/ikanye: unstressed о/а merge toward a reduced central quality, unstressed е/я toward a reduced front quality -- one of the most famous facts about Russian phonology

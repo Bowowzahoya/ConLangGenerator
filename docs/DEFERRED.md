@@ -17,9 +17,29 @@ multi-session feature.
   the surface allophones `β ð ɣ` stay out of the profile, since invented words
   would place them word-initially. Revisit only with a positional-allophone
   mechanism (intervocalic-only sounds).
-- **Russian palatalization gaps (M).** No `ʃʲ`/`ʒʲ`/`gʲ`, no hard/soft `l`
-  contrast (`ɫ`), no long `ɕː` for щ (written `ɕ`), and vowel reduction
-  (akan'e) is only partly reflected in the lexicon transcriptions.
+- **Russian palatalization gaps (mostly done).** `gʲ` added, completing the
+  velar palatalized series alongside the already-modeled `kʲ`/`xʲ`. The
+  hard/soft `l` contrast is now real: plain л is modeled as `ɫ` (velarized
+  "dark l", its true phonetic value), distinct from the already-modeled
+  palatalized `lʲ`; every lexicon word's bare `l` was reclassified via the
+  real IPA tokenizer, cross-checked word-by-word against real Russian
+  pronunciation, not a blind substitution. щ is now `ɕː` (always long, no
+  plain short counterpart, unlike the rest of the series), replacing plain
+  `ɕ` in the 5 words that use it. `ʃʲ`/`ʒʲ` were **not** added -- checked
+  against real Russian phonology first: ш/ж are canonically the language's
+  own "always hard," unpaired fricatives, with no phonemic soft
+  counterpart to model; the original note asserting this gap was wrong,
+  not the pool, so it's corrected here instead of "fixed." Doing this pass
+  also surfaced one pre-existing, unrelated lexicon bug (*сильный* "strong"
+  stored with a hard л where the real word has a soft one -- `docs/LEXICON_AUDIT.md`
+  has the full account) and two stale `attested_*_clusters` comments in
+  the profile, both fixed alongside. **Still open:** vowel reduction
+  (akan'e/ikan'e) is only partly reflected in the lexicon's own IPA
+  transcriptions -- the profile's `stress_driven_vowel_reduction: true`
+  flag governs *generated* words, but auditing all 494 curated real words
+  for whether every unstressed о/а is correctly written `ə` would be a
+  further pass of the same scale as the stress/pitch-accent lexicon audit
+  above, not yet done.
 - **Nasal vowels in French and Portuguese (done).** The lexicons use real nasal vowels (`vã`, `bɔ̃`,
   `mɛ̃`; `sĩku`, `kõ`), French gains `ã ɛ̃ ɔ̃`. `ɑ̃` is written `ã` and `œ̃` merged into `ɛ̃`. Portuguese
   diphthongal nasals (`ãw`, `õj`) and French `œ̃` vs `ɛ̃` are still not distinguished.
@@ -30,10 +50,11 @@ multi-session feature.
   profile. A low-probability draw group would let exotic prompts pick them,
   at the cost of re-seeding existing output.
 - **Missing symbols still (M).** `ɰ`, rhotacized vowels (`ɚ`, Mandarin erhua),
-  syllabic `ɻ̩`, `ʜ ʢ`, `ɱ`, `ɫ`, breathy/creaky vowels (Vietnamese ngã/nặng
+  syllabic `ɻ̩`, `ʜ ʢ`, `ɱ`, breathy/creaky vowels (Vietnamese ngã/nặng
   are approximated as plain pitch), implosive/click coverage beyond a few
   illustrative symbols, and the pharyngealization of *vowels* next to
-  emphatics (Arabic).
+  emphatics (Arabic). (`ɫ` used to be on this list -- added as part of
+  Russian's own palatalization-gaps fix above.)
 - **Consistency of the script-g (done).** Every /g/ is ASCII `g` now, including `gʱ`, `gb` and the
   click clusters (`tests/test_pool_uses_ascii_g.py` guards it). The tokenizer no longer lets the
   prenasalized `ŋg` eat the start of `ŋ` + `gʱ`. IPA typed with U+0261 by a user or an LLM is not

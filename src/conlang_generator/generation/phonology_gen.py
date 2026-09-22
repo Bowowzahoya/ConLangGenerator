@@ -194,6 +194,11 @@ _PALATALIZED_GROUP = (
     Consonant(ipa="kʲ", place=Place.VELAR, manner=Manner.STOP, voiced=False, palatalized=True, prevalence=0.06),
     Consonant(ipa="xʲ", place=Place.VELAR, manner=Manner.FRICATIVE, voiced=False, palatalized=True, prevalence=0.03),
     Consonant(ipa="rʲ", place=Place.ALVEOLAR, manner=Manner.TRILL, voiced=True, palatalized=True, prevalence=0.05),
+    # Completes the velar palatalized pair started by kʲ/xʲ above -- real
+    # Russian /gʲ/ (позиционный мягкий г, e.g. "ноги" [ˈnogʲɪ]) is the same
+    # kind of before-front-vowel/loan palatalization those two already
+    # model, just on the voiced stop.
+    Consonant(ipa="gʲ", place=Place.VELAR, manner=Manner.STOP, voiced=True, palatalized=True, prevalence=0.04),
 )
 _PALATALIZED_GROUP_BASE_RATE = 0.08
 
@@ -277,6 +282,20 @@ _REFERENCE_ONLY_CONSONANTS = (
     # Egyptian/Levantine emphatic z, and the emphatic l of "Allah".
     Consonant(ipa="zˤ", place=Place.ALVEOLAR, manner=Manner.FRICATIVE, voiced=True, pharyngealized=True, prevalence=0.03),
     Consonant(ipa="lˤ", place=Place.ALVEOLAR, manner=Manner.LATERAL_APPROXIMANT, voiced=True, pharyngealized=True, prevalence=0.03),
+    # Velarized ("dark") l -- real Russian's plain, non-palatalized л is
+    # phonetically velarized, not a bare alveolar lateral, and contrasts
+    # with the already-modeled palatalized "lʲ" (ль) the same way every
+    # other Russian hard/soft pair does. No ``velarized`` field exists on
+    # ``Consonant`` (this is the only symbol that would need it so far),
+    # so this is modeled the same way affricates/clicks are: its own
+    # atomic symbol rather than a plain "l" plus a feature flag.
+    Consonant(ipa="ɫ", place=Place.ALVEOLAR, manner=Manner.LATERAL_APPROXIMANT, voiced=True, prevalence=0.10),
+    # Long alveolo-palatal fricative -- real Russian щ is always both
+    # palatal-ish *and* long, with no plain short counterpart (unlike the
+    # rest of the language's hard/soft pairs); stored as its own atomic
+    # symbol on top of the plain "ɕ" above, the same "long" flag the
+    # geminate-consonant group already uses.
+    Consonant(ipa="ɕː", place=Place.PALATAL, manner=Manner.FRICATIVE, voiced=False, long=True, prevalence=0.05),
 )
 
 _m = Consonant(ipa="m", place=Place.BILABIAL, manner=Manner.NASAL, voiced=True, prevalence=0.95)

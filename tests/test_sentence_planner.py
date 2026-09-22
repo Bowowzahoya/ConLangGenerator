@@ -12,11 +12,15 @@ from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.translation import sentence_planner
 
 # Same fixtures as test_translator.py -- seed=2 (nominative-accusative,
-# SVO, has_articles/has_overt_copula both true) and seed=180 (ergative-
-# absolutive, VSO) -- redefined locally rather than imported, matching
+# SVO, has_articles/has_overt_copula both true) and seed=283 (ergative-
+# absolutive, SOV) -- redefined locally rather than imported, matching
 # this project's own "each test module owns its fixtures" convention.
+# seed was 180 until the Russian palatalization-gap phoneme-pool addition
+# (gʲ) shifted its downstream RNG draws -- same "seed-shift from new
+# content, not a functional regression" pattern documented elsewhere in
+# this project's own history (see architecture/OVERVIEW.md).
 _NOM_ACC_SEED = 2
-_ERGATIVE_SEED = 180
+_ERGATIVE_SEED = 283
 
 
 def _language(seed: int):

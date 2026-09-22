@@ -1117,7 +1117,7 @@ Everything here is a pure function of a `random.Random` seeded from
   utterance-level surface rule (`generation/tone_sandhi.py`, applied to the
   translation's IPA); lexicon entries keep citation tones. Profiles also
   list the reference-only symbols their language really has (Mandarin
-  ʈʂ ʈʂʰ ɕ, Tamil ɭ, Hindi ɽ ɦ, Japanese ɸ ɕ ɴ, Polish ɕ ʑ, Russian ɕ,
+  ʈʂ ʈʂʰ ɕ, Tamil ɭ, Hindi ɽ ɦ, Japanese ɸ ɕ ɴ, Polish ɕ ʑ, Russian ɫ ɕː,
   Arabic zˤ lˤ, Bengali ɽ); those join a strict inventory deterministically
   (weight x strictness >= 0.5, no rng). Not modeled: lexically specific
   sandhi (Mandarin 不/一) and Spanish β/ð/ɣ allophony in the profile.
@@ -2178,6 +2178,44 @@ reading code or one-off ad hoc scripts.
     lexical stress (`stress_pattern: "lexical"`, a high deviation rate --
     same "genuinely complex, no simple flat rule" catch-all English's own
     real stress system uses).
+  - **Follow-up, closing the remaining Russian palatalization gaps**:
+    completed the velar palatalized series by adding `gʲ` (real, if
+    marginal/allophonic, before-front-vowel palatalization on г, the same
+    status `kʲ`/`xʲ` already had) to `_PALATALIZED_GROUP`. Considered and
+    *declined* adding `ʃʲ`/`ʒʲ` (an earlier `DEFERRED.md` note listed them
+    as a gap) -- real Standard Russian ш/ж are canonically the language's
+    "always hard" unpaired fricatives, with no phonemic soft counterpart,
+    so there was nothing real to add; the note was corrected instead of
+    the pool. Added the real hard/soft contrast Russian's plain л always
+    had but this project didn't yet model: `ɫ` (velarized "dark l", the
+    true phonetic value of unmarked л, distinct from the already-modeled
+    palatalized `lʲ`) as a new `_REFERENCE_ONLY_CONSONANTS` member (no
+    `velarized` field on `Consonant` -- modeled as its own atomic symbol,
+    the same way affricates/clicks already are). Added `ɕː`, replacing
+    plain `ɕ` as this profile's spelling of щ -- real Russian щ is always
+    long with no plain short counterpart, unlike the rest of the
+    palatalization series (`Consonant.long` on a `_REFERENCE_ONLY_CONSONANTS`
+    member, the geminate group's own existing flag). All three symbols got
+    matching entries in every downstream table the completeness tests
+    require (`romanization_gen.py`'s three exotic styles;
+    `ipa_to_kirshenbaum.py` needed only `ɫ` explicitly -- `gʲ`/`ɕː` already
+    resolve through its existing modifier-strip/length-suffix fallback).
+    Russian's own profile (consonant list, onset/coda clusters, frequency
+    tiers, orthography) and its 494-word curated lexicon were updated to
+    match, converting every bare `l`/`ɕ` IPA token to `ɫ`/`ɕː` via the real
+    tokenizer (not a blind string substitution -- see the equivalent
+    caution in the stress-mark fixes above) after cross-checking each
+    resulting onset/coda cluster against the actual real word behind it;
+    this also surfaced one pre-existing, unrelated data bug (*сильный*
+    "strong" stored with a hard л where the real word has a soft one, and
+    a matching typo in its own curated spelling) and two stale/mislabeled
+    `attested_*_clusters` comments (*для* tagged as a hard `[d, l]` cluster
+    when the profile already separately, correctly had `[d, "lʲ"]`; *рельс*
+    tagged `[l, s]` when real рельс has a soft л) -- fixed alongside the
+    main change since they're the same class of error. Real akanye/ikanye
+    vowel-reduction completeness in the lexicon transcriptions themselves
+    (as opposed to the `stress_driven_vowel_reduction` rule the profile
+    already curates) remains open, `DEFERRED.md` updated accordingly.
   - As with every prior phoneme-pool extension, adding new consonant/
     vowel pool members shifted downstream RNG draw sequences for
     *unrelated* fixed-seed tests (new `rng.random()` calls happen during

@@ -55,6 +55,7 @@ _BASE_BY_IPA: dict[str, str] = {
     "χ": "X", "ʁ": "g<",
     "β": "B", "ɸ": "P", "ɕ": "S'", "ʑ": "Z'", "ɦ": "h<",
     "ɭ": "l.", "ɽ": "*.", "ʈʂ": "ts.", "ɖʐ": "dz.", "ɴ": "N<", "ʋ": "v", "ɥ": "w",
+    "ɫ": "l~",  # velarized ("dark") l -- Kirshenbaum's own tilde velarization mark
     # --- Nasals ---
     "m": "m", "n": "n", "ŋ": "N", "ɳ": "n.", "ɲ": "nj",
     # --- Liquids/approximants ---
