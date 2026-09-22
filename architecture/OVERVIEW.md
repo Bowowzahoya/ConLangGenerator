@@ -3589,3 +3589,93 @@ reading code or one-off ad hoc scripts.
   plus 3 in a new `test_reader.py` (a toneless word's own output unchanged; a single-syllable
   tonal word's exact contour line; a multi-syllable word's own contours in the right order).
   Full suite: 1025 passed, 2 skipped (up from 1019 -- the 6 new tests).
+- **Tone in evolution -- tonogenesis and detonalization, real splits/mergers/lexicalized-
+  sandhi left open.** `sound_change.evolve_language` used to copy a language's own `ToneSystem`
+  forward completely unchanged (its own docstring said so explicitly) -- the last remaining
+  item from the original tones survey, and the biggest (tagged "L" from the start). Asked to
+  "also consider when tones might stop being in a language" alongside starting tonogenesis, so
+  this batch covers both directions of the same underlying question (a language's tonal
+  *status*, not just its tone marks) rather than just the one named first.
+
+  Both are modeled as a single whole-language roll, not a rate applied independently per
+  eligible position the way the six existing gradient segmental rules (`_evolve_ipa`) are --
+  real tone contrastiveness is systemic: once a language has tone, every syllable carries one,
+  not just syllables sitting in some marked environment, so unlike lenition or palatalization
+  this genuinely can't sensibly leave the change half-applied across the lexicon (`_evolve_tone_system`'s
+  own docstring states this reasoning explicitly). New `_HALF_LIVES` entries
+  (`detonalization: 350.0`, `tonogenesis: 400.0`), each with a real citable anchor case, the
+  same discipline every other rule in this file already holds itself to.
+
+  **Detonalization** (a tonal language loses tone): accelerated by positive `contact_intensity`,
+  the same "contact drives simplification" link the three simplification-leaning segmental
+  rules already use. Its own real anchor case is one this project already had, just never as a
+  *transition*: Swahili's own well-documented loss of the reconstructed Bantu tone system under
+  centuries of sustained Arabic/trade-contact pressure, already reflected from the start in
+  this project's own curated Swahili profile (`tonal: false`). Every entry's own tone marks are
+  stripped (`ipa_tokenizer.strip_tones` -- an existing, already-tested primitive, not new code)
+  and its own `tones` tuple collapses to `()`.
+
+  **Tonogenesis** (a non-tonal language gains tone): modeled via the one mechanism this
+  project's own phoneme/coda machinery can actually detect -- real coda-glottal-stop loss, the
+  same pathway behind Vietnamese's own historical tone origin (Haudricourt 1954). New
+  `_has_qualifying_coda_glottal_stop`/`_tonogenesis_ipa`: a word's own coda `ʔ` (word-final, or
+  immediately before a consonant) is removed and its own vowel surfaces `LOW`; every other
+  vowel surfaces the real cross-linguistic elsewhere case, `HIGH`. Deliberately excludes an
+  *intervocalic* `ʔ` -- under the maximal-onset principle this project's own phonotactics
+  already use everywhere else, a consonant between two vowels belongs to the *following*
+  syllable's onset, not the preceding one's coda, so it's structurally unrelated to this
+  pathway. Structurally gated, not just rate-gated: a language with no word anywhere in its own
+  *current* lexicon (post sound-change/replacement, not just the base language's own original
+  one) that has a qualifying coda `ʔ` has no raw material for this specific pathway at all this
+  run, regardless of `years` -- an honest abstention, the same discipline every other
+  structurally-gated rule in this project already practices.
+
+  `_evolve_tone_system` returns `(new_tone_system, transform)` rather than directly returning
+  transformed IPA -- `transform` is a pure `list[str] -> (list[str], list[tuple])` function the
+  caller applies to *both* `final_ipas` (a word's own new stored IPA) and `spelling_ipas` (the
+  separate, sometimes-different basis a word's own spelling is reconstructed from, e.g. a
+  word-final-devoicing hint) so the two stay consistent with each other, without rolling the
+  function's own random decision twice -- a real bug considered and fixed *before* it shipped:
+  first draft called the decision function once per list, which would occasionally decide
+  *differently* for `final_ipas` vs `spelling_ipas` (a coin flip re-flipped), desyncing a word's
+  own stored IPA from its own derived spelling. Applied once, after Pass 1 (sound change +
+  lexical replacement/borrowing) so it sees the words this run's lexicon actually ends up with,
+  before inventory/structure reconstruction so a tonogenesis run's own removed `ʔ` (and a
+  detonalization run's own stripped marks) are reflected in what gets reconstructed, not the
+  pre-transition state.
+
+  8 new tests in `test_sound_change.py`: the coda-qualification heuristic directly (word-final,
+  before-a-consonant, before-a-vowel correctly excluded, no ʔ, word-initial `ʔ` correctly
+  excluded); the per-word tonogenesis transform directly; `_evolve_tone_system` itself for both
+  directions plus its own structural-gating abstention; a `years=0` no-op check for both
+  directions; and two full `evolve_language` pipeline tests (tonogenesis firing, and the
+  spelling/IPA-consistency regression guard above) -- both silence the six segmental rules and
+  lexical replacement via `monkeypatch` rather than picking a "safer" `years` value, since there
+  isn't one: every segmental half-life overlaps tonogenesis's own, so any `years` long enough to
+  saturate tonogenesis's rate also saturates lenition/cluster-simplification/etc., which would
+  mangle (or itself remove) this test's own tiny hand-built word's qualifying coda before
+  tonogenesis ever got a chance to look at it -- an unrelated confound, not a real interaction
+  question, isolated out rather than chased with a seed search. Found and fixed one real
+  regression from an *earlier* batch this same session: the "Sandhi scope" work's own
+  `test_evolved_languages_own_tone_system_and_sandhi_still_apply_correctly` had asserted
+  `evolved.tone_system == base.tone_system` as a blanket fact -- true when this batch's own
+  mechanism doesn't fire, no longer true in general now that it sometimes legitimately does;
+  updated to silence detonalization for that test specifically (an orthogonal concern to what it
+  actually checks: sandhi surviving evolution when the tone system *does* come through
+  unchanged), not to weaken the assertion.
+
+  Smoke-tested against real generation, both directions: an isolated, ʔ-coda-bearing base
+  language gained a real high/low tone contrast at a long time depth (`I: dmom -> móm`, `we:
+  bɾa -> ɾá`, alongside the same run's own real segmental changes -- confirms the two kinds of
+  change compose sensibly on real generated words, not just the hand-built test fixtures); a
+  strict-Mandarin-sourced language lost its own tone system under high contact
+  (`I: ká -> kʼa`, tones `()`). Full suite: 1033 passed, 2 skipped (up from 1025 -- the 8 new
+  tests). `conlang audit-lexicons`: still 0% flagged (a generation/evolution-only change,
+  doesn't touch curated real lexicons).
+
+  **Still open, genuinely harder, left for a later pass** (see `DEFERRED.md` for the full
+  reasoning): tone splits/mergers (would need this project to track a *historical* fact about a
+  symbol past the point the segmental rule that neutralized it already ran -- a materially
+  different kind of state than anything this file currently threads through) and sandhi
+  becoming lexical (needs its own design for exactly when/how a *rule*, not a single symbol or
+  the whole system, transitions into per-word data).

@@ -41,10 +41,18 @@ direct multiplicative suppression from positive ``contact_intensity``
 any time depth, not just slower to arrive). `final_devoicing`/
 `palatalization` aren't trait-linked in this v1 -- kept deliberately narrow.
 
-Grammar and tone system are copied from the base language unchanged (word-
-level focus only, per current project direction). The evolved
+Grammar is copied from the base language unchanged (word-level focus only,
+per current project direction). The tone system is copied unchanged too,
+*unless* this run's own tonal status actually flips -- see
+``_evolve_tone_system`` for the two real, structurally- and rate-gated
+directions that can happen (detonalization: a tonal language loses tone,
+accelerated by contact; tonogenesis: a non-tonal language with a real
+coda-glottal-stop word gains a real high/low contrast the same way
+Vietnamese's own tone system historically arose). The evolved
 ``PhonemeInventory``/``SyllableStructure`` are recomputed from what the
-evolved lexicon actually uses.
+evolved lexicon actually uses (which, after a tone-system transition,
+already reflects that transition's own effect -- a removed coda ``ʔ``, or
+stripped tone marks -- since it runs before this reconstruction).
 
 Orthography evolves via two independent mechanisms, not just re-derived
 from the evolved IPA:
@@ -85,7 +93,15 @@ from dataclasses import dataclass
 
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon
-from conlang_generator.core.phonology import Manner, PhonemeInventory, SyllableStructure, VowelBackness
+from conlang_generator.core.phonology import (
+    TONE_DIACRITICS,
+    Manner,
+    PhonemeInventory,
+    SyllableStructure,
+    ToneLevel,
+    ToneSystem,
+    VowelBackness,
+)
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK, OrthographyForce, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
@@ -144,6 +160,31 @@ _HALF_LIVES = {
     # the other five processes -- see the altitude trait link below
     # (Everett 2013).
     "ejective_drift": 400.0,
+    # Tone *system*-level changes (see `_evolve_tone_system` below) --
+    # deliberately not part of `_Rates`/`_compute_rates` above, since
+    # unlike the six gradient/per-position rules there, each of these is
+    # a single whole-language decision, not a rate applied independently
+    # per eligible position.
+    #
+    # Detonalization: real Swahili's own well-documented loss of the
+    # reconstructed Bantu tone system (commonly attributed to centuries
+    # of sustained Arabic/trade-contact pressure and analytic
+    # restructuring) is this project's own most citable real case for
+    # this direction -- already reflected from the start in this
+    # project's own curated Swahili profile (`tonal: false`), and now
+    # reachable as a genuine *transition* during evolution too, not just
+    # a fact a profile can start with.
+    "detonalization": 350.0,
+    # Tonogenesis: real Vietnamese's own classic tonogenesis (Haudricourt
+    # 1954) and Punjabi's real, comparatively fast, well-documented
+    # modern-era case (from breathy-voiced-onset loss) are both commonly
+    # described unfolding over a few centuries to roughly a millennium --
+    # this project models the *other* major cross-linguistic pathway
+    # (coda-glottal-stop loss, the same mechanism behind Vietnamese's own
+    # tonal origin) since it's the one this project's own phoneme/coda
+    # machinery can actually detect and simulate; see
+    # `_evolve_tone_system`'s own docstring for exactly how.
+    "tonogenesis": 400.0,
 }
 
 Token = tuple[str, str]  # (base symbol, trailing combining-mark decoration)
@@ -529,6 +570,134 @@ def _recompute_syllable_structure(
     )
 
 
+def _has_qualifying_coda_glottal_stop(tokens: list[Token], vowel_symbols: frozenset[str]) -> bool:
+    """Whether this word has at least one real coda ``ʔ`` -- immediately
+    after a vowel, and either word-final or immediately before a
+    consonant (never before another vowel: under the maximal-onset
+    principle real phonology already uses everywhere else in this
+    project, an intervocalic ``ʔ`` belongs to the *next* syllable's own
+    onset, not the previous one's coda, so it's structurally unrelated
+    to tonogenesis and left untouched)."""
+    for i, (symbol, _) in enumerate(tokens):
+        if symbol != "ʔ" or i == 0 or tokens[i - 1][0] not in vowel_symbols:
+            continue
+        if i + 1 == len(tokens) or tokens[i + 1][0] not in vowel_symbols:
+            return True
+    return False
+
+
+def _tonogenesis_ipa(ipa: str, known_symbols: tuple[str, ...], vowel_symbols: frozenset[str]) -> tuple[str, tuple]:
+    """One word's own real glottal-coda-loss tonogenesis: every vowel
+    immediately followed by a qualifying coda ``ʔ`` (see
+    ``_has_qualifying_coda_glottal_stop``'s own docstring for exactly
+    what qualifies) surfaces ``LOW`` and drops that ``ʔ``; every other
+    vowel -- syllables that were never conditioned by a coda ``ʔ`` at
+    all -- surfaces the real cross-linguistic elsewhere case, ``HIGH``.
+    Returns the new ``(ipa, tones)`` pair, ``tones`` in the same
+    left-to-right order ``LexicalEntry.tones`` already uses everywhere
+    else."""
+    tokens = ipa_tokenizer.tokenize(ipa, known_symbols)
+    out: list[str] = []
+    tones: list[ToneLevel] = []
+    i = 0
+    while i < len(tokens):
+        symbol, deco = tokens[i]
+        if symbol not in vowel_symbols:
+            out.append(symbol + deco)
+            i += 1
+            continue
+        has_glottal_coda = (
+            i + 1 < len(tokens) and tokens[i + 1][0] == "ʔ"
+            and (i + 2 == len(tokens) or tokens[i + 2][0] not in vowel_symbols)
+        )
+        tone = ToneLevel.LOW if has_glottal_coda else ToneLevel.HIGH
+        tones.append(tone)
+        out.append(symbol + deco + TONE_DIACRITICS[tone])
+        i += 2 if has_glottal_coda else 1  # skip the ʔ token too, once consumed
+    return "".join(out), tuple(tones)
+
+
+def _evolve_tone_system(
+    rng: random.Random,
+    base_tone_system: ToneSystem,
+    years: int,
+    contact_intensity: float,
+    final_ipas: list[str],
+    known_symbols: tuple[str, ...],
+    vowel_symbols: frozenset[str],
+):
+    """Whether this evolution run's own tone *system* itself changes --
+    genuinely a different kind of change from the six gradient,
+    per-position rules ``_evolve_ipa`` already applies (those adjust
+    individual sounds; this decides whether the language has phonemic
+    tone at all), so it's its own single whole-language roll, not a rate
+    applied independently per eligible position the way e.g. lenition is.
+    Real tone contrastiveness is a systemic property -- once a language
+    has tone, every syllable carries one, not just the syllables that
+    happen to sit in a marked environment -- so unlike lenition or
+    palatalization, this can't sensibly leave the change half-applied
+    across the lexicon; either it fires for the whole language this run,
+    or it doesn't yet.
+
+    Returns ``(new_tone_system, transform)``: ``transform`` is ``None``
+    when neither direction fired (the common case -- ``final_ipas``
+    passed in decides *whether* the structural precondition for
+    tonogenesis exists, but is otherwise unused by this function itself),
+    or a pure ``list[str] -> (list[str], list[tuple])`` function when one
+    did, applying that same real per-word transformation deterministically
+    to *any* list of this language's own IPA strings -- the caller runs
+    it over both ``final_ipas`` (the word's own new stored IPA) and
+    ``spelling_ipas`` (the separate, sometimes-different basis
+    ``evolve_language`` reconstructs a word's spelling from, e.g. a
+    word-final-devoicing hint) so the two stay consistent with each
+    other, without rolling this function's own random decision twice.
+
+    **Detonalization** (a currently tonal language loses tone): real
+    Swahili's own well-documented loss of the reconstructed Bantu tone
+    system under centuries of sustained contact is this project's own
+    citable real case (see ``_HALF_LIVES["detonalization"]``'s own
+    comment) -- accelerated by positive ``contact_intensity``, the same
+    "contact drives simplification" link the three simplification-
+    leaning segmental rules already use. Every entry's own tone marks
+    are stripped from its IPA (``ipa_tokenizer.strip_tones``) and its own
+    ``tones`` tuple collapses to ``()``, the same "genuinely toneless"
+    shape a from-scratch non-tonal language already has.
+
+    **Tonogenesis** (a currently non-tonal language gains tone): modeled
+    via the one mechanism this project's own phoneme/coda machinery can
+    actually detect -- real coda-glottal-stop loss, the same real
+    pathway behind Vietnamese's own historical tone origin (Haudricourt
+    1954) -- see ``_tonogenesis_ipa``'s own docstring for the actual
+    per-word rule. Structurally gated, not just rate-gated: a language
+    with no word anywhere in its own *current* lexicon that has a
+    qualifying coda ``ʔ`` has no raw material for this specific pathway
+    at all this run (an honest "the process has nothing to work from
+    yet" abstention, the same discipline every other structurally-gated
+    rule in this project already practices), regardless of how long
+    ``years`` is."""
+    detonalization_rate = _saturating_rate(years, _HALF_LIVES["detonalization"], contact_intensity)
+    if base_tone_system.enabled and rng.random() < detonalization_rate:
+        def detonalize(ipas: list[str]) -> tuple[list[str], list[tuple]]:
+            return [ipa_tokenizer.strip_tones(ipa) for ipa in ipas], [() for _ in ipas]
+
+        return ToneSystem(enabled=False), detonalize
+
+    if not base_tone_system.enabled:
+        has_raw_material = any(
+            _has_qualifying_coda_glottal_stop(ipa_tokenizer.tokenize(ipa, known_symbols), vowel_symbols)
+            for ipa in final_ipas
+        )
+        tonogenesis_rate = _saturating_rate(years, _HALF_LIVES["tonogenesis"], 0.0)
+        if has_raw_material and rng.random() < tonogenesis_rate:
+            def gain_tone(ipas: list[str]) -> tuple[list[str], list[tuple]]:
+                converted = [_tonogenesis_ipa(ipa, known_symbols, vowel_symbols) for ipa in ipas]
+                return [ipa for ipa, _ in converted], [tones for _, tones in converted]
+
+            return ToneSystem(enabled=True, levels=(ToneLevel.HIGH, ToneLevel.LOW)), gain_tone
+
+    return base_tone_system, None
+
+
 def _inventory_and_structure(
     base_structure: SyllableStructure,
     ipas: list[str],
@@ -810,6 +979,27 @@ def evolve_language(
         else:
             final_ipas.append(evolved_ipa)
 
+    # Tone *system*-level change (detonalization/tonogenesis, see
+    # `_evolve_tone_system`'s own docstring) -- after every word's own
+    # sound change/replacement above (so it sees the words this run's
+    # lexicon actually ends up with, borrowings included), before
+    # inventory/structure reconstruction (so a tonogenesis run's own
+    # removed coda ʔ and a detonalization run's own stripped tone marks
+    # are both reflected in what gets reconstructed below, not the
+    # pre-transition state). Applied identically to `spelling_ipas` too
+    # (the separate, sometimes-different basis a word's own spelling is
+    # reconstructed from below) via the same returned `transform`, not a
+    # second call -- a second call would re-roll `rng` and could decide
+    # differently, desyncing a word's own stored IPA from its own spelling.
+    new_tone_system, tone_transform = _evolve_tone_system(
+        rng, base.tone_system, years, traits.contact_intensity, final_ipas,
+        final_reconstruction_symbols, frozenset(vowel_by_ipa),
+    )
+    tones_by_entry: list[tuple] | None = None
+    if tone_transform is not None:
+        final_ipas, tones_by_entry = tone_transform(final_ipas)
+        spelling_ipas, _ = tone_transform(spelling_ipas)
+
     inventory, syllable_structure = _inventory_and_structure(
         base.syllable_structure, final_ipas, final_reconstruction_symbols, rng, traits, lineage_profiles
     )
@@ -871,14 +1061,18 @@ def evolve_language(
                 path = "unchanged"
             else:
                 path = "conventional"
-        evolved_entries.append(
-            entry.model_copy(
-                update={
-                    "ipa": final_ipa, "romanization": latin, "notes": f"orthography: {path}",
-                    "root": root, "word_class": word_class,
-                }
-            )
-        )
+        update = {
+            "ipa": final_ipa, "romanization": latin, "notes": f"orthography: {path}",
+            "root": root, "word_class": word_class,
+        }
+        if tones_by_entry is not None:
+            # A tone-system transition this run (see `_evolve_tone_system`)
+            # replaces every entry's own `tones` too, regardless of which
+            # of the three paths above it took -- once a language gains or
+            # loses tone as a system, that applies uniformly, not just to
+            # entries that also happened to change some other way this run.
+            update["tones"] = tones_by_entry[i]
+        evolved_entries.append(entry.model_copy(update=update))
     evolved_entries = tuple(evolved_entries)
 
     spec = GenerationSpec(
@@ -892,7 +1086,7 @@ def evolve_language(
         spec=spec,
         phonology=inventory,
         syllable_structure=syllable_structure,
-        tone_system=base.tone_system,
+        tone_system=new_tone_system,
         word_accent=base.word_accent,
         romanization=romanization,
         grammar=base.grammar,

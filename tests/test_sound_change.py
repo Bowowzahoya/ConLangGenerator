@@ -17,7 +17,7 @@ from dataclasses import replace
 from conlang_generator.core.grammar import Alignment, GrammarProfile, MorphologicalType, WordOrder, WordTemplate
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
-from conlang_generator.core.phonology import Consonant, Manner, Place, PhonemeInventory, SyllableStructure, ToneSystem, Vowel, VowelBackness, VowelHeight, WordAccentSystem
+from conlang_generator.core.phonology import TONE_DIACRITICS, Consonant, Manner, Place, PhonemeInventory, SyllableStructure, ToneLevel, ToneSystem, Vowel, VowelBackness, VowelHeight, WordAccentSystem
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK, RomanizationRule, RomanizationScheme, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
@@ -711,3 +711,195 @@ def test_adjacent_real_symbol_skips_both_stress_and_word_accent_marks():
     # directly here to exercise both skip cases in one token stream.
     assert sound_change._adjacent_real_symbol(tokens, 0, 1) == "a"
     assert sound_change._adjacent_real_symbol(tokens, 4, -1) == "a"
+
+
+# --- Tonogenesis / detonalization ------------------------------------------
+
+
+def _glottal_inventory() -> tuple[PhonemeInventory, SyllableStructure]:
+    consonants = (
+        Consonant(ipa="k", place=Place.VELAR, manner=Manner.STOP, voiced=False, prevalence=0.9),
+        Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, prevalence=0.9),
+        Consonant(ipa="ʔ", place=Place.GLOTTAL, manner=Manner.STOP, voiced=False, prevalence=0.9),
+    )
+    vowels = (Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),)
+    phonology = PhonemeInventory(consonants=consonants, vowels=vowels)
+    structure = SyllableStructure(max_onset=1, max_coda=1, allowed_coda_consonants=("ʔ", "t"))
+    return phonology, structure
+
+
+def _glottal_romanization() -> RomanizationScheme:
+    return RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="a", latin="a"), RomanizationRule(ipa="k", latin="k"),
+            RomanizationRule(ipa="t", latin="t"), RomanizationRule(ipa="ʔ", latin="'"),
+        ),
+        vowel_symbols=("a",),
+    )
+
+
+def _glottal_grammar() -> GrammarProfile:
+    return GrammarProfile(
+        word_order=WordOrder.SVO, morphological_type=MorphologicalType.ISOLATING, alignment=Alignment.NOMINATIVE_ACCUSATIVE,
+        has_articles=False, adjective_after_noun=False, has_overt_copula=True,
+    )
+
+
+def _tonogenesis_base(with_glottal_coda: bool = True, pos: PartOfSpeech = PartOfSpeech.NOUN) -> Language:
+    # "kaʔta" (real qualifying coda ʔ, syllable 1) + "tata" (no ʔ at all)
+    # -- a mixed lexicon, so a tonogenesis run's own uniform "every
+    # syllable gets some tone" application is directly checkable against
+    # both a converted and an unconverted-but-now-toned word.
+    entries = (
+        LexicalEntry(ipa="kaʔta" if with_glottal_coda else "kata", romanization="ka'ta" if with_glottal_coda else "kata", glosses=("one",), pos=pos),
+        LexicalEntry(ipa="tata", romanization="tata", glosses=("two",), pos=pos),
+    )
+    phonology, structure = _glottal_inventory()
+    return Language(
+        name="Base", spec=GenerationSpec(prompt="p", seed=0), phonology=phonology, syllable_structure=structure,
+        tone_system=ToneSystem(enabled=False), romanization=_glottal_romanization(), grammar=_glottal_grammar(),
+        lexicon=Lexicon(entries=entries),
+    )
+
+
+def _detonalization_base() -> Language:
+    entries = (
+        LexicalEntry(
+            ipa="k" + _tone("a", ToneLevel.HIGH) + "t" + _tone("a", ToneLevel.LOW), romanization="kata",
+            glosses=("one",), pos=PartOfSpeech.NOUN, tones=(ToneLevel.HIGH, ToneLevel.LOW),
+        ),
+    )
+    phonology, structure = _glottal_inventory()
+    return Language(
+        name="Base", spec=GenerationSpec(prompt="p", seed=0), phonology=phonology, syllable_structure=structure,
+        tone_system=ToneSystem(enabled=True, levels=(ToneLevel.HIGH, ToneLevel.LOW)),
+        romanization=_glottal_romanization(), grammar=_glottal_grammar(), lexicon=Lexicon(entries=entries),
+    )
+
+
+def _tone(vowel: str, level: ToneLevel) -> str:
+    return vowel + TONE_DIACRITICS[level]
+
+
+def test_has_qualifying_coda_glottal_stop():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+
+    def has(ipa: str) -> bool:
+        return sound_change._has_qualifying_coda_glottal_stop(ipa_tokenizer.tokenize(ipa, known), vowel_symbols)
+
+    assert has("kaʔ")  # word-final
+    assert has("kaʔta")  # before a consonant
+    assert not has("kaʔa")  # before a vowel -- belongs to the *next* syllable's onset
+    assert not has("ka")  # no ʔ at all
+    assert not has("ʔaka")  # word-initial ʔ is an onset, not a coda
+
+
+def test_tonogenesis_ipa_assigns_low_to_glottal_coda_syllables_high_elsewhere():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    ipa, tones = sound_change._tonogenesis_ipa("kaʔta", known, vowel_symbols)
+    assert tones == (ToneLevel.LOW, ToneLevel.HIGH)
+    assert ipa == "k" + _tone("a", ToneLevel.LOW) + "t" + _tone("a", ToneLevel.HIGH)
+    assert "ʔ" not in ipa  # the coda that conditioned the tone is gone, same real diachronic outcome
+
+
+def test_tonogenesis_fires_when_a_qualifying_word_exists_at_a_long_enough_time_depth():
+    # Direct call to _evolve_tone_system, not the full evolve_language
+    # pipeline -- at a time depth long enough to saturate tonogenesis's
+    # own rate, lexical *replacement* is also live and could otherwise
+    # coincidentally replace the one qualifying word before this check
+    # ever runs, an unrelated confound this direct call sidesteps
+    # entirely (the end-to-end wiring itself is covered separately below).
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    final_ipas = ["kaʔta", "tata"]
+    new_tone_system, transform = sound_change._evolve_tone_system(
+        random.Random(1), ToneSystem(enabled=False), 5000, 0.0, final_ipas, known, vowel_symbols,
+    )
+    assert new_tone_system.enabled
+    assert set(new_tone_system.levels) == {ToneLevel.HIGH, ToneLevel.LOW}
+    new_ipas, tones = transform(final_ipas)
+    assert "ʔ" not in new_ipas[0]
+    assert tones[0] == (ToneLevel.LOW, ToneLevel.HIGH)  # its own real qualifying coda -> low, elsewhere -> high
+    assert tones[1] == (ToneLevel.HIGH, ToneLevel.HIGH)  # never had a qualifying coda -> high throughout
+
+
+def test_tonogenesis_never_fires_with_no_qualifying_word_in_the_lexicon():
+    # Structural gating: no word anywhere in this language has a real
+    # qualifying coda ʔ, so there's no raw material for this specific
+    # pathway -- stays non-tonal even at a huge time depth.
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    new_tone_system, transform = sound_change._evolve_tone_system(
+        random.Random(1), ToneSystem(enabled=False), 5000, 0.0, ["kata", "tata"], known, vowel_symbols,
+    )
+    assert not new_tone_system.enabled
+    assert transform is None
+
+
+def test_tonogenesis_wires_correctly_through_the_full_evolve_language_pipeline(monkeypatch):
+    # End-to-end confirmation that evolve_language actually calls the
+    # mechanism above and applies its result. The 6 *segmental* rules
+    # (_compute_rates) share the same years-based saturation curve as
+    # tonogenesis's own rate, so a years value long enough to make
+    # tonogenesis near-certain also makes lenition/cluster-simplification/
+    # etc. near-certain -- which would mangle (or itself delete the
+    # qualifying coda ʔ from) this test's own tiny hand-built word well
+    # before tonogenesis ever got a chance to look at it, an unrelated
+    # confound the direct tests above already avoid by calling
+    # _evolve_tone_system in isolation. Silencing the 6 segmental rules
+    # here (rather than picking some "safer" years value -- there isn't
+    # one, their half-lives all overlap tonogenesis's own) isolates this
+    # test to exactly what it's meant to check: the plumbing between
+    # _evolve_tone_system and the rest of evolve_language, not whether
+    # segmental change and tonogenesis compose (a real, separate question
+    # this project doesn't yet have a rule ordering/interaction story for
+    # -- see architecture/OVERVIEW.md).
+    monkeypatch.setattr(sound_change, "_compute_rates", lambda years, traits: _ZERO_RATES)
+    # Lexical *replacement* is tracked independently of _compute_rates
+    # above (its own separate half-life table), so it's silenced the same
+    # way -- otherwise this test's own single word could still coincide
+    # with a replacement roll at this time depth.
+    monkeypatch.setattr(sound_change, "_replacement_rate", lambda years, traits, pos: 0.0)
+    base = _tonogenesis_base(with_glottal_coda=True, pos=PartOfSpeech.NUMERAL)
+    evolved = evolve_language("Evolved", base, 5000, TraitProfile(), seed=1)
+    one = next(e for e in evolved.lexicon.entries if "one" in e.glosses)
+    assert evolved.tone_system.enabled
+    assert "ʔ" not in one.ipa
+    assert one.tones == (ToneLevel.LOW, ToneLevel.HIGH)
+
+
+def test_detonalization_fires_under_long_time_depth_and_strips_every_tone_mark():
+    base = _detonalization_base()
+    traits = TraitProfile(contact_intensity=1.0)
+    evolved = evolve_language("Evolved", base, 5000, traits, seed=1)
+    assert not evolved.tone_system.enabled
+    assert evolved.tone_system.levels == ()
+    entry = evolved.lexicon.entries[0]
+    assert entry.tones == ()
+    for level, mark in TONE_DIACRITICS.items():
+        assert mark not in entry.ipa
+
+
+def test_zero_years_never_changes_the_tone_system_either_direction():
+    for base in (_tonogenesis_base(with_glottal_coda=True), _detonalization_base()):
+        evolved = evolve_language("Evolved", base, 0, TraitProfile(contact_intensity=1.0), seed=1)
+        assert evolved.tone_system == base.tone_system
+        assert [e.tones for e in evolved.lexicon.entries] == [e.tones for e in base.lexicon.entries]
+
+
+def test_a_tonogenesis_runs_own_spelling_stays_consistent_with_its_own_new_ipa(monkeypatch):
+    # Regression guard: _evolve_tone_system's own transform must be
+    # applied to spelling_ipas too, not just final_ipas -- otherwise a
+    # word's stored IPA and its derived romanization could disagree about
+    # whether this word even has a coda ʔ anymore. Same segmental-rules/
+    # replacement silencing as the wiring test above, for the same reason.
+    monkeypatch.setattr(sound_change, "_compute_rates", lambda years, traits: _ZERO_RATES)
+    monkeypatch.setattr(sound_change, "_replacement_rate", lambda years, traits, pos: 0.0)
+    base = _tonogenesis_base(with_glottal_coda=True, pos=PartOfSpeech.NUMERAL)
+    evolved = evolve_language("Evolved", base, 5000, TraitProfile(), seed=1)
+    one = next(e for e in evolved.lexicon.entries if "one" in e.glosses)
+    assert evolved.tone_system.enabled  # confirms tonogenesis, not a no-op, actually happened
+    assert "ʔ" not in one.ipa
+    assert "'" not in one.romanization  # the apostrophe this profile's own scheme uses to spell ʔ

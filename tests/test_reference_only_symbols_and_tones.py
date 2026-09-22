@@ -7,7 +7,7 @@ import random
 from conlang_generator.core.phonology import TONE_DIACRITICS, LexicalToneSandhiRule, ToneLevel, ToneSandhiRule, ToneSystem
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
-from conlang_generator.generation import ipa_tokenizer, phonology_gen, real_words, tone_sandhi
+from conlang_generator.generation import ipa_tokenizer, phonology_gen, real_words, sound_change, tone_sandhi
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.llm.fake_client import FakeLLMClient
@@ -153,14 +153,21 @@ def test_apply_sandhi_treats_a_single_multi_syllable_word_as_its_own_utterance()
     assert spoken_word != citation_word
 
 
-def test_evolved_languages_own_tone_system_and_sandhi_still_apply_correctly():
-    # Sandhi scope: sound_change.py copies a language's own ToneSystem
-    # (levels *and* sandhi rules) forward unchanged through evolution --
+def test_evolved_languages_own_tone_system_and_sandhi_still_apply_correctly(monkeypatch):
+    # Sandhi scope: when evolution *doesn't* also fire a tone-system
+    # transition (detonalization/tonogenesis -- see
+    # test_sound_change.py's own dedicated tests for that separate
+    # mechanism), sound_change.py still just copies a language's own
+    # ToneSystem (levels *and* sandhi rules) forward unchanged --
     # apply_sandhi is a pure function of whatever ToneSystem it's handed,
     # so an evolved language's own sandhi rules keep working correctly
     # with no extra plumbing needed, the same way translator.py's own
     # sentence-level sandhi already did for an evolved language before
     # this fix (only the single-word/CLI path needed a code change).
+    # Detonalization is silenced here on purpose -- this test is about
+    # sandhi surviving evolution, a different, orthogonal question from
+    # whether the tone *system itself* changes this run.
+    monkeypatch.setattr(sound_change, "_evolve_tone_system", lambda *a, **k: (a[1], None))
     traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=1.0)
     base = generate_language("Base", GenerationSpec(prompt="p", seed=3, traits=traits), FakeLLMClient())
     assert base.tone_system.sandhi  # sanity: Mandarin's own real rules are actually present pre-evolution

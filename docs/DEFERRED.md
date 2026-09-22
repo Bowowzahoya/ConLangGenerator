@@ -375,8 +375,46 @@ multi-session feature.
   (`TONE_CONTOURS`/`chao_letters` already do the work), but showing it needs new
   frontend surface, not just wiring existing data, so it's left as a natural,
   disclosed next step rather than built speculatively here.
-- **Tone in evolution (L).** Sound change does not model tonogenesis,
-  tone splits/mergers, or sandhi becoming lexical.
+- **Tone in evolution (partly done -- tonogenesis and detonalization).**
+  `sound_change.evolve_language` used to always copy a language's own
+  `ToneSystem` forward unchanged; it now models the two directions a
+  language's tonal *status* can genuinely flip during evolution, each a
+  single whole-language roll (not a rate applied per position the way
+  the six gradient segmental rules are -- tone contrastiveness is
+  systemic, not gradient: once a language has tone, every syllable
+  carries one). **Detonalization** (a tonal language loses tone):
+  accelerated by positive `contact_intensity`, the same real mechanism
+  behind this project's own already-curated Swahili fact (`tonal: false`,
+  attributed to centuries of sustained Arabic/trade-contact pressure) --
+  now reachable as a genuine transition, not just a starting fact.
+  **Tonogenesis** (a non-tonal language gains tone): modeled via the one
+  mechanism this project's own phoneme/coda machinery can actually detect
+  -- real coda-glottal-stop loss, the same pathway behind Vietnamese's
+  own historical tone origin (Haudricourt 1954): a word's own coda `ʔ`
+  (word-final, or before a consonant -- never intervocalic, which is an
+  onset under maximal-onset, not a coda) is removed and its own vowel
+  surfaces `LOW`; every other vowel surfaces the real cross-linguistic
+  elsewhere case, `HIGH`. Structurally gated: a language with no word
+  anywhere in its own current lexicon that has a qualifying coda `ʔ` has
+  no raw material for this pathway at all, regardless of `years`.
+  Smoke-tested against real generation both directions (isolated,
+  ʔ-coda-bearing base languages gaining a real high/low tone contrast at
+  a long time depth; strict-Mandarin-sourced languages losing theirs
+  under high contact).
+
+  **Still open, genuinely harder, left for a later pass:** tone *splits*
+  and *mergers* (a single tone category dividing/collapsing based on a
+  conditioning environment, the classic Middle-Chinese-into-modern-
+  varieties story) would need this project to track a *historical* fact
+  about a symbol (e.g. "this syllable's onset used to be voiced") past
+  the point the segmental rule that neutralized it already ran -- a
+  materially different kind of state than anything sound_change.py
+  currently threads through; and "sandhi becoming lexical" (a live
+  `ToneSandhiRule` freezing into affected words' own citation tones over
+  enough time, the rule itself eventually dropping out) needs its own
+  design for exactly when/how a *rule* -- not a single symbol or the
+  whole system -- transitions into per-word `LexicalToneSandhiRule`-style
+  data.
 - **Tone in real-based words (S).** A deviated word re-spells through the
   language's own orthography; tone-marking style interplay with pinyin-style
   spelling is only lightly tested.
