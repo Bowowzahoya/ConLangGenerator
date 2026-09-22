@@ -170,6 +170,20 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     ``[dipping, dipping, rising]``. Attached to a generated language's
     ``ToneSystem.sandhi`` whenever a matched profile carries them and the
     language's tone levels include all three tones."""
+    lexical_tone_sandhi: tuple[tuple[str, str, str], ...] = ()
+    """Word-specific tone rules as ``[gloss, before, becomes]`` -- a
+    *particular* core-vocabulary word's own tone changes before a
+    following syllable of a specific tone, unlike ``tone_sandhi`` above
+    (which fires for any syllable in that tone context, language-wide).
+    Real Mandarin 不 "not" (citation falling) is ``[not, falling, rising]``;
+    一 "one" (citation high) needs three: ``[one, falling, rising]``,
+    ``[one, high, falling]``, ``[one, rising, falling]``,
+    ``[one, dipping, falling]``. See ``core.phonology.LexicalToneSandhiRule``'s
+    own docstring for why this needs gloss identity, not just tone
+    context. Attached to a generated language's own
+    ``ToneSystem.lexical_sandhi`` the same reference-weighted,
+    strictness-scaled way ``tone_sandhi`` is, via
+    ``generation.phonology_gen.resolve_lexical_tone_sandhi``."""
     vowel_harmony: bool = False
     root_and_pattern: bool = False
     """Whether this language uses Semitic-style root-and-pattern

@@ -3405,3 +3405,91 @@ reading code or one-off ad hoc scripts.
   word (confirmed the exact expected diacritic change, and confirmed a non-triggering word's
   own output stays byte-identical). Full suite: 1011 passed, 2 skipped (up from 1009 -- the 2
   new tests).
+- **Sandhi rules for the other 7 tonal languages -- surveyed, none added.** Asked to curate
+  real context-conditioned tone sandhi (real `ToneSandhiRule` data, the Mandarin third-tone-
+  sandhi shape) for Cantonese, Thai, Vietnamese, Tibetan, Yoruba, Zulu, Xhosa. Researched each
+  before writing any code (web search, not just recalled priors) and found the premise didn't
+  hold for any of them:
+  - Vietnamese and Thai: no significant standard-register phonological tone sandhi is
+    attested at all -- Vietnamese tones stay categorically stable in connected speech (only
+    phonetic coarticulation, not rule-based change); Thai sources describe a "deafening
+    silence" on the topic.
+  - Cantonese: has "changed tone," but it's lexical/morphological (restricted to specific
+    compounds and nominal/diminutive forms), the same shape as Mandarin's own 不/一 -- not a
+    general phonological context rule.
+  - Zulu/Xhosa: genuinely complex, but the real mechanism is autosegmental tone *spreading*
+    (a H tone extends across multiple following syllables until blocked) plus depressor-
+    consonant lowering and downstep -- `ToneSandhiRule` only models one syllable's tone
+    changing based on one immediate neighbor; forcing spreading through that shape would
+    misrepresent the actual phenomenon, not simplify it.
+  - Yoruba: real tone assimilation exists, but the literature is explicit that it's
+    conditioned by syntactic or morphological domain (across a phrase boundary, or within a
+    word), not simple phonological adjacency, plus specific documented cases are themselves
+    lexical (a pronoun's tone before certain particles) -- the same non-fit as Cantonese.
+  - Tibetan -- the closest candidate: a real, specific, phonologically-conditioned rule
+    exists (a low-toned syllable before a long high-toned syllable makes that syllable
+    rising), but it needs a three-way tone system (High/Low/Rising), and this project's own
+    Tibetan profile deliberately curates only 2 levels, with its own comment explaining that
+    richer subdivisions are contested in the literature -- retrofitting a rule that needs a
+    tone level the profile intentionally left out would fight that earlier, already-reasoned
+    decision. Tibetan's more central real complexity (word-level tone culmination, only the
+    first syllable really contrastive) was also already flagged out of scope earlier in this
+    same history, in the same bucket as Mandarin's own neutral tone.
+
+  Reported this back rather than fabricating rules to satisfy the task's surface framing or
+  silently implementing nothing -- the same "investigate before implementing a seemingly
+  obvious fix" standard the sandhi-scope romanization decision (right above) already
+  practiced, just discovered before writing any code this time instead of partway through.
+- **Lexically specific sandhi (Mandarin 不/一)**: the other half of the original "Lexically
+  specific sandhi" limitation, picked next once the 7-language survey came up empty. New
+  `core.phonology.LexicalToneSandhiRule` (`gloss`, `before`, `becomes`) and
+  `ToneSystem.lexical_sandhi` -- a tone alternation bound to *one specific lexicon entry* (by
+  gloss, since this project's own invented Mandarin-sourced words have no Chinese characters
+  to key on) rather than any syllable sharing a tone context, the real shape of 不 "not"
+  (citation falling, becomes rising before a following falling-tone syllable) and 一 "one"
+  (citation high, becomes rising before falling, falling before high/rising/dipping).
+  `tone_sandhi.apply_sandhi` gained an optional `glosses` parameter (one per `ipa_words`
+  entry) and applies `lexical_sandhi` as a *second* pass after the existing general
+  context-sandhi pass -- deliberately reading each tracked word's own already-general-
+  sandhi'd neighbor tone (the real, as-spoken tone a listener actually hears next), which
+  only `apply_sandhi` itself is in a position to compute, so this genuinely couldn't be
+  layered on from outside the function. A tracked word with more than one tone-bearing
+  syllable is keyed on its own *last* one (irrelevant for Mandarin's own monosyllabic 不/一,
+  but keeps the mechanism correct for a hypothetically polysyllabic tracked gloss too); a
+  word-final/isolated tracked word (real 不/一 said alone) keeps its own citation tone, the
+  same default every other word's own citation form already has.
+
+  Curated on Mandarin's own profile via a new `lexical_tone_sandhi: [[gloss, before, becomes],
+  ...]` field, resolved by a new `generation.phonology_gen.resolve_lexical_tone_sandhi` --
+  deliberately *simpler* than `resolve_tone_sandhi`'s own kept/replaced/invented three-way
+  model: each curated rule is independently kept with probability equal to its own weighted
+  strictness, with no invention or replacement at all, since there's no meaningful "invented"
+  version of one specific real word's own specific real alternation (the same honest
+  abstention this project's own curated-not-invented word-level-phonology rules already
+  practice). Its own independent rng stream (seeded separately from the main generation's
+  `rng`, the same isolation `resolve_tone_sandhi` already has) means adding this changed no
+  other draw sequence -- confirmed by the full suite passing with no reseeding needed this
+  time, unlike the phoneme-pool batches earlier in this history.
+
+  Wired into both existing sandhi consumers: `translate_to_conlang` (a new parallel
+  `gloss_parts` list built alongside `romanization_parts`/`ipa_parts`, `entry.primary_gloss`
+  at each rendered slot) and `conlang pronounce` (though a single looked-up word has no
+  following syllable to trigger it on today -- included for when a future multi-word
+  `pronounce` path exists). Not modeled: the real rule's own edge case before a *neutral*-tone
+  syllable, genuinely handled differently across pedagogical sources -- left as an honest
+  abstention (citation tone stands) rather than a guess.
+
+  4 new unit tests in `test_reference_only_symbols_and_tones.py` (tracked-word-only scope
+  confirmed against an untracked word sharing the same tone; citation-tone fallback both
+  word-final and on an unmatched next-tone; all four of 一's own real contexts in one test;
+  a constructed case proving the lexical pass reads the *post*-general-sandhi tone, not the
+  citation one) plus a strict-Mandarin-run resolution check folded into the existing
+  strict-run test there, plus one real end-to-end `test_translator.py` test -- a real
+  strict-Mandarin-sourced generated language (seed hand-found via a small search script so
+  "not" naturally sits immediately before a real falling-tone word in that sentence's own
+  actual slot order, not just assumed), translated through the full `sentence_planner` ->
+  `translate_to_conlang` -> `tone_sandhi` pipeline, confirming the output IPA's own "not"
+  token carries the rising-tone mark the real rule predicts. This mechanism's own
+  independently-seeded rng stream meant no other draw sequence moved -- confirmed by the full
+  suite passing with zero reseeding needed, unlike the phoneme-pool batches earlier in this
+  history. Full suite: 1016 passed, 2 skipped (up from 1011 -- the 5 new tests).

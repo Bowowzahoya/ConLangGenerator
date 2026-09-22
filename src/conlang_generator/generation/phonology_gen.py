@@ -45,6 +45,7 @@ import random
 
 from conlang_generator.core.phonology import (
     Consonant,
+    LexicalToneSandhiRule,
     Manner,
     Place,
     PhonemeInventory,
@@ -841,8 +842,9 @@ def _apply_reference_tone_profile(
 ) -> ToneSystem:
     """A strict source-language run takes the heaviest matched profile's own
     real tone levels (plus its neutral tone) instead of a stock set, and the
-    language's tone-sandhi rules are resolved by ``resolve_tone_sandhi``.
-    Draws nothing from the main rng."""
+    language's tone-sandhi rules are resolved by ``resolve_tone_sandhi``
+    (general, tone-context) and ``resolve_lexical_tone_sandhi`` (word-
+    specific, real Mandarin 不/一). Draws nothing from the main rng."""
     levels = tone_system.levels
     with_levels = [(p, w) for p, w in weighted_profiles if p.tone_levels]
     if with_levels and strictness >= 0.5 and not keep_levels:
@@ -852,7 +854,8 @@ def _apply_reference_tone_profile(
             wanted += (ToneLevel.NEUTRAL,)
         levels = wanted
     rules = resolve_tone_sandhi(levels, weighted_profiles, strictness, tone_sandhi_strength, seed)
-    return ToneSystem(enabled=True, levels=levels, sandhi=rules)
+    lexical_rules = resolve_lexical_tone_sandhi(levels, weighted_profiles, strictness, seed)
+    return ToneSystem(enabled=True, levels=levels, sandhi=rules, lexical_sandhi=lexical_rules)
 
 
 _SANDHI_INVENTION_BASE_RATE = 0.15
@@ -933,6 +936,42 @@ def resolve_tone_sandhi(
                     second = invented()
                     if second is not None:
                         rules.append(second)
+    return tuple(rules)
+
+
+def resolve_lexical_tone_sandhi(
+    levels: tuple[ToneLevel, ...],
+    weighted_profiles: WeightedProfiles,
+    strictness: float,
+    seed: int,
+) -> tuple[LexicalToneSandhiRule, ...]:
+    """The lexically-specific tone-sandhi rules (real Mandarin 不 "not" /
+    一 "one") a tonal language ends up with -- much simpler than
+    ``resolve_tone_sandhi`` above: each matched profile's own curated
+    rule is independently **kept** with probability equal to its own
+    weighted strictness (certain at a single full-strictness source,
+    less likely the weaker/more diluted the match), the same "kept"
+    mechanic ``resolve_tone_sandhi`` uses for its own first bullet. No
+    invention or replacement -- unlike a generic tone-context rule,
+    there's no meaningful "invented" version of one specific real word's
+    own specific real alternation, so an unmatched/low-strictness run
+    just doesn't get one, the same honest abstention this project's own
+    curated-not-invented word-level-phonology rules (Hindi schwa
+    deletion, Korean assimilation) already practice. Its own rng stream
+    (seeded independently of the main generation's own ``rng``, the same
+    isolation ``resolve_tone_sandhi`` already has) means adding this
+    changes no other draw sequence."""
+    rng = random.Random(f"{seed}:lexical-tone-sandhi")
+    available = set(levels)
+    rules: list[LexicalToneSandhiRule] = []
+    for profile, weight in weighted_profiles:
+        for gloss, before, becomes in profile.lexical_tone_sandhi:
+            rule = LexicalToneSandhiRule(gloss=gloss, before=ToneLevel(before), becomes=ToneLevel(becomes))
+            if not {rule.before, rule.becomes} <= available:
+                continue
+            weighted = min(1.0, strictness * weight)
+            if rng.random() < weighted and rule not in rules:
+                rules.append(rule)
     return tuple(rules)
 
 

@@ -3,10 +3,12 @@ real articles, an overt copula with tense/agreement marking, and case
 marking under both alignments) and its generate-and-compare decoding back
 out again (Stage 5)."""
 
+from conlang_generator.core.phonology import ToneLevel
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.fake_client import FakeLLMClient
+from conlang_generator.translation import sentence_planner
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
 
 # seed=278 (default traits): has_articles=True, has_overt_copula=True,
@@ -321,3 +323,34 @@ def test_a_sentence_shape_neither_old_fixed_pattern_covered_still_round_trips():
     back = translate_to_english(result.text, result.language, FakeLLMClient())
     for word in ("i", "see", "mountain", "and", "river"):
         assert word in back.text.lower()
+
+
+def test_lexical_tone_sandhi_changes_not_before_a_real_falling_tone_neighbor():
+    # End-to-end version of the pure tone_sandhi.apply_sandhi tests in
+    # test_reference_only_symbols_and_tones.py: a real strict-Mandarin-
+    # sourced generated language, translating a real sentence, actually
+    # applies LexicalToneSandhiRule through the whole sentence_planner ->
+    # translate_to_conlang -> tone_sandhi pipeline, not just the isolated
+    # function. seed=6 -- found by searching for a seed whose own "not"
+    # (real citation tone, whatever it happens to be) sits immediately
+    # before a real word whose own citation tone is falling, the exact
+    # environment this profile's own curated rule ("not" + falling ->
+    # rising) targets.
+    traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=1.0)
+    language = generate_language("T", GenerationSpec(prompt="p", seed=6, traits=traits), FakeLLMClient())
+    assert language.tone_system.lexical_sandhi  # sanity: the curated rules are actually present
+    not_entry = language.lexicon.by_gloss("not")
+    plan = sentence_planner.plan_sentence("the mountain is not high", language, FakeLLMClient())
+    kinds = [s.kind for s in plan.slots]
+    neg_index = kinds.index("negation")
+    next_entry = language.lexicon.by_gloss(plan.slots[neg_index + 1].gloss)
+    assert next_entry.tones[0] == ToneLevel.FALLING  # this seed's own real fixture precondition
+
+    result = translate_to_conlang("the mountain is not high", language, FakeLLMClient())
+    assert result.coined == ()
+    spoken_not = result.ipa.split()[neg_index]
+    assert spoken_not != not_entry.ipa  # sandhi actually changed something
+    # The real rule's own target: "not" now carries a rising tone,
+    # whatever its own citation tone started as (the rule only checks
+    # the *following* syllable's tone, not "not"'s own).
+    assert "̌" in spoken_not  # combining caron -- ToneLevel.RISING's own mark

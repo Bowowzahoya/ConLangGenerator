@@ -387,7 +387,7 @@ def pronounce(
     # display, and only when sandhi actually changes something -- a
     # toneless or single-syllable word (the common case) prints identically
     # to before.
-    spoken_ipa = apply_sandhi([entry.ipa], language.tone_system)[0]
+    spoken_ipa = apply_sandhi([entry.ipa], language.tone_system, [entry.primary_gloss])[0]
     if spoken_ipa != entry.ipa:
         typer.echo(f"Pronounced (tone sandhi): /{spoken_ipa}/")
 

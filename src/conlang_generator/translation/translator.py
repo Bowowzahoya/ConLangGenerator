@@ -288,8 +288,10 @@ def translate_to_conlang(
 
     romanization_parts: list[str] = []
     ipa_parts: list[str] = []
+    gloss_parts: list[str | None] = []
     for slot in plan.slots:
         rendered: tuple[str, str] | None = None
+        entry: LexicalEntry | None = None
         if slot.kind == "content" and slot.gloss:
             pos = sentence_planner.POS_BY_PLAN_STRING.get(slot.pos, PartOfSpeech.NOUN)
             working_language, entry = _lookup_or_coin(
@@ -328,10 +330,11 @@ def translate_to_conlang(
         if rendered is not None:
             romanization_parts.append(rendered[0])
             ipa_parts.append(rendered[1])
+            gloss_parts.append(entry.primary_gloss if entry is not None else None)
 
     return TranslationResult(
         text=" ".join(romanization_parts),
-        ipa=" ".join(tone_sandhi.apply_sandhi(ipa_parts, language.tone_system)),
+        ipa=" ".join(tone_sandhi.apply_sandhi(ipa_parts, language.tone_system, gloss_parts)),
         language=working_language,
         coined=tuple(coined),
         pattern="llm-plan",

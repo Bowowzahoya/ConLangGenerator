@@ -4,7 +4,7 @@ tone marks in real/seed words make the generated language tonal."""
 
 import random
 
-from conlang_generator.core.phonology import TONE_DIACRITICS, ToneLevel, ToneSandhiRule, ToneSystem
+from conlang_generator.core.phonology import TONE_DIACRITICS, LexicalToneSandhiRule, ToneLevel, ToneSandhiRule, ToneSystem
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, phonology_gen, real_words, tone_sandhi
@@ -172,6 +172,100 @@ def test_evolved_languages_own_tone_system_and_sandhi_still_apply_correctly():
     )
 
 
+_NOT_FALLING_RISING = LexicalToneSandhiRule(gloss="not", before=ToneLevel.FALLING, becomes=ToneLevel.RISING)
+_ONE_RULES = (
+    LexicalToneSandhiRule(gloss="one", before=ToneLevel.FALLING, becomes=ToneLevel.RISING),
+    LexicalToneSandhiRule(gloss="one", before=ToneLevel.HIGH, becomes=ToneLevel.FALLING),
+    LexicalToneSandhiRule(gloss="one", before=ToneLevel.RISING, becomes=ToneLevel.FALLING),
+    LexicalToneSandhiRule(gloss="one", before=ToneLevel.DIPPING, becomes=ToneLevel.FALLING),
+)
+
+
+def test_lexical_sandhi_changes_only_the_tracked_gloss_before_its_own_trigger_tone():
+    # real 不是 bùshì -> búshì: "not" (citation falling) + a falling-tone
+    # word becomes rising -- but only because it's specifically "not",
+    # not because any falling-toned syllable does this before another.
+    system = ToneSystem(enabled=True, levels=(ToneLevel.RISING, ToneLevel.FALLING), lexical_sandhi=(_NOT_FALLING_RISING,))
+    bu = _marked("bu", ToneLevel.FALLING)
+    shi = _marked("shi", ToneLevel.FALLING)
+    spoken = tone_sandhi.apply_sandhi([bu, shi], system, glosses=["not", "verb"])
+    assert spoken == [_marked("bu", ToneLevel.RISING), shi]
+    # the same two falling-toned syllables, untracked (no glosses passed
+    # at all), are left alone -- this is not a general tone-context rule.
+    assert tone_sandhi.apply_sandhi([bu, shi], system) == [bu, shi]
+    # a different falling-toned word immediately before the same falling
+    # verb does NOT change -- the rule is bound to the gloss "not", not
+    # to "any falling syllable."
+    other = _marked("ta", ToneLevel.FALLING)
+    assert tone_sandhi.apply_sandhi([other, shi], system, glosses=["he", "verb"]) == [other, shi]
+
+
+def test_lexical_sandhi_keeps_the_citation_tone_when_word_final_or_unmatched():
+    system = ToneSystem(enabled=True, levels=(ToneLevel.RISING, ToneLevel.FALLING), lexical_sandhi=(_NOT_FALLING_RISING,))
+    bu = _marked("bu", ToneLevel.FALLING)
+    # utterance-final "not" (real bù said alone, or at the end of a
+    # clause) -- no following syllable to trigger the rule, so the
+    # citation tone stands, the same real fact every other word's own
+    # citation form already has.
+    assert tone_sandhi.apply_sandhi([bu], system, glosses=["not"]) == [bu]
+    # followed by a non-falling tone -- no rule matches this (gloss,
+    # tone) pair, so it's also left alone.
+    rising_next = _marked("hao", ToneLevel.RISING)
+    assert tone_sandhi.apply_sandhi([bu, rising_next], system, glosses=["not", "adjective"]) == [bu, rising_next]
+
+
+def test_real_yi_one_needs_all_three_of_its_own_non_falling_contexts():
+    # real 一 "one" (citation high): falling -> rising (一样 yīyàng ->
+    # yíyàng), and high/rising/dipping all alike -> falling (一天/一年/
+    # 一起). Exercises all four curated rules at once.
+    system = ToneSystem(
+        enabled=True, levels=(ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.DIPPING, ToneLevel.FALLING),
+        lexical_sandhi=_ONE_RULES,
+    )
+    yi = _marked("yi", ToneLevel.HIGH)
+    for next_tone, expected in (
+        (ToneLevel.FALLING, ToneLevel.RISING),
+        (ToneLevel.HIGH, ToneLevel.FALLING),
+        (ToneLevel.RISING, ToneLevel.FALLING),
+        (ToneLevel.DIPPING, ToneLevel.FALLING),
+    ):
+        following = _marked("ta", next_tone)  # a real vowel-bearing placeholder -- "x" has none to mark
+        spoken = tone_sandhi.apply_sandhi([yi, following], system, glosses=["one", "noun"])
+        assert spoken[0] == _marked("yi", expected), next_tone
+
+
+def test_lexical_sandhi_reads_the_next_words_own_already_general_sandhied_tone():
+    # The lexical pass reads its neighbor's tone *after* the general
+    # tone-context pass has already run, not its untouched citation tone
+    # -- constructed so the difference is observable: the middle word's
+    # own citation tone (dipping) would NOT trigger "not"'s own rule
+    # (which only fires before falling), but third-tone sandhi first
+    # turns it rising... which *still* doesn't match, so "not" stays
+    # unchanged either way here -- this test instead directly confirms
+    # the general pass runs first by checking its own output tone is
+    # what the lexical pass actually saw, via a rule keyed on the
+    # post-sandhi value.
+    third_tone = ToneSandhiRule(before=ToneLevel.DIPPING, after=ToneLevel.DIPPING, becomes=ToneLevel.RISING)
+    not_before_rising = LexicalToneSandhiRule(gloss="not", before=ToneLevel.RISING, becomes=ToneLevel.FALLING)
+    system = ToneSystem(
+        enabled=True, levels=(ToneLevel.RISING, ToneLevel.DIPPING, ToneLevel.FALLING),
+        sandhi=(third_tone,), lexical_sandhi=(not_before_rising,),
+    )
+    bu = _marked("bu", ToneLevel.DIPPING)
+    first_of_pair = _marked("ma", ToneLevel.DIPPING)
+    second_of_pair = _marked("ma", ToneLevel.DIPPING)
+    # first_of_pair+second_of_pair both start dipping; third-tone sandhi
+    # turns first_of_pair into rising -- "not" (also dipping, citation)
+    # sits right before that now-rising syllable, so the lexical rule
+    # (before=rising -> falling) fires on "not" too, which is only
+    # observable if the lexical pass reads the POST-sandhi tone.
+    spoken = tone_sandhi.apply_sandhi(
+        [bu, first_of_pair, second_of_pair], system, glosses=["not", None, None]
+    )
+    assert spoken[0] == _marked("bu", ToneLevel.FALLING)
+    assert spoken[1] == _marked("ma", ToneLevel.RISING)  # confirms the general pass really did fire first
+
+
 def test_a_strict_mandarin_run_takes_its_real_tones_neutral_tone_sandhi_and_retroflex_sounds():
     traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=1.0)
     inventory, _, tone_system, _ = phonology_gen.generate_phonology(
@@ -183,6 +277,10 @@ def test_a_strict_mandarin_run_takes_its_real_tones_neutral_tone_sandhi_and_retr
         ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.DIPPING, ToneLevel.FALLING, ToneLevel.NEUTRAL,
     }
     assert _THIRD in tone_system.sandhi
+    # A strict single-source run keeps every one of Mandarin's own curated
+    # lexical rules too -- certain, the same "kept" mechanic the general
+    # sandhi rule above already exercises at full weighted strictness.
+    assert set(tone_system.lexical_sandhi) == {_NOT_FALLING_RISING} | set(_ONE_RULES)
     assert {"ʈʂ", "ʈʂʰ", "ɕ"} <= set(inventory.consonant_symbols())
 
 

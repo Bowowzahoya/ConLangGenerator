@@ -21,6 +21,25 @@ tone_levels: [high, rising, dipping, falling]
 neutral_tone: true
 tone_sandhi:
   - [dipping, dipping, rising]  # third-tone sandhi: 你好 nǐ hǎo is spoken ní hǎo
+# Real 不 "not" (citation falling) and 一 "one" (citation high) each
+# change tone before a specific following tone, but only *these two*
+# words -- no other falling- or high-toned syllable alternates the same
+# way just because it sits in the same tone environment, which is why
+# this is a separate axis from tone_sandhi above (a general, word-
+# independent tone-context rule) rather than another entry in it. See
+# core.phonology.LexicalToneSandhiRule's own docstring.
+lexical_tone_sandhi:
+  - [not, falling, rising]      # 不是 bùshì -> búshì (not + falling)
+  - [one, falling, rising]      # 一样 yīyàng -> yíyàng (one + falling)
+  - [one, high, falling]        # 一天 yītiān -> yìtiān (one + high)
+  - [one, rising, falling]      # 一年 yīnián -> yìnián (one + rising)
+  - [one, dipping, falling]     # 一起 yīqǐ -> yìqǐ (one + dipping)
+  # Elsewhere -- isolation, counting ("yī, èr, sān..."), ordinal/word-final
+  # use ("第一" dì-yī), or before a neutral-tone syllable (a genuine,
+  # documented edge case in the real rule this project doesn't model --
+  # see this profile's own docstring note) -- both words keep their own
+  # unmarked citation tone, the same real fact every other Mandarin word's
+  # own citation form already has.
 tone_level_count: 4  # real Standard Mandarin's own 4 lexical tones (阴平/阳平/上声/去声) -- the neutral tone (轻声) is a genuine 5th prosodic category but is lexically/grammatically conditioned rather than a flat 5th tone slot, see this profile's own note on it above
 orthography_category: wade-giles-style
 restricted_onset_consonants: ["ŋ"]  # real Mandarin /ŋ/ (ng) is coda-only -- no native syllable ever begins with it

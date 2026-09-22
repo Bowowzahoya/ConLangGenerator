@@ -252,9 +252,34 @@ multi-session feature.
 
 ## 3. Tones
 
-- **Lexically specific sandhi (M)** — Mandarin 不 (bù→bú before falling) and
-  一 (yī) change by word, not by tone context, so `ToneSandhiRule` cannot
-  express them. Needs a per-word flag or a word-conditioned rule.
+- **Lexically specific sandhi (done).** New `core.phonology.LexicalToneSandhiRule`
+  (`gloss`, `before`, `becomes`) and `ToneSystem.lexical_sandhi`, dispatched in
+  `tone_sandhi.apply_sandhi` (now takes an optional `glosses` list, one per
+  `ipa_words` entry) as a second pass after the general context-sandhi one, since
+  it needs to read each word's own *already* general-sandhi'd neighbor tone (the
+  real, as-spoken tone a listener actually hears next). Bound by gloss identity
+  ("not"/"one", this project's own invented Mandarin-sourced words have no
+  Chinese characters to key on) rather than tone content, so it fires only for
+  that one specific lexicon entry, never any other syllable that happens to
+  share its tone. Curated on Mandarin's own profile via a new
+  `lexical_tone_sandhi: [[gloss, before, becomes], ...]` field (real 不 needs one
+  rule, falling->rising; real 一 needs three, covering high/rising/dipping ->
+  falling), resolved the same reference-weighted, strictness-scaled "kept, not
+  invented" way `tone_sandhi` is (`generation.phonology_gen.resolve_lexical_tone_sandhi`,
+  its own independent rng stream so it changes no other draw sequence). Wired
+  into both existing sandhi consumers: `translate_to_conlang` (a new parallel
+  `gloss_parts` list, one per rendered slot) and `conlang pronounce` (though a
+  single looked-up word has no following syllable to trigger it on, so this only
+  matters if/when a future multi-word `pronounce` path exists). Not modeled: the
+  real rule's own edge case before a *neutral*-tone syllable (genuinely
+  contested/simplified differently across pedagogical sources) -- both tracked
+  words keep their own unmarked citation tone there, an honest abstention, not a
+  guess. Verified with unit tests (the tracked-word-only scope, citation-tone
+  fallback when word-final/unmatched, all four real 一 contexts, and that the
+  lexical pass really does read the post-general-sandhi tone) plus one real
+  end-to-end `translate_to_conlang` test (a real strict-Mandarin-sourced
+  language, seed hand-found so "not" naturally sits before a real falling-tone
+  word).
 - **Sandhi scope (mostly done).** `conlang pronounce` now applies
   `tone_sandhi.apply_sandhi` to a single looked-up entry's own IPA (a
   multi-syllable citation form is just an "utterance" of one word to the

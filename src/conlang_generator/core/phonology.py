@@ -172,10 +172,43 @@ class ToneSandhiRule(BaseModel, frozen=True):
     becomes: ToneLevel
 
 
+class LexicalToneSandhiRule(BaseModel, frozen=True):
+    """A tone alternation bound to one specific morpheme (by gloss), not a
+    general tone-context rule -- real Mandarin 不 "not" (bù, citation
+    falling) and 一 "one" (yī, citation high) each change tone before a
+    following syllable of a specific tone, but *only* for that one word;
+    no other falling- or high-toned syllable in the language alternates
+    the same way just because it happens to sit in the same tone
+    environment. ``ToneSandhiRule`` can't express this (it fires for
+    *any* syllable matching its tone context, language-wide) -- this is
+    the "needs a per-word flag or a word-conditioned rule" gap
+    `DEFERRED.md` named for exactly this case.
+
+    ``gloss`` identifies the lexicon entry this rule is bound to (this
+    project's invented Mandarin-sourced words have no Chinese characters
+    to key on, so gloss identity -- "not"/"one", the same real-world
+    grammatical words 不/一 themselves are -- is the only stable handle).
+    ``before``: the following syllable's own tone (after any *general*
+    ``ToneSandhiRule`` has already applied to it -- the real, as-spoken
+    tone a listener actually hears next, not its untouched citation one).
+    ``becomes``: what this word's own tone surfaces as when that
+    condition holds. Multiple rules may share a ``gloss`` (real 一 needs
+    three: before falling -> rising, before high/rising/dipping -> falling)
+    -- a gloss/context combination with no matching rule keeps that word's
+    own already-assigned (citation or general-sandhi'd) tone unchanged,
+    the same "real word-final/isolated citation form" default every
+    other real Mandarin word already has."""
+
+    gloss: str
+    before: ToneLevel
+    becomes: ToneLevel
+
+
 class ToneSystem(BaseModel, frozen=True):
     enabled: bool = False
     levels: tuple[ToneLevel, ...] = ()
     sandhi: tuple[ToneSandhiRule, ...] = ()
+    lexical_sandhi: tuple[LexicalToneSandhiRule, ...] = ()
 
     def mark(self, vowel_ipa: str, tone: ToneLevel) -> str:
         """Apply a tone's combining diacritic to a vowel symbol."""
