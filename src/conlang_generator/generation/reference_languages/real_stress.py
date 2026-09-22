@@ -55,7 +55,15 @@ def _is_vowel(symbol: str) -> bool:
 
 
 def _pairs(name: str) -> frozenset[str] | None:
-    return _HAWAIIAN_DIPHTHONGS if name == "Hawaiian" else None
+    if name == "Hawaiian":
+        return _HAWAIIAN_DIPHTHONGS
+    if name == "Japanese":
+        # real Japanese has no vowel-hiatus fusion at all -- every written vowel is its own
+        # mora (taiyō "sun" is four morae ta-i-yo-o, not the two a European offglide rule would
+        # give it). An empty pairs set (not None) reuses the "explicit list" branch of _nuclei to
+        # turn every vowel into its own nucleus unconditionally.
+        return frozenset()
+    return None
 
 
 def _nuclei_for(toks: list[tuple[str, str]], name: str) -> list[int]:
@@ -322,7 +330,12 @@ def with_greek_accent(ipa: str, kernel: int, circumflex: bool | None = None) -> 
         final_short = "ː" not in final_symbol and (not diph or (final_symbol + toks[final_vowel + 1][0]) in ("ai", "oi"))
         circumflex = kernel == count - 2 and _greek_long(toks, starts, kernel) and final_short
     marks = mark_positional_pitch_accent(kernel, count, circumflex)
-    vowels = [next(i for i in range(starts[k], starts[k + 1] if k + 1 < count else len(toks)) if _is_vowel(toks[i][0])) for k in range(count)]
+    # the mark-bearing token of each syllable is its nucleus as _nuclei_for defines it (a
+    # diphthong's offglide, e.g. the "i" of "oi", is part of the *previous* nucleus, never its
+    # own) -- re-deriving "first vowel in the syllable's own span" here independently used to
+    # disagree with that for exactly this case, marking the offglide instead of the real vowel
+    # and leaving the next syllable's own nucleus unmarked.
+    vowels = _nuclei_for(toks, name)
     return "".join(s + (marks[vowels.index(i)] if i in vowels else "") for i, (s, _) in enumerate(toks))
 
 

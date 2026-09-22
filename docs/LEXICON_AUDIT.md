@@ -48,17 +48,27 @@ How each language's marks were produced:
   segolate nouns, Turkish *anne*, *baba*, *-ında* adverbs.
 * **Fully lexical languages -- curated word by word:** English (non-initial stress) and Russian (every polysyllable).
 * **Japanese pitch accent:** per-syllable High/Low marks, the encoding generated Japanese words use, from Tokyo
-  dictionary accent numbers in morae (a long vowel or moraic `n` adds a mora), for ~91% of the polysyllabic words
-  (413 of 454 distinct spellings). Left unmarked rather than guessed: phrases with particles (*ni tsuite*),
-  conjugated forms (*kawaita*), homographs with two accents (*hana*, *hashi*, *kaeru*, *kara*) and a few words
-  whose accent I did not know (*dōbutsu*, *yari*, *nameraka*).
+  dictionary accent numbers in morae (a long vowel or moraic `n` adds a mora), for 424 of 454 polysyllabic words
+  (93%). Fixed along the way: the reader was applying a generic Indo-European offglide-fusion rule to Japanese,
+  which has none -- every written vowel is its own mora (*taiyō* "sun" is 4 morae, not 2) -- silently
+  under-counting syllables and misreading pitch for any word containing a vowel-hiatus sequence the rule would
+  fuse (`tests/test_real_stress.py`'s own regression test). The actually-stored marks were unaffected (the
+  writer was always mora-correct); only the *reading* was wrong, so the true coverage turned out the same 91%
+  it already looked like. Left unmarked rather than guessed: phrases with particles (*ni tsuite*), most
+  conjugated forms, remaining homographs (*kara*) and several words whose accent I did not know (*yari*,
+  *nameraka*, *horu*, *kizutsukeru*); *hana* "nose" and *hashi* "bridge" now use their gloss's own correct
+  reading, distinct from their homographs *hana* "flower" and *hashi* "chopsticks".
 * **Ancient Greek accent:** the project's per-syllable High/Low encoding with the circumflex as the falling mark on
-  the kernel, from the accent placement of the LSJ lemma forms (I annotated 426 of 453 polysyllabic spellings; the
-  rest -- *eraō*, *synapto*, *koniā* and a few others -- I did not know and left unmarked). The circumflex follows the
-  real rule (a long penult under an accent with a short final syllable; final *-ai*/*-oi* count as short), with
+  the kernel, from the accent placement of the LSJ lemma forms -- 452 of 453 polysyllabic spellings (only the phrase
+  *dia ti* "why", where proclisis makes the accent a phrase-level question, is left unmarked). The circumflex follows
+  the real rule (a long penult under an accent with a short final syllable; final *-ai*/*-oi* count as short), with
   hand-forced circumflexes where the lexicon does not show length (*sitos*, *mythos*, *pilos*, *pragma*, *houtos*,
   *hēmeis*). Every accent sits in the last three syllables (the trimoric law); vowel length that the lexicon does not
-  write (α ι υ) limits the circumflex rule.
+  write (α ι υ) limits the circumflex rule. Fixed along the way: `with_greek_accent` computed its own, separate
+  "first vowel of this syllable" index instead of reusing the same nucleus list the reader uses, so any word with a
+  fused diphthong offglide (*poieō*, *pisteuō*, *pauō*, *homoios*, *ploion*, ...) got its mark on the offglide instead
+  of the real nucleus, leaving the true nucleus unmarked and the word unparseable -- 8 spellings affected, all among
+  the ones this session's own "still unmarked" count already listed, so nothing already counted as done was wrong.
 * **Danish stød and the Swedish/Norwegian word accents:** encoded as generated words carry them (the glottalization
   mark `ˀ` after the stressed syllable's rime; a High or Low diacritic on the stressed vowel). Beyond each profile's
   own shape default (Danish: a monosyllable takes stød when its syllable is heavy -- a long vowel or diphthong, or a
@@ -94,7 +104,7 @@ real exceptions (loanwords, verbs, compounds) unless listed above.
 
 ```
 language        stress pattern                     marked polysyll.
-Ancient Greek   positional_pitch_accent               433       453
+Ancient Greek   positional_pitch_accent               452       453
 Arabic          lexical                               365       365
 Arawakan        -                                       0        42
 Basque          lexical                               468       468
@@ -114,7 +124,7 @@ Hungarian       initial                               288       288
 Icelandic       initial                               346       346
 Indonesian      lexical                               476       476
 Italian         lexical                               473       473
-Japanese        positional_pitch_accent               405       446
+Japanese        positional_pitch_accent               424       454
 Khmer           -                                       0         7
 Korean          -                                       0       374
 Latin           lexical                               442       442

@@ -52,10 +52,17 @@ multi-session feature.
   *mor*-type words wrongly two syllables; 44 words corrected). Still open: (a) verifying the 233 Serbo-Croatian
   words against a real dictionary; (b) most Danish/Swedish/Norwegian polysyllables still use only the shape
   default -- real lexical exceptions (Swedish *anden* "duck" vs "spirit", other -el/-en/-er words that are recent
-  formations, compounds, stød on polysyllabic inflected forms) are unknown; (c) the ~9% of Japanese and ~4% of
-  Ancient Greek polysyllables left unmarked; (d) fixed-pattern languages ignore their real exceptions (loanwords,
-  verbs) -- an `exceptions` pass per language would refine them; (e) secondary stress is not marked anywhere;
-  (f) vowel harmony is absent from the real words.
+  formations, compounds, stød on polysyllabic inflected forms) are unknown; (c) fixed-pattern languages ignore
+  their real exceptions (loanwords, verbs) -- an `exceptions` pass per language would refine them; (d) secondary
+  stress is not marked anywhere; (e) vowel harmony is absent from the real words. Japanese and Ancient Greek's
+  own remaining gaps are now closed (see `LEXICON_AUDIT.md`): Greek is 452/453 (only the phrase *dia ti* left),
+  Japanese 424/454 (93%; the rest are phrases, particles, homographs and a few verbs/adjectives I don't
+  confidently know). Fixing them surfaced two real bugs in `real_stress.py`, both now covered by regression
+  tests: `with_greek_accent` marked a fused diphthong's offglide instead of its real nucleus (8 spellings,
+  *poieō* and similar, already counted among "unmarked" so nothing previously-reported was wrong); and the
+  generic offglide-fusion rule was wrongly applied to Japanese, which has none (every written vowel is its own
+  mora) -- this only broke *reading* the already-correct stored marks, so the coverage number didn't move, but
+  `syllable_count`/`pitch_pattern` were silently wrong for any word containing a fusable vowel sequence.
 - **Sanskrit's Vedic accent (declined).** Considered and rejected, not just left open: the profile already
   deliberately targets accentless Classical Sanskrit (see its own comment); the lexicon's 129 verbs are cited
   as bare roots, and real Vedic finite-verb accent is a sentence-level syntactic rule, not a property of the

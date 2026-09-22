@@ -198,6 +198,27 @@ def test_greek_circumflex_needs_a_long_penult_and_a_short_final_syllable():
     assert accent("logos", 0) == "HL"  # a short penult is acute
 
 
+def test_greek_accent_marks_the_real_nucleus_of_a_fused_diphthong_syllable():
+    # regression: "oi" fuses into one syllable (the offglide is not its own nucleus), but
+    # with_greek_accent used to compute its own, inconsistent "first vowel in this syllable's
+    # span" index and mark the offglide "i" instead of the real nucleus "o" -- leaving the next
+    # syllable's own nucleus unmarked and producing an unparseable pattern (a "poieō"-shaped bug).
+    marked = real_stress.with_greek_accent("poieɔː", 1)
+    assert real_stress.pitch_pattern(marked, "Ancient Greek") == "LHL"
+    toks = real_stress.tokens(marked, "Ancient Greek")
+    assert toks[1] == ("o", "̀") and toks[2] == ("i", "")  # the mark sits on "o", not the "i" offglide
+
+
+def test_japanese_has_no_diphthong_fusion_every_written_vowel_is_its_own_mora():
+    # regression: the generic Indo-European offglide-fusion rule doesn't apply to Japanese (each
+    # written vowel is its own mora), but the reader used to apply it anyway, silently
+    # under-counting words like taiyō "sun" (4 morae) as 2 syllables and misreading their pitch.
+    assert real_stress.syllable_count("taijoː", "Japanese") == 3  # ta-i-yo(o), not "tai-yo"
+    assert real_stress.syllable_count("takai", "Japanese") == 3  # ta-ka-i, not "ta-kai"
+    accented = real_stress.with_pitch_accent("takai", "Japanese", 2)
+    assert real_stress.pitch_pattern(accented, "Japanese") == "LHL"
+
+
 def test_serbo_croatian_has_stress_everywhere_and_the_four_way_accent_where_known():
     sc = {spelling: ipa for spelling, ipa in real_words("Serbo-Croatian").values()}
     assert sc["voda"] == "ˈvȍda"  # short falling on the first syllable
