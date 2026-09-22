@@ -31,6 +31,10 @@ _HIGH_OFFGLIDES = frozenset({"i", "u", "ɪ", "ʊ", "y"})
 _FINAL_GLIDE_LANGUAGES = frozenset({"Portuguese"})
 # Hawaiian's ten diphthongs (a vowel + a second vowel in one syllable): everything else in a row is a hiatus
 _HAWAIIAN_DIPHTHONGS = frozenset({"ae", "ai", "ao", "au", "ei", "eu", "iu", "oi", "ou", "ui"})
+# Danish coda /r/ is realized as a vocalic offglide and this lexicon writes it as its own vowel
+# symbol (mor "mother" /moːɐ/ is one syllable, tokenized as m + oː + ɑ) -- it always fuses with
+# whatever vowel precedes it, unlike Hawaiian's fixed pair list or a high-offglide diphthong.
+_ALWAYS_FUSES_AFTER_A_VOWEL = {"Danish": frozenset({"ɑ", "ɑː"})}
 
 
 def _profile(name: str) -> ReferenceLanguageProfile:
@@ -54,13 +58,26 @@ def _pairs(name: str) -> frozenset[str] | None:
     return _HAWAIIAN_DIPHTHONGS if name == "Hawaiian" else None
 
 
-def _nuclei(toks: list[tuple[str, str]], final_glide: bool = False, pairs: frozenset[str] | None = None) -> list[int]:
+def _nuclei_for(toks: list[tuple[str, str]], name: str) -> list[int]:
+    """``_nuclei`` with this language's own diphthong/offglide/fusion rules applied."""
+    return _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES, _pairs(name), _ALWAYS_FUSES_AFTER_A_VOWEL.get(name))
+
+
+def _nuclei(
+    toks: list[tuple[str, str]], final_glide: bool = False, pairs: frozenset[str] | None = None,
+    always_fuses: frozenset[str] | None = None,
+) -> list[int]:
     """Token index of each syllable's (first) vowel. Two vowels in a row make one
     syllable when the second is a high off-glide after a non-high vowel (``æ`` +
-    ``i``, ``a`` + ``u``: a falling diphthong); otherwise they are a hiatus."""
+    ``i``, ``a`` + ``u``: a falling diphthong); otherwise they are a hiatus.
+    ``always_fuses`` (Danish's vocalized coda /r/, written as its own vowel symbol):
+    unlike the other two mechanisms, this symbol fuses into *any* preceding vowel,
+    anywhere in the word, not just a fixed pair or a word-final position."""
     nuclei: list[int] = []
     for i, (symbol, _) in enumerate(toks):
         if not _is_vowel(symbol):
+            continue
+        if always_fuses and nuclei and nuclei[-1] == i - 1 and symbol in always_fuses:
             continue
         if pairs is not None:  # a language with an explicit diphthong list
             if nuclei and nuclei[-1] == i - 1 and toks[i - 1][0] + symbol in pairs:
@@ -78,7 +95,7 @@ def _nuclei(toks: list[tuple[str, str]], final_glide: bool = False, pairs: froze
 def syllable_starts(toks: list[tuple[str, str]], name: str) -> tuple[int, ...]:
     """Token index where each syllable's onset begins (first entry 0)."""
     structure = lexicon_audit.profile_structure(name)
-    vowels = _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES, _pairs(name))
+    vowels = _nuclei_for(toks, name)
     starts = [0]
     for prev, nxt in zip(vowels, vowels[1:]):
         run = tuple(s for s, _ in toks[prev + 1:nxt])
@@ -93,7 +110,7 @@ def syllable_starts(toks: list[tuple[str, str]], name: str) -> tuple[int, ...]:
 
 
 def syllable_count(ipa: str, name: str) -> int:
-    return len(_nuclei(tokens(ipa, name), name in _FINAL_GLIDE_LANGUAGES, _pairs(name)))
+    return len(_nuclei_for(tokens(ipa, name), name))
 
 
 def stressed_syllable(ipa: str, name: str) -> int | None:
@@ -215,7 +232,7 @@ def default_stress_index(ipa: str, name: str) -> int | None:
         return _hawaiian_stress(toks, starts)
     if pattern in ("", "lexical"):
         return None
-    vowels = _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES, _pairs(name))
+    vowels = _nuclei_for(toks, name)
     final_coda = tuple(s for s, _ in toks[vowels[-1] + 1:] if not _is_vowel(s))
     first_long = next((k for k, i in enumerate(vowels) if "ː" in toks[i][0]), None)
     index = predict_default_stress(count, pattern, final_coda, toks[vowels[-1]][0], first_long)
@@ -267,7 +284,7 @@ def pitch_pattern(ipa: str, name: str) -> str | None:
     falling = TONE_DIACRITICS[ToneLevel.FALLING]
     pattern = ""
     toks = tokens(ipa, name)
-    for i in _nuclei(toks, name in _FINAL_GLIDE_LANGUAGES, _pairs(name)):
+    for i in _nuclei_for(toks, name):
         deco = toks[i][1]
         pattern += "H" if high in deco else "L" if low in deco else "F" if falling in deco else "?"
     return pattern if pattern and "?" not in pattern else None
@@ -344,38 +361,87 @@ _DANISH_NO_STOD = frozenset(
 )
 
 
-def stod_applies(ipa: str, spelling: str) -> bool:
-    """Whether a Danish monosyllable takes stød: a heavy syllable (a long vowel or diphthong, or a
-    short vowel + a sonorant coda) that is not a function word. Polysyllabic lemma forms are left
-    without it (stød on a polysyllable is a property of its inflected forms: *mand* + *-en*)."""
+# Common Scandinavian accent 1 (Danish stød, Swedish/Norwegian tonem 1) has one reliable
+# synchronic marker beyond the shape rules already applied: a word whose unstressed final
+# syllable is a bare sonorant with no full vowel of its own (real -el/-en/-er/-el, historically
+# a monosyllabic root + an early, tonally-inert suffix: Swedish "vatten", "fågel", "vinter",
+# Danish "vinter", Norwegian "vinter") is accent 1 -- unlike a genuine second full syllable
+# (Swedish "gata", "flicka"), which stays accent 2. Real -er that *is* a live derivational
+# suffix (agentive -are, comparative -are/-ere) does not trigger this and is excluded by
+# checking the syllable actually has no vowel of its own.
+_REDUCED_SONORANTS = frozenset({"l", "n", "r"})
+_REDUCED_VOWELS = frozenset({"ɛ", "ə"})  # this lexicon's own transcription of the reduced vowel these take
+
+
+def has_reduced_final_syllable(toks: list[tuple[str, str]], starts: tuple[int, ...]) -> bool:
+    if len(starts) < 2:
+        return False
+    rime = toks[next(i for i in range(starts[-1], len(toks)) if _is_vowel(toks[i][0])):]
+    return (
+        len(rime) == 2
+        and rime[0][0] in _REDUCED_VOWELS
+        and rime[1][0] in _REDUCED_SONORANTS
+    )
+
+
+def stod_applies(ipa: str, spelling: str, accent_1: bool | None = None) -> bool:
+    """Whether a Danish word's stressed syllable takes stød: a heavy syllable (a long vowel or
+    diphthong, or a short vowel + a sonorant coda) that is not a function word, on a word that
+    is accent-1 lineage. For a monosyllable that lineage is the (usual) case, so ``accent_1``
+    defaults to ``True``; a genuine reduced final syllable (*vinter*) also defaults to accent 1.
+    A real polysyllable needs ``accent_1`` given explicitly (curated) -- stød is otherwise
+    unknown for it, same as accent 1 vs 2 is unknown for an uncurated Swedish/Norwegian word."""
     name = "Danish"
     toks = tokens(ipa, name)
-    nuclei = _nuclei(toks)
-    if len(nuclei) != 1 or spelling.lower() in _DANISH_NO_STOD:
+    starts = syllable_starts(toks, name)
+    stressed = stressed_syllable(ipa, name)
+    monosyllable = len(starts) == 1
+    if accent_1 is None:
+        accent_1 = True if (monosyllable or has_reduced_final_syllable(toks, starts)) else False
+    if not accent_1 or spelling.lower() in _DANISH_NO_STOD:
         return False
-    nucleus = toks[nuclei[0]][0]
-    coda = [s for s, _ in toks[nuclei[0] + 1:] if not _is_vowel(s)]
-    long_vowel = "ː" in nucleus or (nuclei[0] + 1 < len(toks) and _is_vowel(toks[nuclei[0] + 1][0]))
+    syllable = stressed if stressed is not None else 0
+    # Heaviness looks at every consonant up to the *next vowel*, not just the maximal-onset
+    # syllable boundary: real Danish stød-basis is the stressed vowel's own historical rhyme
+    # (gammel/himmel: the intervocalic sonorant closed it before the modern single-consonant
+    # spelling), which a synchronic maximal-onset syllable split would wrongly hand to the
+    # following syllable's onset instead.
+    end = starts[syllable + 1] if syllable + 1 < len(starts) else len(toks)
+    next_vowel = next((i for i in range(end, len(toks)) if _is_vowel(toks[i][0])), len(toks))
+    vowel = next(i for i in range(starts[syllable], end) if _is_vowel(toks[i][0]))
+    nucleus = toks[vowel][0]
+    coda = [s for s, _ in toks[vowel + 1:next_vowel] if not _is_vowel(s)]
+    long_vowel = "ː" in nucleus or (vowel + 1 < end and _is_vowel(toks[vowel + 1][0]))
     return long_vowel or (bool(coda) and coda[-1] in _DANISH_SONORANTS)
 
 
-def with_stod(ipa: str, spelling: str) -> str:
-    """``ipa`` with the glottalization mark after its syllable when the word takes stød."""
+def with_stod(ipa: str, spelling: str, accent_1: bool | None = None) -> str:
+    """``ipa`` with the glottalization mark after the stressed syllable's rime when the word
+    takes stød. ``accent_1``: see ``stod_applies``. The word's own stress mark (if any) is kept
+    either way."""
     name = "Danish"
-    toks = [(s, d) for s, d in tokens(ipa, name)]
+    toks = tokens(ipa, name)
+    starts = syllable_starts(toks, name)
+    stress = stressed_syllable(ipa, name)
     plain = "".join(s + d for s, d in toks)
-    if not stod_applies(plain, spelling):
-        return plain
-    return plain + WORD_ACCENT_MARK
+    takes_stod = stod_applies(plain, spelling, accent_1)
+    syllable = stress if stress is not None else 0
+    end = starts[syllable + 1] if syllable + 1 < len(starts) else len(toks)
+    return "".join(
+        (STRESS_MARK if stress is not None and i == starts[stress] else "")
+        + s + d + (WORD_ACCENT_MARK if takes_stod and i == end - 1 else "")
+        for i, (s, d) in enumerate(toks)
+    )
 
 
-def with_scandinavian_accent(ipa: str, name: str) -> str:
+def with_scandinavian_accent(ipa: str, name: str, category: int | None = None) -> str:
     """Swedish/Norwegian word accent as the project encodes it: a High diacritic on the accented
     syllable's vowel for accent 1, a Low one for accent 2. The accented syllable is the stressed
-    one (the word's first for a monosyllable). Accent 1 for a monosyllable or a word stressed on
-    its last syllable, accent 2 otherwise -- the profile's own ``underived_monosyllable`` default.
-    Real polysyllables have lexical exceptions (*anden*, and words in unstressed -el/-en/-er) that
-    this does not know."""
+    one (the word's first for a monosyllable). ``category`` (1 or 2), when given, overrides the
+    default -- accent 1 for a monosyllable, a word stressed on its last syllable, or a reduced
+    final syllable (*vatten*, *fågel*, *vinter*), accent 2 otherwise (the profile's own
+    ``underived_monosyllable`` default plus that one reliable exception). Real polysyllables have
+    further lexical exceptions this does not know unless ``category`` is given."""
     from conlang_generator.core.phonology import ToneLevel
 
     stress = stressed_syllable(ipa, name)
@@ -383,7 +449,10 @@ def with_scandinavian_accent(ipa: str, name: str) -> str:
     starts = syllable_starts(toks, name)
     accented = stress if stress is not None else 0
     accented = min(accented, len(starts) - 1)
-    accent_one = len(starts) == 1 or accented == len(starts) - 1
+    if category is not None:
+        accent_one = category == 1
+    else:
+        accent_one = len(starts) == 1 or accented == len(starts) - 1 or has_reduced_final_syllable(toks, starts)
     mark = TONE_DIACRITICS[ToneLevel.HIGH if accent_one else ToneLevel.LOW]
     end = starts[accented + 1] if accented + 1 < len(starts) else len(toks)
     vowel = next(i for i in range(starts[accented], end) if _is_vowel(toks[i][0]))

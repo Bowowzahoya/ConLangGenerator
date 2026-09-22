@@ -60,14 +60,20 @@ How each language's marks were produced:
   *hēmeis*). Every accent sits in the last three syllables (the trimoric law); vowel length that the lexicon does not
   write (α ι υ) limits the circumflex rule.
 * **Danish stød and the Swedish/Norwegian word accents:** encoded as generated words carry them (the glottalization
-  mark `ˀ` after the rime; a High or Low diacritic on the stressed vowel). **This applies each profile's own default,
-  not word-by-word data.** Danish: a monosyllable takes stød when its syllable is heavy (a long vowel or diphthong,
-  or a short vowel + `n m ŋ l ʁ ð v j w`) unless it is a function word (*jeg du han hun den det og ...*); polysyllabic
-  lemma forms take none. Swedish/Norwegian: accent 1 (High) on a monosyllable or a word stressed on its last syllable,
-  accent 2 (Low) on the stressed syllable of any other word. The real systems are lexical for polysyllables (Swedish
-  *anden* "duck" vs "spirit", the reduced -el/-en/-er endings, compounds), and Danish stød also occurs on
-  polysyllabic inflected forms and on transcribed short vowels the lexicon writes without length (*træ*) -- none of
-  that is known here.
+  mark `ˀ` after the stressed syllable's rime; a High or Low diacritic on the stressed vowel). Beyond each profile's
+  own shape default (Danish: a monosyllable takes stød when its syllable is heavy -- a long vowel or diphthong, or a
+  short vowel + `n m ŋ l ʁ ð v j w` -- unless it is a function word; Swedish/Norwegian: accent 1 on a monosyllable or
+  a word stressed on its last syllable, accent 2 otherwise), one further real, reliable rule is applied: a word whose
+  *unstressed final syllable* is just a reduced vowel plus a bare `l`/`n`/`r` with no vowel of its own (*vatten*,
+  *fågel*, *vinter*, *syster*, Danish *gammel*, *himmel*) is accent 1/stød -- a genuine Common Scandinavian class
+  (an originally monosyllabic root + an early, tonally-inert suffix), not a guess; a handful of function words and one
+  live plural that happen to share the shape (*under*, *efter*, *nyheter*) are excluded by hand since the rule is
+  about root history, not shape alone. Real per-word exceptions still outside this (Swedish *anden* "duck" vs
+  "spirit" -- a genuine minimal pair no shape rule can resolve; other -el/-en/-er words that are recent formations,
+  not this old class; compounds; Danish stød on polysyllabic *inflected* forms, and on transcribed short vowels the
+  lexicon writes without length, e.g. *træ*) are not known here. Fixing Danish's own coda-/r/-as-a-written-vowel
+  quirk (*mor* /moːɐ/ was mis-syllabified as two syllables and wrongly stress-marked) turned up along the way --
+  44 words corrected.
 * **Serbo-Croatian:** every polysyllable now carries the four-way Neo-Stokavian accent (short/long x
   falling/rising, falling only on the first syllable) -- 151 words from the first pass, the other 233 from a
   second, hand-curated pass. **This second batch is the least reliable data in this project.** Unlike every
@@ -94,7 +100,7 @@ Arawakan        -                                       0        42
 Basque          lexical                               468       468
 Bengali         initial                               393       393
 Cantonese       -                                      43       133
-Danish          initial                               266       266
+Danish          initial                               222       222
 Dutch           initial                               230       230
 English         lexical                               112       114
 Finnish         initial                               472       472

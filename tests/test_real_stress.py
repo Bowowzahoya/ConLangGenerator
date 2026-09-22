@@ -24,6 +24,8 @@ def _by_spelling(name):
 
 @pytest.mark.parametrize("name", _STRESS_LANGUAGES)
 def test_stress_marks_sit_before_a_syllable_onset_and_monosyllables_stay_unmarked(name):
+    from conlang_generator.core.romanization import WORD_ACCENT_MARK
+
     for spelling, ipa in real_words(name).values():
         assert ipa.count(STRESS_MARK) <= 1, (name, spelling, ipa)
         if STRESS_MARK not in ipa:
@@ -32,8 +34,10 @@ def test_stress_marks_sit_before_a_syllable_onset_and_monosyllables_stay_unmarke
         assert count > 1, f"{name}: monosyllable {spelling!r} /{ipa}/ is marked"
         index = real_stress.stressed_syllable(ipa, name)
         assert index is not None and 0 <= index < count, (name, spelling, ipa)
-        # the mark sits exactly where the word's own syllable break is
-        assert real_stress.with_stress(ipa, name, index) == ipa, (name, spelling, ipa)
+        # the mark sits exactly where the word's own syllable break is (with_stress doesn't
+        # track Danish's own separate stød mark, so compare with it stripped from both sides)
+        without_stod = ipa.replace(WORD_ACCENT_MARK, "")
+        assert real_stress.with_stress(without_stod, name, index) == without_stod, (name, spelling, ipa)
 
 
 @pytest.mark.parametrize("name", _STRESS_LANGUAGES)
@@ -218,19 +222,40 @@ def test_danish_stod_marks_heavy_monosyllables_but_not_function_words_or_polysyl
     for plain in ("jeg", "du", "han", "den", "og", "fisk"):
         assert WORD_ACCENT_MARK not in danish[plain], plain  # function words; a short vowel + an obstruent
     polysyllables = [ipa for ipa in danish.values() if real_stress.syllable_count(ipa, "Danish") > 1]
-    assert polysyllables and not any(WORD_ACCENT_MARK in ipa for ipa in polysyllables)
+    with_stod = [ipa for ipa in polysyllables if WORD_ACCENT_MARK in ipa]
+    # a reduced final syllable (gammel, himmel) is the one polysyllabic case that takes stød;
+    # it is rare, not the rule -- most polysyllables still don't
+    assert polysyllables and 0 < len(with_stod) < len(polysyllables) * 0.05
+    assert danish["gammel"] == "ˈgaˀmɛl" and WORD_ACCENT_MARK not in danish["anden"]  # anden here is "the other", not duck/spirit
     assert real_stress.stod_applies("man", "mand") and not real_stress.stod_applies("mat", "mat")
 
 
 def test_swedish_and_norwegian_accent_follows_the_profile_default():
+    # accent 1: a monosyllable, a word stressed on its last syllable, or a reduced final
+    # syllable (vowel + bare l/n/r, no vowel of its own) -- accent 2 otherwise.
+    # a handful of function words and one live plural (-er) are curated exceptions to the
+    # reduced-final-syllable default, since it is about root history, not shape alone
+    curated_exceptions = {"under", "över", "over", "efter", "etter", "nyheter", "penger", "uten", "noen", "annen"}
     for name in ("Swedish", "Norwegian"):
+        by_spelling = dict(real_words(name).values())
         words = {spelling: ipa for spelling, ipa in real_words(name).values()}
-        assert real_stress.scandinavian_accent(words["sten" if name == "Swedish" else "stein"], name) == 1  # a monosyllable: accent 1
-        polysyllables = [ipa for ipa in words.values() if real_stress.syllable_count(ipa, name) > 1]
-        two = [ipa for ipa in polysyllables if real_stress.scandinavian_accent(ipa, name) == 2]
-        assert len(two) / len(polysyllables) > 0.8  # accent 2 unless the stress falls on the last syllable
-        for ipa in polysyllables:
+        assert real_stress.scandinavian_accent(words["sten" if name == "Swedish" else "stein"], name) == 1
+        polysyllables = [(sp, ipa) for sp, ipa in by_spelling.items() if real_stress.syllable_count(ipa, name) > 1]
+        two = [ipa for sp, ipa in polysyllables if real_stress.scandinavian_accent(ipa, name) == 2]
+        assert len(two) / len(polysyllables) > 0.75
+        for sp, ipa in polysyllables:
+            if sp in curated_exceptions:
+                continue
             accent = real_stress.scandinavian_accent(ipa, name)
-            assert accent == (1 if real_stress.stressed_syllable(ipa, name) == real_stress.syllable_count(ipa, name) - 1 else 2), ipa
-    assert real_stress.scandinavian_accent("ˈfoː̀gɛl", "Swedish") == 2
+            toks = real_stress.tokens(ipa, name)
+            starts = real_stress.syllable_starts(toks, name)
+            final_stress = real_stress.stressed_syllable(ipa, name) == real_stress.syllable_count(ipa, name) - 1
+            expect_one = final_stress or real_stress.has_reduced_final_syllable(toks, starts)
+            assert accent == (1 if expect_one else 2), (sp, ipa)
+    # vatten, fågel: the reduced-final-syllable exception, not final stress
+    assert real_stress.scandinavian_accent(real_words("Swedish")["water"][1], "Swedish") == 1
+    assert real_stress.scandinavian_accent(real_words("Swedish")["bird"][1], "Swedish") == 1
+    # under, efter, nyheter: function words and a live plural -er stay accent 2 despite the shape
+    assert real_stress.scandinavian_accent(real_words("Swedish")["under"][1], "Swedish") == 2
+    assert real_stress.scandinavian_accent(real_words("Swedish")["news"][1], "Swedish") == 2
     assert real_stress.scandinavian_accent(real_stress.with_scandinavian_accent("förˈstoː", "Swedish"), "Swedish") == 1  # final stress

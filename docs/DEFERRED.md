@@ -45,12 +45,25 @@ multi-session feature.
   **this second batch is this project's least reliable data**; BCMS pitch accent is lexical, not derivable
   from shape, and I could not reach an automatable source for it -- expect real per-word errors, more than the
   project's usual best-effort caveat implies). Arabic, Basque, Georgian, Hawaiian and Hindi use best-effort
-  position/weight rules. Still open: (a) verifying the 233 Serbo-Croatian words against a real dictionary;
-  (b) Danish stød and the Swedish/Norwegian accents use each profile's default rule (monosyllable/heaviness,
-  final stress), not per-word data -- lexical exceptions (Swedish *anden*, -el/-en/-er words, compounds, stød on
-  polysyllabic inflected forms) are unknown; Sanskrit's Vedic accent; (c) the ~9% of Japanese and ~4% of Ancient Greek polysyllables left unmarked; (d) fixed-pattern
-  languages ignore their real exceptions (loanwords, verbs) -- an `exceptions` pass per language would refine
-  them; (e) secondary stress is not marked anywhere; (f) vowel harmony is absent from the real words.
+  position/weight rules. Danish/Swedish/Norwegian additionally get one further real rule beyond each profile's
+  shape default: a reduced unstressed final syllable (bare vowel + `l`/`n`/`r`, no vowel of its own: *vatten*,
+  *fågel*, *vinter*, Danish *gammel*, *himmel*) is accent 1/stød, a genuine Common Scandinavian class, not a
+  guess -- fixing this also caught a real Danish syllabification bug (coda /r/ written as a vowel symbol made
+  *mor*-type words wrongly two syllables; 44 words corrected). Still open: (a) verifying the 233 Serbo-Croatian
+  words against a real dictionary; (b) most Danish/Swedish/Norwegian polysyllables still use only the shape
+  default -- real lexical exceptions (Swedish *anden* "duck" vs "spirit", other -el/-en/-er words that are recent
+  formations, compounds, stød on polysyllabic inflected forms) are unknown; (c) the ~9% of Japanese and ~4% of
+  Ancient Greek polysyllables left unmarked; (d) fixed-pattern languages ignore their real exceptions (loanwords,
+  verbs) -- an `exceptions` pass per language would refine them; (e) secondary stress is not marked anywhere;
+  (f) vowel harmony is absent from the real words.
+- **Sanskrit's Vedic accent (declined).** Considered and rejected, not just left open: the profile already
+  deliberately targets accentless Classical Sanskrit (see its own comment); the lexicon's 129 verbs are cited
+  as bare roots, and real Vedic finite-verb accent is a sentence-level syntactic rule, not a property of the
+  citation form, so there is no single correct mark to add. The ~365 nominal entries could in principle carry
+  a real per-word Vedic accent, but that data lives in specialist dictionaries no available tool can query at
+  this scale, and it belongs to a different historical layer (Vedic, not the modeled Classical register) than
+  the rest of the profile -- adding it piecemeal for the handful of Rigveda-famous words I could verify (agni,
+  deva, ...) would misrepresent coverage, so none was added.
 - **Korean assimilation and Hindi schwa deletion (L)** *(known limitation)* —
   word-level algorithmic systems, not per-symbol rules.
 - **Phonotactic audit of real words (done).** `conlang audit-lexicons`
