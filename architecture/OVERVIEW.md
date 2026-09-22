@@ -3341,3 +3341,67 @@ reading code or one-off ad hoc scripts.
   is already deliberately left for) -- both considered and declined for this batch since
   they need new machinery, not a symbol addition, the same distinction that separated this
   batch from the Hindi/Bengali/Korean one right above it.
+- **Tone sandhi scope**: moved from "Korean assimilation and Hindi schwa deletion" and
+  "Missing symbols still" (both about *word-level phonology* -- new algorithms or new
+  phonemes) to `DEFERRED.md`'s separate "## 3. Tones" section -- a survey of that whole
+  section first, since most of its own claims turned out to be stale. `tone_levels`/
+  `tone_level_count` (the *base* tone system, as opposed to sandhi specifically) are already
+  fully curated for every tonal profile except Mandarin's own already-done one (Cantonese 6,
+  Thai 5, Vietnamese 6, Tibetan 2, Yoruba 3, Zulu 2, Xhosa 2; Swahili correctly stays
+  `tonal: false`, a real fact -- it lost the reconstructed Bantu tone system) -- the section's
+  own "Other tone systems... only Mandarin is curated" claim was wrong about this half of
+  itself, confirmed by grep before touching anything (`tone_sandhi` entries specifically are
+  still Mandarin-only, so that half of the same bullet was accurate). Likewise "Pitch accent...
+  not carried by real lexicons" was stale -- this session's own earlier stress/pitch-accent
+  batches already closed that for Japanese, Danish/Swedish/Norwegian, Ancient Greek and
+  Serbo-Croatian; `DEFERRED.md`'s own real-words-coverage bullet already documents this, this
+  section just hadn't caught up.
+
+  Of the section's remaining items, **sandhi scope** was picked first: smallest, highest-
+  leverage, no new linguistic content to curate (Mandarin's own sandhi rules are already
+  correct, just under-applied). `conlang pronounce` now runs `tone_sandhi.apply_sandhi` on a
+  single looked-up entry's own `ipa` before displaying/synthesizing it -- the function already
+  treats its input as "a list of tone-bearing IPA words" with no assumption that they come
+  from different lexicon entries, so a multi-syllable citation form's own internal syllable
+  sequence needed no new sandhi logic, just reuse (real Mandarin dictionary entries for fixed
+  multi-syllable compounds conventionally already cite the *surface*, post-sandhi tones, so
+  this isn't just a convenience -- it's the linguistically correct citation-form fact this
+  project's own word generation was missing). Printed as an extra "Pronounced (tone sandhi):"
+  line only when it actually differs (a toneless or non-triggering word's own output is
+  byte-identical to before), and the sandhi'd IPA -- not the bare citation form -- is what
+  actually gets synthesized, so audio reflects real pronunciation.
+
+  Investigated and **explicitly declined**: reflecting sandhi in the *romanized* translation
+  output (`TranslationResult.text`), the other sub-item this same "Sandhi scope" bullet named.
+  Traced `translate_to_english`'s own decoder (`_decode_noun`/`_decode_verb`) before touching
+  anything and found it does exact-string matching against each entry's stored citation-form
+  `romanization` -- respelling a token to its sandhi'd form in the *encoder's* own output would
+  silently break decoding it back, a real regression the original `DEFERRED.md` bullet hadn't
+  anticipated (it read as a straightforward parity fix -- "the IPA gets sandhi, the spelling
+  should too" -- until this trace surfaced the round-trip dependency). Real published Pinyin
+  practice is genuinely split on writing citation vs. sandhi tones besides, so there wasn't
+  even a clear "more correct" answer being left undone. This is the kind of thing worth
+  tracing *before* implementing a seemingly-obvious parity fix, not after.
+
+  Verified preservation through `sound_change` evolution needed no code change at all --
+  `evolve_language` already copies a language's own `ToneSystem` (levels and sandhi rules
+  both) forward unchanged, and `apply_sandhi` is a pure function of whatever `ToneSystem` it's
+  given, so an evolved language's own sandhi already worked correctly before this session ever
+  started. Written up as a regression test (generate a strict-Mandarin language, evolve it,
+  confirm `evolved.tone_system == base.tone_system` and that `apply_sandhi` gives the identical
+  result against both) rather than left as an unverified assumption, the same "prove it, don't
+  just assert it" standard the rest of this history holds itself to.
+
+  The web UI has no per-word "hear this entry" affordance at all currently (checked
+  `static/index.html`'s own `/api/pronounce` wiring directly -- the only call site is the
+  whole-translation playback button, which already gets sandhi via the existing
+  `translate_to_conlang` IPA path) -- nothing to fix there today, but a future per-word
+  listen button should reuse the exact same `apply_sandhi([entry.ipa], tone_system)[0]`
+  wrapping `cli/main.py`'s own `pronounce` command now uses.
+
+  2 new tests in `test_reference_only_symbols_and_tones.py` (the single-multi-syllable-word
+  case; the evolution-preservation case), plus a manual CLI smoke test against a real
+  strict-Mandarin-sourced generated language with a naturally-occurring sandhi-triggering
+  word (confirmed the exact expected diacritic change, and confirmed a non-triggering word's
+  own output stays byte-identical). Full suite: 1011 passed, 2 skipped (up from 1009 -- the 2
+  new tests).

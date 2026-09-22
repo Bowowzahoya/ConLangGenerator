@@ -20,6 +20,7 @@ from conlang_generator.generation.real_words import strictness_warnings
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.generation.seed_examples import resolve_seed_examples
 from conlang_generator.generation.sound_change import evolve_language
+from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.speech import reader
 from conlang_generator.speech.tts import build_tts_client
@@ -374,6 +375,22 @@ def pronounce(
         raise typer.Exit(code=1)
     typer.echo(reader.describe(entry))
 
+    # A multi-syllable citation form's own tones are stored as drawn --
+    # tone_sandhi.apply_sandhi (already the sole consumer of a language's
+    # own ToneSandhiRules, previously only ever run across a *sentence*'s
+    # words in translator.py) is reused here as a single-word "utterance"
+    # of one, so this word's own real spoken pronunciation (which real
+    # multi-syllable Mandarin-style citation forms already reflect -- this
+    # project's own generation just didn't apply the rule yet) is what
+    # actually gets synthesized, not the untouched citation tones. Printed
+    # as its own line, not folded into `describe()`'s own citation-form
+    # display, and only when sandhi actually changes something -- a
+    # toneless or single-syllable word (the common case) prints identically
+    # to before.
+    spoken_ipa = apply_sandhi([entry.ipa], language.tone_system)[0]
+    if spoken_ipa != entry.ipa:
+        typer.echo(f"Pronounced (tone sandhi): /{spoken_ipa}/")
+
     if tts != "none":
         try:
             client = build_tts_client(tts)
@@ -381,7 +398,7 @@ def pronounce(
             typer.echo(f"error: {exc}", err=True)
             raise typer.Exit(code=1) from exc
         output_path = CACHE_DIR / "audio" / f"{lang}-{entry.primary_gloss}.wav"
-        if client.synthesize(entry.ipa, output_path):
+        if client.synthesize(spoken_ipa, output_path):
             typer.echo(f"Audio saved to {output_path}")
         else:
             typer.echo(f"error: '{tts}' TTS backend unavailable or synthesis failed.", err=True)

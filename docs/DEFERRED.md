@@ -255,11 +255,36 @@ multi-session feature.
 - **Lexically specific sandhi (M)** — Mandarin 不 (bù→bú before falling) and
   一 (yī) change by word, not by tone context, so `ToneSandhiRule` cannot
   express them. Needs a per-word flag or a word-conditioned rule.
-- **Sandhi scope (M).** Applied to a translation's IPA only. Not applied to
-  the romanized output (pinyin would write *ní hǎo*), to `pronounce` of a
-  single entry, to other output paths, or preserved through `sound_change`
-  evolution. Chain grouping (3-3-3 within a prosodic phrase) is a simple
-  citation-tone pairing, not phrase-structure aware.
+- **Sandhi scope (mostly done).** `conlang pronounce` now applies
+  `tone_sandhi.apply_sandhi` to a single looked-up entry's own IPA (a
+  multi-syllable citation form is just an "utterance" of one word to the
+  same function that already handled cross-word sandhi, so no new sandhi
+  logic was needed) -- printed as its own "Pronounced (tone sandhi):"
+  line only when it actually differs from the citation form, and used
+  (not the bare citation IPA) for TTS synthesis, so audio reflects real
+  pronunciation. Preservation through `sound_change` evolution turned out
+  to already work correctly with no code change -- evolution copies a
+  language's own `ToneSystem` (levels *and* sandhi rules) forward
+  unchanged, and `apply_sandhi` is a pure function of whatever
+  `ToneSystem` it's handed; verified with a regression test rather than
+  just asserted. The web UI has no per-word "hear this entry" affordance
+  at all yet (only whole-translation playback, which already gets sandhi
+  via the existing `translate_to_conlang` path) -- nothing to fix there
+  until that feature exists, but it should reuse the same
+  `apply_sandhi([entry.ipa], tone_system)[0]` wrapping when it does.
+  **Declined, not fixed:** reflecting sandhi in the *romanized*
+  translation output (`TranslationResult.text`). Investigated and
+  rejected for two reasons: `translate_to_english`'s own decoder does
+  exact-string matching against each entry's stored citation-form
+  `romanization` (`_decode_noun`/`_decode_verb`), so a sandhi-respelled
+  token would silently fail to round-trip back to English -- a real
+  regression, not a cosmetic one; and real published Pinyin convention is
+  genuinely split on this in practice (many dictionaries keep citation
+  tones in writing precisely because sandhi is a spoken-only phenomenon),
+  so "fixing" it isn't even an uncontroversial correctness improvement.
+  Chain grouping (3-3-3 within a prosodic phrase) remains a simple
+  citation-tone pairing, not phrase-structure aware -- a genuinely
+  separate, harder problem (real prosodic phrasing) left for its own pass.
 - **Neutral tone as grammar (M).** Neutral tone is stored per word;
   nothing generates it for grammatical particles (的 了 吗) or reduplicated
   kinship terms by rule.

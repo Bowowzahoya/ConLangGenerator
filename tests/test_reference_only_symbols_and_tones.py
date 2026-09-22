@@ -9,6 +9,7 @@ from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, phonology_gen, real_words, tone_sandhi
 from conlang_generator.generation.generator import generate_language
+from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.llm.fake_client import FakeLLMClient
 
 _NEW = ("β", "ɸ", "ɕ", "ʑ", "ɦ", "ʋ", "ɥ", "ɴ", "ɭ", "ɽ", "ɽʱ", "ʈʂ", "ʈʂʰ", "ɖʐ", "zˤ", "lˤ", "ou")
@@ -134,6 +135,41 @@ def test_sandhi_reads_citation_tones_and_leaves_other_tones_and_citation_forms_a
     assert tone_sandhi.apply_sandhi(mixed, system) == mixed
     assert tone_sandhi.apply_sandhi(three, ToneSystem(enabled=True, levels=system.levels)) == three  # no rules
     assert three == [_marked("ma", ToneLevel.DIPPING)] * 3  # input untouched
+
+
+def test_apply_sandhi_treats_a_single_multi_syllable_word_as_its_own_utterance():
+    # Sandhi scope: apply_sandhi was previously only ever called across a
+    # *sentence's* own separate words (translator.py) -- a single word's
+    # own internal syllable sequence is exactly the same shape of input
+    # (a list of tone-bearing IPA), so a real multi-syllable citation form
+    # whose own two syllables happen to trigger third-tone sandhi gets the
+    # same treatment reused as-is, with no new sandhi logic needed. This
+    # is what `conlang pronounce` now does with a looked-up entry's own
+    # `ipa` before synthesizing/reporting it (see cli/main.py).
+    system = ToneSystem(enabled=True, levels=(ToneLevel.RISING, ToneLevel.DIPPING), sandhi=(_THIRD,))
+    citation_word = _marked("nihao", ToneLevel.DIPPING, ToneLevel.DIPPING)
+    spoken_word = tone_sandhi.apply_sandhi([citation_word], system)[0]
+    assert spoken_word == _marked("nihao", ToneLevel.RISING, ToneLevel.DIPPING)
+    assert spoken_word != citation_word
+
+
+def test_evolved_languages_own_tone_system_and_sandhi_still_apply_correctly():
+    # Sandhi scope: sound_change.py copies a language's own ToneSystem
+    # (levels *and* sandhi rules) forward unchanged through evolution --
+    # apply_sandhi is a pure function of whatever ToneSystem it's handed,
+    # so an evolved language's own sandhi rules keep working correctly
+    # with no extra plumbing needed, the same way translator.py's own
+    # sentence-level sandhi already did for an evolved language before
+    # this fix (only the single-word/CLI path needed a code change).
+    traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=1.0)
+    base = generate_language("Base", GenerationSpec(prompt="p", seed=3, traits=traits), FakeLLMClient())
+    assert base.tone_system.sandhi  # sanity: Mandarin's own real rules are actually present pre-evolution
+    evolved = evolve_language("Evolved", base, 500, TraitProfile(), seed=0)
+    assert evolved.tone_system == base.tone_system
+    citation_word = _marked("mama", ToneLevel.DIPPING, ToneLevel.DIPPING)
+    assert tone_sandhi.apply_sandhi([citation_word], evolved.tone_system) == tone_sandhi.apply_sandhi(
+        [citation_word], base.tone_system
+    )
 
 
 def test_a_strict_mandarin_run_takes_its_real_tones_neutral_tone_sandhi_and_retroflex_sounds():
