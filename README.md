@@ -56,7 +56,11 @@ sends text to or from any saved language and can speak the result
 (espeak-ng or, on Windows, built-in SAPI -- picked once, used for
 pronunciation everywhere on the page); it also exports/imports a whole
 saved language (a portable file for sharing or backup -- importing over
-an existing name asks to confirm first). Languages persist under
+an existing name asks to confirm first). **Reference** browses this
+project's own curated real-word data for any of its 50+ source
+languages, read-only -- searchable, exportable, with a play button per
+word and a "flagged" marker on a word `conlang audit-lexicons` would
+flag too (hover for why). Languages persist under
 `./conlangs/` either way, so a language made on the CLI shows up in the
 web UI and vice versa. `--reload` auto-restarts the server on source
 changes (development only); `uv run uvicorn

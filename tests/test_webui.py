@@ -108,6 +108,48 @@ def test_import_rejects_data_that_is_not_a_valid_language(client):
     assert response.status_code == 400
 
 
+def test_list_reference_languages_only_includes_ones_with_a_curated_lexicon(client):
+    body = client.get("/api/reference-languages").json()
+    names = {entry["name"] for entry in body["languages"]}
+    assert "Dutch" in names
+    dutch = next(e for e in body["languages"] if e["name"] == "Dutch")
+    assert dutch["words"] > 0
+    assert dutch["tonal"] is False
+    # Every listed language genuinely has a real lexicon -- curated_profiles
+    # itself already filters this, confirmed here rather than trusted blind.
+    from conlang_generator.generation.reference_languages import real_lexicon
+
+    for entry in body["languages"]:
+        assert real_lexicon.real_words(entry["name"])
+
+
+def test_get_reference_lexicon_returns_real_curated_words(client):
+    body = client.get("/api/reference-languages/Dutch/lexicon").json()
+    assert body["name"] == "Dutch"
+    water = next(e for e in body["words"] if e["gloss"] == "water")
+    assert water["spelling"] == "water"
+    assert {"gloss", "spelling", "ipa", "loan", "flagged"} <= water.keys()
+
+
+def test_get_reference_lexicon_flags_a_known_transcription_issue(client):
+    body = client.get("/api/reference-languages/Dutch/lexicon").json()
+    news = next(e for e in body["words"] if e["gloss"] == "news")
+    assert news["flagged"]  # "illegal cluster/coda" -- niws's own real transcription issue
+    assert not news["loan"]
+
+
+def test_get_reference_lexicon_marks_loanwords(client):
+    body = client.get("/api/reference-languages/Basque/lexicon").json()
+    loans = [e for e in body["words"] if e["loan"]]
+    assert loans
+    assert all(e["flagged"] is None for e in loans)  # never flagged on being a loan alone
+
+
+def test_get_reference_lexicon_for_an_unknown_language_is_404(client):
+    response = client.get("/api/reference-languages/NotARealLanguage/lexicon")
+    assert response.status_code == 404
+
+
 def test_generate_reports_source_language_weights_in_the_saved_spec(client):
     # The form's own per-source-language weight input (index.html's own
     # ".sl-weight" rows) -- confirms a weight actually reaches the saved

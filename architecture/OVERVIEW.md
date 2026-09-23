@@ -4348,3 +4348,51 @@ reading code or one-off ad hoc scripts.
 
   That closes every item `DEFERRED.md` §8's own audit ever flagged, except the one explicitly
   disclosed as out of scope (reference-language lexicon browsing, see the batch above).
+- **Web app: browsing a reference language's own curated lexicon.** Asked to implement the one item
+  explicitly disclosed as out of scope in the batch above -- browsing/searching/exporting a
+  *reference* language's own curated real-word data (`generation/reference_languages/lexicons/
+  <name>.yaml`, `conlang audit-lexicons`'s own data source), not a *generated* language's lexicon
+  (already done). A new, third "Reference" tab, entirely read-only -- "editing" this still means
+  editing its own YAML source, a dev workflow this batch deliberately leaves alone, unchanged from
+  the previous batch's own disclosure.
+
+  New `GET /api/reference-languages`: every curated profile that actually has a lexicon (`real_
+  lexicon.curated_profiles` already does this filtering -- a profile with typology only and no
+  `lexicons/<name>.yaml` of its own is correctly absent, the same "abstain, don't show an empty
+  browse view" discipline `conlang audit-lexicons` already practices), with its own word count and
+  `tonal` flag for the picker's own option labels. New
+  `GET /api/reference-languages/{name}/lexicon`: that language's own `{gloss, spelling, ipa}` triples
+  (`real_lexicon.real_words`), each also carrying `loan` (`real_lexicon.loan_glosses`) and `flagged`
+  -- reusing `lexicon_audit.audit_language` (the *exact* function `conlang audit-lexicons` itself
+  calls, not a reimplementation) to surface *which* word has a transcription issue and *why*
+  (`WordIssue.detail`, e.g. "illegal cluster/coda at n i w | s" for Dutch *nieuws*), visible per word
+  here rather than only as an aggregate count on the CLI. A loanword is never flagged on being a loan
+  alone -- `audit_language`'s own default (`include_loans=False`) already grants it the same real
+  exemption from native phonotactic scrutiny the CLI audit does, reused as-is, not re-decided here.
+
+  Frontend: search and CSV export mirror the generated-lexicon table's own pattern from the earlier
+  batch, deliberately re-implemented as their own separate functions/element ids
+  (`filterReferenceTable`/`#reference-tbody`/etc.) rather than literally shared with the generated
+  table's own (`filterLexiconTable`/`#lexicon-tbody`) -- both tables can genuinely be in the DOM at
+  the same time (a hidden panel, not an unmounted one, when its own tab isn't active), so sharing one
+  set of ids between them would have one table's own search silently act on the other's rows. A play
+  button per word reuses `playWordPronunciation` directly (generalized with a new `errBoxId`
+  parameter, defaulting to the generated-lexicon table's own error box, so this is a one-line addition
+  to an existing function rather than a near-duplicate copy) -- `/api/pronounce` already accepts any
+  raw IPA text regardless of source, so no new synthesis path was needed. One real, disclosed
+  difference from the generated lexicon's own play button, though: a reference entry carries no
+  stored `ToneSystem` of its own to derive real spoken sandhi from the way a generated language's
+  lexicon does (whose own `spoken_ipa` already has sandhi applied, see the earlier per-word-audio
+  batch) -- so a reference word is heard exactly as transcribed, and its own button's tooltip says so
+  plainly rather than silently implying the same real-spoken-form guarantee.
+
+  5 new tests in `test_webui.py`: the language list only includes profiles with a genuine lexicon
+  (cross-checked against `real_lexicon.real_words` directly, not trusted blind); a lexicon fetch
+  returns real curated words with every expected field; a known real Dutch transcription issue
+  (*nieuws* -- niws's own real illegal coda cluster) is correctly flagged, with its own real detail;
+  a Basque loanword is correctly marked `loan` and never flagged on that basis; an unknown language
+  name is a `404`. Syntax-checked with `node --check`, the same established substitute for a browser
+  check every batch in this section already uses -- real browser exercise stays the user's own
+  deferred manual pass. Full suite: 1128 passed, 2 skipped (up from 1123).
+
+  That closes every item `DEFERRED.md` §8 ever flagged, in full -- nothing left open in that section.

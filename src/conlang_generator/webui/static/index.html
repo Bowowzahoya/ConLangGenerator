@@ -100,6 +100,7 @@
 <nav>
   <button id="tab-generate-btn" class="active">Generate</button>
   <button id="tab-translate-btn">Translate</button>
+  <button id="tab-reference-btn">Reference</button>
 </nav>
 
 <main>
@@ -277,6 +278,21 @@
   <div class="result" id="translate-result"></div>
 </section>
 
+<section id="panel-reference" class="panel">
+  <div class="card">
+    <label for="ref-lang">Reference language</label>
+    <select id="ref-lang"><option value="">(choose one)</option></select>
+    <p class="ipa" style="margin: 10px 0 0; font-size: 13px;">
+      This project's own curated real-word transcriptions -- the same data <code>--source-language</code>
+      biases generation toward (and, at high enough word strictness, real words are drawn from
+      directly). Read-only here; best-effort transcriptions to this project's own modeled phoneme set,
+      not linguist-verified -- a "flagged" word is the same check <code>conlang audit-lexicons</code>
+      already runs (hover for why).
+    </p>
+  </div>
+  <div class="result" id="reference-result"></div>
+</section>
+
 </main>
 
 <script>
@@ -303,11 +319,14 @@ async function api(path, opts) {
 function showTab(which) {
   $("panel-generate").classList.toggle("active", which === "generate");
   $("panel-translate").classList.toggle("active", which === "translate");
+  $("panel-reference").classList.toggle("active", which === "reference");
   $("tab-generate-btn").classList.toggle("active", which === "generate");
   $("tab-translate-btn").classList.toggle("active", which === "translate");
+  $("tab-reference-btn").classList.toggle("active", which === "reference");
 }
 $("tab-generate-btn").onclick = () => showTab("generate");
 $("tab-translate-btn").onclick = () => showTab("translate");
+$("tab-reference-btn").onclick = () => showTab("reference");
 
 // --- cost badge ---
 async function refreshCost() {
@@ -648,9 +667,12 @@ function renderLexiconRow(e) {
 // once here outlives any single render, rather than 400 individual ones
 // re-bound every time). Reuses /api/pronounce and the Translate tab's own
 // backend choice ($("tr-tts")) -- a single shared pronunciation
-// preference across tabs, not a second selector to keep in sync. */
-async function playWordPronunciation(button, ipaText) {
-  const errBox = $("lexicon-audio-error");
+// preference across tabs, not a second selector to keep in sync.
+// `errBoxId` lets the Reference tab's own table (below) share this exact
+// logic against its own separate error box, rather than a near-duplicate
+// copy of the whole function. ---
+async function playWordPronunciation(button, ipaText, errBoxId = "lexicon-audio-error") {
+  const errBox = $(errBoxId);
   if (errBox) errBox.hidden = true;
   const backend = $("tr-tts").value;
   if (backend === "none") {
@@ -744,6 +766,8 @@ async function saveEditedRow(tr, entry) {
 document.addEventListener("click", (e) => {
   const playBtn = e.target.closest(".word-play-btn");
   if (playBtn) { playWordPronunciation(playBtn, playBtn.dataset.ipa); return; }
+  const refPlayBtn = e.target.closest(".ref-play-btn");
+  if (refPlayBtn) { playWordPronunciation(refPlayBtn, refPlayBtn.dataset.ipa, "reference-audio-error"); return; }
 
   const tr = e.target.closest("#lexicon-tbody tr");
   if (!tr || !currentSummary) return;
@@ -753,6 +777,104 @@ document.addEventListener("click", (e) => {
   else if (e.target.closest(".word-cancel-btn")) resetRow(tr, entry);
   else if (e.target.closest(".word-save-btn")) saveEditedRow(tr, entry);
 });
+
+// --- Reference tab: browsing a curated real language's own lexicon --
+// read-only (see webui/app.py's own get_reference_lexicon docstring for
+// why "editing" this means editing its own YAML source instead). Search
+// and CSV export mirror the generated-lexicon table above exactly, kept
+// as their own separate functions/ids rather than reused wholesale --
+// both tables can be in the DOM at once (a hidden, not unmounted, panel
+// when its own tab isn't active), so sharing one #lexicon-tbody-shaped
+// id between them would have one table's own search silently act on the
+// other's rows. Pronunciation reuses playWordPronunciation directly
+// (just its own error box) since /api/pronounce takes any raw IPA text
+// regardless of source -- but unlike a generated word's own spoken_ipa,
+// a reference word's own IPA is spoken exactly as transcribed, with no
+// sandhi correction: these curated entries carry no stored ToneSystem of
+// their own to derive real spoken sandhi from the way a generated
+// language's lexicon does. ---
+let currentReferenceLexicon = null;
+
+function renderReferenceRow(e) {
+  const search = `${e.gloss} ${e.spelling} ${e.ipa} ${e.loan ? "loan" : ""} ${e.flagged ? "flagged" : ""}`.toLowerCase();
+  return `<tr data-gloss="${e.gloss}" data-search="${search}">
+    <td><button type="button" class="ref-play-btn" data-ipa="${e.ipa}" title="Play pronunciation (as transcribed, no sandhi)">&#128266;</button></td>
+    <td>${e.gloss}</td>
+    <td>${e.spelling}</td>
+    <td class="ipa">/${e.ipa}/</td>
+    <td>${e.loan ? `<span class="badge">loan</span>` : ""}${e.flagged ? ` <span class="badge" title="${e.flagged}">flagged</span>` : ""}</td>
+  </tr>`;
+}
+
+function filterReferenceTable(query) {
+  const q = query.trim().toLowerCase();
+  for (const tr of document.querySelectorAll("#reference-tbody tr")) {
+    tr.style.display = !q || tr.dataset.search.includes(q) ? "" : "none";
+  }
+}
+
+function downloadReferenceCsv() {
+  if (!currentReferenceLexicon) return;
+  const visibleGlosses = new Set(
+    [...document.querySelectorAll("#reference-tbody tr")].filter(tr => tr.style.display !== "none").map(tr => tr.dataset.gloss)
+  );
+  const columns = ["gloss", "spelling", "ipa", "loan", "flagged"];
+  const lines = [columns.join(",")];
+  for (const entry of currentReferenceLexicon.words) {
+    if (visibleGlosses.has(entry.gloss)) lines.push(columns.map(c => csvField(entry[c])).join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${currentReferenceLexicon.name.toLowerCase().replace(/\s+/g, "-")}-reference-lexicon.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function loadReferenceLexicon(name) {
+  const container = $("reference-result");
+  if (!name) { container.innerHTML = ""; currentReferenceLexicon = null; return; }
+  try {
+    const body = await api(`/api/reference-languages/${encodeURIComponent(name)}/lexicon`);
+    currentReferenceLexicon = body;
+    container.innerHTML = `
+      <div class="card">
+        <h2 style="margin-top:0">${body.name} <span class="ipa">(${body.words.length} words, curated real transcriptions)</span></h2>
+        <div class="row" style="align-items:flex-end;">
+          <div>
+            <label for="reference-search" style="margin:0 0 4px;">Search</label>
+            <input type="text" id="reference-search" placeholder="filter by gloss, word, or IPA">
+          </div>
+          <div style="flex:0 0 auto;">
+            <button type="button" class="add-row" id="reference-export-btn">&#8681; Download CSV</button>
+          </div>
+        </div>
+        <div class="error" id="reference-audio-error" hidden></div>
+        <div class="lexicon-wrap">
+          <table>
+            <thead><tr><th></th><th>gloss</th><th>word</th><th>IPA</th><th></th></tr></thead>
+            <tbody id="reference-tbody">${body.words.map(renderReferenceRow).join("")}</tbody>
+          </table>
+        </div>
+      </div>`;
+    $("reference-search").oninput = () => filterReferenceTable($("reference-search").value);
+    $("reference-export-btn").onclick = downloadReferenceCsv;
+  } catch (e) {
+    container.innerHTML = `<div class="card error">${e.message}</div>`;
+  }
+}
+
+async function loadReferenceLanguageOptions() {
+  const select = $("ref-lang");
+  const body = await api("/api/reference-languages");
+  for (const entry of body.languages) {
+    const opt = document.createElement("option");
+    opt.value = entry.name;
+    opt.textContent = `${entry.name} (${entry.words} words${entry.tonal ? ", tonal" : ""})`;
+    select.appendChild(opt);
+  }
+}
+$("ref-lang").addEventListener("change", () => loadReferenceLexicon($("ref-lang").value));
 
 // --- generate ---
 $("generate-btn").onclick = async () => {
@@ -900,6 +1022,7 @@ addSourceLangRow();
 addSeedExampleRow();
 loadOptions().catch(() => {});
 refreshLanguages().catch(() => {});
+loadReferenceLanguageOptions().catch(() => {});
 refreshCost();
 </script>
 </body>

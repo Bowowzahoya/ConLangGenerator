@@ -46,6 +46,7 @@ from conlang_generator.generation.generator import generate_evolved_language, re
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.generation.real_words import strictness_warnings
+from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, lexicon_audit, real_lexicon
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.generation.seed_examples import resolve_seed_examples
 from conlang_generator.generation.tone_sandhi import apply_sandhi
@@ -371,6 +372,58 @@ def edit_lexicon_entry(slug: str, request: LexiconEditRequest) -> dict:
     )
     repository.save(updated_language)
     return _language_summary(updated_language)
+
+
+@app.get("/api/reference-languages")
+def list_reference_languages() -> dict:
+    """Every curated real language with an actual lexicon to browse --
+    ``real_lexicon.curated_profiles`` already excludes a profile that
+    exists (typology only) but has no ``lexicons/<name>.yaml`` of its
+    own, the same "abstain, don't show an empty browse view" discipline
+    ``conlang audit-lexicons`` already applies."""
+    return {
+        "languages": [
+            {"name": p.name, "words": len(real_lexicon.real_words(p.name)), "tonal": p.tonal}
+            for p in real_lexicon.curated_profiles()
+        ]
+    }
+
+
+@app.get("/api/reference-languages/{name}/lexicon")
+def get_reference_lexicon(name: str) -> dict:
+    """A curated real language's own actual words -- read-only (unlike a
+    generated language's own lexicon, "editing" this means editing its
+    own YAML source file, a dev workflow, not a web-UI one; see
+    ``docs/DEFERRED.md`` §8). Each entry's own ``flagged`` reuses
+    ``lexicon_audit.audit_language`` (the same check `conlang
+    audit-lexicons` runs) -- a transcription slip or a profile missing
+    something the language really has, visible per word here rather
+    than only as an aggregate count on the CLI. A loanword (``loan``)
+    isn't held to the language's own native phonotactics by default,
+    the same real linguistic exemption the CLI audit already grants it
+    (a loanword legitimately can use clusters/sounds the native
+    inventory otherwise bars), so it's never ``flagged`` on that basis
+    alone."""
+    profile = next((p for p in REFERENCE_LANGUAGES if p.name == name), None)
+    words = real_lexicon.real_words(name)
+    if profile is None or not words:
+        raise HTTPException(status_code=404, detail=f"no curated lexicon for {name!r}")
+    loans = real_lexicon.loan_glosses(name)
+    audit = lexicon_audit.audit_language(profile)
+    flagged_detail = {issue.gloss: issue.detail for issue in audit.off_inventory + audit.structure}
+    return {
+        "name": profile.name,
+        "words": [
+            {
+                "gloss": gloss,
+                "spelling": spelling,
+                "ipa": ipa,
+                "loan": gloss in loans,
+                "flagged": flagged_detail.get(gloss),
+            }
+            for gloss, (spelling, ipa) in sorted(words.items())
+        ],
+    }
 
 
 @app.get("/api/cost")
