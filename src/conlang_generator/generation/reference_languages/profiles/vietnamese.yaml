@@ -15,6 +15,13 @@ max_coda: 1  # real Vietnamese has no tautosyllabic coda clusters at all -- retr
 tonal: true
 tone_levels: [mid, low, high, dipping, rising, falling]  # ngang, huyen, sac, hoi, nga (approximated as rising), nang (approximated as falling)
 tone_level_count: 6  # real Vietnamese's own genuine 6-tone system (ngang, huyền, sắc, hỏi, ngã, nặng)
+# No tone_sandhi/lexical_tone_sandhi curated -- standard Vietnamese has
+# obligatory, fixed lexical tone on every syllable with no productive
+# context-conditioned alternation the way Mandarin's third-tone sandhi
+# is (the one documented Vietnamese tone-sandhi phenomenon is specific to
+# *reduplicated* word formation, a derivational process this project's
+# inter-syllable `ToneSandhiRule`/`LexicalToneSandhiRule` model doesn't
+# target at all -- a different mechanism, not a gap in this data).
 orthography_category: diacritic-style
 restricted_onset_consonants: [p]
 # Real Vietnamese /p/ never opens a native syllable -- it only ever

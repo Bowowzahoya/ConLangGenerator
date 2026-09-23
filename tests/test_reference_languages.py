@@ -706,6 +706,11 @@ def test_mandarin_vietnamese_cantonese_tibetan_declare_their_real_tone_level_cou
     assert by_name["Vietnamese"].tone_level_count == 6
     assert by_name["Cantonese"].tone_level_count == 6
     assert by_name["Tibetan"].tone_level_count == 2
+    # Tibetan's own real High/Low register claim pinned explicitly (see
+    # its own profile comment), not just left to coincide with whichever
+    # stock 2-level set phonology_gen.py's own _TONE_LEVEL_SETS happens
+    # to offer.
+    assert by_name["Tibetan"].tone_levels == ("high", "low")
 
 
 def test_vietnamese_declares_the_real_p_onset_restriction_and_coda_set():
@@ -1329,6 +1334,7 @@ def test_swahili_declares_the_real_ng_ng_apostrophe_contrast():
 def test_zulu_declares_its_own_tone_level_count_and_click_series():
     zulu = next(p for p in REFERENCE_LANGUAGES if p.name == "Zulu")
     assert zulu.tone_level_count == 2
+    assert zulu.tone_levels == ("high", "low")  # the real H/L register claim, pinned explicitly (see its own profile comment)
     assert {"ǀ", "ǃ", "ǁ"} <= set(zulu.consonants)
     assert {"ǀʰ", "gǀ", "ŋǀ"} <= set(zulu.consonants)  # a full accompaniment series exists for at least one place
     assert "r" not in zulu.consonants  # real Zulu genuinely lacks native /r/
@@ -1527,6 +1533,7 @@ def test_xhosa_matches_zulus_real_open_syllable_canon_and_tone_and_clicks():
     # sister) shares the same real Bantu-wide open-syllable canon.
     xhosa = next(p for p in REFERENCE_LANGUAGES if p.name == "Xhosa")
     assert xhosa.tone_level_count == 2
+    assert xhosa.tone_levels == ("high", "low")  # same real H/L register claim as Zulu's own, pinned explicitly
     assert "ǂ" not in xhosa.consonants  # no standard Nguni letter for this click, dropped to match Zulu's own choice
     assert {"ǀʰ", "gǀ", "ŋǀ"} <= set(xhosa.consonants)  # a full click-accompaniment series exists for at least one place
     inventory = _inventory_for(xhosa)

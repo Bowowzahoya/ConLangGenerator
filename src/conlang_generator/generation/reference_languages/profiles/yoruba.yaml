@@ -31,6 +31,17 @@ max_onset: 1
 tonal: true
 tone_levels: [low, mid, high]
 tone_level_count: 3
+# No tone_sandhi/lexical_tone_sandhi curated -- real Yoruba's own
+# best-known tonal alternations, downstep (a High tone lowered by a
+# historically-deleted Low/vowel, surfacing as a genuinely distinct
+# "!H" register this project's flat 3-level tone system has no category
+# for) and local H-to-L carry-over assimilation (the *following* L
+# raised toward a preceding H -- again the later syllable changing
+# because of what precedes it, the opposite direction from what this
+# project's own `ToneSandhiRule`/`generation.tone_sandhi.apply_sandhi`
+# can express, the same real limitation Zulu's own profile documents in
+# full), are both real but don't fit this project's existing tone-sandhi
+# model without a genuinely new mechanism.
 # Real Yoruba's own 3 level tones (High/Mid/Low), a register system --
 # exactly this project's own existing (LOW, MID, HIGH) set. Real Yoruba
 # orthography marks tone directly with acute=High/grave=Low/unmarked=

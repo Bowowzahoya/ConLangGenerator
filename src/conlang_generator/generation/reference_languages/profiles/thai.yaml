@@ -22,6 +22,14 @@ max_coda: 1  # real Thai has no tautosyllabic coda clusters at all
 tonal: true
 tone_levels: [mid, low, falling, high, rising]
 tone_level_count: 5
+# No tone_sandhi/lexical_tone_sandhi curated -- real Thai has no
+# productive, context-conditioned tone sandhi at all (unlike Mandarin);
+# a syllable's own tone is instead determined by its own internal
+# structure (initial-consonant class x tone mark x live/dead syllable
+# type), a syllable-internal *assignment* rule, not an inter-syllable
+# *alternation* the way this project's `ToneSandhiRule`/
+# `LexicalToneSandhiRule` (both keyed to a neighboring syllable's tone)
+# model.
 orthography_category: rtgs-style
 restricted_coda_consonants: ["pʰ", b, "tʰ", d, "kʰ", "ʔ", "tɕ", "tɕʰ", f, s, h, l, r]
 # Real Thai codas are restricted to exactly /p t k m n ŋ j w/ -- the

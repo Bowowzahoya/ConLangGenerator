@@ -14,6 +14,16 @@ coda_profile: sonorant
 max_onset: 2
 tonal: true
 tone_level_count: 2  # real Lhasa Tibetan tone is genuinely contested in the literature (some analyses cite 2, others 4 or 6), but the most robust, widely-agreed core claim is a 2-way High/Low register contrast -- the safe number to curate, not the richer subdivisions some fuller phonetic treatments fold in from rhyme-conditioned variants
+tone_levels: [high, low]  # pins the real High/Low register claim above explicitly rather than leaving it to coincide with whichever stock 2-level set phonology_gen.py's own _TONE_LEVEL_SETS happens to offer
+# No tone_sandhi/lexical_tone_sandhi curated -- real Lhasa Tibetan's own
+# tone is a historical reflex of a lost onset-consonant voicing contrast
+# (already resolved at the segmental level in the modern language), not a
+# live, context-conditioned alternation the way Mandarin's third-tone
+# sandhi is; its one well-documented tonal-interaction fact (a word's own
+# second syllable surfaces High regardless of the first) is a positional
+# constraint on tone *assignment* within a word, not a transformation of
+# an already-assigned tone triggered by an adjacent tone the way this
+# project's `ToneSandhiRule`/`LexicalToneSandhiRule` model.
 orthography_category: diacritic-style
 restricted_coda_consonants: ["ɲ", w, j]
 restricted_onset_consonants: ["ʔ"]  # the Lhasa glottal stop only closes syllables (written final -k/-p/-g/-b neutralize to it)

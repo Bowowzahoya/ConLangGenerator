@@ -108,6 +108,20 @@ def test_the_curated_mandarin_lexicon_makes_a_tonal_language_with_its_four_tones
     assert water.romanization == "shuǐ" and water.tones == (ToneLevel.DIPPING,)
 
 
+def test_a_strict_zulu_sourced_language_takes_its_own_curated_tone_levels():
+    # Regression guard for the "Other tone systems" batch: Zulu's own
+    # `tone_levels` (real H/L register, pinned explicitly, see its own
+    # profile comment) is now non-empty, so a strict-sourced run takes the
+    # `_apply_reference_tone_profile`'s own "with_levels" branch instead
+    # of falling back to the generic tone_level_count-biased pool pick --
+    # a different code path, even though for Zulu's own real 2-level
+    # system both happen to land on the same (HIGH, LOW) result.
+    traits = TraitProfile(source_languages=("Zulu",), source_language_strictness=1.0)
+    language = generate_language("T", GenerationSpec(prompt="p", seed=0, traits=traits), FakeLLMClient())
+    assert language.tone_system.enabled
+    assert set(language.tone_system.levels) == {ToneLevel.HIGH, ToneLevel.LOW}
+
+
 _THIRD = ToneSandhiRule(before=ToneLevel.DIPPING, after=ToneLevel.DIPPING, becomes=ToneLevel.RISING)
 
 

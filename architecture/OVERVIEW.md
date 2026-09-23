@@ -3872,3 +3872,78 @@ reading code or one-off ad hoc scripts.
 
   That closes out the tones survey in full -- every item it ever opened, including the two this
   file's own two immediately preceding entries had each in turn left for later, is now done.
+- **Other tone systems -- surveyed, mostly resolved as not applicable.** Asked to "go on with
+  Other tone systems," the last remaining DEFERRED.md tones bullet -- curating real
+  `tone_sandhi`/`lexical_tone_sandhi` data for Cantonese, Thai, Vietnamese, Tibetan, Yoruba, and
+  Zulu/Xhosa the way Mandarin's own profile already has. Researched each language's own real,
+  well-documented tonal alternations (`WebSearch`, cross-checked against primary linguistics
+  sources -- Wikipedia's own "Cantonese changed tones" and "Meeussen's rule" pages, published
+  Yoruba downstep/assimilation papers, a 2025 *JIPA* Lhasa Tibetan phonology paper) before writing
+  anything into a profile, rather than curating from memory the way most of this project's earlier
+  phoneme/syllable-structure facts safely could -- tonal alternation specifics are exactly the kind
+  of narrow, easy-to-misstate claim this project's own "explicit limitations rather than pretend
+  completeness" ethos (`AGENTS.md`) says to verify or abstain from, not guess at.
+
+  The research converged on a real, useful finding rather than a pile of new curated rules: every
+  one of these seven languages' own best-known tonal alternations turns out to either not exist as
+  a productive sandhi process at all, or not fit this project's existing `ToneSandhiRule`/
+  `LexicalToneSandhiRule` shape -- for a specific, disclosed reason in each case (see each
+  profile's own new comment for the individual reasoning; DEFERRED.md's own entry summarizes all
+  seven). Three genuinely distinct kinds of non-fit surfaced:
+
+  1. **Not a sandhi process at all.** Thai's own tone is a syllable-internal *assignment* (initial
+     consonant class x tone mark x live/dead syllable type), not an inter-syllable alternation --
+     outside what `tone_sandhi`/`lexical_tone_sandhi` (both inter-syllable-context mechanisms by
+     construction) can represent regardless of specifics. Vietnamese and Tibetan simply have no
+     productive context-conditioned sandhi to curate (Vietnamese's one documented case is specific
+     to *reduplication*, a derivational process this project's inter-syllable model doesn't target
+     at all; Tibetan's tone is a historical reflex of a lost onset-voicing contrast, already
+     resolved at the segmental level, not a live process).
+
+  2. **A real schema mismatch, not a missing fact.** Cantonese's own real "changed tone" (變調,
+     e.g. 妹 "younger sister" mui6 -> mui2 in diminutive/familiar senses) is genuinely
+     *unconditioned* by any following tone -- unlike real Mandarin 不/一 (this project's own
+     curated `lexical_tone_sandhi` precedent), which only change before a *specific* following
+     tone. `LexicalToneSandhiRule`/`apply_sandhi` always requires that next-tone match to fire, so
+     forcing Cantonese's own unconditioned fact through it would misrepresent a real fact that has
+     no conditioning at all, not model it faithfully -- curating it anyway would have been *wrong*,
+     not just incomplete. Fittingly, Cantonese changed tone is already this project's own real
+     anchor case for the mechanism that *does* model an unconditioned lexical tone fact correctly:
+     `sound_change.py`'s own sandhi-lexicalization direction from the batch immediately above,
+     which bakes a tone permanently into a word's own citation form with no ongoing context check
+     at all -- exactly changed tone's own real shape.
+
+  3. **A genuine, previously-undocumented architectural gap.** Yoruba's own local H-to-L
+     carry-over assimilation and Zulu/Xhosa's own Meeussen's Rule (a High tone immediately
+     followed by another High lowers that *second* one to Low, H+H -> H+L, well-documented across
+     Bantu -- the real substance behind this bullet's own original "tone-depression patterns"
+     phrasing) both need the *later* syllable to change based on what *precedes* it. Reading
+     `generation.tone_sandhi.apply_sandhi`'s own implementation confirms it only ever rewrites an
+     *earlier* syllable's tone based on what *follows* it (`tones[index] = rule.becomes` keyed off
+     `citation[index+1] == rule.after`) -- the direction Mandarin's own third-tone sandhi happens
+     to need, but the *opposite* direction Meeussen's Rule needs. Real Nguni High-tone shift/spread
+     is a positional *displacement* onto a later syllable on top of that, not even a same-position
+     substitution. Both are real, well-attested facts this project's current one-directional
+     `ToneSandhiRule` shape structurally cannot express, confirmed by reading the actual dispatch
+     code rather than assumed -- disclosed as an explicit limitation (a second, opposite-direction
+     rule shape and/or a positional-shift mechanism, a genuinely bigger design question than a data
+     curation pass), not silently worked around or forced into a misleading approximation.
+
+  The one substantive data change that *did* land: Tibetan, Zulu, and Xhosa already had their real
+  2-tone High/Low register claim recorded via `tone_level_count: 2`, but no explicit `tone_levels`
+  -- meaning a strict-sourced run picked up that count only through `_choose_tone_levels`'s own
+  generic count-biased pool match, which happens to have exactly one 2-level stock entry
+  `(LOW, HIGH)` today, not because the profile ever said so directly. Added `tone_levels: [high,
+  low]` to all three, which routes a strict run through `_apply_reference_tone_profile`'s own
+  "with_levels" branch instead -- the *same* observable outcome today (confirmed directly: only one
+  2-level stock set exists), but now an explicit, documented claim rather than a coincidence that
+  would silently break if `_TONE_LEVEL_SETS` ever grew a second 2-level entry.
+
+  3 new tests: `tone_levels == ("high", "low")` now asserted alongside each of the three profiles'
+  own existing `tone_level_count` tests in `test_reference_languages.py`, plus one true wiring test
+  in `test_reference_only_symbols_and_tones.py` -- a strict Zulu-sourced generated language
+  confirmed tonal with exactly `{HIGH, LOW}`, proving the new field actually reaches
+  `_apply_reference_tone_profile`'s own "with_levels" code path end to end, not just that the YAML
+  parses. Full suite: 1067 passed, 2 skipped (up from 1066 -- the 3 new/extended tests).
+  `conlang audit-lexicons`: still 0% flagged (a reference-profile-only change, doesn't touch
+  curated real lexicons).

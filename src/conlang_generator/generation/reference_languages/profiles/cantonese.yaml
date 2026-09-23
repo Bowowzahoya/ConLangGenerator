@@ -22,6 +22,21 @@ max_coda: 1  # real Cantonese has no tautosyllabic coda clusters at all -- retro
 tonal: true
 tone_levels: [high, rising, mid, falling, dipping, low]  # jyutping 1 55, 2 25, 3 33, 4 21, 5 23 (low rising, this project's dipping), 6 22
 tone_level_count: 6  # real Cantonese's own genuine 6-tone system (purely pitch-based: register height x contour), the modern standard count -- the historically-cited "9" is just tones 1/3/6 duplicated onto checked (stop-final) syllables, not a separate phonemic contrast
+# No tone_sandhi/lexical_tone_sandhi curated -- real Cantonese's own most
+# notable tonal alternation, "changed tone" (變調, applying to specific
+# nouns/verbs in diminutive/familiar/food senses, e.g. 妹 "younger sister"
+# mui6 -> mui2), is genuinely *unconditioned* by any following tone --
+# unlike real Mandarin 不/一 (this project's own curated
+# lexical_tone_sandhi precedent), which only change before a *specific*
+# following tone. This project's `LexicalToneSandhiRule`/
+# `generation.tone_sandhi.apply_sandhi` always requires that next-tone
+# match to fire, so representing an unconditioned change through it would
+# misrepresent a real fact that has no conditioning at all, not model it
+# faithfully. Fittingly, Cantonese changed tone is also this project's
+# own real anchor case for the diachronic mechanism that *does* model an
+# unconditioned, unconditional lexical tone fact correctly --
+# `sound_change.py`'s own sandhi-lexicalization direction (see its
+# `_HALF_LIVES["sandhi_lexicalization"]` comment).
 orthography_category: diacritic-style
 restricted_coda_consonants: ["pʰ", "tʰ", "kʰ", f, s, h, ts, "tsʰ", l, w, j]
 # coda_profile: unrestricted (not "sonorant") is the right choice here,
