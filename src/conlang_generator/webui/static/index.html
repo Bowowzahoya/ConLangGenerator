@@ -454,6 +454,13 @@ async function refreshLanguages() {
 }
 $("refresh-langs").onclick = refreshLanguages;
 
+// --- the currently-displayed language summary + the DOM node it's
+// rendered into -- both set by renderLanguageSummary itself, read by the
+// lexicon table's own search/export/edit handlers below, which act on
+// whatever's on screen rather than needing their own fetch. ---
+let currentSummary = null;
+let currentResultContainer = null;
+
 // --- tone system (levels + sandhi rules), when the language is tonal ---
 function renderToneSection(summary) {
   const ts = summary.tone_system;
@@ -520,24 +527,47 @@ function renderLanguageSummary(container, summary) {
       ${summary.cost ? `<div class="badges"><span class="badge">this call: $${summary.cost.delta_usd.toFixed(4)} (${summary.cost.delta_calls} calls)</span></div>` : ""}
       ${renderToneSection(summary)}
       <h2>Lexicon (${summary.lexicon.length} words)
-        <span class="ipa" style="font-weight:normal;">-- &#128266; plays the Translate tab's own chosen backend</span>
+        <span class="ipa" style="font-weight:normal;">-- &#128266; plays, &#9998; edits, the Translate tab's own chosen backend</span>
       </h2>
+      <div class="row" style="align-items:flex-end;">
+        <div>
+          <label for="lexicon-search" style="margin:0 0 4px;">Search</label>
+          <input type="text" id="lexicon-search" placeholder="filter by gloss, pos, word, or IPA">
+        </div>
+        <div style="flex:0 0 auto;">
+          <button type="button" class="add-row" id="lexicon-export-btn">&#8681; Download CSV</button>
+        </div>
+      </div>
       <div class="error" id="lexicon-audio-error" hidden></div>
       <div class="lexicon-wrap">
         <table>
-          <thead><tr><th></th><th>gloss</th><th>pos</th><th>word</th><th>IPA</th></tr></thead>
-          <tbody>
-            ${summary.lexicon.map(e => `<tr>
-              <td><button type="button" class="word-play-btn" data-ipa="${e.spoken_ipa}" title="Play pronunciation">&#128266;</button></td>
-              <td>${e.gloss}</td>
-              <td>${e.pos}</td>
-              <td>${e.romanization}${e.provenance ? ` <span class="badge" title="${e.provenance}">real</span>` : ""}</td>
-              <td class="ipa">/${e.ipa}/</td>
-            </tr>`).join("")}
+          <thead><tr><th></th><th>gloss</th><th>pos</th><th>word</th><th>IPA</th><th></th></tr></thead>
+          <tbody id="lexicon-tbody">
+            ${summary.lexicon.map(renderLexiconRow).join("")}
           </tbody>
         </table>
       </div>
     </div>`;
+  currentSummary = summary;
+  currentResultContainer = container;
+  $("lexicon-search").oninput = () => filterLexiconTable($("lexicon-search").value);
+  $("lexicon-export-btn").onclick = downloadLexiconCsv;
+}
+
+// --- lexicon table: one rendered <tr> per entry, reused for both the
+// normal display and (via startEditingRow below) restoring a row after
+// an edit is cancelled. `data-search`/`data-gloss` carry what the filter
+// and the edit/save handlers need without a second lookup structure. ---
+function renderLexiconRow(e) {
+  const search = `${e.gloss} ${e.pos} ${e.romanization} ${e.ipa} ${e.provenance || ""}`.toLowerCase();
+  return `<tr data-gloss="${e.gloss}" data-search="${search}">
+    <td><button type="button" class="word-play-btn" data-ipa="${e.spoken_ipa}" title="Play pronunciation">&#128266;</button></td>
+    <td>${e.gloss}</td>
+    <td>${e.pos}</td>
+    <td class="lex-romanization">${e.romanization}${e.provenance ? ` <span class="badge" title="${e.provenance}">real</span>` : ""}</td>
+    <td class="ipa lex-ipa">/${e.ipa}/</td>
+    <td><button type="button" class="word-edit-btn" title="Edit this word">&#9998;</button></td>
+  </tr>`;
 }
 
 // --- per-word pronunciation, from the lexicon table (event-delegated --
@@ -573,9 +603,82 @@ async function playWordPronunciation(button, ipaText) {
     button.disabled = false; button.innerHTML = original;
   }
 }
+// --- lexicon search (shows/hides already-rendered rows -- no re-fetch,
+// no re-render, so it can't lose in-progress edits on other rows) ---
+function filterLexiconTable(query) {
+  const q = query.trim().toLowerCase();
+  for (const tr of document.querySelectorAll("#lexicon-tbody tr")) {
+    tr.style.display = !q || tr.dataset.search.includes(q) ? "" : "none";
+  }
+}
+
+// --- lexicon CSV export -- only the currently-visible (filtered) rows,
+// so "search, then export" does what it looks like it should. ---
+function csvField(value) {
+  const s = String(value ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function downloadLexiconCsv() {
+  if (!currentSummary) return;
+  const visibleGlosses = new Set(
+    [...document.querySelectorAll("#lexicon-tbody tr")].filter(tr => tr.style.display !== "none").map(tr => tr.dataset.gloss)
+  );
+  const columns = ["gloss", "pos", "romanization", "ipa", "spoken_ipa", "provenance"];
+  const lines = [columns.join(",")];
+  for (const entry of currentSummary.lexicon) {
+    if (visibleGlosses.has(entry.gloss)) lines.push(columns.map(c => csvField(entry[c])).join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${currentSummary.slug}-lexicon.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// --- lexicon row editing (romanization/IPA only -- see webui/app.py's
+// own edit endpoint docstring for why neither is auto-re-derived from
+// the other). One row at a time; starting a second edit while one is
+// already open just re-starts that other row from its own live data. ---
+function startEditingRow(tr, entry) {
+  tr.querySelector(".lex-romanization").innerHTML = `<input type="text" class="edit-romanization" value="${entry.romanization}">`;
+  tr.querySelector(".lex-ipa").innerHTML = `<input type="text" class="edit-ipa" value="${entry.ipa}">`;
+  tr.lastElementChild.innerHTML = `
+    <button type="button" class="word-save-btn" title="Save">&#10003;</button>
+    <button type="button" class="word-cancel-btn" title="Cancel">&times;</button>`;
+}
+function resetRow(tr, entry) {
+  tr.outerHTML = renderLexiconRow(entry);
+}
+async function saveEditedRow(tr, entry) {
+  const errBox = $("lexicon-audio-error");
+  if (errBox) errBox.hidden = true;
+  const romanization = tr.querySelector(".edit-romanization").value;
+  const ipa = tr.querySelector(".edit-ipa").value;
+  try {
+    const updated = await api(`/api/languages/${currentSummary.slug}/lexicon/edit`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gloss: entry.gloss, romanization, ipa }),
+    });
+    const search = $("lexicon-search") ? $("lexicon-search").value : "";
+    renderLanguageSummary(currentResultContainer, updated);
+    if (search) { $("lexicon-search").value = search; filterLexiconTable(search); }
+  } catch (e) {
+    if (errBox) { errBox.textContent = e.message; errBox.hidden = false; }
+    resetRow(tr, entry);
+  }
+}
 document.addEventListener("click", (e) => {
-  const btn = e.target.closest(".word-play-btn");
-  if (btn) playWordPronunciation(btn, btn.dataset.ipa);
+  const playBtn = e.target.closest(".word-play-btn");
+  if (playBtn) { playWordPronunciation(playBtn, playBtn.dataset.ipa); return; }
+
+  const tr = e.target.closest("#lexicon-tbody tr");
+  if (!tr || !currentSummary) return;
+  const entry = currentSummary.lexicon.find(x => x.gloss === tr.dataset.gloss);
+  if (!entry) return;
+  if (e.target.closest(".word-edit-btn")) startEditingRow(tr, entry);
+  else if (e.target.closest(".word-cancel-btn")) resetRow(tr, entry);
+  else if (e.target.closest(".word-save-btn")) saveEditedRow(tr, entry);
 });
 
 // --- generate ---

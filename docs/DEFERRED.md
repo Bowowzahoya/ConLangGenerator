@@ -685,10 +685,26 @@ multi-session feature.
     web equivalent of the CLI's own `--trait NAME=VALUE` (see §7).
     `source_language_strictness`/`source_word_strictness` excluded the
     same way, for the same reason -- already have dedicated fields.
-- **Lexicon browsing/editing (M, unchanged).** No search, edit or export of a
-  generated language's lexicon or of a reference language's real words (a
-  flat, unfiltered table is already shown, so bare "view" isn't itself
-  missing).
+- **Lexicon browsing/editing -- done for a generated language's own lexicon.**
+  A search box filters the already-rendered table (client-side, no
+  re-fetch, matches gloss/pos/romanization/IPA/provenance); a "Download
+  CSV" button exports the currently-*visible* (filtered) rows; a &#9998;
+  button on each row lets a user directly correct that word's own
+  romanization and/or IPA, saved via new
+  `POST /api/languages/{slug}/lexicon/edit` (validates a non-empty value
+  and, for IPA, that every symbol is one this project actually models;
+  recomputes `tones` from an edited IPA; marks the entry's own `notes`
+  `"(manually edited)"`, once, not duplicated on a second edit). New
+  `Lexicon.with_replaced_entry`/`Language.with_edited_entry` (the
+  replace-in-place counterparts of `with_entries`/`with_new_words`'s own
+  append-only growth) do the actual mutation. **Still open, deliberately
+  out of this batch's own scope:** browsing/searching/exporting a
+  *reference* language's own curated real-word lexicon (the "or of a
+  reference language's real words" half of this bullet's original ask)
+  -- `conlang audit-lexicons` already serves that curation-QA need on the
+  CLI, and "editing" a reference lexicon means editing its own YAML
+  source file, a materially different, dev-facing workflow from
+  correcting one word in a *generated* language.
 - **Source-language weights UI (done).** `.sl-weight` form inputs +
   `SourceLanguageEntry.weight` on `/api/generate`'s own request model already
   existed; verified for real with a new test (a weighted request's own

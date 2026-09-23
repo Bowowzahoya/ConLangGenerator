@@ -202,6 +202,72 @@ def test_get_unknown_language_is_404(client):
     assert response.status_code == 404
 
 
+def test_lexicon_edit_updates_romanization_and_persists(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Edit Test", "seed": 1, "llm": "fake"})
+    body = client.post(
+        "/api/languages/edit-test/lexicon/edit", json={"gloss": "water", "romanization": "wassermann"}
+    ).json()
+    water = next(e for e in body["lexicon"] if e["gloss"] == "water")
+    assert water["romanization"] == "wassermann"
+
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    reloaded = YamlLanguageRepository(webui_app.LANGUAGES_DIR).load("edit-test")
+    assert reloaded.lexicon.by_gloss("water").romanization == "wassermann"
+    assert "manually edited 'water'" in reloaded.history[-1]
+    assert "(manually edited)" in reloaded.lexicon.by_gloss("water").notes
+
+
+def test_lexicon_edit_updates_ipa_and_recomputes_tones(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Edit Tones", "seed": 1, "llm": "fake"})
+    body = client.post("/api/languages/edit-tones/lexicon/edit", json={"gloss": "water", "ipa": "akwa"}).json()
+    water = next(e for e in body["lexicon"] if e["gloss"] == "water")
+    assert water["ipa"] == "akwa"
+    assert water["spoken_ipa"] == "akwa"  # no sandhi rule fires on this toneless word
+
+
+def test_lexicon_edit_twice_does_not_duplicate_the_edited_note(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Edit Twice", "seed": 1, "llm": "fake"})
+    client.post("/api/languages/edit-twice/lexicon/edit", json={"gloss": "water", "romanization": "a"})
+    client.post("/api/languages/edit-twice/lexicon/edit", json={"gloss": "water", "romanization": "b"})
+
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    entry = YamlLanguageRepository(webui_app.LANGUAGES_DIR).load("edit-twice").lexicon.by_gloss("water")
+    assert entry.notes.count("(manually edited)") == 1
+
+
+def test_lexicon_edit_rejects_ipa_with_an_unmodeled_symbol(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Edit Bad Ipa", "seed": 1, "llm": "fake"})
+    response = client.post("/api/languages/edit-bad-ipa/lexicon/edit", json={"gloss": "water", "ipa": "xyz123"})
+    assert response.status_code == 400
+
+
+def test_lexicon_edit_rejects_empty_romanization_or_ipa(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Edit Empty", "seed": 1, "llm": "fake"})
+    assert client.post("/api/languages/edit-empty/lexicon/edit", json={"gloss": "water", "romanization": "  "}).status_code == 400
+    assert client.post("/api/languages/edit-empty/lexicon/edit", json={"gloss": "water", "ipa": ""}).status_code == 400
+
+
+def test_lexicon_edit_rejects_an_unknown_gloss(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Edit Unknown", "seed": 1, "llm": "fake"})
+    response = client.post(
+        "/api/languages/edit-unknown/lexicon/edit", json={"gloss": "not-a-real-gloss", "romanization": "x"}
+    )
+    assert response.status_code == 404
+
+
+def test_lexicon_edit_rejects_an_unknown_language(client):
+    response = client.post("/api/languages/does-not-exist/lexicon/edit", json={"gloss": "water", "romanization": "x"})
+    assert response.status_code == 404
+
+
+def test_lexicon_edit_requires_at_least_one_field(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Edit Nothing", "seed": 1, "llm": "fake"})
+    response = client.post("/api/languages/edit-nothing/lexicon/edit", json={"gloss": "water"})
+    assert response.status_code == 400
+
+
 def test_translate_to_conlang_and_back_round_trips(client):
     client.post("/api/generate", json={"prompt": "p", "name": "Translator Test", "seed": 2, "llm": "fake"})
     to_conlang = client.post(

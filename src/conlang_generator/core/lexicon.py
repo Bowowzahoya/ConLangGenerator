@@ -101,5 +101,19 @@ class Lexicon(BaseModel, frozen=True):
     def with_entries(self, new_entries: tuple[LexicalEntry, ...]) -> Lexicon:
         return self.model_copy(update={"entries": self.entries + new_entries})
 
+    def with_replaced_entry(self, gloss: str, updated: LexicalEntry) -> Lexicon:
+        """Replaces the entry whose own *primary* gloss (case-insensitive)
+        is ``gloss`` with ``updated``, keeping every other entry and the
+        original ordering unchanged -- the manual-edit counterpart of
+        ``with_entries``'s own append-only growth (``webui/app.py``'s own
+        lexicon-edit endpoint). Raises ``ValueError`` if no entry has that
+        primary gloss; never repoints a *different* word's entry, even if
+        ``updated`` itself carries a different gloss now."""
+        gloss_key = gloss.lower()
+        for i, entry in enumerate(self.entries):
+            if entry.primary_gloss.lower() == gloss_key:
+                return self.model_copy(update={"entries": self.entries[:i] + (updated,) + self.entries[i + 1 :]})
+        raise ValueError(f"no entry with primary gloss {gloss!r}")
+
     def with_idiom(self, idiom: Idiom) -> Lexicon:
         return self.model_copy(update={"idioms": self.idioms + (idiom,)})

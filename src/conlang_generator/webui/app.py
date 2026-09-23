@@ -40,6 +40,7 @@ from conlang_generator.core.romanization import (
 )
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
+from conlang_generator.generation import ipa_tokenizer, phonology_gen
 from conlang_generator.generation.generator import generate_evolved_language, resolve_evolve_years
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
@@ -59,6 +60,14 @@ LANGUAGES_DIR = Path("conlangs")
 STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(title="ConLangGenerator")
+
+_SYMBOLS = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+"""The full global phoneme pool, not any one language's own narrower
+inventory -- the same "tokenize against everything this project ever
+models, not just what happened to get drawn" pool ``speech/tts.py``'s own
+``tones_in``/``strip_tone_marks`` already use, needed here so the lexicon
+editor's own free-text IPA field can validate a hand-typed symbol against
+every real symbol this project supports, not just this one language's."""
 
 
 def _repository() -> YamlLanguageRepository:
@@ -255,6 +264,63 @@ def get_language(slug: str) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _language_summary(language)
+
+
+class LexiconEditRequest(BaseModel):
+    gloss: str
+    romanization: str | None = None
+    ipa: str | None = None
+
+
+@app.post("/api/languages/{slug}/lexicon/edit")
+def edit_lexicon_entry(slug: str, request: LexiconEditRequest) -> dict:
+    """A user-driven correction to one already-saved word's own spelling
+    and/or pronunciation -- deliberately *not* auto-re-deriving the other
+    field from whichever one changed (real irregular spellings exist;
+    this hands the user full, direct control of both independently,
+    rather than guessing which one they'd want recomputed). Re-saves the
+    whole language, the same "load, mutate, save back" shape
+    ``translator.py``'s own word-coinage path already uses."""
+    repository = _repository()
+    try:
+        language = repository.load(slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    entry = language.lexicon.by_gloss(request.gloss)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"{request.gloss!r} is not in {slug}'s lexicon")
+    if request.romanization is None and request.ipa is None:
+        raise HTTPException(status_code=400, detail="provide romanization and/or ipa to edit")
+
+    updates: dict = {}
+    if request.romanization is not None:
+        romanization = request.romanization.strip()
+        if not romanization:
+            raise HTTPException(status_code=400, detail="romanization must not be empty")
+        updates["romanization"] = romanization
+    if request.ipa is not None:
+        ipa = request.ipa.strip()
+        if not ipa:
+            raise HTTPException(status_code=400, detail="ipa must not be empty")
+        tokens = ipa_tokenizer.tokenize(ipa, _SYMBOLS)
+        if "".join(symbol + deco for symbol, deco in tokens) != ipa:
+            raise HTTPException(status_code=400, detail="ipa contains a symbol this project doesn't model")
+        updates["ipa"] = ipa
+        # tones is its own stored field, not re-derived from ipa on every
+        # read (see LexicalEntry.tones's own docstring) -- a hand-edited
+        # ipa needs this recomputed explicitly, or every other tone-aware
+        # consumer (pronunciation, sandhi) would keep reading the old,
+        # now-stale tone sequence.
+        updates["tones"] = ipa_tokenizer.tone_sequence(ipa, _SYMBOLS)
+    if "(manually edited)" not in entry.notes:
+        updates["notes"] = f"{entry.notes} (manually edited)".strip()
+
+    updated_entry = entry.model_copy(update=updates)
+    updated_language = language.with_edited_entry(
+        entry.primary_gloss, updated_entry, reason=f"manually edited '{entry.primary_gloss}'"
+    )
+    repository.save(updated_language)
+    return _language_summary(updated_language)
 
 
 @app.get("/api/cost")

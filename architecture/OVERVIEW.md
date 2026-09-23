@@ -4236,3 +4236,66 @@ reading code or one-off ad hoc scripts.
 
   That closes every "Missing controls" item the §8 audit originally flagged. **Still open** (see
   `DEFERRED.md` §8): lexicon search/filter/edit/export; whole-language import/export.
+- **Web app: lexicon search, CSV export, in-table editing.** Asked to go ahead with "lexicon
+  search/filter/edit/export" next. Scoped to a *generated* language's own lexicon specifically --
+  the DEFERRED bullet's own second half (browsing/searching a *reference* language's curated real
+  words) is disclosed as deliberately out of scope: `conlang audit-lexicons` already serves that
+  curation-QA need on the CLI, and "editing" a reference lexicon really means editing its own YAML
+  source file, a materially different, dev-facing workflow from correcting one word in a generated
+  language.
+
+  **Model layer, first.** New `Lexicon.with_replaced_entry(gloss, updated)` -- looks up the entry
+  whose own *primary* gloss (case-insensitively) matches, replaces it in place (position and every
+  other entry unchanged), raises `ValueError` if none matches; the *replace* counterpart to
+  `with_entries`'s own *append*-only growth (real Mandarin-word-coinage-during-translation still
+  goes through that one, unchanged). `Language.with_edited_entry(gloss, updated, reason)` wraps it
+  the same way `with_new_words` wraps `with_entries`, logging to `history` too.
+
+  **New endpoint, `POST /api/languages/{slug}/lexicon/edit`.** Takes `{gloss, romanization?, ipa?}`
+  -- either or both, at least one required. Deliberately does *not* auto-re-derive one from the
+  other (real irregular spellings exist; a user asking to edit gets direct, independent control of
+  both, not a guess at which one they'd want recomputed from the other). An edited `ipa` is
+  validated by round-tripping it through `ipa_tokenizer.tokenize` against the full global symbol
+  pool (`_SYMBOLS`, the same "tokenize against everything this project models, not just what one
+  language happens to use" pool `speech/tts.py` already needs for the same reason) -- a symbol that
+  doesn't survive the round trip (silently dropped by `tokenize` itself, per its own docstring)
+  means the *stored* IPA would already be broken, caught here instead of corrupting the lexicon
+  silently. `tones` is recomputed from the new IPA on an IPA edit (it's its own stored field, not
+  re-derived on every read, so a hand-edited IPA needs this explicitly or every tone-aware consumer
+  -- pronunciation, sandhi -- would keep reading the stale sequence). The entry's own `notes` gets
+  `"(manually edited)"` appended once (checked before adding, so a second edit doesn't duplicate
+  it) -- an honest provenance trail, not a silent overwrite of whatever was there (including a real
+  "real word: X" note, which now reads "real word: X (manually edited)").
+
+  **Frontend: search, export, inline edit, all reusing the existing lexicon table.** A search box
+  (`#lexicon-search`) filters already-rendered `<tr>`s client-side (no re-fetch) by matching
+  gloss/pos/romanization/IPA/`provenance` against each row's own precomputed `data-search`
+  attribute -- fast at this project's own scale (at most ~500 rows) and, since it never re-renders,
+  can't clobber a row mid-edit elsewhere in the table. "Download CSV" exports only the currently
+  *visible* (filtered) rows -- "search, then export" does what it looks like it should -- via a
+  `Blob`/`<a download>` trick, with real CSV field-quoting (the one place this file actually
+  escapes anything -- a comma or quote inside a word would otherwise corrupt the format, unlike the
+  rest of this file's own established, looser HTML-interpolation convention, which is fine for
+  display but not for a format with its own real syntax). A &#9998; button per row swaps that row's
+  own romanization/IPA cells for `<input>`s and its own action cell for save/cancel buttons
+  (`startEditingRow`); cancel just re-renders that one row from its own last-known-good data
+  (`resetRow`, reusing `renderLexiconRow` -- event delegation means replacing a `<tr>`'s own
+  `outerHTML` doesn't lose any handler); save POSTs to the new endpoint and, on success,
+  re-renders the *whole* summary (simplest way to stay consistent with every other value the edit
+  could indirectly affect, e.g. `real_words`'s own count if `notes` changed) while preserving
+  whatever search filter was active; a failed save reverts that one row and shows the backend's own
+  specific error message (empty value, unmodeled IPA symbol, etc.) rather than a generic failure.
+
+  9 new tests: 3 in `test_lexicon.py` (`with_replaced_entry` swaps in place with every other entry
+  and the ordering untouched, matches case-insensitively, raises for an unknown gloss); 8 in
+  `test_webui.py` for the new endpoint (romanization edit persists and round-trips through a
+  reload; an IPA edit recomputes `spoken_ipa`/tones correctly; editing twice doesn't duplicate the
+  "(manually edited)" note; an unmodeled IPA symbol, an empty value, an unknown gloss, an unknown
+  language, and a request naming neither field each get the right error). Syntax-checked with
+  `node --check`, the same established substitute for a browser check every batch in this section
+  already uses -- real browser exercise stays the user's own deferred manual pass. Full suite: 1118
+  passed, 2 skipped (up from 1107).
+
+  **Still open** (see `DEFERRED.md` §8): browsing/searching/exporting a *reference* language's own
+  curated real-word lexicon (deliberately out of this batch's scope, see above); whole-language
+  import/export.

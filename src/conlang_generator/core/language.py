@@ -59,3 +59,16 @@ class Language(BaseModel, frozen=True):
                 "history": self.history + (reason,),
             }
         )
+
+    def with_edited_entry(self, gloss: str, updated: LexicalEntry, reason: str) -> Language:
+        """A user-driven correction to one already-existing entry (the web
+        UI's own lexicon editor) -- ``with_new_words``'s own replace-in-
+        place counterpart, not an append. See
+        ``Lexicon.with_replaced_entry`` for the actual lookup/replace
+        logic and what it raises when ``gloss`` isn't found."""
+        return self.model_copy(
+            update={
+                "lexicon": self.lexicon.with_replaced_entry(gloss, updated),
+                "history": self.history + (reason,),
+            }
+        )
