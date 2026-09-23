@@ -5,7 +5,18 @@ sequence, while every lexicon entry keeps its citation tones.
 Rules read each syllable's pair from the citation tones (so Mandarin's
 third-tone rule turns dipping-dipping-dipping into rising-rising-dipping)
 over the whole utterance's tone-bearing syllables and see across word
-boundaries, which is where most sandhi is audible.
+boundaries, which is where most sandhi is audible. Each rule's own
+``target`` (see ``core.phonology.ToneSandhiRule``'s own docstring) says
+which of its two syllables actually changes -- ``"before"`` (the common,
+Mandarin-shaped case) rewrites the *earlier* one, ``"after"`` (real Bantu
+Meeussen's Rule) the *later* one. When a syllable could be rewritten both
+ways in the same pass -- once as some rule's own ``"after"`` target from
+its *left* neighbor's own check, and again as a *different* rule's own
+``"before"`` target from its own check one position later -- the second
+(rightward, later-iterating) write wins; both checks always read the
+same original citation tones, never each other's output, so this is the
+only order-dependence that can arise, and it's a deliberate, simple
+tie-break rather than a cascading multi-pass resolution.
 
 ``ToneSystem.lexical_sandhi`` (real Mandarin 不 "not" / 一 "one", each
 changing tone before a specific following tone, but *only* for that one
@@ -53,7 +64,10 @@ def apply_sandhi(ipa_words: list[str], tone_system: ToneSystem, glosses: list[st
     for index in range(len(citation) - 1):
         for rule in tone_system.sandhi:
             if citation[index] == rule.before and citation[index + 1] == rule.after:
-                tones[index] = rule.becomes
+                if rule.target == "before":
+                    tones[index] = rule.becomes
+                else:
+                    tones[index + 1] = rule.becomes
                 break
 
     if tone_system.lexical_sandhi and glosses is not None:

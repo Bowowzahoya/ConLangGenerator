@@ -39,11 +39,12 @@ tonal: true
 tone_level_count: 2
 tone_levels: [high, low]  # same real H/L register claim as Zulu's own profile, pinned explicitly for the same reason (see its own comment)
 # Same real 2-level H/L register system standard Nguni tonology already
-# gives Zulu -- Xhosa tonology is analyzed the same way. No
-# tone_sandhi/lexical_tone_sandhi curated either, for the same real
-# reason Zulu's own profile documents in full (Meeussen's Rule and
-# High-tone shift both need this project's tone-sandhi model to support
-# a direction, and a positional displacement, it currently can't).
+# gives Zulu -- Xhosa tonology is analyzed the same way, including
+# Meeussen's Rule below (see Zulu's own profile comment for the real
+# citation and reasoning). High-tone shift/spread stays uncurated for
+# the same still-open reason Zulu's own profile documents.
+tone_sandhi:
+  - [high, high, low, after]  # Meeussen's Rule -- see Zulu's own profile comment
 word_classes:
   # Real Xhosa noun-class prefix system -- the same representative
   # subset Zulu's own profile curates, with Xhosa's own real, genuinely

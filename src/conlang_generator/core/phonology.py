@@ -6,6 +6,7 @@ All models are frozen; derive a changed copy with ``model_copy(update=...)``.
 from __future__ import annotations
 
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -208,15 +209,32 @@ def chao_letters(tone: ToneLevel) -> str:
 
 
 class ToneSandhiRule(BaseModel, frozen=True):
-    """Adjacent-syllable tone change: a syllable whose tone is ``before``,
-    when the next syllable's tone is ``after``, surfaces with ``becomes``
-    (Mandarin's third-tone sandhi is dipping + dipping -> rising + dipping).
-    Applied right to left over an utterance's tone-bearing syllables by
+    """Adjacent-syllable tone change between a syllable whose tone is
+    ``before`` and the next syllable's tone, ``after``. ``target`` says
+    which of the two actually changes, to ``becomes``:
+
+    - ``"before"`` (the default): the *earlier* syllable changes --
+      Mandarin's third-tone sandhi (dipping + dipping -> rising +
+      dipping) is ``before=dipping, after=dipping, becomes=rising,
+      target="before"``. This is *regressive*/anticipatory conditioning
+      -- a syllable's tone shifts because of what comes after it.
+    - ``"after"``: the *later* syllable changes instead -- real Bantu
+      Meeussen's Rule (a High tone immediately followed by another High
+      lowers that second one to Low) is ``before=high, after=high,
+      becomes=low, target="after"``. This is *progressive*/perseverative
+      conditioning -- a syllable's tone shifts because of what came
+      before it, the opposite direction from the default, and a
+      genuinely different rule shape a flip of ``before``/``after``
+      alone can't produce (that would just describe a *different*
+      regressive rule, not turn this one progressive).
+
+    Applied over an utterance's tone-bearing syllables by
     ``generation.tone_sandhi``; citation forms keep their lexical tones."""
 
     before: ToneLevel
     after: ToneLevel
     becomes: ToneLevel
+    target: Literal["before", "after"] = "before"
 
 
 class LexicalToneSandhiRule(BaseModel, frozen=True):

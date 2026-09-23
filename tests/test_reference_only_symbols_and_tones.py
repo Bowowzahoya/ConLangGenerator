@@ -122,6 +122,25 @@ def test_a_strict_zulu_sourced_language_takes_its_own_curated_tone_levels():
     assert set(language.tone_system.levels) == {ToneLevel.HIGH, ToneLevel.LOW}
 
 
+def test_a_strict_zulu_sourced_language_carries_meeussens_rule_and_applies_it():
+    # The architectural-gap fix's own end-to-end proof: a strict Zulu run
+    # keeps Zulu's own curated Meeussen's Rule (certain at full weighted
+    # strictness, the same "kept" mechanic the Mandarin third-tone test
+    # above already exercises), and apply_sandhi actually lowers the
+    # *second* of two adjacent real Highs, not the first -- the concrete
+    # behavior this project's tone-sandhi model couldn't produce before
+    # `ToneSandhiRule.target` existed.
+    traits = TraitProfile(source_languages=("Zulu",), source_language_strictness=1.0)
+    inventory, _, tone_system, _ = phonology_gen.generate_phonology(
+        random.Random(0), GenerationSpec(prompt="p", seed=0, traits=traits)
+    )
+    assert tone_system.enabled and set(tone_system.levels) == {ToneLevel.HIGH, ToneLevel.LOW}
+    meeussen = ToneSandhiRule(before=ToneLevel.HIGH, after=ToneLevel.HIGH, becomes=ToneLevel.LOW, target="after")
+    assert meeussen in tone_system.sandhi
+    spoken = tone_sandhi.apply_sandhi([_marked("ba", ToneLevel.HIGH), _marked("ba", ToneLevel.HIGH)], tone_system)
+    assert spoken == [_marked("ba", ToneLevel.HIGH), _marked("ba", ToneLevel.LOW)]
+
+
 _THIRD = ToneSandhiRule(before=ToneLevel.DIPPING, after=ToneLevel.DIPPING, becomes=ToneLevel.RISING)
 
 
@@ -139,6 +158,32 @@ def test_third_tone_sandhi_changes_the_first_of_two_dipping_syllables():
     system = ToneSystem(enabled=True, levels=(ToneLevel.RISING, ToneLevel.DIPPING), sandhi=(_THIRD,))
     spoken = tone_sandhi.apply_sandhi([_marked("ni", ToneLevel.DIPPING), _marked("hao", ToneLevel.DIPPING)], system)
     assert spoken == [_marked("ni", ToneLevel.RISING), _marked("hao", ToneLevel.DIPPING)]
+
+
+_MEEUSSEN = ToneSandhiRule(before=ToneLevel.HIGH, after=ToneLevel.HIGH, becomes=ToneLevel.LOW, target="after")
+
+
+def test_a_target_after_rule_changes_the_second_syllable_not_the_first():
+    # Real Bantu Meeussen's Rule (H+H -> H+L): the *later* syllable
+    # changes, the opposite of _THIRD's own default target="before"
+    # shape above -- this is the direct regression test for the
+    # "genuine architectural gap" ToneSandhiRule's own new `target`
+    # field closes.
+    system = ToneSystem(enabled=True, levels=(ToneLevel.HIGH, ToneLevel.LOW), sandhi=(_MEEUSSEN,))
+    spoken = tone_sandhi.apply_sandhi([_marked("ba", ToneLevel.HIGH), _marked("ba", ToneLevel.HIGH)], system)
+    assert spoken == [_marked("ba", ToneLevel.HIGH), _marked("ba", ToneLevel.LOW)]
+
+
+def test_a_target_after_rule_cascades_across_three_adjacent_highs():
+    # H-H-H -> H-L-L -- both pairs are checked against the *original*
+    # citation tones (not each other's output), so the third syllable's
+    # own drop to Low isn't blocked by the second syllable's own already-
+    # lowered result, matching the real iterative dissimilation Meeussen's
+    # Rule produces across a run of adjacent Highs.
+    system = ToneSystem(enabled=True, levels=(ToneLevel.HIGH, ToneLevel.LOW), sandhi=(_MEEUSSEN,))
+    words = [_marked("ba", ToneLevel.HIGH)] * 3
+    spoken = tone_sandhi.apply_sandhi(words, system)
+    assert spoken == [_marked("ba", ToneLevel.HIGH), _marked("ba", ToneLevel.LOW), _marked("ba", ToneLevel.LOW)]
 
 
 def test_sandhi_reads_citation_tones_and_leaves_other_tones_and_citation_forms_alone():

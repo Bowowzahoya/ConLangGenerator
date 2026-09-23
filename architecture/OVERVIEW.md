@@ -3947,3 +3947,75 @@ reading code or one-off ad hoc scripts.
   parses. Full suite: 1067 passed, 2 skipped (up from 1066 -- the 3 new/extended tests).
   `conlang audit-lexicons`: still 0% flagged (a reference-profile-only change, doesn't touch
   curated real lexicons).
+- **Progressive tone sandhi -- closing the one genuine architectural gap the tone-systems survey
+  surfaced.** Asked to "implement a solution for the genuine architectural gap" the batch above
+  identified: `ToneSandhiRule`'s own `apply_sandhi` implementation only ever rewrote an *earlier*
+  syllable's tone based on what *follows* it (`tones[index] = rule.becomes`, keyed off
+  `citation[index + 1] == rule.after`) -- the direction Mandarin's own third-tone sandhi happens
+  to need, but not the direction real Bantu Meeussen's Rule needs (a High tone immediately
+  followed by another High lowers that *second* one to Low, H+H -> H+L -- the *later* syllable
+  changes, based on what *precedes* it).
+
+  Fixed with a new field, not a new mechanism: `ToneSandhiRule.target: Literal["before", "after"]
+  = "before"` (`core/phonology.py`) says which of a rule's own two syllables actually changes --
+  the default preserves every existing rule's own exact behavior byte-for-byte (Mandarin's own
+  third-tone sandhi needed no changes at all). `generation/tone_sandhi.py`'s own `apply_sandhi`
+  branches on it: `target="before"` rewrites `tones[index]` (unchanged), `target="after"` rewrites
+  `tones[index + 1]` instead. Both checks always read from the same original `citation` list, never
+  each other's output (unchanged from before this batch), so the one new order-dependence this
+  introduces -- a syllable rewritten once as some rule's own `"after"` target from its *left*
+  neighbor's check, and again as a *different* rule's own `"before"` target from its own check one
+  position later -- has a simple, disclosed tie-break: the later (rightward-iterating) write wins,
+  documented directly in `apply_sandhi`'s own docstring rather than left implicit.
+
+  `ReferenceLanguageProfile.tone_sandhi` widened from `tuple[tuple[str, str, str], ...]` to
+  `tuple[tuple[str, str, str] | tuple[str, str, str, str], ...]` -- a profile can still write a
+  plain 3-tuple (defaults to `target="before"`) or add a 4th element. `resolve_tone_sandhi`'s own
+  "carried" loop reads it (`entry[3] if len(entry) > 3 else "before"`); its own `invented()`
+  branch deliberately stays `target="before"`-only for now, a disclosed scope choice (documented
+  in the function's own docstring) rather than an oversight -- extending random invention to
+  sometimes produce `"after"` rules too would consume an extra `rng.random()` draw on *every*
+  `invented()` call, shifting every fixed-seed test downstream of one, a real cost with no
+  curated-data payoff to justify it yet (this project's own well-established "seed-shift from new
+  content" hazard, avoided here by scoping the change to curated data only).
+
+  `sound_change.py`'s own two tone-sandhi-aware mechanisms both needed updating to stay correct,
+  not just to keep working: `_remap_tone_sandhi` (the tone-merger direction's own sandhi-remapping
+  helper) used to check `becomes == before` for its degenerate-rule test, silently assuming every
+  rule is `target="before"` -- now checks whichever field (`before` or `after`) the rule's own
+  `target` actually rewrites, or it would either wrongly drop a fine `"after"` rule or wrongly keep
+  one that's actually become a no-op. `_pick_lexicalizing_sandhi_rule` (the sandhi-lexicalization
+  direction's own rule-picker) now excludes `target="after"` rules outright: lexicalization freezes
+  a *word's own last* tone-bearing syllable, exactly the position a `"before"` rule conditions and
+  rewrites, but an `"after"` rule's own rewritten position is a *different* word's own *first*
+  syllable instead -- freezing the wrong syllable would be silently wrong, not just incomplete, so
+  this stays an honest, disclosed narrower scope rather than a naive reuse of the existing helpers.
+
+  Curated the actual real payoff this fix unlocks: Zulu and Xhosa's own profiles (both previously
+  documenting Meeussen's Rule only as *why* they couldn't curate it) now carry
+  `tone_sandhi: [[high, high, low, after]]` -- real, reachable, curated Bantu tonology data, not a
+  disclosed gap anymore. Real Nguni High-tone shift/spread -- a positional *displacement* of a tone
+  onto a later syllable, not a same-position substitution at all -- stays uncurated; `target` alone
+  doesn't solve a genuinely different rule shape, an honest, still-open gap disclosed in both
+  profiles' own comments rather than conflated with what this batch actually fixed.
+
+  13 new/extended tests: `apply_sandhi` with a `target="after"` rule (changes the second of two
+  adjacent syllables, not the first; cascades H-H-H -> H-L-L across three, each pair checked
+  against the same original citation tones) in `test_reference_only_symbols_and_tones.py`;
+  `resolve_tone_sandhi` defaulting a 3-tuple to `"before"`, reading an explicit 4th `target`
+  element, and `invented()` staying `"before"`-only across 30 seeds, in `test_phonology_realism.py`;
+  `_remap_tone_sandhi`'s own target-aware degenerate check and `_pick_lexicalizing_sandhi_rule`'s
+  own exclusion of `target="after"` rules (plus confirming it still picks a `"before"` rule out of
+  a mixed set) in `test_sound_change.py`; Zulu/Xhosa's own curated Meeussen's Rule data in
+  `test_reference_languages.py`; and one true end-to-end wiring test -- a strict Zulu-sourced
+  generated language's own tone system carries the rule, and `apply_sandhi` genuinely lowers the
+  second of two real adjacent High-toned words, not the first.
+
+  Smoke-tested directly against real generation beyond the wiring test too: a strict Zulu-sourced
+  language's own real lexicon (`I: lìfímfá`, `he: njùˈkívé`, both citation-High-final) spoken
+  together came out `lìfímfà njùˈkívè` -- both words' own final tones genuinely lowered, the real
+  iterative H-run dissimilation Meeussen's Rule produces, on real generated words, not just the
+  hand-built fixtures the unit tests use. Full suite: 1077 passed, 2 skipped (up from 1067 -- the
+  13 new/extended tests, minus 3 already counted from the batch above's own Zulu tone_levels
+  test additions). `conlang audit-lexicons`: still 0% flagged (a phonology/reference-profile-only
+  change, doesn't touch curated real lexicons).

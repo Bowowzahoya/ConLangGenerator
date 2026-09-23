@@ -1091,6 +1091,24 @@ def test_remap_tone_sandhi_substitutes_and_drops_degenerate_rules():
     assert remapped == (ToneSandhiRule(before=ToneLevel.LOW, after=ToneLevel.HIGH, becomes=ToneLevel.MID),)
 
 
+def test_remap_tone_sandhi_checks_the_after_field_for_a_target_after_rule():
+    # A target="after" rule (real Meeussen's Rule) rewrites its own
+    # `after` field at runtime, not `before` -- the degenerate check must
+    # follow that, not the target="before" default's own convention.
+    rules = (
+        # after == becomes == RISING -- for a target="after" rule this is
+        # the one that's actually degenerate once RISING is absorbed,
+        # even though before(HIGH) stays untouched and != becomes.
+        ToneSandhiRule(before=ToneLevel.HIGH, after=ToneLevel.RISING, becomes=ToneLevel.RISING, target="after"),
+        ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.HIGH, becomes=ToneLevel.MID, target="after"),
+    )
+    remapped = sound_change._remap_tone_sandhi(rules, survivor=ToneLevel.LOW, absorbed=ToneLevel.RISING)
+    assert remapped == (
+        ToneSandhiRule(before=ToneLevel.LOW, after=ToneLevel.HIGH, becomes=ToneLevel.MID, target="after"),
+    )
+    assert remapped[0].target == "after"
+
+
 def test_remap_lexical_tone_sandhi_substitutes_and_drops_degenerate_rules():
     rules = (
         LexicalToneSandhiRule(gloss="one", before=ToneLevel.RISING, becomes=ToneLevel.HIGH),
@@ -1289,6 +1307,27 @@ def test_pick_lexicalizing_sandhi_rule_excludes_a_degenerate_rule():
     degenerate = (ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.HIGH, becomes=ToneLevel.RISING),)
     for seed in range(20):
         assert sound_change._pick_lexicalizing_sandhi_rule(random.Random(seed), degenerate) is None
+
+
+def test_pick_lexicalizing_sandhi_rule_excludes_a_target_after_rule():
+    # Real Meeussen's Rule (Zulu/Xhosa's own curated target="after" shape)
+    # is never eligible here -- _has_qualifying_lexicalization_target/
+    # _lexicalize_sandhi_ipa both freeze a word's own *last* tone-bearing
+    # syllable, which is only the position a target="before" rule
+    # actually conditions and rewrites.
+    progressive = (ToneSandhiRule(before=ToneLevel.HIGH, after=ToneLevel.HIGH, becomes=ToneLevel.LOW, target="after"),)
+    for seed in range(20):
+        assert sound_change._pick_lexicalizing_sandhi_rule(random.Random(seed), progressive) is None
+
+
+def test_pick_lexicalizing_sandhi_rule_still_picks_a_target_before_rule_from_a_mixed_set():
+    rules = (
+        ToneSandhiRule(before=ToneLevel.HIGH, after=ToneLevel.HIGH, becomes=ToneLevel.LOW, target="after"),
+        ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.HIGH, becomes=ToneLevel.LOW),
+    )
+    for seed in range(20):
+        picked = sound_change._pick_lexicalizing_sandhi_rule(random.Random(seed), rules)
+        assert picked == rules[1]
 
 
 def test_has_qualifying_lexicalization_target_true_for_a_matching_final_tone():

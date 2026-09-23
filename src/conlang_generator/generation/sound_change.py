@@ -813,21 +813,29 @@ def _remap_tone_sandhi(
 ) -> tuple[ToneSandhiRule, ...]:
     """A merger doesn't just rewrite lexicon entries -- any existing
     context-sandhi rule that mentions the now-gone ``absorbed`` category
-    (in any of its own three fields) needs the same substitution, or it
-    would keep referencing a tone this language no longer has. A rule
-    that becomes degenerate after remapping (``becomes == before`` --
-    it would now map a tone to itself) is dropped rather than kept as a
-    harmless no-op, the same "never map a tone to itself" discipline
-    ``resolve_tone_sandhi``'s own invented-rule branch already holds
-    itself to."""
+    (in any of its own three tone-bearing fields) needs the same
+    substitution, or it would keep referencing a tone this language no
+    longer has. A rule that becomes degenerate after remapping is dropped
+    rather than kept as a harmless no-op, the same "never map a tone to
+    itself" discipline ``resolve_tone_sandhi``'s own invented-rule branch
+    already holds itself to -- which field would actually be mapped to
+    itself depends on the rule's own ``target`` (see
+    ``core.phonology.ToneSandhiRule``'s own docstring): a ``"before"``
+    rule (the common case) is degenerate when ``becomes == before`` (the
+    field it actually rewrites); an ``"after"`` rule (real Meeussen's
+    Rule) is degenerate when ``becomes == after`` instead, since that's
+    the field *it* rewrites -- checking the wrong field here would either
+    wrongly drop a genuinely fine ``"after"`` rule or wrongly keep one
+    that's actually become a no-op."""
     remapped = []
     for rule in rules:
         before = survivor if rule.before == absorbed else rule.before
         after = survivor if rule.after == absorbed else rule.after
         becomes = survivor if rule.becomes == absorbed else rule.becomes
-        if becomes == before:
+        rewritten = before if rule.target == "before" else after
+        if becomes == rewritten:
             continue
-        remapped.append(ToneSandhiRule(before=before, after=after, becomes=becomes))
+        remapped.append(ToneSandhiRule(before=before, after=after, becomes=becomes, target=rule.target))
     return tuple(remapped)
 
 
@@ -862,8 +870,16 @@ def _pick_lexicalizing_sandhi_rule(
     excluded by ``ToneSandhiRule`` itself) would freeze into a genuine
     no-op and is excluded from consideration, the same "never map a tone
     to itself" discipline this file's other tone-system mechanisms
-    already hold themselves to."""
-    eligible = [rule for rule in sandhi if rule.before != rule.becomes]
+    already hold themselves to. Only a ``target="before"`` rule is ever
+    eligible: ``_has_qualifying_lexicalization_target``/
+    ``_lexicalize_sandhi_ipa`` both freeze a *word's own last* tone-
+    bearing syllable, which is exactly the syllable a ``"before"`` rule
+    conditions and rewrites -- but for an ``"after"`` rule (real Bantu
+    Meeussen's Rule) that position would be a *different* word's own
+    *first* tone-bearing syllable instead, conditioned by what precedes
+    it, which neither helper here is built to freeze. An honest, narrower
+    scope rather than a silently-wrong freeze of the wrong syllable."""
+    eligible = [rule for rule in sandhi if rule.before != rule.becomes and rule.target == "before"]
     if not eligible:
         return None
     return rng.choice(eligible)

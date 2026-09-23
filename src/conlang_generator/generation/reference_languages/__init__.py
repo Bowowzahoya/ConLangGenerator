@@ -164,10 +164,15 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     """Whether the language has a neutral (unstressed, pitch-underspecified)
     tone as a further category beyond ``tone_levels`` -- real Mandarin
     (轻声). Adds ``ToneLevel.NEUTRAL`` to a strict run's tone levels."""
-    tone_sandhi: tuple[tuple[str, str, str], ...] = ()
+    tone_sandhi: tuple[tuple[str, str, str] | tuple[str, str, str, str], ...] = ()
     """Adjacent-syllable tone rules as ``[before, after, becomes]``
-    ``ToneLevel`` values -- Mandarin's third-tone sandhi is
-    ``[dipping, dipping, rising]``. Attached to a generated language's
+    ``ToneLevel`` values, plus an optional 4th ``target`` (``"before"``
+    or ``"after"``, defaulting to ``"before"`` when omitted -- see
+    ``core.phonology.ToneSandhiRule``'s own docstring for what it means).
+    Mandarin's third-tone sandhi is ``[dipping, dipping, rising]`` (the
+    default ``target="before"`` is exactly what it needs); real Bantu
+    Meeussen's Rule (Zulu/Xhosa's own profiles) is
+    ``[high, high, low, after]``. Attached to a generated language's
     ``ToneSystem.sandhi`` whenever a matched profile carries them and the
     language's tone levels include all three tones."""
     lexical_tone_sandhi: tuple[tuple[str, str, str], ...] = ()

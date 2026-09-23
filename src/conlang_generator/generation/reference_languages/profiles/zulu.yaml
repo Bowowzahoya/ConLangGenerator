@@ -52,22 +52,18 @@ tone_levels: [high, low]  # pins the H/L register claim below explicitly rather 
 # by Tibetan. Surface contours (rising/falling glides) are derived,
 # chiefly via the depressor effect above and tone spreading -- real,
 # but beyond what a flat register-tone assignment can capture.
-#
-# No tone_sandhi/lexical_tone_sandhi curated either, for a real, specific
-# reason rather than an oversight: real Nguni tonology's own best-known
-# adjacent-tone alternation, Meeussen's Rule (a High tone immediately
-# followed by another High lowers that *second* one to Low, H+H -> H+L,
-# well-documented across Bantu), needs the *later* syllable to change
-# based on what *precedes* it -- the opposite direction from what this
-# project's own `ToneSandhiRule`/`generation.tone_sandhi.apply_sandhi`
-# can express (it only ever rewrites an *earlier* syllable's tone based
-# on what follows, the direction Mandarin's third-tone sandhi happens to
-# need). Real Nguni High-tone shift/spread is a genuine positional
-# *displacement* of a tone onto a later syllable too, not a same-position
-# before/after/becomes substitution either. Both are real, well-attested
-# facts this project's current tone-sandhi model structurally can't
-# represent without a second, opposite-direction rule shape -- an honest
-# gap, not a silently-skipped curation pass.
+tone_sandhi:
+  # Meeussen's Rule: a High tone immediately followed by another High
+  # lowers that *second* one to Low (H+H -> H+L), well-documented across
+  # Bantu including Nguni. The *later* syllable is the one that changes,
+  # based on what *precedes* it -- the opposite direction from Mandarin's
+  # own third-tone sandhi, hence the explicit 4th `target: after` (see
+  # core.phonology.ToneSandhiRule's own docstring). Real Nguni High-tone
+  # shift/spread -- a genuine positional *displacement* of a tone onto a
+  # later syllable, not a same-position substitution at all -- stays
+  # uncurated: a materially different rule shape `target` alone doesn't
+  # solve, an honest, still-open gap rather than a silently-skipped one.
+  - [high, high, low, after]
 word_classes:
   # Real Zulu noun-class prefix system -- a representative subset of the
   # real ~15 Nguni classes (illustrative, not exhaustive, the same scope

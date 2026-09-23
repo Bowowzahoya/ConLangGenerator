@@ -890,7 +890,14 @@ def resolve_tone_sandhi(
       (chance 0.15, shifted by the trait), and rarely a second.
 
     Invented rules use the language's own non-neutral levels and never map a
-    tone to itself.
+    tone to itself; they're always ``target="before"`` (Mandarin-shaped,
+    the earlier syllable changes) -- a *carried* rule can be ``"after"``
+    (real Bantu Meeussen's Rule, Zulu/Xhosa's own profiles) since that's a
+    real, curated fact, but random invention staying in the one
+    well-established shape for now is a deliberate, narrower scope, not
+    an oversight: extending it would consume an extra rng draw per
+    ``invented()`` call, shifting every fixed-seed test downstream of one
+    -- a real cost with no curated-data payoff to justify it yet.
     """
     rng = random.Random(f"{seed}:tone-sandhi")
     available = set(levels)
@@ -911,8 +918,10 @@ def resolve_tone_sandhi(
 
     carried = False
     for profile, weight in weighted_profiles:
-        for b, a, c in profile.tone_sandhi:
-            rule = ToneSandhiRule(before=ToneLevel(b), after=ToneLevel(a), becomes=ToneLevel(c))
+        for entry in profile.tone_sandhi:
+            b, a, c = entry[0], entry[1], entry[2]
+            target = entry[3] if len(entry) > 3 else "before"
+            rule = ToneSandhiRule(before=ToneLevel(b), after=ToneLevel(a), becomes=ToneLevel(c), target=target)
             if not {rule.before, rule.after, rule.becomes} <= available:
                 continue
             carried = True

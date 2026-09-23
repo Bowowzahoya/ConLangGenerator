@@ -348,19 +348,20 @@ multi-session feature.
   project's own grammar generation already brackets off. Left open
   rather than forced onto an existing word that wouldn't actually be
   correct.
-- **Other tone systems (surveyed -- resolved as largely not applicable given
-  this project's existing rule shapes; `tone_levels` pinned for Tibetan/
-  Zulu/Xhosa).** Re-examined all seven other tonal profiles for real,
-  curatable `tone_sandhi`/`lexical_tone_sandhi` data mirroring Mandarin's
-  own. Cantonese/Thai/Vietnamese/Yoruba already had real `tone_levels`
-  curated (Tibetan/Zulu/Xhosa's own real High/Low register claim is now
-  pinned explicitly too, rather than left to coincide with whichever
-  stock 2-level set `_TONE_LEVEL_SETS` happens to offer -- see each
-  profile's own comment). Sandhi/lexical-sandhi stays empty for all
-  seven, each for a real, specific, researched reason (documented in each
+- **Other tone systems (surveyed and mostly resolved as not applicable;
+  `tone_levels` pinned for Tibetan/Zulu/Xhosa; the one genuine
+  architectural gap -- progressive tone sandhi -- fixed).** Re-examined
+  all seven other tonal profiles for real, curatable
+  `tone_sandhi`/`lexical_tone_sandhi` data mirroring Mandarin's own.
+  Cantonese/Thai/Vietnamese/Yoruba already had real `tone_levels` curated
+  (Tibetan/Zulu/Xhosa's own real High/Low register claim is now pinned
+  explicitly too, rather than left to coincide with whichever stock
+  2-level set `_TONE_LEVEL_SETS` happens to offer -- see each profile's
+  own comment). Sandhi/lexical-sandhi stays empty for five of the seven,
+  each for a real, specific, researched reason (documented in each
   profile's own comment, not silently skipped): Thai's own tone is
   syllable-internal assignment (consonant class x tone mark x syllable
-  type), not inter-syllable alternation, at all outside what
+  type), not inter-syllable alternation at all, outside what
   `ToneSandhiRule`/`LexicalToneSandhiRule` (both inter-syllable) can
   represent; Vietnamese and Tibetan have no productive context-
   conditioned sandhi (Vietnamese's one documented case is specific to
@@ -371,21 +372,40 @@ multi-session feature.
   misrepresent it -- fittingly, it's already this project's own real
   anchor case for `sound_change.py`'s sandhi-lexicalization direction,
   which models an unconditioned lexical tone fact correctly; and Yoruba's
-  downstep/local-assimilation and Zulu/Xhosa's own Meeussen's-Rule/
-  High-tone-shift (the actual "tone-depression patterns" this bullet
-  originally gestured at) surfaced a genuine, previously-undocumented
-  architectural gap: `ToneSandhiRule`'s own `apply_sandhi` implementation
-  only ever rewrites an *earlier* syllable's tone based on what *follows*
-  it (the direction Mandarin's third-tone sandhi happens to need) --
-  Meeussen's Rule needs the *later* syllable to change based on what
-  *precedes* it, the opposite direction, which the current one-
-  directional rule shape can't express at all; High-tone shift is a
-  positional *displacement* onto a later syllable, not a same-position
-  substitution either. Left as an explicit, disclosed limitation (a
-  second, opposite-direction rule shape, and/or a positional-shift
-  mechanism) rather than forced into the existing schema -- a genuinely
-  bigger design question than this survey's own "curate more data" scope,
-  for a future pass if progressive/Bantu-style tone sandhi is ever wanted.
+  own downstep/local-assimilation stays uncurated, since it's either
+  gradient/phonetic rather than a clean categorical `ToneLevel`-to-
+  `ToneLevel` mapping, or needs a `!H` downstepped register this
+  project's flat 3-level system has no category for.
+
+  **Zulu/Xhosa's own Meeussen's Rule (the actual "tone-depression
+  patterns" this bullet originally gestured at) surfaced a genuine,
+  previously-undocumented architectural gap, now fixed.** Real Meeussen's
+  Rule (a High tone immediately followed by another High lowers that
+  *second* one to Low, H+H -> H+L, well-documented across Bantu) needs
+  the *later* syllable to change based on what *precedes* it --
+  `ToneSandhiRule`'s own `apply_sandhi` implementation used to only ever
+  rewrite an *earlier* syllable's tone based on what *follows* it (the
+  direction Mandarin's third-tone sandhi happens to need), the opposite
+  direction, unable to express Meeussen's Rule at all. Fixed with a new
+  `ToneSandhiRule.target: Literal["before", "after"] = "before"` field
+  (the default preserves every existing rule's own exact behavior):
+  `"before"` rewrites the earlier syllable (Mandarin's own shape),
+  `"after"` the later one (Meeussen's Rule's own shape). `apply_sandhi`
+  now branches on it; `ReferenceLanguageProfile.tone_sandhi` accepts an
+  optional 4th `target` element (`[high, high, low, after]` is Zulu/
+  Xhosa's own curated Meeussen's Rule, now real, reachable, curated data,
+  not a disclosed gap); `resolve_tone_sandhi` parses it; `sound_change.py`'s
+  own merger-remap and sandhi-lexicalization mechanisms were both updated
+  to be target-aware (a merger's degenerate-rule check now looks at
+  whichever field a rule's own `target` actually rewrites; lexicalization
+  stays restricted to `target="before"` rules only, since freezing a
+  `target="after"` rule would need freezing a *different* word's own
+  *first* syllable, a materially different mechanism this batch didn't
+  build). Real Nguni High-tone shift/spread -- a positional
+  *displacement* of a tone onto a later syllable, not a same-position
+  substitution at all -- stays uncurated: `target` alone doesn't solve
+  it, an honest, still-open gap, a materially different mechanism from
+  what this batch fixed.
 - **Contour representation (done).** `ToneLevel`/`TONE_DIACRITICS` (one combining
   mark per category) stay this project's own *stored*, phonemic representation --
   unchanged, since that's what a word's IPA is actually built/read/romanized from

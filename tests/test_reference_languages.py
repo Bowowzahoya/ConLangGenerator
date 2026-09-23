@@ -1340,6 +1340,13 @@ def test_zulu_declares_its_own_tone_level_count_and_click_series():
     assert "r" not in zulu.consonants  # real Zulu genuinely lacks native /r/
 
 
+def test_zulu_declares_meeussens_rule_with_the_progressive_target():
+    # Real Bantu Meeussen's Rule (H+H -> H+L, the *later* syllable
+    # changes) -- the architectural-gap fix's own real curated payoff.
+    zulu = next(p for p in REFERENCE_LANGUAGES if p.name == "Zulu")
+    assert zulu.tone_sandhi == (("high", "high", "low", "after"),)
+
+
 def test_zulu_click_series_romanizes_with_the_real_nguni_letters():
     zulu = next(p for p in REFERENCE_LANGUAGES if p.name == "Zulu")
     inventory = _inventory_for(zulu)
@@ -1534,6 +1541,7 @@ def test_xhosa_matches_zulus_real_open_syllable_canon_and_tone_and_clicks():
     xhosa = next(p for p in REFERENCE_LANGUAGES if p.name == "Xhosa")
     assert xhosa.tone_level_count == 2
     assert xhosa.tone_levels == ("high", "low")  # same real H/L register claim as Zulu's own, pinned explicitly
+    assert xhosa.tone_sandhi == (("high", "high", "low", "after"),)  # Meeussen's Rule, same as Zulu's own
     assert "ǂ" not in xhosa.consonants  # no standard Nguni letter for this click, dropped to match Zulu's own choice
     assert {"ǀʰ", "gǀ", "ŋǀ"} <= set(xhosa.consonants)  # a full click-accompaniment series exists for at least one place
     inventory = _inventory_for(xhosa)

@@ -765,6 +765,55 @@ def test_choose_tone_levels_ignores_a_profile_with_no_tone_level_count_curated()
     assert max(counts.values()) < 300
 
 
+# --- Tone-sandhi rule direction (ToneSandhiRule.target) ---
+
+
+def _tonal_synthetic_profile(name: str, **kwargs) -> ReferenceLanguageProfile:
+    # _synthetic_profile above hardcodes tonal=False (every existing
+    # caller wants a non-tonal profile) -- this mirrors it for the tone-
+    # sandhi tests below, which need tonal=True instead.
+    return ReferenceLanguageProfile(
+        name=name, consonants=("p", "t", "w"), vowels=("a", "u"), coda_profile="unrestricted", max_onset=2, tonal=True, **kwargs
+    )
+
+
+def test_resolve_tone_sandhi_defaults_a_3_tuple_rule_to_target_before():
+    from conlang_generator.core.phonology import ToneLevel
+
+    profile = _tonal_synthetic_profile("T", tone_sandhi=(("dipping", "dipping", "rising"),))
+    levels = (ToneLevel.RISING, ToneLevel.DIPPING)
+    rules = phonology_gen.resolve_tone_sandhi(levels, ((profile, 1.0),), 1.0, 0.0, 0)
+    assert len(rules) == 1
+    assert rules[0].target == "before"
+
+
+def test_resolve_tone_sandhi_reads_an_explicit_4th_target_element():
+    from conlang_generator.core.phonology import ToneLevel
+
+    # Real Meeussen's Rule -- the exact shape Zulu/Xhosa's own profiles
+    # now curate.
+    profile = _tonal_synthetic_profile("T", tone_sandhi=(("high", "high", "low", "after"),))
+    levels = (ToneLevel.HIGH, ToneLevel.LOW)
+    rules = phonology_gen.resolve_tone_sandhi(levels, ((profile, 1.0),), 1.0, 0.0, 0)
+    assert len(rules) == 1
+    assert rules[0].before == ToneLevel.HIGH and rules[0].after == ToneLevel.HIGH
+    assert rules[0].becomes == ToneLevel.LOW and rules[0].target == "after"
+
+
+def test_resolve_tone_sandhi_invented_rules_stay_target_before():
+    # Deliberate, disclosed scope (see resolve_tone_sandhi's own
+    # docstring): invention never produces a target="after" rule, even
+    # across many draws from an unmatched tonal profile.
+    from conlang_generator.core.phonology import ToneLevel
+
+    uncurated = _tonal_synthetic_profile("U")
+    for seed in range(30):
+        rules = phonology_gen.resolve_tone_sandhi(
+            (ToneLevel.HIGH, ToneLevel.LOW, ToneLevel.MID), ((uncurated, 0.0),), 0.0, 1.0, seed
+        )
+        assert all(rule.target == "before" for rule in rules)
+
+
 def test_resolve_onset_nucleus_restriction_intersects_two_blacklists():
     # A pair only stays forbidden if *every* blacklist-mode source
     # forbids it -- what's legal in either becomes legal in the
