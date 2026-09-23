@@ -650,18 +650,43 @@ multi-session feature.
 
 ## 8. Web app
 
-- **Untested in a browser this round (S).** The capability/warning UI was
-  syntax-checked (`node --check`) and its endpoints tested, but the page was
-  not exercised in a browser.
-- **Missing controls (S).** No tone-sandhi trait control, no display of the
-  language's tone levels/sandhi rules, no per-word audio, no engine voice
-  picker, no real-based/real provenance badge per word beyond notes.
-- **Lexicon browsing/editing (M).** No view, search, edit or export of a
-  generated language's lexicon or of a reference language's real words.
-- **Source-language weights UI (S).** Weights exist in the traits but not in
-  the form.
-- **Persistence and sharing (M).** Languages live in local storage files; no
-  import/export of a whole language from the UI.
+- **Untested in a browser this round (S).** The tone-system-display work below
+  (and everything before it in this section's own history) was syntax-checked
+  (`node --check`) and its endpoints tested, but not exercised in a real
+  browser -- deferred to the user's own manual pass, by request.
+- **Missing controls -- re-audited, partly resolved (S).**
+  - Tone levels/sandhi rules display: **done.** `_language_summary`'s own new
+    `tone_system` key (levels with real Chao contour data, general sandhi
+    rules including `target` direction, lexical sandhi) is now rendered as
+    its own "Tone system" card section whenever a language is tonal -- see
+    `architecture/OVERVIEW.md`'s own "Web app: tone system display" entry.
+  - Real-based/provenance badge: **partly done.** An aggregate "real-word-
+    based: N of M" badge already existed (predates this pass); a *per-row*
+    marker in the lexicon table (which specific words are real-derived) still
+    doesn't.
+  - Per-word audio: **partly done, re-scoped.** A sentence-level "Play
+    pronunciation" button already existed on the translate tab (this bullet
+    undersold it) -- what's still missing is a *per-lexicon-row* play button
+    (look up any single word from the generated-language summary and hear
+    it, the web equivalent of the CLI's own `conlang pronounce`).
+  - Engine picker: **done** (the `tr-tts` select already chooses among
+    none/espeak/sapi) -- a finer-grained *voice* picker within one engine
+    (beyond eSpeak's own automatic tone-voice switching) is still absent, but
+    that's a materially narrower, more speculative ask with no clear demand
+    signal elsewhere in this project either.
+  - No tone-sandhi/graded-trait control: **still open.** The CLI's own new
+    `--trait NAME=VALUE` (see §7) has no web equivalent yet.
+- **Lexicon browsing/editing (M, unchanged).** No search, edit or export of a
+  generated language's lexicon or of a reference language's real words (a
+  flat, unfiltered table is already shown, so bare "view" isn't itself
+  missing).
+- **Source-language weights UI (done).** `.sl-weight` form inputs +
+  `SourceLanguageEntry.weight` on `/api/generate`'s own request model already
+  existed; verified for real with a new test (a weighted request's own
+  weights land in the saved language's own `spec.traits.
+  source_language_weights`) rather than just noting the code path exists.
+- **Persistence and sharing (M, unchanged).** Languages live in local storage
+  files; no import/export of a whole language from the UI.
 
 ## 9. Engineering and data hygiene
 

@@ -3586,12 +3586,12 @@ reading code or one-off ad hoc scripts.
   contours for its own two same-tone syllables -- both exactly as expected, a nice
   cross-check that the two most recent batches compose correctly together.
 
-  **Not done, disclosed rather than built speculatively:** exposing per-language `tone_levels`
-  with their own contour in the web UI, which currently shows only a bare `tonal: true/false`
-  badge (checked `static/index.html` directly). The backend data is trivial to add
-  (`TONE_CONTOURS`/`chao_letters` already do the actual work) -- what's missing is new
-  frontend surface to display it, not wiring existing data, so this is left as a natural,
-  named next step rather than scope-crept into this batch.
+  **Not done at the time, disclosed rather than built speculatively:** exposing per-language
+  `tone_levels` with their own contour in the web UI, which then showed only a bare
+  `tonal: true/false` badge. Done in a later web-app batch (see this file's own "Web app: tone
+  system display, source-language weight verification" entry) -- `webui/app.py`'s own
+  `_language_summary` now includes exactly this, via the same `TONE_CONTOURS`/`chao_letters`
+  this entry already names.
 
   6 new tests: 2 in `test_phonology.py` (every `ToneLevel` member has real contour data; the
   digit-to-bar conversion for falling/rising/dipping/high, checked against the textbook
@@ -4101,3 +4101,56 @@ reading code or one-off ad hoc scripts.
 
   That's every item the tone-systems survey ever flagged, across all three of its own batches, now
   either curated or explicitly, correctly disclosed as out of scope for a real, specific reason.
+- **Web app: tone system display, source-language weight verification.** Asked to move on to the
+  web-app backlog (`DEFERRED.md` §8) after the CLI one, with manual browser testing explicitly
+  deferred to the user's own pass at the end. Re-audited `webui/app.py`/`static/index.html` against
+  §8's own bullets the same way the CLI audit re-checked `docs/CLI.md` against `cli/main.py` --
+  several turned out stale in the *other* direction (already resolved, not documented as such):
+  "Source-language weights UI" already has its own `.sl-weight` form inputs and a
+  `SourceLanguageEntry.weight` field on `/api/generate`'s own request model, just never tested; "no
+  per-word audio" undersold what already existed (a sentence-level "Play pronunciation" button
+  already existed on the translate tab, via `/api/pronounce`) even though a *lexicon-row-level* play
+  button genuinely still doesn't. The one clearly real, substantial gap: `_language_summary` (the
+  one view both `/api/generate` and `/api/languages/{slug}` return) had no tone-system data at all --
+  this entire session's own tone-evolution work (detonalization, tonogenesis, merger, split, sandhi
+  lexicalization, Meeussen's Rule, real Nguni High-tone shift) has had zero web-UI visibility this
+  whole time, and a much older, already-`architecture/OVERVIEW.md`-flagged gap (the Contour-
+  representation batch's own "Not done" note, see its own entry above) named the exact same missing
+  surface.
+
+  New `tone_system` key on `_language_summary`'s own dict, always present (empty lists for a
+  non-tonal language -- `ToneSystem`'s own default shape -- rather than a nullable field, so the
+  frontend's own rendering logic stays a plain "is there anything to show" check): `levels` (each a
+  `{level, contour, digits}` triple -- `contour`/`digits` the same real Chao (1930) pitch-level data
+  `speech.reader.describe()` already prints for the CLI, via the same `TONE_CONTOURS`/`chao_letters`
+  the "Not done" note above already named as trivial to add), `sandhi` (each `ToneSandhiRule`'s own
+  `before`/`after`/`becomes`/`target`), `lexical_sandhi` (each `LexicalToneSandhiRule`'s own
+  `gloss`/`before`/`becomes`).
+
+  New `renderToneSection()` in `static/index.html`: a "Tone system" card section, shown only when
+  `grammar.tonal` is true, with a levels-badge row and, when present, readable sandhi-rule lists. A
+  `ToneSandhiRule`'s own `target` (the progressive-tone-sandhi batch's own new field) is rendered as
+  the real before/after sequence transforming rather than left implicit or requiring the reader to
+  already know what `target` means -- `target="before"` (Mandarin's own shape) shows
+  `X + Y -> **Z** + Y` (the earlier syllable changes), `target="after"` (real Meeussen's Rule) shows
+  `X + Y -> X + **Z**` (the later one does) -- each tone level shown with its own Chao contour glyph
+  inline (`high ˥˥`, not just the bare word `high`), reusing the same contour data the levels badges
+  already carry rather than a second lookup. Syntax-checked with `node --check` against the
+  extracted `<script>` block (this project's own established substitute for a browser check, per
+  this exact file's own "Untested in a browser this round" precedent -- real browser exercise stays
+  the user's own manual pass, explicitly deferred this batch).
+
+  4 new tests in `test_webui.py`: a non-tonal language's own `tone_system` is the all-empty default
+  shape (a real, non-skip-guarded seed, not a flaky "if it happens to roll this way" check); a
+  strict-Zulu-sourced language's own `tone_system.levels`/`sandhi` round-trip real Meeussen's Rule
+  (`target: "after"`) and real Chao digits (`55`/`21`) all the way out to the API, not just through
+  internal generation; and a weighted two-source-language request's own weights are confirmed
+  reaching the *saved* language's own `spec.traits.source_language_weights` (reading the repository
+  directly, since the summary response itself doesn't surface per-language weights back -- closing
+  the "weights exist in the traits but not in the form" bullet with real proof, not just noting the
+  form inputs already exist). Full suite: 1100 passed, 2 skipped (up from 1097).
+
+  **Still open** (see `DEFERRED.md` §8, updated to match this audit): a per-lexicon-row play button
+  and real-word-provenance badge (the aggregate "real-word-based: N of M" badge already exists;
+  per-row doesn't); the graded-trait/`--trait`-equivalent control (the CLI's own new flag has no web
+  counterpart yet); lexicon search/filter/edit/export; whole-language import/export.

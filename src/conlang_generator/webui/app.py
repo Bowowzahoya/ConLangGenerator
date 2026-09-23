@@ -30,6 +30,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from conlang_generator.core.language import Language
+from conlang_generator.core.phonology import TONE_CONTOURS, chao_letters
 from conlang_generator.core.romanization import (
     ExoticSymbolStyle,
     OrthographyForce,
@@ -124,6 +125,28 @@ def _language_summary(language: Language) -> dict:
             "salient_context": traits.salient_context,
         },
         "orthography_category": language.romanization.category_name,
+        # Empty lists for a non-tonal language (ToneSystem's own default
+        # shape), not omitted -- the frontend only renders this section
+        # when `grammar.tonal` is true, so an always-present, empty-when-
+        # irrelevant shape is simpler than a nullable field. `contour`/
+        # `digits` are the same real Chao (1930) pitch-level data
+        # `speech.reader.describe()` already prints for the CLI -- was
+        # backend-only before this (see architecture/OVERVIEW.md's own
+        # "Not done" note on this exact gap).
+        "tone_system": {
+            "levels": [
+                {"level": level.value, "contour": chao_letters(level), "digits": TONE_CONTOURS.get(level, "")}
+                for level in language.tone_system.levels
+            ],
+            "sandhi": [
+                {"before": r.before.value, "after": r.after.value, "becomes": r.becomes.value, "target": r.target}
+                for r in language.tone_system.sandhi
+            ],
+            "lexical_sandhi": [
+                {"gloss": r.gloss, "before": r.before.value, "becomes": r.becomes.value}
+                for r in language.tone_system.lexical_sandhi
+            ],
+        },
         "real_words": sum(1 for e in language.lexicon.entries if e.notes.startswith("real")),
         "lexicon": [
             {

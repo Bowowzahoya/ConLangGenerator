@@ -420,6 +420,38 @@ async function refreshLanguages() {
 }
 $("refresh-langs").onclick = refreshLanguages;
 
+// --- tone system (levels + sandhi rules), when the language is tonal ---
+function renderToneSection(summary) {
+  const ts = summary.tone_system;
+  if (!summary.grammar.tonal || !ts) return "";
+  const contourByLevel = Object.fromEntries(ts.levels.map(l => [l.level, l]));
+  const levelBadges = ts.levels
+    .map(l => `<span class="badge">${l.level} ${l.contour} (${l.digits})</span>`).join("");
+  const withContour = (level) => {
+    const l = contourByLevel[level];
+    return l ? `${level} ${l.contour}` : level;
+  };
+  // A ToneSandhiRule's own `target` says which of its two syllables
+  // actually changes ("before": the earlier one, Mandarin's own
+  // third-tone-sandhi shape; "after": the later one, real Meeussen's
+  // Rule) -- shown as the real before/after sequence transforming, so
+  // the direction is visible at a glance rather than left implicit.
+  const sandhiRows = ts.sandhi.map(r => {
+    const seq = r.target === "before"
+      ? `${withContour(r.before)} + ${withContour(r.after)} &rarr; <strong>${withContour(r.becomes)}</strong> + ${withContour(r.after)}`
+      : `${withContour(r.before)} + ${withContour(r.after)} &rarr; ${withContour(r.before)} + <strong>${withContour(r.becomes)}</strong>`;
+    return `<li>${seq}</li>`;
+  }).join("");
+  const lexicalRows = ts.lexical_sandhi.map(r =>
+    `<li>"${r.gloss}" becomes <strong>${withContour(r.becomes)}</strong> before a ${withContour(r.before)}-toned syllable</li>`
+  ).join("");
+  return `
+    <h2>Tone system</h2>
+    <div class="badges">${levelBadges || `<span class="badge">(no levels recorded)</span>`}</div>
+    ${sandhiRows ? `<div class="engine-info"><strong>Sandhi rules</strong><ul>${sandhiRows}</ul></div>` : ""}
+    ${lexicalRows ? `<div class="engine-info"><strong>Lexical sandhi (word-specific)</strong><ul>${lexicalRows}</ul></div>` : ""}`;
+}
+
 // --- rendering a language summary (shared by generate result + could be reused) ---
 function renderLanguageSummary(container, summary) {
   const g = summary.grammar, t = summary.traits;
@@ -452,6 +484,7 @@ function renderLanguageSummary(container, summary) {
       ${traitBadges || sourceLangBadge ? `<div class="badges">${traitBadges}${sourceLangBadge}</div>` : ""}
       ${(summary.warnings || []).map(w => `<div class="error">⚠ ${w}</div>`).join("")}
       ${summary.cost ? `<div class="badges"><span class="badge">this call: $${summary.cost.delta_usd.toFixed(4)} (${summary.cost.delta_calls} calls)</span></div>` : ""}
+      ${renderToneSection(summary)}
       <h2>Lexicon (${summary.lexicon.length} words)</h2>
       <div class="lexicon-wrap">
         <table>

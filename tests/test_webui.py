@@ -60,6 +60,54 @@ def test_get_language_by_slug_matches_generate_response_shape(client):
     assert [w["gloss"] for w in fetched["lexicon"]] == [w["gloss"] for w in generated["lexicon"]]
 
 
+def test_generate_reports_source_language_weights_in_the_saved_spec(client):
+    # The form's own per-source-language weight input (index.html's own
+    # ".sl-weight" rows) -- confirms a weight actually reaches the saved
+    # language's own traits, not just that the request is accepted.
+    client.post(
+        "/api/generate",
+        json={
+            "prompt": "p", "name": "Weighted", "seed": 3, "llm": "fake",
+            "source_languages": [{"name": "Dutch", "weight": 0.8}, {"name": "German", "weight": 0.2}],
+        },
+    )
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    language = YamlLanguageRepository(webui_app.LANGUAGES_DIR).load("weighted")
+    traits = language.spec.traits
+    weight_by_name = dict(zip(traits.source_languages, traits.source_language_weights))
+    assert weight_by_name["Dutch"] == 0.8
+    assert weight_by_name["German"] == 0.2
+
+
+def test_generate_reports_no_tone_data_for_a_non_tonal_language(client):
+    body = client.post("/api/generate", json={"prompt": "p", "name": "Silent Lang", "seed": 6, "llm": "fake"}).json()
+    assert not body["grammar"]["tonal"]
+    assert body["tone_system"] == {"levels": [], "sandhi": [], "lexical_sandhi": []}
+
+
+def test_generate_reports_tone_levels_and_sandhi_for_a_tonal_language(client):
+    # Strict Zulu -- real Meeussen's Rule (target="after", see
+    # sound_change.py's own progressive-tone-sandhi work) round-trips all
+    # the way out to the API, not just through internal generation.
+    body = client.post(
+        "/api/generate",
+        json={
+            "prompt": "Zulu", "name": "Zulu Web", "seed": 0, "llm": "fake",
+            "source_languages": [{"name": "Zulu", "weight": None}], "strictness": 1.0,
+        },
+    ).json()
+    assert body["grammar"]["tonal"]
+    levels = body["tone_system"]["levels"]
+    assert {entry["level"] for entry in levels} == {"high", "low"}
+    # Real Chao pitch-level digits (core.phonology.TONE_CONTOURS), not just
+    # the bare level name -- the exact gap architecture/OVERVIEW.md's own
+    # "Contour representation" entry left open for the web UI specifically.
+    assert {entry["digits"] for entry in levels} == {"55", "21"}
+    assert all(entry["contour"] for entry in levels)
+    assert body["tone_system"]["sandhi"] == [{"before": "high", "after": "high", "becomes": "low", "target": "after"}]
+
+
 def test_get_unknown_language_is_404(client):
     response = client.get("/api/languages/does-not-exist")
     assert response.status_code == 404
