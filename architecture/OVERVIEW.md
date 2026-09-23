@@ -3786,3 +3786,89 @@ reading code or one-off ad hoc scripts.
   pass** (see `DEFERRED.md`): sandhi becoming lexical -- needs its own design for exactly
   when/how a *rule*, not a single symbol or the whole tone system, transitions into per-word
   `LexicalToneSandhiRule`-style data.
+- **Tone in evolution -- sandhi lexicalization (closing the tones survey for real this time).**
+  Asked to "go ahead with sandhi-becoming-lexical," the one item the previous two batches had
+  each in turn left open. Slots in as `_evolve_tone_system`'s own fifth direction, checked last
+  among the four tonal-branch mechanisms (after detonalization, merger, split -- unchanged, still
+  mutually exclusive, still at most one firing per run) and still gated behind
+  `base_tone_system.enabled`, since a rule can't lexicalize out of a tone system that isn't there.
+
+  The real phenomenon: a live, *context*-conditioned `ToneSandhiRule` (real Mandarin third-tone
+  sandhi is still fully productive and context-conditioned -- this is about the *other* fate a
+  sandhi rule can have) can lose its own conditioning environment over enough time and freeze
+  into the affected words' own citation tones, at which point the rule itself no longer exists as
+  a live process -- speakers just memorize the outcome per word. Real anchor: Cantonese "changed
+  tone" (變調), commonly described as a fossilized reflex of earlier, once-productive tone sandhi
+  that a modern speaker can no longer predict from any live rule at all, only recall per word --
+  as direct a match for "a rule freezing into per-word data" as this project's own tone-evolution
+  work has found yet. New `_HALF_LIVES["sandhi_lexicalization"] = 500.0`, the slowest of all five
+  tone-system-level half-lives: a rule actually losing its own productivity and being reanalyzed
+  as memorized per-word fact is a further, later diachronic stage on top of either a merger (a
+  clean, wholesale category collapse) or a split (one mechanical onset-voicing-loss event).
+
+  Three new pure helpers. `_pick_lexicalizing_sandhi_rule` picks one of a tonal language's own
+  live rules from `ToneSystem.sandhi` specifically -- deliberately *not* `lexical_sandhi`, which
+  is already word-specific data and has nothing left to "become" lexical -- excluding any rule
+  with `before == becomes` (never produced by this project's own `resolve_tone_sandhi`, but not
+  excluded by the `ToneSandhiRule` model itself; would freeze into a genuine no-op), the same
+  "never map a tone to itself" discipline every other tone-system mechanism in this file already
+  holds itself to; `None`, an honest abstention, when the language has no eligible rule at all.
+  `_has_qualifying_lexicalization_target` is the structural gate: whether a word's own *last*
+  tone-bearing syllable -- the exact position `generation.tone_sandhi.apply_sandhi` itself always
+  conditions general sandhi on, tracking "the syllable immediately preceding whatever comes next"
+  -- currently carries the chosen rule's own `before`. `_lexicalize_sandhi_ipa` does the actual
+  per-word freeze: a qualifying word's own last tone-bearing syllable becomes `rule.becomes`;
+  every other word (its own last tone elsewhere, or no tone at all) passes through unchanged.
+
+  The one real design question this batch had to resolve: real sandhi is conditioned on what
+  actually *follows* a word (Mandarin dipping-dipping becomes rising-dipping only when the next
+  syllable is *also* dipping), but this project stores words independently, with no memory of
+  which neighbor tones a given word's own citation form has actually sat next to over its
+  lifetime -- `generation.tone_sandhi.apply_sandhi` only ever computes that adjacency at
+  *utterance*-generation time, from whatever words happen to be strung together in that one
+  call, not as a per-word historical fact `sound_change.py` could read back later. Modeling "did
+  this specific word actually occur next to a triggering neighbor often enough to lexicalize"
+  would need this project to track word collocation frequency, data nothing here currently
+  gathers and a materially bigger feature than this batch's own scope. Resolved by applying the
+  freeze to every word whose own last tone-bearing syllable carries the rule's `before`,
+  unconditioned by what follows -- not a claim that every such word really did sit next to the
+  trigger tone every time, but a fair, disclosed telling of what "the rule loses its own
+  conditioning environment" concretely means once the rule no longer exists to check it: an
+  honest simplification in the same spirit as tone split's own reuse of existing `ToneLevel`
+  categories rather than inventing new ones, not a silently narrower implementation of the real
+  phenomenon.
+
+  `_evolve_tone_system` needed no new parameters for this direction (unlike split's own
+  `consonant_by_ipa` addition) -- everything it needs (`rng`, `base_tone_system`, `years`,
+  `final_ipas`, `known_symbols`, `vowel_symbols`) was already in scope. On firing, the returned
+  `ToneSystem` keeps `levels` and `lexical_sandhi` exactly as they were (this direction touches
+  neither) and drops the chosen rule from `sandhi`.
+
+  13 new tests in `test_sound_change.py`: pure-function coverage for `_pick_lexicalizing_sandhi_rule`
+  (picks from the available rules, abstains with none, excludes a degenerate one),
+  `_has_qualifying_lexicalization_target` (a matching final tone, a non-matching one, and --
+  the one genuinely tricky case -- a word whose *earlier* syllable happens to carry the target
+  tone but whose own *last* one doesn't, confirming only the last position counts), and
+  `_lexicalize_sandhi_ipa` (freezes a qualifying word, leaves a non-qualifying one alone, and
+  only touches a word's own last tone-bearing syllable when an earlier one shares the same tone);
+  a direct `_evolve_tone_system` call for the mechanism firing (seed-searched at the same
+  moderate `years` the merger/split tests above already settled on, since detonalization/merger
+  are still live competitors for the same fixture -- this one's own inventory deliberately has no
+  voiced obstruent at all, so split specifically can never compete for the same seed) and its own
+  structural-gating abstention; a `years=0` no-op check; and a full `evolve_language` pipeline
+  wiring test, isolated via `monkeypatch` the same way every other tone-system wiring test in this
+  file already is.
+
+  Smoke-tested against real generation across six independent strict-sourced lineages -- Mandarin,
+  Thai, Zulu, Yoruba, Vietnamese, and Cantonese itself (this mechanism's own real anchor case) --
+  each producing a language with at least one live sandhi rule, evolving it, and confirming a
+  seed exists where that rule freezes: real examples include Mandarin `sỉn (DIPPING) -> sǐn
+  (RISING)` (its own dipping-dipping-becomes-rising rule frozen), Cantonese `nīm (MID) -> nỉm
+  (DIPPING)`, and Zulu/Yoruba/Vietnamese each freezing one of their own real high/low/mid-tone
+  sandhi rules the same way -- with the frozen rule itself confirmed gone from the resulting
+  `tone_system.sandhi` in every case. Full suite: 1066 passed, 2 skipped (up from 1053 -- the 13
+  new tests). `conlang audit-lexicons`: still 0% flagged (a generation/evolution-only change,
+  doesn't touch curated real lexicons).
+
+  That closes out the tones survey in full -- every item it ever opened, including the two this
+  file's own two immediately preceding entries had each in turn left for later, is now done.

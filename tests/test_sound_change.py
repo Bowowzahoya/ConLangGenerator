@@ -1221,3 +1221,212 @@ def test_tone_split_wires_correctly_through_the_full_evolve_language_pipeline(mo
     assert "b" not in ipa_tokenizer.symbols_only(one.ipa, _KNOWN_SYMBOLS)  # its own voiced onset devoiced
     assert one.tones == (ToneLevel.LOW,)
     assert two.ipa == "p" + _tone("a", ToneLevel.HIGH)  # never had a voiced onset -- untouched
+
+
+# --- Sandhi lexicalization -----------------------------------------------
+
+
+def _lexicalization_base() -> Language:
+    # "ta"+RISING -- its own last (and only) tone-bearing syllable carries
+    # RISING, the sandhi rule's own `before` -- real raw material for the
+    # mechanism to freeze onto. "ka"+HIGH -- carries a different tone,
+    # never a candidate, directly checkable as staying untouched. Only
+    # voiceless onsets (k/t) in this fixture's own inventory -- no real
+    # voiced obstruent anywhere in either word -- so tone *split* has no
+    # raw material here and can never compete with lexicalization for the
+    # same seed.
+    entries = (
+        LexicalEntry(
+            ipa="t" + _tone("a", ToneLevel.RISING), romanization="ta", glosses=("one",),
+            pos=PartOfSpeech.NOUN, tones=(ToneLevel.RISING,),
+        ),
+        LexicalEntry(
+            ipa="k" + _tone("a", ToneLevel.HIGH), romanization="ka", glosses=("two",),
+            pos=PartOfSpeech.NOUN, tones=(ToneLevel.HIGH,),
+        ),
+    )
+    consonants = (
+        Consonant(ipa="k", place=Place.VELAR, manner=Manner.STOP, voiced=False, prevalence=0.9),
+        Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, prevalence=0.9),
+    )
+    vowels = (Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),)
+    phonology = PhonemeInventory(consonants=consonants, vowels=vowels)
+    structure = SyllableStructure(max_onset=1, max_coda=0)
+    romanization = RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="a", latin="a"), RomanizationRule(ipa="k", latin="k"), RomanizationRule(ipa="t", latin="t"),
+        ),
+        vowel_symbols=("a",),
+    )
+    tone_system = ToneSystem(
+        enabled=True, levels=(ToneLevel.HIGH, ToneLevel.LOW, ToneLevel.RISING),
+        sandhi=(ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.HIGH, becomes=ToneLevel.LOW),),
+    )
+    return Language(
+        name="Base", spec=GenerationSpec(prompt="p", seed=0), phonology=phonology, syllable_structure=structure,
+        tone_system=tone_system, romanization=romanization, grammar=_glottal_grammar(),
+        lexicon=Lexicon(entries=entries),
+    )
+
+
+def test_pick_lexicalizing_sandhi_rule_picks_from_the_available_rules():
+    rules = (
+        ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.HIGH, becomes=ToneLevel.LOW),
+        ToneSandhiRule(before=ToneLevel.HIGH, after=ToneLevel.LOW, becomes=ToneLevel.RISING),
+    )
+    picked = sound_change._pick_lexicalizing_sandhi_rule(random.Random(1), rules)
+    assert picked in rules
+
+
+def test_pick_lexicalizing_sandhi_rule_abstains_with_no_sandhi_rules():
+    assert sound_change._pick_lexicalizing_sandhi_rule(random.Random(1), ()) is None
+
+
+def test_pick_lexicalizing_sandhi_rule_excludes_a_degenerate_rule():
+    # before == becomes -- never produced by resolve_tone_sandhi's own
+    # invention logic, but not excluded by the model itself -- would
+    # freeze into a genuine no-op, so it's never eligible here.
+    degenerate = (ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.HIGH, becomes=ToneLevel.RISING),)
+    for seed in range(20):
+        assert sound_change._pick_lexicalizing_sandhi_rule(random.Random(seed), degenerate) is None
+
+
+def test_has_qualifying_lexicalization_target_true_for_a_matching_final_tone():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    tokens = ipa_tokenizer.tokenize("t" + _tone("a", ToneLevel.RISING), known)
+    assert sound_change._has_qualifying_lexicalization_target(tokens, vowel_symbols, ToneLevel.RISING)
+
+
+def test_has_qualifying_lexicalization_target_false_for_a_different_final_tone():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    tokens = ipa_tokenizer.tokenize("k" + _tone("a", ToneLevel.HIGH), known)
+    assert not sound_change._has_qualifying_lexicalization_target(tokens, vowel_symbols, ToneLevel.RISING)
+
+
+def test_has_qualifying_lexicalization_target_checks_the_words_own_last_tone_only():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    # RISING appears earlier in the word, but the word's own *last*
+    # tone-bearing syllable is HIGH -- only that position counts, the
+    # same "last tone-bearing syllable" convention apply_sandhi itself
+    # already uses (generation.tone_sandhi).
+    ipa = "t" + _tone("a", ToneLevel.RISING) + "k" + _tone("a", ToneLevel.HIGH)
+    tokens = ipa_tokenizer.tokenize(ipa, known)
+    assert not sound_change._has_qualifying_lexicalization_target(tokens, vowel_symbols, ToneLevel.RISING)
+    assert sound_change._has_qualifying_lexicalization_target(tokens, vowel_symbols, ToneLevel.HIGH)
+
+
+def test_lexicalize_sandhi_ipa_freezes_a_matching_final_tone():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    rule = ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.HIGH, becomes=ToneLevel.LOW)
+    ipa, tones = sound_change._lexicalize_sandhi_ipa("t" + _tone("a", ToneLevel.RISING), known, vowel_symbols, rule)
+    assert ipa == "t" + _tone("a", ToneLevel.LOW)
+    assert tones == (ToneLevel.LOW,)
+
+
+def test_lexicalize_sandhi_ipa_leaves_a_non_matching_word_unchanged():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    rule = ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.HIGH, becomes=ToneLevel.LOW)
+    ipa, tones = sound_change._lexicalize_sandhi_ipa("k" + _tone("a", ToneLevel.HIGH), known, vowel_symbols, rule)
+    assert ipa == "k" + _tone("a", ToneLevel.HIGH)
+    assert tones == (ToneLevel.HIGH,)
+
+
+def test_lexicalize_sandhi_ipa_only_touches_the_words_own_last_tone_bearing_syllable():
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    rule = ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.HIGH, becomes=ToneLevel.LOW)
+    ipa_in = "t" + _tone("a", ToneLevel.RISING) + "t" + _tone("a", ToneLevel.RISING)
+    ipa, tones = sound_change._lexicalize_sandhi_ipa(ipa_in, known, vowel_symbols, rule)
+    assert ipa == "t" + _tone("a", ToneLevel.RISING) + "t" + _tone("a", ToneLevel.LOW)
+    assert tones == (ToneLevel.RISING, ToneLevel.LOW)
+
+
+def test_sandhi_lexicalization_fires_at_a_long_enough_time_depth_and_drops_the_frozen_rule():
+    # Same moderate-years/seed-search rationale as the merger and split
+    # tests above -- detonalization/merger are also live for this
+    # fixture's own 3-level tonal system at the same time depth (split
+    # never is -- see _lexicalization_base's own docstring), so this
+    # searches for a seed landing specifically on lexicalization:
+    # `levels` unchanged (unlike merger/split, neither of which leaves it
+    # alone) but `sandhi` shorter than the base's own.
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    base = _lexicalization_base()
+    final_ipas = [e.ipa for e in base.lexicon.entries]
+    new_tone_system = None
+    transform = None
+    for seed in range(300):
+        candidate_system, candidate_transform = sound_change._evolve_tone_system(
+            random.Random(seed), base.tone_system, 200, 0.0, final_ipas, known, vowel_symbols, _CONSONANT_BY_IPA,
+        )
+        if (
+            candidate_system.enabled and candidate_system.levels == base.tone_system.levels
+            and len(candidate_system.sandhi) < len(base.tone_system.sandhi)
+        ):
+            new_tone_system, transform = candidate_system, candidate_transform
+            break
+    assert new_tone_system is not None, "no seed in range produced a sandhi lexicalization"
+    assert new_tone_system.sandhi == ()  # the fixture's own single rule, now frozen and dropped
+    assert new_tone_system.lexical_sandhi == base.tone_system.lexical_sandhi  # untouched by this mechanism
+    new_ipas, tones = transform(final_ipas)
+    assert new_ipas[0] == "t" + _tone("a", ToneLevel.LOW)  # its own qualifying last tone, frozen
+    assert new_ipas[1] == final_ipas[1]  # never qualified -- untouched
+    assert tones[0] == (ToneLevel.LOW,)
+    assert tones[1] == (ToneLevel.HIGH,)
+
+
+def test_sandhi_lexicalization_never_fires_with_no_qualifying_word_in_the_lexicon():
+    # Structural gating, the same discipline tonogenesis/split's own
+    # gating tests above already check: no word anywhere in this language
+    # has its own last tone-bearing syllable carrying the rule's `before`,
+    # so there's no raw material to freeze at all this run, regardless of
+    # `years`.
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    vowel_symbols = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+    sandhi = (ToneSandhiRule(before=ToneLevel.RISING, after=ToneLevel.HIGH, becomes=ToneLevel.LOW),)
+    tone_system = ToneSystem(enabled=True, levels=(ToneLevel.HIGH, ToneLevel.LOW, ToneLevel.RISING), sandhi=sandhi)
+    final_ipas = ["k" + _tone("a", ToneLevel.HIGH), "k" + _tone("a", ToneLevel.LOW)]  # neither ends in RISING
+    for seed in range(300):
+        candidate_system, _ = sound_change._evolve_tone_system(
+            random.Random(seed), tone_system, 5000, 0.0, final_ipas, known, vowel_symbols, _CONSONANT_BY_IPA,
+        )
+        if candidate_system.enabled and candidate_system.levels == tone_system.levels:
+            # `sandhi` only ever changes alongside `levels` too (a merger
+            # remapping it) -- with `levels` unchanged here, the only other
+            # way `sandhi` could differ is lexicalization, which this
+            # fixture has no raw material for at all.
+            assert candidate_system.sandhi == sandhi
+
+
+def test_sandhi_lexicalization_wires_correctly_through_the_full_evolve_language_pipeline(monkeypatch):
+    monkeypatch.setattr(sound_change, "_compute_rates", lambda years, traits: _ZERO_RATES)
+    monkeypatch.setattr(sound_change, "_replacement_rate", lambda years, traits, pos: 0.0)
+    base = _lexicalization_base()
+    evolved = None
+    for seed in range(300):
+        candidate = evolve_language("Evolved", base, 200, TraitProfile(), seed)
+        if (
+            candidate.tone_system.enabled and candidate.tone_system.levels == base.tone_system.levels
+            and len(candidate.tone_system.sandhi) < len(base.tone_system.sandhi)
+        ):
+            evolved = candidate
+            break
+    assert evolved is not None, "no seed in range produced a sandhi lexicalization through the full pipeline"
+    assert evolved.tone_system.sandhi == ()
+    one = next(e for e in evolved.lexicon.entries if "one" in e.glosses)
+    two = next(e for e in evolved.lexicon.entries if "two" in e.glosses)
+    assert one.ipa == "t" + _tone("a", ToneLevel.LOW)
+    assert one.tones == (ToneLevel.LOW,)
+    assert two.ipa == base.lexicon.entries[1].ipa  # never qualified -- untouched
+
+
+def test_zero_years_never_changes_a_sandhi_bearing_tone_system_either():
+    base = _lexicalization_base()
+    evolved = evolve_language("Evolved", base, 0, TraitProfile(contact_intensity=1.0), seed=1)
+    assert evolved.tone_system == base.tone_system
+    assert [e.tones for e in evolved.lexicon.entries] == [e.tones for e in base.lexicon.entries]

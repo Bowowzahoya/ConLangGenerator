@@ -376,15 +376,16 @@ multi-session feature.
   frontend surface, not just wiring existing data, so it's left as a natural,
   disclosed next step rather than built speculatively here.
 - **Tone in evolution (done -- detonalization, tonogenesis, tone splits,
-  tone mergers).** `sound_change.evolve_language` used to always copy a
-  language's own `ToneSystem` forward unchanged; it now models four
-  directions a language's own tone *system* can genuinely change during
-  evolution, checked in a fixed order (detonalization, then merger, then
-  split, then -- only for an already-non-tonal language -- tonogenesis),
-  each its own single whole-language roll (not a rate applied per
-  position the way the six gradient segmental rules are -- tone
-  contrastiveness is systemic, not gradient: once a language has tone,
-  every syllable carries one). **Detonalization** (a tonal language loses
+  tone mergers, sandhi lexicalization).** `sound_change.evolve_language`
+  used to always copy a language's own `ToneSystem` forward unchanged; it
+  now models five directions a language's own tone *system* can genuinely
+  change during evolution, checked in a fixed order (detonalization, then
+  merger, then split, then sandhi lexicalization, then -- only for an
+  already-non-tonal language -- tonogenesis), each its own single
+  whole-language roll (not a rate applied per position the way the six
+  gradient segmental rules are -- tone contrastiveness is systemic, not
+  gradient: once a language has tone, every syllable carries one).
+  **Detonalization** (a tonal language loses
   tone): accelerated by positive `contact_intensity`, the same real
   mechanism behind this project's own already-curated Swahili fact
   (`tonal: false`, attributed to centuries of sustained Arabic/trade-
@@ -402,8 +403,7 @@ multi-session feature.
   regardless of `years`. **Tone merger** (two of a tonal language's own
   real pitch categories collapse into one): real Middle Chinese's own
   "entering" tone category dispersing into modern Mandarin's other tones
-  is this project's own citable case, hence the slowest half-life of the
-  four mechanisms; `NEUTRAL` is never a merger participant, and any
+  is this project's own citable case; `NEUTRAL` is never a merger participant, and any
   existing `ToneSandhiRule`/`LexicalToneSandhiRule` mentioning the
   now-gone category is remapped onto the survivor or, if that makes the
   rule map a tone to itself, dropped -- never left dangling. **Tone
@@ -419,20 +419,39 @@ multi-session feature.
   onset devoiced but their tone unchanged, an honest partial coverage
   rather than a fabricated pairing. Structurally gated the same way
   tonogenesis is: no word with a real qualifying voiced onset before a
-  register-eligible tone, no raw material, regardless of `years`. Smoke-
-  tested against real generation, all four directions (isolated,
-  ʔ-coda-bearing base languages gaining a real high/low tone contrast;
-  strict-Mandarin-sourced languages losing theirs under high contact or
-  merging DIPPING into HIGH; strict-Thai/Zulu/Yoruba-sourced languages
-  splitting real voiced-onset syllables into a lower register while
-  devoicing the onset that conditioned it).
+  register-eligible tone, no raw material, regardless of `years`.
+  **Sandhi lexicalization** (a live, general `ToneSandhiRule` loses its
+  own conditioning and freezes into affected words' own citation tones,
+  the rule itself dropping out): real Cantonese "changed tone" (變調) --
+  a fossilized reflex of earlier, once-productive tone sandhi a modern
+  speaker can no longer predict from any live rule, just memorizes per
+  word -- is this project's own citable anchor, hence the slowest
+  half-life of all five mechanisms. Only a general `sandhi` rule is ever
+  a candidate (`lexical_sandhi` is already word-specific, nothing to
+  "become" lexical); a word whose own *last* tone-bearing syllable (the
+  same position `generation.tone_sandhi.apply_sandhi` itself already
+  conditions general sandhi on) currently carries the chosen rule's
+  `before` permanently becomes `becomes`, and the rule itself is dropped
+  from the language's own `sandhi` once it fires. Deliberately
+  unconditioned by what actually follows each word (this project's
+  per-word storage has no memory of a word's own historical neighbors to
+  check against) -- an honest simplification, not a claim that every
+  affected word really did sit next to the trigger tone every time, but
+  a fair telling of what "losing the conditioning environment" itself
+  means for a rule that no longer exists to check it. Structurally gated
+  the same way tonogenesis/split are: no word with a qualifying last
+  tone, no raw material, regardless of `years`. Smoke-tested against real
+  generation, all five directions (isolated, ʔ-coda-bearing base
+  languages gaining a real high/low tone contrast; strict-Mandarin-sourced
+  languages losing theirs under high contact, merging DIPPING into HIGH,
+  or freezing a DIPPING+DIPPING sandhi rule into affected words' own
+  citation tones; strict-Thai/Zulu/Yoruba-sourced languages splitting
+  real voiced-onset syllables into a lower register while devoicing the
+  onset that conditioned it; strict-Vietnamese- and strict-Cantonese-
+  sourced languages -- Cantonese being this mechanism's own real anchor
+  case -- each freezing one of their own real sandhi rules the same way).
 
-  **Still open, left for a later pass:** "sandhi becoming lexical" (a
-  live `ToneSandhiRule` freezing into affected words' own citation tones
-  over enough time, the rule itself eventually dropping out) needs its
-  own design for exactly when/how a *rule* -- not a single symbol or the
-  whole system -- transitions into per-word `LexicalToneSandhiRule`-style
-  data.
+  That closes out the original tones survey in full.
 - **Tone in real-based words (S).** A deviated word re-spells through the
   language's own orthography; tone-marking style interplay with pinyin-style
   spelling is only lightly tested.

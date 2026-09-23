@@ -206,6 +206,18 @@ _HALF_LIVES = {
     # process rather than one clean cutover, so this stays the slowest of
     # the four tone-system-level half-lives.
     "tone_merger": 450.0,
+    # Sandhi lexicalization: a live, context-conditioned ToneSandhiRule
+    # loses its own conditioning and freezes into affected words' own
+    # citation tones -- real Cantonese "changed tone" (變調) is this
+    # project's own citable anchor, widely described as a fossilized
+    # reflex of earlier, once-productive tone sandhi that a modern speaker
+    # can no longer predict from any live phonological rule, just
+    # memorizes per word. The slowest of all five tone-system-level
+    # half-lives: unlike a merger (a clean, wholesale category collapse)
+    # or a split (one mechanical onset-voicing-loss event), a rule
+    # actually losing its own productivity and being reanalyzed as
+    # per-word fact is a further, later diachronic stage on top of either.
+    "sandhi_lexicalization": 500.0,
 }
 
 Token = tuple[str, str]  # (base symbol, trailing combining-mark decoration)
@@ -836,6 +848,74 @@ def _remap_lexical_tone_sandhi(
     return tuple(remapped)
 
 
+def _pick_lexicalizing_sandhi_rule(
+    rng: random.Random, sandhi: tuple[ToneSandhiRule, ...]
+) -> ToneSandhiRule | None:
+    """Picks one of a tonal language's own live, general context-sandhi
+    rules to freeze into affected words' own citation tones (see
+    ``_lexicalize_sandhi_ipa`` below) -- ``None``, an honest "nothing to
+    lexicalize" abstention, when the language has no such rule at all.
+    ``ToneSystem.lexical_sandhi`` is deliberately not a candidate here --
+    it's already word-specific data, not a general rule that could ever
+    need to "become" lexical. A rule with ``before == becomes`` (never
+    produced by this project's own ``resolve_tone_sandhi``, but not
+    excluded by ``ToneSandhiRule`` itself) would freeze into a genuine
+    no-op and is excluded from consideration, the same "never map a tone
+    to itself" discipline this file's other tone-system mechanisms
+    already hold themselves to."""
+    eligible = [rule for rule in sandhi if rule.before != rule.becomes]
+    if not eligible:
+        return None
+    return rng.choice(eligible)
+
+
+def _has_qualifying_lexicalization_target(
+    tokens: list[Token], vowel_symbols: frozenset[str], before: ToneLevel
+) -> bool:
+    """Whether this word's own *last* tone-bearing syllable -- the one
+    position ``generation.tone_sandhi.apply_sandhi`` itself always
+    conditions general sandhi on, tracking "the syllable immediately
+    preceding whatever comes next" -- currently carries ``before``, the
+    structural precondition for a rule fixed on that tone to have
+    anything of this word's own to freeze onto. A tone-bearing syllable
+    that isn't this word's own last one is never sandhi's own target
+    position at all, so it's correctly ignored here even if it happens to
+    carry ``before`` too."""
+    last_tone: ToneLevel | None = None
+    for symbol, deco in tokens:
+        if symbol in vowel_symbols:
+            tone = _tone_of(deco)
+            if tone is not None:
+                last_tone = tone
+    return last_tone == before
+
+
+def _lexicalize_sandhi_ipa(
+    ipa: str, known_symbols: tuple[str, ...], vowel_symbols: frozenset[str], rule: ToneSandhiRule
+) -> tuple[str, tuple]:
+    """One word's own real sandhi-lexicalization: when this word's own
+    last tone-bearing syllable (see ``_has_qualifying_lexicalization_target``
+    above) currently carries ``rule.before``, it permanently becomes
+    ``rule.becomes`` -- the same outcome a live application of ``rule``
+    would already produce whenever this word happened to sit right before
+    a ``rule.after``-toned neighbor, now baked in as this word's own new
+    citation tone instead of staying conditioned on a following context
+    this project's per-word storage has no way to remember happened. Every
+    other word -- its own last tone bearing something other than
+    ``rule.before``, or no tone at all -- is returned unchanged. Returns
+    the new ``(ipa, tones)`` pair, the same shape every other tone-system
+    transform in this file already returns, so this can be handed
+    straight to ``_evolve_tone_system``'s own ``transform`` contract."""
+    tokens = ipa_tokenizer.tokenize(ipa, known_symbols)
+    tone_positions = [i for i, (symbol, deco) in enumerate(tokens) if symbol in vowel_symbols and _tone_of(deco) is not None]
+    if tone_positions and _tone_of(tokens[tone_positions[-1]][1]) == rule.before:
+        i = tone_positions[-1]
+        symbol, deco = tokens[i]
+        tokens[i] = (symbol, deco.replace(TONE_DIACRITICS[rule.before], TONE_DIACRITICS[rule.becomes]))
+    tones = tuple(_tone_of(deco) for symbol, deco in tokens if symbol in vowel_symbols and _tone_of(deco) is not None)
+    return "".join(symbol + deco for symbol, deco in tokens), tones
+
+
 def _evolve_tone_system(
     rng: random.Random,
     base_tone_system: ToneSystem,
@@ -850,20 +930,21 @@ def _evolve_tone_system(
     genuinely a different kind of change from the six gradient,
     per-position rules ``_evolve_ipa`` already applies (those adjust
     individual sounds; this decides whether/how the language's own tone
-    *categories* themselves change), so each of the four directions below
-    is its own single whole-language roll, not a rate applied
-    independently per eligible position the way e.g. lenition is. Real
-    tone contrastiveness is a systemic property -- once a language has
-    tone, every syllable carries one, not just the syllables that happen
-    to sit in a marked environment -- so unlike lenition or
-    palatalization, none of these four can sensibly leave the change
-    half-applied across the lexicon; each either fires for the whole
-    language this run, or it doesn't yet. Checked in a fixed order, at
-    most one firing per run: detonalization, then (only if still tonal)
-    merger, then (only if still tonal and no merger fired) split; then
-    (only if still non-tonal) tonogenesis -- a language's own tonal
-    status this run can only ever move in one of these four ways once,
-    not compound multiple in the same call.
+    *categories* (or its own sandhi rules) themselves change), so each of
+    the five directions below is its own single whole-language roll, not
+    a rate applied independently per eligible position the way e.g.
+    lenition is. Real tone contrastiveness is a systemic property -- once
+    a language has tone, every syllable carries one, not just the
+    syllables that happen to sit in a marked environment -- so unlike
+    lenition or palatalization, none of these five can sensibly leave the
+    change half-applied across the lexicon; each either fires for the
+    whole language this run, or it doesn't yet. Checked in a fixed order,
+    at most one firing per run: detonalization, then (only if still
+    tonal) merger, then (only if still tonal and no merger fired) split,
+    then (only if still tonal and neither merger nor split fired) sandhi
+    lexicalization; then (only if still non-tonal) tonogenesis -- a
+    language's own tone system this run can only ever move in one of
+    these five ways once, not compound multiple in the same call.
 
     Returns ``(new_tone_system, transform)``: ``transform`` is ``None``
     when nothing fired (the common case), or a pure
@@ -904,6 +985,20 @@ def _evolve_tone_system(
     that weren't previously in use, if this language's own tone system
     didn't already include them) but never removes anything, unlike a
     merger.
+
+    **Sandhi lexicalization** (a currently tonal language's own live,
+    general context-sandhi rule loses its conditioning and freezes into
+    affected words' own citation tones): see
+    ``_pick_lexicalizing_sandhi_rule``/``_has_qualifying_lexicalization_target``/
+    ``_lexicalize_sandhi_ipa``'s own docstrings -- only ``sandhi``, never
+    ``lexical_sandhi`` (already word-specific, nothing to "become"
+    lexical), is a candidate; the chosen rule is dropped from the
+    returned system's own ``sandhi`` once it fires, since it no longer
+    exists as a live process once every word it could ever have applied
+    to already carries the outcome as its own citation tone. Structurally
+    gated the same way tonogenesis/split are: no word whose own last
+    tone-bearing syllable currently carries the chosen rule's ``before``,
+    no raw material, regardless of ``years``.
 
     **Tonogenesis** (a currently non-tonal language gains tone): modeled
     via the one mechanism this project's own phoneme/coda machinery can
@@ -959,6 +1054,28 @@ def _evolve_tone_system(
                     enabled=True, levels=new_levels,
                     sandhi=base_tone_system.sandhi, lexical_sandhi=base_tone_system.lexical_sandhi,
                 ), split
+
+        lexicalizing_rule = _pick_lexicalizing_sandhi_rule(rng, base_tone_system.sandhi)
+        if lexicalizing_rule is not None:
+            lexicalization_rate = _saturating_rate(years, _HALF_LIVES["sandhi_lexicalization"], 0.0)
+            if rng.random() < lexicalization_rate:
+                has_raw_material = any(
+                    _has_qualifying_lexicalization_target(
+                        ipa_tokenizer.tokenize(ipa, known_symbols), vowel_symbols, lexicalizing_rule.before
+                    )
+                    for ipa in final_ipas
+                )
+                if has_raw_material:
+                    def lexicalize(ipas: list[str]) -> tuple[list[str], list[tuple]]:
+                        converted = [_lexicalize_sandhi_ipa(ipa, known_symbols, vowel_symbols, lexicalizing_rule) for ipa in ipas]
+                        return [ipa for ipa, _ in converted], [tones for _, tones in converted]
+
+                    new_sandhi = tuple(rule for rule in base_tone_system.sandhi if rule != lexicalizing_rule)
+                    new_system = ToneSystem(
+                        enabled=True, levels=base_tone_system.levels,
+                        sandhi=new_sandhi, lexical_sandhi=base_tone_system.lexical_sandhi,
+                    )
+                    return new_system, lexicalize
 
     if not base_tone_system.enabled:
         has_raw_material = any(
