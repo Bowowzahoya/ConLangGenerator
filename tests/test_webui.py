@@ -39,7 +39,7 @@ def test_generate_returns_a_language_summary_with_words_grammar_and_cost(client)
     assert body["name"] == "Webtest"
     assert body["slug"] == "webtest"
     assert len(body["lexicon"]) > 0
-    assert {"gloss", "pos", "romanization", "ipa"} <= body["lexicon"][0].keys()
+    assert {"gloss", "pos", "romanization", "ipa", "spoken_ipa", "provenance"} <= body["lexicon"][0].keys()
     assert "word_order" in body["grammar"]
     assert "alignment" in body["grammar"]
     assert body["cost"]["delta_usd"] == 0.0  # fake backend never spends
@@ -106,6 +106,42 @@ def test_generate_reports_tone_levels_and_sandhi_for_a_tonal_language(client):
     assert {entry["digits"] for entry in levels} == {"55", "21"}
     assert all(entry["contour"] for entry in levels)
     assert body["tone_system"]["sandhi"] == [{"before": "high", "after": "high", "becomes": "low", "target": "after"}]
+
+
+def test_lexicon_entries_report_their_own_real_spoken_sandhi_form(client):
+    # Same strict-Zulu fixture as the tone_system test above -- a
+    # per-lexicon-row "play" button needs each word's own real spoken
+    # form (sandhi applied within that one word, isolated from every
+    # other dictionary entry -- see _language_summary's own comment on
+    # why this is never batched across the whole lexicon), not just its
+    # unmodified citation IPA.
+    body = client.post(
+        "/api/generate",
+        json={
+            "prompt": "Zulu", "name": "Zulu Sandhi Web", "seed": 0, "llm": "fake",
+            "source_languages": [{"name": "Zulu", "weight": None}], "strictness": 1.0,
+        },
+    ).json()
+    dog = next(e for e in body["lexicon"] if e["gloss"] == "dog")
+    assert dog["ipa"] != dog["spoken_ipa"]  # Meeussen's Rule firing on its own internal High-High
+    assert len(dog["ipa"]) == len(dog["spoken_ipa"])  # a tone mark swapped, not a symbol added/removed
+    # Every entry has the field, even when sandhi changes nothing.
+    assert all("spoken_ipa" in e for e in body["lexicon"])
+    unaffected = [e for e in body["lexicon"] if e["ipa"] == e["spoken_ipa"]]
+    assert unaffected  # most words have no internal trigger at all
+
+
+def test_lexicon_entries_report_their_own_real_word_provenance(client):
+    body = client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": "Real Dutch Web", "seed": 3, "llm": "fake", "vocabulary_size": 60,
+              "source_languages": [{"name": "Dutch", "weight": None}], "strictness": 1.0, "word_strictness": 1.0},
+    ).json()
+    real_entries = [e for e in body["lexicon"] if e["provenance"]]
+    assert len(real_entries) == body["real_words"]
+    assert all(e["provenance"].startswith("real") and "Dutch" in e["provenance"] for e in real_entries)
+    invented = [e for e in body["lexicon"] if e not in real_entries]
+    assert all(e["provenance"] is None for e in invented)
 
 
 def test_get_unknown_language_is_404(client):

@@ -485,17 +485,64 @@ function renderLanguageSummary(container, summary) {
       ${(summary.warnings || []).map(w => `<div class="error">⚠ ${w}</div>`).join("")}
       ${summary.cost ? `<div class="badges"><span class="badge">this call: $${summary.cost.delta_usd.toFixed(4)} (${summary.cost.delta_calls} calls)</span></div>` : ""}
       ${renderToneSection(summary)}
-      <h2>Lexicon (${summary.lexicon.length} words)</h2>
+      <h2>Lexicon (${summary.lexicon.length} words)
+        <span class="ipa" style="font-weight:normal;">-- &#128266; plays the Translate tab's own chosen backend</span>
+      </h2>
+      <div class="error" id="lexicon-audio-error" hidden></div>
       <div class="lexicon-wrap">
         <table>
-          <thead><tr><th>gloss</th><th>pos</th><th>word</th><th>IPA</th></tr></thead>
+          <thead><tr><th></th><th>gloss</th><th>pos</th><th>word</th><th>IPA</th></tr></thead>
           <tbody>
-            ${summary.lexicon.map(e => `<tr><td>${e.gloss}</td><td>${e.pos}</td><td>${e.romanization}</td><td class="ipa">/${e.ipa}/</td></tr>`).join("")}
+            ${summary.lexicon.map(e => `<tr>
+              <td><button type="button" class="word-play-btn" data-ipa="${e.spoken_ipa}" title="Play pronunciation">&#128266;</button></td>
+              <td>${e.gloss}</td>
+              <td>${e.pos}</td>
+              <td>${e.romanization}${e.provenance ? ` <span class="badge" title="${e.provenance}">real</span>` : ""}</td>
+              <td class="ipa">/${e.ipa}/</td>
+            </tr>`).join("")}
           </tbody>
         </table>
       </div>
     </div>`;
 }
+
+// --- per-word pronunciation, from the lexicon table (event-delegated --
+// generate/reload re-renders the whole table, so one listener attached
+// once here outlives any single render, rather than 400 individual ones
+// re-bound every time). Reuses /api/pronounce and the Translate tab's own
+// backend choice ($("tr-tts")) -- a single shared pronunciation
+// preference across tabs, not a second selector to keep in sync. */
+async function playWordPronunciation(button, ipaText) {
+  const errBox = $("lexicon-audio-error");
+  if (errBox) errBox.hidden = true;
+  const backend = $("tr-tts").value;
+  if (backend === "none") {
+    if (errBox) { errBox.textContent = "Pick a pronunciation backend (espeak-ng or Windows SAPI) on the Translate tab first."; errBox.hidden = false; }
+    return;
+  }
+  const original = button.innerHTML;
+  button.disabled = true; button.textContent = "…";
+  try {
+    const res = await fetch("/api/pronounce", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ipa: ipaText, tts: backend }),
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => null);
+      throw new Error(errBody && errBody.detail ? errBody.detail : `HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    await new Audio(URL.createObjectURL(blob)).play();
+  } catch (e) {
+    if (errBox) { errBox.textContent = e.message; errBox.hidden = false; }
+  } finally {
+    button.disabled = false; button.innerHTML = original;
+  }
+}
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".word-play-btn");
+  if (btn) playWordPronunciation(btn, btn.dataset.ipa);
+});
 
 // --- generate ---
 $("generate-btn").onclick = async () => {

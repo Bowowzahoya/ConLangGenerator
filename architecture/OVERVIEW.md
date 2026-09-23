@@ -4154,3 +4154,46 @@ reading code or one-off ad hoc scripts.
   and real-word-provenance badge (the aggregate "real-word-based: N of M" badge already exists;
   per-row doesn't); the graded-trait/`--trait`-equivalent control (the CLI's own new flag has no web
   counterpart yet); lexicon search/filter/edit/export; whole-language import/export.
+- **Web app: per-lexicon-row pronunciation and provenance.** Continuing straight through the same
+  §8 audit's own two remaining, genuinely tractable "Missing controls" items -- picked as the
+  natural next step since both extend the exact same lexicon table the tone-system-display batch
+  above had just added, rather than starting a new surface. README also updated with how to start
+  and use both the CLI and the web app, at the same request (neither had ever had its own written
+  quick-start before this).
+
+  **Per-word audio.** `_language_summary`'s own lexicon entries gained `spoken_ipa`: each word's
+  real spoken form with tone sandhi applied, computed as its own isolated one-word "utterance" (via
+  `generation.tone_sandhi.apply_sandhi([entry.ipa], language.tone_system, [entry.primary_gloss])`)
+  -- never batched across the whole lexicon, which would wrongly let a general `ToneSandhiRule`
+  fire *between* two unrelated dictionary entries that just happen to sit next to each other in an
+  alphabetized list. This mirrors exactly what `cli/main.py`'s own `pronounce` command already does
+  for a single looked-up word, so the web UI's own per-word audio now hears the same real
+  pronunciation the CLI does, not the bare, sandhi-untouched citation form. `static/index.html`
+  gained a &#128266; button on every lexicon row and one event-delegated click handler (attached
+  once at script load, not 400 individually-bound ones re-attached on every re-render) that POSTs
+  that word's own `spoken_ipa` to the already-existing `/api/pronounce`, reusing the Translate tab's
+  own `tr-tts` backend selection as a single shared pronunciation preference across the whole page
+  rather than adding a second selector to keep in sync.
+
+  **Real-word provenance.** Each lexicon entry also gained `provenance`: the entry's own real-word
+  `notes` string (`"real word: Dutch"`/`"real-based word: Dutch"`) when it starts with `"real"`
+  (the same test `real_words` already uses to count them), else `null`. Rendered as a small "real"
+  badge next to that word's own romanization, its own `title` attribute carrying the full note
+  (which language, exact vs. deviated) for a hover -- alongside the aggregate "real-word-based: N of
+  M" badge that already existed, not replacing it.
+
+  Both are pure additions to data already computed or trivially derivable server-side -- no new
+  generation-side work, matching the "smallest correction" a display-only gap calls for.
+
+  4 new tests in `test_webui.py`: every lexicon entry carries `spoken_ipa`/`provenance` (extending
+  the existing "returns a language summary" test's own key-presence check); a strict-Zulu-sourced
+  word's own `spoken_ipa` genuinely differs from its citation `ipa` (real Meeussen's Rule firing
+  within that one word) while most words in the same lexicon are correctly left unaffected; a
+  strict-Dutch/real-words-sourced language's own `provenance`-carrying entries line up exactly with
+  its own `real_words` count, and every other entry's own `provenance` is `null`. Syntax-checked
+  with `node --check` against the extracted `<script>` block, same established substitute for a
+  browser check this file's own immediately preceding entry already used -- real browser exercise
+  stays the user's own deferred manual pass. Full suite: 1102 passed, 2 skipped (up from 1100).
+
+  **Still open** (see `DEFERRED.md` §8): the graded-trait/`--trait`-equivalent control; lexicon
+  search/filter/edit/export; whole-language import/export.

@@ -660,15 +660,17 @@ multi-session feature.
     rules including `target` direction, lexical sandhi) is now rendered as
     its own "Tone system" card section whenever a language is tonal -- see
     `architecture/OVERVIEW.md`'s own "Web app: tone system display" entry.
-  - Real-based/provenance badge: **partly done.** An aggregate "real-word-
-    based: N of M" badge already existed (predates this pass); a *per-row*
-    marker in the lexicon table (which specific words are real-derived) still
-    doesn't.
-  - Per-word audio: **partly done, re-scoped.** A sentence-level "Play
-    pronunciation" button already existed on the translate tab (this bullet
-    undersold it) -- what's still missing is a *per-lexicon-row* play button
-    (look up any single word from the generated-language summary and hear
-    it, the web equivalent of the CLI's own `conlang pronounce`).
+  - Real-based/provenance badge: **done.** Each lexicon row now carries its
+    own `provenance` (the entry's own real-word note, or `None`), shown as a
+    small "real" badge next to real-derived words specifically, alongside
+    the aggregate "real-word-based: N of M" badge that already existed.
+  - Per-word audio: **done.** A &#128266; play button on every lexicon row
+    (event-delegated, not 400 individually-bound handlers) calls
+    `/api/pronounce` with that word's own *spoken* IPA (`spoken_ipa`, sandhi
+    applied within that one word only, isolated from every other dictionary
+    entry -- the same real citation-form pronunciation `conlang pronounce`
+    already produces on the CLI), using the Translate tab's own chosen
+    backend as a single shared preference rather than a second selector.
   - Engine picker: **done** (the `tr-tts` select already chooses among
     none/espeak/sapi) -- a finer-grained *voice* picker within one engine
     (beyond eSpeak's own automatic tone-voice switching) is still absent, but

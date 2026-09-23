@@ -45,6 +45,7 @@ from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.generation.real_words import strictness_warnings
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.generation.seed_examples import resolve_seed_examples
+from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.cost_tracker import CostTracker
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.speech import tts
@@ -154,6 +155,18 @@ def _language_summary(language: Language) -> dict:
                 "pos": entry.pos.value,
                 "romanization": entry.romanization,
                 "ipa": entry.ipa,
+                # Real citation-form sandhi (Mandarin's own third-tone
+                # rule, real Meeussen's Rule, etc.) can fire *within* a
+                # single multi-syllable word's own tone sequence -- each
+                # word is its own isolated one-word "utterance" here
+                # (never batched across the whole lexicon, which would
+                # wrongly apply cross-word sandhi between unrelated
+                # dictionary entries that just happen to sit next to
+                # each other in this list), so a per-row "play" button
+                # hears the same real spoken form `cli/main.py`'s own
+                # `pronounce` command already produces for this word.
+                "spoken_ipa": apply_sandhi([entry.ipa], language.tone_system, [entry.primary_gloss])[0],
+                "provenance": entry.notes if entry.notes.startswith("real") else None,
             }
             for entry in sorted(language.lexicon.entries, key=lambda e: e.primary_gloss)
         ],
