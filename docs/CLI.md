@@ -1,8 +1,10 @@
 # CLI
 
-Three commands, per AGENTS.md's CLI discipline: `generate`, `translate`, `pronounce`.
-New capabilities should extend one of these rather than add a new top-level
-command.
+Five commands. `generate`, `translate`, `pronounce` are the core trio per
+AGENTS.md's CLI discipline -- new capabilities should extend one of these
+rather than add a new top-level command. `audit-lexicons` (curated-data QA)
+and `serve` (the local web UI) are separate utility commands, not part of
+that trio, and don't compete with it for scope.
 
 Languages are saved under `./conlangs/<slug>/` (YAML files, gitignored --
 regeneratable). LLM cache and cost ledger live under `./.cache/`.
@@ -17,9 +19,10 @@ conlang generate --prompt "isolated mountain language, tonal" --name test-lang \
 ```
 
 ```
-Generated 'test-lang' (test-lang) -- 49 core words.
-Word order: SOV, morphology: fusional, alignment: ergative_absolutive, tonal: True
-Traits from prompt: isolation=-0.16, altitude=-0.56, community_scale=-0.43, contact_intensity=+0.23, aesthetic_harshness=-0.78, tonal_friendliness=-0.92, social_hierarchy=-0.90, orality_literacy=-0.74, evidentiality_culture=-0.42, spatial_reference=-0.61, ritual_register=+0.77, taboo_register=+0.45, terrain_communication_distance=+0.21
+Generated 'test-lang' (test-lang) -- 400 core words.
+Word order: SVO, morphology: isolating, alignment: ergative_absolutive, tonal: True
+Orthography: digraph + macron + postposed_letter
+Traits from prompt: isolation=-0.16, altitude=-0.56, community_scale=-0.43, contact_intensity=+0.23, aesthetic_harshness=-0.78, tonal_friendliness=-0.92, phonotactic_restrictiveness=-0.05, tone_sandhi=-0.85, social_hierarchy=-0.90, orality_literacy=-0.74, evidentiality_culture=-0.42, spatial_reference=-0.61, ritual_register=+0.77, taboo_register=+0.45, terrain_communication_distance=+0.21
 Forced (guaranteed): isolated, high_altitude, tonal
 Saved to conlangs\test-lang
 ```
@@ -32,46 +35,105 @@ Positive values are evidence *for* a dimension's named pole, negative
 values are evidence for its *opposite* (e.g. `tonal_friendliness=-0.92`
 above is strong evidence the language should specifically *not* be
 tonal). Either direction only *biases* generation probability -- it never
-guarantees an outcome on its own. `--isolated`/`--high-altitude`/`--tonal`
-are a separate, absolute channel -- "Forced (guaranteed)" -- that bypasses
-the probability entirely (e.g. `--high-altitude` always produces ejectives,
+guarantees an outcome on its own, and none of these graded traits has a
+direct CLI override yet -- the prompt is the only way to set one (see
+`docs/DEFERRED.md` §7). `--isolated`/`--high-altitude`/`--tonal` are a
+separate, absolute channel -- "Forced (guaranteed)" -- that bypasses the
+probability entirely (e.g. `--high-altitude` always produces ejectives,
 regardless of what the prompt says or the trait reading). `--fantasy` is
 recorded as metadata and passed as context to the classifier and to
 word-coinage prompts. `--seed` controls reproducibility; `--llm` selects
-`fake` (default) or `anthropic`.
+`fake` (default) or `anthropic`. `--vocabulary-size` (default 400, max
+496) sets how many basic meanings get pregenerated up front -- anything
+else is coined on demand during translation and reused after that.
 
-`--contact-language` (repeatable) and `--example` (repeatable) bias
-generation toward a real language's sound or insert literal words:
+`--source-language` (repeatable) and `--example` (repeatable) bias
+generation toward a real language's sound, or its actual words, or insert
+literal words:
 
 ```bash
 conlang generate --prompt "a small trading language" --name island-tongue --seed 7 --llm fake \
-  --contact-language Japanese --example "water=aqua" --example "mountain=yama|jama"
+  --source-language Japanese --example "water=aqua" --example "mountain=yama|jama"
 ```
 
 ```
-Generated 'island-tongue' (island-tongue) -- 49 core words.
-Word order: VSO, morphology: agglutinative, alignment: nominative_accusative, tonal: False
+Generated 'island-tongue' (island-tongue) -- 398 core words.
+Word order: SOV, morphology: isolating, alignment: nominative_accusative, tonal: False
+Orthography: scholarly-macron-gemination-style
 Traits from prompt: ...
-Contact languages: Japanese
+Source languages: Japanese
 Seed examples: water=aqua (/akwa/), mountain=yama (/jama/)
 Saved to conlangs\island-tongue
 ```
 
-`--contact-language` matches (case-insensitively, by name or alias) against
-a small hand-curated set of real languages, one YAML file per language
-under `generation/reference_languages/profiles/` (Japanese, Finnish,
-Mandarin, Arabic, Hawaiian, Georgian, a click-language stand-in, a Romance
-stand-in, Dutch, French) and softly biases the phoneme palette, coda
-typology, cluster tolerance, and tonality toward it -- a bias, not an
-override; unmatched names are silently ignored. It's merged with whatever
-`--prompt` itself implies (the classifier also extracts named languages from
-free text, including ones only atmospherically evoked, not just named --
-e.g. "lowlands among windmills and canals" -- though `--llm fake` never does
-either kind -- that part needs `--llm anthropic` to see for real). Dutch and
-Spanish also carry a few of their own real spelling conventions (Dutch
-spells /u/ as "oe", for instance); when one of them matches, generated
-words are somewhat more likely to use those conventions instead of the
-generic fallback.
+`--source-language` matches (case-insensitively, by name or alias)
+against a hand-curated set of real languages, one YAML file per language
+under `generation/reference_languages/profiles/` (53 as of this writing
+-- run `conlang audit-lexicons` with no arguments to list every one
+currently curated) and softly biases the phoneme palette, coda typology,
+cluster tolerance, and tonality toward it -- a bias, not an override;
+unmatched names are silently ignored. Repeat the flag to mix more than
+one, optionally suffixing a relative weight (`--source-language
+'French:0.7' --source-language 'German:0.3'`; weights need not sum to 1,
+normalized automatically). It's merged with whatever `--prompt` itself
+implies (the classifier also extracts named languages from free text,
+including ones only atmospherically evoked, not just named -- e.g.
+"lowlands among windmills and canals" -- though `--llm fake` never does
+either kind -- that part needs `--llm anthropic` to see for real). Many
+matched profiles also carry a few of their own real spelling conventions
+(Dutch spells /u/ as "oe", for instance); when one of them matches,
+generated words are somewhat more likely to use those conventions instead
+of the generic fallback.
+
+`--strictness` (0.0-1.0) controls how hard that bias is pulled: 0 is
+today's soft, non-exclusive influence, 1.0 hard-restricts the generated
+phonology/orthography/grammar to (the union of) the matched profile(s)'
+own declared values. Separately, `--word-strictness` (0.0-1.0) controls
+how much of the *vocabulary itself* is based on the source language's own
+real curated words, rather than just its allowed sounds -- higher means
+more core-vocabulary entries are real-based *and* closer to the real
+word, with 1.0 making every one of them an exact copy:
+
+```bash
+conlang generate --prompt "Mandarin using actual real words" --name mandarin-real \
+  --seed 5 --source-language Mandarin --strictness 0.2 --word-strictness 0.9 --llm fake
+```
+
+```
+warning: word strictness (0.90) is well above sound strictness (0.20): words based on real
+source-language words will keep their own sounds while the rest of the vocabulary may sound very
+different (a split vocabulary). Raise the sound strictness to keep the two consistent.
+Generated 'mandarin-real' (mandarin-real) -- 398 core words.
+Word order: SVO, morphology: fusional, alignment: nominative_accusative, tonal: True
+Orthography: wade-giles-style
+Traits from prompt: ...
+Source languages: Mandarin (strictness=0.20)
+Saved to conlangs\mandarin-real
+```
+
+Word strictness set well above sound strictness prints that warning (to
+stderr) rather than blocking -- a real-word-heavy vocabulary sitting on
+top of a looser, more invented sound system is a legitimate choice (a
+deliberately "split" aesthetic), just one worth flagging. The reverse
+(low word strictness, high sound strictness) is normal and silent.
+
+`--example` takes `gloss=form` (IPA guessed from the spelling) or
+`gloss=form|ipa` (explicit pronunciation) and always inserts that literal
+word under that gloss, replacing whatever core-vocabulary generation
+would have produced -- its phonemes are also guaranteed to be in the
+generated inventory. Word-level only; sentence-level examples aren't
+supported yet.
+
+Two smaller flags round out word generation: `--word-selection` picks
+between the default `algorithmic` (a seeded, no-LLM choice among each
+word's own already-built candidate spellings) and `llm`
+(sound-symbolism-informed, one batched request for the whole core
+vocabulary); `--allow-all-caps` permits (doesn't guarantee) a rare roll
+rendering a whole part-of-speech category in ALL CAPS, off by default.
+`--foreign-names` sets how the language treats a foreign proper name met
+in translation -- `keep` (as written, Dutch-style) or `adapt` (re-fitted
+to its own sounds, Chinese-style); defaults to whatever the matched
+`--source-language` implies, else `keep`.
 
 ### Orthography style
 
@@ -98,14 +160,14 @@ combinations (`digraph-style`, `diacritic-style`, `monoletter-style`,
 `pinyin-style` and `wade-giles-style` are deliberately two different
 presets, since real Pinyin and Wade-Giles are two different, both-real
 romanizations of the same language, differing specifically on tone
-marking. A matched `--contact-language` profile can lean the whole roll
+marking. A matched `--source-language` profile can lean the whole roll
 toward its own declared preset (Dutch toward `germanic-doubling-style`,
 Mandarin toward `wade-giles-style`, Japanese and Hawaiian toward
 `scholarly-macron-style`, Finnish toward `gemination-style`), and the
 prompt itself can too, when it explicitly asks for a specific convention
 (e.g. "mark tone with a number after each syllable, Wade-Giles
 style" -- same `--llm fake`-can't-see-wording caveat as
-`--contact-language` above). Absent any of that, each axis is rolled
+`--source-language` above). Absent any of that, each axis is rolled
 independently rather than picking one of the ten fixed bundles, so
 combinations none of them have are freely reachable.
 
@@ -138,59 +200,96 @@ true`, and `tone_strategy: postposed_digit` all at once. The same seven
 flags work with `--evolve-from` too, as a deliberate, user-triggered
 orthography reform mid-evolution (see below).
 
-`--example` takes `gloss=form` (IPA guessed from the spelling) or
-`gloss=form|ipa` (explicit pronunciation) and always inserts that literal
-word under that gloss, replacing whatever core-vocabulary generation would
-have produced -- its phonemes are also guaranteed to be in the generated
-inventory. Word-level only; sentence-level examples aren't supported yet.
+### Evolution (`--years`, with or without `--evolve-from`)
 
-### Evolving an existing language (`--evolve-from` / `--years`)
+`--years` triggers rule-based diachronic sound change, in either of two
+modes:
 
-Instead of generating fresh, evolve an *existing saved language* via
-rule-based sound change -- this is how a real starting vocabulary (seeded
-with `--example`, see above) becomes "Dutch after 200 years of English
-contact":
+- **With `--evolve-from NAME`**: evolve an *existing saved language*
+  instead of generating fresh -- this is how a real starting vocabulary
+  (seeded with `--example`, see above) becomes "Dutch after 200 years of
+  English contact":
 
-```bash
-conlang generate --name dutch-en200 --evolve-from dutch-base --years 200 \
-  --prompt "two hundred years of heavy English contact" --llm fake
-```
+  ```bash
+  conlang generate --name dutch-en200 --evolve-from dutch-base --years 200 \
+    --prompt "two hundred years of heavy English contact" --llm fake
+  ```
 
-```
-Evolved 'dutch-base' -> 'dutch-en200' (dutch-en200) over 200 years.
-consonants: 18 -> 21, vowels: 13 -> 10
-Evolution traits: isolation=+0.26, altitude=+0.01, community_scale=-0.94, aesthetic_harshness=+0.78, ...
-  I: ɪk = ɪk
-  you: yë = yë
-  water: vatěr = vatěr
-  mountain: bërḥ -> bër
-  he: feḥi -> feḥě
-  we: motramṅul -> morěmṅěl
-Saved to conlangs\dutch-en200
-```
+  ```
+  Evolved 'dutch-base' -> 'dutch-en200' (dutch-en200) over 200 years.
+  consonants: 19 -> 24, vowels: 16 -> 15
+  Evolution traits: isolation=+0.26, altitude=+0.01, community_scale=-0.94, ...
+    I: noel = noel
+    you: paaw = paaw
+    he: smaap = smaap
+    we: ja = ja
+    this: grook -> rook
+    that: ho = ho
+  Saved to conlangs\dutch-en200
+  ```
 
-`--prompt`/`--contact-language` are reinterpreted in this mode: they
-describe the evolution period's own character (steering *how* the base
-language changes), not a fresh language's. `--llm fake`'s prompt hashing
-means the trait line above isn't actually reacting to "English contact" --
-same caveat as always, worse here since two different prompt strings (base
-vs. evolved) get unrelated hash noise; use `--llm anthropic`, or construct
-a `TraitProfile` directly in Python, for a real side-by-side comparison at
-a fixed trait profile across several `--years` values. Six sound-change
-rules run (cluster simplification, lenition, final devoicing,
+  `--prompt`/`--source-language` are reinterpreted in this mode: they
+  describe the evolution period's own character (steering *how* the base
+  language changes), not a fresh language's.
+
+- **Without `--evolve-from`**: generate a fresh language exactly as
+  `--prompt`/`--source-language`/etc. describe, then immediately evolve
+  *that* language forward `--years` years before saving -- one step, not
+  two separate `generate` calls:
+
+  ```bash
+  conlang generate --prompt "a language evolved forward 300 years under heavy contact" \
+    --name evolved-fresh --seed 11 --years 300 --llm fake
+  ```
+
+  ```
+  Generated 'evolved-fresh' (evolved-fresh) -- 399 core words.
+  Evolved 300 years after generation.
+  Word order: SOV, morphology: isolating, alignment: nominative_accusative, tonal: False
+  Orthography: monoletter + short-vowel-doubling
+  Traits from prompt: ...
+  Saved to conlangs\evolved-fresh
+  ```
+
+  Here `--prompt` still classifies the fresh language's own traits as
+  usual; the same reading also drives the evolution period's character,
+  since there's only one prompt to read from.
+
+Leaving `--years` blank uses the time depth the prompt itself implies
+(e.g. "evolved forward 200 years"); `--years 0` with `--evolve-from`
+evolves nothing (a no-op round trip, useful for testing).
+
+`--llm fake`'s prompt hashing means the trait line in either mode isn't
+actually reacting to the prompt's own wording -- same caveat as always,
+worse in `--evolve-from` mode since two different prompt strings (base vs.
+evolved) get unrelated hash noise; use `--llm anthropic`, or construct a
+`TraitProfile` directly in Python, for a real side-by-side comparison at a
+fixed trait profile across several `--years` values.
+
+Two kinds of change run, independently gated: six gradient, per-position
+**segmental** rules (cluster simplification, lenition, final devoicing,
 palatalization, vowel reduction, ejective drift), each scaling from the
 world-typical base rate toward -- never reaching -- certainty as `years`
 grows, so small `--years` stays close to the original and large `--years`
-drifts further, never becoming unrecognizable instantly. `contact_intensity`
-scales the simplification-leaning rules, and `altitude` scales ejective
-drift's rate upward while positive `contact_intensity` additionally
-suppresses it directly (heavy sustained contact keeps ejectives unlikely
-regardless of time depth, not just slower to appear). Grammar and tone
-system are carried over from the base language unchanged.
+drifts further, never becoming unrecognizable instantly; and, for a
+tonal language, up to one **tone-system-level** change per run
+(detonalization, a tone merger, a tone split, sandhi lexicalization, or --
+for a currently non-tonal language -- tonogenesis), each its own
+whole-language roll rather than a per-position rate, since tone
+contrastiveness is systemic (see `generation/sound_change.py`'s own
+`_evolve_tone_system` docstring for the real linguistic anchor behind
+each). `contact_intensity` scales the simplification-leaning segmental
+rules and accelerates detonalization; `altitude` scales ejective drift's
+rate upward while positive `contact_intensity` additionally suppresses it
+directly (heavy sustained contact keeps ejectives unlikely regardless of
+time depth, not just slower to appear). Grammar is carried over from the
+base language unchanged; the tone *system* is not, and may end up
+enabled, disabled, or with a different level/sandhi inventory than it
+started with.
 
 Orthography evolves through two independent mechanisms, not just re-derived
 from the changed IPA. A word may be **replaced** outright -- borrowed from a
-`--contact-language`'s own phoneme pool and spelling conventions if one is
+`--source-language`'s own phoneme pool and spelling conventions if one is
 set, otherwise coined natively -- at a rate that also depends on the word's
 part of speech (pronouns/numerals resist replacement far longer than nouns,
 which resist longer than verbs/adjectives -- a rough glottochronological
@@ -213,7 +312,7 @@ A romanization rule can also be conditioned on syllable structure (open vs.
 closed), for real orthographies that spell the same vowel differently
 depending on it -- e.g. Dutch marks vowel length by doubling only in a
 closed syllable ("vuur" /vy:r/ vs. "vuren" /'vy:rən/, `uu` vs. `u`); this
-applies to both fresh generation's `--contact-language` bias and evolution.
+applies to both fresh generation's `--source-language` bias and evolution.
 See `core/romanization.py`, `generation/sound_change.py`, and
 `generation/romanization_gen.py`'s module docstrings for the full rule
 list, rate model, and rationale.
@@ -227,18 +326,18 @@ conlang translate "the mountain is high" --lang test-lang --to conlang --llm fak
 ```
 
 ```
-yōk bȫtë̀bsā’
-IPA: /jōk bɔ̄tɛ̀bsāʔ/
-(pattern: predicate-adjective)
+twiz kiggx chmixp'afe dkheht
+IPA: /twì kɪ́ɢ tʃmípʼaˈfe dχə̂/
+(pattern: llm-plan)
 ```
 
 ```bash
-conlang translate "yōk bȫtë̀bsā’" --lang test-lang --to english --llm fake
+conlang translate "twiz kiggx chmixp'afe dkheht" --lang test-lang --to english --llm fake
 ```
 
 ```
 mountain is high
-(pattern: predicate-adjective)
+(pattern: llm-plan)
 ```
 
 An English sentence with a word outside the core vocabulary triggers word
@@ -249,25 +348,110 @@ conlang translate "I see the boat" --lang test-lang --to conlang --llm fake
 ```
 
 ```
-móp vàǯʁíz yīp
-IPA: /móp vàdʒʁíz jīp/
-Coined 1 new word(s): vàǯʁíz
-(pattern: subject-verb-object)
+nimtz lizmafak twiz lil'jhah
+IPA: /nɪ̀mt ˈlìmafak twì ˈlīlʔhâ/
+Coined 1 new word(s): lil'jhah
+(pattern: llm-plan)
 ```
 
-`--to` is `conlang` (default) or `english`. `(pattern: ...)` reports which of
-the three recognized sentence shapes was used -- see
-`translation/translator.py` for the explicit limitations.
+`--to` is `conlang` (default) or `english`. An LLM call
+(`translation/sentence_planner.py`) drafts the sentence's own
+*structure* first -- word order, which arguments get case-marked,
+whether an article/copula/negation/conjunction appears, what tense/
+agreement a finite verb takes -- never a word's actual spelling or
+phonology; that structural plan is then rendered entirely through this
+project's own existing, deterministic word-lookup/coinage and
+inflection machinery. `(pattern: llm-plan)` always prints that label
+now (translation used to recognize a small fixed set of sentence
+shapes; it doesn't anymore -- the LLM-drafted plan can produce
+genuinely arbitrary structure). `--llm fake` still produces a real,
+grammar-shaped plan deterministically (not just a word-for-word
+fallback), but -- same caveat as `generate`'s own prompt handling --
+isn't actually reacting to the English wording itself; use `--llm
+anthropic` for that.
 
 ## `conlang pronounce`
 
-Show IPA and romanization for a known word (English gloss or conlang form).
-No audio synthesis yet -- see `speech/reader.py`.
+Show IPA and romanization for a known word (English gloss or conlang
+form), optionally synthesizing real audio.
 
 ```bash
 conlang pronounce "mountain" --lang test-lang
 ```
 
 ```
-IPA: /jōk/  Romanized: yōk
+IPA: /kɪ́ɢ/  Romanized: kiggx  Tone contour: ˥˥ (55)
 ```
+
+`Tone contour:` (Chao pitch-letter/digit pairs, one per tone-bearing
+syllable) only appears for a tonal language's own word. A word whose
+sandhi rules change its actual spoken form gets a second line showing
+that real pronunciation, distinct from its stored citation form:
+
+```bash
+conlang pronounce "on" --lang zulu-doc
+```
+
+```
+IPA: /njáˈsí/  Romanized: nyásí  Tone contour: ˥˥ (55) ˥˥ (55)
+Pronounced (tone sandhi): /njáˈsì/
+```
+
+`--tts {none,espeak,sapi}` (default `none`) synthesizes the word's own
+*spoken* pronunciation (the post-sandhi form above, when sandhi applies)
+to a `.wav` file under `./.cache/audio/`:
+
+```bash
+conlang pronounce "on" --lang zulu-doc --tts sapi
+```
+
+```
+IPA: /njáˈsí/  Romanized: nyásí  Tone contour: ˥˥ (55) ˥˥ (55)
+Pronounced (tone sandhi): /njáˈsì/
+Audio saved to .cache\audio\zulu-doc-on.wav
+```
+
+`espeak` needs `espeak-ng` installed separately; `sapi` is Windows-only
+(the built-in Speech API). Neither backend's own capability warnings
+(which tones/sounds it can't actually voice -- the web UI shows these)
+print here yet; see `docs/DEFERRED.md` §7/§8.
+
+## `conlang audit-lexicons`
+
+Check the curated real lexicons (`generation/reference_languages/lexicons/`)
+against their own reference profiles -- a transcription slip, or a
+profile missing something the language really has.
+
+```bash
+conlang audit-lexicons Dutch Zulu
+```
+
+```
+language         words  loans  off-profile  structure  flagged
+Dutch              494      0            0          2      0%
+Zulu                84      0            0          0      0%
+all                578      0                              0%
+```
+
+With no language names given, audits every curated profile (53 as of
+this writing). `off-profile` counts words using a sound the profile
+doesn't list; `structure` counts words whose syllables the profile's own
+phonotactics wouldn't allow. `--examples N` also prints up to N flagged
+words per language; `--fail-above RATE` exits with an error if any
+language's own flagged fraction exceeds it (for CI); `--include-loans`
+also audits words tagged as loanwords (excluded by default, since a
+loanword legitimately doesn't have to follow its host language's own
+native phonotactics).
+
+## `conlang serve`
+
+Run the local browser UI (generate + translate).
+
+```bash
+conlang serve --port 8000
+```
+
+Requires the optional `web` dependency group: `uv sync --group web`.
+`--reload` auto-restarts on source changes (development only). See
+`docs/DEFERRED.md` §8 for what the web UI covers beyond the CLI (and
+what it's still missing, e.g. lexicon browsing/editing).
