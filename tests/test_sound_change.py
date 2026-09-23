@@ -681,6 +681,42 @@ def test_coin_native_word_uses_the_lineage_profiles_own_stress_pattern():
     assert vowels_after_mark == 1  # exactly the stressed syllable's own vowel, nothing beyond it
 
 
+def test_coin_native_word_applies_the_lineage_profiles_own_tone_shift():
+    # Same wiring proof as the stress-pattern test above, for the newer
+    # tone_shift_to_antepenult mechanism: real Nguni High-tone shift must
+    # reach native-replacement coinage during evolution too, not just
+    # fresh core-vocabulary generation in lexicon_gen.py.
+    inventory = PhonemeInventory(
+        consonants=(Consonant(ipa="k", place=Place.VELAR, manner=Manner.STOP, voiced=False, prevalence=0.9),),
+        vowels=(Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),),
+    )
+    structure = SyllableStructure(max_onset=1, max_coda=0)
+    grammar = GrammarProfile(
+        word_order=WordOrder.SVO, morphological_type=MorphologicalType.ISOLATING, alignment=Alignment.NOMINATIVE_ACCUSATIVE,
+        has_articles=False, adjective_after_noun=False, has_overt_copula=True,
+    )
+    tone_system = ToneSystem(enabled=True, levels=(ToneLevel.HIGH, ToneLevel.LOW))
+    entry = LexicalEntry(ipa="kaka", romanization="kaka", glosses=("test",), pos=PartOfSpeech.NOUN)
+    lineage_profile = ReferenceLanguageProfile(
+        name="TestLineage", consonants=("k",), vowels=("a",), coda_profile="none", max_onset=1, tonal=True,
+        tone_shift_to_antepenult=True,
+    )
+    known = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    checked_a_3_plus_syllable_word = False
+    for seed in range(50):
+        ipa, _, _ = sound_change._coin_native_word(
+            random.Random(seed), entry, inventory, structure, tone_system, WordAccentSystem(), grammar,
+            lineage_profiles=(lineage_profile,), strictness=1.0,
+        )
+        tones = ipa_tokenizer.tone_sequence(ipa, known)
+        if len(tones) >= 3:
+            checked_a_3_plus_syllable_word = True
+            antepenult = len(tones) - 3
+            highs = [i for i, tone in enumerate(tones) if tone == ToneLevel.HIGH]
+            assert highs in ([], [antepenult])
+    assert checked_a_3_plus_syllable_word, "no seed in range coined a 3+ syllable word -- test would be vacuous"
+
+
 def test_apply_lenition_still_lenites_across_a_word_accent_mark():
     # Real, systematic interaction fixed alongside STRESS_MARK's own:
     # WORD_ACCENT_MARK sits exactly at a syllable boundary, which is

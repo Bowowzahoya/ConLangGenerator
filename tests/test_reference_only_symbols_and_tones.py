@@ -7,7 +7,7 @@ import random
 from conlang_generator.core.phonology import TONE_DIACRITICS, LexicalToneSandhiRule, ToneLevel, ToneSandhiRule, ToneSystem
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
-from conlang_generator.generation import ipa_tokenizer, phonology_gen, real_words, sound_change, tone_sandhi
+from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, real_words, sound_change, tone_sandhi
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.llm.fake_client import FakeLLMClient
@@ -404,3 +404,72 @@ def test_a_strict_vietnamese_run_is_tonal_with_its_six_tones():
     language = generate_language("T", GenerationSpec(prompt="p", seed=4, traits=traits), FakeLLMClient())
     assert language.tone_system.enabled
     assert len(set(language.tone_system.levels)) == 6
+
+
+# --- Real Nguni High-tone shift (ReferenceLanguageProfile.tone_shift_to_antepenult) ---
+
+
+def test_shift_high_tone_to_antepenult_leaves_short_words_alone():
+    # Fewer than 3 tone-bearing syllables -- no antepenult exists at all.
+    assert lexicon_gen.shift_high_tone_to_antepenult(()) == ()
+    assert lexicon_gen.shift_high_tone_to_antepenult((ToneLevel.HIGH,)) == (ToneLevel.HIGH,)
+    assert lexicon_gen.shift_high_tone_to_antepenult((ToneLevel.HIGH, ToneLevel.LOW)) == (ToneLevel.HIGH, ToneLevel.LOW)
+
+
+def test_shift_high_tone_to_antepenult_leaves_an_all_low_word_alone():
+    tones = (ToneLevel.LOW, ToneLevel.LOW, ToneLevel.LOW, ToneLevel.LOW)
+    assert lexicon_gen.shift_high_tone_to_antepenult(tones) == tones
+
+
+def test_shift_high_tone_to_antepenult_moves_a_single_high_to_the_antepenult():
+    # High drawn on the word's own *first* syllable, in a 4-syllable word
+    # (antepenult = index 1) -- must move, not just stay wherever it was
+    # drawn.
+    tones = (ToneLevel.HIGH, ToneLevel.LOW, ToneLevel.LOW, ToneLevel.LOW)
+    assert lexicon_gen.shift_high_tone_to_antepenult(tones) == (
+        ToneLevel.LOW, ToneLevel.HIGH, ToneLevel.LOW, ToneLevel.LOW,
+    )
+
+
+def test_shift_high_tone_to_antepenult_leaves_a_high_already_at_the_antepenult():
+    tones = (ToneLevel.LOW, ToneLevel.HIGH, ToneLevel.LOW, ToneLevel.LOW)
+    assert lexicon_gen.shift_high_tone_to_antepenult(tones) == tones
+
+
+def test_shift_high_tone_to_antepenult_collapses_multiple_highs_to_just_the_antepenult():
+    # Real "all but the last High deleted" outcome -- every originally-
+    # High syllable other than the antepenult surfaces Low, not just the
+    # rightmost one moving while the others stay High.
+    tones = (ToneLevel.HIGH, ToneLevel.HIGH, ToneLevel.HIGH, ToneLevel.HIGH)
+    assert lexicon_gen.shift_high_tone_to_antepenult(tones) == (
+        ToneLevel.LOW, ToneLevel.HIGH, ToneLevel.LOW, ToneLevel.LOW,
+    )
+
+
+def test_a_strict_zulu_sourced_lexicons_own_high_tones_all_sit_at_the_antepenult():
+    # End-to-end sweep over a whole real generated core vocabulary (not
+    # one cherry-picked word): every entry with >= 3 tone-bearing
+    # syllables either has no High at all, or has exactly one, sitting at
+    # its own antepenult -- confirms build_pending_word really wires
+    # shift_high_tone_to_antepenult in, not just that the pure function
+    # itself is correct.
+    traits = TraitProfile(source_languages=("Zulu",), source_language_strictness=1.0)
+    language = generate_language("T", GenerationSpec(prompt="p", seed=0, traits=traits), FakeLLMClient())
+    checked_a_3_plus_syllable_word = False
+    for entry in language.lexicon.entries:
+        if len(entry.tones) >= 3:
+            checked_a_3_plus_syllable_word = True
+            antepenult = len(entry.tones) - 3
+            highs = [i for i, tone in enumerate(entry.tones) if tone == ToneLevel.HIGH]
+            assert highs in ([], [antepenult]), (entry.glosses, entry.tones)
+    assert checked_a_3_plus_syllable_word
+
+
+def test_a_strict_dutch_sourced_lexicon_is_unaffected_by_the_zulu_only_tone_shift():
+    # Regression guard: the new mechanism is gated by
+    # tone_shift_to_antepenult, which no non-Nguni profile sets (defaults
+    # false) -- an unrelated source language's own tone assignment (when
+    # it happens to be tonal at all) must never be touched by it.
+    traits = TraitProfile(source_languages=("Dutch",), source_language_strictness=1.0)
+    language = generate_language("T", GenerationSpec(prompt="p", seed=0, traits=traits), FakeLLMClient())
+    assert not language.tone_system.enabled  # sanity: Dutch is genuinely non-tonal, so this would be vacuous otherwise

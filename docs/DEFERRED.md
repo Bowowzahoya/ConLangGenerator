@@ -349,8 +349,9 @@ multi-session feature.
   rather than forced onto an existing word that wouldn't actually be
   correct.
 - **Other tone systems (surveyed and mostly resolved as not applicable;
-  `tone_levels` pinned for Tibetan/Zulu/Xhosa; the one genuine
-  architectural gap -- progressive tone sandhi -- fixed).** Re-examined
+  `tone_levels` pinned for Tibetan/Zulu/Xhosa; both real Zulu/Xhosa
+  mechanisms this survey originally flagged as gaps -- Meeussen's Rule
+  and High-tone shift -- now curated).** Re-examined
   all seven other tonal profiles for real, curatable
   `tone_sandhi`/`lexical_tone_sandhi` data mirroring Mandarin's own.
   Cantonese/Thai/Vietnamese/Yoruba already had real `tone_levels` curated
@@ -401,11 +402,37 @@ multi-session feature.
   stays restricted to `target="before"` rules only, since freezing a
   `target="after"` rule would need freezing a *different* word's own
   *first* syllable, a materially different mechanism this batch didn't
-  build). Real Nguni High-tone shift/spread -- a positional
-  *displacement* of a tone onto a later syllable, not a same-position
-  substitution at all -- stays uncurated: `target` alone doesn't solve
-  it, an honest, still-open gap, a materially different mechanism from
-  what this batch fixed.
+  build).
+
+  **Real Nguni High-tone shift/spread -- now curated too, via a
+  different mechanism entirely, not an extension of `target`.** A
+  positional *displacement* of a tone onto a later syllable, not a
+  same-position substitution at all, so `ToneSandhiRule`'s own `target`
+  field genuinely doesn't reach it -- and, on closer reading, it turned
+  out not to be *sandhi* in this project's own technical sense at all:
+  the literature describes it in absolute word-position terms
+  ("surfaces on the antepenult"), meaning it's already there in a word's
+  own *citation* form, not something `tone_sandhi.py`'s utterance-level,
+  adjacent-*word*-conditioned `apply_sandhi` could ever produce (that
+  mechanism only ever rewrites already-stored citation tones at
+  speech-time, never the citation tones themselves). New
+  `ReferenceLanguageProfile.tone_shift_to_antepenult: bool = False` --
+  a real word's own rightmost drawn High tone surfaces on its antepenult
+  (3rd-from-last) tone-bearing syllable, every other originally-High
+  syllable surfacing Low (`generation.lexicon_gen.shift_high_tone_to_
+  antepenult`), applied once, directly to a word's own freshly-drawn
+  tone sequence during generation (`lexicon_gen.build_pending_word`) and
+  during native-replacement coinage in evolution
+  (`sound_change._coin_native_word`) -- gated the same unconditional
+  "any matched profile has this flag" way `stress_driven_vowel_
+  reduction`/`word_level_phonology` already are, not a strictness-scaled
+  probabilistic roll the way a `tone_sandhi` *rule* gets. A deliberate
+  simplification of a genuinely more intricate real system (the
+  literature also documents an antepenult-vs-penult conditioning wrinkle
+  and interaction with verb tense/aspect morphology this project doesn't
+  model to that depth), disclosed as such rather than presented as the
+  full real picture. Zulu and Xhosa's own profiles now curate
+  `tone_shift_to_antepenult: true`.
 - **Contour representation (done).** `ToneLevel`/`TONE_DIACRITICS` (one combining
   mark per category) stay this project's own *stored*, phonemic representation --
   unchanged, since that's what a word's IPA is actually built/read/romanized from

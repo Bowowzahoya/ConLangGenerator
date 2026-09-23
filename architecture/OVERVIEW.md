@@ -4019,3 +4019,74 @@ reading code or one-off ad hoc scripts.
   13 new/extended tests, minus 3 already counted from the batch above's own Zulu tone_levels
   test additions). `conlang audit-lexicons`: still 0% flagged (a phonology/reference-profile-only
   change, doesn't touch curated real lexicons).
+- **Real Nguni High-tone shift -- curating the last real gap the tone-systems survey flagged.**
+  Asked to "curate High-tone shift/spread for Zulu/Xhosa too" -- the one item both the survey and
+  the progressive-tone-sandhi batch above had each in turn left as "an honest, still-open gap."
+  Confirmed via targeted research (`Local and metrical tone shift in Nguni`, ResearchGate) before
+  writing anything: "the rightmost High tone generally surfaces on the antepenultimate syllable...
+  high tones must shift at least one syllable to the right" -- and, crucially, this description is
+  in absolute *word-position* terms (antepenult, penult), not "before/after an adjacent tone" the
+  way every mechanism this project's `tone_sandhi.py` models is stated. That's not a smaller
+  version of the same gap `ToneSandhiRule.target` just closed -- it's a different *kind* of fact
+  altogether, worth working out precisely before writing any code.
+
+  **The real finding: this isn't sandhi at all, in this project's own technical sense.**
+  `tone_sandhi.py`'s entire `apply_sandhi` machinery operates on already-*stored* citation tones,
+  rewriting them at utterance-speaking time based on an adjacent syllable (often across a word
+  boundary). Real Nguni tone shift is described the opposite way: it's already there in a word's
+  own citation/isolation form -- it's part of how that citation form's own surface tone pattern
+  gets derived from an underlying one *in the first place*, not a speech-time transformation layered
+  on top of an already-settled citation tone. No amount of extending `ToneSandhiRule` (even with
+  `target`) could reach this: the right integration point is wherever a word's own tones get
+  *drawn* during generation, not `apply_sandhi` at all.
+
+  Found that point: `lexicon_gen.build_pending_word`'s own `tones = tuple(rng.choice(...) for
+  position in range(num_syllables))` -- the exact moment a word's own per-syllable tone sequence
+  is first randomly assigned, before it's ever turned into marks or handed to `word_builder.build_
+  word`. New pure function `generation.lexicon_gen.shift_high_tone_to_antepenult(tones)`: fewer than
+  3 tone-bearing syllables (no antepenult exists) or no `HIGH` drawn at all (nothing to shift)
+  returns `tones` unchanged; otherwise every originally-`HIGH` syllable surfaces `LOW` except the
+  antepenult, which surfaces `HIGH` regardless of what was drawn there -- the real "only the
+  rightmost High survives, and it lands on the antepenult" outcome (Downing & Gick 2001's own
+  "spreading + left-deletion" account, simplified to its single most commonly cited surface
+  generalization), not a per-syllable independent recoloring. Wired in right after `tones` is drawn,
+  before `tone_marks` derives from it, so both the stored `LexicalEntry.tones` and the actual IPA
+  built from `tone_marks` agree.
+
+  New `ReferenceLanguageProfile.tone_shift_to_antepenult: bool = False`, gated the same
+  unconditional "any matched profile has this flag" way `stress_driven_vowel_reduction`/
+  `word_level_phonology` already are (`any(p.tone_shift_to_antepenult for p in reference_profiles)`)
+  -- not a strictness-scaled probabilistic "kept" roll the way an individual `tone_sandhi` *rule*
+  gets, since the real fact is close to exceptionless within a matched language, not something that
+  sometimes applies and sometimes doesn't. Also wired into `sound_change._coin_native_word` (native-
+  replacement word coinage during evolution), which its own docstring already claims coins words
+  "the same way fresh core-vocabulary generation coins any word" -- leaving the newer mechanism out
+  there would have quietly broken that claim, not just been an incomplete rollout. Both call sites
+  reached via `lexicon_gen.shift_high_tone_to_antepenult` directly (promoted from a
+  module-private `_`-prefixed name to a public one once a second module needed to call it, the
+  same "underscore signals module-internal, drop it once that stops being true" discipline this
+  project already follows elsewhere). The function itself draws no randomness at all -- a pure
+  post-hoc transform of an already-drawn tuple -- so wiring it in changed no other test's own rng
+  sequence anywhere in the suite, confirmed by the full run below showing zero regressions.
+
+  Disclosed simplification, in the field's own docstring and both profiles' own comments: the real
+  literature also documents an antepenult-vs-penult conditioning wrinkle (a High *underlyingly
+  sponsored by* the antepenult shifts to the penult instead) and deep interaction with verb tense/
+  aspect morphology this project doesn't model to that depth -- this curates the single most
+  commonly cited surface generalization, not the full real system, the same disclosed-simplification
+  discipline Tibetan's own tone-count curation and tone split's own category-reuse already practice.
+
+  9 new tests: the pure transform directly (short words and all-Low words left alone, a single High
+  moved from a non-antepenult position, a High already at the antepenult left alone, multiple Highs
+  collapsing to just the antepenult) in `test_reference_only_symbols_and_tones.py`; a whole-lexicon
+  sweep over a real strict-Zulu-sourced generated language confirming every entry with >= 3
+  tone-bearing syllables obeys the antepenult constraint (not one cherry-picked word); a Dutch-
+  sourced regression guard confirming an unrelated, non-Nguni source language is untouched; Zulu and
+  Xhosa's own curated flag in `test_reference_languages.py`; and a direct `_coin_native_word` wiring
+  test (mirroring the existing lineage-profile stress-pattern test's own pattern) confirming the
+  evolution-time coinage path respects it too. Full suite: 1086 passed, 2 skipped (up from 1077).
+  `conlang audit-lexicons`: still 0% flagged (a generation-time-only change, doesn't touch curated
+  real lexicons).
+
+  That's every item the tone-systems survey ever flagged, across all three of its own batches, now
+  either curated or explicitly, correctly disclosed as out of scope for a real, specific reason.

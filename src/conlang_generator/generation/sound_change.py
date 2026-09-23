@@ -1193,7 +1193,10 @@ def _coin_native_word(
     num_syllables = lexicon_gen.choose_syllable_count(rng, entry.pos, favor_short=True)
     tone_marks: tuple[str, ...] = ()
     if tone_system.enabled:
-        tone_marks = tuple(tone_system.mark("", rng.choice(tone_system.levels)) for _ in range(num_syllables))
+        drawn_tones = tuple(rng.choice(tone_system.levels) for _ in range(num_syllables))
+        if any(p.tone_shift_to_antepenult for p in lineage_profiles):
+            drawn_tones = lexicon_gen.shift_high_tone_to_antepenult(drawn_tones)
+        tone_marks = tuple(tone_system.mark("", tone) for tone in drawn_tones)
     word = word_builder.build_word(
         rng, inventory, structure, num_syllables, tone_marks,
         stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=strictness,

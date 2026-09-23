@@ -189,6 +189,33 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     ``ToneSystem.lexical_sandhi`` the same reference-weighted,
     strictness-scaled way ``tone_sandhi`` is, via
     ``generation.phonology_gen.resolve_lexical_tone_sandhi``."""
+    tone_shift_to_antepenult: bool = False
+    """Real Nguni (Zulu/Xhosa) High-tone shift: a word's own rightmost
+    underlying High tone surfaces on its antepenult (3rd-from-last)
+    tone-bearing syllable rather than wherever it was originally drawn,
+    and every *other* originally-High syllable surfaces Low -- "the
+    combination of spreading rules and [a] left deletion rule gives the
+    impression of high tone shifting rightwards... all but the last high
+    tone are deleted and replaced by low tones" (Downing & Gick 2001,
+    among others). A genuinely different *kind* of fact from
+    ``tone_sandhi``/``lexical_tone_sandhi`` above -- not an adjacent-
+    syllable-conditioned *recoloring* at utterance-speaking time at all,
+    but a word-internal *displacement* that's already there in a word's
+    own citation form, so it's applied once, directly to a word's own
+    freshly-drawn ``tones`` sequence during generation (see
+    ``generation.lexicon_gen.shift_high_tone_to_antepenult``), the same
+    "any matched profile has this flag" unconditional gate
+    ``stress_driven_vowel_reduction``/``word_level_phonology`` above
+    already use, not a strictness-scaled probabilistic "kept" roll the
+    way a ``tone_sandhi`` *rule* gets. A deliberate simplification of a
+    genuinely more intricate real system (the literature also documents
+    an antepenult-vs-penult conditioning wrinkle and interaction with
+    verb tense/aspect morphology this project doesn't model to that
+    depth) -- the single most commonly cited surface generalization,
+    disclosed as a simplification rather than the full real picture.
+    A word with fewer than 3 tone-bearing syllables, or no High tone
+    drawn at all, is left unaffected -- there's no antepenult to shift to,
+    or nothing to shift."""
     vowel_harmony: bool = False
     root_and_pattern: bool = False
     """Whether this language uses Semitic-style root-and-pattern

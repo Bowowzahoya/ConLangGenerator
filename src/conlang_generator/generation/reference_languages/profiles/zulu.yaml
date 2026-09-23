@@ -58,12 +58,17 @@ tone_sandhi:
   # Bantu including Nguni. The *later* syllable is the one that changes,
   # based on what *precedes* it -- the opposite direction from Mandarin's
   # own third-tone sandhi, hence the explicit 4th `target: after` (see
-  # core.phonology.ToneSandhiRule's own docstring). Real Nguni High-tone
-  # shift/spread -- a genuine positional *displacement* of a tone onto a
-  # later syllable, not a same-position substitution at all -- stays
-  # uncurated: a materially different rule shape `target` alone doesn't
-  # solve, an honest, still-open gap rather than a silently-skipped one.
+  # core.phonology.ToneSandhiRule's own docstring).
   - [high, high, low, after]
+tone_shift_to_antepenult: true
+# Real Nguni High-tone shift/spread -- a word's own rightmost underlying
+# High surfaces on its antepenult syllable, every other originally-High
+# syllable surfacing Low. A genuine positional *displacement*, not a
+# same-position substitution like the sandhi rule above -- ToneSandhiRule's
+# own `target` field doesn't reach this at all, so it's a separate,
+# word-internal mechanism applied once at generation time (see this
+# field's own docstring on ReferenceLanguageProfile for the real citation
+# and the disclosed simplification).
 word_classes:
   # Real Zulu noun-class prefix system -- a representative subset of the
   # real ~15 Nguni classes (illustrative, not exhaustive, the same scope

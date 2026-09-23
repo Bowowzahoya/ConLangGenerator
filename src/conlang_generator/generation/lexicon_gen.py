@@ -461,6 +461,25 @@ def _non_neutral(tone_system: ToneSystem) -> tuple:
     return levels or tone_system.levels
 
 
+def shift_high_tone_to_antepenult(tones: tuple) -> tuple:
+    """Real Nguni (Zulu/Xhosa) High-tone shift -- see
+    ``ReferenceLanguageProfile.tone_shift_to_antepenult``'s own docstring
+    for the real citation and the disclosed simplification. Fewer than 3
+    tone-bearing syllables (no antepenult to shift to) or no ``HIGH`` at
+    all (nothing to shift) leaves ``tones`` unchanged; otherwise every
+    originally-``HIGH`` syllable surfaces ``LOW`` except the antepenult,
+    which surfaces ``HIGH`` regardless of what was drawn there -- the
+    real "only the rightmost High survives, and it lands on the
+    antepenult" outcome, not a per-syllable independent recoloring."""
+    if len(tones) < 3 or ToneLevel.HIGH not in tones:
+        return tones
+    antepenult = len(tones) - 3
+    return tuple(
+        ToneLevel.HIGH if i == antepenult else (ToneLevel.LOW if tone == ToneLevel.HIGH else tone)
+        for i, tone in enumerate(tones)
+    )
+
+
 def build_pending_word(
     rng: random.Random,
     inventory: PhonemeInventory,
@@ -552,6 +571,8 @@ def build_pending_word(
             rng.choice(_non_neutral(tone_system) if position == 0 else tone_system.levels)
             for position in range(num_syllables)
         )
+        if any(p.tone_shift_to_antepenult for p in reference_profiles):
+            tones = shift_high_tone_to_antepenult(tones)
         tone_marks = tuple(tone_system.mark("", tone) for tone in tones)
 
     seen: set[str] = set()
