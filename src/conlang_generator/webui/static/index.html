@@ -231,7 +231,10 @@
   <div class="card">
     <div class="row">
       <div>
-        <label for="tr-lang">Language <button type="button" class="add-row" id="refresh-langs" style="margin-left:8px;">refresh</button></label>
+        <label for="tr-lang">Language
+          <button type="button" class="add-row" id="refresh-langs" style="margin-left:8px;">refresh</button>
+          <button type="button" class="add-row" id="export-lang-btn">&#8681; export</button>
+        </label>
         <select id="tr-lang"></select>
       </div>
       <div>
@@ -250,7 +253,12 @@
         </select>
         <div class="engine-info" id="tr-tts-info"></div>
       </div>
+      <div>
+        <label for="import-lang-file">Import a language file</label>
+        <input type="file" id="import-lang-file" accept="application/json,.json">
+      </div>
     </div>
+    <div class="error" id="language-io-error" hidden></div>
 
     <label for="tr-text">Text</label>
     <textarea id="tr-text" placeholder="I see the mountain and the river"></textarea>
@@ -284,7 +292,9 @@ async function api(path, opts) {
   try { body = await res.json(); } catch (e) { body = null; }
   if (!res.ok) {
     const detail = (body && body.detail) ? body.detail : `HTTP ${res.status}`;
-    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    const err = new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    err.status = res.status;  // lets a caller branch on e.g. 409 without parsing the message text
+    throw err;
   }
   return body;
 }
@@ -454,6 +464,66 @@ async function refreshLanguages() {
 }
 $("refresh-langs").onclick = refreshLanguages;
 
+// --- whole-language export/import (translate tab) -- the full
+// language.model_dump(), not the trimmed summary view, as one
+// downloadable JSON file re-importable on this same install or a
+// different one entirely. ---
+function showLanguageIoError(message) {
+  const errBox = $("language-io-error");
+  if (errBox) { errBox.textContent = message; errBox.hidden = false; }
+}
+async function downloadLanguageExport(slug) {
+  if ($("language-io-error")) $("language-io-error").hidden = true;
+  if (!slug) { showLanguageIoError("Pick a language to export first."); return; }
+  try {
+    const res = await fetch(`/api/languages/${slug}/export`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body && body.detail ? body.detail : `HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${slug}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    showLanguageIoError(e.message);
+  }
+}
+$("export-lang-btn").onclick = () => downloadLanguageExport($("tr-lang").value);
+
+async function importLanguageFile(file, overwrite) {
+  if ($("language-io-error")) $("language-io-error").hidden = true;
+  let data;
+  try {
+    data = JSON.parse(await file.text());
+  } catch (e) {
+    showLanguageIoError("Not a valid JSON language file.");
+    return;
+  }
+  try {
+    const imported = await api("/api/languages/import", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data, overwrite }),
+    });
+    await refreshLanguages();
+    $("tr-lang").value = imported.slug;
+  } catch (e) {
+    if (e.status === 409 && !overwrite) {
+      if (confirm(`${e.message}\n\nOverwrite it?`)) { await importLanguageFile(file, true); return; }
+    } else {
+      showLanguageIoError(e.message);
+    }
+  } finally {
+    $("import-lang-file").value = "";
+  }
+}
+$("import-lang-file").addEventListener("change", () => {
+  const file = $("import-lang-file").files[0];
+  if (file) importLanguageFile(file, false);
+});
+
 // --- the currently-displayed language summary + the DOM node it's
 // rendered into -- both set by renderLanguageSummary itself, read by the
 // lexicon table's own search/export/edit handlers below, which act on
@@ -505,7 +575,9 @@ function renderLanguageSummary(container, summary) {
 
   container.innerHTML = `
     <div class="card">
-      <h2 style="margin-top:0">${summary.name} <span class="ipa">(${summary.slug})</span></h2>
+      <h2 style="margin-top:0">${summary.name} <span class="ipa">(${summary.slug})</span>
+        <button type="button" class="add-row" id="export-generated-btn" style="font-size:12px; margin-left:8px;">&#8681; export</button>
+      </h2>
       <div class="badges">
         <span class="badge">word order: ${g.word_order}</span>
         <span class="badge">alignment: ${g.alignment}</span>
@@ -552,6 +624,7 @@ function renderLanguageSummary(container, summary) {
   currentResultContainer = container;
   $("lexicon-search").oninput = () => filterLexiconTable($("lexicon-search").value);
   $("lexicon-export-btn").onclick = downloadLexiconCsv;
+  $("export-generated-btn").onclick = () => downloadLanguageExport(summary.slug);
 }
 
 // --- lexicon table: one rendered <tr> per entry, reused for both the

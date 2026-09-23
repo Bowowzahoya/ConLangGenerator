@@ -710,8 +710,20 @@ multi-session feature.
   existed; verified for real with a new test (a weighted request's own
   weights land in the saved language's own `spec.traits.
   source_language_weights`) rather than just noting the code path exists.
-- **Persistence and sharing (M, unchanged).** Languages live in local storage
-  files; no import/export of a whole language from the UI.
+- **Persistence and sharing (done).** New `GET /api/languages/{slug}/export`
+  downloads the *whole* language (`language.model_dump(mode="json")` --
+  everything `YamlLanguageRepository.save` would otherwise split across its
+  own 5 files on disk, not the trimmed `_language_summary` view) as a JSON
+  file; new `POST /api/languages/import` re-validates it via
+  `Language.model_validate` and saves it, refusing to silently overwrite an
+  already-saved language with the same name unless `overwrite: true` is
+  explicit (a `409`, not a clobber). "export" buttons on the Translate tab's
+  own language picker and on a freshly generated language's own result card;
+  an "Import a language file" file input on the Translate tab, with a
+  confirm-to-overwrite prompt on a name collision. Languages still live in
+  local YAML files, unchanged -- this is a portable *round-trip* format for
+  sharing one language between installs (or as a backup), not a new
+  persistence layer.
 
 ## 9. Engineering and data hygiene
 

@@ -21,13 +21,14 @@ Not installed by default (see the ``web`` dependency group in
 from __future__ import annotations
 
 import io
+import json
 import uuid
 import wave
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from conlang_generator.core.language import Language
 from conlang_generator.core.phonology import TONE_CONTOURS, chao_letters
@@ -263,6 +264,55 @@ def get_language(slug: str) -> dict:
         language = _repository().load(slug)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _language_summary(language)
+
+
+@app.get("/api/languages/{slug}/export")
+def export_language(slug: str) -> Response:
+    """The whole language, not the trimmed ``_language_summary`` view --
+    everything ``YamlLanguageRepository.save`` would otherwise split
+    across its own 5 files on disk (``model_dump`` doesn't care that the
+    repository happens to store it that way), as one downloadable JSON
+    file re-importable by ``import_language`` below, on this same
+    install or someone else's."""
+    try:
+        language = _repository().load(slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    body = json.dumps(language.model_dump(mode="json"), indent=2, ensure_ascii=False)
+    return Response(
+        content=body, media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{language.slug}.json"'},
+    )
+
+
+class ImportLanguageRequest(BaseModel):
+    data: dict
+    overwrite: bool = False
+
+
+@app.post("/api/languages/import")
+def import_language(request: ImportLanguageRequest) -> dict:
+    """The reverse of ``export_language`` above -- ``request.data`` is
+    exactly what that endpoint's own download contains (or, in
+    principle, a hand-edited variant of it; this is a real validating
+    parse via ``Language.model_validate``, not a trusting passthrough).
+    Refuses to silently clobber an already-saved language with the same
+    name -- ``overwrite`` must be explicit, the same "look before
+    overwriting" discipline every destructive action in this project
+    already follows, just enforced here rather than left to the browser
+    file-picker's own save dialog to (not) catch."""
+    try:
+        language = Language.model_validate(request.data)
+    except ValidationError as exc:
+        raise HTTPException(status_code=400, detail=f"not a valid exported language file: {exc}") from exc
+    repository = _repository()
+    if repository.exists(language.name) and not request.overwrite:
+        raise HTTPException(
+            status_code=409,
+            detail=f"a language named '{language.name}' already exists -- confirm to overwrite it",
+        )
+    repository.save(language)
     return _language_summary(language)
 
 

@@ -45,14 +45,20 @@ uv run conlang serve --port 8000
 Then open `http://localhost:8000`. **Generate** builds and saves a
 language (the same options `conlang generate` takes, via a form --
 prompt, seed, source languages with their own relative weights,
-strictness, seed words, orthography overrides, evolution, all under
-"Advanced options") and shows its grammar, tone system (levels with real
-IPA tone-letter contours, sandhi rules), and full lexicon, each word with
-its own pronunciation button. **Translate** sends text to or from any
-saved language and can speak the result (espeak-ng or, on Windows,
-built-in SAPI -- picked once, used for pronunciation everywhere on the
-page). Languages persist under `./conlangs/` either way, so a language
-made on the CLI shows up in the web UI and vice versa. `--reload`
-auto-restarts the server on source changes (development only); `uv run
-uvicorn conlang_generator.webui.app:app --port 8000` runs the same app
-directly, without going through the CLI wrapper.
+strictness, seed words, trait overrides, orthography overrides,
+evolution, all under "Advanced options") and shows its grammar, tone
+system (levels with real IPA tone-letter contours, sandhi rules), and
+full lexicon -- searchable, each word with its own pronunciation button
+and, for a word based on a real source-language word, a "real" badge;
+edit a word's own spelling or pronunciation in place; download the
+lexicon as CSV, or the whole language as one importable file. **Translate**
+sends text to or from any saved language and can speak the result
+(espeak-ng or, on Windows, built-in SAPI -- picked once, used for
+pronunciation everywhere on the page); it also exports/imports a whole
+saved language (a portable file for sharing or backup -- importing over
+an existing name asks to confirm first). Languages persist under
+`./conlangs/` either way, so a language made on the CLI shows up in the
+web UI and vice versa. `--reload` auto-restarts the server on source
+changes (development only); `uv run uvicorn
+conlang_generator.webui.app:app --port 8000` runs the same app directly,
+without going through the CLI wrapper.

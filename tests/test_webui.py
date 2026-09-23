@@ -60,6 +60,54 @@ def test_get_language_by_slug_matches_generate_response_shape(client):
     assert [w["gloss"] for w in fetched["lexicon"]] == [w["gloss"] for w in generated["lexicon"]]
 
 
+def test_export_language_returns_the_full_model_with_a_download_header(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Export Test", "seed": 1, "llm": "fake"})
+    response = client.get("/api/languages/export-test/export")
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == 'attachment; filename="export-test.json"'
+    data = response.json()
+    # The full model (phonology/grammar/romanization/spec), not the
+    # trimmed _language_summary view -- a real generation-consuming
+    # field only the full dump has.
+    assert data["name"] == "Export Test"
+    assert len(data["lexicon"]["entries"]) > 0
+    assert "phonology" in data and "grammar" in data and "romanization" in data
+
+
+def test_export_unknown_language_is_404(client):
+    assert client.get("/api/languages/does-not-exist/export").status_code == 404
+
+
+def test_import_round_trips_an_exported_language_into_a_fresh_store(client, tmp_path):
+    client.post("/api/generate", json={"prompt": "p", "name": "Roundtrip", "seed": 1, "llm": "fake"})
+    original_summary = client.get("/api/languages/roundtrip").json()
+    exported = client.get("/api/languages/roundtrip/export").json()
+
+    # A genuinely fresh store -- as if this were a different install
+    # entirely, not just re-saving over the same one.
+    webui_app.LANGUAGES_DIR = tmp_path / "elsewhere"
+    imported = client.post("/api/languages/import", json={"data": exported}).json()
+    assert imported["name"] == "Roundtrip"
+    assert [w["gloss"] for w in imported["lexicon"]] == [w["gloss"] for w in original_summary["lexicon"]]
+    assert "roundtrip" in client.get("/api/languages").json()["languages"]
+
+
+def test_import_refuses_to_silently_overwrite_an_existing_language(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Dup Test", "seed": 1, "llm": "fake"})
+    exported = client.get("/api/languages/dup-test/export").json()
+
+    blocked = client.post("/api/languages/import", json={"data": exported})
+    assert blocked.status_code == 409
+
+    allowed = client.post("/api/languages/import", json={"data": exported, "overwrite": True})
+    assert allowed.status_code == 200
+
+
+def test_import_rejects_data_that_is_not_a_valid_language(client):
+    response = client.post("/api/languages/import", json={"data": {"not": "a language"}})
+    assert response.status_code == 400
+
+
 def test_generate_reports_source_language_weights_in_the_saved_spec(client):
     # The form's own per-source-language weight input (index.html's own
     # ".sl-weight" rows) -- confirms a weight actually reaches the saved

@@ -4299,3 +4299,52 @@ reading code or one-off ad hoc scripts.
   **Still open** (see `DEFERRED.md` §8): browsing/searching/exporting a *reference* language's own
   curated real-word lexicon (deliberately out of this batch's scope, see above); whole-language
   import/export.
+- **Web app: whole-language export/import.** Asked to do "the whole-language import/export" next --
+  the last remaining item the §8 audit's own "Missing controls"/"Persistence and sharing" bullets
+  ever flagged.
+
+  The key realization that made this simple: `YamlLanguageRepository.save`'s own 5-file split
+  (`meta.yaml`/`phonology.yaml`/`romanization.yaml`/`grammar.yaml`/`lexicon.yaml`) is purely a
+  storage-layer convenience (human-diffable files), not a property of the data itself --
+  `load()` just re-merges all 5 back into one flat dict and calls `Language.model_validate` on
+  it. So the *whole*, round-trippable representation of a language was always already
+  `language.model_dump(mode="json")`, one plain dict, regardless of how many files it happens to
+  live in on disk -- no new export-specific serialization logic needed, just calling that and
+  handing it back as a downloadable file.
+
+  New `GET /api/languages/{slug}/export`: `json.dumps(language.model_dump(mode="json"))`, with a
+  `Content-Disposition: attachment` header so a browser triggers a real file-save dialog rather
+  than navigating to a JSON blob. New `POST /api/languages/import`: takes `{data, overwrite}`,
+  parses `data` through `Language.model_validate` (a real validating parse, not a trusting
+  passthrough of whatever JSON showed up -- a hand-edited or corrupted file gets a `400` naming
+  the actual validation failure, not a silent partial import or a crash), and refuses to save
+  over an already-existing language with the same name unless `overwrite: true` is explicit (a
+  `409`, not a clobber) -- the same "look before overwriting" discipline this project's own
+  destructive-action conventions already require, enforced here server-side rather than left to
+  whatever a browser's own file-save dialog does or doesn't warn about.
+
+  Frontend: an "export" button next to the Translate tab's own language picker (downloads
+  whichever language is currently selected there) and another on a freshly generated language's
+  own result-card heading (reusing the same `downloadLanguageExport()`, just with that summary's
+  own `slug` already in scope); a plain `<input type="file">` "Import a language file" control --
+  reading the file client-side via `file.text()`/`JSON.parse`, not a multipart upload, keeping
+  every endpoint in this API JSON-only rather than introducing a second request shape just for
+  this one feature. A `409` from the import endpoint triggers a native `confirm()` dialog
+  ("already exists -- overwrite it?") and, on yes, one retry with `overwrite: true` -- a plain
+  browser-native prompt rather than a custom modal built for this one use case, matching this
+  project's own "simple, replaceable implementations" bias. `api()` (the shared fetch helper
+  every JSON endpoint call in this file already goes through) gained `error.status` on a failed
+  call, so this branch (and any future one) can check the real HTTP status code rather than
+  string-matching the backend's own error message text.
+
+  5 new tests in `test_webui.py`: export returns the full model (not the trimmed summary) with the
+  right `Content-Disposition`; exporting an unknown language is a `404`; a full export/import
+  round trip into a genuinely *different* `LANGUAGES_DIR` (simulating a separate install, not just
+  re-saving over the same store) preserves the lexicon; importing over an existing name is
+  refused without `overwrite: true` and succeeds with it; importing data that isn't a valid
+  language is a `400`. Syntax-checked with `node --check`, the same established substitute for a
+  browser check every batch in this section already uses -- real browser exercise stays the
+  user's own deferred manual pass. Full suite: 1123 passed, 2 skipped (up from 1118).
+
+  That closes every item `DEFERRED.md` §8's own audit ever flagged, except the one explicitly
+  disclosed as out of scope (reference-language lexicon browsing, see the batch above).
