@@ -80,6 +80,59 @@ def test_generate_reports_source_language_weights_in_the_saved_spec(client):
     assert weight_by_name["German"] == 0.2
 
 
+def test_generate_applies_trait_overrides(client):
+    # The web equivalent of the CLI's own repeatable --trait NAME=VALUE.
+    body = client.post(
+        "/api/generate",
+        json={
+            "prompt": "a plain language", "name": "Trait Web", "seed": 1, "llm": "fake",
+            "trait_overrides": {"tone_sandhi": 0.9, "altitude": -0.7},
+        },
+    ).json()
+    assert body["traits"]["tone_sandhi"] == 0.9
+    assert body["traits"]["altitude"] == -0.7
+
+
+def test_generate_rejects_an_unknown_trait_override_name(client):
+    response = client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": "Bad Trait", "seed": 1, "llm": "fake", "trait_overrides": {"not_a_trait": 0.5}},
+    )
+    assert response.status_code == 400
+    assert "not_a_trait" in response.json()["detail"]
+
+
+def test_generate_rejects_an_out_of_range_trait_override_value(client):
+    response = client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": "Bad Trait Range", "seed": 1, "llm": "fake", "trait_overrides": {"altitude": 2.0}},
+    )
+    assert response.status_code == 400
+
+
+def test_generate_rejects_the_dedicated_strictness_fields_own_names_as_trait_overrides(client):
+    # source_language_strictness/source_word_strictness already have their
+    # own dedicated strictness/word_strictness request fields -- one way
+    # to set each, not two, the same exclusion cli/main.py's own
+    # _parse_trait_overrides makes.
+    response = client.post(
+        "/api/generate",
+        json={
+            "prompt": "p", "name": "Strictness As Trait", "seed": 1, "llm": "fake",
+            "trait_overrides": {"source_language_strictness": 0.5},
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_options_endpoint_lists_the_graded_trait_fields(client):
+    opts = client.get("/api/options").json()
+    assert "tone_sandhi" in opts["graded_trait_fields"]
+    assert "altitude" in opts["graded_trait_fields"]
+    assert "source_language_strictness" not in opts["graded_trait_fields"]
+    assert len(opts["graded_trait_fields"]) == 15
+
+
 def test_generate_reports_no_tone_data_for_a_non_tonal_language(client):
     body = client.post("/api/generate", json={"prompt": "p", "name": "Silent Lang", "seed": 6, "llm": "fake"}).json()
     assert not body["grammar"]["tonal"]

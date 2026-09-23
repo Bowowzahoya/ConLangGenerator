@@ -39,6 +39,7 @@ from conlang_generator.core.romanization import (
     VowelLengthStrategy,
 )
 from conlang_generator.core.spec import GenerationSpec, SeedExample
+from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
 from conlang_generator.generation.generator import generate_evolved_language, resolve_evolve_years
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
@@ -224,6 +225,15 @@ class GenerateRequest(BaseModel):
     foreign_names: str | None = None
     word_strictness: float | None = None
     evolve_years: int | None = None
+    trait_overrides: dict[str, float] = {}
+    """Directly set one or more graded worldbuilding traits (the web
+    equivalent of the CLI's own repeatable ``--trait NAME=VALUE``) --
+    key one of ``GRADED_TRAIT_FIELDS``, value -1.0..1.0, overriding
+    that trait's own prompt-inferred value. Deliberately excludes
+    ``source_language_strictness``/``source_word_strictness`` -- those
+    already have their own dedicated ``strictness``/``word_strictness``
+    fields above, one way to set each rather than two, the same
+    exclusion ``cli/main.py``'s own ``_parse_trait_overrides`` makes."""
 
 
 class TranslateRequest(BaseModel):
@@ -268,6 +278,7 @@ def get_options() -> dict:
         "tts_backends": tts.available_backends(),
         "tts_capabilities": tts.backend_capabilities(),
         "max_vocabulary_size": len(ALL_MEANINGS),
+        "graded_trait_fields": list(GRADED_TRAIT_FIELDS),
     }
 
 
@@ -290,6 +301,15 @@ def generate(request: GenerateRequest) -> dict:
         raise HTTPException(status_code=400, detail="foreign_names must be 'keep' or 'adapt' (or omitted)")
     if request.word_selection not in ("algorithmic", "llm"):
         raise HTTPException(status_code=400, detail="word_selection must be 'algorithmic' or 'llm'")
+    unknown_traits = set(request.trait_overrides) - set(GRADED_TRAIT_FIELDS)
+    if unknown_traits:
+        raise HTTPException(
+            status_code=400,
+            detail=f"trait_overrides has unknown trait name(s): {', '.join(sorted(unknown_traits))}",
+        )
+    out_of_range = {k: v for k, v in request.trait_overrides.items() if not -1.0 <= v <= 1.0}
+    if out_of_range:
+        raise HTTPException(status_code=400, detail=f"trait_overrides values must be between -1.0 and 1.0: {out_of_range}")
 
     forced_orthography = OrthographyForce(
         style=request.orthography_style,
@@ -315,6 +335,8 @@ def generate(request: GenerateRequest) -> dict:
         traits = traits.model_copy(update={"source_language_strictness": request.strictness})
     if request.word_strictness is not None:
         traits = traits.model_copy(update={"source_word_strictness": request.word_strictness})
+    if request.trait_overrides:
+        traits = traits.model_copy(update=request.trait_overrides)
 
     raw_examples = tuple(SeedExample(gloss=e.gloss, form=e.form, ipa=e.ipa) for e in request.examples)
     seed_examples = resolve_seed_examples(raw_examples, client)

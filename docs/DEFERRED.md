@@ -654,7 +654,7 @@ multi-session feature.
   (and everything before it in this section's own history) was syntax-checked
   (`node --check`) and its endpoints tested, but not exercised in a real
   browser -- deferred to the user's own manual pass, by request.
-- **Missing controls -- re-audited, partly resolved (S).**
+- **Missing controls -- re-audited, all resolved or scoped down (done).**
   - Tone levels/sandhi rules display: **done.** `_language_summary`'s own new
     `tone_system` key (levels with real Chao contour data, general sandhi
     rules including `target` direction, lexical sandhi) is now rendered as
@@ -676,8 +676,15 @@ multi-session feature.
     (beyond eSpeak's own automatic tone-voice switching) is still absent, but
     that's a materially narrower, more speculative ask with no clear demand
     signal elsewhere in this project either.
-  - No tone-sandhi/graded-trait control: **still open.** The CLI's own new
-    `--trait NAME=VALUE` (see §7) has no web equivalent yet.
+  - No tone-sandhi/graded-trait control: **done.** New "Trait overrides"
+    dynamic rows on the Generate form (name select + value input,
+    `+ trait override` to add more, mirroring the source-language/seed-
+    example rows already there) -- `/api/generate`'s own new
+    `trait_overrides: dict[str, float]` field, validated against
+    `core.traits.GRADED_TRAIT_FIELDS` and the same -1.0..1.0 range, the
+    web equivalent of the CLI's own `--trait NAME=VALUE` (see §7).
+    `source_language_strictness`/`source_word_strictness` excluded the
+    same way, for the same reason -- already have dedicated fields.
 - **Lexicon browsing/editing (M, unchanged).** No search, edit or export of a
   generated language's lexicon or of a reference language's real words (a
   flat, unfiltered table is already shown, so bare "view" isn't itself

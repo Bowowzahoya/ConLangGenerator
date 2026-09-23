@@ -170,6 +170,10 @@
       <label for="gen-strictness">Sound strictness (0.0-1.0: how tightly the allowed sounds follow the source language; blank = inferred from prompt)</label>
       <input type="number" id="gen-strictness" min="0" max="1" step="0.05" placeholder="(inferred)">
 
+      <label>Trait overrides <span class="ipa">(directly set a graded worldbuilding trait, -1.0 to +1.0, overriding the prompt's own inferred value)</span></label>
+      <div id="trait-override-rows"></div>
+      <button type="button" class="add-row" id="add-trait-override">+ trait override</button>
+
       <label>Seed examples <span class="ipa">(literal words that must appear verbatim)</span></label>
       <div id="seed-example-rows"></div>
       <button type="button" class="add-row" id="add-seed-example">+ seed example</button>
@@ -346,6 +350,35 @@ function collectSeedExamples() {
     .filter(e => e.gloss && e.form);
 }
 
+// --- trait override rows (the web equivalent of the CLI's own repeatable
+// --trait NAME=VALUE) -- no default row at page load, unlike source
+// languages/seed examples above: each row's own <select> is populated
+// from gradedTraitFields, which only exists once /api/options resolves,
+// so starting empty avoids a select with nothing in it yet. ---
+let gradedTraitFields = [];
+function addTraitOverrideRow() {
+  const row = document.createElement("div");
+  row.className = "dyn-row";
+  const options = gradedTraitFields.map(name => `<option value="${name}">${name}</option>`).join("");
+  row.innerHTML = `
+    <select class="to-name">${options}</select>
+    <input type="number" placeholder="value, -1.0 to +1.0" min="-1" max="1" step="0.05" class="to-value">
+    <button type="button" class="remove-row">&times;</button>`;
+  row.querySelector(".remove-row").onclick = () => row.remove();
+  $("trait-override-rows").appendChild(row);
+}
+$("add-trait-override").onclick = addTraitOverrideRow;
+
+function collectTraitOverrides() {
+  const overrides = {};
+  for (const row of $("trait-override-rows").querySelectorAll(".dyn-row")) {
+    const name = row.querySelector(".to-name").value;
+    const raw = row.querySelector(".to-value").value;
+    if (name && raw !== "") overrides[name] = parseFloat(raw);
+  }
+  return overrides;
+}
+
 // --- orthography option selects, populated from /api/options ---
 async function loadOptions() {
   const opts = await api("/api/options");
@@ -363,6 +396,7 @@ async function loadOptions() {
   fill("gen-vowel-length-style", opts.vowel_length_styles);
   fill("gen-tone-style", opts.tone_styles);
   fill("gen-syllable-boundary-marker", opts.syllable_boundary_markers);
+  gradedTraitFields = opts.graded_trait_fields || [];
 
   for (const opt of $("tr-tts").options) {
     if (opt.value !== "none" && !opts.tts_backends[opt.value]) {
@@ -570,6 +604,7 @@ $("generate-btn").onclick = async () => {
     source_languages: collectSourceLanguages(),
     strictness: $("gen-strictness").value ? parseFloat($("gen-strictness").value) : null,
     word_strictness: $("gen-word-strictness").value ? parseFloat($("gen-word-strictness").value) : null,
+    trait_overrides: collectTraitOverrides(),
     evolve_years: $("gen-evolve-years").value === "" ? null : parseInt($("gen-evolve-years").value, 10),
     examples: collectSeedExamples(),
     orthography_style: $("gen-orthography-style").value || null,

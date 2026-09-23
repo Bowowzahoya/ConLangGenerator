@@ -4197,3 +4197,42 @@ reading code or one-off ad hoc scripts.
 
   **Still open** (see `DEFERRED.md` §8): the graded-trait/`--trait`-equivalent control; lexicon
   search/filter/edit/export; whole-language import/export.
+- **Web app: graded-trait overrides (the CLI's own `--trait` flag, on the web).** Closes the one
+  item the two batches above had each in turn left open -- of the 15 bipolar worldbuilding traits,
+  the web UI had no way to set one directly, only through the prompt classifier's own reading of
+  free text, same gap the CLI's own `--trait NAME=VALUE` batch (see this file's own entry on it)
+  already closed there.
+
+  New `GenerateRequest.trait_overrides: dict[str, float] = {}` on `/api/generate` -- key one of
+  `core.traits.GRADED_TRAIT_FIELDS`, value -1.0..1.0, applied via the same `traits.model_copy(update=
+  ...)` pattern `strictness`/`word_strictness` already use, in the same order (after both, so an
+  explicit trait override always wins over whatever the prompt itself implied for that one
+  dimension). `source_language_strictness`/`source_word_strictness` deliberately excluded --
+  already graded 0.0-1.0 fields with their own dedicated request fields, the same "one way to set
+  each, not two" discipline `cli/main.py`'s own `_parse_trait_overrides` already enforces; a request
+  naming either as a trait override, or naming any field outside `GRADED_TRAIT_FIELDS` at all, or
+  giving a value outside -1.0..1.0, gets a `400` with the offending name(s) named directly, mirroring
+  the CLI's own error messages rather than a generic validation failure. `/api/options` gained
+  `graded_trait_fields` (the same list) so the frontend never hardcodes its own duplicate.
+
+  New "Trait overrides" dynamic rows on the Generate form's own "Advanced options" (a `<select>` of
+  every graded trait name + a bounded number input, `+ trait override` to add more) -- mirrors the
+  existing source-language/seed-example dynamic-row pattern exactly, except it starts with *no* row
+  at page load (unlike those two): its own `<select>` needs `graded_trait_fields` from `/api/options`
+  to have anything to offer, which only resolves after page load, so starting empty (rather than one
+  row with a not-yet-populated select) avoids that ordering hazard entirely. No new display work
+  needed for the *result* -- an overridden trait is just another nonzero value in the same
+  `traits` object `/api/generate` already returns, so the existing trait-badge rendering picks it up
+  automatically, the same way the CLI's own "Traits from prompt" line already shows a `--strictness`/
+  `--word-strictness` override merged in without a separate visual distinction.
+
+  5 new tests in `test_webui.py`: a request with two trait overrides reports both exact values back
+  (not just "accepted"); an unknown trait name, an out-of-range value, and the two dedicated-field
+  names used as overrides each get a `400` naming the actual problem; `/api/options` lists exactly
+  the 15 real `GRADED_TRAIT_FIELDS` names and neither strictness field. Syntax-checked with
+  `node --check`, the same established substitute for a browser check every batch in this section
+  already uses -- real browser exercise stays the user's own deferred manual pass. Full suite: 1107
+  passed, 2 skipped (up from 1102).
+
+  That closes every "Missing controls" item the §8 audit originally flagged. **Still open** (see
+  `DEFERRED.md` §8): lexicon search/filter/edit/export; whole-language import/export.
