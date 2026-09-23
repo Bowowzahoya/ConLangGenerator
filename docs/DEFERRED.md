@@ -604,8 +604,18 @@ multi-session feature.
 
 ## 7. CLI
 
-- **No `--tone-sandhi` (or other graded-trait) flags (S).** The trait is set
-  only through the prompt classifier.
+- **No `--tone-sandhi` (or other graded-trait) flags (done).** New generic
+  `--trait NAME=VALUE` (repeatable, `cli/main.py`'s own
+  `_parse_trait_overrides`), `NAME` one of `core.traits.GRADED_TRAIT_FIELDS`
+  (the 15 bipolar -1.0..1.0 worldbuilding traits, `tone_sandhi` included),
+  overriding that one trait's own prompt-inferred value directly rather than
+  needing wording the classifier happens to read the right way. A generic
+  flag rather than 15 dedicated ones, matching AGENTS.md's own "keep the CLI
+  small" discipline and mirroring `--source-language`'s own repeatable
+  `Name:weight` shape. Deliberately excludes `source_language_strictness`/
+  `source_word_strictness` (already graded 0.0-1.0 fields) -- those keep
+  their own dedicated `--strictness`/`--word-strictness` flags, one way to
+  set each rather than two. See `docs/CLI.md`.
 - **Lexicon coverage report (S).** A command listing, per reference language,
   whether a lexicon exists, its size and how many entries violate the
   profile.

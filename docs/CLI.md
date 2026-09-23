@@ -35,11 +35,36 @@ Positive values are evidence *for* a dimension's named pole, negative
 values are evidence for its *opposite* (e.g. `tonal_friendliness=-0.92`
 above is strong evidence the language should specifically *not* be
 tonal). Either direction only *biases* generation probability -- it never
-guarantees an outcome on its own, and none of these graded traits has a
-direct CLI override yet -- the prompt is the only way to set one (see
-`docs/DEFERRED.md` §7). `--isolated`/`--high-altitude`/`--tonal` are a
-separate, absolute channel -- "Forced (guaranteed)" -- that bypasses the
-probability entirely (e.g. `--high-altitude` always produces ejectives,
+guarantees an outcome on its own. `--trait NAME=VALUE` (repeatable, one
+per trait) sets a specific dimension directly instead of relying on the
+prompt to imply it -- `NAME` is one of the 15 fields the "Traits from
+prompt" line above can show (`isolation`, `altitude`, `community_scale`,
+`contact_intensity`, `aesthetic_harshness`, `tonal_friendliness`,
+`phonotactic_restrictiveness`, `tone_sandhi`, `social_hierarchy`,
+`orality_literacy`, `evidentiality_culture`, `spatial_reference`,
+`ritual_register`, `taboo_register`, `terrain_communication_distance`),
+`VALUE` the same -1.0..1.0 range, and it overrides that one trait's own
+prompt-inferred value without touching any other:
+
+```bash
+conlang generate --prompt "a plain language" --name trait-test --seed 1 \
+  --llm fake --trait tone_sandhi=0.9 --trait altitude=-0.7
+```
+
+```
+Generated 'trait-test' (trait-test) -- 400 core words.
+Word order: SOV, morphology: fusional, alignment: nominative_accusative, tonal: False
+Orthography: digraph
+Traits from prompt: isolation=-0.12, altitude=-0.70, community_scale=+0.71, ..., tone_sandhi=+0.90, ...
+Saved to conlangs\trait-test
+```
+
+`source_language_strictness`/`source_word_strictness` -- also graded,
+0.0-1.0 -- aren't among `--trait`'s own accepted names; they already have
+their own dedicated `--strictness`/`--word-strictness` flags above, one
+way to set each rather than two. `--isolated`/`--high-altitude`/`--tonal`
+are a separate, absolute channel -- "Forced (guaranteed)" -- that bypasses
+the probability entirely (e.g. `--high-altitude` always produces ejectives,
 regardless of what the prompt says or the trait reading). `--fantasy` is
 recorded as metadata and passed as context to the classifier and to
 word-coinage prompts. `--seed` controls reproducibility; `--llm` selects

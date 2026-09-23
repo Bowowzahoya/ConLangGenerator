@@ -13,6 +13,7 @@ from conlang_generator.core.romanization import (
     VowelLengthStrategy,
 )
 from conlang_generator.core.spec import GenerationSpec, SeedExample
+from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
 from conlang_generator.generation.generator import generate_evolved_language, generate_language
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
@@ -97,6 +98,36 @@ def _parse_enum_option(raw: str | None, enum_cls: type, flag: str):
         raise typer.Exit(code=1) from None
 
 
+def _parse_trait_overrides(raw_entries: list[str]) -> dict[str, float]:
+    """Parses repeatable ``--trait NAME=VALUE`` entries into a
+    ``TraitProfile.model_copy(update=...)`` payload. ``NAME`` must be one
+    of ``GRADED_TRAIT_FIELDS`` (the 15 bipolar -1.0..1.0 worldbuilding
+    traits) -- ``source_language_strictness``/``source_word_strictness``
+    already have their own dedicated ``--strictness``/``--word-strictness``
+    flags, so aren't accepted here too, one way to set each rather than
+    two. A later entry for the same name overrides an earlier one, the
+    same permissive "last one wins" simplicity ``--source-language``'s
+    own weight suffix already has."""
+    overrides: dict[str, float] = {}
+    for entry in raw_entries:
+        name, sep, raw_value = entry.partition("=")
+        name = name.strip()
+        if not sep or name not in GRADED_TRAIT_FIELDS:
+            valid = ", ".join(GRADED_TRAIT_FIELDS)
+            typer.echo(f"error: --trait must be 'NAME=VALUE' with NAME one of {valid}, got {entry!r}", err=True)
+            raise typer.Exit(code=1)
+        try:
+            value = float(raw_value)
+        except ValueError:
+            typer.echo(f"error: --trait value must be a number, got {entry!r}", err=True)
+            raise typer.Exit(code=1) from None
+        if not -1.0 <= value <= 1.0:
+            typer.echo(f"error: --trait value must be between -1.0 and 1.0, got {entry!r}", err=True)
+            raise typer.Exit(code=1)
+        overrides[name] = value
+    return overrides
+
+
 def _parse_seed_example(raw: str) -> SeedExample:
     if "=" not in raw:
         typer.echo(f"error: --example must be 'gloss=form' or 'gloss=form|ipa', got {raw!r}", err=True)
@@ -125,6 +156,13 @@ def generate(
     strictness: float = typer.Option(
         None, "--strictness",
         help="How closely to hew to --source-language's own phonology/orthography/grammar (0.0-1.0): 0 is today's soft, non-exclusive influence; 1.0 hard-restricts to (the union of) their own declared values. Only meaningful with --source-language (explicit or prompt-inferred); overrides the prompt-inferred value when given.",
+    ),
+    trait: list[str] = typer.Option(
+        [], "--trait",
+        help="Directly set one graded worldbuilding trait: 'NAME=VALUE', VALUE from -1.0 (evidence for the trait's "
+        "opposite) to +1.0 (strong evidence for it), 0.0 = no opinion (repeatable, one per trait). Overrides that "
+        "trait's own prompt-inferred value. NAME is one of: " + ", ".join(GRADED_TRAIT_FIELDS) + ". For "
+        "source_language_strictness/source_word_strictness use --strictness/--word-strictness instead.",
     ),
     example: list[str] = typer.Option(
         [], "--example", help="Literal seed word: 'gloss=form' or 'gloss=form|ipa' (repeatable). Always appears verbatim in the lexicon."
@@ -207,6 +245,7 @@ def generate(
     if strictness is not None and not 0.0 <= strictness <= 1.0:
         typer.echo(f"error: --strictness must be between 0.0 and 1.0, got {strictness!r}", err=True)
         raise typer.Exit(code=1)
+    trait_overrides = _parse_trait_overrides(trait)
     forced_orthography = OrthographyForce(
         style=orthography_style,
         exotic_symbol_style=_parse_enum_option(exotic_symbol_style, ExoticSymbolStyle, "--exotic-symbol-style"),
@@ -227,6 +266,8 @@ def generate(
         traits = traits.model_copy(update={"source_language_strictness": strictness})
     if word_strictness is not None:
         traits = traits.model_copy(update={"source_word_strictness": word_strictness})
+    if trait_overrides:
+        traits = traits.model_copy(update=trait_overrides)
     for warning in strictness_warnings(traits):
         typer.echo(f"warning: {warning}", err=True)
 

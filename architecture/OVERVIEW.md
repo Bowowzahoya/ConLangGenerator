@@ -1675,15 +1675,26 @@ both gaps.
 
 ## `cli/main.py`
 
-Typer app with exactly three commands (`generate`, `translate`, `pronounce`),
-per AGENTS.md's CLI discipline. `generate`'s `--source-language` (repeatable)
-and `--example` (repeatable, `gloss=form` or `gloss=form|ipa`) are milestone-5
-inputs; `--evolve-from <name>` + `--years N` (milestone 6) switch `generate`
-into evolving an existing saved language instead of generating fresh --
-`--prompt`/`--source-language` are reinterpreted as the evolution period's
-own characteristics in that mode (classified the same way, just describing
-something different). None of these add new commands. See `docs/CLI.md`
-for verified examples.
+Typer app. `generate`/`translate`/`pronounce` are the core trio per AGENTS.md's
+CLI discipline; `audit-lexicons` (curated-lexicon QA) and `serve` (the local
+web UI) are separate utility commands that don't compete with that trio for
+scope. `generate`'s `--source-language` (repeatable) and `--example`
+(repeatable, `gloss=form` or `gloss=form|ipa`) are milestone-5 inputs;
+`--evolve-from <name>` + `--years N` switch `generate` into evolving an
+existing saved language instead of generating fresh, and `--years` alone
+(no `--evolve-from`) evolves the freshly generated language itself before
+saving -- `--prompt`/`--source-language` are reinterpreted as the evolution
+period's own characteristics in the former mode (classified the same way,
+just describing something different). `--word-strictness` is the separate,
+real-*words* dial alongside `--strictness`'s own sounds-only one (see
+`generation/real_words.py`); `--trait NAME=VALUE` (repeatable) sets one of
+the 15 bipolar worldbuilding traits directly instead of relying on the
+prompt to imply it (`_parse_trait_overrides`, validated against
+`core.traits.GRADED_TRAIT_FIELDS`) -- a generic flag rather than 15
+dedicated ones, the same repeatable `NAME=VALUE`/`Name:weight` shape
+`--source-language` already established, keeping the CLI's own flag count
+from scaling 1:1 with `TraitProfile`'s own field count. None of this adds a
+new command. See `docs/CLI.md` for verified examples of all five commands.
 
 ## `experiments/`
 
