@@ -557,8 +557,9 @@ multi-session feature.
   voice, but not which *sounds* (clicks, ejectives, pharyngeals, breathy
   voice, word accent, length) are dropped or approximated, and warnings cover
   tones only. A per-symbol support table would let the UI flag those too.
-- **Warnings are web-only (S).** The CLI `pronounce`/translate path does not
-  print engine capabilities or unvoiceable-tone alerts.
+- **Warnings are web-only (done for `pronounce`).** `pronounce --tts` now
+  prints the chosen engine's own unvoiceable-tone alerts too (see §7) --
+  `translate` still has no `--tts`/audio path at all to warn about.
 - **Other engines (L).** Piper/Coqui (local neural), Azure/Google (SSML IPA
   with tone support for Mandarin/Cantonese/Thai). Kirshenbaum conversion for
   the newly added symbols (`ɸ β ɕ ʑ ɦ ɭ ɽ ʈʂ`) is approximate and unlistened.
@@ -616,11 +617,25 @@ multi-session feature.
   `source_word_strictness` (already graded 0.0-1.0 fields) -- those keep
   their own dedicated `--strictness`/`--word-strictness` flags, one way to
   set each rather than two. See `docs/CLI.md`.
-- **Lexicon coverage report (S).** A command listing, per reference language,
-  whether a lexicon exists, its size and how many entries violate the
-  profile.
-- **Strictness/pronunciation warnings (S).** Word-vs-sound strictness
-  warnings print; tone/engine warnings do not (see §4).
+- **Lexicon coverage report (closed -- already satisfied).** `conlang
+  audit-lexicons` (no arguments) already reports exactly this, per curated
+  language: a `words` column (size), `off-profile`/`structure` columns
+  (entries violating the profile), and every one of the 53 currently
+  curated profiles genuinely has a real lexicon (`words > 0` for all of
+  them) -- so "whether a lexicon exists" is trivially true today and
+  needs no separate reporting. This bullet predates full coverage; closing
+  it rather than building a second, redundant report.
+- **Strictness/pronunciation warnings (done).** Word-vs-sound strictness
+  warnings print (`generate`, via `real_words.strictness_warnings`).
+  `pronounce --tts {espeak,sapi}` now also prints the chosen engine's own
+  unvoiceable-tone warnings before attempting synthesis (same check the
+  web UI's own `/api/pronunciation-check` makes, `speech.tts.
+  pronunciation_warnings`) -- parity with the web UI, not new underlying
+  logic. `translate` has no `--tts`/audio path at all today, so there is
+  nothing for it to warn about yet; the capability model itself is still
+  tones-only (see §4's own "Capability model is tones-only" bullet --
+  which sounds get dropped/approximated isn't tracked, only which tones
+  are voiced).
 - **Test runtime (done).** The default `pytest` run skips the 4 tests marked
   `slow` and takes about 3 minutes (it was 13); `pytest -m slow` runs just
   those, `pytest -m ""` everything. The three trait tests call

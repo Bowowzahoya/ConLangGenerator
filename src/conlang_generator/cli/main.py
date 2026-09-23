@@ -24,7 +24,7 @@ from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.speech import reader
-from conlang_generator.speech.tts import build_tts_client
+from conlang_generator.speech.tts import build_tts_client, pronunciation_warnings
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
 
@@ -438,6 +438,13 @@ def pronounce(
         except ValueError as exc:
             typer.echo(f"error: {exc}", err=True)
             raise typer.Exit(code=1) from exc
+        # Same check the web UI's own /api/pronunciation-check makes
+        # (speech/tts.py's own pronunciation_warnings) -- printed before
+        # the synthesis attempt below, regardless of whether it then
+        # succeeds, so an unvoiceable tone is reported even if playback
+        # itself works fine (the engine just silently drops the mark).
+        for warning in pronunciation_warnings(client.capabilities(), spoken_ipa):
+            typer.echo(f"warning: {warning}", err=True)
         output_path = CACHE_DIR / "audio" / f"{lang}-{entry.primary_gloss}.wav"
         if client.synthesize(spoken_ipa, output_path):
             typer.echo(f"Audio saved to {output_path}")

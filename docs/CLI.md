@@ -424,7 +424,10 @@ Pronounced (tone sandhi): /njáˈsì/
 
 `--tts {none,espeak,sapi}` (default `none`) synthesizes the word's own
 *spoken* pronunciation (the post-sandhi form above, when sandhi applies)
-to a `.wav` file under `./.cache/audio/`:
+to a `.wav` file under `./.cache/audio/`. Before attempting synthesis, it
+also prints a warning (to stderr) for any tone in the word the chosen
+engine genuinely can't voice -- the same check the web UI's own
+`/api/pronunciation-check` makes, so a CLI user gets the same heads-up:
 
 ```bash
 conlang pronounce "on" --lang zulu-doc --tts sapi
@@ -433,13 +436,17 @@ conlang pronounce "on" --lang zulu-doc --tts sapi
 ```
 IPA: /njáˈsí/  Romanized: nyásí  Tone contour: ˥˥ (55) ˥˥ (55)
 Pronounced (tone sandhi): /njáˈsì/
+warning: Windows SAPI cannot voice tones: the low, high tone marks in this text will be spoken without them.
 Audio saved to .cache\audio\zulu-doc-on.wav
 ```
 
 `espeak` needs `espeak-ng` installed separately; `sapi` is Windows-only
-(the built-in Speech API). Neither backend's own capability warnings
-(which tones/sounds it can't actually voice -- the web UI shows these)
-print here yet; see `docs/DEFERRED.md` §7/§8.
+(the built-in Speech API) and can't voice any tone at all (SAPI itself
+rejects IPA tone marks); eSpeak voices every tone through its own
+Mandarin voice instead, so the same word under `--tts espeak` prints no
+warning. The warning only fires when a synthesis backend is actually
+selected -- `--tts none` (the default) never checks or prints it, since
+nothing gets synthesized to warn about.
 
 ## `conlang audit-lexicons`
 

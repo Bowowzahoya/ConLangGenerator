@@ -46,6 +46,41 @@ def test_a_tone_the_engine_cannot_voice_is_reported_and_others_are_not():
     assert "dipping" in tts.pronunciation_warnings(partial, ipa)[0] and "high" not in tts.pronunciation_warnings(partial, ipa)[0]
 
 
+def test_the_cli_pronounce_command_warns_about_an_unvoiceable_tone(tmp_path, monkeypatch):
+    # CLI parity with the web UI's own /api/pronunciation-check above --
+    # `conlang pronounce --tts sapi` must surface the same warning, not
+    # just synthesize (or fail to) silently.
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language(
+        "cli-tone-test", GenerationSpec(prompt="p", seed=1, force_tonal=True), FakeLLMClient()
+    )
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+    tonal_entry = next(e for e in language.lexicon.entries if e.tones)
+
+    result = CliRunner().invoke(
+        cli_main.app, ["pronounce", tonal_entry.glosses[0], "--lang", "cli-tone-test", "--tts", "sapi"]
+    )
+    assert result.exit_code == 0
+    assert "Windows SAPI cannot voice tones" in result.output
+    assert "Audio saved to" in result.output  # synthesis itself still ran, tone marks just dropped
+
+    # --tts none never synthesizes, so there's nothing to warn about --
+    # confirms the warning is tied to an actual synthesis attempt, not
+    # printed unconditionally for every tonal word.
+    plain = CliRunner().invoke(cli_main.app, ["pronounce", tonal_entry.glosses[0], "--lang", "cli-tone-test"])
+    assert plain.exit_code == 0
+    assert "cannot voice" not in plain.output
+
+
 def test_the_web_api_lists_capabilities_and_checks_a_translation():
     client = TestClient(app)
     options = client.get("/api/options").json()
