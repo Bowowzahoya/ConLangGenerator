@@ -29,7 +29,7 @@ def _derived_seed(language: Language, salt: str) -> int:
 def coin_word(
     language: Language, gloss: str, pos: PartOfSpeech, llm_client: LLMClient
 ) -> LexicalEntry:
-    for attempt in range(6):
+    for attempt in range(40):
         salt = gloss if attempt == 0 else f"{gloss}#{attempt}"
         rng = random.Random(_derived_seed(language, salt))
         if language.grammar.uses_root_and_pattern and pos in root_pattern.TEMPLATIC_POS:
@@ -69,4 +69,4 @@ def coin_word(
             )
         if language.lexicon.by_form(entry.romanization) is None:
             return entry
-    return entry  # extremely unlikely collision streak; accept it rather than loop forever
+    return entry  # a collision streak (a tiny inventory can run out of short words); accept it rather than loop forever

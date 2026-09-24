@@ -110,6 +110,10 @@ class PlannedSlot:
     (``passive``/``antipassive``/``causative``), or ``None`` for the active --
     only ever meaningful on a finite verb. The planner also reassigns the
     arguments (subject, case marking, the agent phrase) to match."""
+    degree: str | None = None
+    """``"comparative"`` or ``"superlative"`` on an adjective, in a language
+    that marks that degree with a suffix (otherwise the planner uses a word
+    slot "more"/"most" and leaves this ``None``)."""
     agrees_with: str | None = None
     """For an adjective: the lemma of the noun it modifies or is predicated
     of (only set in a language with noun classes)."""
@@ -228,6 +232,27 @@ def _build_system_prompt(language: Language) -> str:
             "existential construction above whose X is the possessed noun phrase (a plain subject: no object case)"
         )
     )
+    comparative_desc = (
+        'set "degree":"comparative" on the adjective slot (this language has a comparative suffix)'
+        if grammar.comparative_marking == "affix"
+        else 'put a content slot with gloss "more" and pos "adverb" directly before the adjective'
+    )
+    superlative_desc = (
+        'set "degree":"superlative" on the adjective slot (this language has a superlative suffix)'
+        if grammar.superlative_marking == "affix"
+        else 'put a content slot with gloss "most" and pos "adverb" directly before the adjective'
+    )
+    standard_desc = {
+        "particle": (
+            'a content slot with gloss "than" and pos "preposition" together with the standard noun phrase '
+            "(placed per this language's adposition order)"
+        ),
+        "case": f'the standard noun phrase takes the "{grammar.comparative_case}" case (no extra word)',
+        "exceed": (
+            'no word for "than": after the adjective put a content verb with gloss "exceed" (pos "verb", '
+            "tense/agreement like any verb) whose object is the standard noun phrase, and no copula is needed"
+        ),
+    }.get(grammar.comparative_strategy, "the standard noun phrase, unmarked")
     optional_kinds = []
     if grammar.has_indefinite_article:
         optional_kinds.append('"indefinite_article" (English "a"/"an" -- no other field needed)')
@@ -257,6 +282,11 @@ predicate adjective, regardless of word_order.
 - grammatical cases this language actually has: {cases_desc}.
 - tenses this language actually has: {tenses_desc}.
 - aspects this language actually has: {aspects_desc}.
+- comparison ("X is bigger/more beautiful than Y"): the comparative of an \
+adjective: {comparative_desc}; the standard of comparison (Y): \
+{standard_desc}. The superlative ("the biggest", "most beautiful"): \
+{superlative_desc}. Never write the English "-er"/"-est" forms as the gloss: \
+the gloss is the plain adjective lemma ("big").
 - existential sentences ("there is/are X", "is there X?"): {existential_desc}. \
 Never write a slot for the English "there".
 - possession clauses ("I have a dog", "the man had two horses"): \
@@ -445,6 +475,10 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "cases": ",".join(grammar.cases),
             "tenses": ",".join(grammar.tenses),
             "aspects": ",".join(grammar.aspects),
+            "comparative_strategy": grammar.comparative_strategy,
+            "comparative_case": grammar.comparative_case,
+            "comparative_marking": grammar.comparative_marking,
+            "superlative_marking": grammar.superlative_marking,
             "existential": grammar.existential,
             "possession_clause": grammar.possession_clause,
             "cases": ",".join(grammar.cases),
@@ -558,6 +592,7 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                 aspect=_coerce_optional_str(item.get("aspect")),
                 verb_mood=_coerce_optional_str(item.get("verb_mood")),
                 voice=_coerce_optional_str(item.get("voice")),
+                degree=item.get("degree") if item.get("degree") in ("comparative", "superlative") else None,
                 agrees_with=_lemma(item.get("agrees_with")),
                 subject_gloss=_lemma(item.get("subject_gloss")),
                 object_gloss=_lemma(item.get("object_gloss")),

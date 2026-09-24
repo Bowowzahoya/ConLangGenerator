@@ -199,7 +199,7 @@ plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
 structure with complement, relative and adverbial clauses (pass 2); aspect and
 verbal mood as systems separate from tense (pass 3); noun classes with article,
 adjective and verb (subject and object) agreement (pass 4); dual number,
-demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7). See
+demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
@@ -242,7 +242,10 @@ isn't"); habitual/experiential possession ("I have to"); the English
 direction relies on the fluency prompt note rather than recognizing the
 construction itself.
 
-**Clause types still missing:** comparatives and superlatives (M).
+**Comparison follow-ups (S-M):** equatives ("as big as"), "too big", "the more..., the more...",
+irregular suppletive degrees in the target language (good/better), degree adverbs, a comparative of
+adverbs and of nouns ("more water"), the standard case being `locative` (no language rolls it yet: the case
+pool tops out at four labels), and the fake planner only knows a short adjective list.
 
 **Noun phrase still missing:** collective number and trial (S); classifiers
 ("two [piece] dogs") (M); a real pronoun system (person, number, clusivity,

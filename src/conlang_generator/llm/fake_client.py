@@ -293,6 +293,10 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     demonstrative_after_noun = metadata.get("demonstrative_after_noun") == "true"
     has_dual = "dual" in metadata.get("number_labels", "").split(",")
     voices = [v for v in metadata.get("voices", "").split(",") if v]
+    comparative_strategy = metadata.get("comparative_strategy", "particle")
+    comparative_case = metadata.get("comparative_case", "")
+    comparative_marking = metadata.get("comparative_marking", "word")
+    superlative_marking = metadata.get("superlative_marking", "word")
     existential = metadata.get("existential", "copula")
     possession_clause = metadata.get("possession_clause", "have")
     cases = [c for c in metadata.get("cases", "").split(",") if c]
@@ -385,12 +389,19 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         tokens, word_order, tenses, has_overt_copula, existential, possession_clause, cases, noun_phrase, base_of,
         noun_classes, name_by_placeholder,
     )
-    voice_slots = None if existence_slots is not None else _fake_voice_slots(
+    degree_slots = None if existence_slots is not None else _fake_degree_slots(
+        tokens, tenses, has_overt_copula, comparative_strategy, comparative_case, comparative_marking,
+        superlative_marking, postpositional, word_order, alignment, noun_phrase, base_of, noun_classes,
+        name_by_placeholder,
+    )
+    voice_slots = None if (existence_slots is not None or degree_slots is not None) else _fake_voice_slots(
         tokens, metadata, voices, postpositional, word_order, alignment, tenses, noun_phrase, base_of,
         noun_classes, name_by_placeholder, tokens_no_copula,
     )
     if existence_slots is not None:
         slots = existence_slots
+    elif degree_slots is not None:
+        slots = degree_slots
     elif voice_slots is not None:
         slots = voice_slots
     elif mood == "imperative" and content_tokens:
@@ -541,6 +552,128 @@ def _fake_existence_slots(
                     break
         return possessor + arrange(noun_phrase(possessed_tok, None), be_slots(tense_label, possessed_tok))
     return None
+
+
+_FAKE_KNOWN_ADJECTIVES = {
+    "big", "small", "high", "low", "long", "short", "old", "new", "young", "good", "bad", "large", "tall", "wide",
+    "narrow", "strong", "weak", "fast", "slow", "hot", "cold", "heavy", "light", "beautiful", "happy", "dark", "deep",
+    "thick", "thin", "rich", "poor", "clean", "dirty", "near", "far", "wise", "brave", "quiet", "loud",
+}
+_FAKE_IRREGULAR_DEGREES = {
+    "better": ("good", "comparative"), "best": ("good", "superlative"),
+    "worse": ("bad", "comparative"), "worst": ("bad", "superlative"),
+}
+_FAKE_NOT_A_SUPERLATIVE = {
+    "forest", "west", "rest", "test", "east", "nest", "chest", "guest", "harvest", "interest", "request",
+}
+
+
+def _fake_degree_of(token: str) -> tuple[str, str] | None:
+    """``(adjective lemma, "comparative"|"superlative")`` for an English
+    ``-er``/``-est`` (or irregular) adjective form, else ``None``. A crude
+    suffix heuristic anchored on a small known-adjective list, since nouns
+    like "river" and "forest" end the same way."""
+    if token in _FAKE_IRREGULAR_DEGREES:
+        return _FAKE_IRREGULAR_DEGREES[token]
+    for suffix, degree in (("est", "superlative"), ("er", "comparative")):
+        if token.endswith(suffix) and len(token) > len(suffix) + 2 and token not in _FAKE_NOT_A_SUPERLATIVE:
+            stem = token[: -len(suffix)]
+            candidates = [stem, stem + "e"]
+            if stem.endswith("i"):
+                candidates.append(stem[:-1] + "y")
+            if len(stem) >= 3 and stem[-1] == stem[-2]:
+                candidates.append(stem[:-1])
+            lemma = next((c for c in candidates if c in _FAKE_KNOWN_ADJECTIVES), None)
+            if lemma is not None:
+                return lemma, degree
+    return None
+
+
+def _fake_degree_slots(
+    tokens, tenses, has_overt_copula, strategy, comparative_case, comparative_marking, superlative_marking,
+    postpositional, word_order, alignment, noun_phrase, base_of, noun_classes, name_by_placeholder,
+):
+    """Plans "X is bigger/more beautiful than Y", "X is more beautiful" and
+    "X is the biggest/most beautiful" as ``subject + copula + adjective
+    [+ standard]``, marking the degree and the standard per the language's own
+    strategy; ``None`` when the tokens are not of that shape."""
+    copula_index = next((i for i, t in enumerate(tokens) if t in _FAKE_COPULAS), None)
+    if copula_index is None or copula_index != 1 or len(tokens) < 3:
+        return None
+    subject_tok = tokens[0]
+    rest = tokens[2:]
+    negated = "not" in rest
+    rest = [t for t in rest if t != "not"]
+    if not rest:
+        return None
+    standard_tok = None
+    degree = None
+    lemma = None
+    if "than" in rest:
+        than_index = rest.index("than")
+        if than_index == 0 or than_index + 1 >= len(rest):
+            return None
+        standard_tok = rest[than_index + 1]
+        head = rest[:than_index]
+        found = _fake_degree_of(head[-1])
+        if len(head) >= 2 and head[-2] == "more":
+            lemma, degree = head[-1], "comparative"
+        elif found is not None and found[1] == "comparative":
+            lemma, degree = found
+        else:
+            return None
+    elif len(rest) == 2 and rest[0] in ("more", "most"):
+        lemma, degree = rest[1], "comparative" if rest[0] == "more" else "superlative"
+    elif len(rest) == 1 and _fake_degree_of(rest[0]):
+        lemma, degree = _fake_degree_of(rest[0])
+    else:
+        return None
+    order = _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O"))
+    tense_label = _fake_tense_label("past" if tokens[copula_index] in _FAKE_PAST_COPULAS else "non_past", tenses)
+    marking = comparative_marking if degree == "comparative" else superlative_marking
+    subject_np = noun_phrase(subject_tok, None)
+    subject_is_noun = subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder
+
+    adjective: dict = {"kind": "content", "gloss": lemma, "pos": "adjective"}
+    if noun_classes and subject_is_noun:
+        adjective["agrees_with"] = base_of(subject_tok)
+    adjective_group: list[dict] = []
+    if marking == "affix":
+        adjective["degree"] = degree
+    else:
+        adjective_group.append(
+            {"kind": "content", "gloss": "more" if degree == "comparative" else "most", "pos": "adverb"}
+        )
+    adjective_group.append(adjective)
+
+    def agrees(slot: dict) -> dict:
+        slot["agreement"] = "default"
+        if noun_classes and subject_is_noun:
+            slot["subject_gloss"] = base_of(subject_tok)
+        if tense_label:
+            slot["tense"] = tense_label
+        return slot
+
+    be: list[dict] = []
+    if (strategy != "exceed" or standard_tok is None) and has_overt_copula:
+        be.append(agrees({"kind": "copula"}))
+    if negated:
+        be.append({"kind": "negation"})
+
+    standard_phrase: list[dict] = []
+    if standard_tok is not None:
+        object_case = "accusative" if alignment == "nominative_accusative" else None
+        if strategy == "case" and comparative_case:
+            standard_phrase = noun_phrase(standard_tok, comparative_case)
+        elif strategy == "exceed":
+            verb = [agrees({"kind": "content", "gloss": "exceed", "pos": "verb"})]
+            standard_np = noun_phrase(standard_tok, object_case)
+            standard_phrase = standard_np + verb if order.index("O") < order.index("V") else verb + standard_np
+        else:
+            than = [{"kind": "content", "gloss": "than", "pos": "preposition"}]
+            standard_np = noun_phrase(standard_tok, None)
+            standard_phrase = standard_np + than if postpositional else than + standard_np
+    return subject_np + be + adjective_group + standard_phrase
 
 
 _FAKE_MAKE = {"make", "makes", "made"}

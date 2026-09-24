@@ -352,6 +352,22 @@ class GrammarProfile(BaseModel, frozen=True):
     possessor-marked where there is no dative -- then the existential
     construction with B as its subject; no verb "have")."""
 
+    comparative_strategy: str = "particle"
+    """How the standard of a comparison ("bigger THAN Y") is marked:
+    ``"particle"`` (a word "than" beside the standard), ``"case"`` (the
+    standard takes ``comparative_case``, no extra word) or ``"exceed"`` (a
+    verb "exceed" with the standard as its object)."""
+    comparative_case: str = ""
+    """The case of the standard when ``comparative_strategy == "case"``."""
+    comparative_marking: str = "word"
+    """``"affix"`` (a suffix on the adjective) or ``"word"`` (a word "more"
+    before it)."""
+    superlative_marking: str = "word"
+    """``"affix"`` (a suffix) or ``"word"`` (a word "most")."""
+    degree_affixes: tuple[InflectionAffix, ...] = ()
+    """The ``"comparative"``/``"superlative"`` suffixes, present only for a
+    degree whose marking is ``"affix"``."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their

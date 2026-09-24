@@ -440,19 +440,39 @@ def _verb_agreement(language: Language, slot: sentence_planner.PlannedSlot) -> t
     return agreement, object_label
 
 
-def _class_agreement_salt(entry: LexicalEntry, noun_cls: str) -> str:
-    return f"classagr:{entry.ipa}:{noun_cls}"
+def _class_agreement_salt(entry: LexicalEntry, noun_cls: str | None, degree: str | None = None) -> str:
+    """Rng salt for an agreeing word: the earlier class-only salt when there is
+    no degree (so existing output is unchanged), distinct salts otherwise."""
+    if degree is None:
+        return f"classagr:{entry.ipa}:{noun_cls}"
+    if noun_cls is None:
+        return f"degree:{entry.ipa}:{degree}"
+    return f"classagr:{entry.ipa}:{noun_cls}:d={degree}"
 
 
-def _apply_class_agreement(language: Language, entry: LexicalEntry, class_label: str | None) -> tuple[str, str]:
+def _apply_class_agreement(
+    language: Language, entry: LexicalEntry, class_label: str | None, degree_label: str | None = None
+) -> tuple[str, str]:
     """An article/adjective ``entry`` agreeing with a noun of class
-    ``class_label`` (a ``"class:<name>"`` label or a bare class name) --
-    bare when the language has no such class."""
-    noun_cls = (class_label or "").removeprefix(noun_class_gen.CLASS_AGREEMENT_PREFIX)
-    affix = next((a for a in language.grammar.class_affixes if a.label == noun_cls), None)
-    if affix is None:
+    ``class_label`` (a ``"class:<name>"`` label or a bare class name) and/or
+    carrying a ``degree_label`` (``"comparative"``/``"superlative"``) suffix --
+    bare when the language has neither. The degree suffix sits closer to the
+    root than the class one."""
+    grammar = language.grammar
+    noun_cls = (class_label or "").removeprefix(noun_class_gen.CLASS_AGREEMENT_PREFIX) or None
+    class_affix = next((a for a in grammar.class_affixes if a.label == noun_cls), None) if noun_cls else None
+    degree_affix = next((a for a in grammar.degree_affixes if a.label == degree_label), None) if degree_label else None
+    if class_affix is None and degree_affix is None:
         return entry.romanization, entry.ipa
-    rng = _translation_rng(language, _class_agreement_salt(entry, noun_cls))
+    parts = [degree_affix, class_affix]
+    affix = InflectionAffix(
+        label="adjective-agreement",
+        prefix=tuple(sym for part in parts if part for sym in part.prefix),
+        suffix=tuple(sym for part in parts if part for sym in part.suffix),
+    )
+    resolved_class = noun_cls if class_affix is not None else None
+    resolved_degree = degree_label if degree_affix is not None else None
+    rng = _translation_rng(language, _class_agreement_salt(entry, resolved_class, resolved_degree))
     ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
     romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
     return romanization, ipa
@@ -559,9 +579,14 @@ def _render_plan(
                     slot.aspect, slot.verb_mood, object_label, slot.voice,
                 )
                 mood_pending = False
-            elif pos is PartOfSpeech.ADJECTIVE and slot.agrees_with and working_language.grammar.noun_classes:
+            elif pos is PartOfSpeech.ADJECTIVE and (
+                (slot.agrees_with and working_language.grammar.noun_classes) or slot.degree
+            ):
                 rendered = _apply_class_agreement(
-                    working_language, entry, _class_label_of(working_language, slot.agrees_with)
+                    working_language,
+                    entry,
+                    _class_label_of(working_language, slot.agrees_with) if slot.agrees_with else None,
+                    slot.degree,
                 )
             else:
                 is_noun = pos is PartOfSpeech.NOUN
@@ -767,20 +792,37 @@ def _stem_prefix(text: str) -> str:
     return stripped[:2]
 
 
+def _decode_adjective_full(language: Language, token: str) -> tuple[LexicalEntry, str | None, str | None] | None:
+    """``(entry, class_name, degree_label)`` for an adjective (or demonstrative)
+    carrying a class-agreement and/or degree suffix; ``None`` when no
+    combination spells ``token``. Plainest reading first."""
+    normalized = _normalize(token)
+    prefix = _stem_prefix(token)
+    grammar = language.grammar
+    class_options: list[str | None] = [None] + [a.label for a in grammar.class_affixes]
+    degree_options: list[str | None] = [None] + [a.label for a in grammar.degree_affixes]
+    combos = sorted(
+        ((c, d) for c in class_options for d in degree_options if c is not None or d is not None),
+        key=lambda cd: (cd[0] is not None) + (cd[1] is not None),
+    )
+    for entry in language.lexicon.entries:
+        is_adjective = entry.pos is PartOfSpeech.ADJECTIVE
+        if not (is_adjective or entry.primary_gloss in ("this", "that")) or _stem_prefix(entry.romanization) != prefix:
+            continue
+        for class_label, degree_label in combos:
+            if degree_label is not None and not is_adjective:
+                continue
+            if _normalize(_apply_class_agreement(language, entry, class_label, degree_label)[0]) == normalized:
+                return entry, class_label, degree_label
+    return None
+
+
 def _decode_adjective(language: Language, token: str) -> tuple[LexicalEntry, str] | None:
     """An adjective carrying a class-agreement suffix: ``(entry,
     class_name)``; ``None`` when no adjective plus class affix spells
-    ``token``."""
-    normalized = _normalize(token)
-    initial = _initial_letter(token)
-    for entry in language.lexicon.entries:
-        agrees = entry.pos is PartOfSpeech.ADJECTIVE or entry.primary_gloss in ("this", "that")
-        if not agrees or _initial_letter(entry.romanization) != initial:
-            continue
-        for affix in language.grammar.class_affixes:
-            if _normalize(_apply_class_agreement(language, entry, affix.label)[0]) == normalized:
-                return entry, affix.label
-    return None
+    ``token``. (See ``_decode_adjective_full`` for degree suffixes.)"""
+    full = _decode_adjective_full(language, token)
+    return None if full is None or full[1] is None else (full[0], full[1])
 
 
 def _article_forms(language: Language) -> set[str]:
@@ -968,8 +1010,19 @@ def _construction_note(language: Language) -> str:
             + " with B as its subject -- read that as \"A has B\""
         )
     )
+    standard = {
+        "particle": 'the standard of comparison follows a word "than"',
+        "case": f"the standard of comparison is in the {grammar.comparative_case} case (no word for \"than\")",
+        "exceed": 'comparison uses the verb "exceed" with the standard as its object (no word for "than")',
+    }.get(grammar.comparative_strategy, "the standard of comparison is unmarked")
+    degrees = (
+        ("the comparative is a suffix" if grammar.comparative_marking == "affix" else 'the comparative is the word "more"')
+        + ", "
+        + ("the superlative a suffix" if grammar.superlative_marking == "affix" else 'the superlative the word "most"')
+    )
     return (
         f' In this language "there is X" is expressed as {existential}, and "A has B" as {possession}.'
+        f" Comparison: {degrees}; {standard}. Read these as ordinary English comparatives and superlatives."
     )
 
 
@@ -1029,10 +1082,18 @@ def translate_to_english(
                 noun_entry.primary_gloss if not notes else f"{noun_entry.primary_gloss} ({', '.join(notes)})"
             )
             continue
-        adjective_decoded = _decode_adjective(language, tok) if language.grammar.class_affixes else None
+        adjective_decoded = (
+            _decode_adjective_full(language, tok)
+            if language.grammar.class_affixes or language.grammar.degree_affixes
+            else None
+        )
         if adjective_decoded is not None:
-            plain.append(adjective_decoded[0].primary_gloss)
-            annotated.append(adjective_decoded[0].primary_gloss)
+            adjective_entry, _, degree_label = adjective_decoded
+            gloss = adjective_entry.primary_gloss
+            plain.append(
+                f"more {gloss}" if degree_label == "comparative" else f"most {gloss}" if degree_label == "superlative" else gloss
+            )
+            annotated.append(gloss if degree_label is None else f"{gloss} ({degree_label})")
             continue
         verb_full = _decode_verb_full(language, tok)
         if verb_full is not None:

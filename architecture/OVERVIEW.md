@@ -4506,3 +4506,19 @@ reading code or one-off ad hoc scripts.
   can read the pattern back. The fake planner (`_fake_existence_slots`) plans "there is/are/was X", "is there
   X?", "there is no X" and, in `dative_be` languages, "A has/had B"; `have`/`has`/`had` now map to the lemma
   "have". 15 tests in `test_existence.py`.
+
+- **Comparatives and superlatives (grammar pass 8).** `GrammarProfile` gains `comparative_strategy`
+  (`"particle"` "than" word / `"case"` oblique standard using `comparative_case` / `"exceed"` verb),
+  `comparative_marking` and `superlative_marking` (`"affix"`/`"word"`) and `degree_affixes` (labels `comparative`/
+  `superlative`, only for affix-marked degrees), rolled in `generator.py` from an eighth independent stream
+  (`Random(f"{seed}:degree")`), suffixes distinct from class/case/number ones. `PlannedSlot.degree` marks an
+  adjective; word-marked degrees and the standard are ordinary slots ("more"/"most" adverb, "than" preposition,
+  a case on the standard, or a verb "exceed"), told to the planner by strategy. `_apply_class_agreement` now takes
+  an optional degree (degree suffix closer to the root than the class suffix; a distinct rng salt only when a
+  degree is used); `_decode_adjective_full` returns `(entry, class, degree)` over class x degree combinations,
+  plainest first, and `_decode_adjective` keeps its old shape. The English side prints `more X`/`most X` and the
+  fluency prompt gains a "Comparison:" note (`_construction_note`). The fake planner (`_fake_degree_slots`,
+  `_fake_degree_of`) plans "X is Adj-er/more Adj than Y", "X is more Adj" and "X is Adj-est/most Adj" for a small
+  list of known adjectives. Also fixed while testing this: `expansion.coin_word` now retries a colliding coined
+  word up to 40 times instead of 6 (a tiny inventory produced a homograph, "than" = "cold"). 16 tests in
+  `test_degree.py`.

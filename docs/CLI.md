@@ -594,6 +594,40 @@ construction with the possessor `mi4ha` (dative "I") in front and no verb
 particle as usual. (`--llm fake` recognizes "there is/are/was X", "is there
 X?", "there is no X" and, in dative-possessor languages, "A has/had B".)
 
+**Comparatives and superlatives.** Every language decides how to mark the
+comparative ("bigger") and the superlative ("biggest") -- each independently a
+suffix on the adjective or a separate word ("more"/"most") -- and how to mark
+the standard of comparison ("than Y"): a word "than" beside the standard (in
+the language's adposition order), the standard in an oblique case (no extra
+word), or a verb "exceed" with the standard as its object. The planner is told
+the language's own choices; the English direction is given them too. Verified
+with `--llm fake`: `--seed 2` (comparative and superlative suffixes, standard in
+the dative case) and `--seed 6` (words "more"/"most" and a particle "than", no
+overt copula):
+
+```bash
+conlang translate "The dog is bigger than the cat." --lang t9 --to conlang --llm fake
+conlang translate "The dog is the biggest." --lang t9 --to conlang --llm fake
+conlang translate "The dog is bigger than the cat." --lang t10 --to conlang --llm fake
+conlang translate "The dog is the biggest." --lang t10 --to conlang --llm fake
+```
+
+```
+sīi fyaě kỉkngẻeaa mbnaèaai sīoi knaỉa
+sīi fyaě kỉkngẻeaa mbnaèii
+fan hanv dudatyaum nuw la
+fan 'us dudatyaum
+```
+
+In `t9` the adjective `mbnaè-` takes `-aai` (comparative) or `-ii` (superlative)
+and the cat `knaỉa` is in the dative with its own agreeing article; in `t10`
+the same sentence is `dog more big than cat` (`hanv` = "more", `nuw` = "than")
+and the superlative is `dog most big` (`'us` = "most"). Translating
+`t9`'s superlative back gives `dog is most big` (the plain draft; a real LLM
+smooths it into "the dog is the biggest"). `--llm fake` plans only the
+"X is [more/-er/most/-est] Adj [than Y]" shape from a small list of known
+adjectives; a real LLM handles the rest.
+
 ## `conlang pronounce`
 
 Show IPA and romanization for a known word (English gloss or conlang

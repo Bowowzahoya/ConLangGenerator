@@ -113,6 +113,10 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   renderer does not check that the planner really followed the strategy, and
   the English direction is told the strategy in the fluency prompt rather than
   parsing it.
+- **Degree marking is one suffix or word per degree**, and the standard of
+  comparison uses one of three strategies ("than" word, oblique case, "exceed"
+  verb). Nothing checks the planner used the language's strategy; equatives and
+  degree of adverbs/nouns are not modeled.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

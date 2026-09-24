@@ -171,6 +171,38 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         }
     )
 
+    # Comparison and degree marking: an eighth independent stream.
+    degree_rng = random.Random(f"{spec.seed}:degree")
+    strategy_roll = degree_rng.random()
+    oblique = next((c for c in ("locative", "dative", "genitive") if c in grammar.cases), "")
+    if strategy_roll < 0.40 or (strategy_roll < 0.70 and not oblique):
+        comparative_strategy = "particle"
+    elif strategy_roll < 0.70:
+        comparative_strategy = "case"
+    else:
+        comparative_strategy = "exceed"
+    comparative_marking = "affix" if degree_rng.random() < 0.5 else "word"
+    superlative_marking = "affix" if degree_rng.random() < 0.5 else "word"
+    degree_labels = tuple(
+        label
+        for label, marking in (("comparative", comparative_marking), ("superlative", superlative_marking))
+        if marking == "affix"
+    )
+    degree_taken = frozenset(
+        affix.suffix for affix in (*grammar.class_affixes, *grammar.case_affixes, *grammar.number_affixes)
+    )
+    grammar = grammar.model_copy(
+        update={
+            "comparative_strategy": comparative_strategy,
+            "comparative_case": oblique if comparative_strategy == "case" else "",
+            "comparative_marking": comparative_marking,
+            "superlative_marking": superlative_marking,
+            "degree_affixes": inflection_gen.distinct_suffixes(
+                degree_rng, inventory, syllable_structure, degree_labels, degree_taken
+            ),
+        }
+    )
+
     seed_entries = tuple(
         LexicalEntry(
             ipa=example.ipa,
