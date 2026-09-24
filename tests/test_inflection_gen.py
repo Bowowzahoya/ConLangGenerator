@@ -69,7 +69,9 @@ def test_generate_language_populates_case_tense_agreement_affixes():
     grammar = language.grammar
     assert [a.label for a in grammar.case_affixes] == list(grammar.cases)
     assert [a.label for a in grammar.tense_affixes] == list(grammar.tenses)
-    assert [a.label for a in grammar.agreement_affixes] == list(inflection_gen.AGREEMENT_LABELS)
+    assert [a.label for a in grammar.agreement_affixes][: len(inflection_gen.AGREEMENT_LABELS)] == list(
+        inflection_gen.AGREEMENT_LABELS
+    )  # any noun-class labels follow the person labels
 
 
 def test_apply_affix_is_a_no_op_for_none():

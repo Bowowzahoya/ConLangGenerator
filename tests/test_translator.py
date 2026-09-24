@@ -38,7 +38,23 @@ _NO_FEATURES_SEED = 11
 
 
 def _language(seed: int):
-    return generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
+    """The fixture language without noun classes: these tests exercise
+    article/copula/case/tense behaviour in isolation (agreement is covered in
+    ``test_agreement.py``), so a seed that happens to roll classes is stripped
+    of them rather than re-found."""
+    language = generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
+    grammar = language.grammar
+    person_affixes = tuple(a for a in grammar.agreement_affixes if not a.label.startswith("class:"))
+    classless = grammar.model_copy(
+        update={
+            "noun_classes": (),
+            "class_affixes": (),
+            "agreement_affixes": person_affixes,
+            "object_agreement": False,
+            "object_agreement_affixes": (),
+        }
+    )
+    return language.model_copy(update={"grammar": classless})
 
 
 def test_nom_acc_language_has_the_expected_grammar_shape():

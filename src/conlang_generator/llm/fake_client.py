@@ -88,6 +88,34 @@ _FAKE_PLURAL_EXCLUDED = {"this", "does", "always", "perhaps", "thanks", "news", 
 _FAKE_ADVERBS = {"very", "extremely", "quite", "really", "too", "so", "always", "never", "often"}
 
 
+_FAKE_PERFECT_AUX = {"have", "has", "had"}
+_FAKE_MODALS = {"would": "conditional", "may": "potential", "might": "potential", "can": "potential", "could": "potential"}
+_FAKE_PARTICIPLE_LEMMA = {
+    "seen": "see", "gone": "go", "eaten": "eat", "given": "give", "known": "know", "come": "come", "drunk": "drink",
+}
+
+
+def _fake_participle_lemma(token: str) -> str:
+    if token in _FAKE_PARTICIPLE_LEMMA:
+        return _FAKE_PARTICIPLE_LEMMA[token]
+    return _fake_detect_tense_and_lemma(token)[1]
+
+
+def _fake_aspect_label(desired: str, aspects: list[str]) -> str | None:
+    """The closest of this language's own aspect labels to an English
+    ``desired`` one (progressive/perfect), else ``None``."""
+    if desired in aspects:
+        return desired
+    fallback = {"progressive": "imperfective", "perfect": "perfective"}.get(desired)
+    return fallback if fallback in aspects else None
+
+
+def _fake_mood_label(desired: str, moods: list[str]) -> str | None:
+    if desired in moods:
+        return desired
+    return "irrealis" if "irrealis" in moods else None
+
+
 def _fake_singular(token: str) -> str | None:
     """The singular of a plausibly plural English noun token, else ``None``.
     A crude suffix heuristic (this fake has no lexicon): ``-ies``, ``-es``
@@ -201,6 +229,23 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         tokens = [t for t in tokens if t not in _FAKE_AUX]
     if wh_token:
         tokens = tokens[1:]
+    aspects = [a for a in metadata.get("aspects", "").split(",") if a]
+    noun_classes = [c for c in metadata.get("noun_classes", "").split(",") if c]
+    object_agreement = metadata.get("object_agreement") == "true"
+    verb_moods = [m for m in metadata.get("verb_moods", "").split(",") if m]
+    perfect_aux = next(
+        (
+            t for i, t in enumerate(tokens)
+            if t in _FAKE_PERFECT_AUX
+            and any(u in _FAKE_PARTICIPLE_LEMMA or (u.endswith("ed") and len(u) > 3) for u in tokens[i + 1:])
+        ),
+        None,
+    )
+    if perfect_aux:
+        tokens = [t for t in tokens if t != perfect_aux]
+    modal = next((t for t in tokens[1:] if t in _FAKE_MODALS), None)
+    if modal:
+        tokens = [t for t in tokens if t != modal]
     tokens_no_copula = [t for t in tokens if t not in _FAKE_COPULAS]
     has_copula = any(t in _FAKE_COPULAS for t in tokens)
     copula_tok = next((t for t in tokens if t in _FAKE_COPULAS), None)
@@ -248,12 +293,16 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         subject_tok, adj_tok = content_tokens
         subject_np = noun_phrase(subject_tok, None)
         adjective_slot = content_slot(adj_tok, "adjective")
+        if noun_classes and subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder:
+            adjective_slot["agrees_with"] = _fake_singular(subject_tok) or subject_tok
         adjective_group = adverb_slots + [adjective_slot]
         copula_group: list[dict] = []
         if has_overt_copula:
             detected_tense = "past" if copula_tok in _FAKE_PAST_COPULAS else "non_past"
             tense_label = _fake_tense_label(detected_tense, tenses)
             copula_slot = {"kind": "copula", "agreement": _FAKE_AGREEMENT_BY_PRONOUN.get(subject_tok, "default")}
+            if noun_classes and subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder:
+                copula_slot["subject_gloss"] = _fake_singular(subject_tok) or subject_tok
             if tense_label:
                 copula_slot["tense"] = tense_label
             copula_group = [copula_slot]
@@ -265,6 +314,19 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     elif len(content_tokens) == 3:
         subject_tok, verb_tok, obj_tok = content_tokens
         detected_tense, verb_lemma = _fake_detect_tense_and_lemma(verb_tok)
+        aspect_label: str | None = None
+        verb_mood_label: str | None = None
+        if perfect_aux:
+            verb_lemma = _fake_participle_lemma(verb_tok)
+            detected_tense = "past" if perfect_aux == "had" else "non_past"
+            aspect_label = _fake_aspect_label("perfect", aspects)
+        elif has_copula and verb_tok.endswith("ing") and len(verb_tok) > 5:
+            verb_lemma = verb_tok[:-3]
+            detected_tense = "past" if copula_tok in _FAKE_PAST_COPULAS else "non_past"
+            aspect_label = _fake_aspect_label("progressive", aspects)
+        if modal:
+            verb_mood_label = _fake_mood_label(_FAKE_MODALS[modal], verb_moods)
+            detected_tense = "non_past"
         tense_label = _fake_tense_label(detected_tense, tenses)
         subject_case = "ergative" if alignment == "ergative_absolutive" else None
         object_case = "accusative" if alignment == "nominative_accusative" else None
@@ -276,6 +338,16 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         }
         if tense_label:
             verb_slot["tense"] = tense_label
+        if noun_classes and subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder:
+            verb_slot["subject_gloss"] = _fake_singular(subject_tok) or subject_tok
+        if object_agreement:
+            verb_slot["object_gloss"] = (
+                obj_tok if obj_tok in _FAKE_PRONOUN_TOKENS else (_fake_singular(obj_tok) or obj_tok)
+            )
+        if aspect_label:
+            verb_slot["aspect"] = aspect_label
+        if verb_mood_label:
+            verb_slot["verb_mood"] = verb_mood_label
         verb_group = adverb_slots + [verb_slot] + ([{"kind": "negation"}] if negated else [])
         role_slots = {"S": subject_np, "V": verb_group, "O": object_np}
         slots = [s for role in _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O")) for s in role_slots[role]]

@@ -14,7 +14,8 @@ Text is translated one sentence at a time (each sentence gets its own plan
 and mood: declarative, imperative, yes/no question, wh-question). Remaining
 v0 limitations, by design: a sentence's plan is a tree -- a "clause" slot
 holds a nested plan (complement/relative/adverbial, depth-capped) rendered
-in place with its linking word; there is still no special subordinate verb
+in place with its linking word; a finite verb takes aspect and verbal mood
+as well as tense and agreement; there is still no special subordinate verb
 form; negation is a single particle
 slot with no per-language negation-position typology curated; punctuation
 is not rendered.
@@ -60,7 +61,7 @@ from conlang_generator.core.grammar import GrammarProfile, InflectionAffix
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.romanization import apply_grammatical_spelling
-from conlang_generator.generation import inflection_gen, stress_gen, tone_sandhi, word_accent_gen
+from conlang_generator.generation import inflection_gen, noun_class_gen, stress_gen, tone_sandhi, word_accent_gen
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
@@ -79,6 +80,10 @@ _PAST_FORM_BY_LEMMA = {lemma: past for past, lemma in _IRREGULAR_LEMMA_BY_PAST.i
 english`` (via ``_english_verb_gloss``) to reconstruct a past-tense English
 gloss once a conlang verb has been decoded back to its lemma and a
 ``"past"`` tense reading."""
+_PARTICIPLE_BY_LEMMA = {
+    "see": "seen", "go": "gone", "eat": "eaten", "give": "given", "know": "known", "come": "come", "drink": "drunk",
+}
+"""Irregular past participles for the perfect (a regular ``-ed`` otherwise)."""
 
 
 @dataclass(frozen=True)
@@ -138,23 +143,33 @@ def _stress_and_word_accent_kwargs(language: Language) -> dict:
 
 
 def _combined_tense_agreement_affix(
-    grammar: GrammarProfile, tense_label: str | None, agreement_label: str
+    grammar: GrammarProfile,
+    tense_label: str | None,
+    agreement_label: str,
+    aspect_label: str | None = None,
+    mood_label: str | None = None,
+    object_label: str | None = None,
 ) -> InflectionAffix | None:
-    """Composes this sentence's own tense affix and agreement affix into
-    one synthetic ``InflectionAffix`` (tense first, then agreement) so
+    """Composes this sentence's own aspect, tense, verbal mood and agreement
+    affixes (in that order) into one synthetic ``InflectionAffix`` so
     ``inflection_gen.apply_affix`` only needs to re-derive stress once --
-    see that function's own docstring for why two separate calls would be
-    wasteful (and arguably incorrect). ``None`` when neither axis
-    contributes anything (an untensed, agreement-less-by-coincidence verb
-    -- not a real case in this project today, since ``agreement_affixes``
-    always has a ``"default"`` entry, but kept honest regardless)."""
+    see that function's own docstring for why separate calls would be
+    wasteful (and arguably incorrect). With no aspect or mood this is exactly
+    the earlier tense-then-agreement composition. ``None`` when nothing
+    contributes anything."""
     tense_affix = next((a for a in grammar.tense_affixes if a.label == tense_label), None) if tense_label else None
+    aspect_affix = next((a for a in grammar.aspect_affixes if a.label == aspect_label), None) if aspect_label else None
+    mood_affix = next((a for a in grammar.mood_affixes if a.label == mood_label), None) if mood_label else None
     agreement_affix = next((a for a in grammar.agreement_affixes if a.label == agreement_label), None)
-    prefix = (tense_affix.prefix if tense_affix else ()) + (agreement_affix.prefix if agreement_affix else ())
-    suffix = (tense_affix.suffix if tense_affix else ()) + (agreement_affix.suffix if agreement_affix else ())
+    object_affix = (
+        next((a for a in grammar.object_agreement_affixes if a.label == object_label), None) if object_label else None
+    )
+    parts = [aspect_affix, tense_affix, mood_affix, agreement_affix, object_affix]
+    prefix = tuple(sym for part in parts if part for sym in part.prefix)
+    suffix = tuple(sym for part in parts if part for sym in part.suffix)
     if not prefix and not suffix:
         return None
-    return InflectionAffix(label="tense+agreement", prefix=prefix, suffix=suffix)
+    return InflectionAffix(label="verb-inflection", prefix=prefix, suffix=suffix)
 
 
 def _case_affix_salt(entry: LexicalEntry, case_label: str) -> str:
@@ -168,12 +183,27 @@ def _case_affix_salt(entry: LexicalEntry, case_label: str) -> str:
     return f"case:{entry.ipa}:{case_label}"
 
 
-def _verb_affix_salt(entry: LexicalEntry, tense_label: str | None, agreement_label: str) -> str:
+def _verb_affix_salt(
+    entry: LexicalEntry,
+    tense_label: str | None,
+    agreement_label: str,
+    aspect_label: str | None = None,
+    mood_label: str | None = None,
+    object_label: str | None = None,
+) -> str:
     """The rng salt for marking ``entry`` with a given tense+agreement
-    combination -- same "identical salt on both sides" contract as
-    ``_case_affix_salt``, keyed on the *resolved* labels (not the raw
-    English verb/subject tokens, which decoding never has)."""
-    return f"verb:{entry.ipa}:{tense_label}:{agreement_label}"
+    (+ aspect, verbal mood) combination -- same "identical salt on both
+    sides" contract as ``_case_affix_salt``, keyed on the *resolved* labels
+    (not the raw English verb/subject tokens, which decoding never has).
+    Without aspect/mood it is exactly the earlier salt."""
+    salt = f"verb:{entry.ipa}:{tense_label}:{agreement_label}"
+    if aspect_label:
+        salt += f":a={aspect_label}"
+    if mood_label:
+        salt += f":m={mood_label}"
+    if object_label:
+        salt += f":o={object_label}"
+    return salt
 
 
 def _noun_affix(
@@ -236,6 +266,9 @@ def _apply_verb_inflection(
     tense_label: str | None,
     agreement_label: str,
     mood: str = "declarative",
+    aspect_label: str | None = None,
+    verb_mood_label: str | None = None,
+    object_label: str | None = None,
 ) -> tuple[str, str]:
     """The verb/copula-side counterpart of ``_apply_case`` -- composes and
     applies this sentence's own tense+agreement affix (see
@@ -266,11 +299,25 @@ def _apply_verb_inflection(
         romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
         return romanization, ipa
     resolved_tense = tense_label if tense_label in grammar.tenses else None
-    resolved_agreement = agreement_label if agreement_label in inflection_gen.AGREEMENT_LABELS else "default"
-    affix = _combined_tense_agreement_affix(grammar, resolved_tense, resolved_agreement)
+    resolved_agreement = (
+        agreement_label if agreement_label in _agreement_labels(grammar) else "default"
+    )
+    resolved_aspect = aspect_label if aspect_label in grammar.aspects else None
+    resolved_verb_mood = verb_mood_label if verb_mood_label in grammar.moods else None
+    resolved_object = (
+        object_label if any(a.label == object_label for a in grammar.object_agreement_affixes) else None
+    )
+    affix = _combined_tense_agreement_affix(
+        grammar, resolved_tense, resolved_agreement, resolved_aspect, resolved_verb_mood, resolved_object
+    )
     if affix is None:
         return entry.romanization, entry.ipa
-    rng = _translation_rng(language, _verb_affix_salt(entry, resolved_tense, resolved_agreement))
+    rng = _translation_rng(
+        language,
+        _verb_affix_salt(
+            entry, resolved_tense, resolved_agreement, resolved_aspect, resolved_verb_mood, resolved_object
+        ),
+    )
     ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
     romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
     return romanization, ipa
@@ -338,6 +385,70 @@ def _question_particle_first(language: Language) -> bool:
     return language.grammar.word_order.value in ("VSO", "VOS")
 
 
+def _agreement_labels(grammar: GrammarProfile) -> tuple[str, ...]:
+    """Every subject-agreement label this language's verbs can take: the
+    person labels, then any ``"class:<name>"`` ones."""
+    extra = tuple(a.label for a in grammar.agreement_affixes if a.label not in inflection_gen.AGREEMENT_LABELS)
+    return inflection_gen.AGREEMENT_LABELS + extra
+
+
+_OBJECT_PERSON_BY_GLOSS = {"i": "I", "me": "I", "you": "you", "he": "he", "she": "he", "him": "he", "her": "he", "we": "we", "us": "we"}
+
+
+def _class_label_of(language: Language, gloss: str | None) -> str | None:
+    """The ``"class:<name>"`` agreement label of the noun with lemma
+    ``gloss`` (``None`` in a language with no noun classes)."""
+    if not gloss:
+        return None
+    noun_cls = noun_class_gen.noun_class(language.grammar.noun_classes, language.spec.seed, gloss)
+    return noun_class_gen.class_agreement_label(noun_cls) if noun_cls else None
+
+
+def _verb_agreement(language: Language, slot: sentence_planner.PlannedSlot) -> tuple[str, str | None]:
+    """``(subject agreement label, object agreement label)`` for a finite
+    verb/copula slot: a noun subject's class replaces the ``"default"``
+    (3rd person) label; an object is agreed with only in a language with
+    object agreement (a pronoun by person, a noun by class)."""
+    agreement = slot.agreement or "default"
+    if agreement == "default" and slot.subject_gloss:
+        subject_class = _class_label_of(language, slot.subject_gloss)
+        if subject_class in _agreement_labels(language.grammar):
+            agreement = subject_class
+    object_label: str | None = None
+    if language.grammar.object_agreement and slot.object_gloss:
+        object_label = _OBJECT_PERSON_BY_GLOSS.get(slot.object_gloss) or _class_label_of(language, slot.object_gloss)
+    return agreement, object_label
+
+
+def _class_agreement_salt(entry: LexicalEntry, noun_cls: str) -> str:
+    return f"classagr:{entry.ipa}:{noun_cls}"
+
+
+def _apply_class_agreement(language: Language, entry: LexicalEntry, class_label: str | None) -> tuple[str, str]:
+    """An article/adjective ``entry`` agreeing with a noun of class
+    ``class_label`` (a ``"class:<name>"`` label or a bare class name) --
+    bare when the language has no such class."""
+    noun_cls = (class_label or "").removeprefix(noun_class_gen.CLASS_AGREEMENT_PREFIX)
+    affix = next((a for a in language.grammar.class_affixes if a.label == noun_cls), None)
+    if affix is None:
+        return entry.romanization, entry.ipa
+    rng = _translation_rng(language, _class_agreement_salt(entry, noun_cls))
+    ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
+    romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+    return romanization, ipa
+
+
+def _next_noun_gloss(slots, index: int) -> str | None:
+    """The lemma of the first noun-like slot after ``slots[index]`` (what an
+    article agrees with); ``None`` when there is none."""
+    for later in slots[index + 1:]:
+        if later.kind == "content" and later.gloss and later.pos in ("noun", "pronoun"):
+            return later.gloss
+        if later.kind == "name":
+            return None
+    return None
+
+
 def _linker_follows_clause(language: Language) -> bool:
     """Illustrative placement of a subordinating word ("that", "because",
     "who"): after its clause in verb-final languages (SOV, OSV, like
@@ -356,7 +467,7 @@ def _render_plan(
     ipa_parts: list[str] = []
     gloss_parts: list[str | None] = []
     mood_pending = plan.mood == "imperative"
-    for slot in plan.slots:
+    for slot_index, slot in enumerate(plan.slots):
         rendered: tuple[str, str] | None = None
         entry: LexicalEntry | None = None
         if slot.kind == "clause":
@@ -386,11 +497,17 @@ def _render_plan(
                 working_language, slot.gloss, pos, coined, llm_client, lemma_candidates=[slot.gloss]
             )
             if pos is PartOfSpeech.VERB:
+                agreement_label, object_label = _verb_agreement(working_language, slot)
                 rendered = _apply_verb_inflection(
-                    working_language, entry, slot.tense, slot.agreement or "default",
+                    working_language, entry, slot.tense, agreement_label,
                     "imperative" if mood_pending else "declarative",
+                    slot.aspect, slot.verb_mood, object_label,
                 )
                 mood_pending = False
+            elif pos is PartOfSpeech.ADJECTIVE and slot.agrees_with and working_language.grammar.noun_classes:
+                rendered = _apply_class_agreement(
+                    working_language, entry, _class_label_of(working_language, slot.agrees_with)
+                )
             else:
                 rendered = _apply_case(
                     working_language, entry, slot.case, slot.number if pos is PartOfSpeech.NOUN else None
@@ -414,15 +531,21 @@ def _render_plan(
         elif slot.kind == "copula":
             entry = working_language.lexicon.by_gloss("be")
             if entry is not None:
+                agreement_label, object_label = _verb_agreement(working_language, slot)
                 rendered = _apply_verb_inflection(
-                    working_language, entry, slot.tense, slot.agreement or "default",
+                    working_language, entry, slot.tense, agreement_label,
                     "imperative" if mood_pending else "declarative",
+                    slot.aspect, slot.verb_mood, object_label,
                 )
                 mood_pending = False
         elif slot.kind in _BARE_GLOSS_BY_SLOT_KIND:
             entry = working_language.lexicon.by_gloss(_BARE_GLOSS_BY_SLOT_KIND[slot.kind])
             if entry is not None:
                 rendered = (entry.romanization, entry.ipa)
+                if slot.kind == "article" and working_language.grammar.noun_classes:
+                    rendered = _apply_class_agreement(
+                        working_language, entry, _class_label_of(working_language, _next_noun_gloss(plan.slots, slot_index))
+                    )
 
         if rendered is not None:
             romanization_parts.append(rendered[0])
@@ -518,15 +641,52 @@ def _decode_noun(language: Language, token: str) -> tuple[LexicalEntry, str] | N
     return None
 
 
-def _decode_verb(language: Language, token: str) -> tuple[LexicalEntry, str | None] | None:
-    """The verb-position counterpart of ``_decode_noun`` -- returns
-    ``(entry, tense_label)`` (``None`` for the tense when this language
-    has no tense system, or the exact bare form matched)."""
+def _initial_letter(text: str) -> str:
+    stripped = "".join(c for c in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(c))
+    return stripped[:1]
+
+
+def _decode_adjective(language: Language, token: str) -> tuple[LexicalEntry, str] | None:
+    """An adjective carrying a class-agreement suffix: ``(entry,
+    class_name)``; ``None`` when no adjective plus class affix spells
+    ``token``."""
+    normalized = _normalize(token)
+    initial = _initial_letter(token)
+    for entry in language.lexicon.entries:
+        if entry.pos is not PartOfSpeech.ADJECTIVE or _initial_letter(entry.romanization) != initial:
+            continue
+        for affix in language.grammar.class_affixes:
+            if _normalize(_apply_class_agreement(language, entry, affix.label)[0]) == normalized:
+                return entry, affix.label
+    return None
+
+
+def _article_forms(language: Language) -> set[str]:
+    """Every spelling of "the" in this language: bare, plus one per noun class."""
+    entry = language.lexicon.by_gloss("the")
+    if entry is None:
+        return set()
+    forms = {_normalize(entry.romanization)}
+    for affix in language.grammar.class_affixes:
+        forms.add(_normalize(_apply_class_agreement(language, entry, affix.label)[0]))
+    return forms
+
+
+def _decode_verb_full(
+    language: Language, token: str
+) -> tuple[LexicalEntry, str | None, str | None, str | None] | None:
+    """``(entry, tense_label, aspect_label, verb_mood_label)`` for a verb-
+    position token, with ``"imperative"`` in the tense slot for an
+    imperative. Generate-and-compare like ``_decode_noun``. The full
+    tense x aspect x mood x agreement search is large, so it is restricted
+    to verbs whose first letter matches the token's (suffixes never change
+    it); if that finds nothing, the earlier tense x agreement search runs
+    over every verb."""
     normalized = _normalize(token)
     verb_entries = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.VERB]
     for entry in verb_entries:
         if _normalize(entry.romanization) == normalized:
-            return entry, None
+            return entry, None, None, None
     imperative = next((a for a in language.grammar.mood_affixes if a.label == "imperative"), None)
     if imperative is not None:
         for entry in verb_entries:
@@ -536,22 +696,73 @@ def _decode_verb(language: Language, token: str) -> tuple[LexicalEntry, str | No
             )
             candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
             if _normalize(candidate) == normalized:
-                return entry, "imperative"
-    tense_options: list[str | None] = [None] + list(language.grammar.tenses)
-    for entry in verb_entries:
-        for tense_label in tense_options:
-            for agreement_label in inflection_gen.AGREEMENT_LABELS:
-                affix = _combined_tense_agreement_affix(language.grammar, tense_label, agreement_label)
-                if affix is None:
-                    continue
-                rng = _translation_rng(language, _verb_affix_salt(entry, tense_label, agreement_label))
-                ipa = inflection_gen.apply_affix(
-                    rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
-                )
-                candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
-                if _normalize(candidate) == normalized:
-                    return entry, tense_label
-    return None
+                return entry, "imperative", None, None
+    kwargs = _stress_and_word_accent_kwargs(language)
+    grammar = language.grammar
+    tense_options: list[str | None] = [None] + list(grammar.tenses)
+    aspect_options: list[str | None] = [None] + list(grammar.aspects)
+    mood_options: list[str | None] = [None] + [m for m in grammar.moods if m != "imperative"]
+    object_options: list[str | None] = [None] + [a.label for a in grammar.object_agreement_affixes]
+    agreement_options = _agreement_labels(grammar)
+
+    def search(entries, aspects, moods, objects):
+        # Different label combinations can spell the same word (short
+        # suffixes concatenate alike), so try the plainest reading first:
+        # fewest optional labels, and a tense whenever the language has
+        # tenses (the encoder normally supplies one).
+        combos = sorted(
+            (
+                (tense_label, aspect_label, mood_label, object_label)
+                for tense_label in tense_options
+                for aspect_label in aspects
+                for mood_label in moods
+                for object_label in objects
+            ),
+            key=lambda c: (c[1] is not None) + (c[2] is not None) + (c[3] is not None)
+            + (c[0] is None and bool(grammar.tenses)),
+        )
+        for tense_label, aspect_label, mood_label, object_label in combos:
+            for entry in entries:
+                for agreement_label in agreement_options:
+                    affix = _combined_tense_agreement_affix(
+                        grammar, tense_label, agreement_label, aspect_label, mood_label, object_label
+                    )
+                    if affix is None:
+                        continue
+                    rng = _translation_rng(
+                        language,
+                        _verb_affix_salt(entry, tense_label, agreement_label, aspect_label, mood_label, object_label),
+                    )
+                    ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **kwargs)
+                    candidate = apply_grammatical_spelling(
+                        language.romanization, language.romanization.apply(ipa), entry.pos
+                    )
+                    if _normalize(candidate) == normalized:
+                        return entry, tense_label, aspect_label, mood_label
+        return None
+
+    initial = _initial_letter(token)
+    likely = [e for e in verb_entries if _initial_letter(e.romanization) == initial]
+    # Stages, cheapest first: tense x agreement x object agreement; then
+    # aspect/mood without an object marker; then everything together (only
+    # in languages that have object agreement at all).
+    found = search(likely, [None], [None], object_options)
+    if found is None:
+        found = search(likely, aspect_options, mood_options, [None])
+    if found is None and len(object_options) > 1:
+        found = search(likely, aspect_options, mood_options, object_options)
+    if found is None and len(likely) != len(verb_entries):
+        found = search(verb_entries, [None], [None], [None])
+    return found
+
+
+def _decode_verb(language: Language, token: str) -> tuple[LexicalEntry, str | None] | None:
+    """The verb-position counterpart of ``_decode_noun`` -- returns
+    ``(entry, tense_label)`` (``None`` for the tense when this language
+    has no tense system, or the exact bare form matched; ``"imperative"``
+    for an imperative). See ``_decode_verb_full`` for aspect and mood."""
+    full = _decode_verb_full(language, token)
+    return None if full is None else (full[0], full[1])
 
 
 def _english_verb_gloss(entry: LexicalEntry, tense_label: str | None) -> str:
@@ -567,13 +778,33 @@ def _english_verb_gloss(entry: LexicalEntry, tense_label: str | None) -> str:
     return _PAST_FORM_BY_LEMMA.get(entry.primary_gloss, entry.primary_gloss + "ed")
 
 
+def _english_verb_phrase(
+    entry: LexicalEntry, tense_label: str | None, aspect_label: str | None, mood_label: str | None
+) -> str:
+    """A rough English rendering of a decoded verb with aspect/mood -- the
+    plain fallback draft, not the fluent sentence (the LLM sees the labels)."""
+    gloss = entry.primary_gloss
+    if mood_label in ("conditional",):
+        return f"would {gloss}"
+    if mood_label in ("potential",):
+        return f"can {gloss}"
+    if mood_label in ("subjunctive", "irrealis"):
+        return f"might {gloss}"
+    if aspect_label in ("progressive", "imperfective"):
+        return f"is {gloss}ing" if tense_label != "past" else f"was {gloss}ing"
+    if aspect_label == "perfect":
+        return f"has {_PARTICIPLE_BY_LEMMA.get(gloss) or _PAST_FORM_BY_LEMMA.get(gloss, gloss + 'ed')}"
+    if aspect_label == "habitual":
+        return f"usually {gloss}s"
+    return _english_verb_gloss(entry, tense_label)
+
+
 def translate_to_english(
     text: str, language: Language, llm_client: LLMClient
 ) -> TranslationResult:
     raw_tokens = unicodedata.normalize("NFC", text).strip().split()
-    the_entry = language.lexicon.by_gloss("the")
-    the_normalized = _normalize(the_entry.romanization) if the_entry is not None else None
-    tokens = [t for t in raw_tokens if the_normalized is None or _normalize(t) != the_normalized]
+    article_forms = _article_forms(language)
+    tokens = [t for t in raw_tokens if _normalize(t) not in article_forms]
 
     # Per-token, structure-agnostic decode -- the plan-driven encoder can
     # produce genuinely arbitrary structure, so there's no fixed sentence
@@ -608,17 +839,27 @@ def translate_to_english(
                 noun_entry.primary_gloss if not notes else f"{noun_entry.primary_gloss} ({', '.join(notes)})"
             )
             continue
-        verb_decoded = _decode_verb(language, tok)
-        if verb_decoded is not None:
-            verb_entry, tense_label = verb_decoded
+        adjective_decoded = _decode_adjective(language, tok) if language.grammar.class_affixes else None
+        if adjective_decoded is not None:
+            plain.append(adjective_decoded[0].primary_gloss)
+            annotated.append(adjective_decoded[0].primary_gloss)
+            continue
+        verb_full = _decode_verb_full(language, tok)
+        if verb_full is not None:
+            verb_entry, tense_label, aspect_label, mood_label = verb_full
             if tense_label == "imperative":
                 is_imperative = True
                 plain.append(verb_entry.primary_gloss)
                 annotated.append(f"{verb_entry.primary_gloss} (mood: imperative)")
                 continue
-            gloss = _english_verb_gloss(verb_entry, tense_label)
+            gloss = _english_verb_phrase(verb_entry, tense_label, aspect_label, mood_label)
             plain.append(gloss)
-            annotated.append(gloss if tense_label is None else f"{gloss} (tense: {tense_label})")
+            notes = [
+                f"{name}: {label}"
+                for name, label in (("tense", tense_label), ("aspect", aspect_label), ("mood", mood_label))
+                if label is not None
+            ]
+            annotated.append(gloss if not notes else f"{gloss} ({', '.join(notes)})")
             continue
         plain.append(f"<unknown:{tok}>")
         annotated.append(f"<unknown:{tok}>")
@@ -635,8 +876,9 @@ def translate_to_english(
             "annotated with '(plural)' (render the noun plural), '(mood: imperative)' "
             "(a command), '(case: X)' (this word's grammatical role -- "
             "e.g. an accusative/absolutive/ergative-marked word is "
-            "typically a direct object) or '(tense: X)' (a verb's "
-            "detected tense -- render it as the matching English tense). "
+            "typically a direct object) or '(tense: X)', '(aspect: X)' or '(mood: X)' (a verb's "
+            "detected tense, aspect or verbal mood -- render them as the matching English "
+            "tense, progressive/perfect/habitual aspect, or would/can/might). "
             "Keep the meaning and the word order's implied roles; do not "
             "add new content; drop the annotations themselves from your "
             "output."

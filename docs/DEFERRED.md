@@ -196,7 +196,9 @@ S/M/L as above.
 
 **Done:** plural number, imperative, yes/no and wh-questions, vocatives (as
 plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
-structure with complement, relative and adverbial clauses (pass 2). See
+structure with complement, relative and adverbial clauses (pass 2); aspect and
+verbal mood as systems separate from tense (pass 3); noun classes with article,
+adjective and verb (subject and object) agreement (pass 4). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
@@ -207,8 +209,19 @@ structure with complement, relative and adverbial clauses (pass 2). See
    changes in subordinate clauses (subjunctive, non-finite), no
    correlatives. The subordinator ("that", "because") is coined as an
    ordinary particle word.
-2. **Aspect and mood as separate systems (M).** Only tense exists now.
-3. **Subject and object agreement, gender / noun classes (M each).**
+2. **Agreement follow-ups (M).** See below.
+
+**Agreement follow-ups (M):** number agreement (plural verbs/adjectives); a
+noun's class is not marked on the noun itself (no Bantu-style prefixes or
+Romance-style endings), only through agreement; class assignment for
+non-gendered nouns is a hash, not real lexical gender; adjective agreement
+depends on the planner naming the noun (`agrees_with`); no agreement of
+possessives, numerals or demonstratives; case agreement on adjectives.
+
+**Aspect/mood follow-ups (M):** tense, case and agreement suffixes can still
+collide with one another (only aspect and mood suffixes are made distinct);
+no periphrastic (auxiliary) tenses or moods; no evidentiality or negative
+mood; aspect/mood affixes do not yet evolve in `sound_change`.
 
 **Clause types still missing:** existentials and possession ("there is",
 "I have"; many languages have no verb "have") (M); passives and other voices

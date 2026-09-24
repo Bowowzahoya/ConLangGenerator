@@ -87,6 +87,23 @@ class PlannedSlot:
     number: str | None = None
     """``"plural"`` or ``None`` (singular, unmarked) -- only ever meaningful
     on a noun ("content" with pos "noun")."""
+    aspect: str | None = None
+    """One of this language's own ``GrammarProfile.aspects`` labels, or
+    ``None`` -- only ever meaningful on a finite verb or the copula."""
+    verb_mood: str | None = None
+    """One of this language's own ``GrammarProfile.moods`` labels (never
+    ``"imperative"``, which is the sentence's mood), or ``None`` -- only
+    ever meaningful on a finite verb or the copula."""
+    agrees_with: str | None = None
+    """For an adjective: the lemma of the noun it modifies or is predicated
+    of (only set in a language with noun classes)."""
+    subject_gloss: str | None = None
+    """For a finite verb or the copula whose subject is an ordinary noun (not a
+    pronoun or name): that noun's lemma, so the verb can agree with its
+    class (only set in a language with noun classes)."""
+    object_gloss: str | None = None
+    """For a finite verb in a language with object agreement: the lemma of
+    its direct object (a noun, or a pronoun I/you/he/we)."""
     clause: SentencePlan | None = None
     """For ``kind="clause"``: the subordinate clause's own plan (its slots are
     rendered in place; its ``mood`` is ignored -- only a main clause can be an
@@ -138,6 +155,20 @@ def _build_system_prompt(language: Language) -> str:
     tenses_desc = (
         ", ".join(grammar.tenses) if grammar.tenses else 'none -- never set "tense" on anything'
     )
+    aspects_desc = (
+        ", ".join(grammar.aspects) if grammar.aspects else 'none -- never set "aspect" on anything'
+    )
+    moods_desc = (
+        ", ".join(grammar.moods) if grammar.moods else 'none -- never set "verb_mood" on anything'
+    )
+    classes_desc = (
+        ", ".join(grammar.noun_classes)
+        if grammar.noun_classes
+        else 'none -- never set "agrees_with", "subject_gloss" or "object_gloss"'
+    )
+    object_agreement_desc = (
+        "yes" if grammar.object_agreement else 'no -- never set "object_gloss"'
+    )
     optional_kinds = []
     if grammar.has_articles:
         optional_kinds.append('"article" (a definite-article slot -- no other field needed)')
@@ -164,6 +195,13 @@ predicate adjective, regardless of word_order.
 - alignment: {grammar.alignment.value}.
 - grammatical cases this language actually has: {cases_desc}.
 - tenses this language actually has: {tenses_desc}.
+- aspects this language actually has: {aspects_desc}.
+- noun classes this language actually has: {classes_desc}. A noun's class \
+is worked out by a separate step from its lemma; articles and adjectives \
+agree with it, and so can a verb.
+- the verb also agrees with its direct object: {object_agreement_desc}.
+- verbal moods (other than the imperative) this language actually has: \
+{moods_desc}.
 - adjective_after_noun: {grammar.adjective_after_noun} -- a predicate \
 adjective's own position relative to its subject.
 - optional slot kinds available in this language: {optional_desc}.
@@ -187,6 +225,29 @@ that) -- no real language does this, even when the English input itself \
 used "the".
 
 A noun that is plural in the English ("mountains", "the dogs") is ONE "content" slot with the singular lemma as "gloss" and "number":"plural" (never the plural spelling as the gloss, and never omit the number). Singular nouns have no "number" field.
+
+A finite verb or copula slot may also set "aspect" (one of this \
+language's own aspects above, chosen by the English wording: progressive \
+"is seeing" -> progressive, or imperfective if that is the closest label \
+available; perfect "has seen" -> perfect, or perfective; simple past or \
+completed events -> perfective; "used to"/"usually" -> habitual, or \
+imperfective) and "verb_mood" (one of this language's own verbal moods \
+above: "would see" -> conditional; "may/can see" -> potential; a wish or \
+"if I were" -> subjunctive; any of these -> irrealis when that is the only \
+label). Tense and aspect are independent: "I was seeing" is tense past + \
+aspect progressive. Omit "aspect"/"verb_mood" when the English is plain, or \
+when this language has no fitting label. Never write English auxiliaries \
+("have", "would", "may", "is" before -ing) as their own slots: they are \
+expressed only through these fields.
+
+Agreement (only where the two bullets above allow it): an adjective slot \
+sets "agrees_with" to the lemma of the noun it modifies or, as a predicate, \
+of the sentence's subject ("the red dog": agrees_with "dog"). A finite verb \
+or copula whose subject is an ordinary noun (not a pronoun, not a name) \
+keeps "agreement":"default" and sets "subject_gloss" to that noun's lemma; \
+in a language with object agreement a finite verb also sets "object_gloss" \
+to the lemma of its direct object (a pronoun object is "I", "you", "he" or \
+"we"). Articles need nothing: the renderer agrees them with the next noun.
 
 The sentence's "mood" is one of: "declarative" (the default), "imperative" (a command or request addressed to someone: the finite verb is a content slot with pos "verb" and NO "tense"/"agreement"; the subject "you" is left out), "question" (a yes/no question), "wh_question" (a question whose question word -- what, who, where, why, how -- is its own content slot, pos "pronoun" or "adverb"). Do not add any word for the mood yourself: a separate step adds this language's own question particle or imperative marking. A noun of direct address ("My friend, come here") is an ordinary noun content slot placed first, with no case.
 
@@ -289,6 +350,10 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "alignment": grammar.alignment.value,
             "cases": ",".join(grammar.cases),
             "tenses": ",".join(grammar.tenses),
+            "aspects": ",".join(grammar.aspects),
+            "noun_classes": ",".join(grammar.noun_classes),
+            "object_agreement": "true" if grammar.object_agreement else "false",
+            "verb_moods": ",".join(grammar.moods),
             "has_articles": "true" if grammar.has_articles else "false",
             "has_overt_copula": "true" if grammar.has_overt_copula else "false",
             "adjective_after_noun": "true" if grammar.adjective_after_noun else "false",
@@ -299,6 +364,10 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
     if plan is None:
         return _word_for_word_fallback(text)
     return plan
+
+
+def _lemma(value: object) -> str | None:
+    return value.strip().lower() if isinstance(value, str) and value.strip() else None
 
 
 def _coerce_optional_str(value: object) -> str | None:
@@ -382,6 +451,11 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                 tense=_coerce_optional_str(item.get("tense")),
                 agreement=_coerce_optional_str(item.get("agreement")),
                 number="plural" if item.get("number") == "plural" else None,
+                aspect=_coerce_optional_str(item.get("aspect")),
+                verb_mood=_coerce_optional_str(item.get("verb_mood")),
+                agrees_with=_lemma(item.get("agrees_with")),
+                subject_gloss=_lemma(item.get("subject_gloss")),
+                object_gloss=_lemma(item.get("object_gloss")),
             )
         )
     return slots

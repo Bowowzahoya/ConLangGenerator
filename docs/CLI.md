@@ -442,6 +442,65 @@ planner nests a clause after `that`/`because`/`if`/`when`/`although`/`while`
 only, and treats the main clause simply; a real LLM handles relative clauses
 too.)
 
+Verbs also carry **aspect** and a **verbal mood**, each its own system
+separate from tense. Every generated language rolls its own aspect system
+(none, two-way perfective/imperfective, or four-way perfective/progressive/
+perfect/habitual) and its own verbal moods (none, just irrealis, or
+subjunctive/conditional/potential); the imperative is a separate sentence
+mood (above). The planner maps the English wording to the closest label the
+language has ("is seeing" -> progressive, or imperfective in a two-way
+system; "has seen" -> perfect, or perfective; "would see" -> conditional, or
+irrealis), and a language with no such label leaves the verb unmarked. Tense
+and aspect are independent ("was seeing" is past + progressive). Verified
+with `--llm fake` on a language generated with `--seed 12 --prompt "x"` (a
+two-way aspect system, irrealis only):
+
+```bash
+conlang translate "I see the river." --lang t2 --to conlang --llm fake
+conlang translate "I am seeing the river." --lang t2 --to conlang --llm fake
+conlang translate "I would see the river." --lang t2 --to conlang --llm fake
+```
+
+```
+mu1 tfi1niri knal3 mun3lu1min
+mu1 tfi1noiri knal3 mun3lu1min
+mu1 tfi1nira'i knal3 mun3lu1min
+```
+
+Translating the verb forms back gives `I is seeing river` and `I might see
+river` (the plain, fake-LLM draft; a real LLM turns the annotations into
+fluent English).
+
+**Noun classes and agreement.** Every language rolls a noun-class system
+(none, masculine/feminine, masculine/feminine/neuter, animate/inanimate, or
+human/animal/plant/thing) and whether its verb also agrees with the object.
+A noun's class is worked out from its English lemma (natural gender and
+animacy first, otherwise a stable hash) and shows only through agreement:
+the article agrees with the next noun, an adjective with its noun (or, as a
+predicate, the sentence's subject), a verb with a noun subject (person
+agreement stays for pronouns), and, where the language has object agreement,
+with its object (by person for a pronoun, by class for a noun). Verified with
+`--llm fake` on a language generated with `--seed 3 --prompt p` (SOV, an
+animate/inanimate system, articles, and object agreement):
+
+```bash
+conlang translate "the dog sees the river" --lang t3 --to conlang --llm fake
+conlang translate "I see the dog" --lang t3 --to conlang --llm fake
+conlang translate "I see the river" --lang t3 --to conlang --llm fake
+```
+
+```
+swisu:k pnait swisums lignasa skutusbusalach
+mipap swisu:k pnaita skutusbusu-iwg
+mipap swisums lignasa skutusbusu-ach
+```
+
+The article is `swisu:k` before the animate `dog` and `swisums` before the
+inanimate `river`, and the last word is the verb: its ending changes with the
+subject's class in the first sentence and with the object's class in the other
+two (`-iwg` after an animate object, `-ach` after an inanimate one).
+Translating back drops the articles and reads the verb.
+
 ## `conlang pronounce`
 
 Show IPA and romanization for a known word (English gloss or conlang

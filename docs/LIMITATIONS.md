@@ -86,6 +86,17 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   clitic); there is no dual, gender or noun class, and vocatives are
   ordinary sentence-initial nouns. There is no idiom generation/matching (`Lexicon.idioms` exists
   but is unused).
+- **Aspect and verbal mood are single suffixes** in a fixed order (aspect, tense,
+  mood, agreement), chosen from illustrative label sets (two-way or four-way
+  aspect; irrealis or subjunctive/conditional/potential). Auxiliaries ("have",
+  "would", "is ...-ing") are never separate words. When several label
+  combinations spell alike, decoding prefers the reading with the fewest
+  aspect/mood labels.
+- **Noun classes are illustrative**: one of five fixed systems, derived from
+  the English gloss (natural gender/animacy, otherwise a hash), never stored
+  on the lexicon entry and never marked on the noun. Classes reach only
+  articles, adjectives and verbs (subject, and optionally object,
+  agreement). A very small inventory can repeat a suffix across labels.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

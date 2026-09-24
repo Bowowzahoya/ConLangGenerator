@@ -115,6 +115,80 @@ def generate_question_particle(
     return word_builder.build_syllable(rng, inventory, structure)
 
 
+ASPECT_SYSTEMS: tuple[tuple[str, ...], ...] = (
+    (),
+    ("perfective", "imperfective"),
+    ("perfective", "progressive", "perfect", "habitual"),
+)
+MOOD_SYSTEMS: tuple[tuple[str, ...], ...] = (
+    (),
+    ("irrealis",),
+    ("subjunctive", "conditional", "potential"),
+)
+
+
+def roll_aspects(rng: random.Random) -> tuple[str, ...]:
+    """No aspect (25%), two-way (45%) or four-way (30%) -- illustrative, like
+    the tense roll (no curated per-language aspect facts to lean on)."""
+    roll = rng.random()
+    return ASPECT_SYSTEMS[0] if roll < 0.25 else ASPECT_SYSTEMS[1] if roll < 0.7 else ASPECT_SYSTEMS[2]
+
+
+def roll_moods(rng: random.Random) -> tuple[str, ...]:
+    """No verbal mood (30%), just irrealis (35%) or subjunctive/conditional/
+    potential (35%)."""
+    roll = rng.random()
+    return MOOD_SYSTEMS[0] if roll < 0.3 else MOOD_SYSTEMS[1] if roll < 0.65 else MOOD_SYSTEMS[2]
+
+
+def distinct_suffixes(
+    rng: random.Random,
+    inventory: PhonemeInventory,
+    structure: SyllableStructure,
+    labels: tuple[str, ...],
+    taken: frozenset[tuple[str, ...]],
+) -> tuple[InflectionAffix, ...]:
+    """One invented suffix per label, re-drawn (up to 30 times) while it
+    equals one already ``taken`` (by another label of the verb paradigm), so
+    that aspect and mood labels are actually distinguishable in the output.
+    With a very small inventory the last draw is accepted as-is."""
+    used = set(taken)
+    affixes: list[InflectionAffix] = []
+    for label in labels:
+        suffix = word_builder.build_class_suffix(rng, inventory, structure)
+        for _ in range(30):
+            if suffix not in used:
+                break
+            suffix = word_builder.build_class_suffix(rng, inventory, structure)
+        used.add(suffix)
+        affixes.append(InflectionAffix(label=label, suffix=suffix))
+    return tuple(affixes)
+
+
+def generate_aspect_affixes(
+    rng: random.Random,
+    inventory: PhonemeInventory,
+    structure: SyllableStructure,
+    aspects: tuple[str, ...],
+    taken: frozenset[tuple[str, ...]] = frozenset(),
+) -> tuple[InflectionAffix, ...]:
+    """One invented suffix per aspect label, distinct from each other and
+    from ``taken`` (the verb paradigm's other suffixes)."""
+    return distinct_suffixes(rng, inventory, structure, aspects, taken)
+
+
+def generate_verbal_mood_affixes(
+    rng: random.Random,
+    inventory: PhonemeInventory,
+    structure: SyllableStructure,
+    moods: tuple[str, ...],
+    taken: frozenset[tuple[str, ...]] = frozenset(),
+) -> tuple[InflectionAffix, ...]:
+    """One invented suffix per verbal mood label (not the imperative, which
+    ``generate_mood_affixes`` makes), distinct like ``generate_aspect_affixes``."""
+    return distinct_suffixes(rng, inventory, structure, moods, taken)
+
+
 def apply_affix(
     rng: random.Random,
     affix: InflectionAffix | None,

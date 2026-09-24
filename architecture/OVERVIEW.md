@@ -4429,3 +4429,35 @@ reading code or one-off ad hoc scripts.
   that/because/if/when/although/while that has a main clause before it and two or more words after it,
   repeating on the remainder. 13 tests in `test_nested_clauses.py`.
 
+- **Aspect and verbal mood (grammar pass 3).** `GrammarProfile` gains `aspects` (none, two-way, or four-way
+  systems in `inflection_gen.ASPECT_SYSTEMS`), `aspect_affixes`, and `moods` (none / irrealis / subjunctive-
+  conditional-potential, `MOOD_SYSTEMS`); their affixes join `mood_affixes` beside `"imperative"`. Rolled and
+  generated in `generator.py` from a third independent rng stream (`Random(f"{seed}:aspect-mood")`), with
+  suffixes re-drawn until distinct from the language's other verb suffixes (`_distinct_suffixes`), because
+  short invented suffixes otherwise collide (tense/case/agreement suffixes, generated earlier, still can).
+  `PlannedSlot` gains `aspect` and `verb_mood`; the planner prompt lists the language's own labels and how to
+  map English wording onto them. `_combined_tense_agreement_affix` composes aspect + tense + mood + agreement
+  suffixes into one affix (identical to the earlier tense+agreement output when aspect/mood are unused, and the
+  rng salt only grows when they are used, so existing output is unchanged). Decoding is `_decode_verb_full`:
+  generate-and-compare over tense x aspect x mood x agreement, restricted to verbs with the token's first
+  letter (falling back to the earlier tense x agreement search over all verbs) and ordered plainest-reading-
+  first because short suffixes concatenate alike; `_decode_verb` keeps its old `(entry, tense)` shape. The
+  English side gets `(tense/aspect/mood: X)` annotations and a rough `_english_verb_phrase` draft. The fake
+  planner reads "am/was ...ing", "have/has/had + participle" and would/may/might/can/could. 14 tests in
+  `test_aspect_mood.py`.
+
+- **Noun classes and agreement (grammar pass 4).** New `generation/noun_class_gen.py`:
+  `NOUN_CLASS_SYSTEMS` (none, masc/fem, masc/fem/neuter, animate/inanimate, human/animal/plant/thing), rolled with
+  object agreement (30%) in `generator.py` from a fourth independent rng stream (`Random(f"{seed}:noun-class")`).
+  `GrammarProfile` gains `noun_classes`, `class_affixes` (one per class, for articles/adjectives), `object_agreement`
+  and `object_agreement_affixes` (person labels + `"class:<name>"`); class-based *subject* agreement labels
+  (`"class:<name>"`) are appended to `agreement_affixes`. A noun's class is derived, never stored
+  (`noun_class`: natural gender/animacy lists first, then a stable hash of `(seed, gloss)`), so no lexicon draw
+  shifts and coined nouns get a class for free. The planner gets `agrees_with` (adjectives), `subject_gloss` and
+  `object_gloss` (verbs); the renderer (`_verb_agreement`, `_apply_class_agreement`, `_next_noun_gloss`) swaps a
+  noun subject's class in for the `"default"` agreement label, adds the object marker, agrees adjectives with
+  `agrees_with` and agrees each article with the next noun slot. Decoding: `translate_to_english` drops every
+  article spelling (`_article_forms`), `_decode_adjective` reads class-marked adjectives, and
+  `_decode_verb_full` searches subject-agreement labels including classes and, in stages (tense x agreement x
+  object first, then aspect/mood, then all together only in object-agreement languages), the object marker. The
+  fake planner sets the new fields from the noun tokens. 18 tests in `test_agreement.py`.

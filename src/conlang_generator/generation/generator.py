@@ -11,6 +11,7 @@ from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import (
+    noun_class_gen,
     grammar_gen,
     inflection_gen,
     lexicon_gen,
@@ -85,6 +86,52 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "number_affixes": inflection_gen.generate_number_affixes(clause_rng, inventory, syllable_structure),
             "mood_affixes": inflection_gen.generate_mood_affixes(clause_rng, inventory, syllable_structure),
             "question_particle": inflection_gen.generate_question_particle(clause_rng, inventory, syllable_structure),
+        }
+    )
+
+    # Aspect and verbal mood: another independent stream, for the same reason.
+    aspect_mood_rng = random.Random(f"{spec.seed}:aspect-mood")
+    aspects = inflection_gen.roll_aspects(aspect_mood_rng)
+    moods = inflection_gen.roll_moods(aspect_mood_rng)
+    taken = frozenset(
+        affix.suffix
+        for affix in (*grammar.tense_affixes, *grammar.agreement_affixes, *grammar.mood_affixes)
+    )
+    aspect_affixes = inflection_gen.generate_aspect_affixes(
+        aspect_mood_rng, inventory, syllable_structure, aspects, taken
+    )
+    verbal_mood_affixes = inflection_gen.generate_verbal_mood_affixes(
+        aspect_mood_rng, inventory, syllable_structure, moods, taken | {a.suffix for a in aspect_affixes}
+    )
+    grammar = grammar.model_copy(
+        update={
+            "aspects": aspects,
+            "aspect_affixes": aspect_affixes,
+            "moods": moods,
+            "mood_affixes": grammar.mood_affixes + verbal_mood_affixes,
+        }
+    )
+
+    # Noun classes and the agreement they drive: a fourth independent stream.
+    class_rng = random.Random(f"{spec.seed}:noun-class")
+    noun_classes = noun_class_gen.roll_noun_classes(class_rng)
+    object_agreement = noun_class_gen.roll_object_agreement(class_rng)
+    taken = frozenset(
+        affix.suffix
+        for affix in (
+            *grammar.tense_affixes, *grammar.agreement_affixes, *grammar.mood_affixes, *grammar.aspect_affixes,
+        )
+    )
+    class_affixes, class_subject_affixes, object_affixes = noun_class_gen.generate_noun_class_grammar(
+        class_rng, inventory, syllable_structure, noun_classes, object_agreement, taken
+    )
+    grammar = grammar.model_copy(
+        update={
+            "noun_classes": noun_classes,
+            "class_affixes": class_affixes,
+            "agreement_affixes": grammar.agreement_affixes + class_subject_affixes,
+            "object_agreement": object_agreement,
+            "object_agreement_affixes": object_affixes,
         }
     )
 

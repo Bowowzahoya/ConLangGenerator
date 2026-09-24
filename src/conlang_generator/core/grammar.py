@@ -294,3 +294,29 @@ class GrammarProfile(BaseModel, frozen=True):
     particle (a standalone word, not an affix). Empty means the language
     marks no yes/no questions (a language saved before this field existed). See ``translation.translator`` for where it
     is placed."""
+    aspects: tuple[str, ...] = ()
+    """This language's own aspect labels (empty: no aspect marking) -- a
+    system separate from ``tenses``. Either two-way (``perfective``,
+    ``imperfective``) or four-way (``perfective``, ``progressive``,
+    ``perfect``, ``habitual``). ``aspect_affixes`` holds each label's own
+    generated suffix."""
+    aspect_affixes: tuple[InflectionAffix, ...] = ()
+    moods: tuple[str, ...] = ()
+    """This language's own *verbal* mood labels other than the imperative
+    (empty: none): ``irrealis``, or ``subjunctive``/``conditional``/
+    ``potential``. Their affixes live in ``mood_affixes`` beside
+    ``"imperative"``."""
+    noun_classes: tuple[str, ...] = ()
+    """This language's own noun-class system (empty: none) -- one of
+    ``generation.noun_class_gen.NOUN_CLASS_SYSTEMS``. A noun's class is
+    derived from its gloss (``noun_class_gen.noun_class``), not stored, and
+    shows only through agreement."""
+    class_affixes: tuple[InflectionAffix, ...] = ()
+    """One suffix per class, taken by an article or adjective agreeing with
+    its noun."""
+    object_agreement: bool = False
+    """Whether the verb also agrees with its object."""
+    object_agreement_affixes: tuple[InflectionAffix, ...] = ()
+    """Person labels plus ``"class:<name>"`` labels; empty unless
+    ``object_agreement``. (Subject agreement by class uses the same
+    ``"class:<name>"`` labels inside ``agreement_affixes``.)"""
