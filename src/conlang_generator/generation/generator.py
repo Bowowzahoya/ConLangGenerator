@@ -23,6 +23,7 @@ from conlang_generator.generation import (
     romanization_gen,
     root_pattern,
     sound_change,
+    subordination_gen,
     word_builder,
     word_class_gen,
 )
@@ -285,6 +286,29 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "verb_politeness": verb_politeness,
             "verb_polite_affixes": verb_polite_affixes,
             "object_pro_drop": object_pro_drop,
+        }
+    )
+
+    # Subordination: another independent stream.
+    subordination_rng = random.Random(f"{spec.seed}:subordination")
+    subordination = subordination_gen.roll_subordination(
+        subordination_rng, grammar.word_order.value, grammar.postpositional
+    )
+    subordination_taken = frozenset(
+        affix.suffix
+        for affix in (
+            *grammar.tense_affixes, *grammar.agreement_affixes, *grammar.mood_affixes, *grammar.aspect_affixes,
+            *grammar.voice_affixes, *grammar.object_agreement_affixes, *grammar.verb_number_affixes,
+            *grammar.verb_polite_affixes,
+        )
+    )
+    grammar = grammar.model_copy(
+        update={
+            **subordination,
+            "verb_form_affixes": inflection_gen.distinct_suffixes(
+                subordination_rng, inventory, syllable_structure, tuple(subordination["verb_forms"]),
+                subordination_taken,
+            ),
         }
     )
 

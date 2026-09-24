@@ -437,6 +437,23 @@ class GrammarProfile(BaseModel, frozen=True):
     """The quantifiers (of ``classifier_gen.QUANTIFIERS``) that take a
     classifier, as numerals do."""
 
+    subordinator_position: str = ""
+    """Where a subordinating word goes: ``"before"`` or ``"after"`` its clause
+    (empty: the older rule -- after in a verb-final language, else before)."""
+    relativization: str = "pronoun"
+    """``"pronoun"``, ``"particle"``, ``"gap"``, ``"resumptive"`` or
+    ``"correlative"`` -- see ``generation.subordination_gen``."""
+    relative_clause_position: str = "after_noun"
+    """``"after_noun"`` or ``"before_noun"``."""
+    verb_forms: tuple[str, ...] = ()
+    """The non-finite verb forms: ``infinitive``, ``nominalized``,
+    ``participle``."""
+    verb_form_affixes: tuple[InflectionAffix, ...] = ()
+    """One suffix per non-finite form; it replaces tense and agreement."""
+    subordinate_mood_use: bool = False
+    """An "if"/"unless"/"so that"/"although" clause takes the subjunctive or
+    irrealis (when the language has one)."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their

@@ -588,6 +588,11 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     return {"mood": mood, "slots": slots}
 
 
+_FAKE_INFINITIVE_VERBS = {
+    "want", "wants", "wanted", "like", "likes", "liked", "try", "tries", "tried", "begin", "begins", "began",
+    "start", "starts", "started", "need", "needs", "needed", "hope", "hopes", "hoped", "decide", "decides",
+    "decided", "love", "loves", "loved",
+}
 _FAKE_SUBORDINATORS = {"that", "because", "if", "when", "although", "while"}
 _FAKE_SUBORDINATOR_ROLE = {"that": "complement"}
 
@@ -854,6 +859,85 @@ def _fake_voice_slots(
     return None
 
 
+def _fake_drop_subject(clause_slots: list[dict]) -> None:
+    """Removes the stand-in subject "he" a clause was planned with."""
+    subject = next((i for i, slot in enumerate(clause_slots) if slot.get("gloss") == "he"), None)
+    if subject is not None:
+        del clause_slots[subject]
+
+
+def _fake_ensure_verb(clause_slots: list[dict], tenses: list[str]) -> None:
+    """A clause of one or two words falls back to bare noun slots; makes the
+    first of them the verb."""
+    if any(slot.get("pos") == "verb" for slot in clause_slots):
+        return
+    for slot in clause_slots:
+        if slot.get("kind") == "content" and slot.get("pos") == "noun":
+            detected, lemma = _fake_detect_tense_and_lemma(slot["gloss"])
+            slot.update({"pos": "verb", "gloss": lemma, "agreement": "default"})
+            tense_label = _fake_tense_label(detected, tenses)
+            if tense_label:
+                slot["tense"] = tense_label
+            return
+
+
+def _fake_relative_plan(prompt: str, match, metadata: dict[str, str]) -> dict:
+    """"I see the dog who sleeps": the main clause, then a relative clause slot
+    right after its last noun; the clause is planned as "He ..." with the
+    subject slot dropped (a gap), or kept for a resumptive language."""
+    terminal = prompt.rstrip()[-1:] if prompt.rstrip()[-1:] in ".!?" else ""
+    main = prompt[: match.start()].rstrip(" ,;") + terminal
+    rest = prompt[match.end():].strip().rstrip(".!?").strip()
+    main_plan = _fake_single_clause_plan(main, metadata)
+    clause_slots = _fake_single_clause_plan("He " + rest, metadata)["slots"]
+    if metadata.get("relativization", "pronoun") != "resumptive":
+        _fake_drop_subject(clause_slots)
+    _fake_ensure_verb(clause_slots, [t for t in metadata.get("tenses", "").split(",") if t])
+    clause = {
+        "kind": "clause", "gloss": match.group(0).lower(), "role": "relative", "clause": {"slots": clause_slots},
+    }
+    slots = list(main_plan["slots"])
+    last_noun = max((i for i, slot in enumerate(slots) if slot.get("kind") == "content" and slot.get("pos") == "noun"), default=None)
+    slots.insert(len(slots) if last_noun is None else last_noun + 1, clause)
+    return {"mood": main_plan["mood"], "slots": slots}
+
+
+def _fake_infinitive_plan(prompt: str, words, to_index: int, metadata: dict[str, str]) -> dict:
+    """"I want to see the river": the main clause with the complement after
+    it -- an infinitive (no subject, no tense) where the language has one,
+    else a finite clause repeating the subject."""
+    terminal = prompt.rstrip()[-1:] if prompt.rstrip()[-1:] in ".!?" else ""
+    main = prompt[: words[to_index].start()].rstrip(" ,;") + terminal
+    rest = prompt[words[to_index].end():].strip().rstrip(".!?").strip()
+    subject_word = words[0].group(0)
+    main_verb = words[to_index - 1].group(0).lower()
+    main_plan = _fake_single_clause_plan(main, metadata)
+    main_slots = list(main_plan["slots"])
+    detected_tense, lemma = _fake_detect_tense_and_lemma(main_verb)
+    tenses = [t for t in metadata.get("tenses", "").split(",") if t]
+    for slot in main_slots:
+        if slot.get("gloss") == main_verb:
+            slot.update({"pos": "verb", "gloss": lemma, "agreement": _FAKE_AGREEMENT_BY_PRONOUN.get(subject_word.lower(), "default")})
+            tense_label = _fake_tense_label(detected_tense, tenses)
+            if tense_label:
+                slot["tense"] = tense_label
+    if "infinitive" in [f for f in metadata.get("verb_forms", "").split(",") if f]:
+        clause_slots = _fake_single_clause_plan("He " + rest, metadata)["slots"]
+        _fake_drop_subject(clause_slots)
+        _fake_ensure_verb(clause_slots, tenses)
+        for slot in clause_slots:
+            if slot.get("pos") == "verb":
+                for key in ("tense", "agreement", "subject_gloss", "aspect", "verb_mood"):
+                    slot.pop(key, None)
+                slot["verb_form"] = "infinitive"
+        linker = ""
+    else:
+        clause_slots = _fake_single_clause_plan(f"{subject_word} {rest}", metadata)["slots"]
+        linker = "that"
+    main_slots.append({"kind": "clause", "gloss": linker, "role": "complement", "clause": {"slots": clause_slots}})
+    return {"mood": main_plan["mood"], "slots": main_slots}
+
+
 def _fake_plan_dict(prompt: str, metadata: dict[str, str]) -> dict:
     """Splits at the first subordinating word that has a main clause before
     it (at least one word) and at least two words after it ("I see that
@@ -863,6 +947,12 @@ def _fake_plan_dict(prompt: str, metadata: dict[str, str]) -> dict:
     after the main clause's own slots whatever the word order (the fake does
     not model where a real language would put it)."""
     words = list(re.finditer(r"[A-Za-z']+", prompt))
+    for index, match in enumerate(words):
+        word = match.group(0).lower()
+        if word in ("who", "which") and index >= 1 and len(words) - index - 1 >= 1:
+            return _fake_relative_plan(prompt, match, metadata)
+        if word == "to" and index >= 2 and words[index - 1].group(0).lower() in _FAKE_INFINITIVE_VERBS and len(words) - index - 1 >= 1:
+            return _fake_infinitive_plan(prompt, words, index, metadata)
     for index, match in enumerate(words):
         linker = match.group(0).lower()
         if linker not in _FAKE_SUBORDINATORS or index == 0 or len(words) - index - 1 < 2:

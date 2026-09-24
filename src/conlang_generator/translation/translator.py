@@ -68,6 +68,7 @@ from conlang_generator.generation import (
     noun_class_gen,
     pronoun_gen,
     stress_gen,
+    subordination_gen,
     tone_sandhi,
     word_accent_gen,
 )
@@ -317,6 +318,10 @@ def _apply_case(
     return romanization, ipa
 
 
+def _verb_form_salt(entry: LexicalEntry, verb_form: str) -> str:
+    return f"form:{entry.ipa}:{verb_form}"
+
+
 def _imperative_salt(entry: LexicalEntry) -> str:
     return f"mood:{entry.ipa}:imperative"
 
@@ -333,6 +338,7 @@ def _apply_verb_inflection(
     voice_label: str | None = None,
     verb_number_label: str | None = None,
     polite: bool = False,
+    verb_form: str | None = None,
 ) -> tuple[str, str]:
     """The verb/copula-side counterpart of ``_apply_case`` -- composes and
     applies this sentence's own tense+agreement affix (see
@@ -362,6 +368,16 @@ def _apply_verb_inflection(
         )
         romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
         return romanization, ipa
+    if verb_form is not None and verb_form in grammar.verb_forms:
+        # A non-finite form carries its own suffix instead of tense and agreement.
+        form_affix = next((a for a in grammar.verb_form_affixes if a.label == verb_form), None)
+        if form_affix is not None:
+            rng = _translation_rng(language, _verb_form_salt(entry, verb_form))
+            ipa = inflection_gen.apply_affix(
+                rng, form_affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+            )
+            romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+            return romanization, ipa
     resolved_tense = tense_label if tense_label in grammar.tenses else None
     resolved_agreement = (
         agreement_label if agreement_label in _agreement_labels(grammar) else "default"
@@ -775,11 +791,93 @@ def _dropped_object_pronouns(language: Language, slots, already: set[int]) -> se
     return dropped
 
 
-def _linker_follows_clause(language: Language) -> bool:
-    """Illustrative placement of a subordinating word ("that", "because",
-    "who"): after its clause in verb-final languages (SOV, OSV, like
-    Japanese -kara), before it everywhere else (like English "that")."""
-    return language.grammar.word_order.value in ("SOV", "OSV")
+def _linker_follows_clause(language: Language, role: str | None = None) -> bool:
+    """Whether a subordinating word ("that", "because", "who") goes after its
+    clause. A relative clause's word follows a clause that precedes its noun
+    and leads one that follows it (a correlative's always leads); any other
+    clause follows the language's rolled ``subordinator_position``. A language
+    saved before that field existed keeps the earlier rule: after the clause in
+    a verb-final language, before it otherwise."""
+    grammar = language.grammar
+    if role == "relative":
+        if grammar.relativization == "correlative":
+            return False
+        return grammar.relative_clause_position == "before_noun"
+    if grammar.subordinator_position:
+        return grammar.subordinator_position == "after"
+    return grammar.word_order.value in ("SOV", "OSV")
+
+
+def _linker_gloss(language: Language, slot) -> str:
+    """The gloss of the word that introduces the clause in ``slot``: the
+    planner's, except that a relative clause follows the language's own
+    strategy (none for a gap, one invariant word for a particle or resumptive
+    clause, a relative pronoun otherwise)."""
+    if slot.role != "relative":
+        return slot.gloss
+    strategy = language.grammar.relativization
+    if strategy == "gap":
+        return ""
+    if strategy in ("particle", "resumptive"):
+        return subordination_gen.RELATIVE_PARTICLE_GLOSS
+    return slot.gloss or ("which" if strategy == "correlative" else subordination_gen.DEFAULT_RELATIVE_PRONOUN)
+
+
+def _subordinate_mood(language: Language, slot, linker_gloss: str) -> str | None:
+    """The verbal mood forced on the verbs of an "if"/"unless"/"so that"
+    clause in a language whose subordinate clauses take the subjunctive or
+    irrealis (``None`` otherwise, or when the language has no such mood)."""
+    grammar = language.grammar
+    if not grammar.subordinate_mood_use or slot.role != "adverbial":
+        return None
+    if linker_gloss.strip().lower().replace(" ", "-") not in subordination_gen.IRREALIS_LINKERS:
+        return None
+    return next((m for m in ("subjunctive", "irrealis", "conditional") if m in grammar.moods), None)
+
+
+def _np_start(slots, head: int) -> int:
+    """The index where the noun phrase headed by ``slots[head]`` begins:
+    walking back over its determiners, numerals, adjectives and possessors."""
+    k = head
+    while k > 0:
+        previous = slots[k - 1]
+        modifier = (
+            previous.kind in ("article", "indefinite_article", "demonstrative", "possessive_pronoun", "classifier")
+            or (previous.kind == "content" and (previous.possessive or previous.pos in ("adjective", "numeral", "quantifier", "adverb")))
+        )
+        if not modifier:
+            break
+        k -= 1
+    return k
+
+
+def _arrange_relatives(language: Language, slots) -> tuple:
+    """Moves each relative-clause slot (which the planner writes right after
+    its noun) where the language puts it: unchanged after the noun; before the
+    whole noun phrase in a ``before_noun`` language; at the front of the plan,
+    with the correlate "that" added before the noun in the main clause, in a
+    ``correlative`` language."""
+    grammar = language.grammar
+    correlative = grammar.relativization == "correlative"
+    if grammar.relative_clause_position == "after_noun" and not correlative:
+        return tuple(slots)
+    out = list(slots)
+    front: list[PlannedSlot] = []
+    for i in range(len(out) - 1, -1, -1):
+        clause = out[i]
+        if clause.kind != "clause" or clause.role != "relative" or i == 0:
+            continue
+        head = i - 1
+        if out[head].kind not in ("content", "name") or (out[head].kind == "content" and out[head].pos not in ("noun", "pronoun")):
+            continue
+        start = _np_start(out, head)
+        out.pop(i)
+        if correlative:
+            out.insert(start, PlannedSlot(kind="demonstrative", gloss="that"))
+            front.insert(0, clause)
+        else:
+            out.insert(start, clause)
+    return tuple(front + out)
 
 
 def _render_plan(
@@ -787,6 +885,7 @@ def _render_plan(
     language: Language,
     llm_client: LLMClient,
     coined: list[LexicalEntry],
+    forced_verb_mood: str | None = None,
 ) -> tuple[Language, list[str], list[str], list[str | None]]:
     working_language = language
     romanization_parts: list[str] = []
@@ -795,7 +894,7 @@ def _render_plan(
     mood_pending = plan.mood == "imperative"
     possessed_pending = False  # a possessor was rendered; the next noun takes the "possessed" affix
     possession = language.grammar.possession
-    slots = _with_classifiers(language, _normalize_possessives(language, plan.slots))
+    slots = _with_classifiers(language, _normalize_possessives(language, _arrange_relatives(language, plan.slots)))
     dropped_pronouns = _dropped_subject_pronouns(language, slots)
     dropped_pronouns = dropped_pronouns | _dropped_object_pronouns(language, slots, dropped_pronouns)
     possessor_person_pending: str | None = None  # an affix-strategy possessor waiting for its noun
@@ -807,17 +906,19 @@ def _render_plan(
         if slot.kind == "clause":
             if slot.clause is None:
                 continue
+            linker_gloss = _linker_gloss(working_language, slot)
+            nested_mood = _subordinate_mood(working_language, slot, linker_gloss)
             working_language, nested_rom, nested_ipa, nested_gloss = _render_plan(
-                slot.clause, working_language, llm_client, coined
+                slot.clause, working_language, llm_client, coined, nested_mood
             )
             linker: tuple[str, str, str | None] | None = None
-            if slot.gloss:
+            if linker_gloss:
                 working_language, linker_entry = _lookup_or_coin(
-                    working_language, slot.gloss, PartOfSpeech.PARTICLE, coined, llm_client,
-                    lemma_candidates=[slot.gloss],
+                    working_language, linker_gloss, PartOfSpeech.PARTICLE, coined, llm_client,
+                    lemma_candidates=[linker_gloss],
                 )
                 linker = (linker_entry.romanization, linker_entry.ipa, linker_entry.primary_gloss)
-            if linker is not None and _linker_follows_clause(working_language):
+            if linker is not None and _linker_follows_clause(working_language, slot.role):
                 nested_rom, nested_ipa, nested_gloss = nested_rom + [linker[0]], nested_ipa + [linker[1]], nested_gloss + [linker[2]]
             elif linker is not None:
                 nested_rom, nested_ipa, nested_gloss = [linker[0]] + nested_rom, [linker[1]] + nested_ipa, [linker[2]] + nested_gloss
@@ -839,7 +940,8 @@ def _render_plan(
                 rendered = _apply_verb_inflection(
                     working_language, entry, slot.tense, agreement_label,
                     "imperative" if mood_pending else "declarative",
-                    slot.aspect, slot.verb_mood, object_label, slot.voice, slot.subject_number, slot.polite,
+                    slot.aspect, slot.verb_mood or forced_verb_mood, object_label, slot.voice, slot.subject_number,
+                    slot.polite, slot.verb_form,
                 )
                 mood_pending = False
             elif pos is PartOfSpeech.ADJECTIVE and (
@@ -1189,6 +1291,15 @@ def _decode_verb_full(
             candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
             if _normalize(candidate) == normalized:
                 return entry, "imperative", None, None, None, None, None, None, False
+    for form_affix in language.grammar.verb_form_affixes:
+        for entry in verb_entries:
+            rng = _translation_rng(language, _verb_form_salt(entry, form_affix.label))
+            ipa = inflection_gen.apply_affix(
+                rng, form_affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+            )
+            candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+            if _normalize(candidate) == normalized:
+                return entry, form_affix.label, None, None, None, None, None, None, False
     kwargs = _stress_and_word_accent_kwargs(language)
     grammar = language.grammar
     tense_options: list[str | None] = [None] + list(grammar.tenses)
@@ -1346,6 +1457,26 @@ def _english_verb_phrase(
     return _english_verb_gloss(entry, tense_label)
 
 
+def _subordination_note(grammar: GrammarProfile) -> str:
+    relative = {
+        "pronoun": "relative clauses use a relative pronoun",
+        "particle": 'relative clauses use the invariant word "rel"',
+        "gap": "relative clauses have no linking word and leave the relativized noun out",
+        "resumptive": 'relative clauses use the word "rel" and keep a pronoun for the relativized noun',
+        "correlative": 'a relative clause comes first and the main clause points back with "that" (a correlative)',
+    }.get(grammar.relativization, "relative clauses use a relative pronoun")
+    position = "before" if grammar.relative_clause_position == "before_noun" else "after"
+    forms = (
+        "; non-finite verbs (annotated 'verb form') read as " + ", ".join(
+            {"infinitive": "infinitives (to see)", "nominalized": "gerunds (seeing)", "participle": "participles (sleeping)"}[f]
+            for f in grammar.verb_forms
+        )
+        if grammar.verb_forms
+        else ""
+    )
+    return f" Subordination: {relative}, placed {position} its noun{forms}."
+
+
 def _construction_note(language: Language) -> str:
     """A sentence appended to the fluency prompt saying how this language
     expresses "there is X" and "A has B", so the model can read those
@@ -1379,6 +1510,7 @@ def _construction_note(language: Language) -> str:
     return (
         f' In this language "there is X" is expressed as {existential}, and "A has B" as {possession}.'
         f" Comparison: {degrees}; {standard}. Read these as ordinary English comparatives and superlatives."
+        + _subordination_note(grammar)
     )
 
 
@@ -1498,6 +1630,12 @@ def translate_to_english(
                 verb_entry, tense_label, aspect_label, mood_label, voice_label, agreement_label,
                 object_label, number_label, polite_label,
             ) = verb_full
+            if tense_label in subordination_gen.VERB_FORM_LABELS:
+                gloss = verb_entry.primary_gloss
+                reading = {"infinitive": f"to {gloss}", "nominalized": f"{gloss}ing", "participle": f"{gloss}ing"}[tense_label]
+                plain.append(reading)
+                annotated.append(f"{gloss} (verb form: {tense_label})")
+                continue
             if tense_label == "imperative":
                 is_imperative = True
                 plain.append(verb_entry.primary_gloss)

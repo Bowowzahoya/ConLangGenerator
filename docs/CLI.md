@@ -813,6 +813,55 @@ words from the language's pool -- but for "river" the noun repeats itself
 (`penata`). The planner is told which quantifiers take a classifier (and to write
 them as `"pos":"quantifier"`); it never writes a classifier itself.
 
+**Subordination.** Clauses inside clauses are no longer laid out by a rule of
+thumb; each language rolls how it does them:
+
+- **Where the subordinator goes** ("that", "because", "if"): before or after its
+  clause (after in about 70% of verb-final languages, before in about 85% of the
+  rest).
+- **Relative clauses**: a relative *pronoun* (who/which), one invariant *particle*,
+  a *gap* (no linking word, the relativized noun simply left out, as in
+  Japanese), a *resumptive* pronoun kept in the clause, or a *correlative* (the
+  relative clause comes first and the main clause points back with "that"); and the
+  clause goes before or after its noun (mostly before in object-before-verb
+  languages).
+- **Non-finite verbs**: an *infinitive* ("I want to see"), a *nominalized* form and
+  a *participle* ("the man sleeping"), each a suffix that replaces tense and
+  agreement (a language without one uses a finite clause with a repeated subject).
+- **Subjunctive in subordinate clauses**: about half the languages put the verb of
+  an "if"/"unless"/"so that"/"although" clause in the subjunctive or irrealis (if
+  they have one).
+
+The renderer enforces the relative-clause strategy and position itself, whatever
+linking word the planner wrote. Verified with `--llm fake` on `--seed 26`
+(SVO; a relative particle, clause before its noun; an infinitive; irrealis in "if"
+clauses), `--seed 6` (a correlative) and `--seed 13` (a gap):
+
+```bash
+conlang translate "I see the dog who sleeps." --lang t22 --to conlang --llm fake
+conlang translate "I want to see the river." --lang t22 --to conlang --llm fake
+conlang translate "I see the river if you see the dog." --lang t22 --to conlang --llm fake
+conlang translate "I see the dog who sleeps." --lang t23 --to conlang --llm fake
+conlang translate "I see the dog who sleeps." --lang t24 --to conlang --llm fake
+```
+
+```
+sey3 gʱi1yunʲineṅ bʱa3unʲiṅ xʲẽ3 ṅɔ̃ṅ1mʲem3
+sey3 po1da3unʲin gʱi1yow ǯʱi3muy
+sey3 gʱi1yunʲinaṅ ǯʱi3muy ǯʱu1say1đew3 pa3du3 gʱi1yunʲiwireṅ ṅɔ̃ṅ1mʲem3
+mun kapdihevo fusevid yuw fanu
+lāt mùnê'o'o nuwōkáhū'e mì'o'u
+```
+
+In `t22` the relative clause is `bʱa3unʲiṅ` ("sleeps") plus the relative particle
+`xʲẽ3`, and both come *before* the noun `ṅɔ̃ṅ1mʲem3` ("dog"); "want to see" is the
+plain infinitive `gʱi1yow` with no subject or tense; and the verb after "if" (`…wireṅ`,
+irrealis) differs from the main verb (`…naṅ`); translating that sentence back gives
+`I see river if you might see dog`. In `t23` the relative clause (`mun kapdihevo`)
+opens the sentence and the main clause points back with `yuw` ("that") before the
+noun (the subject "I" is dropped, this language being pro-drop). In `t24` the
+relative clause is just the verb `mì'o'u` after the noun, with no linking word.
+
 ## `conlang pronounce`
 
 Show IPA and romanization for a known word (English gloss or conlang

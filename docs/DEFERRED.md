@@ -199,17 +199,20 @@ plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
 structure with complement, relative and adverbial clauses (pass 2); aspect and
 verbal mood as systems separate from tense (pass 3); noun classes with article,
 adjective and verb (subject and object) agreement (pass 4); dual number,
-demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12). See
+demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12); subordination -- linker position, relativization strategies and position, non-finite verb forms, subordinate mood (pass 13). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
-1. **Subordination refinements (M).** Clause-internal word order and
-   linker placement are LLM- and heuristic-driven, not grammar-generated:
-   no per-language choice of relativization strategy (relative pronoun vs
-   gap vs particle), no infinitival/nominalized complements, no verb-form
-   changes in subordinate clauses (subjunctive, non-finite), no
-   correlatives. The subordinator ("that", "because") is coined as an
-   ordinary particle word.
+1. **Subordination follow-ups (M).** Relative clauses on non-subject or possessor
+   positions ("the man whose dog", "the dog I see"), relative pronouns that
+   decline by case and number, an "infinitive" that agrees with an object
+   controller, nominalized clauses as case-marked arguments, conditional
+   clauses with their own mood and tense sequencing ("if I had... I would"),
+   correlatives beyond relative clauses ("the more..., the more..."),
+   conjunction reduction and coordination of clauses, and complementizer
+   choice by verb type. The fake planner only knows "who/which" relatives and a
+   short list of control verbs. The subordinator itself is still coined as an
+   ordinary particle word (`that`, `rel`).
 2. **Agreement follow-ups (M).** See below.
 
 **Agreement follow-ups (M):** number agreement (plural verbs/adjectives); a

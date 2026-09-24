@@ -113,6 +113,11 @@ class PlannedSlot:
     polite: bool = False
     """On a finite verb whose subject is ``you-polite``, in a language whose
     verbs carry politeness."""
+    verb_form: str | None = None
+    """``"infinitive"``, ``"nominalized"`` or ``"participle"``: a non-finite verb
+    (no tense or agreement), only in a language that has that form -- the verb of
+    a same-subject complement ("I want TO SEE"), a nominalized clause, or a
+    reduced relative ("the man SLEEPING")."""
     voice: str | None = None
     """One of this language's own ``GrammarProfile.voices`` labels
     (``passive``/``antipassive``/``causative``), or ``None`` for the active --
@@ -318,6 +323,51 @@ def _build_system_prompt(language: Language) -> str:
         if grammar.possessive_classifiers
         else "no classifier after a possessor"
     )
+    relative_desc = {
+        "pronoun": 'the clause slot\'s "gloss" is a relative pronoun: "who" for a person, "which" otherwise',
+        "particle": 'the clause slot\'s "gloss" is "rel" (one invariant relative word for every relative clause)',
+        "gap": (
+            'NO linking word (leave the clause slot\'s "gloss" empty) and NO slot at all for the relativized '
+            "noun phrase inside the clause -- that position is simply empty"
+        ),
+        "resumptive": (
+            'the clause slot\'s "gloss" is "rel", and the relativized noun phrase is kept inside the clause as '
+            "a pronoun slot (a resumptive pronoun)"
+        ),
+        "correlative": (
+            'the clause slot\'s "gloss" is "which"; the renderer moves the clause to the front of the sentence '
+            'and adds "that" before the noun in the main clause'
+        ),
+    }.get(grammar.relativization, "a relative pronoun")
+    forms_desc = (
+        "this language has " + ", ".join(grammar.verb_forms) + ": set \"verb_form\" on a non-finite verb -- "
+        + (
+            'the "infinitive" for a complement with the SAME subject as the main verb ("I want to see the river": '
+            "a complement clause slot with an empty gloss whose own verb is the infinitive, no subject slot, no "
+            "tense/agreement); "
+            if "infinitive" in grammar.verb_forms
+            else ""
+        )
+        + (
+            'the "nominalized" form for a clause used as a noun ("seeing the river is good"); '
+            if "nominalized" in grammar.verb_forms
+            else ""
+        )
+        + (
+            'the "participle" for a reduced relative ("the man sleeping"). '
+            if "participle" in grammar.verb_forms
+            else ""
+        )
+        + "Otherwise use a finite clause."
+        if grammar.verb_forms
+        else "no non-finite verb forms: always use a finite clause, repeating the subject"
+    )
+    subordinate_mood_desc = (
+        'a clause introduced by "if", "unless", "so that" or "although" puts its verb in the subjunctive/irrealis '
+        "(the renderer does it if the language has one -- do not set it yourself)"
+        if grammar.subordinate_mood_use
+        else "subordinate clauses use the ordinary verb forms"
+    )
     verb_extras = []
     if grammar.verb_number_agreement:
         verb_extras.append('set "subject_number":"plural" on a finite verb whose subject is plural (a plural pronoun, or a plural noun)')
@@ -371,6 +421,11 @@ slot: the renderer omits it.
 - reflexives ("he sees himself"): {reflexive_desc}. Reciprocals ("they see each \
 other"): {reciprocal_desc}.
 - possessive pronouns ("my dog", "their house"): {possessive_pronoun_desc}.
+- relative clauses ("the dog that sleeps"): {relative_desc}. Always write the \
+clause slot directly after its noun; the renderer moves it if this language \
+puts relative clauses before their noun.
+- non-finite verb forms: {forms_desc}.
+- subordinate moods: {subordinate_mood_desc}.
 - reflexive possessives ("his own dog"): {own_desc}.
 - pronouns in a non-nominative case: {suppletive_desc}.
 - classifiers after a possessor: {possessive_classifier_desc}.
@@ -570,6 +625,9 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "cases": ",".join(grammar.cases),
             "tenses": ",".join(grammar.tenses),
             "aspects": ",".join(grammar.aspects),
+            "relativization": grammar.relativization,
+            "verb_forms": ",".join(grammar.verb_forms),
+            "subordinate_mood_use": "true" if grammar.subordinate_mood_use else "false",
             "reflexive_marking": grammar.reflexive_marking,
             "reciprocal_marking": grammar.reciprocal_marking,
             "possessive_pronouns": grammar.possessive_pronouns,
@@ -697,6 +755,7 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                 aspect=_coerce_optional_str(item.get("aspect")),
                 verb_mood=_coerce_optional_str(item.get("verb_mood")),
                 voice=_coerce_optional_str(item.get("voice")),
+                verb_form=_coerce_optional_str(item.get("verb_form")),
                 subject_number="plural" if item.get("subject_number") == "plural" else None,
                 polite=item.get("polite") is True,
                 degree=item.get("degree") if item.get("degree") in ("comparative", "superlative") else None,

@@ -111,8 +111,16 @@ def test_the_fake_planner_nests_repeatedly():
 # --- rendering ------------------------------------------------------------
 
 
-def test_the_linking_word_follows_the_clause_in_a_verb_final_language():
-    language = _with_order({"SOV", "OSV"})
+def _with_position(position: str):
+    for seed in range(1, 200):
+        language = _language(seed)
+        if language.grammar.subordinator_position == position:
+            return language
+    raise AssertionError("no seed found")
+
+
+def test_the_linking_word_follows_the_clause_where_the_language_puts_it_after():
+    language = _with_position("after")
     client = FakeLLMClient()
     result = translate_to_conlang("I see that you see the river.", language, client)
     linker = result.language.lexicon.by_gloss("that")
@@ -120,8 +128,8 @@ def test_the_linking_word_follows_the_clause_in_a_verb_final_language():
     assert result.text.split()[-1] == linker.romanization
 
 
-def test_the_linking_word_precedes_the_clause_in_other_languages():
-    language = _with_order({"SVO", "VSO"})
+def test_the_linking_word_precedes_the_clause_where_the_language_puts_it_before():
+    language = _with_position("before")
     client = FakeLLMClient()
     result = translate_to_conlang("I see that you see the river.", language, client)
     linker = result.language.lexicon.by_gloss("that")
@@ -129,6 +137,14 @@ def test_the_linking_word_precedes_the_clause_in_other_languages():
     tokens = result.text.split()
     assert linker.romanization in tokens
     assert tokens.index(linker.romanization) < max(i for i, t in enumerate(tokens) if t.startswith(river.romanization[:2]))
+
+
+def test_a_language_saved_without_a_rolled_position_keeps_the_verb_final_rule():
+    language = _with_order({"SOV", "OSV"})
+    old = language.model_copy(update={"grammar": language.grammar.model_copy(update={"subordinator_position": ""})})
+    client = FakeLLMClient()
+    result = translate_to_conlang("I see that you see the river.", old, client)
+    assert result.text.split()[-1] == result.language.lexicon.by_gloss("that").romanization
 
 
 def test_the_subordinate_clause_words_are_all_rendered():

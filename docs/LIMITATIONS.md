@@ -141,6 +141,12 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   share of nouns, and which quantifiers take a classifier is a coin flip per
   quantifier. Nothing checks that the planner marks quantifiers with
   `"pos":"quantifier"`; an unmarked one is read as an ordinary word.
+- **Subordination is planner-shaped and enforced only at the edges**: the
+  renderer applies the relative strategy, clause position, linker placement and
+  the non-finite suffix, but it cannot check that the planner built the clause
+  correctly (a gap language still needs the planner to leave the relativized
+  noun out; a resumptive one to keep it). Only subject-position relatives are
+  modeled; subordinate verbs get no tense sequencing beyond the forced mood.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

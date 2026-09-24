@@ -4586,3 +4586,20 @@ reading code or one-off ad hoc scripts.
   repeated adjacently or around a numeral (`_drop_repeaters`). The fake planner recognizes many/few/some/several/
   every/each/all/both (every/each keep the noun singular). 19 tests in `test_classifier_individual.py`; the older
   classifier tests now pick category-assigned, repeater-free languages when they assert category names.
+
+- **Subordination refinements (grammar pass 13).** New `generation/subordination_gen.py`, rolled from its own
+  stream (`Random(f"{seed}:subordination")`): `subordinator_position` (`before`/`after`, correlated with a verb-final word
+  order; empty on an older language, which keeps the earlier verb-final rule), `relativization` (`pronoun`,
+  `particle`, `gap`, `resumptive`, `correlative`), `relative_clause_position`, `verb_forms`/`verb_form_affixes`
+  (`infinitive`, `nominalized`, `participle`) and `subordinate_mood_use`. The renderer enforces the language's own
+  strategy on any relative clause whatever the planner wrote (`_linker_gloss`: none for a gap, `rel` for a particle
+  or resumptive clause, `who`/`which` otherwise); `_arrange_relatives` moves a relative clause (the planner writes it
+  right after its noun) before its whole noun phrase in a `before_noun` language (`_np_start`) or to the front
+  of the plan with a correlate demonstrative "that" in a correlative one; `_linker_follows_clause(language, role)`
+  places the subordinator. A non-finite `PlannedSlot.verb_form` renders as its suffix instead of tense/agreement
+  (`_verb_form_salt`) and decodes like the imperative (the form in the tense slot, read as `to see`/`seeing`);
+  `_subordinate_mood` forces a subjunctive/irrealis on the verbs of an `if`/`unless`/`so that`/`although` clause
+  (passed down through `_render_plan(..., forced_verb_mood)`; a planner's own `verb_mood` wins). The fluency prompt
+  gains a "Subordination:" note. The fake planner plans relative clauses ("who"/"which", subject a gap unless
+  resumptive) and infinitive complements after want/like/try/begin/need/hope/decide/love. 27 tests in
+  `test_subordination.py`; `test_nested_clauses.py` now selects languages by `subordinator_position`.
