@@ -414,6 +414,18 @@ class GrammarProfile(BaseModel, frozen=True):
     """An object pronoun is omitted when the verb's object agreement names it
     (needs ``object_agreement`` with distinct person suffixes)."""
 
+    suppletive_pronoun_persons: tuple[str, ...] = ()
+    """The persons (``I``/``you``/``he``/``we``) whose non-nominative case forms
+    are words of their own (I -> me, ``i-accusative``) instead of the pronoun
+    plus a case suffix. Empty: every pronoun is regular."""
+    reflexive_possessive: str = "none"
+    """"His own": ``"word"`` (a possessive word ``possessive-self``),
+    ``"affix"`` (a ``self`` entry in ``possessor_person_affixes``) or
+    ``"none"`` (the ordinary possessive of the subject's person)."""
+    possessive_classifiers: bool = False
+    """A classifier (``possessive-classifier-<category>``) follows a possessor
+    word before the possessed noun (a classifier language only)."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their

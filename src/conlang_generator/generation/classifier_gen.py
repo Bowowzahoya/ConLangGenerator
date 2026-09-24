@@ -30,6 +30,7 @@ _ISOLATING_RATE = 0.45
 _OTHER_RATE = 0.12
 _AFTER_NOUN_RATE = 0.25
 _WITH_DEMONSTRATIVE_RATE = 0.8
+_POSSESSIVE_CLASSIFIER_RATE = 0.3
 
 CATEGORIES = (
     "human", "animal", "long", "flat", "round", "general",
@@ -38,6 +39,7 @@ CATEGORIES = (
 LEGACY_CATEGORIES = ("human", "animal", "long", "flat", "round", "general")
 """The six categories a language saved before the richer inventory has."""
 CLASSIFIER_GLOSS_PREFIX = "classifier-"
+POSSESSIVE_CLASSIFIER_GLOSS_PREFIX = "possessive-classifier-"
 
 _LONG = frozenset(
     {
@@ -80,6 +82,7 @@ def roll_classifier_system(rng: random.Random, morphological_type: Morphological
         "classifier_categories": tuple(c for c in CATEGORIES if c in chosen or c == "general"),
         "classifier_after_noun": rng.random() < _AFTER_NOUN_RATE,
         "classifier_with_demonstrative": rng.random() < _WITH_DEMONSTRATIVE_RATE,
+        "possessive_classifiers": rng.random() < _POSSESSIVE_CLASSIFIER_RATE,
     }
 
 
@@ -107,3 +110,8 @@ def classifier_category(gloss: str, available: tuple[str, ...] | None = None) ->
 
 def classifier_gloss(category: str) -> str:
     return f"{CLASSIFIER_GLOSS_PREFIX}{category}"
+
+
+def possessive_classifier_gloss(category: str) -> str:
+    """The lexicon gloss of the classifier that follows a possessor."""
+    return f"{POSSESSIVE_CLASSIFIER_GLOSS_PREFIX}{category}"

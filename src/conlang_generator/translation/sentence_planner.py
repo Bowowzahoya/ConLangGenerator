@@ -299,6 +299,24 @@ def _build_system_prompt(language: Language) -> str:
         '"your" -> "you", "his" -> "he", "their" -> "they", "our" -> "we"...) directly before the possessed noun '
         "-- never a separate possessive marking, and never the pronoun slot itself"
     )
+    suppletive_desc = (
+        "the personal pronouns " + ", ".join(grammar.suppletive_pronoun_persons)
+        + " have case forms that are words of their own (like I/me); still write the ordinary pronoun slot "
+        "with its case (\"accusative\", \"dative\", \"genitive\"...) -- the renderer picks the right word"
+        if grammar.suppletive_pronoun_persons
+        else "personal pronouns take the ordinary case marking"
+    )
+    own_desc = (
+        'a slot {"kind":"possessive_pronoun","gloss":"self"} directly before the possessed noun ("his own dog", '
+        '"her own house": the owner is the sentence\'s subject); never the ordinary possessive'
+        if grammar.reflexive_possessive in ("word", "affix")
+        else "no separate form: use the ordinary possessive of the subject's own person"
+    )
+    possessive_classifier_desc = (
+        "a possessor word is followed by a possessive classifier that the renderer adds itself -- never write one"
+        if grammar.possessive_classifiers
+        else "no classifier after a possessor"
+    )
     verb_extras = []
     if grammar.verb_number_agreement:
         verb_extras.append('set "subject_number":"plural" on a finite verb whose subject is plural (a plural pronoun, or a plural noun)')
@@ -349,6 +367,9 @@ slot: the renderer omits it.
 - reflexives ("he sees himself"): {reflexive_desc}. Reciprocals ("they see each \
 other"): {reciprocal_desc}.
 - possessive pronouns ("my dog", "their house"): {possessive_pronoun_desc}.
+- reflexive possessives ("his own dog"): {own_desc}.
+- pronouns in a non-nominative case: {suppletive_desc}.
+- classifiers after a possessor: {possessive_classifier_desc}.
 - verb agreement in number and politeness: {verb_extras_text}.
 - object pronouns omitted when the verb's object agreement names them: \
 {object_drop_word} (still write the pronoun slot; the renderer omits it).
@@ -548,6 +569,7 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "reflexive_marking": grammar.reflexive_marking,
             "reciprocal_marking": grammar.reciprocal_marking,
             "possessive_pronouns": grammar.possessive_pronouns,
+            "reflexive_possessive": grammar.reflexive_possessive,
             "verb_number_agreement": "true" if grammar.verb_number_agreement else "false",
             "verb_politeness": "true" if grammar.verb_politeness else "false",
             "object_pro_drop": "true" if grammar.object_pro_drop else "false",

@@ -121,7 +121,7 @@ RECIPROCAL_GLOSS = "each-other"
 POSSESSIVE_GLOSS_PREFIX = "possessive-"
 
 POSSESSIVE_READING: dict[str, str] = {
-    "i": "my", "you": "your", "he": "his", "she": "her", "it": "its", "they": "their", "we": "our",
+    "self": "one's own", "i": "my", "you": "your", "he": "his", "she": "her", "it": "its", "they": "their", "we": "our",
     "you-plural": "your (plural)", "you-polite": "your (polite)",
     "we-inclusive": "our (inclusive)", "we-exclusive": "our (exclusive)",
 }
@@ -139,6 +139,13 @@ _POSSESSIVE_WORDS_RATE = 0.30
 _VERB_NUMBER_RATE = 0.25
 _VERB_POLITENESS_RATE = 0.60
 _OBJECT_PRO_DROP_RATE = 0.40
+_SUPPLETION_RATE = 0.35
+_SUPPLETIVE_PERSON_RATE = 0.60
+_REFLEXIVE_POSSESSIVE_WORD_RATE = 0.30
+_REFLEXIVE_POSSESSIVE_AFFIX_RATE = 0.25
+
+CASE_NAMES = frozenset({"nominative", "accusative", "ergative", "absolutive", "genitive", "dative", "locative"})
+_OBJECT_FORMS = {"i": "me", "he": "him", "she": "her", "we": "us", "they": "them"}
 
 
 def possessive_gloss(pronoun_gloss_: str) -> str:
@@ -168,6 +175,28 @@ def roll_pronoun_extras(rng: random.Random) -> dict[str, object]:
         "verb_number_agreement": rng.random() < _VERB_NUMBER_RATE,
         "verb_politeness_wish": rng.random() < _VERB_POLITENESS_RATE,
         "object_pro_drop_wish": rng.random() < _OBJECT_PRO_DROP_RATE,
+        **_roll_later_extras(rng),
+    }
+
+
+def _roll_later_extras(rng: random.Random) -> dict[str, object]:
+    """Draws made after the rest of ``roll_pronoun_extras`` so that adding them
+    changed none of the earlier values: which persons have suppletive case
+    forms (I/me) and how a reflexive possessive ("his own") is marked."""
+    suppletion = rng.random() < _SUPPLETION_RATE
+    picks = [label for label in PERSON_LABELS if rng.random() < _SUPPLETIVE_PERSON_RATE]
+    if suppletion and not picks:
+        picks = [PERSON_LABELS[int(rng.random() * len(PERSON_LABELS))]]
+    reflexive_possessive_roll = rng.random()
+    return {
+        "suppletive_pronoun_persons": tuple(picks) if suppletion else (),
+        "reflexive_possessive": (
+            "word"
+            if reflexive_possessive_roll < _REFLEXIVE_POSSESSIVE_WORD_RATE
+            else "affix"
+            if reflexive_possessive_roll < _REFLEXIVE_POSSESSIVE_WORD_RATE + _REFLEXIVE_POSSESSIVE_AFFIX_RATE
+            else "none"
+        ),
     }
 
 
@@ -182,3 +211,28 @@ def english_reading(gloss: str) -> str:
     if gloss == RECIPROCAL_GLOSS:
         return "each other"
     return ENGLISH_READING.get(gloss, gloss)
+
+
+def suppletive_gloss(pronoun_gloss_: str, case: str) -> str:
+    """The lexicon gloss of a personal pronoun's own word for ``case`` (I -> me)."""
+    return f"{pronoun_gloss_.strip().lower()}-{case}"
+
+
+def suppletive_split(gloss: str) -> tuple[str, str] | None:
+    """``(pronoun gloss, case)`` if ``gloss`` names a suppletive case form of a
+    personal pronoun (``"i-accusative"``), else ``None``."""
+    base, sep, case = gloss.strip().lower().rpartition("-")
+    if sep and case in CASE_NAMES and person_label(base) is not None:
+        return base, case
+    return None
+
+
+def suppletive_reading(pronoun_gloss_: str, case: str) -> str:
+    """How a suppletive pronoun form reads in English: the object form
+    (me/him/us/them) for an accusative or dative, the possessive for a
+    genitive, the plain pronoun otherwise."""
+    if case in ("accusative", "dative") and pronoun_gloss_ in _OBJECT_FORMS:
+        return _OBJECT_FORMS[pronoun_gloss_]
+    if case == "genitive" and pronoun_gloss_ in POSSESSIVE_READING:
+        return POSSESSIVE_READING[pronoun_gloss_]
+    return english_reading(pronoun_gloss_)

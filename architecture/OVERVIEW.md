@@ -4559,3 +4559,17 @@ reading code or one-off ad hoc scripts.
   "extras" stage; `translate_to_english` reads the new words and marks back through `pronoun_gen.english_reading`,
   `_person_suffix_is_distinct(..., objects=True)`. 20 new classifier tests and 28 in `test_pronoun_extras.py`;
   `test_voice.py` now compares the roll's voices without the reflexive/reciprocal ones.
+
+- **Suppletive pronouns, reflexive possessives, possessive classifiers (grammar pass 11).**
+  `pronoun_gen._roll_later_extras` (drawn after the pass-10 rolls, so those are unchanged) adds
+  `suppletive_pronoun_persons` (35%; a random subset of I/you/he/we whose non-nominative case forms are lexicon
+  words `<pronoun>-<case>`, e.g. `i-accusative`; `suppletive_gloss`/`suppletive_split`/`suppletive_reading`) and
+  `reflexive_possessive` (`word` = `possessive-self`, `affix` = a `"self"` entry in `possessor_person_affixes`,
+  `none`). `classifier_gen` gains `possessive_classifiers` (30% of classifier languages; classifier words
+  `possessive-classifier-<category>`, `_is_possessor_word`, inserted by `_with_classifiers` after a possessor
+  word). The renderer: `_suppletive_case` makes a pronoun slot look up the suppletive word instead of applying a
+  case suffix (nominative/absolutive never; genitive when the possessive is genitive-marked);
+  `_normalize_possessives` folds a `possessive_pronoun` slot back into an ordinary possessor where the language has
+  no special form (`self` reads as `he` in a language without a reflexive possessive). Decoding reads suppletive
+  forms as their English object/possessive form (`me`, `him`, `his`), `poss:self` as "the subject's own", and
+  drops possessive classifiers. 20 tests in `test_pronoun_paradigms.py`.

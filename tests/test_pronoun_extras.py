@@ -74,8 +74,11 @@ def test_affix_marked_reflexives_and_reciprocals_are_voices_with_suffixes():
 def test_affixes_exist_exactly_where_the_strategy_needs_them():
     for seed in range(1, 100):
         g = _language(seed).grammar
-        assert bool(g.possessor_person_affixes) == (g.possessive_pronouns == "affix")
-        assert [a.label for a in g.possessor_person_affixes] in ([], list(pronoun_gen.PERSON_LABELS))
+        assert bool(g.possessor_person_affixes) == (g.possessive_pronouns == "affix" or g.reflexive_possessive == "affix")
+        expected = (list(pronoun_gen.PERSON_LABELS) if g.possessive_pronouns == "affix" else []) + (
+            ["self"] if g.reflexive_possessive == "affix" else []
+        )
+        assert [a.label for a in g.possessor_person_affixes] == expected
         assert bool(g.verb_number_affixes) == g.verb_number_agreement
         assert bool(g.verb_polite_affixes) == g.verb_politeness
         if g.verb_politeness:

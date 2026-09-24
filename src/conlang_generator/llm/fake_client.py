@@ -157,6 +157,8 @@ def _fake_group_noun_phrases(raw_tokens: list[str]) -> tuple[list[str], dict[str
                 mods["indefinite"] = True
             elif word in _FAKE_POSSESSIVE_PRONOUNS:
                 mods["possessor"] = (_FAKE_POSSESSIVE_PRONOUNS[word], True)
+            elif word == "own" and "possessor" in mods:
+                mods["own"] = True
             elif word.endswith("'s") and len(word) > 3 and word[:-2] not in _FAKE_NOT_A_NOUN:
                 mods["possessor"] = (word[:-2], False)
             elif word in _FAKE_DEMONSTRATIVES and j + 1 < len(raw_tokens) and raw_tokens[j + 1] not in _FAKE_NOT_A_NOUN:
@@ -324,6 +326,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     reflexive_marking = metadata.get("reflexive_marking", "none")
     reciprocal_marking = metadata.get("reciprocal_marking", "none")
     possessive_pronouns = metadata.get("possessive_pronouns", "regular")
+    reflexive_possessive = metadata.get("reflexive_possessive", "none")
     verb_number_agreement = metadata.get("verb_number_agreement") == "true"
     verb_politeness = metadata.get("verb_politeness") == "true"
     clusivity = metadata.get("clusivity") == "true"
@@ -382,7 +385,9 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         after: list[dict] = []
         if "possessor" in info:
             possessor, is_pronoun = info["possessor"]
-            if is_pronoun and possessive_pronouns != "regular":
+            if info.get("own") and reflexive_possessive != "none":
+                before.append({"kind": "possessive_pronoun", "gloss": "self"})
+            elif is_pronoun and possessive_pronouns != "regular":
                 before.append({"kind": "possessive_pronoun", "gloss": possessor})
             else:
                 before.append(

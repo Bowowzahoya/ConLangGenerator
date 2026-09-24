@@ -130,6 +130,12 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   paradigm; verb number and politeness are single suffixes triggered by the
   planner's `subject_number`/`polite` fields; object pro-drop only works with
   person object agreement. Classifier categories come from small gloss lists.
+- **Suppletion is per person and only for pronouns**: a suppletive person has
+  one word per marked case (all cases the language marks, except the
+  nominative/absolutive), chosen by a coin flip per person, with no
+  regularity (no shared stems); it only applies in a language that has that
+  case. A possessive classifier is one word per category in the same category
+  inventory as numeral classifiers.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

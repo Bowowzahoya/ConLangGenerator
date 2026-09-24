@@ -243,12 +243,11 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         extras_rng, inventory, syllable_structure, voice_labels, extras_taken
     )
     extras_taken = extras_taken | {a.suffix for a in voice_extra_affixes}
-    person_affixes = (
-        inflection_gen.distinct_suffixes(
-            extras_rng, inventory, syllable_structure, pronoun_gen.PERSON_LABELS, extras_taken
-        )
-        if extras["possessive_pronouns"] == "affix"
-        else ()
+    person_affix_labels = (
+        pronoun_gen.PERSON_LABELS if extras["possessive_pronouns"] == "affix" else ()
+    ) + (("self",) if extras["reflexive_possessive"] == "affix" else ())
+    person_affixes = inflection_gen.distinct_suffixes(
+        extras_rng, inventory, syllable_structure, person_affix_labels, extras_taken
     )
     extras_taken = extras_taken | {a.suffix for a in person_affixes}
     verb_number_affixes = (
@@ -279,6 +278,8 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "voice_affixes": grammar.voice_affixes + voice_extra_affixes,
             "possessive_pronouns": extras["possessive_pronouns"],
             "possessor_person_affixes": person_affixes,
+            "suppletive_pronoun_persons": extras["suppletive_pronoun_persons"],
+            "reflexive_possessive": extras["reflexive_possessive"],
             "verb_number_agreement": extras["verb_number_agreement"],
             "verb_number_affixes": verb_number_affixes,
             "verb_politeness": verb_politeness,

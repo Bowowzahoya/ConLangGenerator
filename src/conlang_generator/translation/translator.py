@@ -596,6 +596,18 @@ def _following_noun_index(slots, index: int) -> int | None:
     return None
 
 
+def _is_possessor_word(grammar: GrammarProfile, slot) -> bool:
+    """A slot that renders as a word standing for the possessor (a possessive
+    noun/pronoun/name, or a possessive pronoun that is a word, not a suffix)."""
+    if slot.kind in ("content", "name"):
+        return slot.possessive
+    if slot.kind == "possessive_pronoun":
+        if slot.gloss == "self":
+            return grammar.reflexive_possessive == "word"
+        return grammar.possessive_pronouns == "words"
+    return False
+
+
 def _with_classifiers(language: Language, slots) -> tuple:
     """The plan's slots with a synthetic ``"classifier"`` slot placed after
     each numeral (and, where the language says so, demonstrative) that
@@ -628,6 +640,17 @@ def _with_classifiers(language: Language, slots) -> tuple:
             after_noun.setdefault(j, []).extend([slot, classifier_slot])
         else:
             after_trigger[i] = classifier_slot
+    if grammar.possessive_classifiers:
+        for i, slot in enumerate(slots):
+            if not _is_possessor_word(grammar, slot):
+                continue
+            j = _following_noun_index(slots, i)
+            if j is None:
+                continue
+            category = classifier_gen.classifier_category(slots[j].gloss, categories)
+            after_trigger[i] = PlannedSlot(
+                kind="classifier", gloss=classifier_gen.possessive_classifier_gloss(category)
+            )
     result: list[PlannedSlot] = []
     for i, slot in enumerate(slots):
         if i in deferred:
@@ -669,17 +692,33 @@ def _dropped_subject_pronouns(language: Language, slots) -> set[int]:
 
 
 def _normalize_possessives(language: Language, slots) -> tuple:
-    """In a language whose possessive pronouns are the ordinary personal
-    pronoun plus its possession marking, a ``possessive_pronoun`` slot is just
-    the pronoun as a possessor."""
-    if language.grammar.possessive_pronouns != "regular":
-        return tuple(slots)
-    return tuple(
-        dataclasses.replace(slot, kind="content", pos="pronoun", possessive=True)
-        if slot.kind == "possessive_pronoun"
-        else slot
-        for slot in slots
-    )
+    """A ``possessive_pronoun`` slot in a language that has no special form
+    for it is just the personal pronoun as a possessor: everywhere for
+    ``regular`` possessive pronouns, and for ``self`` ("his own") when the
+    language has no reflexive possessive (it then reads as ``he``)."""
+    grammar = language.grammar
+    normalized = []
+    for slot in slots:
+        if slot.kind == "possessive_pronoun":
+            own = slot.gloss == "self"
+            if (own and grammar.reflexive_possessive == "none") or (not own and grammar.possessive_pronouns == "regular"):
+                slot = dataclasses.replace(
+                    slot, kind="content", pos="pronoun", possessive=True, gloss="he" if own else slot.gloss
+                )
+        normalized.append(slot)
+    return tuple(normalized)
+
+
+def _suppletive_case(language: Language, slot, pos: PartOfSpeech, possession: str) -> str | None:
+    """The case whose suppletive pronoun word (I -> me) this pronoun slot needs,
+    or ``None`` (a regular pronoun, or a person without suppletive forms)."""
+    grammar = language.grammar
+    if pos is not PartOfSpeech.PRONOUN or not grammar.suppletive_pronoun_persons:
+        return None
+    case = "genitive" if slot.possessive and possession == "genitive" else slot.case
+    if case is None or case not in grammar.cases or case in ("nominative", "absolutive"):
+        return None
+    return case if pronoun_gen.person_label(slot.gloss) in grammar.suppletive_pronoun_persons else None
 
 
 def _dropped_object_pronouns(language: Language, slots, already: set[int]) -> set[int]:
@@ -768,10 +807,14 @@ def _render_plan(
             continue
         if slot.kind == "content" and slot.gloss:
             pos = sentence_planner.POS_BY_PLAN_STRING.get(slot.pos, PartOfSpeech.NOUN)
+            suppletive_case = _suppletive_case(working_language, slot, pos, possession)
+            lookup_gloss = pronoun_gen.suppletive_gloss(slot.gloss, suppletive_case) if suppletive_case else slot.gloss
             working_language, entry = _lookup_or_coin(
-                working_language, slot.gloss, pos, coined, llm_client, lemma_candidates=[slot.gloss]
+                working_language, lookup_gloss, pos, coined, llm_client, lemma_candidates=[lookup_gloss]
             )
-            if pos is PartOfSpeech.VERB:
+            if suppletive_case:
+                rendered = (entry.romanization, entry.ipa)  # the case form is a word of its own
+            elif pos is PartOfSpeech.VERB:
                 agreement_label, object_label = _verb_agreement(working_language, slot)
                 rendered = _apply_verb_inflection(
                     working_language, entry, slot.tense, agreement_label,
@@ -854,7 +897,11 @@ def _render_plan(
                     working_language, entry, _class_label_of(working_language, _next_noun_gloss(slots, slot_index))
                 )
         elif slot.kind == "possessive_pronoun":
-            if working_language.grammar.possessive_pronouns == "affix":
+            if slot.gloss == "self":
+                if working_language.grammar.reflexive_possessive == "affix":
+                    possessor_person_pending = "self"
+                    continue
+            elif working_language.grammar.possessive_pronouns == "affix":
                 possessor_person_pending = pronoun_gen.person_label(slot.gloss)
                 continue
             possessive_word = pronoun_gen.possessive_gloss(slot.gloss or "I")
@@ -1346,8 +1393,15 @@ def translate_to_english(
         entry = language.lexicon.by_form(tok)
         if entry is not None:
             gloss = entry.primary_gloss
-            if gloss.startswith(classifier_gen.CLASSIFIER_GLOSS_PREFIX):
+            if gloss.startswith((classifier_gen.CLASSIFIER_GLOSS_PREFIX, classifier_gen.POSSESSIVE_CLASSIFIER_GLOSS_PREFIX)):
                 continue  # a classifier carries no English word
+            suppletive = pronoun_gen.suppletive_split(gloss)
+            if suppletive is not None:
+                base, case_name = suppletive
+                seen_persons.add(pronoun_gen.person_label(base))
+                plain.append(pronoun_gen.suppletive_reading(base, case_name))
+                annotated.append(f"{pronoun_gen.english_reading(base)} (case: {case_name})")
+                continue
             person = pronoun_gen.person_label(gloss)
             if person is not None:
                 seen_persons.add(person)
@@ -1370,7 +1424,8 @@ def translate_to_english(
             notes = (
                 ([number_part] if number_part else [])
                 + (["possessed"] if is_possessed else [])
-                + ([f"possessed by: {possessor_part}"] if possessor_part else [])
+                + ([f"possessed by: {'the subject (his/her/its own)' if possessor_part == 'self' else possessor_part}"]
+                   if possessor_part else [])
                 + ([f"case: {case_part}"] if case_part else [])
             )
             annotated.append(noun_gloss if not notes else f"{noun_gloss} ({', '.join(notes)})")
@@ -1382,6 +1437,8 @@ def translate_to_english(
         )
         if adjective_decoded is not None:
             adjective_entry, _, degree_label = adjective_decoded
+            if adjective_entry.primary_gloss.startswith(classifier_gen.POSSESSIVE_CLASSIFIER_GLOSS_PREFIX):
+                continue
             gloss = pronoun_gen.english_reading(adjective_entry.primary_gloss)
             plain.append(
                 f"more {gloss}" if degree_label == "comparative" else f"most {gloss}" if degree_label == "superlative" else gloss

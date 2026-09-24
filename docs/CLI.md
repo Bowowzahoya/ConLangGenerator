@@ -737,6 +737,47 @@ the word `nǎd`; "my" is the word `bsēko` before `phutâ` (dog); and the verb o
 with a first-person suffix `-da`), and "He sees you" has no object pronoun: the
 verb ending `-ask` names "you"; translating it back gives `he see you`.
 
+**Suppletive pronoun forms, reflexive possessives, possessive classifiers.** Some
+languages give a personal pronoun's non-nominative forms words of their own
+(I/me/my: 35% of languages, for a random subset of I/you/he/we; the other
+persons keep the ordinary case suffix), so "me" is a lexicon word
+(`i-accusative`) rather than "I" plus a suffix. A language may also have a
+reflexive possessive ("his own dog"): a word (`possessive-self`), a suffix on the
+noun, or nothing special. And a classifier language may put a possessive
+classifier between a possessor word and the possessed noun (30% of classifier
+languages; chosen by the possessed noun's category). The planner is told all of
+these; the English direction reads them back (`me`, `his`, `one's own`, and drops
+the possessive classifier). Verified with `--llm fake` on `--seed 15 --prompt p`
+(SOV, suppletive I/he/we, reflexive-possessive suffix) and `--seed 74`
+(SVO, possessive words, possessive classifiers):
+
+```bash
+conlang translate "He sees me." --lang t19 --to conlang --llm fake
+conlang translate "I see him." --lang t19 --to conlang --llm fake
+conlang translate "He sees his dog." --lang t19 --to conlang --llm fake
+conlang translate "He sees his own dog." --lang t19 --to conlang --llm fake
+conlang translate "I see my dog." --lang t18 --to conlang --llm fake
+conlang translate "I see my river." --lang t18 --to conlang --llm fake
+```
+
+```
+rok2 snaw5 ski3nãkaim
+kav4 tłi5 ski3nãkaa
+rok2 sin2 smãms4nu2la ski3nãkaim
+rok2 smãms4nu2lowa ski3nãkaim
+ku2 pawi2ura pu1ko1mim kiy3 da3
+ku2 pawi2ura pu1ko1mar ngiy3 taung3
+```
+
+In `t19`, `rok2` is "he" and `kav4` "I", but the object forms are their own words:
+`snaw5` is "me" and `tłi5` is "him"; the genitive "his" is `sin2` (a word, not
+a suffix on `rok2`), while "his own" has no separate word -- the noun takes the
+reflexive-possessive suffix (`smãms4nu2lowa`, against plain `smãms4nu2la`). In
+`t18`, "my" is the possessive word `pu1ko1m-` (agreeing with the noun) followed by
+a possessive classifier: `kiy3` (the general one) before "dog" and `ngiy3` (the
+long-thing one) before "river"; translating the last back gives `I see my river`
+(the classifier is dropped).
+
 ## `conlang pronounce`
 
 Show IPA and romanization for a known word (English gloss or conlang
