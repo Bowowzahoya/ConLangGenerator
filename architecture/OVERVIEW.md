@@ -4494,3 +4494,15 @@ reading code or one-off ad hoc scripts.
   see` rough draft. The fake planner (`_fake_voice_slots`) plans passives (irregular participle or a "by"
   phrase, so "is tired" stays an adjective), the active rewording where the language has no passive, and "make
   X do Y" causatives. 19 tests in `test_voice.py`.
+
+- **Existentials and possession clauses (grammar pass 7).** `GrammarProfile` gains `existential`
+  (`"copula"`/`"verb"`, default `"copula"`) and `possession_clause` (`"have"`/`"dative_be"`, default `"have"`),
+  rolled in `generator.py` from a seventh independent stream (`Random(f"{seed}:existence")`). This pass is
+  planner-driven like voice: the prompt states the language's strategy ("there is X" = X + the copula slot / X +
+  a content verb "exist"; "A has B" = a transitive "have" / no "have": possessor first in the dative or
+  possessor-marked, then the existential construction with B as subject) and forbids a slot for "there"; the
+  renderer needs no new mechanism (the words "exist"/"have"/"be" are ordinary lexicon words, coined on first
+  use). The English direction gets `_construction_note(language)` appended to the fluency prompt so the model
+  can read the pattern back. The fake planner (`_fake_existence_slots`) plans "there is/are/was X", "is there
+  X?", "there is no X" and, in `dative_be` languages, "A has/had B"; `have`/`has`/`had` now map to the lemma
+  "have". 15 tests in `test_existence.py`.

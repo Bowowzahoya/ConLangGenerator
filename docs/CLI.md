@@ -561,6 +561,39 @@ patient `yut` moves to subject position without the object marker `-u`, and
 "by" phrase, and a causative only as "make X do Y"; a real LLM handles the
 rest, including antipassives, which the fake planner never produces.)
 
+**Existentials and possession clauses.** Every language chooses how to say
+"there is X" -- X plus the copula (or just X where there is no overt copula),
+or X plus a dedicated verb "exist" -- and how to say "A has B" -- the
+transitive verb "have", or, with no verb "have", A first (in the dative if the
+language has one, otherwise possessor-marked) followed by the existential
+construction with B as its subject. The planner is told the language's own
+strategy and writes the plan accordingly (never a slot for "there"), and the
+English direction is told how to read the pattern back. Verified with
+`--llm fake`: `--seed 2` is a copula + "have" language (SVO), `--seed 8` an
+"exist" verb + dative-possessor language (SVO, dative case):
+
+```bash
+conlang translate "There is a dog." --lang t8 --to conlang --llm fake
+conlang translate "I have a dog." --lang t8 --to conlang --llm fake
+conlang translate "There is a dog." --lang t7 --to conlang --llm fake
+conlang translate "I have a dog." --lang t7 --to conlang --llm fake
+```
+
+```
+ts'sēi fyaě kỉkngẻeaa
+gaì khîee ts'sēi fyaěu
+na2pzu5zai te'3 ha2xo5goet
+mi4ha na2pzu5zai te'3 ha2xo5goet
+```
+
+In `t8` the noun `fyaě` takes the copula `kỉkngẻeaa` for "there is", and "I
+have a dog" uses the verb `khîee` with an object-marked `fyaěu`. In `t7`
+"there is" is the verb `ha2xo5goet` ("exist"), and "I have a dog" is the same
+construction with the possessor `mi4ha` (dative "I") in front and no verb
+"have" at all. A question ("Is there a river?") gets the language's question
+particle as usual. (`--llm fake` recognizes "there is/are/was X", "is there
+X?", "there is no X" and, in dative-possessor languages, "A has/had B".)
+
 ## `conlang pronounce`
 
 Show IPA and romanization for a known word (English gloss or conlang

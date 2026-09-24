@@ -342,6 +342,16 @@ class GrammarProfile(BaseModel, frozen=True):
     agent is marked) is planned by ``translation.sentence_planner``."""
     voice_affixes: tuple[InflectionAffix, ...] = ()
 
+    existential: str = "copula"
+    """How "there is X" is expressed: ``"copula"`` (X plus the copula, or just
+    X in a language without an overt copula) or ``"verb"`` (X plus a
+    dedicated verb "exist")."""
+    possession_clause: str = "have"
+    """How "A has B" is expressed: ``"have"`` (a transitive verb "have": A
+    subject, B object) or ``"dative_be"`` (A first, in the dative -- or
+    possessor-marked where there is no dative -- then the existential
+    construction with B as its subject; no verb "have")."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their

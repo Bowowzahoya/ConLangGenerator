@@ -199,7 +199,7 @@ plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
 structure with complement, relative and adverbial clauses (pass 2); aspect and
 verbal mood as systems separate from tense (pass 3); noun classes with article,
 adjective and verb (subject and object) agreement (pass 4); dual number,
-demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6). See
+demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
@@ -234,9 +234,15 @@ seconds when the token is not a word of the language, because it searches
 suffix combinations (staged and prefix-filtered); a cache or smarter suffix
 matching would fix it (S-M).
 
-**Clause types still missing:** existentials and possession ("there is",
-"I have"; many languages have no verb "have") (M); comparatives and
-superlatives (M).
+**Existence/possession follow-ups (S-M):** more strategies (locative
+possession "at me is", topic-comment possession, a possessive verb that
+agrees with the possessed noun, "have" as a light verb); a dedicated
+existential particle; negative existentials with their own verb ("there
+isn't"); habitual/experiential possession ("I have to"); the English
+direction relies on the fluency prompt note rather than recognizing the
+construction itself.
+
+**Clause types still missing:** comparatives and superlatives (M).
 
 **Noun phrase still missing:** collective number and trial (S); classifiers
 ("two [piece] dogs") (M); a real pronoun system (person, number, clusivity,

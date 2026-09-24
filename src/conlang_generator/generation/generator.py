@@ -162,6 +162,15 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         }
     )
 
+    # Existential and possession-clause strategies: a seventh independent stream.
+    existence_rng = random.Random(f"{spec.seed}:existence")
+    grammar = grammar.model_copy(
+        update={
+            "existential": "verb" if existence_rng.random() < 0.45 else "copula",
+            "possession_clause": "have" if existence_rng.random() < 0.55 else "dative_be",
+        }
+    )
+
     seed_entries = tuple(
         LexicalEntry(
             ipa=example.ipa,

@@ -108,6 +108,11 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   agent of a passive is a "by" phrase, never an agent case; only passive,
   antipassive (ergative languages) and causative exist, one suffix each.
   Nothing checks that the planner reassigned the arguments correctly.
+- **Existentials and possession clauses are planner-driven**: two strategies
+  each (copula or "exist"; "have" or a dative-possessor construction). The
+  renderer does not check that the planner really followed the strategy, and
+  the English direction is told the strategy in the fluency prompt rather than
+  parsing it.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

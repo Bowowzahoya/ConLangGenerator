@@ -948,6 +948,31 @@ def _english_verb_phrase(
     return _english_verb_gloss(entry, tense_label)
 
 
+def _construction_note(language: Language) -> str:
+    """A sentence appended to the fluency prompt saying how this language
+    expresses "there is X" and "A has B", so the model can read those
+    constructions back as English (the decoded gloss sequence alone shows
+    only "exist"/"be" and a dative or possessor-marked word)."""
+    grammar = language.grammar
+    existential = (
+        'X plus the verb "exist"'
+        if grammar.existential == "verb"
+        else "X plus the copula \"be\" (or just X where there is no copula)"
+    )
+    possession = (
+        'the ordinary transitive verb "have"'
+        if grammar.possession_clause == "have"
+        else (
+            'no verb "have": it is written as A (in the dative or marked as a possessor) followed by '
+            + ('"exist"' if grammar.existential == "verb" else '"be"')
+            + " with B as its subject -- read that as \"A has B\""
+        )
+    )
+    return (
+        f' In this language "there is X" is expressed as {existential}, and "A has B" as {possession}.'
+    )
+
+
 def translate_to_english(
     text: str, language: Language, llm_client: LLMClient
 ) -> TranslationResult:
@@ -1052,6 +1077,7 @@ def translate_to_english(
             "Keep the meaning and the word order's implied roles; do not "
             "add new content; drop the annotations themselves from your "
             "output."
+            + _construction_note(language)
         ),
         prompt=f"Rough gloss sequence: {annotated_draft}\nWrite a natural English sentence:",
         model=DEFAULT_MODEL,

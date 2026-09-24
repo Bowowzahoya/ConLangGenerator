@@ -206,6 +206,28 @@ def _build_system_prompt(language: Language) -> str:
     voices_desc = (
         ", ".join(grammar.voices) if grammar.voices else 'none -- never set "voice" on anything'
     )
+    existential_desc = (
+        'X followed by a finite "content" verb with gloss "exist" (pos "verb", tense/agreement like any verb; '
+        "agreement with X)"
+        if grammar.existential == "verb"
+        else (
+            "X followed by the copula slot (agreement with X)"
+            if grammar.has_overt_copula
+            else "just the noun phrase X (this language has no overt copula)"
+        )
+    )
+    dative_desc = 'the dative case ("case":"dative")' if "dative" in grammar.cases else (
+        'possessor marking ("possessive":true on the possessor slot, as for "my dog")'
+    )
+    possession_clause_desc = (
+        'a transitive sentence whose verb is the content verb "have" (pos "verb"): the possessor is the subject '
+        "and the possessed is the object, case-marked as for any transitive sentence"
+        if grammar.possession_clause == "have"
+        else (
+            f"there is no verb \"have\": the possessor comes FIRST, taking {dative_desc}, followed by the "
+            "existential construction above whose X is the possessed noun phrase (a plain subject: no object case)"
+        )
+    )
     optional_kinds = []
     if grammar.has_indefinite_article:
         optional_kinds.append('"indefinite_article" (English "a"/"an" -- no other field needed)')
@@ -235,6 +257,11 @@ predicate adjective, regardless of word_order.
 - grammatical cases this language actually has: {cases_desc}.
 - tenses this language actually has: {tenses_desc}.
 - aspects this language actually has: {aspects_desc}.
+- existential sentences ("there is/are X", "is there X?"): {existential_desc}. \
+Never write a slot for the English "there".
+- possession clauses ("I have a dog", "the man had two horses"): \
+{possession_clause_desc}. (Possession INSIDE a noun phrase, "my dog", is the \
+separate "possessive" mechanism.)
 - voices (besides the ordinary active) this language actually has: \
 {voices_desc}.
 - number: singular is unmarked; this language has {number_desc}.
@@ -418,6 +445,9 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "cases": ",".join(grammar.cases),
             "tenses": ",".join(grammar.tenses),
             "aspects": ",".join(grammar.aspects),
+            "existential": grammar.existential,
+            "possession_clause": grammar.possession_clause,
+            "cases": ",".join(grammar.cases),
             "voices": ",".join(grammar.voices),
             "postpositional": "true" if grammar.postpositional else "false",
             "has_indefinite_article": "true" if grammar.has_indefinite_article else "false",

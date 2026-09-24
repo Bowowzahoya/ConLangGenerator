@@ -199,6 +199,10 @@ def _fake_tokenize(text: str) -> list[str]:
 
 
 def _fake_detect_tense_and_lemma(token: str) -> tuple[str, str]:
+    if token in ("have", "has"):
+        return "non_past", "have"
+    if token == "had":
+        return "past", "have"
     if token in _FAKE_IRREGULAR_PAST_LEMMA:
         return "past", _FAKE_IRREGULAR_PAST_LEMMA[token]
     if token.endswith("ied") and len(token) > 3:
@@ -289,6 +293,9 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     demonstrative_after_noun = metadata.get("demonstrative_after_noun") == "true"
     has_dual = "dual" in metadata.get("number_labels", "").split(",")
     voices = [v for v in metadata.get("voices", "").split(",") if v]
+    existential = metadata.get("existential", "copula")
+    possession_clause = metadata.get("possession_clause", "have")
+    cases = [c for c in metadata.get("cases", "").split(",") if c]
     postpositional = metadata.get("postpositional") == "true"
     noun_classes = [c for c in metadata.get("noun_classes", "").split(",") if c]
     object_agreement = metadata.get("object_agreement") == "true"
@@ -374,11 +381,17 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         content_tokens = content_tokens + [wh_token]  # "what do you see" -> you see WHAT (object)
         wh_token = None
 
-    voice_slots = _fake_voice_slots(
+    existence_slots = _fake_existence_slots(
+        tokens, word_order, tenses, has_overt_copula, existential, possession_clause, cases, noun_phrase, base_of,
+        noun_classes, name_by_placeholder,
+    )
+    voice_slots = None if existence_slots is not None else _fake_voice_slots(
         tokens, metadata, voices, postpositional, word_order, alignment, tenses, noun_phrase, base_of,
         noun_classes, name_by_placeholder, tokens_no_copula,
     )
-    if voice_slots is not None:
+    if existence_slots is not None:
+        slots = existence_slots
+    elif voice_slots is not None:
         slots = voice_slots
     elif mood == "imperative" and content_tokens:
         verb_tok, rest = content_tokens[0], content_tokens[1:]
@@ -468,6 +481,66 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
 
 _FAKE_SUBORDINATORS = {"that", "because", "if", "when", "although", "while"}
 _FAKE_SUBORDINATOR_ROLE = {"that": "complement"}
+
+
+def _fake_existence_slots(
+    tokens, word_order, tenses, has_overt_copula, existential, possession_clause, cases, noun_phrase, base_of,
+    noun_classes, name_by_placeholder,
+):
+    """Plans an existential ("there is/are/was X", "is there X?", "there is no
+    X") and, in a ``dative_be`` language, a possession clause ("I have X"),
+    per the language's own ``existential``/``possession_clause`` strategies;
+    ``None`` when the tokens are neither (a ``have`` language's "I have X"
+    is left to the ordinary transitive shape)."""
+    order = _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O"))
+    verb_first = order.index("V") < order.index("S")
+    negated = "not" in tokens or "no" in tokens
+    skip = _FAKE_COPULAS | {"there", "not", "no"}
+
+    def be_slots(tense_label: str | None, x_tok: str) -> list[dict]:
+        agrees = {"agreement": "default"}
+        if noun_classes and x_tok not in _FAKE_PRONOUN_TOKENS and x_tok not in name_by_placeholder:
+            agrees["subject_gloss"] = base_of(x_tok)
+        if existential == "verb":
+            slot = {"kind": "content", "gloss": "exist", "pos": "verb", **agrees}
+        elif has_overt_copula:
+            slot = {"kind": "copula", **agrees}
+        else:
+            slot = None
+        out: list[dict] = []
+        if slot is not None:
+            if tense_label:
+                slot["tense"] = tense_label
+            out.append(slot)
+        if negated:
+            out.append({"kind": "negation"})
+        return out
+
+    def arrange(np_slots: list[dict], be: list[dict]) -> list[dict]:
+        return be + np_slots if verb_first else np_slots + be
+
+    if "there" in tokens and any(t in _FAKE_COPULAS for t in tokens):
+        x_tok = next((t for t in tokens if t not in skip), None)
+        if x_tok is None:
+            return None
+        copula = next(t for t in tokens if t in _FAKE_COPULAS)
+        tense_label = _fake_tense_label("past" if copula in _FAKE_PAST_COPULAS else "non_past", tenses)
+        return arrange(noun_phrase(x_tok, None), be_slots(tense_label, x_tok))
+
+    have_index = next((i for i, t in enumerate(tokens) if t in ("have", "has", "had")), None)
+    if possession_clause == "dative_be" and have_index is not None and 0 < have_index < len(tokens) - 1:
+        possessor_tok, possessed_tok = tokens[have_index - 1], tokens[have_index + 1]
+        tense_label = _fake_tense_label("past" if tokens[have_index] == "had" else "non_past", tenses)
+        if "dative" in cases:
+            possessor = noun_phrase(possessor_tok, "dative")
+        else:
+            possessor = noun_phrase(possessor_tok, None)
+            for slot in reversed(possessor):
+                if slot.get("kind") in ("content", "name") and slot.get("pos") != "numeral":
+                    slot["possessive"] = True
+                    break
+        return possessor + arrange(noun_phrase(possessed_tok, None), be_slots(tense_label, possessed_tok))
+    return None
 
 
 _FAKE_MAKE = {"make", "makes", "made"}
