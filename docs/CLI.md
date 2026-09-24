@@ -651,6 +651,13 @@ The numeral `pngu'j` ("two") is followed by `fngux` (animal classifier) before
 `lizmij` (dog), and by `pigx` (long-thing classifier) before `dejtslanz`
 (river). Translating the second back gives `I see two river`.
 
+Classifier languages vary: each has classifiers for its own subset of twelve
+noun categories (human, animal, long, flat, round, plant, container,
+building, vehicle, tool, food, plus a general one that takes any noun whose
+category the language lacks); a quarter put the numeral and classifier after
+the noun (noun-numeral-classifier, as in Thai) instead of before it; and most
+(80%) also use a classifier after a demonstrative.
+
 **Pronoun system.** Beyond the core I/you/he/we, every language always has
 `you-plural` and `they`, and rolls: an inclusive/exclusive split of "we" (15%),
 a separate `she` and `it` instead of one third person (35%), a polite
@@ -680,6 +687,55 @@ No pronoun is written: the verb `fusev-` ends in `-id` (I), `-an` (she) or `-ad`
 river`. (The fake planner maps she/it/they/me/him/us/them and, with a language
 that has one, `you-polite` after a cue word like "sir"; a real LLM decides
 politeness and clusivity from context.)
+
+**Reflexives, reciprocals, possessive pronouns, verb number and politeness,
+object pro-drop.** Every language also chooses:
+
+- how to say "himself" and "each other": a word (`self`, `each-other`, an
+  object pronoun), a suffix on the verb (a `reflexive`/`reciprocal` voice, no
+  object), or just an ordinary pronoun;
+- how to say "my/your/his...": the personal pronoun plus the language's
+  possession marking (as before), a possessive word per person
+  (`possessive-I`, `possessive-you`... agreeing with the noun's class), or a
+  person suffix on the possessed noun;
+- whether the verb marks a plural subject (25%) and, in a language with a
+  polite "you", a polite subject (60% of those) with a suffix of its own;
+- whether an object pronoun is omitted when the verb's object agreement names
+  it (only where the verb agrees with objects by person).
+
+The planner is told each choice; the English direction reads them back
+(`oneself`, `each other`, `my`, `possessed by: I`, `subject: plural`,
+`polite`, and a dropped object such as `him`). Verified with `--llm fake`:
+`--seed 7 --prompt p` (SVO; reflexive suffix, reciprocal word, possessive
+words, verb number) and `--seed 3` (SVO; reflexive word, possessive person
+suffix, object pro-drop):
+
+```bash
+conlang translate "He sees the dog." --lang t13 --to conlang --llm fake
+conlang translate "He sees himself." --lang t13 --to conlang --llm fake
+conlang translate "They see each other." --lang t13 --to conlang --llm fake
+conlang translate "I see my dog." --lang t13 --to conlang --llm fake
+conlang translate "They see the dog." --lang t13 --to conlang --llm fake
+conlang translate "I see my dog." --lang t14 --to conlang --llm fake
+conlang translate "He sees you." --lang t14 --to conlang --llm fake
+```
+
+```
+tā ngûgo phutâ nǐ-i-u-udh
+tā nǐ-ei-i-u
+pủh nǎd nǐ-i-u-umbeny
+skè bsēko phutâ nǐ-i-akhudh
+pủh ngûgo phutâ nǐ-i-u-umbudh
+mipap pnaitida skutusbusu-iwg
+pyasdut skutusbusu-ask
+```
+
+In `t13`, "himself" is a verb suffix (`nǐ-ei-i-u`, no object); "each other" is
+the word `nǎd`; "my" is the word `bsēko` before `phutâ` (dog); and the verb of
+"They see the dog" ends in `-umbudh` where "He sees the dog" ends in `-udh`
+(the `-umb` marks a plural subject). In `t14`, "my dog" is `pnaitida` (the dog
+with a first-person suffix `-da`), and "He sees you" has no object pronoun: the
+verb ending `-ask` names "you"; translating it back gives `he see you`.
 
 ## `conlang pronounce`
 

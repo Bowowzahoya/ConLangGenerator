@@ -33,6 +33,11 @@ def _find(predicate, limit: int = 250):
     raise AssertionError("no seed found")
 
 
+def _base(grammar) -> tuple:
+    """The voices of the roll itself, without the reflexive/reciprocal suffix voices added later."""
+    return tuple(v for v in grammar.voices if v not in ("reflexive", "reciprocal"))
+
+
 def _verb_form(language, voice: str | None, tense: str | None = None, aspect: str | None = None) -> str:
     slot = PlannedSlot(kind="content", gloss="see", pos="verb", agreement="default", voice=voice, tense=tense, aspect=aspect)
     _, romanized, _, _ = _render_plan(SentencePlan(slots=(slot,)), language, _CLIENT, [])
@@ -46,7 +51,7 @@ def test_voice_systems_follow_the_alignment():
     seen_nom, seen_erg = set(), set()
     for seed in range(1, 80):
         grammar = _language(seed).grammar
-        (seen_erg if grammar.alignment.value == "ergative_absolutive" else seen_nom).add(grammar.voices)
+        (seen_erg if grammar.alignment.value == "ergative_absolutive" else seen_nom).add(_base(grammar))
         assert [a.label for a in grammar.voice_affixes] == list(grammar.voices)
     assert seen_nom <= set(inflection_gen.VOICE_SYSTEMS_NOM_ACC)
     assert seen_erg <= set(inflection_gen.VOICE_SYSTEMS_ERGATIVE)
@@ -80,7 +85,7 @@ def test_parse_reads_the_voice():
 
 
 def test_the_prompt_lists_this_languages_voices():
-    language = _find(lambda g: g.voices == ("passive", "causative"))
+    language = _find(lambda g: _base(g) == ("passive", "causative"))
     prompt = sentence_planner._build_system_prompt(language)
     assert "passive, causative" in prompt
     none_language = _find(lambda g: not g.voices)
@@ -137,7 +142,7 @@ def test_the_fake_planner_plans_a_causative():
 
 
 def test_each_voice_changes_the_verb_form_and_decodes_back():
-    language = _find(lambda g: g.voices == ("passive", "causative"))
+    language = _find(lambda g: _base(g) == ("passive", "causative"))
     forms = {voice: _verb_form(language, voice) for voice in (None, "passive", "causative")}
     assert len(set(forms.values())) == 3
     see = language.lexicon.by_gloss("see")

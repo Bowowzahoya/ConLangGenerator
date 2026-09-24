@@ -207,7 +207,8 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
 
     # Classifiers and the pronoun system: a ninth and tenth independent stream.
     classifier_rng = random.Random(f"{spec.seed}:classifier")
-    uses_classifiers = classifier_gen.roll_uses_classifiers(classifier_rng, grammar.morphological_type)
+    classifier_system = classifier_gen.roll_classifier_system(classifier_rng, grammar.morphological_type)
+    uses_classifiers = bool(classifier_system["uses_classifiers"])
     pronoun_rng = random.Random(f"{spec.seed}:pronoun")
     pronoun_system = pronoun_gen.roll_pronoun_system(pronoun_rng, spec.traits.social_hierarchy)
     person_suffixes = [a.suffix for a in grammar.agreement_affixes if a.label in pronoun_gen.PERSON_LABELS]
@@ -215,9 +216,74 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         pronoun_system["pro_drop"] = False  # dropping a pronoun needs distinct person marking on the verb
     grammar = grammar.model_copy(
         update={
-            "uses_classifiers": uses_classifiers,
+            **classifier_system,
             "plural_after_numeral": False if uses_classifiers else grammar.plural_after_numeral,
             **pronoun_system,
+        }
+    )
+
+    # Reflexives, reciprocals, possessive pronouns, verb number/politeness and
+    # object pro-drop: a further independent stream.
+    extras_rng = random.Random(f"{spec.seed}:pronoun-extras")
+    extras = pronoun_gen.roll_pronoun_extras(extras_rng)
+    extras_taken = frozenset(
+        affix.suffix
+        for affix in (
+            *grammar.tense_affixes, *grammar.agreement_affixes, *grammar.mood_affixes, *grammar.aspect_affixes,
+            *grammar.voice_affixes, *grammar.object_agreement_affixes, *grammar.case_affixes,
+            *grammar.number_affixes, *grammar.class_affixes, *grammar.possession_affixes, *grammar.degree_affixes,
+        )
+    )
+    voice_labels = tuple(
+        label
+        for label, marking in (("reflexive", extras["reflexive_marking"]), ("reciprocal", extras["reciprocal_marking"]))
+        if marking == "affix"
+    )
+    voice_extra_affixes = inflection_gen.distinct_suffixes(
+        extras_rng, inventory, syllable_structure, voice_labels, extras_taken
+    )
+    extras_taken = extras_taken | {a.suffix for a in voice_extra_affixes}
+    person_affixes = (
+        inflection_gen.distinct_suffixes(
+            extras_rng, inventory, syllable_structure, pronoun_gen.PERSON_LABELS, extras_taken
+        )
+        if extras["possessive_pronouns"] == "affix"
+        else ()
+    )
+    extras_taken = extras_taken | {a.suffix for a in person_affixes}
+    verb_number_affixes = (
+        inflection_gen.distinct_suffixes(extras_rng, inventory, syllable_structure, ("plural",), extras_taken)
+        if extras["verb_number_agreement"]
+        else ()
+    )
+    extras_taken = extras_taken | {a.suffix for a in verb_number_affixes}
+    verb_politeness = bool(grammar.honorific_you and extras["verb_politeness_wish"])
+    verb_polite_affixes = (
+        inflection_gen.distinct_suffixes(extras_rng, inventory, syllable_structure, ("polite",), extras_taken)
+        if verb_politeness
+        else ()
+    )
+    object_person_suffixes = [
+        a.suffix for a in grammar.object_agreement_affixes if a.label in pronoun_gen.PERSON_LABELS
+    ]
+    object_pro_drop = bool(
+        grammar.object_agreement
+        and extras["object_pro_drop_wish"]
+        and len(set(object_person_suffixes)) == len(pronoun_gen.PERSON_LABELS)
+    )
+    grammar = grammar.model_copy(
+        update={
+            "reflexive_marking": extras["reflexive_marking"],
+            "reciprocal_marking": extras["reciprocal_marking"],
+            "voices": grammar.voices + voice_labels,
+            "voice_affixes": grammar.voice_affixes + voice_extra_affixes,
+            "possessive_pronouns": extras["possessive_pronouns"],
+            "possessor_person_affixes": person_affixes,
+            "verb_number_agreement": extras["verb_number_agreement"],
+            "verb_number_affixes": verb_number_affixes,
+            "verb_politeness": verb_politeness,
+            "verb_polite_affixes": verb_polite_affixes,
+            "object_pro_drop": object_pro_drop,
         }
     )
 

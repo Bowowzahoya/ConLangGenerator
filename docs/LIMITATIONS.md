@@ -124,6 +124,12 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   (that is why pro-drop is switched off in such a language); the polite,
   inclusive and plural readings depend on the planner. Nothing checks that
   the planner used the language's own pronoun glosses.
+- **Pronoun extras are illustrative**: a reflexive/reciprocal is a word, a voice
+  suffix or an ordinary pronoun (no long-distance or emphatic reflexives);
+  possessive pronouns are one word or suffix per person, not a full case
+  paradigm; verb number and politeness are single suffixes triggered by the
+  planner's `subject_number`/`polite` fields; object pro-drop only works with
+  person object agreement. Classifier categories come from small gloss lists.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

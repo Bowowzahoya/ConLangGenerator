@@ -372,6 +372,14 @@ class GrammarProfile(BaseModel, frozen=True):
     """A classifier word (chosen by the noun's semantic category) follows a
     numeral or demonstrative before its noun; such a language keeps the noun
     singular after a numeral."""
+    classifier_categories: tuple[str, ...] = ()
+    """The noun categories that have a classifier of their own (a subset of
+    ``generation.classifier_gen.CATEGORIES``, always with ``general``); empty
+    on a classifier language saved before this field means the original six."""
+    classifier_after_noun: bool = False
+    """Noun-numeral-classifier order instead of numeral-classifier-noun."""
+    classifier_with_demonstrative: bool = True
+    """Whether a demonstrative also takes a classifier."""
     clusivity: bool = False
     """Inclusive/exclusive "we" (``we-inclusive``/``we-exclusive``)."""
     third_person_gender: bool = False
@@ -381,6 +389,30 @@ class GrammarProfile(BaseModel, frozen=True):
     pro_drop: bool = False
     """A subject pronoun is omitted when the verb's agreement names the
     person."""
+
+    reflexive_marking: str = "none"
+    """``"word"`` (an object pronoun ``self``), ``"affix"`` (a ``reflexive``
+    voice suffix on the verb, no object) or ``"none"`` (an ordinary pronoun of
+    the subject's person)."""
+    reciprocal_marking: str = "none"
+    """The same for "each other" (``each-other`` / a ``reciprocal`` voice)."""
+    possessive_pronouns: str = "regular"
+    """``"regular"`` (the personal pronoun plus the language's possession
+    marking), ``"words"`` (a possessive word per person, ``possessive-<gloss>``)
+    or ``"affix"`` (a person suffix on the possessed noun)."""
+    possessor_person_affixes: tuple[InflectionAffix, ...] = ()
+    """One suffix per person (``I``/``you``/``he``/``we``) on a possessed noun,
+    when ``possessive_pronouns == "affix"``."""
+    verb_number_agreement: bool = False
+    """The verb carries a ``plural`` suffix when its subject is plural."""
+    verb_number_affixes: tuple[InflectionAffix, ...] = ()
+    verb_politeness: bool = False
+    """The verb carries a ``polite`` suffix when its subject is ``you-polite``
+    (needs ``honorific_you``)."""
+    verb_polite_affixes: tuple[InflectionAffix, ...] = ()
+    object_pro_drop: bool = False
+    """An object pronoun is omitted when the verb's object agreement names it
+    (needs ``object_agreement`` with distinct person suffixes)."""
 
     @property
     def postpositional(self) -> bool:

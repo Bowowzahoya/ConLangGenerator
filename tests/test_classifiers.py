@@ -32,6 +32,17 @@ def _noun(gloss: str) -> PlannedSlot:
     return PlannedSlot(kind="content", gloss=gloss, pos="noun")
 
 
+def _classifier_language():
+    """A classifier language of the plain kind: numeral-classifier-noun order, demonstratives take one too,
+    and classifiers for animals and long things."""
+    return _find(
+        lambda g: g.uses_classifiers
+        and not g.classifier_after_noun
+        and g.classifier_with_demonstrative
+        and {"animal", "long"} <= set(g.classifier_categories)
+    )
+
+
 _TWO = PlannedSlot(kind="content", gloss="two", pos="numeral")
 
 
@@ -73,7 +84,7 @@ def test_a_nouns_classifier_category_comes_from_its_meaning():
 
 
 def test_the_prompt_says_the_renderer_adds_the_classifier():
-    language = _find(lambda g: g.uses_classifiers)
+    language = _classifier_language()
     assert "CLASSIFIER word that the renderer adds itself" in sentence_planner._build_system_prompt(language)
     other = _find(lambda g: not g.uses_classifiers)
     assert "no classifiers" in sentence_planner._build_system_prompt(other)
@@ -83,7 +94,7 @@ def test_the_prompt_says_the_renderer_adds_the_classifier():
 
 
 def test_a_classifier_follows_a_numeral_and_depends_on_the_noun():
-    language = _find(lambda g: g.uses_classifiers)
+    language = _classifier_language()
     updated, dog_tokens, dog_glosses = _render(language, _TWO, _noun("dog"))
     _, river_tokens, river_glosses = _render(language, _TWO, _noun("river"))
     assert len(dog_tokens) == 3 and len(river_tokens) == 3
@@ -98,7 +109,7 @@ def test_a_language_without_classifiers_adds_none():
 
 
 def test_a_demonstrative_also_takes_a_classifier_and_an_adjective_does_not_block_it():
-    language = _find(lambda g: g.uses_classifiers)
+    language = _classifier_language()
     demonstrative = PlannedSlot(kind="demonstrative", gloss="this")
     assert _render(language, demonstrative, _noun("dog"))[2][1] == "classifier-animal"
     adjective = PlannedSlot(kind="content", gloss="high", pos="adjective")
@@ -107,28 +118,91 @@ def test_a_demonstrative_also_takes_a_classifier_and_an_adjective_does_not_block
 
 
 def test_no_classifier_without_a_following_noun():
-    language = _find(lambda g: g.uses_classifiers)
+    language = _classifier_language()
     verb = PlannedSlot(kind="content", gloss="see", pos="verb")
     assert len(_render(language, _TWO, verb)[1]) == 2
     assert len(_render(language, _TWO)[1]) == 1
 
 
 def test_a_classifier_is_coined_once_and_reused():
-    language = _find(lambda g: g.uses_classifiers)
+    language = _classifier_language()
     updated, first, _ = _render(language, _TWO, _noun("dog"))
     _, second, _ = _render(updated, _TWO, _noun("cat"))
     assert first[1] == second[1]  # both animals: the same classifier word
 
 
 def test_the_noun_stays_singular_after_a_numeral_in_a_classifier_language():
-    language = _find(lambda g: g.uses_classifiers)
+    language = _classifier_language()
     two_dogs = PlannedSlot(kind="content", gloss="dog", pos="noun", number="plural")
     assert _render(language, _TWO, two_dogs)[1][2] == _render(language, _TWO, _noun("dog"))[1][2]
 
 
 def test_the_classifier_is_dropped_on_the_way_back_to_english():
-    language = _find(lambda g: g.uses_classifiers)
+    language = _classifier_language()
     result = translate_to_conlang("I see two dogs.", language, _CLIENT)
     assert any(e.primary_gloss == "classifier-animal" for e in result.coined)
     english = translate_to_english(result.text, result.language, _CLIENT).text
     assert "classifier" not in english and "dog" in english and "<unknown" not in english
+
+
+# --- variety: categories, order, demonstratives ---------------------------
+
+
+def test_the_categories_cover_twelve_kinds_of_noun():
+    assert len(classifier_gen.CATEGORIES) == 12
+    picks = {
+        "cup": "container", "house": "building", "boat": "vehicle", "key": "tool", "bread": "food", "flower": "plant",
+    }
+    assert {w: classifier_gen.classifier_category(w) for w in picks} == picks
+
+
+def test_a_noun_without_its_own_classifier_takes_the_general_one():
+    assert classifier_gen.classifier_category("cup", ("human", "general")) == "general"
+    assert classifier_gen.classifier_category("teacher", ("human", "general")) == "human"
+    assert classifier_gen.classifier_category("cup", None) == "container"
+
+
+def test_each_classifier_language_has_a_subset_of_categories_with_general():
+    languages = [g for g in (_language(s).grammar for s in range(1, 200)) if g.uses_classifiers]
+    assert languages
+    for grammar in languages:
+        assert "general" in grammar.classifier_categories
+        assert set(grammar.classifier_categories) <= set(classifier_gen.CATEGORIES)
+        assert 4 <= len(grammar.classifier_categories) <= len(classifier_gen.CATEGORIES)
+    assert len({g.classifier_categories for g in languages}) > 3
+    assert {g.classifier_after_noun for g in languages} == {True, False}
+    assert {g.classifier_with_demonstrative for g in languages} == {True, False}
+
+
+def test_a_language_without_classifiers_has_no_categories():
+    assert _find(lambda g: not g.uses_classifiers).grammar.classifier_categories == ()
+
+
+def test_an_old_classifier_language_without_categories_uses_the_original_six():
+    language = _find(lambda g: g.uses_classifiers and not g.classifier_after_noun)
+    old = language.model_copy(update={"grammar": language.grammar.model_copy(update={"classifier_categories": ()})})
+    assert _render(old, _TWO, _noun("cup"))[2][1] == "classifier-round" or _render(old, _TWO, _noun("cup"))[2][1] == "classifier-general"
+    assert _render(old, _TWO, _noun("dog"))[2][1] == "classifier-animal"
+
+
+def test_a_missing_category_falls_back_to_general_when_rendering():
+    language = _find(lambda g: g.uses_classifiers and not g.classifier_after_noun and "container" not in g.classifier_categories)
+    assert _render(language, _TWO, _noun("cup"))[2][1] == "classifier-general"
+    with_cup = _find(lambda g: g.uses_classifiers and not g.classifier_after_noun and "container" in g.classifier_categories)
+    assert _render(with_cup, _TWO, _noun("cup"))[2][1] == "classifier-container"
+
+
+def test_a_noun_numeral_classifier_language_puts_the_numeral_and_classifier_after_the_noun():
+    language = _find(lambda g: g.uses_classifiers and g.classifier_after_noun and "animal" in g.classifier_categories)
+    _, tokens, glosses = _render(language, _TWO, _noun("dog"))
+    assert glosses[0] == "dog" and glosses[2] == "classifier-animal" and len(tokens) == 3
+    adjective = PlannedSlot(kind="content", gloss="high", pos="adjective")
+    _, _, glosses = _render(language, _TWO, adjective, _noun("dog"))
+    assert glosses[0] == "high" and glosses[1] == "dog" and glosses[3] == "classifier-animal"  # numeral, classifier follow the noun
+
+
+def test_a_demonstrative_without_a_classifier_where_the_language_lacks_the_habit():
+    language = _find(lambda g: g.uses_classifiers and not g.classifier_with_demonstrative)
+    demonstrative = PlannedSlot(kind="demonstrative", gloss="this")
+    assert len(_render(language, demonstrative, _noun("dog"))[1]) == 2
+    assert len(_render(language, _TWO, _noun("dog"))[1]) == 3

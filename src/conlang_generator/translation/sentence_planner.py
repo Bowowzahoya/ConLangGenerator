@@ -48,7 +48,7 @@ actually produces) to the real ``core.lexicon.PartOfSpeech`` enum
 
 _SLOT_KINDS = (
     "content", "article", "copula", "negation", "conjunction", "name", "clause", "demonstrative",
-    "indefinite_article",
+    "indefinite_article", "possessive_pronoun",
 )
 
 NUMBER_LABELS = ("plural", "dual")
@@ -106,6 +106,12 @@ class PlannedSlot:
     """One of this language's own ``GrammarProfile.moods`` labels (never
     ``"imperative"``, which is the sentence's mood), or ``None`` -- only
     ever meaningful on a finite verb or the copula."""
+    subject_number: str | None = None
+    """``"plural"`` on a finite verb whose subject is plural, in a language
+    whose verbs agree in number."""
+    polite: bool = False
+    """On a finite verb whose subject is ``you-polite``, in a language whose
+    verbs carry politeness."""
     voice: str | None = None
     """One of this language's own ``GrammarProfile.voices`` labels
     (``passive``/``antipassive``/``causative``), or ``None`` for the active --
@@ -276,6 +282,30 @@ def _build_system_prompt(language: Language) -> str:
     ]
     pronoun_rules_text = "; ".join(pronoun_rules)
     pro_drop_word = "yes" if grammar.pro_drop else "no"
+    reflexive_desc = {
+        "word": 'an object pronoun slot with gloss "self" (case-marked like any object)',
+        "affix": 'NO object slot: set "voice":"reflexive" on the verb',
+        "none": "an ordinary object pronoun of the subject's own person",
+    }[grammar.reflexive_marking] if grammar.reflexive_marking in ("word", "affix", "none") else "an ordinary pronoun"
+    reciprocal_desc = {
+        "word": 'an object pronoun slot with gloss "each-other" (case-marked like any object)',
+        "affix": 'NO object slot: set "voice":"reciprocal" on the verb',
+        "none": "an ordinary object pronoun",
+    }.get(grammar.reciprocal_marking, "an ordinary pronoun")
+    possessive_pronoun_desc = (
+        'the personal-pronoun possessor slot with "possessive":true, as for any possessor'
+        if grammar.possessive_pronouns == "regular"
+        else 'a slot {"kind":"possessive_pronoun","gloss":"<the personal pronoun gloss>"} ("my" -> gloss "I", '
+        '"your" -> "you", "his" -> "he", "their" -> "they", "our" -> "we"...) directly before the possessed noun '
+        "-- never a separate possessive marking, and never the pronoun slot itself"
+    )
+    verb_extras = []
+    if grammar.verb_number_agreement:
+        verb_extras.append('set "subject_number":"plural" on a finite verb whose subject is plural (a plural pronoun, or a plural noun)')
+    if grammar.verb_politeness:
+        verb_extras.append('set "polite":true on a finite verb whose subject is "you-polite"')
+    verb_extras_text = "; ".join(verb_extras) if verb_extras else "verbs here carry no number or politeness (never set those fields)"
+    object_drop_word = "yes" if grammar.object_pro_drop else "no"
     classifier_desc = (
         'a numeral or demonstrative directly before a noun is followed by a CLASSIFIER word that the renderer '
         "adds itself -- never write one; the noun stays singular after a numeral"
@@ -316,6 +346,12 @@ Mapping: {pronoun_rules_text}. When the verb agrees in person and the language \
 drops subject pronouns ({pro_drop_word}), still write the pronoun \
 slot: the renderer omits it.
 - classifiers: {classifier_desc}.
+- reflexives ("he sees himself"): {reflexive_desc}. Reciprocals ("they see each \
+other"): {reciprocal_desc}.
+- possessive pronouns ("my dog", "their house"): {possessive_pronoun_desc}.
+- verb agreement in number and politeness: {verb_extras_text}.
+- object pronouns omitted when the verb's object agreement names them: \
+{object_drop_word} (still write the pronoun slot; the renderer omits it).
 - comparison ("X is bigger/more beautiful than Y"): the comparative of an \
 adjective: {comparative_desc}; the standard of comparison (Y): \
 {standard_desc}. The superlative ("the biggest", "most beautiful"): \
@@ -509,6 +545,12 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "cases": ",".join(grammar.cases),
             "tenses": ",".join(grammar.tenses),
             "aspects": ",".join(grammar.aspects),
+            "reflexive_marking": grammar.reflexive_marking,
+            "reciprocal_marking": grammar.reciprocal_marking,
+            "possessive_pronouns": grammar.possessive_pronouns,
+            "verb_number_agreement": "true" if grammar.verb_number_agreement else "false",
+            "verb_politeness": "true" if grammar.verb_politeness else "false",
+            "object_pro_drop": "true" if grammar.object_pro_drop else "false",
             "clusivity": "true" if grammar.clusivity else "false",
             "third_person_gender": "true" if grammar.third_person_gender else "false",
             "honorific_you": "true" if grammar.honorific_you else "false",
@@ -629,6 +671,8 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                 aspect=_coerce_optional_str(item.get("aspect")),
                 verb_mood=_coerce_optional_str(item.get("verb_mood")),
                 voice=_coerce_optional_str(item.get("voice")),
+                subject_number="plural" if item.get("subject_number") == "plural" else None,
+                polite=item.get("polite") is True,
                 degree=item.get("degree") if item.get("degree") in ("comparative", "superlative") else None,
                 agrees_with=_lemma(item.get("agrees_with")),
                 subject_gloss=_lemma(item.get("subject_gloss")),

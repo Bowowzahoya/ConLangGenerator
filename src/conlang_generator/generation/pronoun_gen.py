@@ -109,3 +109,76 @@ def person_label(gloss: str | None) -> str | None:
     """The agreement person label of a pronoun gloss (``None`` for anything
     that is not a personal pronoun)."""
     return PERSON_BY_GLOSS.get((gloss or "").strip().lower())
+
+
+# ---------------------------------------------------------------------------
+# Reflexives, reciprocals, possessive pronouns, verb number/politeness, object
+# pro-drop -- rolled together from a further independent stream.
+# ---------------------------------------------------------------------------
+
+REFLEXIVE_GLOSS = "self"
+RECIPROCAL_GLOSS = "each-other"
+POSSESSIVE_GLOSS_PREFIX = "possessive-"
+
+POSSESSIVE_READING: dict[str, str] = {
+    "i": "my", "you": "your", "he": "his", "she": "her", "it": "its", "they": "their", "we": "our",
+    "you-plural": "your (plural)", "you-polite": "your (polite)",
+    "we-inclusive": "our (inclusive)", "we-exclusive": "our (exclusive)",
+}
+"""The English possessive a ``possessive-<gloss>`` word is read back as."""
+
+OBJECT_READING: dict[str, str] = {"I": "me", "you": "you", "he": "him", "we": "us"}
+"""How a dropped object's person is written when read back as English."""
+
+_REFLEXIVE_WORD_RATE = 0.45
+_REFLEXIVE_AFFIX_RATE = 0.35
+_RECIPROCAL_WORD_RATE = 0.40
+_RECIPROCAL_AFFIX_RATE = 0.30
+_POSSESSIVE_REGULAR_RATE = 0.40
+_POSSESSIVE_WORDS_RATE = 0.30
+_VERB_NUMBER_RATE = 0.25
+_VERB_POLITENESS_RATE = 0.60
+_OBJECT_PRO_DROP_RATE = 0.40
+
+
+def possessive_gloss(pronoun_gloss_: str) -> str:
+    """The lexicon gloss of the possessive word for a personal pronoun."""
+    return f"{POSSESSIVE_GLOSS_PREFIX}{pronoun_gloss_.strip().lower()}"
+
+
+def _marking(roll: float, word_rate: float, affix_rate: float) -> str:
+    return "word" if roll < word_rate else "affix" if roll < word_rate + affix_rate else "none"
+
+
+def roll_pronoun_extras(rng: random.Random) -> dict[str, object]:
+    """The raw rolls (every one always drawn, so the stream is stable);
+    ``generator.py`` finishes them (affixes, the honorific and object-agreement
+    conditions)."""
+    possessive_roll = rng.random()
+    return {
+        "reflexive_marking": _marking(rng.random(), _REFLEXIVE_WORD_RATE, _REFLEXIVE_AFFIX_RATE),
+        "reciprocal_marking": _marking(rng.random(), _RECIPROCAL_WORD_RATE, _RECIPROCAL_AFFIX_RATE),
+        "possessive_pronouns": (
+            "regular"
+            if possessive_roll < _POSSESSIVE_REGULAR_RATE
+            else "words"
+            if possessive_roll < _POSSESSIVE_REGULAR_RATE + _POSSESSIVE_WORDS_RATE
+            else "affix"
+        ),
+        "verb_number_agreement": rng.random() < _VERB_NUMBER_RATE,
+        "verb_politeness_wish": rng.random() < _VERB_POLITENESS_RATE,
+        "object_pro_drop_wish": rng.random() < _OBJECT_PRO_DROP_RATE,
+    }
+
+
+def english_reading(gloss: str) -> str:
+    """How a pronoun-like lexicon gloss is written when read back as English:
+    language-specific pronouns, ``self``/``each-other`` and possessive words."""
+    if gloss.startswith(POSSESSIVE_GLOSS_PREFIX):
+        rest = gloss[len(POSSESSIVE_GLOSS_PREFIX):]
+        return POSSESSIVE_READING.get(rest, gloss)
+    if gloss == REFLEXIVE_GLOSS:
+        return "oneself"
+    if gloss == RECIPROCAL_GLOSS:
+        return "each other"
+    return ENGLISH_READING.get(gloss, gloss)

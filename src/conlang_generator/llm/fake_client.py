@@ -71,7 +71,16 @@ def _fake_trait_profile(prompt: str, field_names: list[str]) -> str:
 _FAKE_ARTICLES = {"a", "an", "the"}
 _FAKE_COPULAS = {"is", "are", "am", "was", "were", "be", "been", "being"}
 _FAKE_PAST_COPULAS = {"was", "were"}
-_FAKE_PRONOUN_TOKENS = {"i", "you", "he", "we", "this", "that", "she", "it", "they", "me", "him", "us", "them"}
+_FAKE_PRONOUN_TOKENS = {
+    "i", "you", "he", "we", "this", "that", "she", "it", "they", "me", "him", "us", "them",
+    "myself", "yourself", "himself", "herself", "itself", "ourselves", "yourselves", "themselves", "oneself",
+    "eachother",
+}
+_FAKE_REFLEXIVES = {
+    "myself": "i", "yourself": "you", "himself": "he", "herself": "she", "itself": "it", "ourselves": "we",
+    "yourselves": "you", "themselves": "they", "oneself": "he",
+}
+_FAKE_RECIPROCAL = "eachother"
 _FAKE_POLITE_CUES = {"sir", "madam", "lord", "lady", "mister", "mr", "mrs", "majesty"}
 _FAKE_AGREEMENT_BY_PRONOUN = {"i": "I", "you": "you", "he": "he", "we": "we", "she": "he", "it": "he", "they": "he"}
 _FAKE_IRREGULAR_PAST_LEMMA = {
@@ -168,6 +177,20 @@ def _fake_group_noun_phrases(raw_tokens: list[str]) -> tuple[list[str], dict[str
             out.append(raw_tokens[i])
             i += 1
     return out, info
+
+
+def _fake_merge_reciprocal(tokens: list[str]) -> list[str]:
+    """Joins "each other" / "one another" into the single token ``eachother``."""
+    out: list[str] = []
+    i = 0
+    while i < len(tokens):
+        if i + 1 < len(tokens) and (tokens[i], tokens[i + 1]) in (("each", "other"), ("one", "another")):
+            out.append(_FAKE_RECIPROCAL)
+            i += 2
+        else:
+            out.append(tokens[i])
+            i += 1
+    return out
 
 
 def _fake_singular(token: str) -> str | None:
@@ -268,7 +291,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
 
     ends_with = prompt.rstrip()[-1:]
     prompt, name_by_placeholder = _fake_extract_names(prompt)
-    raw_tokens = _fake_tokenize(prompt)
+    raw_tokens = _fake_merge_reciprocal(_fake_tokenize(prompt))
     raw_tokens, np_info = _fake_group_noun_phrases(raw_tokens)
     wh_token = next((t for t in raw_tokens[:1] if t in _FAKE_WH), None)
     mood = "declarative"
@@ -298,6 +321,11 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     comparative_case = metadata.get("comparative_case", "")
     comparative_marking = metadata.get("comparative_marking", "word")
     superlative_marking = metadata.get("superlative_marking", "word")
+    reflexive_marking = metadata.get("reflexive_marking", "none")
+    reciprocal_marking = metadata.get("reciprocal_marking", "none")
+    possessive_pronouns = metadata.get("possessive_pronouns", "regular")
+    verb_number_agreement = metadata.get("verb_number_agreement") == "true"
+    verb_politeness = metadata.get("verb_politeness") == "true"
     clusivity = metadata.get("clusivity") == "true"
     third_person_gender = metadata.get("third_person_gender") == "true"
     honorific_you = metadata.get("honorific_you") == "true"
@@ -354,9 +382,12 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         after: list[dict] = []
         if "possessor" in info:
             possessor, is_pronoun = info["possessor"]
-            before.append(
-                {"kind": "content", "gloss": possessor, "pos": "pronoun" if is_pronoun else "noun", "possessive": True}
-            )
+            if is_pronoun and possessive_pronouns != "regular":
+                before.append({"kind": "possessive_pronoun", "gloss": possessor})
+            else:
+                before.append(
+                    {"kind": "content", "gloss": possessor, "pos": "pronoun" if is_pronoun else "noun", "possessive": True}
+                )
         if "demonstrative" in info:
             demonstrative = {"kind": "demonstrative", "gloss": info["demonstrative"]}
             (after if demonstrative_after_noun else before).append(demonstrative)
@@ -478,16 +509,49 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         subject_case = "ergative" if alignment == "ergative_absolutive" else None
         object_case = "accusative" if alignment == "nominative_accusative" else None
         subject_np = noun_phrase(subject_tok, subject_case)
-        object_np = noun_phrase(obj_tok, object_case)
+        reflexive_person = _FAKE_REFLEXIVES.get(obj_tok)
+        is_reciprocal = obj_tok == _FAKE_RECIPROCAL
+        reflexive_voice: str | None = None
+        if reflexive_person is not None or is_reciprocal:
+            marking = reciprocal_marking if is_reciprocal else reflexive_marking
+            word = "each-other" if is_reciprocal else "self"
+            if marking == "affix":
+                reflexive_voice = "reciprocal" if is_reciprocal else "reflexive"
+                object_np = []
+            elif marking == "word":
+                object_np = [{"kind": "content", "gloss": word, "pos": "pronoun", **({"case": object_case} if object_case else {})}]
+            else:
+                stand_in = subject_tok if is_reciprocal or subject_tok in _FAKE_PRONOUN_TOKENS else reflexive_person
+                object_np = noun_phrase(stand_in if stand_in in _FAKE_PRONOUN_TOKENS else "they", object_case)
+        else:
+            object_np = noun_phrase(obj_tok, object_case)
         verb_slot = {
             "kind": "content", "gloss": verb_lemma, "pos": "verb",
             "agreement": _FAKE_AGREEMENT_BY_PRONOUN.get(subject_tok, "default"),
         }
+        if reflexive_voice:
+            verb_slot["voice"] = reflexive_voice
+        plural_subject = subject_tok in ("we", "they", "us", "them") or (
+            subject_tok in np_info and (
+                _FAKE_NUMERALS.get(np_info[subject_tok].get("numeral", ""), 1) > 1
+                or np_info[subject_tok].get("demonstrative_plural")
+                or _fake_singular(np_info[subject_tok]["noun"]) is not None
+            )
+        ) or (subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in np_info and _fake_singular(subject_tok) is not None)
+        if verb_number_agreement and plural_subject:
+            verb_slot["subject_number"] = "plural"
+        if verb_politeness and subject_tok == "you" and pronoun_gloss("you") == "you-polite":
+            verb_slot["polite"] = True
         if tense_label:
             verb_slot["tense"] = tense_label
         if noun_classes and subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder:
             verb_slot["subject_gloss"] = base_of(subject_tok)
-        if object_agreement:
+        if object_agreement and (reflexive_person is not None or is_reciprocal):
+            if reflexive_voice is None:
+                verb_slot["object_gloss"] = "each-other" if is_reciprocal and reciprocal_marking == "word" else (
+                    "self" if reflexive_marking == "word" and not is_reciprocal else pronoun_gloss(subject_tok)
+                )
+        elif object_agreement:
             verb_slot["object_gloss"] = (
                 pronoun_gloss(obj_tok) if obj_tok in _FAKE_PRONOUN_TOKENS else base_of(obj_tok)
             )

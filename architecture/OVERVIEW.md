@@ -4539,3 +4539,23 @@ reading code or one-off ad hoc scripts.
   element so a dropped subject is read back (`translate_to_english`, guarded by `_person_suffix_is_distinct`);
   pronoun glosses read back as `you (plural)` etc. 12 tests in `test_classifiers.py`, 18
   in `test_pronouns.py`; `test_translator.py`'s fixture now also switches off `pro_drop` and classifiers.
+
+- **Pronoun/classifier follow-ups (grammar pass 10).** Classifier variety: `classifier_gen.roll_classifier_system`
+  (same first draw as before, so non-classifier languages and older seeds are unchanged) adds
+  `classifier_categories` (a subset of twelve categories, always with `general`; a noun whose category the
+  language lacks takes `general`), `classifier_after_noun` (25%) and `classifier_with_demonstrative` (80%). The
+  renderer now inserts classifiers by transforming the slot list up front (`_with_classifiers`: a synthetic
+  `"classifier"` slot after each numeral/demonstrative, the numeral and classifier moved behind the noun in an
+  after-noun language, the noun's number cleared after a numeral above "one") instead of at render time.
+  Pronoun extras (`pronoun_gen.roll_pronoun_extras`, its own stream `Random(f"{seed}:pronoun-extras")`): `reflexive_marking`
+  / `reciprocal_marking` (`word` = an object pronoun `self`/`each-other`, `affix` = a `reflexive`/`reciprocal`
+  entry appended to `voices`/`voice_affixes`, `none` = an ordinary pronoun), `possessive_pronouns` (`regular`;
+  `words` = lexicon words `possessive-<gloss>` from a new `possessive_pronoun` slot kind, class-agreeing;
+  `affix` = `possessor_person_affixes`, a person suffix on the possessed noun via `_noun_affix(...,
+  possessor_person)`), `verb_number_agreement`/`verb_politeness` (`verb_number_affixes`, `verb_polite_affixes`,
+  composed after the person suffix; planner fields `subject_number`, `polite`) and `object_pro_drop` (only with
+  object agreement and four distinct person object suffixes; `_dropped_object_pronouns`). `_decode_verb_full`
+  now returns nine fields (…, agreement, object label, number, polite) with a staged search that adds an
+  "extras" stage; `translate_to_english` reads the new words and marks back through `pronoun_gen.english_reading`,
+  `_person_suffix_is_distinct(..., objects=True)`. 20 new classifier tests and 28 in `test_pronoun_extras.py`;
+  `test_voice.py` now compares the roll's voices without the reflexive/reciprocal ones.
