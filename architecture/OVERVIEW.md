@@ -4413,3 +4413,19 @@ reading code or one-off ad hoc scripts.
   reads mood from final punctuation and a suffix heuristic for plurals. 16 tests in `test_clause_types.py`.
   Simplifications: isolating languages get the plural as an attached clitic; vocatives are ordinary sentence-
   initial nouns; evolution does not yet evolve the new affixes/particle.
+
+- **Nested plan structure (grammar pass 2).** `PlannedSlot` gains `kind="clause"` with `clause:
+  SentencePlan` (the subordinate clause's own plan), `gloss` (the linking word: that/because/if/when/
+  who/which, may be empty) and `role` (`complement`/`relative`/`adverbial`, informational). `_parse`
+  reads nested `{"clause": {"slots": [...]}}` recursively (`_slots_from_raw`), caps nesting at
+  `MAX_CLAUSE_DEPTH = 3` (deeper clauses are flattened into their parent, words kept), drops empty or
+  malformed clause slots, and `flatten_slots` reads a plan's words in order. `translator._render_plan` is
+  now recursive: a clause slot renders its nested plan (always declarative -- only a main clause can be
+  an imperative or question, and only the top-level plan gets the question particle), looks up or coins
+  the linking word as a particle (`_lookup_or_coin`), and places it after the clause in SOV/OSV
+  languages and before it otherwise (`_linker_follows_clause`, illustrative). Decoding is unchanged: the
+  linker is an ordinary lexicon word. The planner prompt describes clause slots, the never-flatten rule
+  and placement, plus an example; the fake planner (`_fake_plan_dict`) splits at the first of
+  that/because/if/when/although/while that has a main clause before it and two or more words after it,
+  repeating on the remainder. 13 tests in `test_nested_clauses.py`.
+

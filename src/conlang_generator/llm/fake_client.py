@@ -156,7 +156,7 @@ def _fake_extract_names(prompt: str) -> tuple[str, dict[str, str]]:
     return re.sub(r"\b([A-Z][a-z]+)(?:'s)?\b", swap, prompt), names
 
 
-def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
+def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     """Deterministically reproduces, from ``prompt`` (the raw English
     input) and the grammar-shape ``metadata`` keys ``sentence_planner.
     plan_sentence`` sets, a plan equivalent to what ``translate_to_conlang``
@@ -289,7 +289,42 @@ def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
 
     if wh_token:
         slots = [{"kind": "content", "gloss": wh_token, "pos": "adverb" if wh_token != "which" else "pronoun"}] + slots
-    return json.dumps({"mood": mood, "slots": slots})
+    return {"mood": mood, "slots": slots}
+
+
+_FAKE_SUBORDINATORS = {"that", "because", "if", "when", "although", "while"}
+_FAKE_SUBORDINATOR_ROLE = {"that": "complement"}
+
+
+def _fake_plan_dict(prompt: str, metadata: dict[str, str]) -> dict:
+    """Splits at the first subordinating word that has a main clause before
+    it (at least one word) and at least two words after it ("I see that
+    mountain" is not split: "that" is a demonstrative there), plans the two
+    halves separately and nests the second as a ``"clause"`` slot -- repeated
+    on the remainder, so several clauses nest. The nested clause is placed
+    after the main clause's own slots whatever the word order (the fake does
+    not model where a real language would put it)."""
+    words = list(re.finditer(r"[A-Za-z']+", prompt))
+    for index, match in enumerate(words):
+        linker = match.group(0).lower()
+        if linker not in _FAKE_SUBORDINATORS or index == 0 or len(words) - index - 1 < 2:
+            continue
+        terminal = prompt.rstrip()[-1:] if prompt.rstrip()[-1:] in ".!?" else ""
+        main = prompt[: match.start()].rstrip(" ,;") + terminal
+        rest = prompt[match.end():].strip().rstrip(".!?").strip()
+        main_plan = _fake_single_clause_plan(main, metadata)
+        nested = _fake_plan_dict(rest, metadata)
+        clause_slot: dict = {"kind": "clause", "gloss": linker, "clause": {"slots": nested["slots"]}}
+        if linker in _FAKE_SUBORDINATOR_ROLE:
+            clause_slot["role"] = _FAKE_SUBORDINATOR_ROLE[linker]
+        else:
+            clause_slot["role"] = "adverbial"
+        return {"mood": main_plan["mood"], "slots": main_plan["slots"] + [clause_slot]}
+    return _fake_single_clause_plan(prompt, metadata)
+
+
+def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
+    return json.dumps(_fake_plan_dict(prompt, metadata))
 
 
 def _fake_guess_ipa(form: str) -> str:

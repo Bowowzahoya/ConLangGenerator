@@ -74,11 +74,14 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
 
 ## Grammar and translation
 
-- **Translation is LLM-planned and single-clause.** A sentence is turned
+- **Translation is LLM-planned.** A sentence is turned
   into a plan (`SentencePlan`, order/case/tense/article/copula/negation/
   conjunction) by the LLM, then rendered deterministically. There is no
-  real parser, no relative or subordinate clauses, and no agreement beyond
-  what the plan states. Yes/no questions use one free particle, imperatives
+  real parser, and no agreement beyond
+  what the plan states. Subordinate clauses (complement, relative, adverbial)
+  nest to a depth of 3, deeper ones are flattened; the linking word is placed
+  after the clause in verb-final (SOV/OSV) languages and before it otherwise,
+  and subordinate verbs get no special form. Yes/no questions use one free particle, imperatives
   one suffix, plural one suffix (isolating languages get it as an attached
   clitic); there is no dual, gender or noun class, and vocatives are
   ordinary sentence-initial nouns. There is no idiom generation/matching (`Lexicon.idioms` exists

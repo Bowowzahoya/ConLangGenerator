@@ -404,7 +404,11 @@ question gets the language's free question particle (sentence-final, or
 sentence-initial in verb-initial languages), and a wh-question keeps its
 own question word and takes no particle. Every generated language now has a
 plural suffix, an imperative suffix and a question particle (older saved
-languages lack them and leave nouns/verbs unmarked). Punctuation itself is
+languages lack them and leave nouns/verbs unmarked). Subordinate clauses ("I see that you see the river", "... because ...",
+relative clauses with a real LLM) are nested in the plan and rendered in
+place, with the linking word ("that", "because", ...) coined like any
+particle and placed after its clause in verb-final languages and before it
+elsewhere. Punctuation itself is
 still not written in the output. Verified with `--llm fake` on a language
 generated with `--seed 3 --prompt "a plain language"`:
 
@@ -424,6 +428,19 @@ tnaplup'ua payuy
 `vasauminay` is plural on top of the object case.) Translating back marks
 them: `conlang translate "ma gam gyaa vasauminan pvi" --lang t1 --to english`
 gives `you mountain see?`, and `"tnaplup'ua payuy"` gives `home go!`.
+
+```bash
+conlang translate "I see that you see the river." --lang t1 --to conlang --llm fake
+```
+
+```
+bsaw vasaum ma gam dia vasauminan tu
+```
+
+(`tu` is the coined `that`, sentence-final because `t1` is SOV. The `--llm fake`
+planner nests a clause after `that`/`because`/`if`/`when`/`although`/`while`
+only, and treats the main clause simply; a real LLM handles relative clauses
+too.)
 
 ## `conlang pronounce`
 

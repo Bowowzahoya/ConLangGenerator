@@ -12,9 +12,10 @@ primitives below (``_lookup_or_coin``, ``_apply_case``,
 
 Text is translated one sentence at a time (each sentence gets its own plan
 and mood: declarative, imperative, yes/no question, wh-question). Remaining
-v0 limitations, by design: each sentence is single-clause (the flat slot
-list supports noun-phrase coordination -- "the mountain and the river" --
-but not relative clauses or subordination); negation is a single particle
+v0 limitations, by design: a sentence's plan is a tree -- a "clause" slot
+holds a nested plan (complement/relative/adverbial, depth-capped) rendered
+in place with its linking word; there is still no special subordinate verb
+form; negation is a single particle
 slot with no per-language negation-position typology curated; punctuation
 is not rendered.
 
@@ -337,6 +338,13 @@ def _question_particle_first(language: Language) -> bool:
     return language.grammar.word_order.value in ("VSO", "VOS")
 
 
+def _linker_follows_clause(language: Language) -> bool:
+    """Illustrative placement of a subordinating word ("that", "because",
+    "who"): after its clause in verb-final languages (SOV, OSV, like
+    Japanese -kara), before it everywhere else (like English "that")."""
+    return language.grammar.word_order.value in ("SOV", "OSV")
+
+
 def _render_plan(
     plan: sentence_planner.SentencePlan,
     language: Language,
@@ -351,6 +359,27 @@ def _render_plan(
     for slot in plan.slots:
         rendered: tuple[str, str] | None = None
         entry: LexicalEntry | None = None
+        if slot.kind == "clause":
+            if slot.clause is None:
+                continue
+            working_language, nested_rom, nested_ipa, nested_gloss = _render_plan(
+                slot.clause, working_language, llm_client, coined
+            )
+            linker: tuple[str, str, str | None] | None = None
+            if slot.gloss:
+                working_language, linker_entry = _lookup_or_coin(
+                    working_language, slot.gloss, PartOfSpeech.PARTICLE, coined, llm_client,
+                    lemma_candidates=[slot.gloss],
+                )
+                linker = (linker_entry.romanization, linker_entry.ipa, linker_entry.primary_gloss)
+            if linker is not None and _linker_follows_clause(working_language):
+                nested_rom, nested_ipa, nested_gloss = nested_rom + [linker[0]], nested_ipa + [linker[1]], nested_gloss + [linker[2]]
+            elif linker is not None:
+                nested_rom, nested_ipa, nested_gloss = [linker[0]] + nested_rom, [linker[1]] + nested_ipa, [linker[2]] + nested_gloss
+            romanization_parts.extend(nested_rom)
+            ipa_parts.extend(nested_ipa)
+            gloss_parts.extend(nested_gloss)
+            continue
         if slot.kind == "content" and slot.gloss:
             pos = sentence_planner.POS_BY_PLAN_STRING.get(slot.pos, PartOfSpeech.NOUN)
             working_language, entry = _lookup_or_coin(

@@ -194,19 +194,21 @@ grammar generator invents the option (`grammar_gen.py`/`inflection_gen.py`),
 (3) the English decoder reads it back (`translate_to_english`). Sizes:
 S/M/L as above.
 
-**Done (grammar pass 1):** plural number, imperative, yes/no and wh-questions,
-vocatives (as plain sentence-initial nouns), per-sentence planning. See
+**Done:** plural number, imperative, yes/no and wh-questions, vocatives (as
+plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
+structure with complement, relative and adverbial clauses (pass 2). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
-1. **Nested plan structure (L).** Replace the flat slot list with a tree so
-   clauses can contain clauses. Prerequisite for everything in the next
-   group.
-2. **Subordinate and relative clauses (L).** Complement clauses ("I think
-   that..."), relative clauses, adverbial clauses (because, if, when),
-   conjunctions beyond "and" (or, but).
-3. **Aspect and mood as separate systems (M).** Only tense exists now.
-4. **Subject and object agreement, gender / noun classes (M each).**
+1. **Subordination refinements (M).** Clause-internal word order and
+   linker placement are LLM- and heuristic-driven, not grammar-generated:
+   no per-language choice of relativization strategy (relative pronoun vs
+   gap vs particle), no infinitival/nominalized complements, no verb-form
+   changes in subordinate clauses (subjunctive, non-finite), no
+   correlatives. The subordinator ("that", "because") is coined as an
+   ordinary particle word.
+2. **Aspect and mood as separate systems (M).** Only tense exists now.
+3. **Subject and object agreement, gender / noun classes (M each).**
 
 **Clause types still missing:** existentials and possession ("there is",
 "I have"; many languages have no verb "have") (M); passives and other voices

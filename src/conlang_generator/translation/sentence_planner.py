@@ -45,7 +45,14 @@ actually produces) to the real ``core.lexicon.PartOfSpeech`` enum
 ``translator.py``'s rendering step needs -- kept here, not in
 ``translator.py``, since this module owns the plan's own string vocabulary."""
 
-_SLOT_KINDS = ("content", "article", "copula", "negation", "conjunction", "name")
+_SLOT_KINDS = ("content", "article", "copula", "negation", "conjunction", "name", "clause")
+
+MAX_CLAUSE_DEPTH = 3
+"""How deeply a clause slot may nest inside another. A clause nested deeper is
+flattened into its parent's slots (its own words are kept, only the linking
+word and the nesting are lost) rather than dropped."""
+
+CLAUSE_ROLES = ("complement", "relative", "adverbial")
 
 _ARTICLES = {"a", "an", "the"}
 
@@ -57,10 +64,14 @@ class PlannedSlot:
     language's own "the"), ``"copula"`` (this language's own "be"),
     ``"negation"`` (this language's own "not"), ``"conjunction"`` (this
     language's own "and"), ``"name"`` (a foreign proper name, handled per
-    the language's ``foreign_names`` trait -- see ``translation/names.py``)."""
+    the language's ``foreign_names`` trait -- see ``translation/names.py``),
+    ``"clause"`` (a subordinate clause nested inside this one -- see
+    ``clause``)."""
     gloss: str = ""
     """The base English lemma (e.g. "see", not "saw") for ``kind="content"``;
-    the name exactly as written, capitalization kept, for ``kind="name"``."""
+    the name exactly as written, capitalization kept, for ``kind="name"``;
+    the linking word ("that", "because", "if", "when", "which", ...) for
+    ``kind="clause"`` (empty when the clause needs none)."""
     pos: str = ""
     """One of ``POS_BY_PLAN_STRING``'s own keys -- only meaningful for
     ``kind="content"``."""
@@ -76,6 +87,13 @@ class PlannedSlot:
     number: str | None = None
     """``"plural"`` or ``None`` (singular, unmarked) -- only ever meaningful
     on a noun ("content" with pos "noun")."""
+    clause: SentencePlan | None = None
+    """For ``kind="clause"``: the subordinate clause's own plan (its slots are
+    rendered in place; its ``mood`` is ignored -- only a main clause can be an
+    imperative or a question)."""
+    role: str | None = None
+    """For ``kind="clause"``: one of ``CLAUSE_ROLES`` (informational; all three
+    render the same way, a linking word plus the nested clause)."""
 
 
 MOODS = ("declarative", "imperative", "question", "wh_question")
@@ -172,6 +190,19 @@ A noun that is plural in the English ("mountains", "the dogs") is ONE "content" 
 
 The sentence's "mood" is one of: "declarative" (the default), "imperative" (a command or request addressed to someone: the finite verb is a content slot with pos "verb" and NO "tense"/"agreement"; the subject "you" is left out), "question" (a yes/no question), "wh_question" (a question whose question word -- what, who, where, why, how -- is its own content slot, pos "pronoun" or "adverb"). Do not add any word for the mood yourself: a separate step adds this language's own question particle or imperative marking. A noun of direct address ("My friend, come here") is an ordinary noun content slot placed first, with no case.
 
+A subordinate clause is ONE slot {{"kind":"clause","gloss":"<linking word>",\
+"role":"<role>","clause":{{"slots":[...]}}}} whose "clause" holds that \
+clause's own slots, ordered per this language's word order exactly like a \
+main clause (its own subject, verb with tense/agreement, objects; nested \
+clauses may nest again). "role" is "complement" ("I think THAT you are \
+tired"; gloss "that"), "adverbial" ("because"/"if"/"when"/"although"/\
+"while" as the gloss) or "relative" ("the man WHO sleeps"; gloss "who"/\
+"which"/"that"). Never flatten a subordinate clause into the main clause's \
+slots. Put a complement or adverbial clause slot after the main clause's own \
+slots; put a relative clause slot directly after the noun it modifies. \
+Do not repeat the linking word as a separate slot; the renderer places it \
+per this language's own word order. A clause never has its own "mood".
+
 Proper names of people and places (Bruno, Maria, Amsterdam) get a "name" \
 slot with "gloss" set to the name exactly as written -- never translate, \
 respell, or turn a name into a content word. A capitalized word at the \
@@ -232,6 +263,13 @@ tense/agreement; a plural noun carries "number") -> mood "imperative", \
 "gloss":"to","pos":"preposition"}}, {{"kind":"article"}}, {{"kind":"content",\
 "gloss":"mountain","pos":"noun","number":"plural"}}]
 
+"I think you are tired" -> [{{"kind":"content","gloss":"I","pos":"pronoun"}}, \
+{{"kind":"content","gloss":"think","pos":"verb","tense":"<...>",\
+"agreement":"I"}}, {{"kind":"clause","gloss":"that","role":"complement",\
+"clause":{{"slots":[{{"kind":"content","gloss":"you","pos":"pronoun"}}, \
+{{"kind":"copula","tense":"<...>","agreement":"you"}}, {{"kind":"content",\
+"gloss":"tired","pos":"adjective"}}]}}}}]
+
 The examples above show only the slot array. Respond with ONLY a single \
 JSON object {{"mood": "<mood>", "slots": [<slot objects>]}}, no prose, no \
 markdown fences."""
@@ -291,12 +329,45 @@ def _parse(text: str) -> SentencePlan | None:
     if not isinstance(raw, list):
         return None
 
+    slots = _slots_from_raw(raw, depth=0)
+    if not slots:
+        return None
+    return SentencePlan(slots=tuple(slots), mood=mood)
+
+
+def _raw_slot_list(value: object) -> list | None:
+    if isinstance(value, dict):
+        value = value.get("slots")
+    return value if isinstance(value, list) else None
+
+
+def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
     slots: list[PlannedSlot] = []
     for item in raw:
         if not isinstance(item, dict):
             continue
         kind = item.get("kind")
         if kind not in _SLOT_KINDS:
+            continue
+        if kind == "clause":
+            nested_raw = _raw_slot_list(item.get("clause"))
+            nested = _slots_from_raw(nested_raw, depth + 1) if nested_raw is not None else []
+            if not nested:
+                continue
+            if depth + 1 >= MAX_CLAUSE_DEPTH:
+                slots.extend(nested)  # too deep: keep the words, lose the nesting
+                continue
+            linker = item.get("gloss")
+            role = item.get("role")
+            slots.append(
+                PlannedSlot(
+                    kind="clause",
+                    gloss=linker.strip().lower() if isinstance(linker, str) else "",
+                    pos="other",
+                    role=role if role in CLAUSE_ROLES else None,
+                    clause=SentencePlan(slots=tuple(nested)),
+                )
+            )
             continue
         gloss = item.get("gloss")
         gloss = ((gloss.strip() if kind == "name" else gloss.strip().lower()) if isinstance(gloss, str) else "")
@@ -313,9 +384,19 @@ def _parse(text: str) -> SentencePlan | None:
                 number="plural" if item.get("number") == "plural" else None,
             )
         )
-    if not slots:
-        return None
-    return SentencePlan(slots=tuple(slots), mood=mood)
+    return slots
 
 
-__all__ = ["MOODS", "PlannedSlot", "SentencePlan", "POS_BY_PLAN_STRING", "plan_sentence", "split_sentences"]
+def flatten_slots(plan: SentencePlan) -> list[PlannedSlot]:
+    """Every non-clause slot of ``plan`` in reading order, nested clauses
+    expanded in place -- for callers that only need the words."""
+    flat: list[PlannedSlot] = []
+    for slot in plan.slots:
+        if slot.kind == "clause" and slot.clause is not None:
+            flat.extend(flatten_slots(slot.clause))
+        else:
+            flat.append(slot)
+    return flat
+
+
+__all__ = ["CLAUSE_ROLES", "MAX_CLAUSE_DEPTH", "flatten_slots", "MOODS", "PlannedSlot", "SentencePlan", "POS_BY_PLAN_STRING", "plan_sentence", "split_sentences"]
