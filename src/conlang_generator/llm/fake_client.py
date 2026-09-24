@@ -71,8 +71,9 @@ def _fake_trait_profile(prompt: str, field_names: list[str]) -> str:
 _FAKE_ARTICLES = {"a", "an", "the"}
 _FAKE_COPULAS = {"is", "are", "am", "was", "were", "be", "been", "being"}
 _FAKE_PAST_COPULAS = {"was", "were"}
-_FAKE_PRONOUN_TOKENS = {"i", "you", "he", "we", "this", "that"}
-_FAKE_AGREEMENT_BY_PRONOUN = {"i": "I", "you": "you", "he": "he", "we": "we"}
+_FAKE_PRONOUN_TOKENS = {"i", "you", "he", "we", "this", "that", "she", "it", "they", "me", "him", "us", "them"}
+_FAKE_POLITE_CUES = {"sir", "madam", "lord", "lady", "mister", "mr", "mrs", "majesty"}
+_FAKE_AGREEMENT_BY_PRONOUN = {"i": "I", "you": "you", "he": "he", "we": "we", "she": "he", "it": "he", "they": "he"}
 _FAKE_IRREGULAR_PAST_LEMMA = {
     "went": "go", "saw": "see", "came": "come", "ate": "eat", "drank": "drink",
     "said": "say", "knew": "know", "slept": "sleep", "gave": "give",
@@ -297,6 +298,9 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     comparative_case = metadata.get("comparative_case", "")
     comparative_marking = metadata.get("comparative_marking", "word")
     superlative_marking = metadata.get("superlative_marking", "word")
+    clusivity = metadata.get("clusivity") == "true"
+    third_person_gender = metadata.get("third_person_gender") == "true"
+    honorific_you = metadata.get("honorific_you") == "true"
     existential = metadata.get("existential", "copula")
     possession_clause = metadata.get("possession_clause", "have")
     cases = [c for c in metadata.get("cases", "").split(",") if c]
@@ -365,6 +369,23 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
             before.append({"kind": "content", "gloss": numeral, "pos": "numeral"})
         return before + [noun_slot] + after
 
+    def pronoun_gloss(tok: str) -> str:
+        """This language's own gloss for an English pronoun token (the fake
+        mirror of ``generation.pronoun_gen.english_pronoun_gloss``)."""
+        if tok in ("i", "me"):
+            return "i"
+        if tok == "you":
+            return "you-polite" if honorific_you and any(t in _FAKE_POLITE_CUES for t in raw_tokens) else "you"
+        if tok in ("he", "him"):
+            return "he"
+        if tok in ("she", "it"):
+            return tok if third_person_gender else "he"
+        if tok in ("we", "us"):
+            return "we-exclusive" if clusivity else "we"
+        if tok in ("they", "them"):
+            return "they"
+        return tok
+
     def noun_phrase(tok: str, case: str | None) -> list[dict]:
         if tok in np_info:
             return build_np(np_info[tok], case)
@@ -376,7 +397,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         is_pronoun = tok in _FAKE_PRONOUN_TOKENS or tok in _FAKE_WH
         prefix = [] if is_pronoun or not (used_article and has_articles) else [{"kind": "article"}]
         singular = None if is_pronoun else _fake_singular(tok)
-        slot = content_slot(singular or tok, "pronoun" if is_pronoun else "noun", case)
+        slot = content_slot(pronoun_gloss(tok) if is_pronoun else (singular or tok), "pronoun" if is_pronoun else "noun", case)
         if singular:
             slot["number"] = "plural"
         return prefix + [slot]
@@ -468,7 +489,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
             verb_slot["subject_gloss"] = base_of(subject_tok)
         if object_agreement:
             verb_slot["object_gloss"] = (
-                obj_tok if obj_tok in _FAKE_PRONOUN_TOKENS else base_of(obj_tok)
+                pronoun_gloss(obj_tok) if obj_tok in _FAKE_PRONOUN_TOKENS else base_of(obj_tok)
             )
         if aspect_label:
             verb_slot["aspect"] = aspect_label

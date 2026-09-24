@@ -13,11 +13,13 @@ from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import (
     grammar_gen,
     inflection_gen,
+    classifier_gen,
     lexicon_gen,
     noun_class_gen,
     noun_phrase_gen,
     real_words,
     phonology_gen,
+    pronoun_gen,
     romanization_gen,
     root_pattern,
     sound_change,
@@ -200,6 +202,22 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "degree_affixes": inflection_gen.distinct_suffixes(
                 degree_rng, inventory, syllable_structure, degree_labels, degree_taken
             ),
+        }
+    )
+
+    # Classifiers and the pronoun system: a ninth and tenth independent stream.
+    classifier_rng = random.Random(f"{spec.seed}:classifier")
+    uses_classifiers = classifier_gen.roll_uses_classifiers(classifier_rng, grammar.morphological_type)
+    pronoun_rng = random.Random(f"{spec.seed}:pronoun")
+    pronoun_system = pronoun_gen.roll_pronoun_system(pronoun_rng, spec.traits.social_hierarchy)
+    person_suffixes = [a.suffix for a in grammar.agreement_affixes if a.label in pronoun_gen.PERSON_LABELS]
+    if len(set(person_suffixes)) < len(pronoun_gen.PERSON_LABELS):
+        pronoun_system["pro_drop"] = False  # dropping a pronoun needs distinct person marking on the verb
+    grammar = grammar.model_copy(
+        update={
+            "uses_classifiers": uses_classifiers,
+            "plural_after_numeral": False if uses_classifiers else grammar.plural_after_numeral,
+            **pronoun_system,
         }
     )
 

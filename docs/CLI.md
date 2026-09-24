@@ -628,6 +628,59 @@ smooths it into "the dog is the biggest"). `--llm fake` plans only the
 "X is [more/-er/most/-est] Adj [than Y]" shape from a small list of known
 adjectives; a real LLM handles the rest.
 
+**Classifiers.** A language may use numeral classifiers (12% of the time, 45%
+when it is isolating): a classifier word, chosen by the noun's meaning (human,
+animal, long, flat, round, general), follows a numeral or demonstrative before
+its noun, and the noun stays singular after a numeral. The renderer adds the
+classifier itself (the planner is told not to); each category's classifier is an
+ordinary lexicon word coined on first use, and it is dropped when translating
+back to English. Verified with `--llm fake` on `--seed 4 --prompt p` (SVO,
+isolating, classifiers):
+
+```bash
+conlang translate "I see two dogs." --lang t11 --to conlang --llm fake
+conlang translate "I see two rivers." --lang t11 --to conlang --llm fake
+```
+
+```
+mudz ngazkhejshiaash pngu'j fngux lizmij
+mudz ngazkhejshiaash pngu'j pigx dejtslanz
+```
+
+The numeral `pngu'j` ("two") is followed by `fngux` (animal classifier) before
+`lizmij` (dog), and by `pigx` (long-thing classifier) before `dejtslanz`
+(river). Translating the second back gives `I see two river`.
+
+**Pronoun system.** Beyond the core I/you/he/we, every language always has
+`you-plural` and `they`, and rolls: an inclusive/exclusive split of "we" (15%),
+a separate `she` and `it` instead of one third person (35%), a polite
+`you-polite` (15%, more likely with a high `social_hierarchy` trait), and
+**pro-drop** (35%, only if the four person suffixes on the verb are distinct):
+the subject pronoun is omitted when the verb's agreement names the person.
+The planner is given the language's pronoun glosses and how to map English
+pronouns onto them; plural and polite pronouns agree like their singular person
+and `they` like `he`. New pronouns are coined on first use, read back as e.g.
+`you (plural)`, and a dropped subject is read back from the verb's agreement.
+Verified with `--llm fake` on `--seed 6 --prompt p` (separate `she`/`it`, pro-drop):
+
+```bash
+conlang translate "I see the river." --lang t12 --to conlang --llm fake
+conlang translate "She sees the river." --lang t12 --to conlang --llm fake
+conlang translate "You see the river." --lang t12 --to conlang --llm fake
+```
+
+```
+fusevid yutu
+fusevan yutu
+fusevad yutu
+```
+
+No pronoun is written: the verb `fusev-` ends in `-id` (I), `-an` (she) or `-ad`
+(you), and `yutu` is the object. Translating the last back gives `you see
+river`. (The fake planner maps she/it/they/me/him/us/them and, with a language
+that has one, `you-polite` after a cue word like "sir"; a real LLM decides
+politeness and clusivity from context.)
+
 ## `conlang pronounce`
 
 Show IPA and romanization for a known word (English gloss or conlang

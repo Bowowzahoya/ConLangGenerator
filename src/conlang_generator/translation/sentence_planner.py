@@ -26,6 +26,7 @@ import re
 from dataclasses import dataclass
 
 from conlang_generator.core.language import Language
+from conlang_generator.generation import pronoun_gen
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
@@ -253,6 +254,34 @@ def _build_system_prompt(language: Language) -> str:
             "tense/agreement like any verb) whose object is the standard noun phrase, and no copula is needed"
         ),
     }.get(grammar.comparative_strategy, "the standard noun phrase, unmarked")
+    pronoun_list = ", ".join(pronoun_gen.pronoun_glosses(grammar))
+    pronoun_rules = [
+        'English "he/him" -> "he"',
+        'English "she" -> ' + ('"she"' if grammar.third_person_gender else '"he" (no separate "she")'),
+        'English "it" (a personal subject/object) -> ' + ('"it"' if grammar.third_person_gender else '"he"'),
+        'English "they/them" -> "they"',
+        'English "you" addressing one person -> "you"'
+        + (
+            ' (or "you-polite" when addressing someone with respect: a stranger, a superior, "sir", "madam")'
+            if grammar.honorific_you
+            else ""
+        ),
+        'English "you" addressing several people ("you all", "you guys") -> "you-plural"',
+        'English "we/us" -> '
+        + (
+            '"we-inclusive" when the listener is part of the group, otherwise "we-exclusive"'
+            if grammar.clusivity
+            else '"we"'
+        ),
+    ]
+    pronoun_rules_text = "; ".join(pronoun_rules)
+    pro_drop_word = "yes" if grammar.pro_drop else "no"
+    classifier_desc = (
+        'a numeral or demonstrative directly before a noun is followed by a CLASSIFIER word that the renderer '
+        "adds itself -- never write one; the noun stays singular after a numeral"
+        if grammar.uses_classifiers
+        else "no classifiers"
+    )
     optional_kinds = []
     if grammar.has_indefinite_article:
         optional_kinds.append('"indefinite_article" (English "a"/"an" -- no other field needed)')
@@ -282,6 +311,11 @@ predicate adjective, regardless of word_order.
 - grammatical cases this language actually has: {cases_desc}.
 - tenses this language actually has: {tenses_desc}.
 - aspects this language actually has: {aspects_desc}.
+- personal pronouns: use exactly these glosses on "pronoun" slots: {pronoun_list}. \
+Mapping: {pronoun_rules_text}. When the verb agrees in person and the language \
+drops subject pronouns ({pro_drop_word}), still write the pronoun \
+slot: the renderer omits it.
+- classifiers: {classifier_desc}.
 - comparison ("X is bigger/more beautiful than Y"): the comparative of an \
 adjective: {comparative_desc}; the standard of comparison (Y): \
 {standard_desc}. The superlative ("the biggest", "most beautiful"): \
@@ -475,6 +509,9 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "cases": ",".join(grammar.cases),
             "tenses": ",".join(grammar.tenses),
             "aspects": ",".join(grammar.aspects),
+            "clusivity": "true" if grammar.clusivity else "false",
+            "third_person_gender": "true" if grammar.third_person_gender else "false",
+            "honorific_you": "true" if grammar.honorific_you else "false",
             "comparative_strategy": grammar.comparative_strategy,
             "comparative_case": grammar.comparative_case,
             "comparative_marking": grammar.comparative_marking,

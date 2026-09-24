@@ -117,6 +117,13 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   comparison uses one of three strategies ("than" word, oblique case, "exceed"
   verb). Nothing checks the planner used the language's strategy; equatives and
   degree of adverbs/nouns are not modeled.
+- **Classifiers and pronouns are illustrative**: six fixed classifier categories
+  from small gloss lists, always directly after the numeral or demonstrative;
+  pronoun number and politeness never reach the verb (agreement stays
+  I/you/he/we, so `they` agrees like `he`); person suffixes can still collide
+  (that is why pro-drop is switched off in such a language); the polite,
+  inclusive and plural readings depend on the planner. Nothing checks that
+  the planner used the language's own pronoun glosses.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

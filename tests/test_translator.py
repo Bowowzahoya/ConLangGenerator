@@ -52,6 +52,8 @@ def _language(seed: int):
             "agreement_affixes": person_affixes,
             "object_agreement": False,
             "object_agreement_affixes": (),
+            "pro_drop": False,
+            "uses_classifiers": False,
         }
     )
     return language.model_copy(update={"grammar": classless})

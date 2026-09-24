@@ -61,7 +61,15 @@ from conlang_generator.core.grammar import GrammarProfile, InflectionAffix
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.romanization import apply_grammatical_spelling
-from conlang_generator.generation import inflection_gen, noun_class_gen, stress_gen, tone_sandhi, word_accent_gen
+from conlang_generator.generation import (
+    classifier_gen,
+    inflection_gen,
+    noun_class_gen,
+    pronoun_gen,
+    stress_gen,
+    tone_sandhi,
+    word_accent_gen,
+)
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
@@ -412,7 +420,7 @@ def _agreement_labels(grammar: GrammarProfile) -> tuple[str, ...]:
     return inflection_gen.AGREEMENT_LABELS + extra
 
 
-_OBJECT_PERSON_BY_GLOSS = {"i": "I", "me": "I", "you": "you", "he": "he", "she": "he", "him": "he", "her": "he", "we": "we", "us": "we"}
+_OBJECT_PERSON_BY_GLOSS = pronoun_gen.PERSON_BY_GLOSS
 
 
 def _class_label_of(language: Language, gloss: str | None) -> str | None:
@@ -522,6 +530,53 @@ def _possessive_particle(language: Language) -> tuple[str, str] | None:
     return (language.romanization.apply(ipa), ipa) if ipa else None
 
 
+def _takes_classifier(slot: sentence_planner.PlannedSlot) -> bool:
+    """A numeral or demonstrative slot is followed by a classifier (in a
+    classifier language) when a noun follows it."""
+    return (slot.kind == "content" and slot.pos == "numeral") or slot.kind == "demonstrative"
+
+
+def _following_noun_slot(slots, index: int) -> sentence_planner.PlannedSlot | None:
+    """The noun a numeral/demonstrative at ``slots[index]`` quantifies: the
+    first later noun slot, looking past adjectives and adverbs only."""
+    for later in slots[index + 1:]:
+        if later.kind == "content" and later.pos == "noun" and later.gloss:
+            return later
+        if later.kind == "content" and later.pos in ("adjective", "adverb", "numeral"):
+            continue
+        return None
+    return None
+
+
+def _dropped_subject_pronouns(language: Language, slots) -> set[int]:
+    """Indices of subject pronoun slots to omit (``pro_drop`` languages): for
+    each finite verb/copula whose planned agreement names a person, the first
+    pronoun slot of that person (preferring one marked as a subject case,
+    else a bare one) -- the verb's own agreement suffix carries it."""
+    dropped: set[int] = set()
+    if not language.grammar.pro_drop:
+        return dropped
+    for slot in slots:
+        is_finite = slot.kind == "copula" or (slot.kind == "content" and slot.pos == "verb")
+        if not is_finite or slot.agreement not in pronoun_gen.PERSON_LABELS:
+            continue
+        candidates = [
+            j
+            for j, cand in enumerate(slots)
+            if j not in dropped
+            and cand.kind == "content"
+            and cand.pos == "pronoun"
+            and not cand.possessive
+            and cand.case in (None, "nominative", "ergative")
+            and pronoun_gen.person_label(cand.gloss) == slot.agreement
+        ]
+        subject_marked = [j for j in candidates if slots[j].case in ("nominative", "ergative")]
+        chosen = (subject_marked or candidates or [None])[0]
+        if chosen is not None:
+            dropped.add(chosen)
+    return dropped
+
+
 def _linker_follows_clause(language: Language) -> bool:
     """Illustrative placement of a subordinating word ("that", "because",
     "who"): after its clause in verb-final languages (SOV, OSV, like
@@ -542,9 +597,12 @@ def _render_plan(
     mood_pending = plan.mood == "imperative"
     possessed_pending = False  # a possessor was rendered; the next noun takes the "possessed" affix
     possession = language.grammar.possession
+    dropped_pronouns = _dropped_subject_pronouns(language, plan.slots)
     for slot_index, slot in enumerate(plan.slots):
         rendered: tuple[str, str] | None = None
         entry: LexicalEntry | None = None
+        if slot_index in dropped_pronouns:
+            continue
         if slot.kind == "clause":
             if slot.clause is None:
                 continue
@@ -664,6 +722,18 @@ def _render_plan(
             romanization_parts.append(rendered[0])
             ipa_parts.append(rendered[1])
             gloss_parts.append(entry.primary_gloss if entry is not None else None)
+            if working_language.grammar.uses_classifiers and _takes_classifier(slot):
+                noun_slot = _following_noun_slot(plan.slots, slot_index)
+                if noun_slot is not None:
+                    category = classifier_gen.classifier_category(noun_slot.gloss)
+                    classifier_gloss = classifier_gen.classifier_gloss(category)
+                    working_language, classifier_entry = _lookup_or_coin(
+                        working_language, classifier_gloss, PartOfSpeech.PARTICLE, coined, llm_client,
+                        lemma_candidates=[classifier_gloss],
+                    )
+                    romanization_parts.append(classifier_entry.romanization)
+                    ipa_parts.append(classifier_entry.ipa)
+                    gloss_parts.append(classifier_entry.primary_gloss)
             if slot.possessive and slot.kind in ("content", "name"):
                 if possession == "particle" and _possessive_particle(working_language) is not None:
                     particle_rom, particle_ipa = _possessive_particle(working_language)
@@ -840,9 +910,9 @@ def _article_forms(language: Language) -> set[str]:
 
 def _decode_verb_full(
     language: Language, token: str
-) -> tuple[LexicalEntry, str | None, str | None, str | None, str | None] | None:
-    """``(entry, tense_label, aspect_label, verb_mood_label, voice_label)``
-    for a verb-position token, with ``"imperative"`` in the tense slot for an
+) -> tuple[LexicalEntry, str | None, str | None, str | None, str | None, str | None] | None:
+    """``(entry, tense_label, aspect_label, verb_mood_label, voice_label,
+    agreement_label)`` for a verb-position token, with ``"imperative"`` in the tense slot for an
     imperative. Generate-and-compare like ``_decode_noun``. The full search
     over tense x aspect x mood x voice x object x agreement is large, so it is
     staged (see below) and restricted to verbs whose first two letters match
@@ -852,7 +922,7 @@ def _decode_verb_full(
     verb_entries = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.VERB]
     for entry in verb_entries:
         if _normalize(entry.romanization) == normalized:
-            return entry, None, None, None, None
+            return entry, None, None, None, None, None
     imperative = next((a for a in language.grammar.mood_affixes if a.label == "imperative"), None)
     if imperative is not None:
         for entry in verb_entries:
@@ -862,7 +932,7 @@ def _decode_verb_full(
             )
             candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
             if _normalize(candidate) == normalized:
-                return entry, "imperative", None, None, None
+                return entry, "imperative", None, None, None, None
     kwargs = _stress_and_word_accent_kwargs(language)
     grammar = language.grammar
     tense_options: list[str | None] = [None] + list(grammar.tenses)
@@ -908,7 +978,7 @@ def _decode_verb_full(
                         language.romanization, language.romanization.apply(ipa), entry.pos
                     )
                     if _normalize(candidate) == normalized:
-                        return entry, tense_label, aspect_label, mood_label, voice_label
+                        return entry, tense_label, aspect_label, mood_label, voice_label, agreement_label
         return None
 
     prefix = _stem_prefix(token)
@@ -936,6 +1006,15 @@ def _decode_verb_full(
     if len(likely) != len(verb_entries):
         return search(verb_entries, [None], [None], [None], [None])
     return None
+
+
+def _person_suffix_is_distinct(grammar: GrammarProfile, label: str) -> bool:
+    """Whether the agreement suffix for person ``label`` differs from every
+    other agreement suffix (so a decoded suffix really names that person)."""
+    own = next((a for a in grammar.agreement_affixes if a.label == label), None)
+    if own is None:
+        return False
+    return all(a.suffix != own.suffix for a in grammar.agreement_affixes if a.label != label)
 
 
 def _decode_verb(language: Language, token: str) -> tuple[LexicalEntry, str | None] | None:
@@ -1048,6 +1127,7 @@ def translate_to_english(
     possessive_form = _normalize(language.romanization.apply(possessive_ipa)) if possessive_ipa else None
     is_question = False
     is_imperative = False
+    seen_persons: set[str] = set()  # persons named by a pronoun already decoded in this sentence
     for tok in tokens:
         if particle_form is not None and _normalize(tok) == particle_form and language.lexicon.by_form(tok) is None:
             is_question = True
@@ -1062,8 +1142,15 @@ def translate_to_english(
             continue
         entry = language.lexicon.by_form(tok)
         if entry is not None:
-            plain.append(entry.primary_gloss)
-            annotated.append(entry.primary_gloss)
+            gloss = entry.primary_gloss
+            if gloss.startswith(classifier_gen.CLASSIFIER_GLOSS_PREFIX):
+                continue  # a classifier carries no English word
+            person = pronoun_gen.person_label(gloss)
+            if person is not None:
+                seen_persons.add(person)
+            reading = pronoun_gen.ENGLISH_READING.get(gloss, gloss)
+            plain.append(reading)
+            annotated.append(reading)
             continue
         noun_decoded = _decode_noun(language, tok)
         if noun_decoded is not None:
@@ -1097,13 +1184,20 @@ def translate_to_english(
             continue
         verb_full = _decode_verb_full(language, tok)
         if verb_full is not None:
-            verb_entry, tense_label, aspect_label, mood_label, voice_label = verb_full
+            verb_entry, tense_label, aspect_label, mood_label, voice_label, agreement_label = verb_full
             if tense_label == "imperative":
                 is_imperative = True
                 plain.append(verb_entry.primary_gloss)
                 annotated.append(f"{verb_entry.primary_gloss} (mood: imperative)")
                 continue
             gloss = _english_verb_phrase(verb_entry, tense_label, aspect_label, mood_label, voice_label)
+            if (
+                language.grammar.pro_drop
+                and agreement_label in pronoun_gen.PERSON_LABELS
+                and agreement_label not in seen_persons
+                and _person_suffix_is_distinct(language.grammar, agreement_label)
+            ):
+                gloss = f"{agreement_label} {gloss}"  # the dropped subject, read from the verb's agreement
             plain.append(gloss)
             notes = [
                 f"{name}: {label}"

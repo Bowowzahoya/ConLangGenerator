@@ -199,7 +199,7 @@ plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
 structure with complement, relative and adverbial clauses (pass 2); aspect and
 verbal mood as systems separate from tense (pass 3); noun classes with article,
 adjective and verb (subject and object) agreement (pass 4); dual number,
-demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8). See
+demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
@@ -247,10 +247,11 @@ irregular suppletive degrees in the target language (good/better), degree adverb
 adverbs and of nouns ("more water"), the standard case being `locative` (no language rolls it yet: the case
 pool tops out at four labels), and the fake planner only knows a short adjective list.
 
-**Noun phrase still missing:** collective number and trial (S); classifiers
-("two [piece] dogs") (M); a real pronoun system (person, number, clusivity,
-honorifics, pro-drop, reflexives; today only I/you/he/we, others are coined as
-ordinary words) (M); adjective stacking and adjective-noun order beyond
+**Noun phrase still missing:** collective number and trial (S); reflexive and reciprocal
+pronouns, possessive pronoun paradigms and case-marked pronoun forms,
+pronoun number agreement on the verb, pro-drop of objects (M); classifier
+variety (a real classifier per noun rather than six categories, classifiers
+with adjectives or in possession, after-the-noun order) (M); adjective stacking and adjective-noun order beyond
 `adjective_after_noun` (S-M); adposition *placement* is left to the planner
 (the renderer does not reorder) and no adposition has case government (S-M);
 possessor agreement with the possessed noun's class, possessive pronoun

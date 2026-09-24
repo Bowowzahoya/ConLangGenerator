@@ -368,6 +368,20 @@ class GrammarProfile(BaseModel, frozen=True):
     """The ``"comparative"``/``"superlative"`` suffixes, present only for a
     degree whose marking is ``"affix"``."""
 
+    uses_classifiers: bool = False
+    """A classifier word (chosen by the noun's semantic category) follows a
+    numeral or demonstrative before its noun; such a language keeps the noun
+    singular after a numeral."""
+    clusivity: bool = False
+    """Inclusive/exclusive "we" (``we-inclusive``/``we-exclusive``)."""
+    third_person_gender: bool = False
+    """``she`` and ``it`` are pronouns of their own (else all map to ``he``)."""
+    honorific_you: bool = False
+    """A polite ``you-polite`` beside plain ``you``."""
+    pro_drop: bool = False
+    """A subject pronoun is omitted when the verb's agreement names the
+    person."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their

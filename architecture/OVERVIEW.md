@@ -4522,3 +4522,20 @@ reading code or one-off ad hoc scripts.
   list of known adjectives. Also fixed while testing this: `expansion.coin_word` now retries a colliding coined
   word up to 40 times instead of 6 (a tiny inventory produced a homograph, "than" = "cold"). 16 tests in
   `test_degree.py`.
+
+- **Classifiers and the pronoun system (grammar pass 9).** Two new modules and two independent rng streams
+  (`Random(f"{seed}:classifier")`, `Random(f"{seed}:pronoun")`). `generation/classifier_gen.py`: whether the
+  language uses classifiers (`GrammarProfile.uses_classifiers`; 45% isolating, 12% otherwise; switches
+  `plural_after_numeral` off) and `classifier_category(gloss)` (human/animal/long/flat/round/general from small
+  gloss lists, no rng, no stored field); the classifier of a category is an ordinary lexicon word with gloss
+  `classifier-<category>`, coined via `_lookup_or_coin`. `_render_plan` inserts it after a numeral or
+  demonstrative slot when a noun follows (`_takes_classifier`, `_following_noun_slot`, looking past adjectives),
+  and the English direction drops such tokens. `generation/pronoun_gen.py`: `clusivity`, `third_person_gender`,
+  `honorific_you` (biased by `social_hierarchy`), `pro_drop` (forced off unless the four person agreement
+  suffixes are distinct), the language's pronoun glosses (`pronoun_glosses`), the English-to-gloss mapping
+  (`english_pronoun_gloss`, mirrored in the fake planner) and `person_label` (every pronoun gloss agrees like
+  I/you/he/we). The planner prompt lists the glosses and mapping; `_dropped_subject_pronouns` omits the first
+  pronoun slot matching a verb's planned person; `_decode_verb_full` now returns the agreement label as a sixth
+  element so a dropped subject is read back (`translate_to_english`, guarded by `_person_suffix_is_distinct`);
+  pronoun glosses read back as `you (plural)` etc. 12 tests in `test_classifiers.py`, 18
+  in `test_pronouns.py`; `test_translator.py`'s fixture now also switches off `pro_drop` and classifiers.
