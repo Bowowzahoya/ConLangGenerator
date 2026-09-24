@@ -189,6 +189,37 @@ def generate_verbal_mood_affixes(
     return distinct_suffixes(rng, inventory, structure, moods, taken)
 
 
+VOICE_SYSTEMS_NOM_ACC: tuple[tuple[str, ...], ...] = ((), ("passive",), ("passive", "causative"))
+_VOICE_WEIGHTS_NOM_ACC = (0.15, 0.50, 0.35)
+VOICE_SYSTEMS_ERGATIVE: tuple[tuple[str, ...], ...] = (
+    (),
+    ("antipassive",),
+    ("antipassive", "causative"),
+    ("passive", "antipassive"),
+)
+_VOICE_WEIGHTS_ERGATIVE = (0.15, 0.35, 0.25, 0.25)
+
+
+def roll_voices(rng: random.Random, ergative: bool) -> tuple[str, ...]:
+    """A voice system: none, passive (+ causative) in a nominative-accusative
+    language; none, antipassive (+ causative or passive) in an ergative one --
+    the antipassive being the ergative languages' typical detransitivizer."""
+    systems = VOICE_SYSTEMS_ERGATIVE if ergative else VOICE_SYSTEMS_NOM_ACC
+    weights = _VOICE_WEIGHTS_ERGATIVE if ergative else _VOICE_WEIGHTS_NOM_ACC
+    return rng.choices(systems, weights=weights)[0]
+
+
+def generate_voice_affixes(
+    rng: random.Random,
+    inventory: PhonemeInventory,
+    structure: SyllableStructure,
+    voices: tuple[str, ...],
+    taken: frozenset[tuple[str, ...]] = frozenset(),
+) -> tuple[InflectionAffix, ...]:
+    """One invented suffix per voice label, distinct like the aspect ones."""
+    return distinct_suffixes(rng, inventory, structure, voices, taken)
+
+
 def apply_affix(
     rng: random.Random,
     affix: InflectionAffix | None,

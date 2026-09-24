@@ -105,6 +105,11 @@ class PlannedSlot:
     """One of this language's own ``GrammarProfile.moods`` labels (never
     ``"imperative"``, which is the sentence's mood), or ``None`` -- only
     ever meaningful on a finite verb or the copula."""
+    voice: str | None = None
+    """One of this language's own ``GrammarProfile.voices`` labels
+    (``passive``/``antipassive``/``causative``), or ``None`` for the active --
+    only ever meaningful on a finite verb. The planner also reassigns the
+    arguments (subject, case marking, the agent phrase) to match."""
     agrees_with: str | None = None
     """For an adjective: the lemma of the noun it modifies or is predicated
     of (only set in a language with noun classes)."""
@@ -198,6 +203,9 @@ def _build_system_prompt(language: Language) -> str:
         if grammar.plural_after_numeral
         else "a noun after a numeral above one stays singular (the renderer drops the number)"
     )
+    voices_desc = (
+        ", ".join(grammar.voices) if grammar.voices else 'none -- never set "voice" on anything'
+    )
     optional_kinds = []
     if grammar.has_indefinite_article:
         optional_kinds.append('"indefinite_article" (English "a"/"an" -- no other field needed)')
@@ -227,6 +235,8 @@ predicate adjective, regardless of word_order.
 - grammatical cases this language actually has: {cases_desc}.
 - tenses this language actually has: {tenses_desc}.
 - aspects this language actually has: {aspects_desc}.
+- voices (besides the ordinary active) this language actually has: \
+{voices_desc}.
 - number: singular is unmarked; this language has {number_desc}.
 - demonstratives come {demonstrative_desc} their noun; adpositions are {adposition_desc}; numerals stand directly before their noun ({numeral_desc}).
 - possession: {possession_desc}.
@@ -275,6 +285,28 @@ when this language has no fitting label. Never write English auxiliaries \
 expressed only through these fields.
 
 Noun-phrase pieces, each its own slot placed next to its noun as the bullets above say: a demonstrative is {{"kind":"demonstrative","gloss":"this"}} or "that" ("these"/"those" are the demonstrative plus the noun with "number":"plural"); a numeral is an ordinary "content" slot with pos "numeral" ("two dogs": numeral two, then dog with "number" -- "dual" when exactly two and the language has a dual, otherwise "plural"); an English "a"/"an" is an "indefinite_article" slot only when this language has one, otherwise nothing. Possession ("my dog", "the dog's bone", "Bruno's leg"): the possessor is its own slot with "possessive":true placed directly before the possessed noun -- for a pronoun possessor the pronoun itself ("my" -> the pronoun "I", "your" -> "you", "his"/"her" -> "he", "our" -> "we", "their" -> "they"). Never add the possessive marking yourself.
+
+Voice, only when the voices bullet lists it: set "voice" on the finite \
+verb slot (never on the copula) and reassign the arguments to match. \
+"passive" ("the dog is seen by the man", "the river was crossed"): the \
+patient is the sentence's subject and takes NO object case (under \
+nominative-accusative it is the plain subject; under ergative-absolutive it is \
+absolutive -- either way, no "accusative"/"ergative"); the agent, if stated, \
+is an oblique phrase: a "content" slot with gloss "by" and pos "preposition" \
+followed by (a postposition: preceded by) the agent noun phrase, with no \
+case; the verb agrees with the patient; drop the English "is/was" and \
+participle -- the passive verb carries tense and "voice":"passive". \
+"antipassive" (ergative-absolutive languages: "the man eats" with the \
+patient demoted or omitted): the agent is the plain absolutive subject (NO \
+"ergative" case); a demoted patient, if stated, takes no case (or the dative \
+if the language has one). "causative" ("I made the dog see the river"): the \
+verb is the caused action with "voice":"causative"; the subject is the \
+causer, the causee ("the dog") is a direct-object noun phrase, and any \
+original object follows it, plain. When this language lacks the needed \
+voice, reword as an ordinary active sentence (a passive with a stated agent: \
+make the agent the subject; without one, use the pronoun "they" as subject). \
+Never write an English auxiliary ("is", "was", "made") for a voice as its \
+own slot.
 
 Agreement (only where the two bullets above allow it): an adjective slot \
 sets "agrees_with" to the lemma of the noun it modifies or, as a predicate, \
@@ -386,6 +418,8 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "cases": ",".join(grammar.cases),
             "tenses": ",".join(grammar.tenses),
             "aspects": ",".join(grammar.aspects),
+            "voices": ",".join(grammar.voices),
+            "postpositional": "true" if grammar.postpositional else "false",
             "has_indefinite_article": "true" if grammar.has_indefinite_article else "false",
             "demonstrative_after_noun": "true" if grammar.demonstrative_after_noun else "false",
             "number_labels": ",".join(a.label for a in grammar.number_affixes),
@@ -493,6 +527,7 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                 possessive=item.get("possessive") is True,
                 aspect=_coerce_optional_str(item.get("aspect")),
                 verb_mood=_coerce_optional_str(item.get("verb_mood")),
+                voice=_coerce_optional_str(item.get("voice")),
                 agrees_with=_lemma(item.get("agrees_with")),
                 subject_gloss=_lemma(item.get("subject_gloss")),
                 object_gloss=_lemma(item.get("object_gloss")),

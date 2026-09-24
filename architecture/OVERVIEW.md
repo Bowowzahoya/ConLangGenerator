@@ -4479,3 +4479,18 @@ reading code or one-off ad hoc scripts.
   `_decode_adjective` also decodes class-marked demonstratives, and the possessive particle decodes to "of". The
   fake planner groups modifier runs into placeholder noun phrases (`_fake_group_noun_phrases`) so
   my/your/his/our/their, X's, this/that/these/those, numerals and a/an work. 22 tests in `test_noun_phrase.py`.
+
+- **Voice (grammar pass 6).** `GrammarProfile` gains `voices` (`inflection_gen.VOICE_SYSTEMS_NOM_ACC`:
+  none / passive / passive+causative; `VOICE_SYSTEMS_ERGATIVE`: none / antipassive / antipassive+causative /
+  passive+antipassive, rolled by alignment) and `voice_affixes`, from a sixth independent stream
+  (`Random(f"{seed}:voice")`), suffixes distinct from the other verb suffixes. `PlannedSlot.voice` is read from
+  the planner; the prompt lists the language's voices and spells out the argument reassignment (passive
+  patient = subject with no object case, agent as "by" phrase in the language's adposition order; antipassive
+  agent = plain absolutive; causative causee = object; a missing voice is reworded as an active). The renderer
+  only adds the suffix (voice first in the composed verb affix, `:v=` in the salt) -- case and order come from
+  the plan. `_decode_verb_full` returns `(entry, tense, aspect, mood, voice)`; its search is staged (tense x
+  agreement x object; voice; aspect/mood; aspect x voice; aspect/mood x object) and restricted to verbs sharing
+  the token's first two letters (`_stem_prefix`). English gets `(voice: X)` annotations and a `was seen`/`made
+  see` rough draft. The fake planner (`_fake_voice_slots`) plans passives (irregular participle or a "by"
+  phrase, so "is tired" stays an adjective), the active rewording where the language has no passive, and "make
+  X do Y" causatives. 19 tests in `test_voice.py`.

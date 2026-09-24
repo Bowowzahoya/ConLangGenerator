@@ -288,6 +288,8 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     has_indefinite_article = metadata.get("has_indefinite_article") == "true"
     demonstrative_after_noun = metadata.get("demonstrative_after_noun") == "true"
     has_dual = "dual" in metadata.get("number_labels", "").split(",")
+    voices = [v for v in metadata.get("voices", "").split(",") if v]
+    postpositional = metadata.get("postpositional") == "true"
     noun_classes = [c for c in metadata.get("noun_classes", "").split(",") if c]
     object_agreement = metadata.get("object_agreement") == "true"
     verb_moods = [m for m in metadata.get("verb_moods", "").split(",") if m]
@@ -372,7 +374,13 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         content_tokens = content_tokens + [wh_token]  # "what do you see" -> you see WHAT (object)
         wh_token = None
 
-    if mood == "imperative" and content_tokens:
+    voice_slots = _fake_voice_slots(
+        tokens, metadata, voices, postpositional, word_order, alignment, tenses, noun_phrase, base_of,
+        noun_classes, name_by_placeholder, tokens_no_copula,
+    )
+    if voice_slots is not None:
+        slots = voice_slots
+    elif mood == "imperative" and content_tokens:
         verb_tok, rest = content_tokens[0], content_tokens[1:]
         object_case = "accusative" if alignment == "nominative_accusative" else None
         verb_group = adverb_slots + [{"kind": "content", "gloss": verb_tok, "pos": "verb"}]
@@ -460,6 +468,86 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
 
 _FAKE_SUBORDINATORS = {"that", "because", "if", "when", "although", "while"}
 _FAKE_SUBORDINATOR_ROLE = {"that": "complement"}
+
+
+_FAKE_MAKE = {"make", "makes", "made"}
+
+
+def _fake_voice_slots(
+    tokens, metadata, voices, postpositional, word_order, alignment, tenses, noun_phrase, base_of,
+    noun_classes, name_by_placeholder, tokens_no_copula,
+):
+    """Plans a passive ("the river is seen by the dog") or a causative ("I made
+    the dog see the river") when the tokens have that shape; ``None``
+    otherwise. A passive whose language lacks the passive voice is reworded
+    as an active clause (agent as subject, or "they" when no agent); a
+    causative in a language without one is left to the ordinary shapes."""
+    order = _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O"))
+    object_case = "accusative" if alignment == "nominative_accusative" else None
+    subject_case = "ergative" if alignment == "ergative_absolutive" else None
+
+    def verb_slot(lemma: str, tense_label: str | None, subject_tok: str | None, voice: str | None) -> dict:
+        slot: dict = {"kind": "content", "gloss": lemma, "pos": "verb", "agreement": "default"}
+        if subject_tok is not None:
+            slot["agreement"] = _FAKE_AGREEMENT_BY_PRONOUN.get(subject_tok, "default")
+            if noun_classes and subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder:
+                slot["subject_gloss"] = base_of(subject_tok)
+        if tense_label:
+            slot["tense"] = tense_label
+        if voice:
+            slot["voice"] = voice
+        return slot
+
+    copula_index = next((i for i, t in enumerate(tokens) if t in _FAKE_COPULAS), None)
+    if copula_index is not None and 0 < copula_index and copula_index + 1 < len(tokens):
+        participle = tokens[copula_index + 1]
+        by_index = next((i for i, t in enumerate(tokens) if t == "by" and i > copula_index + 1), None)
+        is_participle = participle in _FAKE_PARTICIPLE_LEMMA or (participle.endswith("ed") and len(participle) > 3)
+        irregular = participle in _FAKE_PARTICIPLE_LEMMA
+        if is_participle and (irregular or by_index is not None):
+            patient_tok = tokens[copula_index - 1]
+            agent_tok = tokens[by_index + 1] if by_index is not None and by_index + 1 < len(tokens) else None
+            lemma = _fake_participle_lemma(participle)
+            tense_label = _fake_tense_label("past" if tokens[copula_index] in _FAKE_PAST_COPULAS else "non_past", tenses)
+            if "passive" in voices:
+                agent_phrase: list[dict] = []
+                if agent_tok is not None:
+                    by_slot = {"kind": "content", "gloss": "by", "pos": "preposition"}
+                    agent_np = noun_phrase(agent_tok, None)
+                    agent_phrase = agent_np + [by_slot] if postpositional else [by_slot] + agent_np
+                patient_np = noun_phrase(patient_tok, None)
+                verb = [verb_slot(lemma, tense_label, patient_tok, "passive")]
+                if order.index("V") == 2:  # verb-final: the agent phrase sits before the verb
+                    return patient_np + agent_phrase + verb
+                first = ("V", "S") if order.index("V") < order.index("S") else ("S", "V")
+                return [x for role in first for x in (patient_np if role == "S" else verb)] + agent_phrase
+            # no passive voice: reword as an active clause
+            if agent_tok is not None:
+                subject_np = noun_phrase(agent_tok, subject_case)
+                subject_key = agent_tok
+            else:
+                subject_np = [{"kind": "content", "gloss": "they", "pos": "pronoun"}]
+                subject_key = "they"
+            roles = {
+                "S": subject_np,
+                "V": [verb_slot(lemma, tense_label, subject_key, None)],
+                "O": noun_phrase(patient_tok, object_case),
+            }
+            return [x for role in order for x in roles[role]]
+    make_index = next((i for i, t in enumerate(tokens) if t in _FAKE_MAKE), None)
+    if make_index is not None and "causative" in voices and 0 < make_index and make_index + 2 < len(tokens):
+        subject_tok, causee_tok, verb_tok = tokens[make_index - 1], tokens[make_index + 1], tokens[make_index + 2]
+        rest = tokens[make_index + 3:]
+        tense_label = _fake_tense_label("past" if tokens[make_index] == "made" else "non_past", tenses)
+        roles = {
+            "S": noun_phrase(subject_tok, subject_case),
+            "V": [verb_slot(_fake_detect_tense_and_lemma(verb_tok)[1], tense_label, subject_tok, "causative")],
+            "O": noun_phrase(causee_tok, object_case),
+        }
+        ordered = [x for role in order for x in roles[role]]
+        extra = [x for tok in rest[:1] for x in noun_phrase(tok, None)]
+        return ordered + extra
+    return None
 
 
 def _fake_plan_dict(prompt: str, metadata: dict[str, str]) -> dict:

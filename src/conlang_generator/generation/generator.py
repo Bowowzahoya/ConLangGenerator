@@ -143,6 +143,25 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         update=noun_phrase_gen.generate_noun_phrase_grammar(np_rng, inventory, syllable_structure, grammar)
     )
 
+    # Voice (passive/antipassive/causative): a sixth independent stream.
+    voice_rng = random.Random(f"{spec.seed}:voice")
+    voices = inflection_gen.roll_voices(voice_rng, grammar.alignment.value == "ergative_absolutive")
+    voice_taken = frozenset(
+        affix.suffix
+        for affix in (
+            *grammar.tense_affixes, *grammar.agreement_affixes, *grammar.mood_affixes, *grammar.aspect_affixes,
+            *grammar.object_agreement_affixes,
+        )
+    )
+    grammar = grammar.model_copy(
+        update={
+            "voices": voices,
+            "voice_affixes": inflection_gen.generate_voice_affixes(
+                voice_rng, inventory, syllable_structure, voices, voice_taken
+            ),
+        }
+    )
+
     seed_entries = tuple(
         LexicalEntry(
             ipa=example.ipa,

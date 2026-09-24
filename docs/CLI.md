@@ -531,6 +531,36 @@ takes the suffix `-i`. Translating back marks a particle as `of` and a suffixed
 noun as possessed. A demonstrative or article that has no matching word in
 the language is coined on first use, like any word.
 
+**Voice.** Every language rolls a voice system beyond the active: none, or a
+passive (optionally with a causative) in a nominative-accusative language; or
+an antipassive (optionally with a causative or a passive) in an
+ergative-absolutive one. A voice is a verb suffix; the planner also
+reassigns the arguments -- in a passive the patient is the subject with no
+object case and the agent, if stated, follows or precedes "by" (per the
+language's adposition order); in an antipassive the agent is a plain
+absolutive subject; in a causative the causee becomes the object. A
+language lacking the needed voice gets an ordinary active rewording. Verified
+with `--llm fake` on `--seed 6 --prompt p` (SVO, passive and causative):
+
+```bash
+conlang translate "The dog sees the river." --lang t6 --to conlang --llm fake
+conlang translate "The river is seen by the dog." --lang t6 --to conlang --llm fake
+conlang translate "I made the dog see the river." --lang t6 --to conlang --llm fake
+```
+
+```
+fan fusevo yutu
+yut fuseevo taw' fan
+da'a fusovepid fanu yut
+```
+
+In the passive the verb takes its voice suffix (`fusevo` -> `fuseevo`), the
+patient `yut` moves to subject position without the object marker `-u`, and
+`taw'` is "by". Translating the passive back gives `river is seen by dog`.
+(`--llm fake` recognizes a passive only with an irregular participle or a
+"by" phrase, and a causative only as "make X do Y"; a real LLM handles the
+rest, including antipassives, which the fake planner never produces.)
+
 ## `conlang pronounce`
 
 Show IPA and romanization for a known word (English gloss or conlang

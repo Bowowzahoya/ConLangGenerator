@@ -104,6 +104,10 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   lexicon words coined on first use; numerals stand directly before their noun
   and there are no classifiers; adposition order is only told to the planner.
   In the fake planner a possessor name ("Bruno's") is not marked possessive.
+- **Voice is a verb suffix plus planner-driven argument reassignment**: the
+  agent of a passive is a "by" phrase, never an agent case; only passive,
+  antipassive (ergative languages) and causative exist, one suffix each.
+  Nothing checks that the planner reassigned the arguments correctly.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

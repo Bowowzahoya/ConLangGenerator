@@ -199,7 +199,7 @@ plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
 structure with complement, relative and adverbial clauses (pass 2); aspect and
 verbal mood as systems separate from tense (pass 3); noun classes with article,
 adjective and verb (subject and object) agreement (pass 4); dual number,
-demonstratives, numerals, an indefinite article and possession marking (pass 5). See
+demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
@@ -224,9 +224,19 @@ collide with one another (only aspect and mood suffixes are made distinct);
 no periphrastic (auxiliary) tenses or moods; no evidentiality or negative
 mood; aspect/mood affixes do not yet evolve in `sound_change`.
 
+**Voice follow-ups (M):** the middle/reflexive voice, reciprocals, applicatives
+and impersonal passives; an agent case (instrumental/ergative-as-agent)
+instead of a "by" word; voice-sensitive agreement (the verb agrees with the
+patient in a passive only if the planner says so); the fake planner never
+produces antipassives. Decoding a token in a language that rolled many
+features (object agreement, aspects, moods, voices, classes) can take a few
+seconds when the token is not a word of the language, because it searches
+suffix combinations (staged and prefix-filtered); a cache or smarter suffix
+matching would fix it (S-M).
+
 **Clause types still missing:** existentials and possession ("there is",
-"I have"; many languages have no verb "have") (M); passives and other voices
-(L); comparatives and superlatives (M).
+"I have"; many languages have no verb "have") (M); comparatives and
+superlatives (M).
 
 **Noun phrase still missing:** collective number and trial (S); classifiers
 ("two [piece] dogs") (M); a real pronoun system (person, number, clusivity,

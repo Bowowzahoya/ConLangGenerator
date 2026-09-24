@@ -334,6 +334,14 @@ class GrammarProfile(BaseModel, frozen=True):
     possession_affixes: tuple[InflectionAffix, ...] = ()
     """One ``"possessed"`` suffix (``possession == "affix"``)."""
 
+    voices: tuple[str, ...] = ()
+    """This language's own voice labels beyond the active (empty: none):
+    ``passive``, ``antipassive`` (ergative-absolutive languages only) and/or
+    ``causative``. A voice is a verb suffix (``voice_affixes``); the
+    argument reassignment it implies (which noun is the subject, how an
+    agent is marked) is planned by ``translation.sentence_planner``."""
+    voice_affixes: tuple[InflectionAffix, ...] = ()
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their
