@@ -115,7 +115,8 @@ def test_a_coined_word_is_reused_not_recoined_on_later_requests(tmp_path: Path):
 
     plural = translate_to_conlang("the canoes are crimson", reloaded, client)
     assert plural.coined == ()  # "canoes" finds the existing "canoe"
-    assert canoe.romanization in plural.text.split()
+    # the plural is the same word plus this language's own plural marking
+    assert any(t.startswith(canoe.romanization) and t != canoe.romanization for t in plural.text.split())
 
 
 

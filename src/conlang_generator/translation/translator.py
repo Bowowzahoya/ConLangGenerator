@@ -10,11 +10,13 @@ only ever renders a plan's slots via the *existing* deterministic
 primitives below (``_lookup_or_coin``, ``_apply_case``,
 ``_apply_verb_inflection``).
 
-Remaining v0 limitations, by design: single-clause only (the plan's own
-flat slot list supports noun-phrase-level coordination -- "the mountain
-and the river" -- but not multiple independent clauses, relative clauses,
-or subordination); no question formation; negation is a single particle
-slot with no per-language negation-position typology curated.
+Text is translated one sentence at a time (each sentence gets its own plan
+and mood: declarative, imperative, yes/no question, wh-question). Remaining
+v0 limitations, by design: each sentence is single-clause (the flat slot
+list supports noun-phrase coordination -- "the mountain and the river" --
+but not relative clauses or subordination); negation is a single particle
+slot with no per-language negation-position typology curated; punctuation
+is not rendered.
 
 Real inflection (case, tense, subject agreement, articles, an overt copula)
 is applied on the way to the conlang when the target language's own
@@ -173,28 +175,66 @@ def _verb_affix_salt(entry: LexicalEntry, tense_label: str | None, agreement_lab
     return f"verb:{entry.ipa}:{tense_label}:{agreement_label}"
 
 
-def _apply_case(language: Language, entry: LexicalEntry, case_label: str | None) -> tuple[str, str]:
-    """Returns this entry's own ``(romanization, ipa)``, case-marked when
-    ``case_label`` names a case this language's own ``GrammarProfile.cases``
-    actually has (and a matching ``case_affixes`` entry exists) --
-    unmarked (this entry's own bare citation form) otherwise, e.g. an
-    isolating language, or the argument alignment leaves bare (only one
-    argument is ever case-marked per sentence -- see ``translate_to_
+def _noun_affix(
+    grammar: GrammarProfile, case_label: str | None, number_label: str | None
+) -> tuple[InflectionAffix | None, str | None]:
+    """This noun's own affix (plural, then case, composed into one synthetic
+    affix so stress is re-derived once -- see ``_combined_tense_agreement_
+    affix``) and the case label actually used (``None`` when the language
+    lacks that case). ``(None, None)`` when nothing marks the noun."""
+    resolved_case = case_label if case_label in grammar.cases else None
+    case_affix = next((a for a in grammar.case_affixes if a.label == resolved_case), None) if resolved_case else None
+    if case_affix is None:
+        resolved_case = None
+    number_affix = (
+        next((a for a in grammar.number_affixes if a.label == number_label), None) if number_label else None
+    )
+    if number_affix is None:
+        return case_affix, resolved_case
+    prefix = number_affix.prefix + (case_affix.prefix if case_affix else ())
+    suffix = number_affix.suffix + (case_affix.suffix if case_affix else ())
+    return InflectionAffix(label="number+case", prefix=prefix, suffix=suffix), resolved_case
+
+
+def _noun_affix_salt(entry: LexicalEntry, case_label: str | None, number_label: str | None) -> str:
+    """``_case_affix_salt`` for a case-only marking (so every pre-number
+    sentence keeps its exact rng stream); a distinct salt once number is
+    involved. Shared by encoding and decoding like the other salts."""
+    if number_label is None:
+        return _case_affix_salt(entry, case_label or "")
+    return f"noun:{entry.ipa}:{case_label}:{number_label}"
+
+
+def _apply_case(
+    language: Language, entry: LexicalEntry, case_label: str | None, number_label: str | None = None
+) -> tuple[str, str]:
+    """Returns this entry's own ``(romanization, ipa)``, marked for number
+    (``"plural"``) and/or case when ``number_label``/``case_label`` name a
+    real feature of this language's own ``GrammarProfile`` -- unmarked
+    (this entry's own bare citation form) otherwise, e.g. an isolating
+    language with no case, or the argument alignment leaves it bare (only
+    one argument is ever case-marked per sentence -- see ``translate_to_
     conlang``'s own SVO handling)."""
-    grammar = language.grammar
-    if case_label is None or case_label not in grammar.cases:
-        return entry.romanization, entry.ipa
-    affix = next((a for a in grammar.case_affixes if a.label == case_label), None)
+    affix, resolved_case = _noun_affix(language.grammar, case_label, number_label)
     if affix is None:
         return entry.romanization, entry.ipa
-    rng = _translation_rng(language, _case_affix_salt(entry, case_label))
+    resolved_number = number_label if any(a.label == number_label for a in language.grammar.number_affixes) else None
+    rng = _translation_rng(language, _noun_affix_salt(entry, resolved_case, resolved_number))
     ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
     romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
     return romanization, ipa
 
 
+def _imperative_salt(entry: LexicalEntry) -> str:
+    return f"mood:{entry.ipa}:imperative"
+
+
 def _apply_verb_inflection(
-    language: Language, entry: LexicalEntry, tense_label: str | None, agreement_label: str
+    language: Language,
+    entry: LexicalEntry,
+    tense_label: str | None,
+    agreement_label: str,
+    mood: str = "declarative",
 ) -> tuple[str, str]:
     """The verb/copula-side counterpart of ``_apply_case`` -- composes and
     applies this sentence's own tense+agreement affix (see
@@ -213,6 +253,17 @@ def _apply_verb_inflection(
     unnormalized invalid label here would reintroduce it, since
     ``_decode_verb`` only ever tries genuinely valid labels)."""
     grammar = language.grammar
+    if mood == "imperative":
+        # An imperative takes its own marker instead of tense/agreement.
+        imperative = next((a for a in grammar.mood_affixes if a.label == "imperative"), None)
+        if imperative is None:
+            return entry.romanization, entry.ipa
+        rng = _translation_rng(language, _imperative_salt(entry))
+        ipa = inflection_gen.apply_affix(
+            rng, imperative, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+        )
+        romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+        return romanization, ipa
     resolved_tense = tense_label if tense_label in grammar.tenses else None
     resolved_agreement = agreement_label if agreement_label in inflection_gen.AGREEMENT_LABELS else "default"
     affix = _combined_tense_agreement_affix(grammar, resolved_tense, resolved_agreement)
@@ -279,16 +330,24 @@ excluded, since unlike these three it still takes tense/agreement marking
 like a finite verb."""
 
 
-def translate_to_conlang(
-    text: str, language: Language, llm_client: LLMClient
-) -> TranslationResult:
-    plan = sentence_planner.plan_sentence(text, language, llm_client)
-    coined: list[LexicalEntry] = []
-    working_language = language
+def _question_particle_first(language: Language) -> bool:
+    """Illustrative placement: a yes/no question particle goes at the end
+    of the sentence, except in verb-initial languages, where it goes at the
+    start."""
+    return language.grammar.word_order.value in ("VSO", "VOS")
 
+
+def _render_plan(
+    plan: sentence_planner.SentencePlan,
+    language: Language,
+    llm_client: LLMClient,
+    coined: list[LexicalEntry],
+) -> tuple[Language, list[str], list[str], list[str | None]]:
+    working_language = language
     romanization_parts: list[str] = []
     ipa_parts: list[str] = []
     gloss_parts: list[str | None] = []
+    mood_pending = plan.mood == "imperative"
     for slot in plan.slots:
         rendered: tuple[str, str] | None = None
         entry: LexicalEntry | None = None
@@ -297,11 +356,16 @@ def translate_to_conlang(
             working_language, entry = _lookup_or_coin(
                 working_language, slot.gloss, pos, coined, llm_client, lemma_candidates=[slot.gloss]
             )
-            rendered = (
-                _apply_verb_inflection(working_language, entry, slot.tense, slot.agreement or "default")
-                if pos is PartOfSpeech.VERB
-                else _apply_case(working_language, entry, slot.case)
-            )
+            if pos is PartOfSpeech.VERB:
+                rendered = _apply_verb_inflection(
+                    working_language, entry, slot.tense, slot.agreement or "default",
+                    "imperative" if mood_pending else "declarative",
+                )
+                mood_pending = False
+            else:
+                rendered = _apply_case(
+                    working_language, entry, slot.case, slot.number if pos is PartOfSpeech.NOUN else None
+                )
         elif slot.kind == "name" and slot.gloss:
             entry = names.find_name_entry(working_language, slot.gloss)
             if entry is None:
@@ -321,7 +385,11 @@ def translate_to_conlang(
         elif slot.kind == "copula":
             entry = working_language.lexicon.by_gloss("be")
             if entry is not None:
-                rendered = _apply_verb_inflection(working_language, entry, slot.tense, slot.agreement or "default")
+                rendered = _apply_verb_inflection(
+                    working_language, entry, slot.tense, slot.agreement or "default",
+                    "imperative" if mood_pending else "declarative",
+                )
+                mood_pending = False
         elif slot.kind in _BARE_GLOSS_BY_SLOT_KIND:
             entry = working_language.lexicon.by_gloss(_BARE_GLOSS_BY_SLOT_KIND[slot.kind])
             if entry is not None:
@@ -332,9 +400,39 @@ def translate_to_conlang(
             ipa_parts.append(rendered[1])
             gloss_parts.append(entry.primary_gloss if entry is not None else None)
 
+    if plan.mood == "question" and language.grammar.question_particle:
+        particle_ipa = language.grammar.question_particle
+        particle = (language.romanization.apply(particle_ipa), particle_ipa)
+        position = 0 if _question_particle_first(language) else len(romanization_parts)
+        romanization_parts.insert(position, particle[0])
+        ipa_parts.insert(position, particle[1])
+        gloss_parts.insert(position, None)
+    return working_language, romanization_parts, ipa_parts, gloss_parts
+
+
+def translate_to_conlang(
+    text: str, language: Language, llm_client: LLMClient
+) -> TranslationResult:
+    """Translates ``text`` one sentence at a time (``sentence_planner.
+    split_sentences``): each gets its own plan -- and its own mood
+    (declarative, imperative, yes/no or wh-question) -- and the rendered
+    sentences are joined with a space. Sandhi is applied within a sentence,
+    never across a sentence boundary."""
+    coined: list[LexicalEntry] = []
+    working_language = language
+    romanization_sentences: list[str] = []
+    ipa_sentences: list[str] = []
+    for sentence in sentence_planner.split_sentences(text) or [text]:
+        plan = sentence_planner.plan_sentence(sentence, working_language, llm_client)
+        working_language, rom_parts, ipa_parts, gloss_parts = _render_plan(
+            plan, working_language, llm_client, coined
+        )
+        romanization_sentences.append(" ".join(rom_parts))
+        ipa_sentences.append(" ".join(tone_sandhi.apply_sandhi(ipa_parts, language.tone_system, gloss_parts)))
+
     return TranslationResult(
-        text=" ".join(romanization_parts),
-        ipa=" ".join(tone_sandhi.apply_sandhi(ipa_parts, language.tone_system, gloss_parts)),
+        text=" ".join(part for part in romanization_sentences if part),
+        ipa=" ".join(part for part in ipa_sentences if part),
         language=working_language,
         coined=tuple(coined),
         pattern="llm-plan",
@@ -372,6 +470,22 @@ def _decode_noun(language: Language, token: str) -> tuple[LexicalEntry, str] | N
             candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
             if _normalize(candidate) == normalized:
                 return entry, affix.label
+    for entry in noun_entries:
+        for number_affix in language.grammar.number_affixes:
+            for case_affix in [None, *language.grammar.case_affixes]:
+                case_label = case_affix.label if case_affix else None
+                affix, resolved_case = _noun_affix(language.grammar, case_label, number_affix.label)
+                if affix is None:
+                    continue
+                rng = _translation_rng(language, _noun_affix_salt(entry, resolved_case, number_affix.label))
+                ipa = inflection_gen.apply_affix(
+                    rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+                )
+                candidate = apply_grammatical_spelling(
+                    language.romanization, language.romanization.apply(ipa), entry.pos
+                )
+                if _normalize(candidate) == normalized:
+                    return entry, number_affix.label if case_label is None else f"{case_label}+{number_affix.label}"
     return None
 
 
@@ -384,6 +498,16 @@ def _decode_verb(language: Language, token: str) -> tuple[LexicalEntry, str | No
     for entry in verb_entries:
         if _normalize(entry.romanization) == normalized:
             return entry, None
+    imperative = next((a for a in language.grammar.mood_affixes if a.label == "imperative"), None)
+    if imperative is not None:
+        for entry in verb_entries:
+            rng = _translation_rng(language, _imperative_salt(entry))
+            ipa = inflection_gen.apply_affix(
+                rng, imperative, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+            )
+            candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+            if _normalize(candidate) == normalized:
+                return entry, "imperative"
     tense_options: list[str | None] = [None] + list(language.grammar.tenses)
     for entry in verb_entries:
         for tense_label in tense_options:
@@ -431,7 +555,14 @@ def translate_to_english(
     # gloss sequence would otherwise lose.
     plain: list[str] = []
     annotated: list[str] = []
+    particle_ipa = language.grammar.question_particle
+    particle_form = _normalize(language.romanization.apply(particle_ipa)) if particle_ipa else None
+    is_question = False
+    is_imperative = False
     for tok in tokens:
+        if particle_form is not None and _normalize(tok) == particle_form and language.lexicon.by_form(tok) is None:
+            is_question = True
+            continue
         entry = language.lexicon.by_form(tok)
         if entry is not None:
             plain.append(entry.primary_gloss)
@@ -440,16 +571,22 @@ def translate_to_english(
         noun_decoded = _decode_noun(language, tok)
         if noun_decoded is not None:
             noun_entry, case_label = noun_decoded
-            plain.append(noun_entry.primary_gloss)
+            is_plural = case_label.endswith("plural")
+            case_only = case_label.split("+")[0] if "+" in case_label else ("unmarked" if is_plural else case_label)
+            plain.append(noun_entry.primary_gloss + ("s" if is_plural else ""))
+            notes = (["plural"] if is_plural else []) + ([] if case_only == "unmarked" else [f"case: {case_only}"])
             annotated.append(
-                noun_entry.primary_gloss
-                if case_label == "unmarked"
-                else f"{noun_entry.primary_gloss} (case: {case_label})"
+                noun_entry.primary_gloss if not notes else f"{noun_entry.primary_gloss} ({', '.join(notes)})"
             )
             continue
         verb_decoded = _decode_verb(language, tok)
         if verb_decoded is not None:
             verb_entry, tense_label = verb_decoded
+            if tense_label == "imperative":
+                is_imperative = True
+                plain.append(verb_entry.primary_gloss)
+                annotated.append(f"{verb_entry.primary_gloss} (mood: imperative)")
+                continue
             gloss = _english_verb_gloss(verb_entry, tense_label)
             plain.append(gloss)
             annotated.append(gloss if tense_label is None else f"{gloss} (tense: {tense_label})")
@@ -457,14 +594,17 @@ def translate_to_english(
         plain.append(f"<unknown:{tok}>")
         annotated.append(f"<unknown:{tok}>")
 
-    plain_draft = " ".join(plain)
-    annotated_draft = " ".join(annotated)
+    plain_draft = " ".join(plain) + ("?" if is_question else "!" if is_imperative else "")
+    annotated_draft = " ".join(annotated) + (
+        " [this is a yes/no question]" if is_question else " [this is a command]" if is_imperative else ""
+    )
     request = LLMRequest(
         system=(
             "You turn an annotated rough English gloss sequence from a "
             "constructed-language translation into one natural, fluent "
             "English sentence. Each word is its English gloss, optionally "
-            "annotated with '(case: X)' (this word's grammatical role -- "
+            "annotated with '(plural)' (render the noun plural), '(mood: imperative)' "
+            "(a command), '(case: X)' (this word's grammatical role -- "
             "e.g. an accusative/absolutive/ergative-marked word is "
             "typically a direct object) or '(tense: X)' (a verb's "
             "detected tense -- render it as the matching English tense). "

@@ -57,8 +57,9 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
 - **Sandhi chains are simple citation-tone pairings**, not prosodic-phrase
   aware. Mandarin's sandhi before a neutral-tone syllable is not modeled.
 - **Mandarin particles 的/了/吗 are not generated**: isolating languages have
-  no analytic case/tense particles here, and there is no sentence-final
-  question particle mechanic.
+  no analytic case/tense/aspect particles here (the only free particle is
+  the yes/no question one, and it is a single invented syllable, not 吗
+  specifically).
 - **Other tone systems were surveyed and left without sandhi**, each for a
   stated reason: Thai (syllable-internal tone assignment), Vietnamese and
   Tibetan (no productive sandhi), Cantonese (unconditioned "changed tone"),
@@ -76,12 +77,15 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
 - **Translation is LLM-planned and single-clause.** A sentence is turned
   into a plan (`SentencePlan`, order/case/tense/article/copula/negation/
   conjunction) by the LLM, then rendered deterministically. There is no
-  real parser, no relative clauses, questions, or agreement beyond what the
-  plan states, and no idiom generation/matching (`Lexicon.idioms` exists
+  real parser, no relative or subordinate clauses, and no agreement beyond
+  what the plan states. Yes/no questions use one free particle, imperatives
+  one suffix, plural one suffix (isolating languages get it as an attached
+  clitic); there is no dual, gender or noun class, and vocatives are
+  ordinary sentence-initial nouns. There is no idiom generation/matching (`Lexicon.idioms` exists
   but is unused).
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
-- **Punctuation is dropped in translation** (see DEFERRED for the plan).
+- **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.
 - **No cost/latency guarantees for the LLM**: results depend on the model.
 
 ## Language evolution

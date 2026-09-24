@@ -4396,3 +4396,20 @@ reading code or one-off ad hoc scripts.
   deferred manual pass. Full suite: 1128 passed, 2 skipped (up from 1123).
 
   That closes every item `DEFERRED.md` §8 ever flagged, in full -- nothing left open in that section.
+
+- **Noun number and clause types (grammar pass 1).** `GrammarProfile` gains `number_affixes` (one
+  `"plural"` suffix), `mood_affixes` (one `"imperative"` suffix) and `question_particle` (IPA of a free yes/no
+  particle), generated for every language in `generator.py` from an *independent* rng stream
+  (`Random(f"{seed}:clause-grammar")`) so no existing lexicon draw shifts; the particle is re-rolled if it
+  spells like a lexicon word. `PlannedSlot.number` (`"plural"`) and `SentencePlan.mood` (`declarative`,
+  `imperative`, `question`, `wh_question`) are read from the planner's reply, now `{"mood", "slots"}` (a bare
+  array is still accepted). `translate_to_conlang` splits input with `sentence_planner.split_sentences`, plans
+  and renders each sentence alone (`_render_plan`): plural composes with case into one affix
+  (`_noun_affix`, a distinct rng salt only when number is involved, so pre-existing output is unchanged), the
+  first verb/copula of an imperative takes the imperative suffix instead of tense/agreement, and a yes/no
+  question gets the particle at the end (start for VSO/VOS). `translate_to_english` decodes plural
+  (`_decode_noun` labels such as `"plural"`/`"accusative+plural"`), imperative (`_decode_verb` returns
+  `"imperative"`) and the particle, and the fluency prompt gets the matching annotations. The fake planner
+  reads mood from final punctuation and a suffix heuristic for plurals. 16 tests in `test_clause_types.py`.
+  Simplifications: isolating languages get the plural as an attached clitic; vocatives are ordinary sentence-
+  initial nouns; evolution does not yet evolve the new affixes/particle.

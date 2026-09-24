@@ -93,6 +93,28 @@ def generate_agreement_affixes(
     )
 
 
+def generate_number_affixes(
+    rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure
+) -> tuple[InflectionAffix, ...]:
+    """The single plural suffix (singular is the unmarked bare form)."""
+    return (InflectionAffix(label="plural", suffix=word_builder.build_class_suffix(rng, inventory, structure)),)
+
+
+def generate_mood_affixes(
+    rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure
+) -> tuple[InflectionAffix, ...]:
+    """The single imperative suffix (indicative is the unmarked form)."""
+    return (InflectionAffix(label="imperative", suffix=word_builder.build_class_suffix(rng, inventory, structure)),)
+
+
+def generate_question_particle(
+    rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure
+) -> str:
+    """The IPA of a free yes/no question particle -- one legal
+    syllable, so it is a pronounceable standalone word."""
+    return word_builder.build_syllable(rng, inventory, structure)
+
+
 def apply_affix(
     rng: random.Random,
     affix: InflectionAffix | None,

@@ -77,6 +77,17 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         update={"case_affixes": case_affixes, "tense_affixes": tense_affixes, "agreement_affixes": agreement_affixes}
     )
 
+    # An independent rng stream: adding clause/number grammar must not shift
+    # any draw the lexicon generation below makes from `rng`.
+    clause_rng = random.Random(f"{spec.seed}:clause-grammar")
+    grammar = grammar.model_copy(
+        update={
+            "number_affixes": inflection_gen.generate_number_affixes(clause_rng, inventory, syllable_structure),
+            "mood_affixes": inflection_gen.generate_mood_affixes(clause_rng, inventory, syllable_structure),
+            "question_particle": inflection_gen.generate_question_particle(clause_rng, inventory, syllable_structure),
+        }
+    )
+
     seed_entries = tuple(
         LexicalEntry(
             ipa=example.ipa,
@@ -197,6 +208,15 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     for index in unresolved:
         known_forms.add(normalized_form(generated_entries[index].romanization))
     generated_entries = tuple(generated_entries)
+
+    # The question particle is a free word: re-roll it (own rng stream) if it
+    # spells the same as a lexicon word, so it can be told apart on decoding.
+    particle = grammar.question_particle
+    for _ in range(50):
+        if normalized_form(romanization.apply(particle)) not in known_forms:
+            break
+        particle = inflection_gen.generate_question_particle(clause_rng, inventory, syllable_structure)
+    grammar = grammar.model_copy(update={"question_particle": particle})
 
     return Language(
         name=name,

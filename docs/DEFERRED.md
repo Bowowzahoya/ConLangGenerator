@@ -36,19 +36,15 @@ multi-session feature.
   `estimate_cost`; an estimate needs typical token counts per purpose
   (taken from the cost ledger: classify ~3.3k in / 0.3k out, translate plan
   ~1.5k in / 0.05-0.3k out; word selection scales with lexicon size).
-- **Translation output is sometimes far too short (M).** Reported: "My
-  friend, I think you are really dumb. Just piss off. You are a lkdjhr"
-  into a Dutch-like language gave "sko kiszomongo holt stoehol" (4 words);
-  the fake LLM gives 11 tokens, including untranslated English ("Just",
-  "You"). Likely causes to verify: the whole multi-sentence text goes to
-  `sentence_planner.plan_sentence` as *one* prompt whose system text says
-  "one sentence" and shows only single-clause examples, so the model
-  plans one clause and drops the rest; `max_tokens=500`; content
-  words the plan doesn't include are lost silently. Fix ideas: split input
-  into sentences and plan each; add a "never drop meaningful words"
-  check that compares plan glosses with input words and warns/falls back
-  per word; make the fake plan treat capitalized non-name words as
-  ordinary words.
+- **Translation output is sometimes far too short (S-M, partly done).**
+  Reported: "My friend, I think you are really dumb. Just piss off. You are
+  a lkdjhr" into a Dutch-like language gave "sko kiszomongo holt stoehol".
+  Done: input is now split into sentences and each is planned on its own
+  (previously one prompt whose system text said "one sentence"). Still open:
+  a "never drop meaningful words" check that compares plan glosses with the
+  input's content words and warns or falls back per word; `max_tokens=500`
+  on long sentences; "I think you are dumb" needs subordinate clauses (§10).
+  Not yet re-tested against a real LLM.
 
 ## 2. Web app
 
@@ -71,13 +67,12 @@ multi-session feature.
 
 ## 3. Translation
 
-- **Sentence-initial capitals are treated as names (S-M).** In "Just ...",
-  "You ..." the capitalized first word is taken as a proper name. The
-  planner prompt tells the LLM names are "written as-is", and the fake plan
-  keys on capitalization; both should ignore sentence-initial position
-  (a name at sentence start is only a name if it is not an ordinary word
-  in the lexicon or English). Add a test with "Just", "You", and
-  "Bruno" at sentence start.
+- **Sentence-initial capitals treated as names (S, mostly done).** The
+  planner prompt now says a capitalized sentence-initial word is a name only
+  if it is not an ordinary English word, and the fake planner already
+  ignores sentence-initial position; since text is now planned one sentence
+  at a time, "Just"/"You" in a later sentence are no longer mistaken for
+  names by the fake. Still open: check with a real LLM.
 - **Unknown words are coined silently (M).** A word like "lkjejhrj" is
   looked up, not found, and `translation/expansion.coin_word` invents a
   word. The part of speech comes from the LLM plan (unknown or missing
@@ -193,15 +188,61 @@ multi-session feature.
 
 ## 10. Grammar
 
-- **Unused traits (M each).** `social_hierarchy`, `evidentiality_culture`,
-  `spatial_reference`, `ritual_register`, `taboo_register`,
-  `terrain_communication_distance`, `salient_vocabulary_domains` are
-  extracted and stored but consumed by nothing; `orality_literacy` only
-  affects evolution's orthography reform.
-- **Word order not trait-linked (S).**
-- **Matched-language grammar bias is partial (M).** `real_word_order`,
-  `real_alignment`, `real_has_articles`, … exist for ~16 of ~50 profiles;
-  `morphological_type` has no matched-language bias.
+Each feature has three parts, and all three must land together: (1) the
+grammar generator invents the option (`grammar_gen.py`/`inflection_gen.py`),
+(2) the planner and renderer use it (`sentence_planner.py`/`translator.py`),
+(3) the English decoder reads it back (`translate_to_english`). Sizes:
+S/M/L as above.
+
+**Done (grammar pass 1):** plural number, imperative, yes/no and wh-questions,
+vocatives (as plain sentence-initial nouns), per-sentence planning. See
+`architecture/OVERVIEW.md`.
+
+**Next, in order:**
+1. **Nested plan structure (L).** Replace the flat slot list with a tree so
+   clauses can contain clauses. Prerequisite for everything in the next
+   group.
+2. **Subordinate and relative clauses (L).** Complement clauses ("I think
+   that..."), relative clauses, adverbial clauses (because, if, when),
+   conjunctions beyond "and" (or, but).
+3. **Aspect and mood as separate systems (M).** Only tense exists now.
+4. **Subject and object agreement, gender / noun classes (M each).**
+
+**Clause types still missing:** existentials and possession ("there is",
+"I have"; many languages have no verb "have") (M); passives and other voices
+(L); comparatives and superlatives (M).
+
+**Noun phrase still missing:** dual and collective number (S-M); definiteness
+beyond "the" (S); possession marking (M); demonstratives (M); numerals and
+classifiers (M); a real pronoun system (person, number, clusivity,
+honorifics, pro-drop, reflexives) (M); adjective agreement/stacking (S-M);
+adpositions with order tied to word order (S-M); further cases (locative,
+instrumental) (S).
+
+**Verb phrase still missing:** auxiliaries and periphrastic tenses (M);
+negation strategies (affix, double negation, negative verbs) (M);
+evidentiality (M); serial verbs (L); valency-changing morphology (L); copula
+strategies (zero, state vs identity) (S); adverb placement (S).
+
+**Morphology:** real inflection paradigms (declensions, conjugations,
+irregulars) instead of one invented affix per feature (L); prefix/infix/
+circumfix positions (M); morphophonology at affix boundaries (vowel harmony,
+mutation) (L); derivation and compounding (L); reduplication as grammar (M);
+root-and-pattern beyond citation shapes (L). The new plural, imperative and
+question-particle forms do not yet evolve with `sound_change` (S).
+
+**Discourse (optional, L):** topic/focus and information structure, pro-drop
+and ellipsis, politeness/honorific registers (uses `social_hierarchy`),
+reported speech, idioms.
+
+**Wiring existing traits (M each):** `social_hierarchy`,
+`evidentiality_culture`, `spatial_reference`, `ritual_register`,
+`taboo_register`, `terrain_communication_distance`,
+`salient_vocabulary_domains` are extracted and stored but consumed by
+nothing (`orality_literacy` only affects evolution's orthography reform).
+Word order is not trait-linked (S). Matched-language grammar bias is partial:
+`real_word_order`, `real_alignment`, `real_has_articles`, ... exist for ~16
+of ~50 profiles, and `morphological_type` has no matched-language bias (M).
 
 ## 11. Language evolution
 

@@ -278,3 +278,19 @@ class GrammarProfile(BaseModel, frozen=True):
     finite verb (or copula) at translation time, composed together with
     the tense affix into one combined suffix so stress is only re-derived
     once per word."""
+    number_affixes: tuple[InflectionAffix, ...] = ()
+    """One invented plural suffix (label ``"plural"``; singular is the
+    unmarked bare form) -- same two-phase generation as ``case_affixes``
+    (``inflection_gen.generate_number_affixes``), applied to a noun at
+    translation time. Generated for every language, isolating ones too
+    (there it acts as an attached plural clitic, like Mandarin 们); empty
+    on a language saved before this field existed, which then marks no
+    plural."""
+    mood_affixes: tuple[InflectionAffix, ...] = ()
+    """One invented imperative suffix (label ``"imperative"``), applied to
+    the verb of an imperative sentence instead of tense/agreement."""
+    question_particle: str = ""
+    """The IPA of this language's own free yes/no question
+    particle (a standalone word, not an affix). Empty means the language
+    marks no yes/no questions (a language saved before this field existed). See ``translation.translator`` for where it
+    is placed."""

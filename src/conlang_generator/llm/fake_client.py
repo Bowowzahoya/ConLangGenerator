@@ -82,7 +82,25 @@ own irregular-past table -- this module can't import from ``translation``
 (``translator.py`` already imports from ``llm``, so the reverse would be
 circular), and this fake only needs enough to keep its own deterministic
 heuristic self-consistent, not a shared source of truth."""
+_FAKE_WH = {"what", "who", "where", "why", "how", "when", "which"}
+_FAKE_AUX = {"do", "does", "did"}
+_FAKE_PLURAL_EXCLUDED = {"this", "does", "always", "perhaps", "thanks", "news", "yes"}
 _FAKE_ADVERBS = {"very", "extremely", "quite", "really", "too", "so", "always", "never", "often"}
+
+
+def _fake_singular(token: str) -> str | None:
+    """The singular of a plausibly plural English noun token, else ``None``.
+    A crude suffix heuristic (this fake has no lexicon): ``-ies``, ``-es``
+    after s/x/z/ch/sh, else ``-s``, excluding ``-ss``/``-us``/``-is``."""
+    if len(token) <= 3 or token in _FAKE_PLURAL_EXCLUDED or not token.endswith("s"):
+        return None
+    if token.endswith(("ss", "us", "is")):
+        return None
+    if token.endswith("ies") and len(token) > 4:
+        return token[:-3] + "y"
+    if token.endswith(("ses", "xes", "zes", "ches", "shes")):
+        return token[:-2]
+    return token[:-1]
 
 
 def _fake_is_adverb(token: str) -> bool:
@@ -162,10 +180,27 @@ def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
     has_overt_copula = metadata.get("has_overt_copula") == "true"
     adjective_after_noun = metadata.get("adjective_after_noun") == "true"
 
+    ends_with = prompt.rstrip()[-1:]
     prompt, name_by_placeholder = _fake_extract_names(prompt)
     raw_tokens = _fake_tokenize(prompt)
+    wh_token = next((t for t in raw_tokens[:1] if t in _FAKE_WH), None)
+    mood = "declarative"
+    if ends_with == "?":
+        mood = "wh_question" if wh_token else "question"
+    elif (
+        ends_with == "!"
+        and raw_tokens
+        and raw_tokens[0] not in _FAKE_PRONOUN_TOKENS | _FAKE_COPULAS | _FAKE_ARTICLES | _FAKE_WH
+        and raw_tokens[0] not in name_by_placeholder
+        and not _fake_is_adverb(raw_tokens[0])
+    ):
+        mood = "imperative"
     used_article = any(t in _FAKE_ARTICLES for t in raw_tokens)
     tokens = [t for t in raw_tokens if t not in _FAKE_ARTICLES]
+    if mood in ("question", "wh_question"):
+        tokens = [t for t in tokens if t not in _FAKE_AUX]
+    if wh_token:
+        tokens = tokens[1:]
     tokens_no_copula = [t for t in tokens if t not in _FAKE_COPULAS]
     has_copula = any(t in _FAKE_COPULAS for t in tokens)
     copula_tok = next((t for t in tokens if t in _FAKE_COPULAS), None)
@@ -186,11 +221,30 @@ def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
             if case:
                 name_slot["case"] = case
             return [name_slot]
-        is_pronoun = tok in _FAKE_PRONOUN_TOKENS
+        is_pronoun = tok in _FAKE_PRONOUN_TOKENS or tok in _FAKE_WH
         prefix = [] if is_pronoun or not (used_article and has_articles) else [{"kind": "article"}]
-        return prefix + [content_slot(tok, "pronoun" if is_pronoun else "noun", case)]
+        singular = None if is_pronoun else _fake_singular(tok)
+        slot = content_slot(singular or tok, "pronoun" if is_pronoun else "noun", case)
+        if singular:
+            slot["number"] = "plural"
+        return prefix + [slot]
 
-    if has_copula and len(content_tokens) == 2:
+    if wh_token in ("what", "who") and len(content_tokens) == 2 and not has_copula:
+        content_tokens = content_tokens + [wh_token]  # "what do you see" -> you see WHAT (object)
+        wh_token = None
+
+    if mood == "imperative" and content_tokens:
+        verb_tok, rest = content_tokens[0], content_tokens[1:]
+        object_case = "accusative" if alignment == "nominative_accusative" else None
+        verb_group = adverb_slots + [{"kind": "content", "gloss": verb_tok, "pos": "verb"}]
+        verb_group = verb_group + ([{"kind": "negation"}] if negated else [])
+        object_np = noun_phrase(rest[0], object_case) if rest else []
+        extra = [content_slot(t, "noun") for t in rest[1:]]
+        verb_first = _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O")).index("V") < _FAKE_ROLE_ORDER.get(
+            word_order, ("S", "V", "O")
+        ).index("O")
+        slots = (verb_group + object_np if verb_first else object_np + verb_group) + extra
+    elif has_copula and len(content_tokens) == 2:
         subject_tok, adj_tok = content_tokens
         subject_np = noun_phrase(subject_tok, None)
         adjective_slot = content_slot(adj_tok, "adjective")
@@ -233,7 +287,9 @@ def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
             for t in tokens_no_copula
         ]
 
-    return json.dumps(slots)
+    if wh_token:
+        slots = [{"kind": "content", "gloss": wh_token, "pos": "adverb" if wh_token != "which" else "pronoun"}] + slots
+    return json.dumps({"mood": mood, "slots": slots})
 
 
 def _fake_guess_ipa(form: str) -> str:

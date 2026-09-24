@@ -395,6 +395,36 @@ fallback), but -- same caveat as `generate`'s own prompt handling --
 isn't actually reacting to the English wording itself; use `--llm
 anthropic` for that.
 
+Text is split into sentences (on `.`, `!`, `?`) and each is planned and
+rendered on its own. The sentence's mood comes from the planner (with a
+real LLM it reads the wording; `--llm fake` goes by the final punctuation and
+a few heuristics): a plural noun takes the language's own plural suffix, an
+imperative verb takes its own imperative suffix (no tense/agreement), a yes/no
+question gets the language's free question particle (sentence-final, or
+sentence-initial in verb-initial languages), and a wh-question keeps its
+own question word and takes no particle. Every generated language now has a
+plural suffix, an imperative suffix and a question particle (older saved
+languages lack them and leave nouns/verbs unmarked). Punctuation itself is
+still not written in the output. Verified with `--llm fake` on a language
+generated with `--seed 3 --prompt "a plain language"`:
+
+```bash
+conlang translate "I see the mountains." --lang t1 --to conlang --llm fake
+conlang translate "Do you see the mountain?" --lang t1 --to conlang --llm fake
+conlang translate "Go home!" --lang t1 --to conlang --llm fake
+```
+
+```
+bsaw gam gyaiwa vasauminay
+ma gam gyaa vasauminan pvi
+tnaplup'ua payuy
+```
+
+(Here `pvi` is the question particle, and the `-ay`-style ending on
+`vasauminay` is plural on top of the object case.) Translating back marks
+them: `conlang translate "ma gam gyaa vasauminan pvi" --lang t1 --to english`
+gives `you mountain see?`, and `"tnaplup'ua payuy"` gives `home go!`.
+
 ## `conlang pronounce`
 
 Show IPA and romanization for a known word (English gloss or conlang

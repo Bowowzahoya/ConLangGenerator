@@ -73,11 +73,32 @@ class PlannedSlot:
     agreement: str | None = None
     """One of ``generation.inflection_gen.AGREEMENT_LABELS``, or ``None``
     -- only ever meaningful on a finite verb or the copula."""
+    number: str | None = None
+    """``"plural"`` or ``None`` (singular, unmarked) -- only ever meaningful
+    on a noun ("content" with pos "noun")."""
+
+
+MOODS = ("declarative", "imperative", "question", "wh_question")
+"""``"question"`` is a yes/no question (gets the language's question
+particle); ``"wh_question"`` is a content question whose own question word
+("what", "who", ...) is an ordinary content slot and takes no particle."""
 
 
 @dataclass(frozen=True)
 class SentencePlan:
     slots: tuple[PlannedSlot, ...]
+    mood: str = "declarative"
+
+
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+
+
+def split_sentences(text: str) -> list[str]:
+    """Splits on sentence-final punctuation followed by whitespace, keeping
+    the punctuation on each sentence (it is the planner's cue for mood).
+    Empty input yields no sentences; text with no terminal punctuation is
+    one sentence."""
+    return [part.strip() for part in _SENTENCE_SPLIT.split(text.strip()) if part.strip()]
 
 
 def _tokenize(text: str) -> list[str]:
@@ -147,14 +168,20 @@ emit an "article" slot immediately next to a pronoun (I/you/he/we/this/\
 that) -- no real language does this, even when the English input itself \
 used "the".
 
+A noun that is plural in the English ("mountains", "the dogs") is ONE "content" slot with the singular lemma as "gloss" and "number":"plural" (never the plural spelling as the gloss, and never omit the number). Singular nouns have no "number" field.
+
+The sentence's "mood" is one of: "declarative" (the default), "imperative" (a command or request addressed to someone: the finite verb is a content slot with pos "verb" and NO "tense"/"agreement"; the subject "you" is left out), "question" (a yes/no question), "wh_question" (a question whose question word -- what, who, where, why, how -- is its own content slot, pos "pronoun" or "adverb"). Do not add any word for the mood yourself: a separate step adds this language's own question particle or imperative marking. A noun of direct address ("My friend, come here") is an ordinary noun content slot placed first, with no case.
+
 Proper names of people and places (Bruno, Maria, Amsterdam) get a "name" \
 slot with "gloss" set to the name exactly as written -- never translate, \
-respell, or turn a name into a content word; a "name" slot may also set \
+respell, or turn a name into a content word. A capitalized word at the \
+very start of the sentence is a name only if it is not an ordinary English \
+word ("Just", "You", "Come" are not names). A "name" slot may also set \
 "case" like a noun. A possessive 's has no marking in this language yet: \
 emit the name slot directly before the possessed noun's own slot ("Bruno's \
 leg" -> name Bruno, then content leg).
 
-Six worked examples (illustrative field values only -- always use *this* \
+Worked examples (illustrative field values only -- always use *this* \
 language's own real case/tense labels listed above, never these \
 placeholder names, and only emit "article"/"copula" slots when this \
 language actually has them):
@@ -199,7 +226,14 @@ phrase repeats its own article/case exactly as if it stood alone) -> \
 "case":"<...>"}}, {{"kind":"conjunction"}}, {{"kind":"article"}}, \
 {{"kind":"content","gloss":"river","pos":"noun","case":"<...>"}}]
 
-Respond with ONLY a single JSON array of slot objects, no prose, no \
+"Come to the mountains!" (an imperative -- no subject, verb without \
+tense/agreement; a plural noun carries "number") -> mood "imperative", \
+[{{"kind":"content","gloss":"come","pos":"verb"}}, {{"kind":"content",\
+"gloss":"to","pos":"preposition"}}, {{"kind":"article"}}, {{"kind":"content",\
+"gloss":"mountain","pos":"noun","number":"plural"}}]
+
+The examples above show only the slot array. Respond with ONLY a single \
+JSON object {{"mood": "<mood>", "slots": [<slot objects>]}}, no prose, no \
 markdown fences."""
 
 
@@ -234,13 +268,26 @@ def _coerce_optional_str(value: object) -> str | None:
 
 
 def _parse(text: str) -> SentencePlan | None:
-    match = re.search(r"\[.*\]", text, re.DOTALL)
-    if match is None:
-        return None
-    try:
-        raw = json.loads(match.group(0))
-    except json.JSONDecodeError:
-        return None
+    mood = "declarative"
+    raw: object = None
+    obj_match = re.search(r"\{.*\}", text, re.DOTALL)
+    if obj_match is not None:
+        try:
+            parsed = json.loads(obj_match.group(0))
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, dict) and isinstance(parsed.get("slots"), list):
+            raw = parsed["slots"]
+            if parsed.get("mood") in MOODS:
+                mood = parsed["mood"]
+    if raw is None:
+        match = re.search(r"\[.*\]", text, re.DOTALL)
+        if match is None:
+            return None
+        try:
+            raw = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return None
     if not isinstance(raw, list):
         return None
 
@@ -263,11 +310,12 @@ def _parse(text: str) -> SentencePlan | None:
                 case=_coerce_optional_str(item.get("case")),
                 tense=_coerce_optional_str(item.get("tense")),
                 agreement=_coerce_optional_str(item.get("agreement")),
+                number="plural" if item.get("number") == "plural" else None,
             )
         )
     if not slots:
         return None
-    return SentencePlan(slots=tuple(slots))
+    return SentencePlan(slots=tuple(slots), mood=mood)
 
 
-__all__ = ["PlannedSlot", "SentencePlan", "POS_BY_PLAN_STRING", "plan_sentence"]
+__all__ = ["MOODS", "PlannedSlot", "SentencePlan", "POS_BY_PLAN_STRING", "plan_sentence", "split_sentences"]
