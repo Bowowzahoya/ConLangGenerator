@@ -147,6 +147,12 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   correctly (a gap language still needs the planner to leave the relativized
   noun out; a resumptive one to keep it). Only subject-position relatives are
   modeled; subordinate verbs get no tense sequencing beyond the forced mood.
+- **The follow-up subordination features are again mostly planner-driven**:
+  `rel_function`, an infinitive's controller and a nominal clause's case come
+  from the planner, and a resumptive pronoun has to be written by it (the
+  renderer only switches the linking word to `rel`). Complementizer classes are
+  four fixed lists of English verbs; conditional sequencing is one fixed "if"
+  tense and one main-clause mood; coordination is binary.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

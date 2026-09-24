@@ -26,7 +26,7 @@ import re
 from dataclasses import dataclass
 
 from conlang_generator.core.language import Language
-from conlang_generator.generation import pronoun_gen
+from conlang_generator.generation import pronoun_gen, subordination_gen
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
@@ -59,7 +59,8 @@ MAX_CLAUSE_DEPTH = 3
 flattened into its parent's slots (its own words are kept, only the linking
 word and the nesting are lost) rather than dropped."""
 
-CLAUSE_ROLES = ("complement", "relative", "adverbial")
+CLAUSE_ROLES = ("complement", "relative", "adverbial", "nominal", "coordinate")
+RELATIVE_FUNCTION_LABELS = ("subject", "object", "oblique", "possessor")
 
 _ARTICLES = {"a", "an", "the"}
 
@@ -113,6 +114,9 @@ class PlannedSlot:
     polite: bool = False
     """On a finite verb whose subject is ``you-polite``, in a language whose
     verbs carry politeness."""
+    rel_function: str | None = None
+    """On a relative clause slot: the position of the relativized noun inside
+    its own clause (``subject``, ``object``, ``oblique``, ``possessor``)."""
     verb_form: str | None = None
     """``"infinitive"``, ``"nominalized"`` or ``"participle"``: a non-finite verb
     (no tense or agreement), only in a language that has that form -- the verb of
@@ -368,6 +372,67 @@ def _build_system_prompt(language: Language) -> str:
         if grammar.subordinate_mood_use
         else "subordinate clauses use the ordinary verb forms"
     )
+    strategy = grammar.relativization
+    beyond = [f for f in ("subject", "object", "oblique", "possessor") if subordination_gen.beyond_reach(grammar.relativization_reach, f)]
+    reach_desc = (
+        f"the plain strategy reaches up to the {grammar.relativization_reach} position; a relative clause on "
+        + (", ".join(beyond) if beyond else "no position")
+        + ' keeps a resumptive pronoun slot for the relativized noun inside the clause (the renderer then uses the word "rel")'
+        if strategy in ("gap", "particle", "resumptive") and beyond
+        else "every position is reached by this language's strategy"
+    )
+    declension_bits = []
+    if grammar.relative_pronoun_declines:
+        declension_bits.append("takes the case of its function (who/whom/whose)")
+    if grammar.relative_pronoun_number:
+        declension_bits.append("has a plural")
+    declension_desc = (
+        "the relative pronoun " + " and ".join(declension_bits) + ' -- still write "who"/"which"; the renderer picks the form'
+        if declension_bits and strategy in ("pronoun", "correlative")
+        else "the relative word does not decline"
+    )
+    infinitive_agreement_desc = (
+        'an infinitive agrees with its controller: set "agreement" (I/you/he/we) on the infinitive verb to the '
+        'controller\'s person -- the subject for "I want to go", the object for "I told him to go"'
+        if grammar.infinitive_agrees and "infinitive" in grammar.verb_forms
+        else "an infinitive carries no agreement"
+    )
+    nominal_desc = (
+        'a clause used as a noun ("I like seeing the river", "seeing is good") is a clause slot with "role":"nominal" '
+        'and an empty gloss whose verb has "verb_form":"nominalized"'
+        + (
+            '; set "case" on the clause slot to the argument\'s case (the renderer puts it on the nominalized verb)'
+            if grammar.nominalized_takes_case
+            else ""
+        )
+        if "nominalized" in grammar.verb_forms
+        else "no nominalized clauses: use a finite clause"
+    )
+    conditional_desc = (
+        'in a sentence with an "if"/"unless" clause the renderer puts the main verb in the conditional and '
+        + (f"the \"if\" clause verb in the {grammar.conditional_clause_tense} tense unless you set one; " if grammar.conditional_clause_tense else "")
+        + "do not set these yourself"
+        if grammar.conditional_main_mood or grammar.conditional_clause_tense
+        else "conditional sentences use the ordinary verb forms"
+    )
+    correlative_desc = (
+        '"if"/"when" clauses come first with "then" starting the main clause, and "the more..., the more..." is two '
+        'parallel parts: write an adverbial clause slot with gloss "the-more" holding the first part and the main slots '
+        "the second; the renderer does the fronting and the correlates"
+        if grammar.correlative_adverbials
+        else 'write "the more..., the more..." as an adverbial clause slot with gloss "the-more"'
+    )
+    coordination_desc = {
+        "word": 'a conjunction word joins the clauses (the renderer places it)',
+        "converb": 'no conjunction: the first clause\'s last verb becomes a medial form (the renderer does it)',
+        "juxtapose": "the clauses simply follow each other with no conjunction",
+    }.get(grammar.clause_coordination, "a conjunction word joins the clauses")
+    complementizer_desc = (
+        'the complementizer depends on the class of the governing verb (speech, desire, perception, factive): still '
+        'write "that" as the gloss; the renderer chooses'
+        if grammar.complementizer_by_verb
+        else 'one complementizer ("that") for every verb'
+    )
     verb_extras = []
     if grammar.verb_number_agreement:
         verb_extras.append('set "subject_number":"plural" on a finite verb whose subject is plural (a plural pronoun, or a plural noun)')
@@ -424,7 +489,15 @@ other"): {reciprocal_desc}.
 - relative clauses ("the dog that sleeps"): {relative_desc}. Always write the \
 clause slot directly after its noun; the renderer moves it if this language \
 puts relative clauses before their noun.
-- non-finite verb forms: {forms_desc}.
+- position of the relativized noun: set "rel_function" on every relative clause slot to "subject" ("the dog \
+that sleeps"), "object" ("the dog that I see": the clause has NO object slot), "oblique" ("the house in \
+which I live") or "possessor" ("the man whose dog sleeps": the clause holds the possessed noun with no \
+possessor); {reach_desc}. {declension_desc}.
+- non-finite verb forms: {forms_desc}. {infinitive_agreement_desc}. Nominalizations: {nominal_desc}.
+- conditionals: {conditional_desc}. Correlatives: {correlative_desc}.
+- coordinated clauses ("I see the dog and I hear the cat"): a clause slot with "role":"coordinate" and gloss \
+"and"/"but"/"or" holding the second clause; {coordination_desc}.
+- complementizers: {complementizer_desc}.
 - subordinate moods: {subordinate_mood_desc}.
 - reflexive possessives ("his own dog"): {own_desc}.
 - pronouns in a non-nominative case: {suppletive_desc}.
@@ -626,6 +699,8 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "tenses": ",".join(grammar.tenses),
             "aspects": ",".join(grammar.aspects),
             "relativization": grammar.relativization,
+            "infinitive_agrees": "true" if grammar.infinitive_agrees else "false",
+            "relativization_reach": grammar.relativization_reach,
             "verb_forms": ",".join(grammar.verb_forms),
             "subordinate_mood_use": "true" if grammar.subordinate_mood_use else "false",
             "reflexive_marking": grammar.reflexive_marking,
@@ -734,6 +809,8 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                     gloss=linker.strip().lower() if isinstance(linker, str) else "",
                     pos="other",
                     role=role if role in CLAUSE_ROLES else None,
+                    rel_function=item.get("rel_function") if item.get("rel_function") in RELATIVE_FUNCTION_LABELS else None,
+                    case=_coerce_optional_str(item.get("case")),
                     clause=SentencePlan(slots=tuple(nested)),
                 )
             )

@@ -251,7 +251,11 @@ def test_an_infinitive_replaces_tense_and_agreement_with_its_own_suffix():
 
 
 def test_each_non_finite_form_reads_back():
-    language = _find(lambda g: len(g.verb_forms) >= 2)
+    language = _find(
+        lambda g: len(g.verb_forms) >= 2
+        and len({a.suffix for a in g.verb_form_affixes}) == len(g.verb_form_affixes)
+        and not g.infinitive_agrees
+    )
     for form in language.grammar.verb_forms:
         token = _render(language, _verb("see", verb_form=form))[1][0]
         decoded = _decode_verb_full(language, token)

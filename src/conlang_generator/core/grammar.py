@@ -454,6 +454,35 @@ class GrammarProfile(BaseModel, frozen=True):
     """An "if"/"unless"/"so that"/"although" clause takes the subjunctive or
     irrealis (when the language has one)."""
 
+    relativization_reach: str = "possessor"
+    """How far down the accessibility hierarchy (subject, object, oblique,
+    possessor) the plain gap/particle strategy reaches; a relative clause on a
+    position beyond it uses the invariant word plus a resumptive pronoun. The
+    default reaches everything (the earlier behaviour)."""
+    relative_pronoun_declines: bool = False
+    """The relative pronoun takes the case of its function (who/whom/whose)."""
+    relative_pronoun_number: bool = False
+    """The relative pronoun has a plural form."""
+    infinitive_agrees: bool = False
+    """An infinitive takes the agreement of its controller."""
+    nominalized_takes_case: bool = False
+    """A nominalized clause used as an argument takes its case."""
+    conditional_main_mood: bool = False
+    """The main clause of an "if" sentence takes the conditional mood."""
+    conditional_clause_tense: str = ""
+    """A tense (``"past"``) an "if" clause takes unless the planner set one."""
+    correlative_adverbials: bool = False
+    """"If"/"when"/"the more" clauses come first and the main clause opens with
+    a correlate ("then")."""
+    clause_coordination: str = "word"
+    """``"word"`` (a conjunction between clauses), ``"converb"`` (the first
+    verb is a medial form, no conjunction) or ``"juxtapose"``."""
+    conjunct_reduction: bool = False
+    """A second conjunct drops a subject pronoun it shares with the first."""
+    complementizer_by_verb: bool = False
+    """The complementizer depends on the class of the governing verb
+    (speech, desire, perception, factive)."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their

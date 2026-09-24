@@ -199,20 +199,20 @@ plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
 structure with complement, relative and adverbial clauses (pass 2); aspect and
 verbal mood as systems separate from tense (pass 3); noun classes with article,
 adjective and verb (subject and object) agreement (pass 4); dual number,
-demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12); subordination -- linker position, relativization strategies and position, non-finite verb forms, subordinate mood (pass 13). See
+demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12); subordination -- linker position, relativization strategies and position, non-finite verb forms, subordinate mood (pass 13); subordination follow-ups -- relativization reach, declining relative pronouns, agreeing infinitives, case-marked nominalizations, conditional sequencing, correlative adverbials, clause coordination, complementizers by verb class (pass 14). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
-1. **Subordination follow-ups (M).** Relative clauses on non-subject or possessor
-   positions ("the man whose dog", "the dog I see"), relative pronouns that
-   decline by case and number, an "infinitive" that agrees with an object
-   controller, nominalized clauses as case-marked arguments, conditional
-   clauses with their own mood and tense sequencing ("if I had... I would"),
-   correlatives beyond relative clauses ("the more..., the more..."),
-   conjunction reduction and coordination of clauses, and complementizer
-   choice by verb type. The fake planner only knows "who/which" relatives and a
-   short list of control verbs. The subordinator itself is still coined as an
-   ordinary particle word (`that`, `rel`).
+1. **Subordination follow-ups (M).** Relative clauses on positions the fake planner
+   cannot produce ("the house in which I live", stacked relatives), a relative
+   pronoun for each function decided by the *verb* rather than the noun, controlled
+   infinitives with raising and passivization, nominalized clauses as subjects,
+   tense sequencing beyond one fixed "if" tense (backshift in reported speech),
+   parallel correlatives ("the more..., the more...") that the planner must split
+   into two clauses itself, coordination of more than two clauses, ellipsis of a
+   shared verb (gapping) and a shared object (right-node raising), and
+   complementizer choice for more verb classes. The subordinator itself is still
+   coined as an ordinary particle word.
 2. **Agreement follow-ups (M).** See below.
 
 **Agreement follow-ups (M):** number agreement (plural verbs/adjectives); a

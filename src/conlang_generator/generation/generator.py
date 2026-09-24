@@ -302,12 +302,21 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             *grammar.verb_polite_affixes,
         )
     )
+    followups = subordination_gen.roll_subordination_followups(subordination_rng)
+    converb = bool(followups.pop("converb"))
+    verb_forms = tuple(subordination["verb_forms"]) + (("converb",) if converb else ())
     grammar = grammar.model_copy(
         update={
             **subordination,
+            **followups,
+            "verb_forms": verb_forms,
             "verb_form_affixes": inflection_gen.distinct_suffixes(
-                subordination_rng, inventory, syllable_structure, tuple(subordination["verb_forms"]),
-                subordination_taken,
+                subordination_rng, inventory, syllable_structure, verb_forms, subordination_taken,
+            ),
+            # a converb-coordinating language needs the medial form
+            "clause_coordination": (
+                "word" if followups["clause_coordination"] == "converb" and not converb
+                else followups["clause_coordination"]
             ),
         }
     )

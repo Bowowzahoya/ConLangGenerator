@@ -4603,3 +4603,21 @@ reading code or one-off ad hoc scripts.
   gains a "Subordination:" note. The fake planner plans relative clauses ("who"/"which", subject a gap unless
   resumptive) and infinitive complements after want/like/try/begin/need/hope/decide/love. 27 tests in
   `test_subordination.py`; `test_nested_clauses.py` now selects languages by `subordinator_position`.
+
+- **Subordination follow-ups (grammar pass 14).** `subordination_gen.roll_subordination_followups` (drawn after the pass-13
+  rolls from the same stream, so those are unchanged): `relativization_reach`, `relative_pronoun_declines`,
+  `relative_pronoun_number`, `infinitive_agrees`, `nominalized_takes_case`, `conditional_main_mood`,
+  `conditional_clause_tense`, `correlative_adverbials`, `clause_coordination` (`word`/`converb`/`juxtapose`),
+  `conjunct_reduction`, `complementizer_by_verb`, and a `converb` non-finite form appended to `verb_forms`. New plan
+  fields: `PlannedSlot.rel_function` on relative clause slots, clause roles `nominal` and `coordinate`, `case` on
+  a clause slot. Renderer: `_annotate_relative_heads` (head number), `_linker_gloss(language, slot, governor)`
+  (beyond-reach gap -> `rel`; declined `who-accusative`/`-plural`; class complementizers `that-<class>` from
+  `_governing_verb`; coordination word only in a `word` language), `_arrange_coordination` (last verb before a
+  coordinate clause becomes a converb), `_arrange_correlative_adverbials` (fronts if/when/the-more clauses and adds
+  the correlate), `_reduce_conjunct`, `_main_clause_mood`/`_subordinate_tense` (conditional sequencing, threaded through
+  `_render_plan(..., forced_verb_mood, forced_verb_tense, forced_nominal_case)`), and `_apply_verb_inflection` composing a
+  non-finite suffix with an agreement (infinitive) or case (nominalized) suffix (`_non_finite_affix`). `_decode_verb_full`
+  returns ten fields (the last is the nominalization's case) and tries plain non-finite forms first. English readings:
+  `whom`/`whose`, `that (complementizer for a desire verb)`, `see and`, `to go (controller: he)`. The fake planner marks
+  relative functions, keeps resumptive pronouns where needed, plans object-controlled infinitives and clause
+  coordinations, and gives the main verb of a "that" sentence a verb pos. 34 tests in `test_subordination_followups.py`.

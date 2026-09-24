@@ -862,6 +862,66 @@ opens the sentence and the main clause points back with `yuw` ("that") before th
 noun (the subject "I" is dropped, this language being pro-drop). In `t24` the
 relative clause is just the verb `mì'o'u` after the noun, with no linking word.
 
+**Subordination follow-ups.** Eight more choices per language:
+
+- **Relativization reach.** A gap or particle relative clause reaches only up to a
+  rolled position on the hierarchy subject > object > oblique > possessor; a clause
+  beyond it ("the man whose dog...") takes the invariant word `rel` plus a resumptive
+  pronoun. The planner marks each relative clause's `rel_function`.
+- **Declining relative pronouns.** Where a language uses relative pronouns they may
+  take the case of their function (who/whom/whose) and a plural, as separate lexicon
+  words (`who-accusative`, `who-genitive-plural`).
+- **Infinitives that agree with their controller** ("I told him to go": the
+  infinitive takes "him"'s person), and **nominalized clauses** ("seeing the river")
+  that take the case of their function.
+- **Conditionals**: the main clause of an "if" sentence takes the conditional mood,
+  and the "if" clause a fixed tense, in about half the languages.
+- **Correlatives beyond relatives**: "if"/"when"/"the more" clauses come first, with a
+  correlate ("then") opening the main clause.
+- **Clause coordination**: a conjunction word, a *converb* (the first verb takes a
+  medial suffix, no conjunction) or plain juxtaposition; a shared subject pronoun
+  can be dropped from the second clause.
+- **Complementizers by verb class**: separate "that" words after speech/thought,
+  desire, perception and factive verbs.
+
+The renderer enforces all of these whatever the planner wrote, except where noted; the
+English direction reads them back (`whom`, `whose`, `that`, `see and`, `to go`).
+Verified with `--llm fake` on `--seed 54 --prompt p` (SVO; a gap relative reaching only
+to objects, verb-class complementizers, correlatives, agreeing infinitives) and
+`--seed 62` (a converb coordination):
+
+```bash
+conlang translate "I see the dog which I hear." --lang t25 --to conlang --llm fake
+conlang translate "I see the man whose dog sleeps." --lang t25 --to conlang --llm fake
+conlang translate "I told him to go." --lang t25 --to conlang --llm fake
+conlang translate "I want to go." --lang t25 --to conlang --llm fake
+conlang translate "I think that you see the river." --lang t25 --to conlang --llm fake
+conlang translate "I know that you see the river." --lang t25 --to conlang --llm fake
+conlang translate "I see the river if you sleep." --lang t25 --to conlang --llm fake
+conlang translate "I see the dog and I hear the cat." --lang t26 --to conlang --llm fake
+```
+
+```
+gin riwtahuggidip tuctut gin pwipidi
+gin riwtahuggidip buh kic gnold tuctuttan hi-idi
+gin qalpri-itipo gnold tmido-oso
+gin ze-idip tmido-osip
+gin dobinidi clo me riwtahuggidip pmip
+gin spirbosdidi we me riwtahuggidip pmip
+peso me hi sna gin riwtahuggidatip pmip
+nảw fa2aimt lan3ça4ṅa nảw tim1ĵi2ṅumimt guṅ5mɛ̄5ma
+```
+
+In `t25`, "the dog which I hear" is a bare gap (an object relative is within its reach),
+but "the man whose dog sleeps" -- a possessor, beyond the reach -- takes `kic` (`rel`) and
+keeps a resumptive pronoun `gnold` ("he", possessive) before "dog". The infinitive of
+"go" is `tmido-oso` after "told him" and `tmido-osip` after "want" (it agrees with its
+controller, "he" and "I"). The complementizer is `clo` after "think" (speech), `we`
+after "know" (factive) and `yan` after "see" (perception). In the "if" sentence the
+clause `me hi` ("you sleep") leads, "then" (`sna`) opens the main clause, and the main
+verb (`…datip`) is in the conditional mood. In `t26` there is no "and": the first verb
+"see" takes the converb suffix (`fa2aimt`); translating back gives `I see and dog I hear cat`.
+
 ## `conlang pronounce`
 
 Show IPA and romanization for a known word (English gloss or conlang
