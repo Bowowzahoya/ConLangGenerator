@@ -778,6 +778,41 @@ a possessive classifier: `kiy3` (the general one) before "dog" and `ngiy3` (the
 long-thing one) before "river"; translating the last back gives `I see my river`
 (the classifier is dropped).
 
+**Classifiers with quantifiers, and per-noun classifiers.** In a classifier
+language, a quantifier ("many", "few", "some", "several", "all", "every", "each",
+"both", "how many") takes a classifier like a numeral does -- but each language
+picks a random half of these quantifiers that do (the rest stand bare, and their
+noun keeps its plural). And a noun's classifier need not follow its meaning: 30%
+of classifier languages assign each noun one of a pool of 12-40 classifiers
+(arbitrary but stable, `classifier-lex14`), and 60% have *repeaters* -- 10-50% of
+nouns are their own classifier ("two river river"), the repeated noun being
+dropped again when translating back to English. Verified with `--llm fake` on
+`--seed 85 --prompt p` (SVO; a pool of 35 classifiers, about half the nouns
+repeaters, "many"/"few" classified, "all" not):
+
+```bash
+conlang translate "I see two dogs." --lang t20 --to conlang --llm fake
+conlang translate "I see two rivers." --lang t20 --to conlang --llm fake
+conlang translate "I see two boats." --lang t20 --to conlang --llm fake
+conlang translate "I see many dogs." --lang t20 --to conlang --llm fake
+conlang translate "I see all dogs." --lang t20 --to conlang --llm fake
+```
+
+```
+nek maman'ung kin tig penat
+nek maman'ung kin nguleng nguleng
+nek maman'ung kin 'u kuwon
+nek maman'ung ye' tig penat
+nek maman'ung yik penata
+```
+
+After the numeral `kin` ("two") comes a classifier: `tig` for dog, `'u` for boat --
+words from the language's pool -- but for "river" the noun repeats itself
+(`nguleng nguleng`). "Many" (`ye'`) takes the same classifier as a numeral
+(`ye' tig penat`), while "all" (`yik`) does not, and its noun stays plural
+(`penata`). The planner is told which quantifiers take a classifier (and to write
+them as `"pos":"quantifier"`); it never writes a classifier itself.
+
 ## `conlang pronounce`
 
 Show IPA and romanization for a known word (English gloss or conlang

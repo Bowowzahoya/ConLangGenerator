@@ -39,6 +39,8 @@ def _classifier_language():
         lambda g: g.uses_classifiers
         and not g.classifier_after_noun
         and g.classifier_with_demonstrative
+        and g.classifier_assignment == "category"
+        and g.repeater_rate == 0.0
         and {"animal", "long"} <= set(g.classifier_categories)
     )
 
@@ -179,21 +181,33 @@ def test_a_language_without_classifiers_has_no_categories():
 
 
 def test_an_old_classifier_language_without_categories_uses_the_original_six():
-    language = _find(lambda g: g.uses_classifiers and not g.classifier_after_noun)
+    language = _find(
+        lambda g: g.uses_classifiers and not g.classifier_after_noun and g.classifier_assignment == "category"
+        and g.repeater_rate == 0.0
+    )
     old = language.model_copy(update={"grammar": language.grammar.model_copy(update={"classifier_categories": ()})})
     assert _render(old, _TWO, _noun("cup"))[2][1] == "classifier-round" or _render(old, _TWO, _noun("cup"))[2][1] == "classifier-general"
     assert _render(old, _TWO, _noun("dog"))[2][1] == "classifier-animal"
 
 
 def test_a_missing_category_falls_back_to_general_when_rendering():
-    language = _find(lambda g: g.uses_classifiers and not g.classifier_after_noun and "container" not in g.classifier_categories)
+    language = _find(
+        lambda g: g.uses_classifiers and not g.classifier_after_noun and "container" not in g.classifier_categories
+        and g.classifier_assignment == "category" and g.repeater_rate == 0.0
+    )
     assert _render(language, _TWO, _noun("cup"))[2][1] == "classifier-general"
-    with_cup = _find(lambda g: g.uses_classifiers and not g.classifier_after_noun and "container" in g.classifier_categories)
+    with_cup = _find(
+        lambda g: g.uses_classifiers and not g.classifier_after_noun and "container" in g.classifier_categories
+        and g.classifier_assignment == "category" and g.repeater_rate == 0.0
+    )
     assert _render(with_cup, _TWO, _noun("cup"))[2][1] == "classifier-container"
 
 
 def test_a_noun_numeral_classifier_language_puts_the_numeral_and_classifier_after_the_noun():
-    language = _find(lambda g: g.uses_classifiers and g.classifier_after_noun and "animal" in g.classifier_categories)
+    language = _find(
+        lambda g: g.uses_classifiers and g.classifier_after_noun and "animal" in g.classifier_categories
+        and g.classifier_assignment == "category" and g.repeater_rate == 0.0
+    )
     _, tokens, glosses = _render(language, _TWO, _noun("dog"))
     assert glosses[0] == "dog" and glosses[2] == "classifier-animal" and len(tokens) == 3
     adjective = PlannedSlot(kind="content", gloss="high", pos="adjective")

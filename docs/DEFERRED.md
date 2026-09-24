@@ -199,7 +199,7 @@ plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
 structure with complement, relative and adverbial clauses (pass 2); aspect and
 verbal mood as systems separate from tense (pass 3); noun classes with article,
 adjective and verb (subject and object) agreement (pass 4); dual number,
-demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11). See
+demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
@@ -249,9 +249,9 @@ pool tops out at four labels), and the fake planner only knows a short adjective
 
 **Noun phrase still missing:** collective number and trial (S); suppletion for
 non-pronoun paradigms (irregular plurals, suppletive adjectives) and partial
-suppletion inside a person's paradigm (I/me but you/you) (M); a classifier per
-individual noun rather than twelve categories, and classifiers with quantifiers
-like "many" (M); adjective stacking and adjective-noun order beyond
+suppletion inside a person's paradigm (I/me but you/you) (M); classifiers in more
+constructions (with adjectives, after "how many", measure/mass classifiers such
+as "a cup of", classifier-only noun phrases without the noun) (M); adjective stacking and adjective-noun order beyond
 `adjective_after_noun` (S-M); adposition *placement* is left to the planner
 (the renderer does not reorder) and no adposition has case government (S-M);
 possessor agreement with the possessed noun's class and inalienable vs

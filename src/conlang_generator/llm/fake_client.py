@@ -129,6 +129,8 @@ def _fake_mood_label(desired: str, moods: list[str]) -> str | None:
 _FAKE_NUMERALS = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
 }
+_FAKE_QUANTIFIERS = {"many", "few", "some", "several", "every", "each", "all", "both"}
+_FAKE_SINGULAR_QUANTIFIERS = {"every", "each"}
 _FAKE_POSSESSIVE_PRONOUNS = {"my": "I", "your": "you", "his": "he", "her": "he", "our": "we", "their": "they"}
 _FAKE_DEMONSTRATIVES = {"this": "this", "that": "that", "these": "this", "those": "that"}
 _FAKE_NOT_A_NOUN = (
@@ -166,6 +168,8 @@ def _fake_group_noun_phrases(raw_tokens: list[str]) -> tuple[list[str], dict[str
                 mods["demonstrative_plural"] = word in ("these", "those")
             elif word in _FAKE_NUMERALS and j + 1 < len(raw_tokens):
                 mods["numeral"] = word
+            elif word in _FAKE_QUANTIFIERS and j + 1 < len(raw_tokens) and raw_tokens[j + 1] not in _FAKE_NOT_A_NOUN:
+                mods["quantifier"] = word
             else:
                 break
             j += 1
@@ -379,6 +383,8 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         numeral = info.get("numeral")
         if numeral is not None and _FAKE_NUMERALS[numeral] > 1:
             noun_slot["number"] = "dual" if numeral == "two" and has_dual else "plural"
+        elif info.get("quantifier") and info["quantifier"] not in _FAKE_SINGULAR_QUANTIFIERS:
+            noun_slot["number"] = "plural"
         elif singular or info.get("demonstrative_plural"):
             noun_slot["number"] = "plural"
         before: list[dict] = []
@@ -403,6 +409,8 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
                 before.append({"kind": "article"})
         if numeral is not None:
             before.append({"kind": "content", "gloss": numeral, "pos": "numeral"})
+        if info.get("quantifier"):
+            before.append({"kind": "content", "gloss": info["quantifier"], "pos": "quantifier"})
         return before + [noun_slot] + after
 
     def pronoun_gloss(tok: str) -> str:

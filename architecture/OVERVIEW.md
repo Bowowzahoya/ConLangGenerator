@@ -4573,3 +4573,16 @@ reading code or one-off ad hoc scripts.
   no special form (`self` reads as `he` in a language without a reflexive possessive). Decoding reads suppletive
   forms as their English object/possessive form (`me`, `him`, `his`), `poss:self` as "the subject's own", and
   drops possessive classifiers. 20 tests in `test_pronoun_paradigms.py`.
+
+- **Quantifier classifiers and per-noun classifiers (grammar pass 12).** `classifier_gen._roll_individual_classifiers`
+  (drawn after the earlier classifier rolls, so those are unchanged) adds `classified_quantifiers` (a random subset of
+  `QUANTIFIERS`), `classifier_assignment` (`category`, or `lexical` with a pool of 12-40 classifiers:
+  `classifier_pool_size`, `lexical_index`, glosses `classifier-lexNN`) and `repeater_rate` (0, or 10-50% of
+  nouns being their own classifier; `is_repeater`, `REPEATER_GLOSS_PREFIX`). A new plan `pos` `"quantifier"` (mapped to
+  `PartOfSpeech.NUMERAL`) is placed like a numeral; `_takes_classifier(slot, grammar)` now covers numerals,
+  demonstratives and the language's classified quantifiers, and `_classifier_slot` builds the synthetic classifier slot
+  for a noun (repeater, else pool, else category; possessive classifiers never repeat). A repeater renders as the
+  noun's own word again (`kind="classifier"`, gloss `repeater:<noun>`), and `translate_to_english` removes a noun
+  repeated adjacently or around a numeral (`_drop_repeaters`). The fake planner recognizes many/few/some/several/
+  every/each/all/both (every/each keep the noun singular). 19 tests in `test_classifier_individual.py`; the older
+  classifier tests now pick category-assigned, repeater-free languages when they assert category names.

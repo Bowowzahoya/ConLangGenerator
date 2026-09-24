@@ -136,6 +136,11 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   regularity (no shared stems); it only applies in a language that has that
   case. A possessive classifier is one word per category in the same category
   inventory as numeral classifiers.
+- **Classifier assignment is a stand-in**: a lexical pool assigns each noun a
+  classifier by a stable hash (no semantic pattern), a repeater is a hash-picked
+  share of nouns, and which quantifiers take a classifier is a coin flip per
+  quantifier. Nothing checks that the planner marks quantifiers with
+  `"pos":"quantifier"`; an unmarked one is read as an ordinary word.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

@@ -31,6 +31,11 @@ _OTHER_RATE = 0.12
 _AFTER_NOUN_RATE = 0.25
 _WITH_DEMONSTRATIVE_RATE = 0.8
 _POSSESSIVE_CLASSIFIER_RATE = 0.3
+_LEXICAL_RATE = 0.3
+_NO_REPEATER_RATE = 0.4
+
+QUANTIFIERS = ("many", "few", "some", "several", "all", "every", "each", "both", "how-many")
+"""English quantifiers that may take a classifier in a classifier language."""
 
 CATEGORIES = (
     "human", "animal", "long", "flat", "round", "general",
@@ -83,6 +88,26 @@ def roll_classifier_system(rng: random.Random, morphological_type: Morphological
         "classifier_after_noun": rng.random() < _AFTER_NOUN_RATE,
         "classifier_with_demonstrative": rng.random() < _WITH_DEMONSTRATIVE_RATE,
         "possessive_classifiers": rng.random() < _POSSESSIVE_CLASSIFIER_RATE,
+        **_roll_individual_classifiers(rng),
+    }
+
+
+def _roll_individual_classifiers(rng: random.Random) -> dict[str, object]:
+    """Drawn after the earlier classifier rolls (which are unchanged): whether
+    a noun's classifier comes from its meaning or from a lexical pool (an
+    arbitrary classifier per noun, 12-40 of them), how many nouns are their
+    own classifier (a "repeater": two boat-boat), and which quantifiers take a
+    classifier at all."""
+    lexical = rng.random() < _LEXICAL_RATE
+    pool_size = rng.randint(12, 40)
+    repeater_roll = rng.random()
+    repeater_rate = 0.0 if repeater_roll < _NO_REPEATER_RATE else round(0.1 + 0.4 * rng.random(), 2)
+    classified = tuple(q for q in QUANTIFIERS if rng.random() < 0.5)
+    return {
+        "classifier_assignment": "lexical" if lexical else "category",
+        "classifier_pool_size": pool_size if lexical else 0,
+        "repeater_rate": repeater_rate,
+        "classified_quantifiers": classified,
     }
 
 
@@ -115,3 +140,30 @@ def classifier_gloss(category: str) -> str:
 def possessive_classifier_gloss(category: str) -> str:
     """The lexicon gloss of the classifier that follows a possessor."""
     return f"{POSSESSIVE_CLASSIFIER_GLOSS_PREFIX}{category}"
+
+
+def _stable_fraction(seed: int, gloss: str, salt: str) -> float:
+    import hashlib
+
+    digest = hashlib.sha256(f"{seed}:{salt}:{gloss.strip().lower()}".encode("utf-8")).hexdigest()
+    return int(digest, 16) % 1_000_000 / 1_000_000
+
+
+def lexical_index(seed: int, gloss: str, pool_size: int) -> int:
+    """The index (0..pool_size-1) of the classifier a noun is assigned in a
+    lexical-pool language: arbitrary but stable for ``(seed, gloss)``."""
+    return int(_stable_fraction(seed, gloss, "lexical-classifier") * pool_size) % max(1, pool_size)
+
+
+def is_repeater(seed: int, gloss: str, rate: float) -> bool:
+    """Whether the noun ``gloss`` is its own classifier (a repeater)."""
+    return rate > 0.0 and _stable_fraction(seed, gloss, "repeater-classifier") < rate
+
+
+def lexical_gloss(index: int, possessive: bool = False) -> str:
+    """The lexicon gloss of pool classifier ``index``."""
+    name = f"lex{index:02d}"
+    return possessive_classifier_gloss(name) if possessive else classifier_gloss(name)
+
+
+REPEATER_GLOSS_PREFIX = "repeater:"

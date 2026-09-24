@@ -576,10 +576,16 @@ def _possessive_particle(language: Language) -> tuple[str, str] | None:
     return (language.romanization.apply(ipa), ipa) if ipa else None
 
 
-def _takes_classifier(slot: sentence_planner.PlannedSlot) -> bool:
-    """A numeral or demonstrative slot is followed by a classifier (in a
-    classifier language) when a noun follows it."""
-    return (slot.kind == "content" and slot.pos == "numeral") or slot.kind == "demonstrative"
+def _takes_classifier(slot: sentence_planner.PlannedSlot, grammar: GrammarProfile) -> bool:
+    """A numeral, a demonstrative or one of the language's classified
+    quantifiers is followed by a classifier when a noun follows it."""
+    if slot.kind == "demonstrative":
+        return True
+    if slot.kind != "content":
+        return False
+    if slot.pos == "numeral":
+        return True
+    return slot.pos == "quantifier" and slot.gloss.replace(" ", "-") in grammar.classified_quantifiers
 
 
 def _following_noun_index(slots, index: int) -> int | None:
@@ -590,10 +596,28 @@ def _following_noun_index(slots, index: int) -> int | None:
         later = slots[j]
         if later.kind == "content" and later.pos == "noun" and later.gloss:
             return j
-        if later.kind == "content" and later.pos in ("adjective", "adverb", "numeral"):
+        if later.kind == "content" and later.pos in ("adjective", "adverb", "numeral", "quantifier"):
             continue
         return None
     return None
+
+
+def _classifier_slot(
+    language: Language, noun_gloss: str, categories: tuple[str, ...], possessive: bool = False
+) -> PlannedSlot:
+    """The synthetic classifier slot for the noun ``noun_gloss``: the noun
+    itself when it is a repeater (numeral classifiers only), else a word from
+    the language's lexical pool, else the classifier of its category."""
+    grammar = language.grammar
+    seed = language.spec.seed
+    if not possessive and classifier_gen.is_repeater(seed, noun_gloss, grammar.repeater_rate):
+        return PlannedSlot(kind="classifier", gloss=f"{classifier_gen.REPEATER_GLOSS_PREFIX}{noun_gloss.strip().lower()}")
+    if grammar.classifier_assignment == "lexical" and grammar.classifier_pool_size:
+        index = classifier_gen.lexical_index(seed, noun_gloss, grammar.classifier_pool_size)
+        return PlannedSlot(kind="classifier", gloss=classifier_gen.lexical_gloss(index, possessive))
+    category = classifier_gen.classifier_category(noun_gloss, categories)
+    gloss = classifier_gen.possessive_classifier_gloss(category) if possessive else classifier_gen.classifier_gloss(category)
+    return PlannedSlot(kind="classifier", gloss=gloss)
 
 
 def _is_possessor_word(grammar: GrammarProfile, slot) -> bool:
@@ -623,7 +647,7 @@ def _with_classifiers(language: Language, slots) -> tuple:
     after_noun: dict[int, list[PlannedSlot]] = {}
     replaced: dict[int, PlannedSlot] = {}
     for i, slot in enumerate(slots):
-        if not _takes_classifier(slot):
+        if not _takes_classifier(slot, grammar):
             continue
         is_numeral = slot.kind == "content"
         if not is_numeral and not grammar.classifier_with_demonstrative:
@@ -631,8 +655,7 @@ def _with_classifiers(language: Language, slots) -> tuple:
         j = _following_noun_index(slots, i)
         if j is None:
             continue
-        category = classifier_gen.classifier_category(slots[j].gloss, categories)
-        classifier_slot = PlannedSlot(kind="classifier", gloss=classifier_gen.classifier_gloss(category))
+        classifier_slot = _classifier_slot(language, slots[j].gloss, categories)
         if is_numeral and slot.gloss not in _NUMERAL_ONE:
             replaced[j] = dataclasses.replace(replaced.get(j, slots[j]), number=None)
         if is_numeral and grammar.classifier_after_noun:
@@ -647,10 +670,7 @@ def _with_classifiers(language: Language, slots) -> tuple:
             j = _following_noun_index(slots, i)
             if j is None:
                 continue
-            category = classifier_gen.classifier_category(slots[j].gloss, categories)
-            after_trigger[i] = PlannedSlot(
-                kind="classifier", gloss=classifier_gen.possessive_classifier_gloss(category)
-            )
+            after_trigger[i] = _classifier_slot(language, slots[j].gloss, categories, possessive=True)
     result: list[PlannedSlot] = []
     for i, slot in enumerate(slots):
         if i in deferred:
@@ -915,9 +935,16 @@ def _render_plan(
                     working_language, entry, _class_label_of(working_language, _next_noun_gloss(slots, slot_index))
                 )
         elif slot.kind == "classifier":
-            working_language, entry = _lookup_or_coin(
-                working_language, slot.gloss, PartOfSpeech.PARTICLE, coined, llm_client, lemma_candidates=[slot.gloss]
-            )
+            if slot.gloss.startswith(classifier_gen.REPEATER_GLOSS_PREFIX):
+                repeated = slot.gloss[len(classifier_gen.REPEATER_GLOSS_PREFIX):]
+                working_language, entry = _lookup_or_coin(
+                    working_language, repeated, PartOfSpeech.NOUN, coined, llm_client, lemma_candidates=[repeated]
+                )
+            else:
+                working_language, entry = _lookup_or_coin(
+                    working_language, slot.gloss, PartOfSpeech.PARTICLE, coined, llm_client,
+                    lemma_candidates=[slot.gloss],
+                )
             rendered = (entry.romanization, entry.ipa)
         elif slot.kind in _BARE_GLOSS_BY_SLOT_KIND:
             entry = working_language.lexicon.by_gloss(_BARE_GLOSS_BY_SLOT_KIND[slot.kind])
@@ -1355,12 +1382,32 @@ def _construction_note(language: Language) -> str:
     )
 
 
+def _drop_repeaters(language: Language, tokens: list[str]) -> list[str]:
+    """Removes a noun repeated as its own classifier: the same noun twice in a
+    row ("two dog dog"), or a noun, a numeral/quantifier and the noun again
+    ("dog two dog")."""
+    kept: list[str] = []
+    for token in tokens:
+        entry = language.lexicon.by_form(token)
+        is_noun = entry is not None and entry.pos is PartOfSpeech.NOUN
+        if is_noun and kept and _normalize(kept[-1]) == _normalize(token):
+            continue
+        if is_noun and len(kept) >= 2 and _normalize(kept[-2]) == _normalize(token):
+            middle = language.lexicon.by_form(kept[-1])
+            if middle is not None and middle.pos is PartOfSpeech.NUMERAL:
+                continue
+        kept.append(token)
+    return kept
+
+
 def translate_to_english(
     text: str, language: Language, llm_client: LLMClient
 ) -> TranslationResult:
     raw_tokens = unicodedata.normalize("NFC", text).strip().split()
     article_forms = _article_forms(language)
     tokens = [t for t in raw_tokens if _normalize(t) not in article_forms]
+    if language.grammar.repeater_rate > 0.0:
+        tokens = _drop_repeaters(language, tokens)
 
     # Per-token, structure-agnostic decode -- the plan-driven encoder can
     # produce genuinely arbitrary structure, so there's no fixed sentence

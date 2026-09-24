@@ -426,6 +426,17 @@ class GrammarProfile(BaseModel, frozen=True):
     """A classifier (``possessive-classifier-<category>``) follows a possessor
     word before the possessed noun (a classifier language only)."""
 
+    classifier_assignment: str = "category"
+    """``"category"`` (a noun's classifier follows its meaning) or ``"lexical"``
+    (each noun is assigned one of ``classifier_pool_size`` classifiers, by an
+    arbitrary but stable rule)."""
+    classifier_pool_size: int = 0
+    repeater_rate: float = 0.0
+    """The share of nouns that are their own classifier (a repeater)."""
+    classified_quantifiers: tuple[str, ...] = ()
+    """The quantifiers (of ``classifier_gen.QUANTIFIERS``) that take a
+    classifier, as numerals do."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their

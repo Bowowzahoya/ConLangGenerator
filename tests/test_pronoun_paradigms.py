@@ -204,7 +204,7 @@ def _annotation(language, token: str) -> str:
 def test_a_classifier_follows_a_possessor_word_and_depends_on_the_possessed_noun():
     language = _find(
         lambda g: g.possessive_classifiers and {"animal", "long"} <= set(g.classifier_categories)
-        and g.possession in ("genitive", "particle", "none")
+        and g.possession in ("genitive", "particle", "none") and g.classifier_assignment == "category"
     )
     possessor = _pronoun("I", possessive=True)
     updated, dog_tokens, dog_glosses = _render(language, possessor, _noun("dog"))
@@ -226,7 +226,7 @@ def test_a_language_without_possessive_classifiers_adds_none():
 def test_a_possessive_word_takes_a_classifier_too():
     language = _find(
         lambda g: g.possessive_classifiers and g.possessive_pronouns == "words" and not g.noun_classes
-    )
+    )  # (any assignment: the classifier word is a possessive classifier either way)
     _, tokens, glosses = _render(language, PlannedSlot(kind="possessive_pronoun", gloss="I"), _noun("dog"))
     assert glosses[0] == "possessive-i" and glosses[1].startswith("possessive-classifier-") and len(tokens) == 3
 

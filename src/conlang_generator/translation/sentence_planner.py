@@ -37,6 +37,7 @@ POS_BY_PLAN_STRING: dict[str, PartOfSpeech] = {
     "adjective": PartOfSpeech.ADJECTIVE,
     "pronoun": PartOfSpeech.PRONOUN,
     "numeral": PartOfSpeech.NUMERAL,
+    "quantifier": PartOfSpeech.NUMERAL,
     "adverb": PartOfSpeech.PARTICLE,
     "preposition": PartOfSpeech.PARTICLE,
     "other": PartOfSpeech.OTHER,
@@ -324,9 +325,12 @@ def _build_system_prompt(language: Language) -> str:
         verb_extras.append('set "polite":true on a finite verb whose subject is "you-polite"')
     verb_extras_text = "; ".join(verb_extras) if verb_extras else "verbs here carry no number or politeness (never set those fields)"
     object_drop_word = "yes" if grammar.object_pro_drop else "no"
+    classified = ", ".join(grammar.classified_quantifiers) if grammar.classified_quantifiers else "none"
     classifier_desc = (
         'a numeral or demonstrative directly before a noun is followed by a CLASSIFIER word that the renderer '
-        "adds itself -- never write one; the noun stays singular after a numeral"
+        "adds itself -- never write one; the noun stays singular after a numeral. A quantifier "
+        "(many, few, some, several, all, every, each, both, how-many) is a content slot with pos "
+        f'"quantifier" placed like a numeral; these quantifiers also take a classifier (added by the renderer): {classified}'
         if grammar.uses_classifiers
         else "no classifiers"
     )
@@ -402,7 +406,7 @@ Every slot is a JSON object with a "kind" field: "content", "article", \
 "negation", "conjunction", "name" are always available; "copula" only when listed \
 above. A "content" slot also needs "gloss" (the base English lemma, e.g. \
 "see" not "saw", "mountain" not "mountains") and "pos" (one of "noun", \
-"verb", "adjective", "pronoun", "numeral", "adverb", "preposition", "other"). Never drop a meaningful word: degree words and adverbs ("very", "extremely", "quickly"), prepositions ("in", "on"), and every other content word each get their own "content" slot (pos "adverb"/"preposition"), placed next to the word they modify (a degree adverb directly before its adjective). A "content" slot may \
+"verb", "adjective", "pronoun", "numeral", "quantifier", "adverb", "preposition", "other"). Never drop a meaningful word: degree words and adverbs ("very", "extremely", "quickly"), prepositions ("in", "on"), and every other content word each get their own "content" slot (pos "adverb"/"preposition"), placed next to the word they modify (a degree adverb directly before its adjective). A "content" slot may \
 also set "case" (one of this language's own cases above -- only on a \
 noun/pronoun argument, and only when this sentence's own alignment \
 actually calls for marking that particular argument; omit otherwise). A \
