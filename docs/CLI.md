@@ -501,6 +501,36 @@ subject's class in the first sentence and with the object's class in the other
 two (`-iwg` after an animate object, `-ach` after an inanimate one).
 Translating back drops the articles and reads the verb.
 
+**Noun-phrase features.** Every language also rolls: an optional **dual**
+number beside the plural; whether a noun after a numeral above "one" keeps its
+plural; whether demonstratives (this/that) come before or after their noun
+(and agree with its class); an optional **indefinite article** ("a"); and how
+**possession** is marked -- the genitive case when the language has one,
+otherwise a free particle after the possessor, a suffix on the possessed noun,
+or nothing at all. Adposition order follows the word order (postpositions in
+object-before-verb languages) and is passed to the planner. Verified with
+`--llm fake` on `--seed 7 --prompt p` (SOV, particle possession, a dual,
+singular after numerals) and `--seed 11` (SVO, possessed-noun suffix):
+
+```bash
+conlang translate "I see my river." --lang t4 --to conlang --llm fake
+conlang translate "I see two rivers." --lang t4 --to conlang --llm fake
+conlang translate "I see my river." --lang t5 --to conlang --llm fake
+```
+
+```
+skè skè nu phuzó nǐ-i-akhes
+skè tà phuzó nǐ-i-akhes
+ṅɔ̄̄ tʰīnaṅiroṅoň ṅɔ̄̄ nʲōni
+```
+
+In the first, `nu` is the possessive particle after the possessor `skè`; in the
+second, `phuzó` stays singular after the numeral `tà` because this language
+does not pluralize after numerals; in the third, the possessed noun `nʲōn`
+takes the suffix `-i`. Translating back marks a particle as `of` and a suffixed
+noun as possessed. A demonstrative or article that has no matching word in
+the language is coined on first use, like any word.
+
 ## `conlang pronounce`
 
 Show IPA and romanization for a known word (English gloss or conlang

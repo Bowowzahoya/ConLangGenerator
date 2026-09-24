@@ -97,6 +97,13 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   on the lexicon entry and never marked on the noun. Classes reach only
   articles, adjectives and verbs (subject, and optionally object,
   agreement). A very small inventory can repeat a suffix across labels.
+- **Noun-phrase features are illustrative**: the dual is one extra suffix; the
+  possessive particle, possessed-noun suffix and genitive are the only
+  possession strategies (no alienable/inalienable split, no agreement with the
+  possessed noun); the indefinite article "a" and demonstratives are ordinary
+  lexicon words coined on first use; numerals stand directly before their noun
+  and there are no classifiers; adposition order is only told to the planner.
+  In the fake planner a possessor name ("Bruno's") is not marked possessive.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

@@ -198,7 +198,8 @@ S/M/L as above.
 plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
 structure with complement, relative and adverbial clauses (pass 2); aspect and
 verbal mood as systems separate from tense (pass 3); noun classes with article,
-adjective and verb (subject and object) agreement (pass 4). See
+adjective and verb (subject and object) agreement (pass 4); dual number,
+demonstratives, numerals, an indefinite article and possession marking (pass 5). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
@@ -227,12 +228,16 @@ mood; aspect/mood affixes do not yet evolve in `sound_change`.
 "I have"; many languages have no verb "have") (M); passives and other voices
 (L); comparatives and superlatives (M).
 
-**Noun phrase still missing:** dual and collective number (S-M); definiteness
-beyond "the" (S); possession marking (M); demonstratives (M); numerals and
-classifiers (M); a real pronoun system (person, number, clusivity,
-honorifics, pro-drop, reflexives) (M); adjective agreement/stacking (S-M);
-adpositions with order tied to word order (S-M); further cases (locative,
-instrumental) (S).
+**Noun phrase still missing:** collective number and trial (S); classifiers
+("two [piece] dogs") (M); a real pronoun system (person, number, clusivity,
+honorifics, pro-drop, reflexives; today only I/you/he/we, others are coined as
+ordinary words) (M); adjective stacking and adjective-noun order beyond
+`adjective_after_noun` (S-M); adposition *placement* is left to the planner
+(the renderer does not reorder) and no adposition has case government (S-M);
+possessor agreement with the possessed noun's class, possessive pronoun
+paradigms, and inalienable vs alienable possession (M); further cases
+(locative, instrumental) (S); definiteness beyond the two articles, e.g.
+specificity or demonstrative-derived articles (S).
 
 **Verb phrase still missing:** auxiliaries and periphrastic tenses (M);
 negation strategies (affix, double negation, negative verbs) (M);

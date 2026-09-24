@@ -45,7 +45,12 @@ actually produces) to the real ``core.lexicon.PartOfSpeech`` enum
 ``translator.py``'s rendering step needs -- kept here, not in
 ``translator.py``, since this module owns the plan's own string vocabulary."""
 
-_SLOT_KINDS = ("content", "article", "copula", "negation", "conjunction", "name", "clause")
+_SLOT_KINDS = (
+    "content", "article", "copula", "negation", "conjunction", "name", "clause", "demonstrative",
+    "indefinite_article",
+)
+
+NUMBER_LABELS = ("plural", "dual")
 
 MAX_CLAUSE_DEPTH = 3
 """How deeply a clause slot may nest inside another. A clause nested deeper is
@@ -85,8 +90,14 @@ class PlannedSlot:
     """One of ``generation.inflection_gen.AGREEMENT_LABELS``, or ``None``
     -- only ever meaningful on a finite verb or the copula."""
     number: str | None = None
-    """``"plural"`` or ``None`` (singular, unmarked) -- only ever meaningful
-    on a noun ("content" with pos "noun")."""
+    """``"plural"``, ``"dual"`` or ``None`` (singular, unmarked) -- only ever
+    meaningful on a noun ("content" with pos "noun"); a label the language
+    lacks is ignored at render time."""
+    possessive: bool = False
+    """On the possessor of a possession phrase ("my dog": the pronoun slot
+    "I"; "Bruno's leg": the name slot): the renderer marks the possession
+    per the language's own strategy (genitive case, a particle after the
+    possessor, or an affix on the possessed noun that follows)."""
     aspect: str | None = None
     """One of this language's own ``GrammarProfile.aspects`` labels, or
     ``None`` -- only ever meaningful on a finite verb or the copula."""
@@ -169,7 +180,27 @@ def _build_system_prompt(language: Language) -> str:
     object_agreement_desc = (
         "yes" if grammar.object_agreement else 'no -- never set "object_gloss"'
     )
+    number_desc = "plural" + (" and dual" if any(a.label == "dual" for a in grammar.number_affixes) else "")
+    demonstrative_desc = "AFTER" if grammar.demonstrative_after_noun else "BEFORE"
+    adposition_desc = (
+        "POSTPOSITIONS: an adposition slot goes AFTER its noun phrase"
+        if grammar.postpositional
+        else "PREPOSITIONS: an adposition slot goes BEFORE its noun phrase"
+    )
+    possession_desc = {
+        "genitive": "the possessor takes the genitive case (the renderer does it)",
+        "particle": "a possessive particle follows the possessor (the renderer adds it)",
+        "affix": "the possessed noun takes a suffix (the renderer adds it)",
+        "none": "the possessor simply stands next to the possessed noun",
+    }.get(grammar.possession, "the possessor simply stands next to the possessed noun")
+    numeral_desc = (
+        "a noun after a numeral above one still takes the plural"
+        if grammar.plural_after_numeral
+        else "a noun after a numeral above one stays singular (the renderer drops the number)"
+    )
     optional_kinds = []
+    if grammar.has_indefinite_article:
+        optional_kinds.append('"indefinite_article" (English "a"/"an" -- no other field needed)')
     if grammar.has_articles:
         optional_kinds.append('"article" (a definite-article slot -- no other field needed)')
     if grammar.has_overt_copula:
@@ -196,6 +227,9 @@ predicate adjective, regardless of word_order.
 - grammatical cases this language actually has: {cases_desc}.
 - tenses this language actually has: {tenses_desc}.
 - aspects this language actually has: {aspects_desc}.
+- number: singular is unmarked; this language has {number_desc}.
+- demonstratives come {demonstrative_desc} their noun; adpositions are {adposition_desc}; numerals stand directly before their noun ({numeral_desc}).
+- possession: {possession_desc}.
 - noun classes this language actually has: {classes_desc}. A noun's class \
 is worked out by a separate step from its lemma; articles and adjectives \
 agree with it, and so can a verb.
@@ -240,6 +274,8 @@ when this language has no fitting label. Never write English auxiliaries \
 ("have", "would", "may", "is" before -ing) as their own slots: they are \
 expressed only through these fields.
 
+Noun-phrase pieces, each its own slot placed next to its noun as the bullets above say: a demonstrative is {{"kind":"demonstrative","gloss":"this"}} or "that" ("these"/"those" are the demonstrative plus the noun with "number":"plural"); a numeral is an ordinary "content" slot with pos "numeral" ("two dogs": numeral two, then dog with "number" -- "dual" when exactly two and the language has a dual, otherwise "plural"); an English "a"/"an" is an "indefinite_article" slot only when this language has one, otherwise nothing. Possession ("my dog", "the dog's bone", "Bruno's leg"): the possessor is its own slot with "possessive":true placed directly before the possessed noun -- for a pronoun possessor the pronoun itself ("my" -> the pronoun "I", "your" -> "you", "his"/"her" -> "he", "our" -> "we", "their" -> "they"). Never add the possessive marking yourself.
+
 Agreement (only where the two bullets above allow it): an adjective slot \
 sets "agrees_with" to the lemma of the noun it modifies or, as a predicate, \
 of the sentence's subject ("the red dog": agrees_with "dog"). A finite verb \
@@ -269,9 +305,8 @@ slot with "gloss" set to the name exactly as written -- never translate, \
 respell, or turn a name into a content word. A capitalized word at the \
 very start of the sentence is a name only if it is not an ordinary English \
 word ("Just", "You", "Come" are not names). A "name" slot may also set \
-"case" like a noun. A possessive 's has no marking in this language yet: \
-emit the name slot directly before the possessed noun's own slot ("Bruno's \
-leg" -> name Bruno, then content leg).
+"case" like a noun. A possessor name ("Bruno's leg") is a name slot with \
+"possessive":true directly before the possessed noun's own slot.
 
 Worked examples (illustrative field values only -- always use *this* \
 language's own real case/tense labels listed above, never these \
@@ -351,6 +386,10 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "cases": ",".join(grammar.cases),
             "tenses": ",".join(grammar.tenses),
             "aspects": ",".join(grammar.aspects),
+            "has_indefinite_article": "true" if grammar.has_indefinite_article else "false",
+            "demonstrative_after_noun": "true" if grammar.demonstrative_after_noun else "false",
+            "number_labels": ",".join(a.label for a in grammar.number_affixes),
+            "possession": grammar.possession,
             "noun_classes": ",".join(grammar.noun_classes),
             "object_agreement": "true" if grammar.object_agreement else "false",
             "verb_moods": ",".join(grammar.moods),
@@ -450,7 +489,8 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                 case=_coerce_optional_str(item.get("case")),
                 tense=_coerce_optional_str(item.get("tense")),
                 agreement=_coerce_optional_str(item.get("agreement")),
-                number="plural" if item.get("number") == "plural" else None,
+                number=item.get("number") if item.get("number") in NUMBER_LABELS else None,
+                possessive=item.get("possessive") is True,
                 aspect=_coerce_optional_str(item.get("aspect")),
                 verb_mood=_coerce_optional_str(item.get("verb_mood")),
                 agrees_with=_lemma(item.get("agrees_with")),
@@ -473,4 +513,4 @@ def flatten_slots(plan: SentencePlan) -> list[PlannedSlot]:
     return flat
 
 
-__all__ = ["CLAUSE_ROLES", "MAX_CLAUSE_DEPTH", "flatten_slots", "MOODS", "PlannedSlot", "SentencePlan", "POS_BY_PLAN_STRING", "plan_sentence", "split_sentences"]
+__all__ = ["NUMBER_LABELS", "CLAUSE_ROLES", "MAX_CLAUSE_DEPTH", "flatten_slots", "MOODS", "PlannedSlot", "SentencePlan", "POS_BY_PLAN_STRING", "plan_sentence", "split_sentences"]

@@ -4461,3 +4461,21 @@ reading code or one-off ad hoc scripts.
   `_decode_verb_full` searches subject-agreement labels including classes and, in stages (tense x agreement x
   object first, then aspect/mood, then all together only in object-agreement languages), the object marker. The
   fake planner sets the new fields from the noun tokens. 18 tests in `test_agreement.py`.
+
+- **Noun-phrase features (grammar pass 5).** New `generation/noun_phrase_gen.py`, rolled from a fifth independent
+  stream (`Random(f"{seed}:noun-phrase")`): `dual` number (a `"dual"` suffix appended to `number_affixes`),
+  `plural_after_numeral`, `demonstrative_after_noun`, `has_indefinite_article`, and `possession` (`"genitive"`
+  when the language has that case, else `"particle"` with `possessive_particle`, `"affix"` with a `"possessed"`
+  suffix in `possession_affixes`, or `"none"`); the possessive particle is re-rolled to differ from the lexicon
+  and the question particle. `GrammarProfile.postpositional` (SOV/OSV/OVS) is derived, not stored. The planner
+  gets slot kinds `demonstrative` and `indefinite_article`, `PlannedSlot.possessive`, number `"dual"`, and a
+  prompt describing the language's own number labels, demonstrative/adposition order, numeral behaviour and
+  possession strategy. The renderer composes number + possessed + case into one affix (`_noun_affix`, salt only
+  grows when number or possession is used), applies the genitive to a possessive slot, adds the particle after
+  it, or marks the next noun (`possessed_pending`), drops the plural after a numeral where the language does
+  (`_effective_number`), agrees demonstratives and the indefinite article with the noun's class
+  (`_prev_noun_gloss`/`_next_noun_gloss`) and coins "a"/"this"/"that" on first use. Decoding: `_decode_noun`
+  also tries the possessed forms (labels like `"accusative+plural+possessed"`), `_article_forms` includes "a",
+  `_decode_adjective` also decodes class-marked demonstratives, and the possessive particle decodes to "of". The
+  fake planner groups modifier runs into placeholder noun phrases (`_fake_group_noun_phrases`) so
+  my/your/his/our/their, X's, this/that/these/those, numerals and a/an work. 22 tests in `test_noun_phrase.py`.

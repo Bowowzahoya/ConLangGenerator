@@ -116,6 +116,59 @@ def _fake_mood_label(desired: str, moods: list[str]) -> str | None:
     return "irrealis" if "irrealis" in moods else None
 
 
+_FAKE_NUMERALS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+}
+_FAKE_POSSESSIVE_PRONOUNS = {"my": "I", "your": "you", "his": "he", "her": "he", "our": "we", "their": "they"}
+_FAKE_DEMONSTRATIVES = {"this": "this", "that": "that", "these": "this", "those": "that"}
+_FAKE_NOT_A_NOUN = (
+    _FAKE_COPULAS | _FAKE_AUX | _FAKE_WH | _FAKE_PERFECT_AUX | set(_FAKE_MODALS)
+    | {"not", "and", "the", "a", "an", "i", "you", "he", "we", "she", "they", "it"}
+)
+
+
+def _fake_group_noun_phrases(raw_tokens: list[str]) -> tuple[list[str], dict[str, dict]]:
+    """Collapses each run of noun-phrase modifiers (a/an, a possessive
+    pronoun or ``X's``, this/that/these/those, a numeral) plus the noun they
+    belong to into one placeholder token (letters only, like the name
+    placeholders), returning the new token list and placeholder -> info.
+    A modifier run with no noun after it is left alone ("I see this")."""
+    out: list[str] = []
+    info: dict[str, dict] = {}
+    i = 0
+    while i < len(raw_tokens):
+        mods: dict = {}
+        j = i
+        while j < len(raw_tokens):
+            word = raw_tokens[j]
+            if word == "the":
+                mods.setdefault("the", True)
+            elif word in ("a", "an"):
+                mods["indefinite"] = True
+            elif word in _FAKE_POSSESSIVE_PRONOUNS:
+                mods["possessor"] = (_FAKE_POSSESSIVE_PRONOUNS[word], True)
+            elif word.endswith("'s") and len(word) > 3 and word[:-2] not in _FAKE_NOT_A_NOUN:
+                mods["possessor"] = (word[:-2], False)
+            elif word in _FAKE_DEMONSTRATIVES and j + 1 < len(raw_tokens) and raw_tokens[j + 1] not in _FAKE_NOT_A_NOUN:
+                mods["demonstrative"] = _FAKE_DEMONSTRATIVES[word]
+                mods["demonstrative_plural"] = word in ("these", "those")
+            elif word in _FAKE_NUMERALS and j + 1 < len(raw_tokens):
+                mods["numeral"] = word
+            else:
+                break
+            j += 1
+        real_mods = set(mods) - {"the"}
+        if real_mods and j < len(raw_tokens) and raw_tokens[j] not in _FAKE_NOT_A_NOUN and not _fake_is_adverb(raw_tokens[j]):
+            placeholder = f"zznp{chr(97 + len(info) % 26)}{chr(97 + len(info) // 26)}zz"
+            info[placeholder] = {**mods, "noun": raw_tokens[j]}
+            out.append(placeholder)
+            i = j + 1
+        else:
+            out.append(raw_tokens[i])
+            i += 1
+    return out, info
+
+
 def _fake_singular(token: str) -> str | None:
     """The singular of a plausibly plural English noun token, else ``None``.
     A crude suffix heuristic (this fake has no lexicon): ``-ies``, ``-es``
@@ -211,6 +264,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     ends_with = prompt.rstrip()[-1:]
     prompt, name_by_placeholder = _fake_extract_names(prompt)
     raw_tokens = _fake_tokenize(prompt)
+    raw_tokens, np_info = _fake_group_noun_phrases(raw_tokens)
     wh_token = next((t for t in raw_tokens[:1] if t in _FAKE_WH), None)
     mood = "declarative"
     if ends_with == "?":
@@ -220,6 +274,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         and raw_tokens
         and raw_tokens[0] not in _FAKE_PRONOUN_TOKENS | _FAKE_COPULAS | _FAKE_ARTICLES | _FAKE_WH
         and raw_tokens[0] not in name_by_placeholder
+        and raw_tokens[0] not in np_info
         and not _fake_is_adverb(raw_tokens[0])
     ):
         mood = "imperative"
@@ -230,6 +285,9 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     if wh_token:
         tokens = tokens[1:]
     aspects = [a for a in metadata.get("aspects", "").split(",") if a]
+    has_indefinite_article = metadata.get("has_indefinite_article") == "true"
+    demonstrative_after_noun = metadata.get("demonstrative_after_noun") == "true"
+    has_dual = "dual" in metadata.get("number_labels", "").split(",")
     noun_classes = [c for c in metadata.get("noun_classes", "").split(",") if c]
     object_agreement = metadata.get("object_agreement") == "true"
     verb_moods = [m for m in metadata.get("verb_moods", "").split(",") if m]
@@ -260,7 +318,43 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
             slot["case"] = case
         return slot
 
+    def base_of(tok: str) -> str:
+        if tok in np_info:
+            noun = np_info[tok]["noun"]
+            return _fake_singular(noun) or noun
+        return _fake_singular(tok) or tok
+
+    def build_np(info: dict, case: str | None) -> list[dict]:
+        noun_tok = info["noun"]
+        singular = _fake_singular(noun_tok)
+        noun_slot = content_slot(singular or noun_tok, "noun", case)
+        numeral = info.get("numeral")
+        if numeral is not None and _FAKE_NUMERALS[numeral] > 1:
+            noun_slot["number"] = "dual" if numeral == "two" and has_dual else "plural"
+        elif singular or info.get("demonstrative_plural"):
+            noun_slot["number"] = "plural"
+        before: list[dict] = []
+        after: list[dict] = []
+        if "possessor" in info:
+            possessor, is_pronoun = info["possessor"]
+            before.append(
+                {"kind": "content", "gloss": possessor, "pos": "pronoun" if is_pronoun else "noun", "possessive": True}
+            )
+        if "demonstrative" in info:
+            demonstrative = {"kind": "demonstrative", "gloss": info["demonstrative"]}
+            (after if demonstrative_after_noun else before).append(demonstrative)
+        elif "possessor" not in info:
+            if info.get("indefinite") and has_indefinite_article:
+                before.append({"kind": "indefinite_article"})
+            elif has_articles and (info.get("indefinite") or info.get("the") or used_article):
+                before.append({"kind": "article"})
+        if numeral is not None:
+            before.append({"kind": "content", "gloss": numeral, "pos": "numeral"})
+        return before + [noun_slot] + after
+
     def noun_phrase(tok: str, case: str | None) -> list[dict]:
+        if tok in np_info:
+            return build_np(np_info[tok], case)
         if tok in name_by_placeholder:
             name_slot: dict = {"kind": "name", "gloss": name_by_placeholder[tok]}
             if case:
@@ -294,7 +388,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         subject_np = noun_phrase(subject_tok, None)
         adjective_slot = content_slot(adj_tok, "adjective")
         if noun_classes and subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder:
-            adjective_slot["agrees_with"] = _fake_singular(subject_tok) or subject_tok
+            adjective_slot["agrees_with"] = base_of(subject_tok)
         adjective_group = adverb_slots + [adjective_slot]
         copula_group: list[dict] = []
         if has_overt_copula:
@@ -302,7 +396,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
             tense_label = _fake_tense_label(detected_tense, tenses)
             copula_slot = {"kind": "copula", "agreement": _FAKE_AGREEMENT_BY_PRONOUN.get(subject_tok, "default")}
             if noun_classes and subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder:
-                copula_slot["subject_gloss"] = _fake_singular(subject_tok) or subject_tok
+                copula_slot["subject_gloss"] = base_of(subject_tok)
             if tense_label:
                 copula_slot["tense"] = tense_label
             copula_group = [copula_slot]
@@ -339,10 +433,10 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         if tense_label:
             verb_slot["tense"] = tense_label
         if noun_classes and subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder:
-            verb_slot["subject_gloss"] = _fake_singular(subject_tok) or subject_tok
+            verb_slot["subject_gloss"] = base_of(subject_tok)
         if object_agreement:
             verb_slot["object_gloss"] = (
-                obj_tok if obj_tok in _FAKE_PRONOUN_TOKENS else (_fake_singular(obj_tok) or obj_tok)
+                obj_tok if obj_tok in _FAKE_PRONOUN_TOKENS else base_of(obj_tok)
             )
         if aspect_label:
             verb_slot["aspect"] = aspect_label

@@ -35,7 +35,7 @@ def _first_language_with_order(orders: set[str]):
 def test_every_language_gets_plural_imperative_and_question_marking():
     for seed in (1, 2, 3):
         grammar = _language(seed).grammar
-        assert [a.label for a in grammar.number_affixes] == ["plural"]
+        assert [a.label for a in grammar.number_affixes][0] == "plural"  # a dual may follow
         assert grammar.mood_affixes[0].label == "imperative"
         assert grammar.number_affixes[0].suffix
         assert grammar.mood_affixes[0].suffix
@@ -74,7 +74,7 @@ def test_parse_still_accepts_a_bare_array_and_defaults_the_mood():
 
 def test_parse_ignores_an_unknown_mood_or_number():
     plan = sentence_planner._parse(
-        '{"mood": "shouting", "slots": [{"kind": "content", "gloss": "dog", "pos": "noun", "number": "dual"}]}'
+        '{"mood": "shouting", "slots": [{"kind": "content", "gloss": "dog", "pos": "noun", "number": "trial"}]}'
     )
     assert plan is not None
     assert plan.mood == "declarative"

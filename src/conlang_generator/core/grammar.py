@@ -320,3 +320,22 @@ class GrammarProfile(BaseModel, frozen=True):
     """Person labels plus ``"class:<name>"`` labels; empty unless
     ``object_agreement``. (Subject agreement by class uses the same
     ``"class:<name>"`` labels inside ``agreement_affixes``.)"""
+    plural_after_numeral: bool = True
+    """Whether a noun after a numeral above "one" still takes the plural
+    (``False``: it stays singular, as in Turkish)."""
+    demonstrative_after_noun: bool = False
+    has_indefinite_article: bool = False
+    possession: str = "none"
+    """How a possessor is marked: ``"genitive"`` (the genitive case),
+    ``"particle"`` (a free word after the possessor), ``"affix"`` (a suffix on
+    the possessed noun) or ``"none"`` (plain juxtaposition)."""
+    possessive_particle: str = ""
+    """IPA of the possessive particle (``possession == "particle"``)."""
+    possession_affixes: tuple[InflectionAffix, ...] = ()
+    """One ``"possessed"`` suffix (``possession == "affix"``)."""
+
+    @property
+    def postpositional(self) -> bool:
+        """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their
+        noun; the rest put them before (the usual Greenberg correlation)."""
+        return self.word_order.value in ("SOV", "OSV", "OVS")

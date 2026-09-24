@@ -11,10 +11,11 @@ from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import (
-    noun_class_gen,
     grammar_gen,
     inflection_gen,
     lexicon_gen,
+    noun_class_gen,
+    noun_phrase_gen,
     real_words,
     phonology_gen,
     romanization_gen,
@@ -133,6 +134,13 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "object_agreement": object_agreement,
             "object_agreement_affixes": object_affixes,
         }
+    )
+
+    # Noun-phrase grammar (dual, demonstratives, indefinite article,
+    # possession): a fifth independent stream.
+    np_rng = random.Random(f"{spec.seed}:noun-phrase")
+    grammar = grammar.model_copy(
+        update=noun_phrase_gen.generate_noun_phrase_grammar(np_rng, inventory, syllable_structure, grammar)
     )
 
     seed_entries = tuple(
@@ -264,6 +272,15 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             break
         particle = inflection_gen.generate_question_particle(clause_rng, inventory, syllable_structure)
     grammar = grammar.model_copy(update={"question_particle": particle})
+    # Likewise the possessive particle (also distinct from the question particle).
+    possessive = grammar.possessive_particle
+    if possessive:
+        taken_forms = known_forms | {normalized_form(romanization.apply(particle))}
+        for _ in range(50):
+            if normalized_form(romanization.apply(possessive)) not in taken_forms:
+                break
+            possessive = inflection_gen.generate_question_particle(np_rng, inventory, syllable_structure)
+        grammar = grammar.model_copy(update={"possessive_particle": possessive})
 
     return Language(
         name=name,
