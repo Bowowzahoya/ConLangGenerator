@@ -485,5 +485,5 @@ conlang serve --port 8000
 
 Requires the optional `web` dependency group: `uv sync --group web`.
 `--reload` auto-restarts on source changes (development only). See
-`docs/DEFERRED.md` §8 for what the web UI covers beyond the CLI (and
-what it's still missing, e.g. lexicon browsing/editing).
+the README's Web app section for what the UI covers, and
+`docs/DEFERRED.md` §2 for what is still planned.
