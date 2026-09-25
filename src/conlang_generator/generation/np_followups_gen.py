@@ -11,7 +11,7 @@ import random
 
 from conlang_generator.core.phonology import PhonemeInventory
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
-from conlang_generator.generation import ipa_tokenizer
+from conlang_generator.generation import ipa_tokenizer, voice_np_gen
 from conlang_generator.generation.inflection_gen import _ALL_SINGLE_CHAR_SYMBOLS
 
 ADJECTIVE_CLASSES = ("quality", "size", "age", "colour", "other")
@@ -86,3 +86,40 @@ def derive_article_ipa(demonstrative_ipa: str, inventory: PhonemeInventory) -> s
             alone = tokens[position][0] + tokens[position][1]  # already open: keep just the vowel
             return alone if alone != stripped else None
     return None
+
+
+SPATIAL_CASES = ("locative", "instrumental", "ablative", "allative", "comitative")
+"""Cases a language may add for its adpositions (only where its adposition strategy uses cases)."""
+
+
+def roll_round_three(rng: random.Random, grammar) -> dict[str, object]:
+    """Third round of noun-phrase draws (own stream, every draw always made):
+    more spatial cases, classifiers beside adjectives, dropping "of" after a
+    measure noun, which persons have their own possessive word, irregular pasts,
+    deictic (reduced-demonstrative) articles and article + demonstrative doubling."""
+    case_hits = [rng.random() < 0.3 for _ in SPATIAL_CASES]
+    with_adjective = rng.random() < 0.3
+    drop_of = rng.random() < 0.5
+    person_hits = [rng.random() < 0.6 for _ in range(4)]
+    past_gate = rng.random() < 0.4
+    past_hits = [rng.random() < 0.5 for _ in voice_np_gen.IRREGULAR_PASTS]
+    deictic = rng.random() < 0.2
+    doubling = rng.random() < 0.2
+    persons = ("I", "you", "he", "we")
+    chosen = tuple(p for p, hit in zip(persons, person_hits) if hit)
+    uses_cases = grammar.adposition_case_strategy != "none"
+    return {
+        "cases": tuple(
+            c for c, hit in zip(SPATIAL_CASES, case_hits) if hit and uses_cases and c not in grammar.cases
+        ),
+        "classifier_with_adjective": with_adjective and grammar.uses_classifiers,
+        "drop_measure_of": drop_of,
+        "possessive_word_persons": chosen if grammar.possessive_pronouns == "words" and chosen else (),
+        "suppletive_past": (
+            tuple(v for v, hit in zip(voice_np_gen.IRREGULAR_PASTS, past_hits) if hit)
+            if past_gate and "past" in grammar.tenses
+            else ()
+        ),
+        "deictic_articles": deictic,
+        "demonstrative_doubling": doubling and grammar.has_articles,
+    }

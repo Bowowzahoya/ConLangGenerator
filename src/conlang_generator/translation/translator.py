@@ -874,8 +874,10 @@ def _agreement_category(entry: LexicalEntry) -> str | None:
     """The agreement category of a lexicon word (``None`` if it does not agree)."""
     if entry.pos is PartOfSpeech.ADJECTIVE:
         return "adjective"
-    if entry.primary_gloss in ("this", "that"):
+    if entry.primary_gloss in ("this", "that", "this-article", "that-article"):
         return "demonstrative"
+    if entry.primary_gloss == np_followups_gen.SPECIFIC_ARTICLE_GLOSS:
+        return "article"
     if entry.primary_gloss.startswith(pronoun_gen.POSSESSIVE_GLOSS_PREFIX):
         return "possessive"
     if entry.pos is PartOfSpeech.NUMERAL:
@@ -994,6 +996,8 @@ def _with_classifiers(language: Language, slots) -> tuple:
         return tuple(slots)
     categories = grammar.classifier_categories or classifier_gen.LEGACY_CATEGORIES
     deferred: set[int] = set()
+    classified_nouns: set[int] = set()
+    before_noun: dict[int, PlannedSlot] = {}
     after_trigger: dict[int, PlannedSlot] = {}
     after_noun: dict[int, list[PlannedSlot]] = {}
     replaced: dict[int, PlannedSlot] = {}
@@ -1005,7 +1009,10 @@ def _with_classifiers(language: Language, slots) -> tuple:
             continue
         j = _following_noun_index(slots, i)
         if j is None:
+            if slot.classifier_for:  # "two of them": the classifier stands in for the missing noun
+                after_trigger[i] = _classifier_slot(language, slot.classifier_for, categories)
             continue
+        classified_nouns.add(j)
         classifier_slot = _classifier_slot(language, slots[j].gloss, categories)
         if is_numeral and slot.gloss not in _NUMERAL_ONE:
             replaced[j] = dataclasses.replace(replaced.get(j, slots[j]), number=None)
@@ -1021,11 +1028,38 @@ def _with_classifiers(language: Language, slots) -> tuple:
             j = _following_noun_index(slots, i)
             if j is None:
                 continue
+            classified_nouns.add(j)
             after_trigger[i] = _classifier_slot(language, slots[j].gloss, categories, possessive=True)
+    if grammar.classifier_with_adjective:
+        for i, slot in enumerate(slots):
+            if not _is_attributive_adjective(slot):
+                continue
+            right = i + 1
+            while right < len(slots) and (_is_attributive_adjective(slots[right]) or slots[right].kind == "conjunction"):
+                right += 1
+            left = i - 1
+            while left >= 0 and (_is_attributive_adjective(slots[left]) or slots[left].kind == "conjunction"):
+                left -= 1
+            if right < len(slots) and _is_np_head(slots[right]) and slots[right].pos == "noun":
+                noun, before = right, True
+            elif left >= 0 and _is_np_head(slots[left]) and slots[left].pos == "noun":
+                noun, before = left, False
+            else:
+                continue
+            if noun in classified_nouns:
+                continue
+            classified_nouns.add(noun)
+            classifier_slot = _classifier_slot(language, slots[noun].gloss, categories)
+            if before:
+                before_noun[noun] = classifier_slot
+            else:
+                after_noun.setdefault(noun, []).append(classifier_slot)
     result: list[PlannedSlot] = []
     for i, slot in enumerate(slots):
         if i in deferred:
             continue
+        if i in before_noun:
+            result.append(before_noun[i])
         result.append(replaced.get(i, slot))
         if i in after_trigger:
             result.append(after_trigger[i])
@@ -1072,7 +1106,13 @@ def _normalize_possessives(language: Language, slots) -> tuple:
     for slot in slots:
         if slot.kind == "possessive_pronoun":
             own = slot.gloss == "self"
-            if (own and grammar.reflexive_possessive == "none") or (not own and grammar.possessive_pronouns == "regular"):
+            partial = (
+                not own and grammar.possessive_pronouns == "words" and bool(grammar.possessive_word_persons)
+                and pronoun_gen.person_label(slot.gloss) not in grammar.possessive_word_persons
+            )
+            if (own and grammar.reflexive_possessive == "none") or (
+                not own and grammar.possessive_pronouns == "regular"
+            ) or partial:
                 slot = dataclasses.replace(
                     slot, kind="content", pos="pronoun", possessive=True, gloss="he" if own else slot.gloss
                 )
@@ -1142,6 +1182,52 @@ def _is_attributive_adjective(slot) -> bool:
     return slot.kind == "content" and slot.pos == "adjective" and bool(slot.gloss)
 
 
+def _reduced_demonstrative(
+    language: Language, entry: LexicalEntry, coined: list[LexicalEntry]
+) -> tuple[Language, LexicalEntry]:
+    """The clitic form of a demonstrative (``this-article``: onset and first
+    vowel), made on first use; the full word when nothing shorter exists."""
+    gloss = f"{entry.primary_gloss}-article"
+    existing = language.lexicon.by_gloss(gloss)
+    if existing is not None:
+        return language, existing
+    ipa = np_followups_gen.derive_article_ipa(entry.ipa, language.phonology)
+    if ipa is None:
+        return language, entry
+    spelled = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), PartOfSpeech.PARTICLE)
+    if language.lexicon.by_form(spelled) is not None:
+        return language, entry
+    reduced = entry.model_copy(
+        update={"ipa": ipa, "romanization": spelled, "glosses": (gloss,), "tones": tuple(entry.tones[:1])}
+    )
+    coined.append(reduced)
+    return language.with_new_words((reduced,), reason=f"reduced '{entry.primary_gloss}' to '{spelled}'"), reduced
+
+
+def _double_definiteness(language: Language, slots) -> tuple:
+    """In a language that doubles definiteness, a demonstrative also brings the
+    definite article ("the this dog") -- placed before the phrase."""
+    grammar = language.grammar
+    if not (grammar.demonstrative_doubling and grammar.has_articles):
+        return tuple(slots)
+    article_kinds = ("article", "indefinite_article", "specific_article")
+    inserts: list[int] = []
+    for index, slot in enumerate(slots):
+        if slot.kind != "demonstrative":
+            continue
+        head = _agreement_target(language, slots, index, "demonstrative")
+        if head is None:
+            continue
+        start = min(index, head)
+        if start > 0 and slots[start - 1].kind in article_kinds:
+            continue
+        inserts.append(start)
+    out = list(slots)
+    for position in sorted(set(inserts), reverse=True):
+        out.insert(position, PlannedSlot(kind="article"))
+    return tuple(out)
+
+
 def _arrange_adjectives(language: Language, slots) -> tuple:
     """Puts the adjectives around each noun where this language has them: on
     their class's side in a ``split`` language, in the class order of
@@ -1161,12 +1247,25 @@ def _arrange_adjectives(language: Language, slots) -> tuple:
             i += 1
             continue
         left = i
-        while left > 0 and _is_attributive_adjective(out[left - 1]):
-            left -= 1
+        while left > 0:
+            if _is_attributive_adjective(out[left - 1]):
+                left -= 1
+            elif out[left - 1].kind == "conjunction" and left >= 2 and _is_attributive_adjective(out[left - 2]):
+                left -= 2  # "big and red dog": the planner's own "and" is re-decided below
+            else:
+                break
         right = i
-        while right + 1 < len(out) and _is_attributive_adjective(out[right + 1]):
-            right += 1
-        adjectives = out[left:i] + out[i + 1:right + 1]
+        while right + 1 < len(out):
+            if _is_attributive_adjective(out[right + 1]):
+                right += 1
+            elif (
+                out[right + 1].kind == "conjunction" and right + 2 < len(out)
+                and _is_attributive_adjective(out[right + 2])
+            ):
+                right += 2
+            else:
+                break
+        adjectives = [a for a in out[left:i] + out[i + 1:right + 1] if a.kind == "content"]
         if not adjectives:
             i += 1
             continue
@@ -1227,7 +1326,19 @@ def _arrange_adpositions(language: Language, slots) -> tuple:
             i += 1
             continue
         first, last, head = extent
+        if gloss == "of" and grammar.drop_measure_of:
+            measure_at = i - 1 if forward else first - 1
+            if (
+                0 <= measure_at < len(out) and _is_np_head(out[measure_at])
+                and out[measure_at].gloss.strip().lower() in voice_np_gen.MEASURE_NOUNS
+            ):
+                out.pop(i)  # "a cup of water": the measure noun and the mass noun sit side by side
+                continue
         target = voice_np_gen.ADPOSITION_CASES.get(gloss)
+        if target is not None and target not in grammar.cases:
+            fallback = voice_np_gen.FALLBACK_CASES.get(gloss)
+            if fallback in grammar.cases:
+                target = fallback
         drop = govern = False
         if target is not None and target in grammar.cases:
             agent_case = gloss == "by" and grammar.passive_agent == "case"
@@ -1560,7 +1671,9 @@ def _render_plan(
     mood_pending = plan.mood == "imperative"
     possessed_pending = False  # a possessor was rendered; the next noun takes the "possessed" affix
     possession = language.grammar.possession
-    slots = _annotate_relative_heads(_arrange_adpositions(language, _arrange_adjectives(language, plan.slots)))
+    slots = _annotate_relative_heads(
+        _double_definiteness(language, _arrange_adpositions(language, _arrange_adjectives(language, plan.slots)))
+    )
     slots = _arrange_coordination(language, slots)
     slots = _arrange_relatives(language, slots)
     slots = _arrange_correlative_adverbials(language, slots)
@@ -1630,6 +1743,16 @@ def _render_plan(
                         working_language, tense_in, aspect_in, mood_in
                     )
                     working_language, aux_entries = _auxiliary_entries(working_language, aux_labels, coined, llm_client)
+                past_base = (slot.gloss or "").strip().lower()
+                if (
+                    tense_in == "past" and not mood_pending and past_base in working_language.grammar.suppletive_past
+                    and slot.verb_form not in working_language.grammar.verb_forms
+                ):
+                    past_gloss = voice_np_gen.suppletive_gloss(past_base, "past")
+                    working_language, entry = _lookup_or_coin(
+                        working_language, past_gloss, PartOfSpeech.VERB, coined, llm_client, lemma_candidates=[past_gloss]
+                    )
+                    tense_in = None  # the past word carries the tense itself
                 rendered = _apply_verb_inflection(
                     working_language, entry, tense_in, agreement_label,
                     "imperative" if mood_pending else "declarative",
@@ -1708,6 +1831,10 @@ def _render_plan(
                 working_language, slot.gloss or "this", PartOfSpeech.PRONOUN, coined, llm_client,
                 lemma_candidates=[slot.gloss or "this"],
             )
+            if working_language.grammar.deictic_articles and _agreement_target(
+                working_language, slots, slot_index, "demonstrative"
+            ) is not None:
+                working_language, entry = _reduced_demonstrative(working_language, entry, coined)
             rendered = (entry.romanization, entry.ipa)
             features = _agreement_features(working_language, slots, slot_index, "demonstrative")
             if any(features):
@@ -1732,6 +1859,9 @@ def _render_plan(
                 lemma_candidates=[article_gloss],
             )
             rendered = (entry.romanization, entry.ipa)
+            features = _agreement_features(working_language, slots, slot_index, "article")
+            if specific and any(features):
+                rendered = _apply_class_agreement(working_language, entry, features[0], None, features[1], features[2])
         elif slot.kind == "possessive_pronoun":
             if slot.gloss == "self":
                 if working_language.grammar.reflexive_possessive == "affix":
@@ -1960,7 +2090,8 @@ _NO_EXTRA = (None, False, None, False)
 
 
 def _decode_verb_full(
-    language: Language, token: str, finite_first: bool = False, skip_forms: bool = False
+    language: Language, token: str, finite_first: bool = False, skip_forms: bool = False,
+    auxiliary_tense: bool = False,
 ) -> tuple[
     LexicalEntry, str | None, str | None, str | None, str | None, str | None, str | None, str | None, bool,
     str | None, str | None, bool,
@@ -1976,7 +2107,9 @@ def _decode_verb_full(
     (a verb with an auxiliary word beside it, hence probably no tense suffix of
     its own) tries the finite readings before the non-finite forms."""
     if finite_first and not skip_forms:
-        finite = _decode_verb_full(language, token, skip_forms=True)
+        finite = _decode_verb_full(
+            language, token, finite_first=True, skip_forms=True, auxiliary_tense=auxiliary_tense
+        )
         if finite is not None:
             return finite
     normalized = _normalize(token)
@@ -2068,7 +2201,7 @@ def _decode_verb_full(
             ),
             key=lambda c: (c[1] is not None) + (c[2] is not None) + (c[3] is not None) + (c[4] is not None)
             + (c[5][0] is not None) + c[5][1] + (c[5][2] is not None) + c[5][3]
-            + (c[0] is None and bool(grammar.tenses)),
+            + (c[0] is None and bool(grammar.tenses) and not auxiliary_tense) + (c[0] is not None and auxiliary_tense),
         )
         for (
             tense_label, aspect_label, mood_label, object_label, voice_label,
@@ -2398,7 +2531,8 @@ def translate_to_english(
                 number_part = number_part or "plural"
             noun_plain = noun_gloss + ("s" if number_part and irregular is None else "")
             noun_plain = {"trial": f"three {noun_plain}", "collective": f"group of {noun_plain}"}.get(number_part, noun_plain)
-            noun_plain = {"locative": f"in {noun_plain}", "instrumental": f"with {noun_plain}"}.get(case_part, noun_plain)
+            if case_part in voice_np_gen.CASE_PREPOSITION:
+                noun_plain = f"{voice_np_gen.CASE_PREPOSITION[case_part]} {noun_plain}"
             plain.append(noun_plain)
             notes = (
                 ([number_part] if number_part else [])
@@ -2435,12 +2569,20 @@ def translate_to_english(
             )
             annotated.append(gloss if degree_label is None else f"{gloss} ({degree_label})")
             continue
-        verb_full = _decode_verb_full(language, tok, finite_first=token_index in auxiliary_labels)
+        host_labels = auxiliary_labels.get(token_index, [])
+        verb_full = _decode_verb_full(
+            language, tok, finite_first=bool(host_labels),
+            auxiliary_tense=any(label in language.grammar.tenses for label in host_labels),
+        )
         if verb_full is not None:
             (
                 verb_entry, tense_label, aspect_label, mood_label, voice_label, agreement_label,
                 object_label, number_label, polite_label, form_case, evidential_label, negative_label,
             ) = verb_full
+            past_split = voice_np_gen.suppletive_split(verb_entry.primary_gloss)
+            if past_split is not None and past_split[1] == "past":
+                verb_entry = verb_entry.model_copy(update={"glosses": (past_split[0],)})
+                tense_label = tense_label or "past"
             if tense_label in subordination_gen.VERB_FORM_LABELS:
                 gloss = verb_entry.primary_gloss
                 reading = {
@@ -2525,7 +2667,7 @@ def translate_to_english(
             "owner and the thing owned), '(mood: imperative)' "
             "(a command), '(case: X)' (this word's grammatical role -- "
             "e.g. an accusative/absolutive/ergative-marked word is "
-            "typically a direct object; locative means 'in/on/at' the word, instrumental 'with/by' it) or '(tense: X)', '(aspect: X)', '(mood: X)' or '(voice: X)' (a verb's "
+            "typically a direct object; locative means 'in/on/at' the word, instrumental 'with/by' it, ablative 'from', allative 'to/into', comitative 'together with') or '(tense: X)', '(aspect: X)', '(mood: X)' or '(voice: X)' (a verb's "
             "detected tense, aspect, verbal mood or voice -- render them as the matching English "
             "tense, progressive/perfect/habitual aspect, would/can/might, or a passive (the patient "
             "is the subject, the agent follows 'by'), antipassive (no object) or causative (make X do)). "

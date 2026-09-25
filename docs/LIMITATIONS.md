@@ -120,6 +120,13 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   the noun. A suppletive pronoun person can be suppletive in only some of its cases. A language may have
   a third, specific article ("a certain"; invariant, it does not agree) and/or a definite article
   built by reducing "that" (non-tonal languages only).
+- **More noun-phrase constructions are illustrative**: irregular pasts (`go-past`) come from a list
+  of about a dozen verbs and replace the tense marking; possessive words may exist for only some
+  persons; a classifier can also follow an adjective or stand in for a missing noun
+  (`classifier_for`); "of" is dropped between a measure noun and a mass noun; ablative, allative and
+  comitative cases join languages whose adposition strategy uses cases; an attributive demonstrative may
+  be a reduced clitic (`this-article`) and may be doubled with the definite article; the specific
+  article agrees like the other articles.
 - **Noun-phrase features are illustrative**: the dual is one extra suffix; the
   possessive particle, possessed-noun suffix and genitive are the only
   possession strategies (no alienable/inalienable split, no agreement with the

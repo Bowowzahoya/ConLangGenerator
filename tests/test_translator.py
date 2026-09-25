@@ -77,7 +77,7 @@ def test_nom_acc_language_has_the_expected_grammar_shape():
     grammar = _language(_NOM_ACC_SEED).grammar
     assert grammar.has_articles is True
     assert grammar.has_overt_copula is True
-    assert grammar.cases == ("nominative", "accusative")
+    assert grammar.cases[:2] == ("nominative", "accusative")  # later follow-ups may add spatial cases
     assert grammar.alignment.value == "nominative_accusative"
 
 

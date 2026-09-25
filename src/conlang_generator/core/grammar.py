@@ -554,6 +554,22 @@ class GrammarProfile(BaseModel, frozen=True):
     has_specific_article: bool = False
     """A third article for a specific indefinite ("a certain dog")."""
 
+    classifier_with_adjective: bool = False
+    """A classifier language also puts a classifier beside a noun's attributive
+    adjective (before the noun, or between the noun and a following adjective)."""
+    drop_measure_of: bool = False
+    """"a cup of water" is written without "of": the measure noun and the mass noun
+    are juxtaposed."""
+    possessive_word_persons: tuple[str, ...] = ()
+    """With ``possessive_pronouns == "words"``, the persons that have a possessive
+    word of their own (empty: all); the rest use the personal pronoun as possessor."""
+    suppletive_past: tuple[str, ...] = ()
+    """Verbs whose past tense is a word of its own (``go-past`` = went)."""
+    deictic_articles: bool = False
+    """An attributive demonstrative is a reduced clitic form (``this-article``)."""
+    demonstrative_doubling: bool = False
+    """A demonstrative also takes the definite article ("the this dog")."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their

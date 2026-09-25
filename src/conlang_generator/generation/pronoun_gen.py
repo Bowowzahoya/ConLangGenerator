@@ -49,6 +49,8 @@ ENGLISH_READING: dict[str, str] = {
     "we-inclusive": "we (inclusive)",
     "we-exclusive": "we (exclusive)",
     "a-certain": "a certain",
+    "this-article": "this",
+    "that-article": "that",
 }
 """How a language-specific pronoun gloss is written when read back as English."""
 

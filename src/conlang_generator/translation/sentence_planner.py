@@ -142,6 +142,10 @@ class PlannedSlot:
     """For a finite verb or the copula whose subject is an ordinary noun (not a
     pronoun or name): that noun's lemma, so the verb can agree with its
     class (only set in a language with noun classes)."""
+    classifier_for: str | None = None
+    """On a numeral or demonstrative that stands alone for a noun mentioned earlier
+    ("two of them", "that one") in a classifier language: that noun's lemma, so
+    the right classifier follows it."""
     object_gloss: str | None = None
     """For a finite verb in a language with object agreement: the lemma of
     its direct object (a noun, or a pronoun I/you/he/we)."""
@@ -582,7 +586,7 @@ information: "reportedly"/"allegedly"/"they say" -> reported; \
 never write those adverbs as slots when you use the field. Negation stays \
 one {{"kind":"negation"}} slot; the renderer may fold it into the verb.
 
-Noun-phrase pieces, each its own slot placed next to its noun as the bullets above say: a demonstrative is {{"kind":"demonstrative","gloss":"this"}} or "that" ("these"/"those" are the demonstrative plus the noun with "number":"plural"); a numeral is an ordinary "content" slot with pos "numeral" ("two dogs": numeral two, then dog with "number" -- "dual" when exactly two and the language has a dual, "trial" when exactly three and it has a trial, otherwise "plural"; "collective" for a group taken as one -- "all the dogs" -- when it has that); an English "a"/"an" is an "indefinite_article" slot only when this language has one, otherwise nothing. Possession ("my dog", "the dog's bone", "Bruno's leg"): the possessor is its own slot with "possessive":true placed directly before the possessed noun -- for a pronoun possessor the pronoun itself ("my" -> the pronoun "I", "your" -> "you", "his"/"her" -> "he", "our" -> "we", "their" -> "they"). Never add the possessive marking yourself. Each attributive adjective ("the big red dog") is its own "content" slot with pos "adjective", written in the English order; the renderer puts stacked adjectives in this language's order and on its side of the noun (and joins them if it does).
+Noun-phrase pieces, each its own slot placed next to its noun as the bullets above say: a demonstrative is {{"kind":"demonstrative","gloss":"this"}} or "that" ("these"/"those" are the demonstrative plus the noun with "number":"plural"); a numeral is an ordinary "content" slot with pos "numeral" ("two dogs": numeral two, then dog with "number" -- "dual" when exactly two and the language has a dual, "trial" when exactly three and it has a trial, otherwise "plural"; "collective" for a group taken as one -- "all the dogs" -- when it has that); an English "a"/"an" is an "indefinite_article" slot only when this language has one, otherwise nothing. Possession ("my dog", "the dog's bone", "Bruno's leg"): the possessor is its own slot with "possessive":true placed directly before the possessed noun -- for a pronoun possessor the pronoun itself ("my" -> the pronoun "I", "your" -> "you", "his"/"her" -> "he", "our" -> "we", "their" -> "they"). Never add the possessive marking yourself. Each attributive adjective ("the big red dog") is its own "content" slot with pos "adjective", written in the English order; the renderer puts stacked adjectives in this language's order and on its side of the noun (and joins them if it does). A measure phrase ("a cup of water") is the measure noun, "of" as a preposition slot and the mass noun; the renderer drops "of" where the language does. In a language that uses classifiers, a numeral or demonstrative that stands alone for a noun mentioned earlier ("two of them", "that one") sets "classifier_for" to that noun's lemma.
 
 Voice, only when the voices bullet lists it: set "voice" on the finite \
 verb slot (never on the copula) and reassign the arguments to match. \
@@ -869,6 +873,7 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                 degree=item.get("degree") if item.get("degree") in ("comparative", "superlative") else None,
                 agrees_with=_lemma(item.get("agrees_with")),
                 subject_gloss=_lemma(item.get("subject_gloss")),
+                classifier_for=_lemma(item.get("classifier_for")),
                 object_gloss=_lemma(item.get("object_gloss")),
             )
         )

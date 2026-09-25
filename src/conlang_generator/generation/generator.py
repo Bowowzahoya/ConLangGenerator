@@ -574,14 +574,16 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         that = next((e for e in entries_now if e.primary_gloss == "that"), None)
         derived = (
             np_followups_gen.derive_article_ipa(that.ipa, inventory)
-            if that is not None and the is not None and not tone_system.enabled and not that.tones
+            if that is not None and the is not None
             else None
         )
         if derived is not None:
             spelled = apply_grammatical_spelling(romanization, romanization.apply(derived), PartOfSpeech.PARTICLE)
             others = {normalized_form(e.romanization) for i, e in enumerate(entries_now) if i != the}
             if normalized_form(spelled) not in others:
-                entries_now[the] = entries_now[the].model_copy(update={"ipa": derived, "romanization": spelled})
+                entries_now[the] = entries_now[the].model_copy(
+                    update={"ipa": derived, "romanization": spelled, "tones": tuple(that.tones[:1])}
+                )
             else:
                 derived = None
         if derived is None:
@@ -595,6 +597,31 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "adjective_stack_linker": np2["adjective_stack_linker"],
             "article_source": article_source,
             "has_specific_article": np2["has_specific_article"],
+        }
+    )
+
+    # Noun-phrase follow-ups, round three (own stream).
+    np3_rng = random.Random(f"{spec.seed}:np-followups-3")
+    np3 = np_followups_gen.roll_round_three(np3_rng, grammar)
+    np3_taken = frozenset(
+        affix.suffix
+        for name in (*inflection_gen._VERB_SUFFIX_FIELDS, *inflection_gen._NOUN_SUFFIX_FIELDS)
+        for affix in getattr(grammar, name)
+    )
+    np3_case_affixes = inflection_gen.distinct_suffixes(
+        np3_rng, inventory, syllable_structure, tuple(np3["cases"]), np3_taken
+    )
+    entries_now = list(entries_now)
+    grammar = grammar.model_copy(
+        update={
+            "cases": grammar.cases + tuple(np3["cases"]),
+            "case_affixes": grammar.case_affixes + np3_case_affixes,
+            "classifier_with_adjective": np3["classifier_with_adjective"],
+            "drop_measure_of": np3["drop_measure_of"],
+            "possessive_word_persons": np3["possessive_word_persons"],
+            "suppletive_past": np3["suppletive_past"],
+            "deictic_articles": np3["deictic_articles"],
+            "demonstrative_doubling": np3["demonstrative_doubling"],
         }
     )
 

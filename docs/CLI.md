@@ -1087,3 +1087,20 @@ conlang translate "I see the red big dog." --lang t32 --to conlang --llm fake
 `t31` gives `fnaīnyê` for "a certain" (read back as `a certain`) against `ts'sēi` for plain "a"; `t32`
 gives the same six words for both adjective orders, with the joining word `shiz` between the two
 adjectives (read back as `red and big`).
+
+**Noun-phrase follow-ups, round three.** Per language: irregular pasts as words of their own (`go` ->
+`went`), a reduced clitic form of "this/that" beside a noun, and more spatial cases (ablative, allative,
+comitative) with a wider list of adpositions; also classifiers beside adjectives, "of" dropped in "a cup of
+water", possessive words for only some persons, and a doubled definite article. Verified with `--llm fake`:
+`--seed 3 --prompt p` as `t34` (irregular pasts, ablative/allative/comitative) and `--seed 1` as `t35`
+(a reduced demonstrative):
+
+```bash
+conlang translate "I see the river." --lang t34 --to conlang --llm fake
+conlang translate "I saw the river." --lang t34 --to conlang --llm fake
+conlang translate "I see this dog." --lang t35 --to conlang --llm fake
+```
+
+In `t34` the verb of "I saw the river" is `saisasu-ach`, a word of its own for the past of "see", against
+`skutusbusu-ach` for the present, and it reads back as `saw`. In `t35` "this" is `toh` on its own but the
+reduced `oh` beside a noun.

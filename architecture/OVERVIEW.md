@@ -4684,3 +4684,20 @@ reading code or one-off ad hoc scripts.
   ordinary suffix on the base pronoun); a `specific_article` slot renders the `a-certain` particle (falling back to `a`, or
   nothing). English readings: `a certain`. The fake planner now plans attributive adjectives (on the language's side) and
   "a certain". 22 tests in `test_np_followups2.py`.
+
+- **Noun-phrase follow-ups, round three (grammar pass 19).** `np_followups_gen.roll_round_three` (own
+  `{seed}:np-followups-3` stream): extra `SPATIAL_CASES` (ablative, allative, comitative, ...) for languages whose
+  `adposition_case_strategy` uses cases, `classifier_with_adjective`, `drop_measure_of`, `possessive_word_persons`,
+  `suppletive_past` (`voice_np_gen.IRREGULAR_PASTS`), `deictic_articles` and `demonstrative_doubling`; the derived definite
+  article now also works in tonal languages (the tone of `that` is kept). Renderer: `_arrange_adpositions` knows about 25
+  adpositions (`ADPOSITION_CASES`, with `FALLBACK_CASES`: with -> comitative, to -> allative) and drops "of" after a
+  `MEASURE_NOUNS` head; `_arrange_adjectives` treats "adj and adj" as one run and re-decides the "and";
+  `_with_classifiers` adds a classifier beside an attributive adjective (before the noun, or between the noun and a
+  following adjective, never a second one for a noun already classified) and after a numeral/demonstrative that has
+  `PlannedSlot.classifier_for` but no noun; `_normalize_possessives` turns a person without a possessive word into a
+  possessor pronoun; the verb branch swaps in a `go-past` word (tense marking dropped) for a listed verb in the past;
+  `_reduced_demonstrative` derives `this-article` on first use beside a noun; `_double_definiteness` inserts the article;
+  the specific article and `this-article`/`that-article` take agreement (`_agreement_category`). Decoding: a
+  suppletive past reads back as tense past on its base verb, an auxiliary's host verb prefers the reading without a tense
+  suffix when the auxiliary carries the tense (`auxiliary_tense` in `_decode_verb_full`; this also fixes an ambiguity in
+  pass 16), and a case-only noun is read as `in/with/from/to/together with`. 24 tests in `test_np_followups3.py`.

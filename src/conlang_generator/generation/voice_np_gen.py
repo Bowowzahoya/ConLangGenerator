@@ -23,18 +23,36 @@ ADPOSITION_STRATEGIES = (("none", 0.35), ("governs", 0.35), ("case_only", 0.30))
 
 ADPOSITION_CASES = {
     "to": "dative", "for": "dative", "of": "genitive", "with": "instrumental", "by": "instrumental",
-    "in": "locative", "on": "locative", "at": "locative",
+    "in": "locative", "on": "locative", "at": "locative", "under": "locative", "over": "locative",
+    "near": "locative", "beside": "locative", "behind": "locative", "inside": "locative", "above": "locative",
+    "below": "locative", "between": "locative", "among": "locative", "from": "ablative", "into": "allative",
+    "toward": "allative", "towards": "allative", "onto": "allative", "without": "ablative",
 }
 """The case each English adposition corresponds to."""
-REPLACEABLE_CASES = frozenset({"locative", "instrumental"})
+FALLBACK_CASES = {"with": "comitative", "to": "allative", "for": "allative", "without": "comitative"}
+"""A second case an adposition may correspond to when the language lacks the first."""
+REPLACEABLE_CASES = frozenset({"locative", "instrumental", "ablative", "allative", "comitative"})
 """Cases that can stand in for their adposition altogether."""
+CASE_PREPOSITION = {
+    "locative": "in", "instrumental": "with", "ablative": "from", "allative": "to", "comitative": "together with",
+}
+"""The English adposition a case-only noun is read back with."""
+MEASURE_NOUNS = frozenset(
+    "cup glass bottle bowl basket bag box pot piece handful pair group herd flock kind slice drop".split()
+)
+"""Nouns that measure a mass noun ("a cup of water")."""
+IRREGULAR_PASTS = {
+    "go": "went", "see": "saw", "come": "came", "eat": "ate", "drink": "drank", "say": "said", "know": "knew",
+    "sleep": "slept", "give": "gave", "take": "took", "make": "made", "run": "ran", "write": "wrote",
+}
+"""Verbs whose past may be a word of its own."""
 
 IRREGULAR_PLURALS = {
     "man": "men", "woman": "women", "child": "children", "foot": "feet", "tooth": "teeth", "mouse": "mice",
     "person": "people", "goose": "geese", "ox": "oxen",
 }
 SUPPLETIVE_DEGREES = {"good": ("better", "best"), "bad": ("worse", "worst")}
-SUPPLETIVE_SUFFIXES = ("plural", "comparative", "superlative")
+SUPPLETIVE_SUFFIXES = ("plural", "comparative", "superlative", "past")
 
 _KIN = frozenset(
     "mother father brother sister son daughter wife husband child parent uncle aunt grandmother grandfather".split()
@@ -57,7 +75,9 @@ def suppletive_split(gloss: str) -> tuple[str, str] | None:
     for kind in SUPPLETIVE_SUFFIXES:
         if gloss.endswith("-" + kind) and len(gloss) > len(kind) + 1:
             base = gloss[: -(len(kind) + 1)]
-            known = IRREGULAR_PLURALS if kind == "plural" else SUPPLETIVE_DEGREES
+            known = (
+                IRREGULAR_PLURALS if kind == "plural" else IRREGULAR_PASTS if kind == "past" else SUPPLETIVE_DEGREES
+            )
             return (base, kind) if base in known else None  # not a pronoun like "you-plural"
     return None
 
@@ -66,6 +86,8 @@ def suppletive_reading(base: str, kind: str) -> str:
     """The English word for a suppletive form: children, better, best..."""
     if kind == "plural":
         return IRREGULAR_PLURALS.get(base, base + "s")
+    if kind == "past":
+        return IRREGULAR_PASTS.get(base, base + "ed")
     pair = SUPPLETIVE_DEGREES.get(base)
     if pair is None:
         return f"more {base}" if kind == "comparative" else f"most {base}"

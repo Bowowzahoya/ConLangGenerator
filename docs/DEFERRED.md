@@ -199,7 +199,7 @@ plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
 structure with complement, relative and adverbial clauses (pass 2); aspect and
 verbal mood as systems separate from tense (pass 3); noun classes with article,
 adjective and verb (subject and object) agreement (pass 4); dual number,
-demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12); subordination -- linker position, relativization strategies and position, non-finite verb forms, subordinate mood (pass 13); subordination follow-ups -- relativization reach, declining relative pronouns, agreeing infinitives, case-marked nominalizations, conditional sequencing, correlative adverbials, clause coordination, complementizers by verb class (pass 14); agreement follow-ups -- class assignment by semantic field or final sound, class marked on the noun (prefix/suffix), number and case agreement, numeral agreement, agreement inferred from position (pass 15); aspect/mood follow-ups -- auxiliary tenses, aspects and moods, evidentials, negation strategies and a prohibitive, distinct inflectional suffixes, affixes that evolve (pass 16); voice and noun-phrase follow-ups -- middle, applicative and impersonal voices, passive agent and agreement, trial and collective number, locative/instrumental case, adposition placement and case government, irregular plurals and comparatives, inalienable possession (pass 17); partial pronoun suppletion, adjective placement and stacking order, a specific article and a demonstrative-derived definite article (pass 18). See
+demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12); subordination -- linker position, relativization strategies and position, non-finite verb forms, subordinate mood (pass 13); subordination follow-ups -- relativization reach, declining relative pronouns, agreeing infinitives, case-marked nominalizations, conditional sequencing, correlative adverbials, clause coordination, complementizers by verb class (pass 14); agreement follow-ups -- class assignment by semantic field or final sound, class marked on the noun (prefix/suffix), number and case agreement, numeral agreement, agreement inferred from position (pass 15); aspect/mood follow-ups -- auxiliary tenses, aspects and moods, evidentials, negation strategies and a prohibitive, distinct inflectional suffixes, affixes that evolve (pass 16); voice and noun-phrase follow-ups -- middle, applicative and impersonal voices, passive agent and agreement, trial and collective number, locative/instrumental case, adposition placement and case government, irregular plurals and comparatives, inalienable possession (pass 17); partial pronoun suppletion, adjective placement and stacking order, a specific article and a demonstrative-derived definite article (pass 18); the rest of the noun-phrase list -- suppletive pasts, partial possessive words, more classifier constructions, ablative/allative/comitative cases and a wider adposition table, adjectives across "and", agreeing specific article, deictic and doubled articles, tonal derived articles (pass 19). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
@@ -254,18 +254,16 @@ irregular suppletive degrees in the target language (good/better), degree adverb
 adverbs and of nouns ("more water"), the standard case being `locative` (no language rolls it yet: the case
 pool tops out at four labels), and the fake planner only knows a short adjective list.
 
-**Noun phrase (passes 17-18 done: trial/collective, locative/instrumental, adposition placement and
-case government, irregular plurals/comparatives, inalienable possession, partial pronoun suppletion,
-adjective placement/stacking, specific and demonstrative-derived articles); still missing:**
-suppletive verbs and suppletion in the possessive words (M); classifiers in more constructions (with
-adjectives, after "how many", measure/mass classifiers such as "a cup of", classifier-only noun
-phrases without the noun) (M); adposition government covers a small fixed English table
-(to/for/of/with/by/in/on/at) and an extra case only joins a language that already marks case (S); a case
-that replaces its adposition is read back as "in"/"with" only (S); adjective order uses five word-list
-classes (unknown adjectives count as "other"), stacked adjectives are not reordered across a
-conjunction or comma, the specific article does not agree, and a derived definite article is
-built only in non-tonal languages (S); no deictic (near/far) articles or article + demonstrative
-doubling (S).
+**Noun phrase (passes 17-19 done; the list is cleared apart from these smaller gaps):**
+suppletion covers only the irregular past of about a dozen verbs (no suppletive present/participle
+forms) and possessive words differ only by *person* (no independent "mine", no declining
+possessive words); the classifier constructions are adjectives, standalone numerals and quantifiers
+(a mass noun after a numeral still takes its ordinary category classifier, and a measure noun's
+"of" is simply dropped); the adposition table is a fixed English list of about 25 words, a case
+that replaces its adposition is read back as one English preposition (in/with/from/to) with the
+finer choice left to the fluent-English step, and a case-less language only gains spatial cases when
+its adposition strategy uses them; the adjective classes are word lists; a deictic article is made
+only for `this`/`that` (no article per person or distance beyond two) and exists only beside a noun.
 
 **Verb phrase still missing:** auxiliaries and periphrastic tenses (M);
 negation strategies (affix, double negation, negative verbs) (M);
