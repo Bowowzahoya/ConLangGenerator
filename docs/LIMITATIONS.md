@@ -106,6 +106,14 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   agree in class, and a rolled subset also in number and case; verbs agree with
   subject and optionally object. Agreement is worked out from word position, so
   the planner need not name the noun. A very small inventory can repeat a suffix across labels.
+- **Voice and noun-phrase follow-ups are illustrative**: the middle, applicative and impersonal
+  voices are one suffix each; the passive agent is "by" or an instrumental case, and the passive
+  agrees with its patient or not. Trial, collective, locative and instrumental are extra rolled
+  labels (the cases only in a language that already has cases). An adposition is moved to the
+  language's side and either kept (governing a case from a small English table) or replaced by
+  its case; the case is read back as "in" or "with" only. Irregular plurals and the
+  good/bad comparatives come from small fixed lists, and inalienable possession covers body
+  parts and kin from a short word list.
 - **Noun-phrase features are illustrative**: the dual is one extra suffix; the
   possessive particle, possessed-noun suffix and genitive are the only
   possession strategies (no alienable/inalienable split, no agreement with the

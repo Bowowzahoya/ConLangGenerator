@@ -101,7 +101,7 @@ def test_parse_reads_possessive_dual_and_the_new_slot_kinds():
         '[{"kind": "content", "gloss": "I", "pos": "pronoun", "possessive": true},'
         ' {"kind": "content", "gloss": "dog", "pos": "noun", "number": "dual"},'
         ' {"kind": "demonstrative", "gloss": "this"}, {"kind": "indefinite_article"},'
-        ' {"kind": "content", "gloss": "cat", "pos": "noun", "number": "trial"}]'
+        ' {"kind": "content", "gloss": "cat", "pos": "noun", "number": "septal"}]'
     )
     assert plan is not None
     assert plan.slots[0].possessive is True

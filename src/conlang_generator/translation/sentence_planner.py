@@ -52,7 +52,7 @@ _SLOT_KINDS = (
     "indefinite_article", "possessive_pronoun",
 )
 
-NUMBER_LABELS = ("plural", "dual")
+NUMBER_LABELS = ("plural", "dual", "trial", "collective")
 
 MAX_CLAUSE_DEPTH = 3
 """How deeply a clause slot may nest inside another. A clause nested deeper is
@@ -213,7 +213,7 @@ def _build_system_prompt(language: Language) -> str:
     object_agreement_desc = (
         "yes" if grammar.object_agreement else 'no -- never set "object_gloss"'
     )
-    number_desc = "plural" + (" and dual" if any(a.label == "dual" for a in grammar.number_affixes) else "")
+    number_desc = ", ".join(a.label for a in grammar.number_affixes) or "no number marking"
     demonstrative_desc = "AFTER" if grammar.demonstrative_after_noun else "BEFORE"
     adposition_desc = (
         "POSTPOSITIONS: an adposition slot goes AFTER its noun phrase"
@@ -578,7 +578,7 @@ information: "reportedly"/"allegedly"/"they say" -> reported; \
 never write those adverbs as slots when you use the field. Negation stays \
 one {{"kind":"negation"}} slot; the renderer may fold it into the verb.
 
-Noun-phrase pieces, each its own slot placed next to its noun as the bullets above say: a demonstrative is {{"kind":"demonstrative","gloss":"this"}} or "that" ("these"/"those" are the demonstrative plus the noun with "number":"plural"); a numeral is an ordinary "content" slot with pos "numeral" ("two dogs": numeral two, then dog with "number" -- "dual" when exactly two and the language has a dual, otherwise "plural"); an English "a"/"an" is an "indefinite_article" slot only when this language has one, otherwise nothing. Possession ("my dog", "the dog's bone", "Bruno's leg"): the possessor is its own slot with "possessive":true placed directly before the possessed noun -- for a pronoun possessor the pronoun itself ("my" -> the pronoun "I", "your" -> "you", "his"/"her" -> "he", "our" -> "we", "their" -> "they"). Never add the possessive marking yourself.
+Noun-phrase pieces, each its own slot placed next to its noun as the bullets above say: a demonstrative is {{"kind":"demonstrative","gloss":"this"}} or "that" ("these"/"those" are the demonstrative plus the noun with "number":"plural"); a numeral is an ordinary "content" slot with pos "numeral" ("two dogs": numeral two, then dog with "number" -- "dual" when exactly two and the language has a dual, "trial" when exactly three and it has a trial, otherwise "plural"; "collective" for a group taken as one -- "all the dogs" -- when it has that); an English "a"/"an" is an "indefinite_article" slot only when this language has one, otherwise nothing. Possession ("my dog", "the dog's bone", "Bruno's leg"): the possessor is its own slot with "possessive":true placed directly before the possessed noun -- for a pronoun possessor the pronoun itself ("my" -> the pronoun "I", "your" -> "you", "his"/"her" -> "he", "our" -> "we", "their" -> "they"). Never add the possessive marking yourself.
 
 Voice, only when the voices bullet lists it: set "voice" on the finite \
 verb slot (never on the copula) and reassign the arguments to match. \
@@ -599,6 +599,13 @@ causer, the causee ("the dog") is a direct-object noun phrase, and any \
 original object follows it, plain. When this language lacks the needed \
 voice, reword as an ordinary active sentence (a passive with a stated agent: \
 make the agent the subject; without one, use the pronoun "they" as subject). \
+"middle" ("the door opened", "the pot broke": the subject is affected, no \
+agent, no object), "applicative" ("I cook for him": the beneficiary becomes \
+the direct object, no "for" slot) and "impersonal" ("one dances", "it is \
+danced here": no subject at all) are set the same way, only when the voices \
+bullet lists them. Adpositions are always written as their own slots; the \
+renderer places them on this language's side and turns them into case endings \
+where the language does that. \
 Never write an English auxiliary ("is", "was", "made") for a voice as its \
 own slot.
 

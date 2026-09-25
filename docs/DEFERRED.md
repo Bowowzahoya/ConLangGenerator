@@ -199,7 +199,7 @@ plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
 structure with complement, relative and adverbial clauses (pass 2); aspect and
 verbal mood as systems separate from tense (pass 3); noun classes with article,
 adjective and verb (subject and object) agreement (pass 4); dual number,
-demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12); subordination -- linker position, relativization strategies and position, non-finite verb forms, subordinate mood (pass 13); subordination follow-ups -- relativization reach, declining relative pronouns, agreeing infinitives, case-marked nominalizations, conditional sequencing, correlative adverbials, clause coordination, complementizers by verb class (pass 14); agreement follow-ups -- class assignment by semantic field or final sound, class marked on the noun (prefix/suffix), number and case agreement, numeral agreement, agreement inferred from position (pass 15); aspect/mood follow-ups -- auxiliary tenses, aspects and moods, evidentials, negation strategies and a prohibitive, distinct inflectional suffixes, affixes that evolve (pass 16). See
+demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12); subordination -- linker position, relativization strategies and position, non-finite verb forms, subordinate mood (pass 13); subordination follow-ups -- relativization reach, declining relative pronouns, agreeing infinitives, case-marked nominalizations, conditional sequencing, correlative adverbials, clause coordination, complementizers by verb class (pass 14); agreement follow-ups -- class assignment by semantic field or final sound, class marked on the noun (prefix/suffix), number and case agreement, numeral agreement, agreement inferred from position (pass 15); aspect/mood follow-ups -- auxiliary tenses, aspects and moods, evidentials, negation strategies and a prohibitive, distinct inflectional suffixes, affixes that evolve (pass 16); voice and noun-phrase follow-ups -- middle, applicative and impersonal voices, passive agent and agreement, trial and collective number, locative/instrumental case, adposition placement and case government, irregular plurals and comparatives, inalienable possession (pass 17). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
@@ -231,15 +231,15 @@ evidential-tense interaction); the prohibitive and a suffix negation exist only 
 (no negative non-finite forms, no negative existentials); affix evolution is plain sound change
 (no grammaticalization of auxiliaries into suffixes, no affixes fusing with the stem).
 
-**Voice follow-ups (M):** the middle/reflexive voice, reciprocals, applicatives
-and impersonal passives; an agent case (instrumental/ergative-as-agent)
-instead of a "by" word; voice-sensitive agreement (the verb agrees with the
-patient in a passive only if the planner says so); the fake planner never
-produces antipassives. Decoding a token in a language that rolled many
-features (object agreement, aspects, moods, voices, classes) can take a few
-seconds when the token is not a word of the language, because it searches
-suffix combinations (staged and prefix-filtered); a cache or smarter suffix
-matching would fix it (S-M).
+**Voice follow-ups (done, pass 17); still missing (S-M):** a rolled middle, applicative and
+impersonal voice are single suffixes (no true valency change: an applicative does not reassign
+the beneficiary's case beyond what the planner writes); an impersonal takes no subject
+agreement but the renderer does not drop a planned subject; reciprocals stay a suffix or a
+word; the fake planner only produces the new voices from short fixed shapes ("The man eats.",
+"The door opens.", "I cook for him."). Decoding a token in a language that rolled many
+features (object agreement, aspects, moods, voices, classes, evidentials, negation) can take
+a few seconds when the token is not a word of the language, because it searches suffix
+combinations (staged and prefix-filtered); a cache or smarter suffix matching would fix it (S-M).
 
 **Existence/possession follow-ups (S-M):** more strategies (locative
 possession "at me is", topic-comment possession, a possessive verb that
@@ -254,17 +254,16 @@ irregular suppletive degrees in the target language (good/better), degree adverb
 adverbs and of nouns ("more water"), the standard case being `locative` (no language rolls it yet: the case
 pool tops out at four labels), and the fake planner only knows a short adjective list.
 
-**Noun phrase still missing:** collective number and trial (S); suppletion for
-non-pronoun paradigms (irregular plurals, suppletive adjectives) and partial
-suppletion inside a person's paradigm (I/me but you/you) (M); classifiers in more
-constructions (with adjectives, after "how many", measure/mass classifiers such
-as "a cup of", classifier-only noun phrases without the noun) (M); adjective stacking and adjective-noun order beyond
-`adjective_after_noun` (S-M); adposition *placement* is left to the planner
-(the renderer does not reorder) and no adposition has case government (S-M);
-possessor agreement with the possessed noun's class and inalienable vs
-alienable possession (M); further cases
-(locative, instrumental) (S); definiteness beyond the two articles, e.g.
-specificity or demonstrative-derived articles (S).
+**Noun phrase (pass 17 done: trial/collective, locative/instrumental, adposition placement and
+case government, irregular plurals/comparatives, inalienable possession); still missing:**
+partial suppletion inside a person's paradigm (I/me but you/you) and suppletive verbs (M);
+classifiers in more constructions (with adjectives, after "how many", measure/mass
+classifiers such as "a cup of", classifier-only noun phrases without the noun) (M);
+adjective stacking and adjective-noun order beyond `adjective_after_noun` (S-M);
+adposition government covers a small fixed English table (to/for/of/with/by/in/on/at) and an
+extra case only joins a language that already marks case (S); a case that replaces its
+adposition is read back as "in"/"with" only (no "on"/"at"/"by") (S); definiteness beyond the
+two articles, e.g. specificity or demonstrative-derived articles (S).
 
 **Verb phrase still missing:** auxiliaries and periphrastic tenses (M);
 negation strategies (affix, double negation, negative verbs) (M);

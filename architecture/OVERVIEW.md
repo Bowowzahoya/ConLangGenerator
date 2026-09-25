@@ -4654,3 +4654,20 @@ reading code or one-off ad hoc scripts.
   re-resolves collisions, so an evolved language's grammar no longer stays frozen. The fake planner marks evidentials
   (`reportedly`, `apparently` ...) when the language has the label and understands "did/does/do not". 23 tests in
   `test_aspect_followups.py`.
+
+- **Voice and noun-phrase follow-ups (grammar pass 17).** `generation/voice_np_gen.py` (`roll_followups`, own
+  `{seed}:voice-np-followups` stream): extra `voices` (`middle`, `applicative`, `impersonal`, each a suffix), `passive_agreement`
+  (`patient`/`none`), `passive_agent` (`word`/`case`), extra number labels (`trial`, `collective`), extra cases (`locative`,
+  `instrumental`, only when the language already has cases), `adposition_case_strategy` (`none`/`governs`/`case_only`,
+  from `ADPOSITION_CASES`), `suppletive_plurals` (`IRREGULAR_PLURALS`), `suppletive_degrees` (`SUPPLETIVE_DEGREES`) and
+  `inalienable_possession`. Renderer: `_arrange_adpositions` (runs first in `_render_plan`) finds each adposition's noun
+  phrase (`_np_extent`), moves the adposition to the language's side, gives the head noun the governed case and drops
+  the adposition where a locative/instrumental case (or the instrumental passive agent) replaces it;
+  `_suppletive_form_kind` swaps in a `child-plural` / `good-comparative` lexicon word (looked up or coined like any other,
+  classed with its base noun by `_class_gloss`); `_unmarked_possessors` skips genitive/particle/possessed-affix marking
+  before an inalienable noun; `_verb_agreement` gives `impersonal` (and, with `passive_agreement: none`, `passive`) the
+  default agreement. Decoding needed no new search (the generic voice, number and case loops cover the new labels);
+  English readings: `gets seen`, `see for`, `one sees`, `three dogs`, `group of dogs`, `in house`, `with dog`, `children`,
+  `better`. The fake planner produces trial/collective from "three"/"all" and the new voices from short shapes. The
+  planner prompt lists the new labels and says adpositions are always separate slots. 25 tests in
+  `test_voice_np_followups.py`.

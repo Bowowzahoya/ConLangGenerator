@@ -1050,3 +1050,22 @@ The negated verb `ksinàaaokan` carries past and the negative suffix (read back 
 future is the auxiliary `nīfprúkǎ` before the plain verb `ksinà` (read back as `will see`);
 `ksinàaiyokan` adds the reported evidential (`reportedly`); and the negated command is the single
 prohibitive form `ksinàap` (`do not see!`).
+
+**Voice and noun-phrase follow-ups.** Per language: extra voices (middle, applicative,
+impersonal); whether the passive agrees and whether its agent is "by" or an instrumental case;
+trial and collective number; locative and instrumental case, with adpositions either kept
+(governing a case) or replaced by it; irregular plurals (`child` -> `children`) and
+comparatives (`good` -> `better`) as words of their own; and inalienable possession. Verified
+with `--llm fake`: `--seed 6 --prompt p` (middle voice, trial) as `t28`, `--seed 5` (applicative
+voice) as `t29`, `--seed 2` (irregular plurals) as `t30`:
+
+```bash
+conlang translate "The door opens." --lang t28 --to conlang --llm fake
+conlang translate "I cook for him." --lang t29 --to conlang --llm fake
+conlang translate "I see the children." --lang t30 --to conlang --llm fake
+conlang translate "I see the child." --lang t30 --to conlang --llm fake
+```
+
+The middle verb `fukilnevo` reads back as `gets opened`; the applicative verb `za3memiwy'` as `I cook for` (with `khir4` = `him`);
+and `t30`'s irregular plural (`kèkhuẻi`) is a different word from the singular (`fyǐi`) and reads
+back as `children`.

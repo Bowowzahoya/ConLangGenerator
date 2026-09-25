@@ -3,7 +3,7 @@ decoding."""
 
 from conlang_generator.core.grammar import GrammarProfile
 from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation import inflection_gen
+from conlang_generator.generation import inflection_gen, voice_np_gen
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.fake_client import FakeLLMClient, _fake_plan_dict
 from conlang_generator.translation import sentence_planner
@@ -35,7 +35,9 @@ def _find(predicate, limit: int = 250):
 
 def _base(grammar) -> tuple:
     """The voices of the roll itself, without the reflexive/reciprocal suffix voices added later."""
-    return tuple(v for v in grammar.voices if v not in ("reflexive", "reciprocal"))
+    return tuple(
+        v for v in grammar.voices if v not in ("reflexive", "reciprocal", *voice_np_gen.EXTRA_VOICES)
+    )
 
 
 def _verb_form(language, voice: str | None, tense: str | None = None, aspect: str | None = None) -> str:

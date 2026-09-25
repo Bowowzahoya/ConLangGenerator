@@ -161,7 +161,7 @@ def test_subject_is_unmarked_under_nominative_accusative_alignment():
 def test_ergative_language_has_the_expected_grammar_shape():
     grammar = _language(_ERGATIVE_SEED).grammar
     assert grammar.alignment.value == "ergative_absolutive"
-    assert grammar.cases == ("ergative", "absolutive")
+    assert grammar.cases[:2] == ("ergative", "absolutive")  # a later follow-up may add an instrumental
 
 
 def test_subject_gets_ergative_case_marking_under_ergative_absolutive_alignment():

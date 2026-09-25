@@ -333,6 +333,8 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     has_indefinite_article = metadata.get("has_indefinite_article") == "true"
     demonstrative_after_noun = metadata.get("demonstrative_after_noun") == "true"
     has_dual = "dual" in metadata.get("number_labels", "").split(",")
+    has_trial = "trial" in metadata.get("number_labels", "").split(",")
+    has_collective = "collective" in metadata.get("number_labels", "").split(",")
     voices = [v for v in metadata.get("voices", "").split(",") if v]
     comparative_strategy = metadata.get("comparative_strategy", "particle")
     comparative_case = metadata.get("comparative_case", "")
@@ -399,9 +401,11 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         noun_slot = content_slot(singular or noun_tok, "noun", case)
         numeral = info.get("numeral")
         if numeral is not None and _FAKE_NUMERALS[numeral] > 1:
-            noun_slot["number"] = "dual" if numeral == "two" and has_dual else "plural"
+            noun_slot["number"] = (
+                "dual" if numeral == "two" and has_dual else "trial" if numeral == "three" and has_trial else "plural"
+            )
         elif info.get("quantifier") and info["quantifier"] not in _FAKE_SINGULAR_QUANTIFIERS:
-            noun_slot["number"] = "plural"
+            noun_slot["number"] = "collective" if info["quantifier"] == "all" and has_collective else "plural"
         elif singular or info.get("demonstrative_plural"):
             noun_slot["number"] = "plural"
         before: list[dict] = []
@@ -811,6 +815,14 @@ def _fake_degree_slots(
 
 
 _FAKE_MAKE = {"make", "makes", "made"}
+_FAKE_ANTIPASSIVE_VERBS = {
+    "eat", "eats", "ate", "drink", "drinks", "drank", "read", "reads", "hunt", "hunts", "hunted", "cook", "cooks",
+    "cooked", "sing", "sings", "sang", "write", "writes", "wrote",
+}
+_FAKE_MIDDLE_VERBS = {
+    "open", "opens", "opened", "close", "closes", "closed", "break", "breaks", "broke", "melt", "melts", "melted",
+    "burn", "burns", "burned",
+}
 
 
 def _fake_voice_slots(
@@ -838,6 +850,28 @@ def _fake_voice_slots(
             slot["voice"] = voice
         return slot
 
+    verb_first = order.index("V") < order.index("S")
+    if len(tokens) == 2 and not any(t in _FAKE_COPULAS for t in tokens):
+        subject_tok, verb_tok = tokens
+        voice = None
+        if verb_tok in _FAKE_ANTIPASSIVE_VERBS and "antipassive" in voices:
+            voice = "antipassive"
+        elif verb_tok in _FAKE_MIDDLE_VERBS and "middle" in voices:
+            voice = "middle"
+        if voice is not None:
+            detected, lemma = _fake_detect_tense_and_lemma(verb_tok)
+            verb = [verb_slot(lemma, _fake_tense_label(detected, tenses), subject_tok, voice)]
+            subject_np = noun_phrase(subject_tok, None)
+            return verb + subject_np if verb_first else subject_np + verb
+    if len(tokens) == 4 and tokens[2] == "for" and "applicative" in voices:
+        subject_tok, verb_tok, _, beneficiary = tokens
+        detected, lemma = _fake_detect_tense_and_lemma(verb_tok)
+        roles = {
+            "S": noun_phrase(subject_tok, subject_case),
+            "V": [verb_slot(lemma, _fake_tense_label(detected, tenses), subject_tok, "applicative")],
+            "O": noun_phrase(beneficiary, object_case),
+        }
+        return [x for role in order for x in roles[role]]
     copula_index = next((i for i, t in enumerate(tokens) if t in _FAKE_COPULAS), None)
     if copula_index is not None and 0 < copula_index and copula_index + 1 < len(tokens):
         participle = tokens[copula_index + 1]

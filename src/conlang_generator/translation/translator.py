@@ -70,6 +70,7 @@ from conlang_generator.generation import (
     stress_gen,
     subordination_gen,
     tone_sandhi,
+    voice_np_gen,
     word_accent_gen,
 )
 from conlang_generator.generation.reference_languages import match_profiles
@@ -663,11 +664,18 @@ def _agreement_labels(grammar: GrammarProfile) -> tuple[str, ...]:
 _OBJECT_PERSON_BY_GLOSS = pronoun_gen.PERSON_BY_GLOSS
 
 
+def _class_gloss(gloss: str) -> str:
+    """A suppletive plural (``child-plural``) belongs to its singular's class."""
+    split = voice_np_gen.suppletive_split(gloss)
+    return split[0] if split is not None and split[1] == "plural" else gloss
+
+
 def _class_label_of(language: Language, gloss: str | None) -> str | None:
     """The ``"class:<name>"`` agreement label of the noun with lemma
     ``gloss`` (``None`` in a language with no noun classes)."""
     if not gloss:
         return None
+    gloss = _class_gloss(gloss)
     grammar = language.grammar
     entry = _find_word(language, gloss) if grammar.noun_class_assignment == "formal" else None
     noun_cls = noun_class_gen.assigned_class(
@@ -683,7 +691,8 @@ def _entry_class(language: Language, entry: LexicalEntry) -> str | None:
     if not grammar.noun_classes:
         return None
     return noun_class_gen.assigned_class(
-        grammar.noun_classes, language.spec.seed, entry.primary_gloss, grammar.noun_class_assignment, entry.ipa
+        grammar.noun_classes, language.spec.seed, _class_gloss(entry.primary_gloss), grammar.noun_class_assignment,
+        entry.ipa,
     )
 
 
@@ -692,6 +701,8 @@ def _verb_agreement(language: Language, slot: sentence_planner.PlannedSlot) -> t
     verb/copula slot: a noun subject's class replaces the ``"default"``
     (3rd person) label; an object is agreed with only in a language with
     object agreement (a pronoun by person, a noun by class)."""
+    if slot.voice == "impersonal" or (slot.voice == "passive" and language.grammar.passive_agreement == "none"):
+        return "default", None  # no subject to agree with / the passive does not agree
     agreement = slot.agreement or "default"
     if agreement == "default" and slot.subject_gloss:
         subject_class = _class_label_of(language, slot.subject_gloss)
@@ -1063,13 +1074,145 @@ def _normalize_possessives(language: Language, slots) -> tuple:
     return tuple(normalized)
 
 
-def _suppletive_case(language: Language, slot, pos: PartOfSpeech, possession: str) -> str | None:
+_NP_MODIFIER_KINDS = ("article", "indefinite_article", "demonstrative", "possessive_pronoun", "classifier")
+
+
+def _is_np_head(slot) -> bool:
+    if slot.possessive or not slot.gloss:
+        return False
+    return (slot.kind == "content" and slot.pos in ("noun", "pronoun")) or slot.kind == "name"
+
+
+def _is_np_modifier(slot) -> bool:
+    if slot.kind in _NP_MODIFIER_KINDS:
+        return True
+    if slot.kind in ("content", "name") and slot.possessive:
+        return True
+    return slot.kind == "content" and slot.pos in ("adjective", "numeral", "quantifier")
+
+
+def _np_extent(language: Language, slots, adposition_index: int, forward: bool):
+    """``(first, last, head)`` of the noun phrase directly after (``forward``) or
+    before an adposition, or ``None``."""
+    head = None
+    if forward:
+        first, last, j = adposition_index + 1, None, adposition_index + 1
+        while j < len(slots):
+            slot = slots[j]
+            if head is None:
+                if _is_np_head(slot):
+                    head = last = j
+                elif not _is_np_modifier(slot):
+                    break
+            elif (
+                slot.kind == "content" and slot.pos == "adjective" and language.grammar.adjective_after_noun
+            ):
+                last = j
+            else:
+                break
+            j += 1
+        return (first, last, head) if head is not None else None
+    last, first, j = adposition_index - 1, None, adposition_index - 1
+    while j >= 0:
+        slot = slots[j]
+        if head is None:
+            if _is_np_head(slot):
+                head = first = j
+            elif _is_np_modifier(slot):
+                first = j
+            else:
+                break
+        elif _is_np_modifier(slot):
+            first = j
+        else:
+            break
+        j -= 1
+    return (first, last, head) if head is not None else None
+
+
+def _arrange_adpositions(language: Language, slots) -> tuple:
+    """Puts each adposition on the language's own side of its noun phrase
+    whatever the planner wrote, makes it govern the case it corresponds to
+    (``adposition_case_strategy``) and, where a locative/instrumental case (or the
+    instrumental passive agent) stands in for it, drops the adposition and case-marks
+    the noun instead."""
+    grammar = language.grammar
+    out = list(slots)
+    i = 0
+    while i < len(out):
+        slot = out[i]
+        if not (slot.kind == "content" and slot.pos == "preposition" and slot.gloss):
+            i += 1
+            continue
+        gloss = slot.gloss.strip().lower()
+        if gloss == "than":
+            i += 1
+            continue
+        forward = not grammar.postpositional
+        extent = _np_extent(language, out, i, forward)
+        if extent is None:
+            forward = not forward
+            extent = _np_extent(language, out, i, forward)
+        if extent is None:
+            i += 1
+            continue
+        first, last, head = extent
+        target = voice_np_gen.ADPOSITION_CASES.get(gloss)
+        drop = govern = False
+        if target is not None and target in grammar.cases:
+            agent_case = gloss == "by" and grammar.passive_agent == "case"
+            drop = target in voice_np_gen.REPLACEABLE_CASES and (
+                grammar.adposition_case_strategy == "case_only" or agent_case
+            )
+            govern = drop or grammar.adposition_case_strategy in ("governs", "case_only")
+        if govern and out[head].case is None:
+            out[head] = dataclasses.replace(out[head], case=target)
+        out.pop(i)
+        if forward:
+            first, last = first - 1, last - 1
+        if drop:
+            continue
+        insert_at = last + 1 if grammar.postpositional else first
+        out.insert(insert_at, slot)
+        i = max(i, insert_at) + 1
+    return tuple(out)
+
+
+def _unmarked_possessors(language: Language, slots) -> set[int]:
+    """Indices of possessor slots whose possession is inalienable (body parts,
+    kin) in a language that leaves those unmarked."""
+    if not language.grammar.inalienable_possession:
+        return set()
+    found: set[int] = set()
+    for index, slot in enumerate(slots):
+        if not (slot.possessive and slot.kind in ("content", "name")):
+            continue
+        head = next((later for later in slots[index + 1:] if _is_np_head(later)), None)
+        if head is not None and voice_np_gen.is_inalienable(head.gloss):
+            found.add(index)
+    return found
+
+
+def _suppletive_form_kind(language: Language, slots, index: int, pos: PartOfSpeech) -> str | None:
+    """``"plural"``/``"comparative"``/``"superlative"`` when this noun or
+    adjective slot needs its language's separate irregular word."""
+    grammar = language.grammar
+    slot = slots[index]
+    gloss = (slot.gloss or "").strip().lower()
+    if pos is PartOfSpeech.NOUN and gloss in grammar.suppletive_plurals:
+        return "plural" if _effective_number(language, slots, index) == "plural" else None
+    if pos is PartOfSpeech.ADJECTIVE and slot.degree in ("comparative", "superlative") and gloss in grammar.suppletive_degrees:
+        return slot.degree
+    return None
+
+
+def _suppletive_case(language: Language, slot, pos: PartOfSpeech, possession: str, possessive_marked: bool = True) -> str | None:
     """The case whose suppletive pronoun word (I -> me) this pronoun slot needs,
     or ``None`` (a regular pronoun, or a person without suppletive forms)."""
     grammar = language.grammar
     if pos is not PartOfSpeech.PRONOUN or not grammar.suppletive_pronoun_persons:
         return None
-    case = "genitive" if slot.possessive and possession == "genitive" else slot.case
+    case = "genitive" if slot.possessive and possessive_marked and possession == "genitive" else slot.case
     if case is None or case not in grammar.cases or case in ("nominative", "absolutive"):
         return None
     return case if pronoun_gen.person_label(slot.gloss) in grammar.suppletive_pronoun_persons else None
@@ -1339,7 +1482,7 @@ def _render_plan(
     mood_pending = plan.mood == "imperative"
     possessed_pending = False  # a possessor was rendered; the next noun takes the "possessed" affix
     possession = language.grammar.possession
-    slots = _annotate_relative_heads(plan.slots)
+    slots = _annotate_relative_heads(_arrange_adpositions(language, plan.slots))
     slots = _arrange_coordination(language, slots)
     slots = _arrange_relatives(language, slots)
     slots = _arrange_correlative_adverbials(language, slots)
@@ -1350,6 +1493,7 @@ def _render_plan(
     negative_verbs, prohibitive_verbs, dropped_negations = _negation_absorption(
         language, slots, plan.mood == "imperative"
     )
+    unmarked_possessors = _unmarked_possessors(language, slots)
     possessor_person_pending: str | None = None  # an affix-strategy possessor waiting for its noun
     for slot_index, slot in enumerate(slots):
         rendered: tuple[str, str] | None = None
@@ -1357,6 +1501,7 @@ def _render_plan(
         aux_entries: list[LexicalEntry] = []
         if slot_index in dropped_pronouns or slot_index in dropped_negations:
             continue
+        marks_possession = slot.possessive and slot_index not in unmarked_possessors
         if slot.kind == "clause":
             if slot.clause is None:
                 continue
@@ -1387,8 +1532,11 @@ def _render_plan(
             continue
         if slot.kind == "content" and slot.gloss:
             pos = sentence_planner.POS_BY_PLAN_STRING.get(slot.pos, PartOfSpeech.NOUN)
-            suppletive_case = _suppletive_case(working_language, slot, pos, possession)
+            suppletive_case = _suppletive_case(working_language, slot, pos, possession, marks_possession)
             lookup_gloss = pronoun_gen.suppletive_gloss(slot.gloss, suppletive_case) if suppletive_case else slot.gloss
+            form_kind = _suppletive_form_kind(working_language, slots, slot_index, pos)
+            if form_kind:
+                lookup_gloss = voice_np_gen.suppletive_gloss(slot.gloss.strip().lower(), form_kind)
             working_language, entry = _lookup_or_coin(
                 working_language, lookup_gloss, pos, coined, llm_client, lemma_candidates=[lookup_gloss]
             )
@@ -1413,11 +1561,12 @@ def _render_plan(
                 )
                 mood_pending = False
             elif pos is PartOfSpeech.ADJECTIVE and (
-                slot.degree
+                (slot.degree and not form_kind)
                 or any(_agreement_features(working_language, slots, slot_index, "adjective", slot.agrees_with))
             ):
                 features = _agreement_features(working_language, slots, slot_index, "adjective", slot.agrees_with)
-                rendered = _apply_class_agreement(working_language, entry, features[0], slot.degree, features[1], features[2])
+                degree_in = None if form_kind else slot.degree
+                rendered = _apply_class_agreement(working_language, entry, features[0], degree_in, features[1], features[2])
             elif (
                 pos is PartOfSpeech.NUMERAL
                 and slot.pos == "numeral"
@@ -1430,8 +1579,10 @@ def _render_plan(
                 rendered = _apply_case(
                     working_language,
                     entry,
-                    "genitive" if slot.possessive and possession == "genitive" else slot.case,
-                    _effective_number(working_language, slots, slot_index) if is_noun else None,
+                    "genitive" if marks_possession and possession == "genitive" else slot.case,
+                    None if form_kind == "plural" else (
+                        _effective_number(working_language, slots, slot_index) if is_noun else None
+                    ),
                     possessed_pending and is_noun,
                     possessor_person_pending if is_noun else None,
                 )
@@ -1453,7 +1604,7 @@ def _render_plan(
                 (entry.romanization, entry.ipa)
                 if names.resolve_foreign_names(working_language) == "keep"
                 else _apply_case(
-                    working_language, entry, "genitive" if slot.possessive and possession == "genitive" else slot.case
+                    working_language, entry, "genitive" if marks_possession and possession == "genitive" else slot.case
                 )
             )
         elif slot.kind == "copula":
@@ -1546,7 +1697,7 @@ def _render_plan(
                 romanization_parts.append(aux_entry.romanization)
                 ipa_parts.append(aux_entry.ipa)
                 gloss_parts.append(aux_entry.primary_gloss)
-            if slot.possessive and slot.kind in ("content", "name"):
+            if marks_possession and slot.kind in ("content", "name"):
                 if possession == "particle" and _possessive_particle(working_language) is not None:
                     particle_rom, particle_ipa = _possessive_particle(working_language)
                     romanization_parts.append(particle_rom)
@@ -1946,6 +2097,13 @@ def _english_verb_phrase(
         return f"was {participle}" if tense_label == "past" else f"is {participle}"
     if voice_label == "causative":
         return f"made {gloss}" if tense_label == "past" else f"makes {gloss}"
+    if voice_label == "middle":
+        participle = _PARTICIPLE_BY_LEMMA.get(gloss) or _PAST_FORM_BY_LEMMA.get(gloss, gloss + "ed")
+        return f"got {participle}" if tense_label == "past" else f"gets {participle}"
+    if voice_label == "applicative":
+        return f"{gloss} for"
+    if voice_label == "impersonal":
+        return f"one {gloss}s"
     if voice_label == "reflexive":
         return f"{gloss} oneself"
     if voice_label == "reciprocal":
@@ -2118,6 +2276,12 @@ def translate_to_english(
                 plain.append(pronoun_gen.suppletive_reading(base, case_name))
                 annotated.append(f"{pronoun_gen.english_reading(base)} (case: {case_name})")
                 continue
+            irregular_form = voice_np_gen.suppletive_split(gloss)
+            if irregular_form is not None:
+                reading = voice_np_gen.suppletive_reading(*irregular_form)
+                plain.append(reading)
+                annotated.append(reading)
+                continue
             person = pronoun_gen.person_label(gloss)
             if person is not None:
                 seen_persons.add(person)
@@ -2129,14 +2293,25 @@ def translate_to_english(
         if noun_decoded is not None:
             noun_entry, case_label = noun_decoded
             parts = [] if case_label == "unmarked" else case_label.split("+")
-            number_part = next((p for p in parts if p in ("plural", "dual")), None)
+            number_part = next((p for p in parts if p in sentence_planner.NUMBER_LABELS), None)
             case_part = next(
-                (p for p in parts if p not in ("plural", "dual", "possessed") and not p.startswith("poss:")), None
+                (
+                    p for p in parts
+                    if p not in (*sentence_planner.NUMBER_LABELS, "possessed") and not p.startswith("poss:")
+                ),
+                None,
             )
             is_possessed = "possessed" in parts
             possessor_part = next((p[5:] for p in parts if p.startswith("poss:")), None)
             noun_gloss = pronoun_gen.english_reading(noun_entry.primary_gloss)
-            plain.append(noun_gloss + ("s" if number_part else ""))
+            irregular = voice_np_gen.suppletive_split(noun_entry.primary_gloss)
+            if irregular is not None and irregular[1] == "plural":
+                noun_gloss = voice_np_gen.suppletive_reading(*irregular)
+                number_part = number_part or "plural"
+            noun_plain = noun_gloss + ("s" if number_part and irregular is None else "")
+            noun_plain = {"trial": f"three {noun_plain}", "collective": f"group of {noun_plain}"}.get(number_part, noun_plain)
+            noun_plain = {"locative": f"in {noun_plain}", "instrumental": f"with {noun_plain}"}.get(case_part, noun_plain)
+            plain.append(noun_plain)
             notes = (
                 ([number_part] if number_part else [])
                 + (["possessed"] if is_possessed else [])
@@ -2161,6 +2336,12 @@ def translate_to_english(
             if adjective_entry.primary_gloss.startswith(classifier_gen.POSSESSIVE_CLASSIFIER_GLOSS_PREFIX):
                 continue
             gloss = pronoun_gen.english_reading(adjective_entry.primary_gloss)
+            irregular_degree = voice_np_gen.suppletive_split(adjective_entry.primary_gloss)
+            if irregular_degree is not None and irregular_degree[1] in ("comparative", "superlative"):
+                reading = voice_np_gen.suppletive_reading(*irregular_degree)
+                plain.append(reading)
+                annotated.append(reading)
+                continue
             plain.append(
                 f"more {gloss}" if degree_label == "comparative" else f"most {gloss}" if degree_label == "superlative" else gloss
             )
@@ -2250,12 +2431,13 @@ def translate_to_english(
             "You turn an annotated rough English gloss sequence from a "
             "constructed-language translation into one natural, fluent "
             "English sentence. Each word is its English gloss, optionally "
-            "annotated with '(plural)'/'(dual)' (render the noun plural or with 'two'), "
+            "annotated with '(plural)'/'(dual)' (render the noun plural or with 'two'), '(trial)' (three of them) "
+            "or '(collective)' (a group of them), "
             "'(possessed)' (owned by the preceding word), 'of' (a possessive marker between an "
             "owner and the thing owned), '(mood: imperative)' "
             "(a command), '(case: X)' (this word's grammatical role -- "
             "e.g. an accusative/absolutive/ergative-marked word is "
-            "typically a direct object) or '(tense: X)', '(aspect: X)', '(mood: X)' or '(voice: X)' (a verb's "
+            "typically a direct object; locative means 'in/on/at' the word, instrumental 'with/by' it) or '(tense: X)', '(aspect: X)', '(mood: X)' or '(voice: X)' (a verb's "
             "detected tense, aspect, verbal mood or voice -- render them as the matching English "
             "tense, progressive/perfect/habitual aspect, would/can/might, or a passive (the patient "
             "is the subject, the agent follows 'by'), antipassive (no object) or causative (make X do)). "

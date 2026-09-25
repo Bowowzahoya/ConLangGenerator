@@ -16,6 +16,7 @@ from conlang_generator.generation import (
     classifier_gen,
     lexicon_gen,
     noun_class_gen,
+    voice_np_gen,
     noun_phrase_gen,
     real_words,
     phonology_gen,
@@ -389,6 +390,40 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "auxiliary_position": followups["auxiliary_position"],
         }
     )
+    # Voice and noun-phrase follow-ups: one more independent stream.
+    vnp_rng = random.Random(f"{spec.seed}:voice-np-followups")
+    vnp = voice_np_gen.roll_followups(vnp_rng, grammar)
+    vnp_taken = frozenset(
+        affix.suffix
+        for name in (*inflection_gen._VERB_SUFFIX_FIELDS, *inflection_gen._NOUN_SUFFIX_FIELDS)
+        for affix in getattr(grammar, name)
+    )
+    vnp_voice_affixes = inflection_gen.distinct_suffixes(
+        vnp_rng, inventory, syllable_structure, tuple(vnp["voices"]), vnp_taken
+    )
+    vnp_number_affixes = inflection_gen.distinct_suffixes(
+        vnp_rng, inventory, syllable_structure, tuple(vnp["numbers"]), vnp_taken | {a.suffix for a in vnp_voice_affixes}
+    )
+    vnp_case_affixes = inflection_gen.distinct_suffixes(
+        vnp_rng, inventory, syllable_structure, tuple(vnp["cases"]),
+        vnp_taken | {a.suffix for a in (*vnp_voice_affixes, *vnp_number_affixes)},
+    )
+    grammar = grammar.model_copy(
+        update={
+            "voices": grammar.voices + tuple(vnp["voices"]),
+            "voice_affixes": grammar.voice_affixes + vnp_voice_affixes,
+            "number_affixes": grammar.number_affixes + vnp_number_affixes,
+            "cases": grammar.cases + tuple(vnp["cases"]),
+            "case_affixes": grammar.case_affixes + vnp_case_affixes,
+            "passive_agreement": vnp["passive_agreement"],
+            "passive_agent": vnp["passive_agent"],
+            "adposition_case_strategy": vnp["adposition_case_strategy"],
+            "suppletive_plurals": vnp["suppletive_plurals"],
+            "suppletive_degrees": vnp["suppletive_degrees"],
+            "inalienable_possession": vnp["inalienable_possession"],
+        }
+    )
+
     seed_entries = tuple(
         LexicalEntry(
             ipa=example.ipa,

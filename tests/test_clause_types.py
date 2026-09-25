@@ -74,7 +74,7 @@ def test_parse_still_accepts_a_bare_array_and_defaults_the_mood():
 
 def test_parse_ignores_an_unknown_mood_or_number():
     plan = sentence_planner._parse(
-        '{"mood": "shouting", "slots": [{"kind": "content", "gloss": "dog", "pos": "noun", "number": "trial"}]}'
+        '{"mood": "shouting", "slots": [{"kind": "content", "gloss": "dog", "pos": "noun", "number": "septal"}]}'
     )
     assert plan is not None
     assert plan.mood == "declarative"

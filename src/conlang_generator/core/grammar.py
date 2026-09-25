@@ -519,6 +519,23 @@ class GrammarProfile(BaseModel, frozen=True):
     auxiliary_position: str = "before"
     """``"before"`` or ``"after"`` the main verb."""
 
+    passive_agreement: str = "patient"
+    """``"patient"`` (the passive verb agrees with its subject, the patient) or
+    ``"none"`` (it takes the default agreement)."""
+    passive_agent: str = "word"
+    """The passive agent is marked with a ``"word"`` ("by") or, when the language
+    has an instrumental case, ``"case"``."""
+    adposition_case_strategy: str = "none"
+    """``"none"``; ``"governs"`` (an adposition stays and its noun takes the case
+    it corresponds to); ``"case_only"`` (a locative/instrumental case replaces
+    its adposition altogether, the rest govern)."""
+    suppletive_plurals: tuple[str, ...] = ()
+    """Nouns whose plural is a separate word (``child-plural``)."""
+    suppletive_degrees: tuple[str, ...] = ()
+    """Adjectives whose comparative/superlative are separate words."""
+    inalienable_possession: bool = False
+    """Body parts and kin are possessed without the possessive marking."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their
