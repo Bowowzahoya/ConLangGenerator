@@ -183,7 +183,7 @@ def _fake_group_noun_phrases(raw_tokens: list[str]) -> tuple[list[str], dict[str
             elif (
                 word in _FAKE_ADJECTIVES and j + 1 < len(raw_tokens)
                 and (raw_tokens[j + 1] in _FAKE_ADJECTIVES or raw_tokens[j + 1] not in _FAKE_NOT_A_NOUN)
-                and not _fake_is_adverb(raw_tokens[j + 1]) and raw_tokens[j + 1] not in ("than", "and")
+                and not _fake_is_adverb(raw_tokens[j + 1]) and raw_tokens[j + 1] not in ("than", "and", "as", "too", "very")
             ):
                 mods.setdefault("adjectives", []).append(word)
             else:
@@ -499,6 +499,10 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         tokens, tenses, has_overt_copula, comparative_strategy, comparative_case, comparative_marking,
         superlative_marking, postpositional, word_order, alignment, noun_phrase, base_of, noun_classes,
         name_by_placeholder,
+        {
+            "equative": metadata.get("equative_marking", "word"), "excessive": metadata.get("excessive_marking", "word"),
+            "elative": metadata.get("elative_marking", "word"),
+        },
     )
     voice_slots = None if (existence_slots is not None or degree_slots is not None) else _fake_voice_slots(
         tokens, metadata, voices, postpositional, word_order, alignment, tenses, noun_phrase, base_of,
@@ -713,6 +717,10 @@ def _fake_existence_slots(
 
 
 _FAKE_KNOWN_ADJECTIVES = {
+    "green", "red", "blue", "white", "black", "yellow", "brown", "grey", "sweet", "bitter", "sour", "soft", "hard",
+    "smooth", "rough", "sharp", "dull", "bright", "dry", "wet", "full", "empty", "safe", "dangerous", "easy",
+    "difficult", "kind", "cruel", "proud", "humble", "smart", "foolish", "sick", "healthy", "tired", "hungry",
+    "angry", "calm", "sad", "fresh", "ripe", "early", "late", "close", "steep", "flat", "round", "sacred",
     "big", "small", "high", "low", "long", "short", "old", "new", "young", "good", "bad", "large", "tall", "wide",
     "narrow", "strong", "weak", "fast", "slow", "hot", "cold", "heavy", "light", "beautiful", "happy", "dark", "deep",
     "thick", "thin", "rich", "poor", "clean", "dirty", "near", "far", "wise", "brave", "quiet", "loud",
@@ -749,7 +757,7 @@ def _fake_degree_of(token: str) -> tuple[str, str] | None:
 
 def _fake_degree_slots(
     tokens, tenses, has_overt_copula, strategy, comparative_case, comparative_marking, superlative_marking,
-    postpositional, word_order, alignment, noun_phrase, base_of, noun_classes, name_by_placeholder,
+    postpositional, word_order, alignment, noun_phrase, base_of, noun_classes, name_by_placeholder, marks=None,
 ):
     """Plans "X is bigger/more beautiful than Y", "X is more beautiful" and
     "X is the biggest/most beautiful" as ``subject + copula + adjective
@@ -764,10 +772,19 @@ def _fake_degree_slots(
     rest = [t for t in rest if t != "not"]
     if not rest:
         return None
+    marks = marks or {}
     standard_tok = None
     degree = None
     lemma = None
-    if "than" in rest:
+    if len(rest) == 4 and rest[0] == "as" and rest[2] == "as" and rest[1] in _FAKE_KNOWN_ADJECTIVES:
+        lemma, degree, standard_tok = rest[1], "equative", rest[3]
+    elif len(rest) == 2 and rest[0] == "too" and rest[1] in _FAKE_KNOWN_ADJECTIVES:
+        lemma, degree = rest[1], "excessive"
+    elif (
+        len(rest) == 2 and rest[0] == "very" and rest[1] in _FAKE_KNOWN_ADJECTIVES and marks.get("elative") == "affix"
+    ):
+        lemma, degree = rest[1], "elative"
+    elif "than" in rest:
         than_index = rest.index("than")
         if than_index == 0 or than_index + 1 >= len(rest):
             return None
@@ -788,7 +805,13 @@ def _fake_degree_slots(
         return None
     order = _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O"))
     tense_label = _fake_tense_label("past" if tokens[copula_index] in _FAKE_PAST_COPULAS else "non_past", tenses)
-    marking = comparative_marking if degree == "comparative" else superlative_marking
+    marking = {
+        "comparative": comparative_marking, "superlative": superlative_marking,
+        "equative": marks.get("equative", "word"), "excessive": marks.get("excessive", "word"),
+        "elative": marks.get("elative", "affix"),
+    }[degree]
+    if degree == "equative" and strategy == "exceed":
+        strategy = "particle"  # no verb "exceed" for an equality
     subject_np = noun_phrase(subject_tok, None)
     subject_is_noun = subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder
 
@@ -800,7 +823,10 @@ def _fake_degree_slots(
         adjective["degree"] = degree
     else:
         adjective_group.append(
-            {"kind": "content", "gloss": "more" if degree == "comparative" else "most", "pos": "adverb"}
+            {
+                "kind": "content", "pos": "adverb",
+                "gloss": {"comparative": "more", "superlative": "most", "equative": "as", "excessive": "too", "elative": "very"}[degree],
+            }
         )
     adjective_group.append(adjective)
 
@@ -828,7 +854,7 @@ def _fake_degree_slots(
             standard_np = noun_phrase(standard_tok, object_case)
             standard_phrase = standard_np + verb if order.index("O") < order.index("V") else verb + standard_np
         else:
-            than = [{"kind": "content", "gloss": "than", "pos": "preposition"}]
+            than = [{"kind": "content", "gloss": "as" if degree == "equative" else "than", "pos": "preposition"}]
             standard_np = noun_phrase(standard_tok, None)
             standard_phrase = standard_np + than if postpositional else than + standard_np
     return subject_np + be + adjective_group + standard_phrase
@@ -1082,6 +1108,9 @@ def _fake_plan_dict(prompt: str, metadata: dict[str, str]) -> dict:
     on the remainder, so several clauses nest. The nested clause is placed
     after the main clause's own slots whatever the word order (the fake does
     not model where a real language would put it)."""
+    the_more = re.match(r"\s*the more\s+(.+?)\s*,\s*the more\s+(.+?)\s*([.!?]?)\s*$", prompt, re.IGNORECASE)
+    if the_more:
+        return _fake_the_more_plan(the_more, metadata)
     words = list(re.finditer(r"[A-Za-z']+", prompt))
     for index, match in enumerate(words):
         word = match.group(0).lower()
@@ -1118,6 +1147,25 @@ def _fake_plan_dict(prompt: str, metadata: dict[str, str]) -> dict:
             clause_slot["role"] = "adverbial"
         return {"mood": main_plan["mood"], "slots": main_plan["slots"] + [clause_slot]}
     return _fake_single_clause_plan(prompt, metadata)
+
+
+def _fake_the_more_plan(match, metadata: dict[str, str]) -> dict:
+    """"The more you read, the more you learn": two parallel parts -- the second
+    is the main clause, the first an adverbial clause "the-more" -- each with the
+    adverb "more" right before its verb."""
+    def with_more(text: str) -> dict:
+        plan = _fake_plan_dict(text, metadata)
+        slots = list(plan["slots"])
+        _fake_ensure_verb(slots, [t for t in metadata.get("tenses", "").split(",") if t])
+        at = next((i for i, slot in enumerate(slots) if slot.get("pos") == "verb"), len(slots))
+        slots.insert(at, {"kind": "content", "gloss": "more", "pos": "adverb"})
+        return {"mood": plan["mood"], "slots": slots}
+
+    terminal = match.group(3) or "."
+    nested = with_more(match.group(1) + ".")
+    main = with_more(match.group(2) + terminal)
+    clause = {"kind": "clause", "gloss": "the-more", "role": "adverbial", "clause": {"slots": nested["slots"]}}
+    return {"mood": main["mood"], "slots": main["slots"] + [clause]}
 
 
 def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:

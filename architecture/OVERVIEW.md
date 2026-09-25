@@ -4713,3 +4713,17 @@ reading code or one-off ad hoc scripts.
   tokenizer and romanization lookup with the plain algorithms, sweeps encode -> decode over 40 languages and bounds an
   unknown token's decode time.
 
+- **Comparison follow-ups (grammar pass 21).** `generation/comparison_gen.py` (`roll_followups`, own
+  `{seed}:comparison-followups` stream, run once the cases are final): `equative_marking`, `excessive_marking`,
+  `elative_marking` (`affix`/`word`, an affix adding a `degree_affixes` label), `adverb_degree`, and a re-decided standard
+  (`comparative_strategy`/`comparative_case`: any of ablative, locative, dative, genitive the language has, and a 25%
+  chance for a language with such a case to switch to a case standard). `DEGREE_LABELS`, `DEGREE_WORDS` and
+  `DEGREE_READING` list the five degrees. Planner: `degree` accepts all five; the prompt describes each, the equative's
+  standard ("as" preposition or the case) and adverbs; the fake planner plans "as big as", "too big", "very big" (an elative
+  suffix language), a longer adjective list and "The more X, the more Y" (`_fake_the_more_plan`: the second part is the main
+  clause, the first a `the-more` adverbial clause, each with the adverb "more"). Renderer: an adverb takes a degree suffix
+  when `adverb_degree` (`_agreement_category` gives adverb-like particles the category `adverb`, degree suffix only);
+  `_arrange_adpositions` leaves "as" where the planner put it (like "than"). Decoding: the degree reads back through
+  `DEGREE_READING` ("as big as", "too big", "very big"), and the case-marked standard reads "than"/"as" instead of "in" when
+  it follows a comparison. `inflection_gen.resolve_collisions` now takes the romanization so two suffixes spelled alike
+  (`i` and `ɪ`) are treated as colliding (generation and evolution). 16 tests in `test_comparison_followups.py`.

@@ -570,6 +570,15 @@ class GrammarProfile(BaseModel, frozen=True):
     demonstrative_doubling: bool = False
     """A demonstrative also takes the definite article ("the this dog")."""
 
+    equative_marking: str = "word"
+    """"as big as": a suffix on the adjective (``affix``) or the adverb "as" (``word``)."""
+    excessive_marking: str = "word"
+    """"too big": a suffix (``affix``) or the adverb "too" (``word``)."""
+    elative_marking: str = "word"
+    """"very big": a suffix (``affix``) or the adverb "very" (``word``)."""
+    adverb_degree: bool = False
+    """An adverb takes a degree suffix too ("more quickly") where the language has one."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their

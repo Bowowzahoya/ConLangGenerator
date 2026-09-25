@@ -18,7 +18,15 @@ _SEED = 83
 
 
 def _language():
-    return generate_language("T", GenerationSpec(prompt="p", seed=_SEED), FakeLLMClient())
+    language = generate_language("T", GenerationSpec(prompt="p", seed=_SEED), FakeLLMClient())
+    # "very" as a word (an elative suffix language would mark the adjective instead)
+    grammar = language.grammar.model_copy(
+        update={
+            "elative_marking": "word",
+            "degree_affixes": tuple(a for a in language.grammar.degree_affixes if a.label != "elative"),
+        }
+    )
+    return language.model_copy(update={"grammar": grammar})
 
 
 def test_fake_planner_keeps_a_degree_adverb_as_its_own_slot_before_the_adjective():

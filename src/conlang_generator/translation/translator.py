@@ -69,6 +69,7 @@ from conlang_generator.generation import (
     pronoun_gen,
     stress_gen,
     subordination_gen,
+    comparison_gen,
     np_followups_gen,
     tone_sandhi,
     voice_np_gen,
@@ -665,6 +666,12 @@ def _agreement_labels(grammar: GrammarProfile) -> tuple[str, ...]:
 _OBJECT_PERSON_BY_GLOSS = pronoun_gen.PERSON_BY_GLOSS
 
 
+def grammar_now_case(language: Language) -> str | None:
+    """The case that marks the standard of a comparison, or ``None``."""
+    grammar = language.grammar
+    return grammar.comparative_case if grammar.comparative_strategy == "case" and grammar.comparative_case else None
+
+
 def _class_gloss(gloss: str) -> str:
     """A suppletive plural (``child-plural``) belongs to its singular's class."""
     split = voice_np_gen.suppletive_split(gloss)
@@ -870,10 +877,15 @@ def _agreement_options(grammar: GrammarProfile, category: str):
     return class_options, number_options, case_options
 
 
+_FUNCTION_PARTICLES = frozenset({"the", "a", "not", "and", "of", "than", "as", "rel"})
+
+
 def _agreement_category(entry: LexicalEntry) -> str | None:
     """The agreement category of a lexicon word (``None`` if it does not agree)."""
     if entry.pos is PartOfSpeech.ADJECTIVE:
         return "adjective"
+    if entry.pos is PartOfSpeech.PARTICLE and "-" not in entry.primary_gloss and entry.primary_gloss not in _FUNCTION_PARTICLES:
+        return "adverb"  # an adverb word: it only ever carries a degree suffix
     if entry.primary_gloss in ("this", "that", "this-article", "that-article"):
         return "demonstrative"
     if entry.primary_gloss == np_followups_gen.SPECIFIC_ARTICLE_GLOSS:
@@ -1314,7 +1326,7 @@ def _arrange_adpositions(language: Language, slots) -> tuple:
             i += 1
             continue
         gloss = slot.gloss.strip().lower()
-        if gloss == "than":
+        if gloss in ("than", "as"):
             i += 1
             continue
         forward = not grammar.postpositional
@@ -1769,6 +1781,11 @@ def _render_plan(
                 degree_in = None if form_kind else slot.degree
                 rendered = _apply_class_agreement(working_language, entry, features[0], degree_in, features[1], features[2])
             elif (
+                slot.pos == "adverb" and slot.degree and working_language.grammar.adverb_degree
+                and any(a.label == slot.degree for a in working_language.grammar.degree_affixes)
+            ):
+                rendered = _apply_class_agreement(working_language, entry, None, slot.degree)
+            elif (
                 pos is PartOfSpeech.NUMERAL
                 and slot.pos == "numeral"
                 and any(_agreement_features(working_language, slots, slot_index, "numeral"))
@@ -2058,7 +2075,7 @@ def _decode_adjective_full(language: Language, token: str) -> tuple[LexicalEntry
             (
                 (c, d, n, k)
                 for c in class_options
-                for d in (degree_options if category == "adjective" else [None])
+                for d in (degree_options if category in ("adjective", "adverb") else [None])
                 for n in number_options
                 for k in case_options
                 if c is not None or d is not None or n is not None or k is not None
@@ -2561,7 +2578,13 @@ def translate_to_english(
             noun_plain = noun_gloss + ("s" if number_part and irregular is None else "")
             noun_plain = {"trial": f"three {noun_plain}", "collective": f"group of {noun_plain}"}.get(number_part, noun_plain)
             if case_part in voice_np_gen.CASE_PREPOSITION:
-                noun_plain = f"{voice_np_gen.CASE_PREPOSITION[case_part]} {noun_plain}"
+                standard_word = None
+                if grammar_now_case(language) == case_part:  # the standard of a comparison
+                    if any(p.startswith("as ") and p.endswith(" as") for p in plain):
+                        standard_word = "as"
+                    elif any(p == "more" or p.startswith("more ") or p.startswith("most ") for p in plain):
+                        standard_word = "than"
+                noun_plain = f"{standard_word or voice_np_gen.CASE_PREPOSITION[case_part]} {noun_plain}"
             plain.append(noun_plain)
             notes = (
                 ([number_part] if number_part else [])
@@ -2593,9 +2616,7 @@ def translate_to_english(
                 plain.append(reading)
                 annotated.append(reading)
                 continue
-            plain.append(
-                f"more {gloss}" if degree_label == "comparative" else f"most {gloss}" if degree_label == "superlative" else gloss
-            )
+            plain.append(comparison_gen.DEGREE_READING.get(degree_label or "", "{}").format(gloss))
             annotated.append(gloss if degree_label is None else f"{gloss} ({degree_label})")
             continue
         host_labels = auxiliary_labels.get(token_index, [])
@@ -2700,6 +2721,8 @@ def translate_to_english(
             "detected tense, aspect, verbal mood or voice -- render them as the matching English "
             "tense, progressive/perfect/habitual aspect, would/can/might, or a passive (the patient "
             "is the subject, the agent follows 'by'), antipassive (no object) or causative (make X do)). "
+            "A '(comparative)', '(superlative)', '(equative)' (as X as), '(excessive)' (too X) or '(elative)' (very X) "
+            "on an adjective or adverb is its degree. "
             "An '(evidential: X)' marks the source of the information "
             "(reportedly, apparently, or first-hand) and '(negative)' means the verb is negated. "
             "Keep the meaning and the word order's implied roles; do not "

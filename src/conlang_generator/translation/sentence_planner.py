@@ -26,7 +26,7 @@ import re
 from dataclasses import dataclass
 
 from conlang_generator.core.language import Language
-from conlang_generator.generation import pronoun_gen, subordination_gen
+from conlang_generator.generation import comparison_gen, pronoun_gen, subordination_gen
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
@@ -264,6 +264,24 @@ def _build_system_prompt(language: Language) -> str:
         'set "degree":"comparative" on the adjective slot (this language has a comparative suffix)'
         if grammar.comparative_marking == "affix"
         else 'put a content slot with gloss "more" and pos "adverb" directly before the adjective'
+    )
+    def _degree_desc(label: str, marking: str) -> str:
+        if marking == "affix":
+            return f'set "degree":"{label}" on the adjective slot (this language has a {label} suffix)'
+        return f'put a content slot with gloss "{comparison_gen.DEGREE_WORDS[label]}" and pos "adverb" directly before the adjective'
+
+    equative_desc = _degree_desc("equative", grammar.equative_marking)
+    excessive_desc = _degree_desc("excessive", grammar.excessive_marking)
+    elative_desc = _degree_desc("elative", grammar.elative_marking)
+    equative_standard_desc = (
+        f'the standard takes the "{grammar.comparative_case}" case'
+        if grammar.comparative_strategy == "case" and grammar.comparative_case
+        else 'a content slot with gloss "as" and pos "preposition" with the standard noun phrase (placed per the adposition order)'
+    )
+    adverb_degree_desc = (
+        'set the same "degree" on an adverb slot ("more quickly": degree "comparative")'
+        if grammar.adverb_degree and grammar.degree_affixes
+        else 'put the adverb "more" directly before it ("more quickly")'
     )
     superlative_desc = (
         'set "degree":"superlative" on the adjective slot (this language has a superlative suffix)'
@@ -525,7 +543,11 @@ possessor); {reach_desc}. {declension_desc}.
 adjective: {comparative_desc}; the standard of comparison (Y): \
 {standard_desc}. The superlative ("the biggest", "most beautiful"): \
 {superlative_desc}. Never write the English "-er"/"-est" forms as the gloss: \
-the gloss is the plain adjective lemma ("big").
+the gloss is the plain adjective lemma ("big"). Equatives ("as big as Y"): \
+{equative_desc}, then the standard: {equative_standard_desc}. "Too big": \
+{excessive_desc}. "Very big": {elative_desc}. An adverb: {adverb_degree_desc}; \
+"more water" (more of a noun) is a content slot with gloss "more" and pos \
+"quantifier" before the noun.
 - existential sentences ("there is/are X", "is there X?"): {existential_desc}. \
 Never write a slot for the English "there".
 - possession clauses ("I have a dog", "the man had two horses"): \
@@ -749,6 +771,9 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "comparative_case": grammar.comparative_case,
             "comparative_marking": grammar.comparative_marking,
             "superlative_marking": grammar.superlative_marking,
+            "equative_marking": grammar.equative_marking,
+            "excessive_marking": grammar.excessive_marking,
+            "elative_marking": grammar.elative_marking,
             "existential": grammar.existential,
             "possession_clause": grammar.possession_clause,
             "cases": ",".join(grammar.cases),
@@ -870,7 +895,7 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                 verb_form=_coerce_optional_str(item.get("verb_form")),
                 subject_number="plural" if item.get("subject_number") == "plural" else None,
                 polite=item.get("polite") is True,
-                degree=item.get("degree") if item.get("degree") in ("comparative", "superlative") else None,
+                degree=item.get("degree") if item.get("degree") in comparison_gen.DEGREE_LABELS else None,
                 agrees_with=_lemma(item.get("agrees_with")),
                 subject_gloss=_lemma(item.get("subject_gloss")),
                 classifier_for=_lemma(item.get("classifier_for")),

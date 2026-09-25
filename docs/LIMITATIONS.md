@@ -127,6 +127,10 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   comitative cases join languages whose adposition strategy uses cases; an attributive demonstrative may
   be a reduced clitic (`this-article`) and may be doubled with the definite article; the specific
   article agrees like the other articles.
+- **Degrees are illustrative**: comparative, superlative, equative ("as big as"), excessive ("too big") and
+  elative ("very big") are each a suffix or an adverb word, rolled per language; the standard of a comparison is
+  "than", a case (ablative, locative, dative or genitive), or the verb "exceed" (an equative always uses "as" or the case).
+  Adverbs take a degree suffix only in some languages; "more" of a noun is just the word "more".
 - **Noun-phrase features are illustrative**: the dual is one extra suffix; the
   possessive particle, possessed-noun suffix and genitive are the only
   possession strategies (no alienable/inalienable split, no agreement with the

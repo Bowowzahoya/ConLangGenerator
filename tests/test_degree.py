@@ -62,7 +62,10 @@ def test_comparison_strategies_and_markings_are_all_rolled():
             assert g.comparative_case == ""
         wanted = [
             label
-            for label, marking in (("comparative", g.comparative_marking), ("superlative", g.superlative_marking))
+            for label, marking in (
+                ("comparative", g.comparative_marking), ("superlative", g.superlative_marking),
+                ("equative", g.equative_marking), ("excessive", g.excessive_marking), ("elative", g.elative_marking),
+            )
             if marking == "affix"
         ]
         assert [a.label for a in g.degree_affixes] == wanted
@@ -82,7 +85,7 @@ def test_grammar_defaults_keep_old_saved_languages_valid():
 def test_parse_reads_the_degree_and_ignores_an_unknown_one():
     plan = sentence_planner._parse(
         '[{"kind": "content", "gloss": "big", "pos": "adjective", "degree": "comparative"},'
-        ' {"kind": "content", "gloss": "big", "pos": "adjective", "degree": "equative"}]'
+        ' {"kind": "content", "gloss": "big", "pos": "adjective", "degree": "epic"}]'
     )
     assert plan is not None
     assert plan.slots[0].degree == "comparative" and plan.slots[1].degree is None

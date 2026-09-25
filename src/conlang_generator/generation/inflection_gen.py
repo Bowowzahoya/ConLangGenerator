@@ -353,15 +353,22 @@ _NOUN_SUFFIX_FIELDS = (
 _MODIFIER_SUFFIX_FIELDS = ("class_affixes", "degree_affixes")
 
 
-def resolve_collisions(rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure, grammar):
+def resolve_collisions(
+    rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure, grammar, romanization=None
+):
     """Re-draws any suffix that spells the same as an earlier one that can
     occur on the same kind of word (verb, noun, adjective), so no two labels
     of a paradigm collapse into one form. The first occurrence keeps its
     suffix, so only actual collisions change; when the short suffix shapes are
-    used up a longer one is drawn."""
+    used up a longer one is drawn. With ``romanization``, two suffixes spelled
+    alike (a different phoneme with the same letter) count as colliding."""
+
+    def spelled(suffix: tuple[str, ...]):
+        return romanization.apply("".join(suffix)).lower() if romanization is not None else suffix
+
     updates: dict[str, tuple] = {}
     for fields in (_VERB_SUFFIX_FIELDS, _NOUN_SUFFIX_FIELDS, _MODIFIER_SUFFIX_FIELDS):
-        used: set[tuple[str, ...]] = set()
+        used: set = set()
         for name in fields:
             affixes = getattr(grammar, name, ())
             changed = False
@@ -371,16 +378,16 @@ def resolve_collisions(rng: random.Random, inventory: PhonemeInventory, structur
                     fixed.append(affix)
                     continue
                 suffix = affix.suffix
-                if suffix in used:
-                    for attempt in range(60):
+                if spelled(suffix) in used:
+                    for attempt in range(120):
                         suffix = word_builder.build_class_suffix(rng, inventory, structure)
-                        if attempt >= 30:  # the short shapes are used up: allow a longer suffix
+                        for _ in range(attempt // 30):  # the short shapes are used up: allow a longer suffix
                             suffix = suffix + word_builder.build_class_suffix(rng, inventory, structure)
-                        if suffix not in used:
+                        if spelled(suffix) not in used:
                             break
                     affix = affix.model_copy(update={"suffix": suffix})
                     changed = True
-                used.add(suffix)
+                used.add(spelled(suffix))
                 fixed.append(affix)
             if changed:
                 updates[name] = tuple(fixed)

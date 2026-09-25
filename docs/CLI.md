@@ -1104,3 +1104,21 @@ conlang translate "I see this dog." --lang t35 --to conlang --llm fake
 In `t34` the verb of "I saw the river" is `saisasu-ach`, a word of its own for the past of "see", against
 `skutusbusu-ach` for the present, and it reads back as `saw`. In `t35` "this" is `toh` on its own but the
 reduced `oh` beside a noun.
+
+**Comparison follow-ups.** Per language: the equative ("as big as"), excessive ("too big") and elative
+("very big") are each a suffix or an adverb; the standard of a comparison may take an ablative or locative (or
+dative/genitive) case instead of "than"; some languages also put a degree suffix on adverbs; and "the more...,
+the more..." is written as two parallel parts. Verified with `--llm fake`: `--seed 2 --prompt p` as `t36` (all
+five degrees are suffixes; dative standard) and `--seed 3` as `t37` (adverbs for every degree; locative standard):
+
+```bash
+conlang translate "The dog is as big as the cat." --lang t36 --to conlang --llm fake
+conlang translate "The dog is too big." --lang t36 --to conlang --llm fake
+conlang translate "The dog is very big." --lang t36 --to conlang --llm fake
+conlang translate "The dog is bigger than the cat." --lang t37 --to conlang --llm fake
+conlang translate "The more you read, the more you learn." --lang t37 --to conlang --llm fake
+```
+
+In `t36` "big" is `mbnaèi` and becomes `mbnaèeia` (as big as), `mbnaèeui` (too big) and `mbnaèaii` (very big);
+the equative's standard is `sīoi knaỉa`, "the cat" in the dative. In `t37` the standard `chami-ue` carries the
+locative and reads back as `than cat`.

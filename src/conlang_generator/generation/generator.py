@@ -19,6 +19,7 @@ from conlang_generator.generation import (
     noun_class_gen,
     voice_np_gen,
     np_followups_gen,
+    comparison_gen,
     noun_phrase_gen,
     real_words,
     phonology_gen,
@@ -625,9 +626,40 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         }
     )
 
+    # Comparison follow-ups (own stream), once the cases are final.
+    cmp_rng = random.Random(f"{spec.seed}:comparison-followups")
+    cmp = comparison_gen.roll_followups(cmp_rng, grammar)
+    cmp_labels = tuple(
+        label
+        for label, marking in (
+            ("equative", cmp["equative_marking"]), ("excessive", cmp["excessive_marking"]),
+            ("elative", cmp["elative_marking"]),
+        )
+        if marking == "affix"
+    )
+    cmp_taken = frozenset(
+        affix.suffix
+        for name in (*inflection_gen._MODIFIER_SUFFIX_FIELDS, *inflection_gen._NOUN_SUFFIX_FIELDS)
+        for affix in getattr(grammar, name)
+    )
+    grammar = grammar.model_copy(
+        update={
+            "comparative_strategy": cmp["comparative_strategy"],
+            "comparative_case": cmp["comparative_case"],
+            "equative_marking": cmp["equative_marking"],
+            "excessive_marking": cmp["excessive_marking"],
+            "elative_marking": cmp["elative_marking"],
+            "adverb_degree": cmp["adverb_degree"],
+            "degree_affixes": grammar.degree_affixes
+            + inflection_gen.distinct_suffixes(
+                cmp_rng, inventory, syllable_structure, cmp_labels, cmp_taken | {a.suffix for a in grammar.degree_affixes}
+            ),
+        }
+    )
+
     # Last, once every inflectional affix exists: no two labels of a paradigm may spell alike.
     grammar = inflection_gen.resolve_collisions(
-        random.Random(f"{spec.seed}:distinct-suffixes"), inventory, syllable_structure, grammar
+        random.Random(f"{spec.seed}:distinct-suffixes"), inventory, syllable_structure, grammar, romanization
     )
 
     return Language(

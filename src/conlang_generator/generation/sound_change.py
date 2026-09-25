@@ -1253,7 +1253,7 @@ def _coin_borrowed_word(
 
 
 def _evolve_grammar_affixes(
-    grammar, seed: int, rates, known_symbols, consonant_by_ipa, vowel_by_ipa, inventory, structure
+    grammar, seed: int, rates, known_symbols, consonant_by_ipa, vowel_by_ipa, inventory, structure, romanization=None
 ):
     """Runs the language's sound changes over every inflectional affix (case,
     tense, agreement, aspect, mood, voice, evidential, negative, class ...) --
@@ -1284,7 +1284,9 @@ def _evolve_grammar_affixes(
             )
     from conlang_generator.generation import inflection_gen
 
-    return inflection_gen.resolve_collisions(rng, inventory, structure, grammar.model_copy(update=updates))
+    return inflection_gen.resolve_collisions(
+        rng, inventory, structure, grammar.model_copy(update=updates), romanization
+    )
 
 
 def evolve_language(
@@ -1525,7 +1527,7 @@ def evolve_language(
     evolved_entries = tuple(evolved_entries)
 
     evolved_grammar = _evolve_grammar_affixes(
-        base.grammar, seed, rates, known_symbols, consonant_by_ipa, vowel_by_ipa, inventory, syllable_structure
+        base.grammar, seed, rates, known_symbols, consonant_by_ipa, vowel_by_ipa, inventory, syllable_structure, romanization
     )
 
     spec = GenerationSpec(
