@@ -1181,3 +1181,17 @@ In `m19` "wind" is `tì'` and its plural is `dì'e` (the initial consonant weake
 vowel-final stem `pi` "water" loses its vowel before the vowel-initial plural (`paka`, from `p` + `ak` + the case ending). Both read
 back correctly (`I see winds`, `I waters see`). Vowel harmony is exercised in `tests/test_morphophonology.py`; it was not rolled by any of the CLI
 seeds tried, since it needs an inventory with two matching vowel pairs.
+
+**Derivation and compounding.** An English word the language has no word for is built from words it has, when it can:
+`teacher` from `teach` plus the language's agent suffix, `unhappy` from `happy` plus its negative prefix, `moonlight` from `moon`
+and `light`. Verified with `--llm fake` on `--seed 8 --prompt p` as `d8` (agent, abstract, negative and diminutive rules; modifier-first compounds):
+
+```bash
+conlang translate "I see the teacher." --lang d8 --to conlang --llm fake
+conlang translate "The dog is unhappy." --lang d8 --to conlang --llm fake
+conlang translate "I see the moonlight." --lang d8 --to conlang --llm fake
+```
+
+Each reports the one word it added: `na3me` "teacher" (`nam3` "teach" plus the agent suffix), `tapiz1kom4` "unhappy" (the negative prefix `ta-` on
+`piz1kom4` "happy") and `pil2nak3` "moonlight" (`pil2` "moon" + `nak3` "light"). The lexicon records how each was made
+(`derived: agent of teach`, `compound: moon + light`), so later sentences reuse the word.

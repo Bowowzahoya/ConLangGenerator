@@ -45,6 +45,16 @@ class Paradigm(BaseModel, frozen=True):
     """The cells (``"<field>/<label>"``) that trigger the stem change."""
 
 
+class DerivationRule(BaseModel, frozen=True):
+    """A derivational rule: ``affix`` (a prefix or suffix) turns a word of ``pos_in`` into a word of
+    ``pos_out`` (agent, abstract, negative, diminutive, adjectival)."""
+
+    name: str
+    pos_in: str
+    pos_out: str
+    affix: "InflectionAffix"
+
+
 class MorphologicalType(str, Enum):
     ISOLATING = "isolating"
     AGGLUTINATIVE = "agglutinative"
@@ -604,6 +614,14 @@ class GrammarProfile(BaseModel, frozen=True):
     adverb_degree: bool = False
     """An adverb takes a degree suffix too ("more quickly") where the language has one."""
 
+    derivations: tuple[DerivationRule, ...] = ()
+    """Derivational rules the language has (see ``generation.derivation_gen``)."""
+    compounding: bool = False
+    """The language compounds two nouns into one word."""
+    compound_order: str = "modifier_head"
+    """``"modifier_head"`` (moon-light) or ``"head_modifier"`` (light-moon)."""
+    compound_linker: tuple[str, ...] = ()
+    """A linking vowel between the parts (empty: none)."""
     harmony: str = "none"
     """``"backness"``, ``"height"`` or ``"rounding"``: affix vowels agree with the stem's (see ``harmony_pairs``)."""
     harmony_pairs: tuple[tuple[str, str], ...] = ()

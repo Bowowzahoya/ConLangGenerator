@@ -149,6 +149,11 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   rule where a vowel meets a vowel across an affix boundary (drop the stem's or prefix's vowel, or insert a glide), and
   lenition of the stem's initial consonant in one or two cells (a voiceless stop voices, a voiced stop becomes the
   fricative of its place). These are simple, exceptionless rules; they do not apply to compounds or citation suffixes.
+- **Derivation and compounding are illustrative**: a language may have up to five derivational affixes (agent "-er",
+  abstract "-ness", negative "un-", diminutive "-let", adjectival "-y"; agglutinative languages most often) and may
+  compound nouns (modifier first or head first, sometimes with a linking vowel). An English word such as "teacher",
+  "happiness", "unhappy" or "moonlight" is built from words the language already has when a suffix
+  heuristic finds a base in its lexicon, and coined as usual otherwise. The result is stored as an ordinary word.
 - **Noun-phrase features are illustrative**: the dual is one extra suffix; the
   possessive particle, possessed-noun suffix and genitive are the only
   possession strategies (no alienable/inalienable split, no agreement with the

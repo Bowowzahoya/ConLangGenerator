@@ -20,6 +20,7 @@ from conlang_generator.generation import (
     voice_np_gen,
     np_followups_gen,
     affix_position_gen,
+    derivation_gen,
     morphophonology_gen,
     comparison_gen,
     paradigm_gen,
@@ -681,6 +682,12 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     grammar = grammar.model_copy(
         update=morphophonology_gen.roll_morphophonology(
             random.Random(f"{spec.seed}:morphophonology"), grammar, inventory
+        )
+    )
+    # Derivation and compounding, after the morphophonology (own stream).
+    grammar = grammar.model_copy(
+        update=derivation_gen.roll_derivation(
+            random.Random(f"{spec.seed}:derivation"), grammar, inventory, syllable_structure, romanization
         )
     )
 

@@ -4782,3 +4782,17 @@ reading code or one-off ad hoc scripts.
   still finds the stem, `_may_spell` always tries short stems under elision, and the verb search's affix-symbol test accepts a
   harmonic counterpart and ignores a prefix's last vowel under elision. Sound change evolves the pairs and the glide.
   20 tests in `test_morphophonology.py`.
+
+- **Derivation and compounding (grammar pass 26).** `core.grammar.DerivationRule(name, pos_in, pos_out, affix)` and
+  `GrammarProfile.derivations`, `compounding`, `compound_order` (`modifier_head`/`head_modifier`) and `compound_linker` (a linking vowel).
+  `generation/derivation_gen.py` (`roll_derivation`, own `{seed}:derivation` stream, run after the morphophonology): each of the five `RULES`
+  (agent, abstract, negative, diminutive, adjectival) is present with a probability by morphological type (agglutinative 0.85, isolating
+  0.25) and gets a distinct exponent (a suffix, or mostly a prefix for the negative); compounding is likelier in isolating languages.
+  `english_derivations(token)` is the closed English analyser (`-er`/`-or`, `-ness`, `un-`, `-let`/`-ling`, `-y`/`-ful`, with spelling
+  repairs); `compound_splits(token, is_noun)` finds noun + noun splits of a solid or hyphenated word. `translator._lookup_or_coin` now tries
+  `_derive_or_compound` before coining: it looks the base up in the language's own lexicon (right part of speech), applies the rule with
+  `apply_affix` (so harmony and hiatus rules apply) or joins the two stems (`_compound_entry`: modifier + linker + head as one prefix +
+  stem, restressed, no harmony across the join), and stores the result as a lexicon entry whose notes say how it was made
+  (`derived: agent of teach`, `compound: moon + light`). A form that would spell like an existing word is coined instead. The planner
+  prompt tells the LLM to keep derived and compound words whole. Sound change evolves the exponents and the linker. 21 tests in
+  `test_derivation.py`.

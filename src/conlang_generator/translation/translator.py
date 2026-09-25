@@ -61,15 +61,17 @@ from dataclasses import dataclass
 from conlang_generator.core.grammar import GrammarProfile, InflectionAffix
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
-from conlang_generator.core.romanization import apply_grammatical_spelling
+from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK, apply_grammatical_spelling
 from conlang_generator.generation import (
     classifier_gen,
     inflection_gen,
+    ipa_tokenizer,
     noun_class_gen,
     pronoun_gen,
     stress_gen,
     subordination_gen,
     comparison_gen,
+    derivation_gen,
     morphophonology_gen,
     np_followups_gen,
     paradigm_gen,
@@ -858,6 +860,10 @@ def _lookup_or_coin(
         if entry is not None:
             return language, entry
 
+    built = _derive_or_compound(language, token, pos, coined)
+    if built is not None:
+        return built
+
     new_entry = expansion.coin_word(language, token, pos, llm_client)
     coined.append(new_entry)
     updated = language.with_new_words(
@@ -865,6 +871,79 @@ def _lookup_or_coin(
         reason=f"coined '{new_entry.romanization}' for '{token}' during translation",
     )
     return updated, new_entry
+
+
+def _find_of_pos(language: Language, gloss: str, pos: PartOfSpeech) -> LexicalEntry | None:
+    entry = _find_word(language, gloss)
+    return entry if entry is not None and entry.pos is pos else None
+
+
+def _derived_entry(language: Language, base: LexicalEntry, rule, token: str) -> LexicalEntry | None:
+    rng = _translation_rng(language, f"derive:{rule.name}:{base.ipa}")
+    ipa = inflection_gen.apply_affix(rng, rule.affix, base.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
+    spelled = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), PartOfSpeech(rule.pos_out))
+    if language.lexicon.by_form(spelled) is not None or ipa == base.ipa:
+        return None  # it would spell like a word the language already has
+    return LexicalEntry(
+        ipa=ipa, romanization=spelled, glosses=(token,), pos=PartOfSpeech(rule.pos_out), tones=base.tones,
+        notes=f"derived: {rule.name} of {base.primary_gloss}",
+    )
+
+
+def _compound_entry(language: Language, modifier: LexicalEntry, head: LexicalEntry, token: str) -> LexicalEntry | None:
+    grammar = language.grammar
+    first, second = (modifier, head) if grammar.compound_order == "modifier_head" else (head, modifier)
+    known = inflection_gen._known_symbols_for(language.phonology)
+    stripped = first.ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, "")
+    symbols = tuple(symbol + deco for symbol, deco in ipa_tokenizer.tokenize(stripped, known))
+    affix = InflectionAffix(label="compound", prefix=symbols + tuple(grammar.compound_linker))
+    rng = _translation_rng(language, f"compound:{first.ipa}:{second.ipa}")
+    kwargs = {**_stress_and_word_accent_kwargs(language), "morphophonology": None}  # no harmony across a compound
+    ipa = inflection_gen.apply_affix(rng, affix, second.ipa, language.phonology, **kwargs)
+    spelled = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), PartOfSpeech.NOUN)
+    if language.lexicon.by_form(spelled) is not None:
+        return None
+    return LexicalEntry(
+        ipa=ipa, romanization=spelled, glosses=(token,), pos=PartOfSpeech.NOUN,
+        tones=(*first.tones, *second.tones),
+        notes=f"compound: {modifier.primary_gloss} + {head.primary_gloss}",
+    )
+
+
+def _derive_or_compound(
+    language: Language, token: str, pos: PartOfSpeech, coined: list[LexicalEntry]
+) -> tuple[Language, LexicalEntry] | None:
+    """A word built from words the language already has -- a derivation (``teacher`` from ``teach``) by
+    one of its derivational rules, or a compound (``moonlight``) -- instead of a fresh coinage;
+    ``None`` when neither applies."""
+    grammar = language.grammar
+    word = token.strip().lower()
+    if pos not in (PartOfSpeech.NOUN, PartOfSpeech.VERB, PartOfSpeech.ADJECTIVE) or not word:
+        return None
+    rules = {r.name: r for r in grammar.derivations}
+    for name, candidates in derivation_gen.english_derivations(word):
+        rule = rules.get(name)
+        if rule is None or rule.pos_out != pos.value:
+            continue
+        for candidate in candidates:
+            base = _find_of_pos(language, candidate, PartOfSpeech(rule.pos_in))
+            if base is None:
+                continue
+            entry = _derived_entry(language, base, rule, token)
+            if entry is not None:
+                coined.append(entry)
+                return language.with_new_words((entry,), reason=f"derived '{entry.romanization}' ({name}) for '{token}'"), entry
+    if grammar.compounding and pos is PartOfSpeech.NOUN:
+        parts = derivation_gen.compound_splits(
+            word, lambda g: _find_of_pos(language, g, PartOfSpeech.NOUN) is not None
+        )
+        for left, right in parts:
+            modifier, head = _find_of_pos(language, left, PartOfSpeech.NOUN), _find_of_pos(language, right, PartOfSpeech.NOUN)
+            entry = _compound_entry(language, modifier, head, token)
+            if entry is not None:
+                coined.append(entry)
+                return language.with_new_words((entry,), reason=f"compounded '{entry.romanization}' for '{token}'"), entry
+    return None
 
 
 _BARE_GLOSS_BY_SLOT_KIND = {"article": "the", "negation": "not", "conjunction": "and"}
