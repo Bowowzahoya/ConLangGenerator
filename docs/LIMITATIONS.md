@@ -131,11 +131,13 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   elative ("very big") are each a suffix or an adverb word, rolled per language; the standard of a comparison is
   "than", a case (ablative, locative, dative or genitive), or the verb "exceed" (an equative always uses "as" or the case).
   Adverbs take a degree suffix only in some languages; "more" of a noun is just the word "more".
-- **Paradigms are illustrative**: a language may have up to three extra declensions and two extra
-  conjugations, each changing some of the case/number or tense/agreement suffixes (the other cells are shared), and
-  a few irregular lexemes with a cell of their own. A noun's class follows its gender where the language has
-  gender, otherwise a hash of its gloss; verbs follow a hash. Stems never change inside a paradigm, and aspect, mood,
-  voice, degree and possession suffixes have one form for every word.
+- **Paradigms are illustrative**: a language may have up to three extra declensions, two extra conjugations and two
+  adjective classes, each changing some of the case/number/possession, tense/agreement/aspect/mood/voice or degree/class
+  suffixes (the rest are shared, sometimes by a patterned syncretism such as accusative = nominative), and a few irregular
+  lexemes with cells of their own. A class may also change the stem in one trigger cell: umlaut (a back vowel fronts),
+  ablaut (a vowel shifts, as in strong verbs) or consonant gradation (a final voiceless consonant voices), each a rule over
+  the language's own inventory. A noun's class follows its gender where the language has gender, otherwise a hash of its
+  gloss; verbs and adjectives follow a hash.
 - **Noun-phrase features are illustrative**: the dual is one extra suffix; the
   possessive particle, possessed-noun suffix and genitive are the only
   possession strategies (no alienable/inalienable split, no agreement with the

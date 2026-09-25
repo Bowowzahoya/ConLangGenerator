@@ -4741,3 +4741,15 @@ reading code or one-off ad hoc scripts.
   same labels, so `_apply_case`, `_apply_verb_inflection` and the decoders (`_decode_noun` via `_apply_case`; the verb
   search and non-finite forms per entry) need no other change. Pronouns, particles, numerals and names use the base
   grammar. `sound_change._evolve_grammar_affixes` evolves the overrides too. 14 tests in `test_paradigms.py`.
+
+- **Paradigm follow-ups (grammar pass 23).** `Paradigm` gained `syncretisms` (`"<target>=<source>"` cells spelled alike on purpose,
+  from `NOUN_/VERB_/ADJECTIVE_SYNCRETISMS`), `stem_change` (`umlaut`/`ablaut`/`gradation`) and `stem_cells` (the cells that trigger it);
+  `GrammarProfile` gained `adjective_paradigms` and `stem_maps` (`paradigm_gen.build_stem_maps(inventory)`: umlaut fronts a back
+  vowel, ablaut raises/lowers one height step, gradation voices a final voiceless consonant -- only pairs the inventory has, kept
+  only for kinds in use). The overridable cells now include possession, aspect, mood and voice (and adjectives' degree and
+  class-agreement suffixes). `translator._entry_paradigms` (class + irregular lexeme), `_paradigm_grammar`, `_stem_ipa(language,
+  entry, cells)` (`paradigm_gen.change_stem` on the last mapped vowel, or the final consonant) and `_stem_prefixes` (the letters a
+  changed stem can start with, so decoding's first-letter filter still finds it) are used by `_apply_case`,
+  `_apply_verb_inflection`, `_apply_class_agreement` and the decoders; the pro-drop reading of an agreement suffix checks the
+  verb's own conjugation (`_person_suffix_is_distinct(_paradigm_grammar(...))`). Sound change evolves `stem_maps` symbols too.
+  10 tests in `test_paradigm_stems.py`.

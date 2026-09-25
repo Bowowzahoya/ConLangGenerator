@@ -311,36 +311,46 @@ def _noun_affix_salt(
     )
 
 
-_PARADIGM_CACHE: dict[tuple[int, str, tuple[str, ...]], tuple[GrammarProfile, GrammarProfile]] = {}
+_PARADIGM_CACHE: dict[tuple, tuple[GrammarProfile, GrammarProfile]] = {}
 
 
-def _paradigm_grammar(language: Language, entry: LexicalEntry) -> GrammarProfile:
-    """The grammar as seen by ``entry``: its declension (noun) or conjugation
-    (verb) class and any irregular cells replace the base tense/agreement or
-    case/number affixes; the labels are the same, so callers are unchanged. A
-    language without paradigm classes, and every other part of speech, gets the
-    language's own grammar."""
+def _entry_paradigms(language: Language, entry: LexicalEntry) -> list:
+    """The paradigms ``entry`` follows: its declension, conjugation or adjective
+    class (none for class 0) and any irregular lexeme of its own."""
     grammar = language.grammar
-    if not (grammar.noun_paradigms or grammar.verb_paradigms or grammar.irregular_lexemes):
-        return grammar
+    if not (
+        grammar.noun_paradigms or grammar.verb_paradigms or grammar.adjective_paradigms or grammar.irregular_lexemes
+    ):
+        return []
     if entry.pos is PartOfSpeech.NOUN and not names.is_name_entry(entry):
         pos, classes = "noun", grammar.noun_paradigms
     elif entry.pos is PartOfSpeech.VERB:
         pos, classes = "verb", grammar.verb_paradigms
+    elif entry.pos is PartOfSpeech.ADJECTIVE:
+        pos, classes = "adjective", grammar.adjective_paradigms
     else:
-        return grammar
+        return []
     gloss = _class_gloss(entry.primary_gloss).strip().lower()
     if pos == "noun" and grammar.noun_classes and classes:
         noun_class = _entry_class(language, entry)
         index = grammar.noun_classes.index(noun_class) % (len(classes) + 1) if noun_class in grammar.noun_classes else 0
     else:
         index = paradigm_gen.class_index(language.spec.seed, pos, gloss, len(classes) + 1)
-    chosen = ([classes[index - 1]] if index > 0 else []) + [
+    return ([classes[index - 1]] if index > 0 else []) + [
         p for p in grammar.irregular_lexemes if p.pos == pos and p.name == gloss
     ]
+
+
+def _paradigm_grammar(language: Language, entry: LexicalEntry) -> GrammarProfile:
+    """The grammar as seen by ``entry``: its class and any irregular cells replace the
+    base affixes (case/number/possession, tense/agreement/aspect/mood/voice, degree/class),
+    under the same labels, so callers are unchanged. A language without paradigm classes,
+    and every other part of speech, gets the language's own grammar."""
+    grammar = language.grammar
+    chosen = _entry_paradigms(language, entry)
     if not chosen:
         return grammar
-    key = (id(grammar), pos, tuple(p.name for p in chosen))
+    key = (id(grammar), tuple((p.pos, p.name) for p in chosen))
     cached = _PARADIGM_CACHE.get(key)
     if cached is not None and cached[0] is grammar:
         return cached[1]
@@ -357,6 +367,36 @@ def _paradigm_grammar(language: Language, entry: LexicalEntry) -> GrammarProfile
         _PARADIGM_CACHE.clear()
     _PARADIGM_CACHE[key] = (grammar, derived)
     return derived
+
+
+def _stem_ipa(language: Language, entry: LexicalEntry, cells) -> str:
+    """``entry``'s stem as it is when it takes one of ``cells`` (``"<field>/<label>"``): changed by
+    the umlaut, ablaut or gradation of a class or irregular lexeme that has that cell as a trigger."""
+    grammar = language.grammar
+    if not grammar.stem_maps:
+        return entry.ipa
+    for paradigm in _entry_paradigms(language, entry):
+        if paradigm.stem_change and any(c in paradigm.stem_cells for c in cells):
+            mapping = dict(dict(grammar.stem_maps).get(paradigm.stem_change, ()))
+            return paradigm_gen.change_stem(
+                entry.ipa, mapping, frozenset(language.phonology.vowel_symbols()),
+                inflection_gen._known_symbols_for(language.phonology), paradigm.stem_change == "gradation",
+            )
+    return entry.ipa
+
+
+def _stem_prefixes(language: Language, entry: LexicalEntry) -> set[str]:
+    """The first two letters ``entry`` can start with in any form: its own, and its changed stem's."""
+    prefixes = {_stem_prefix(entry.romanization)}
+    grammar = language.grammar
+    if grammar.stem_maps:
+        for paradigm in _entry_paradigms(language, entry):
+            if paradigm.stem_change:
+                changed = _stem_ipa(language, entry, paradigm.stem_cells)
+                if changed != entry.ipa:
+                    spelled = apply_grammatical_spelling(language.romanization, language.romanization.apply(changed), entry.pos)
+                    prefixes.add(_stem_prefix(spelled))
+    return prefixes
 
 
 def _apply_case(
@@ -391,7 +431,13 @@ def _apply_case(
     rng = _translation_rng(
         language, _noun_affix_salt(entry, resolved_case, resolved_number, resolved_possessed, resolved_person, marker)
     )
-    ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
+    cells = (
+        ([f"case_affixes/{resolved_case}"] if resolved_case else [])
+        + ([f"number_affixes/{resolved_number}"] if resolved_number else [])
+        + (["possession_affixes/possessed"] if resolved_possessed else [])
+    )
+    stem = _stem_ipa(language, entry, cells)
+    ipa = inflection_gen.apply_affix(rng, affix, stem, language.phonology, **_stress_and_word_accent_kwargs(language))
     romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
     return romanization, ipa
 
@@ -638,7 +684,8 @@ def _apply_verb_inflection(
             resolved_voice, resolved_number, resolved_polite, resolved_evidential, resolved_negative,
         ),
     )
-    ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
+    stem = _stem_ipa(language, entry, [f"tense_affixes/{resolved_tense}"] if resolved_tense else [])
+    ipa = inflection_gen.apply_affix(rng, affix, stem, language.phonology, **_stress_and_word_accent_kwargs(language))
     romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
     return romanization, ipa
 
@@ -813,7 +860,7 @@ def _apply_class_agreement(
     plus an adjective's ``degree_label`` suffix -- bare when the language has
     none of them. The suffixes are composed in the order degree, class,
     number, case."""
-    grammar = language.grammar
+    grammar = _paradigm_grammar(language, entry)
     noun_cls = (class_label or "").removeprefix(noun_class_gen.CLASS_AGREEMENT_PREFIX) or None
     class_affix = next((a for a in grammar.class_affixes if a.label == noun_cls), None) if noun_cls else None
     degree_affix = next((a for a in grammar.degree_affixes if a.label == degree_label), None) if degree_label else None
@@ -2056,10 +2103,12 @@ def _decode_noun(language: Language, token: str) -> tuple[LexicalEntry, str] | N
         if any(a.prefix for a in grammar.class_marker_affixes):
             # A class prefix is the only thing that changes the start: compare with the marked bare form.
             noun_entries = [
-                e for e in noun_entries if _stem_prefix(_apply_case(language, e, None, None)[0]) == prefix
+                e for e in noun_entries
+                if _stem_prefix(_apply_case(language, e, None, None)[0]) == prefix
+                or any(p.stem_change for p in _entry_paradigms(language, e))
             ]
         else:
-            noun_entries = [e for e in noun_entries if _stem_prefix(e.romanization) == prefix]
+            noun_entries = [e for e in noun_entries if prefix in _stem_prefixes(language, e)]
 
     def spells(entry, case, number, possessed=False, person=None) -> bool:
         return _normalize(_apply_case(language, entry, case, number, possessed, person)[0]) == normalized
@@ -2203,6 +2252,9 @@ def _decode_verb_full(
         imperative = next((a for a in language.grammar.mood_affixes if a.label == "imperative"), None)
         if imperative is not None:
             for entry in entries:
+                imperative = next(
+                    (a for a in _paradigm_grammar(language, entry).mood_affixes if a.label == "imperative"), imperative
+                )
                 rng = _translation_rng(language, _imperative_salt(entry))
                 ipa = inflection_gen.apply_affix(
                     rng, imperative, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
@@ -2213,6 +2265,9 @@ def _decode_verb_full(
         prohibitive = next((a for a in language.grammar.mood_affixes if a.label == "prohibitive"), None)
         if prohibitive is not None:
             for entry in entries:
+                prohibitive = next(
+                    (a for a in _paradigm_grammar(language, entry).mood_affixes if a.label == "prohibitive"), prohibitive
+                )
                 rng = _translation_rng(language, _prohibitive_salt(entry))
                 ipa = inflection_gen.apply_affix(
                     rng, prohibitive, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
@@ -2249,7 +2304,7 @@ def _decode_verb_full(
     prefix_marked = any(a.prefix for name in inflection_gen._VERB_SUFFIX_FIELDS for a in getattr(language.grammar, name))
     # An inflected verb keeps its first two letters (suffixes never change them),
     # so an unknown token is only tried against the verbs that start like it.
-    likely = verb_entries if prefix_marked else [e for e in verb_entries if _stem_prefix(e.romanization) == prefix]
+    likely = verb_entries if prefix_marked else [e for e in verb_entries if prefix in _stem_prefixes(language, e)]
     found_special = special(likely)
     if found_special is not None:
         return found_special
@@ -2297,6 +2352,7 @@ def _decode_verb_full(
             + (c[0] is None and bool(grammar.tenses) and not auxiliary_tense) + (c[0] is not None and auxiliary_tense),
         )
         entry_grammars = {id(e): _paradigm_grammar(language, e) for e in entries}
+        stems: dict[tuple, str] = {}
         for (
             tense_label, aspect_label, mood_label, object_label, voice_label,
             (number_label, polite, evidential_label, negative),
@@ -2316,7 +2372,12 @@ def _decode_verb_full(
                             number_label, polite, evidential_label, negative,
                         ),
                     )
-                    ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **kwargs)
+                    stem_key = (id(entry), tense_label)
+                    if stem_key not in stems:
+                        stems[stem_key] = _stem_ipa(
+                            language, entry, [f"tense_affixes/{tense_label}"] if tense_label else []
+                        )
+                    ipa = inflection_gen.apply_affix(rng, affix, stems[stem_key], language.phonology, **kwargs)
                     candidate = apply_grammatical_spelling(
                         language.romanization, language.romanization.apply(ipa), entry.pos
                     )
@@ -2724,14 +2785,14 @@ def translate_to_english(
                 language.grammar.pro_drop
                 and agreement_label in pronoun_gen.PERSON_LABELS
                 and agreement_label not in seen_persons
-                and _person_suffix_is_distinct(language.grammar, agreement_label)
+                and _person_suffix_is_distinct(_paradigm_grammar(language, verb_entry), agreement_label)
             ):
                 gloss = f"{agreement_label} {gloss}"  # the dropped subject, read from the verb's agreement
             if (
                 language.grammar.object_pro_drop
                 and object_label in pronoun_gen.OBJECT_READING
                 and object_label not in seen_persons
-                and _person_suffix_is_distinct(language.grammar, object_label, objects=True)
+                and _person_suffix_is_distinct(_paradigm_grammar(language, verb_entry), object_label, objects=True)
             ):
                 gloss = f"{gloss} {pronoun_gen.OBJECT_READING[object_label]}"  # the dropped object
             plain.append(gloss)

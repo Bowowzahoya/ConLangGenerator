@@ -274,17 +274,16 @@ negation strategies (affix, double negation, negative verbs) (M);
 evidentiality (M); serial verbs (L); valency-changing morphology (L); copula
 strategies (zero, state vs identity) (S); adverb placement (S).
 
-**Morphology (paradigms done, pass 22):** prefix/infix/circumfix positions (M);
+**Morphology (paradigms done, passes 22-23):** prefix/infix/circumfix positions (M);
 morphophonology at affix boundaries (vowel harmony, mutation) (L); derivation and compounding (L);
 reduplication as grammar (M); root-and-pattern beyond citation shapes (L). Still missing from the
-paradigm work itself (S-M): stem changes inside a paradigm (ablaut, umlaut, consonant gradation --
-a class only changes *affixes*); paradigms cover noun case/number and verb tense/agreement (not
-aspect, mood, voice, degree or possession cells); a class of at most three extra declensions and two
-extra conjugations, assigned by gender or a hash of the gloss (no phonological or semantic
-assignment rule); irregulars are drawn from a fixed list of 11 nouns and 10 verbs and only override
-one or two cells; syncretism is random rather than patterned (no "neuter nominative = accusative");
-the pro-drop reading of a verb's agreement uses the base paradigm's distinctness check. The plural,
-imperative and question-particle forms do not yet evolve with `sound_change` (S).
+paradigm work itself (S): a stem change is one vowel or the final consonant, in one trigger cell (no
+ablaut series, no stem alternation across a whole paradigm, no consonant gradation of a medial
+consonant), and the maps are simple height/backness/voicing rules; a class assignment is by gender or a
+hash of the gloss (no phonological or semantic assignment rule); classes cover up to three extra noun
+declensions, two conjugations and two adjective classes; irregulars come from a fixed list of 11
+nouns and 10 verbs; the syncretism patterns are a short fixed list. The plural, imperative and
+question-particle forms do not yet evolve with `sound_change` (S).
 
 **Discourse (optional, L):** topic/focus and information structure, pro-drop
 and ellipsis, politeness/honorific registers (uses `social_hierarchy`),

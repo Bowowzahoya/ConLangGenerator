@@ -1135,3 +1135,16 @@ conlang translate "I see the dogs." --lang t38 --to conlang --llm fake
 
 The plural accusative of the ordinary noun `bird` is `haijamu` (plural `-am`, accusative `-u`); `river` belongs
 to another declension (`co'q'ejaiu`, plural `-ai`); and `dog` is irregular (`pux'aru`, plural `-ar`). Verbs differ the same way, by conjugation: a verb in a further class changes some of the tense or person suffixes.
+
+**Paradigm follow-ups.** Classes now also cover possession, aspect, mood, voice and degree cells, can pattern their shared cells
+(a neuter-like declension spelling the accusative like the nominative), and can change the stem (umlaut, ablaut for strong verbs,
+consonant gradation). On the same `t38` (`--seed 1 --prompt p`, regenerated with these fields: a declension where the
+accusative equals the nominative, and strong verbs with ablaut):
+
+```bash
+conlang translate "I see the moon." --lang t38 --to conlang --llm fake
+conlang translate "I see the fire." --lang t38 --to conlang --llm fake
+```
+
+`moon` is in the syncretic declension, so its accusative `numzriqak` is also its nominative form; `fire` is in the
+base declension and has a distinct accusative (`sadjkaxfu` against the nominative `sadjkaxfoq`). Stem changes show in the verbs: `see` is a strong verb whose stem vowel shifts in the past (IPA `ˈmə̀patʃoŋ` against the present `ˈmàpujoŋ`; this language spells both vowels `a`, so the shift shows only in the IPA), and the CLI language marks the past with an auxiliary word, so the exact forms are checked in `tests/test_paradigm_stems.py`.

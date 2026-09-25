@@ -35,6 +35,14 @@ class Paradigm(BaseModel, frozen=True):
     name: str
     pos: str
     overrides: tuple["InflectionAffix", ...] = ()
+    syncretisms: tuple[str, ...] = ()
+    """``"<field>/<target>=<field>/<source>"``: cells this class deliberately spells
+    alike (the accusative like the nominative, a 2nd person like a 3rd)."""
+    stem_change: str = ""
+    """``"umlaut"``, ``"ablaut"`` or ``"gradation"``: how the stem changes in
+    ``stem_cells`` (see ``GrammarProfile.stem_maps``); empty: it never does."""
+    stem_cells: tuple[str, ...] = ()
+    """The cells (``"<field>/<label>"``) that trigger the stem change."""
 
 
 class MorphologicalType(str, Enum):
@@ -595,6 +603,12 @@ class GrammarProfile(BaseModel, frozen=True):
     """Further noun declensions (class 0 is the language's own case/number affixes)."""
     verb_paradigms: tuple[Paradigm, ...] = ()
     """Further verb conjugations (class 0 is the language's own tense/agreement affixes)."""
+    adjective_paradigms: tuple[Paradigm, ...] = ()
+    """Further adjective classes (degree and class-agreement suffixes)."""
+    stem_maps: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = ()
+    """This language's own stem changes by kind: ``umlaut`` (back vowel -> front),
+    ``ablaut`` (vowel shift) and ``gradation`` (final voiceless -> voiced consonant),
+    each a list of (from, to) symbols the inventory really has."""
     irregular_lexemes: tuple[Paradigm, ...] = ()
     """Lexemes with cells of their own, named by their (lower-case) gloss."""
 

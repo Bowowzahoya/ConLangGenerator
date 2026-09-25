@@ -59,10 +59,12 @@ def test_the_paradigm_choices_are_rolled():
     for g in grammars:
         assert len(g.noun_paradigms) <= 3 and len(g.verb_paradigms) <= 2
         for p in g.noun_paradigms:
-            assert p.pos == "noun" and p.overrides
+            assert p.pos == "noun" and (p.overrides or p.stem_change)
             assert {o.label.split("/")[0] for o in p.overrides} <= set(paradigm_gen.NOUN_FIELDS)
         for p in g.verb_paradigms:
             assert p.pos == "verb" and {o.label.split("/")[0] for o in p.overrides} <= set(paradigm_gen.VERB_FIELDS)
+        for p in g.adjective_paradigms:
+            assert p.pos == "adjective" and {o.label.split("/")[0] for o in p.overrides} <= set(paradigm_gen.ADJECTIVE_FIELDS)
         for p in g.irregular_lexemes:
             assert p.name in (*paradigm_gen.IRREGULAR_NOUNS, *paradigm_gen.IRREGULAR_VERBS)
 
@@ -80,16 +82,23 @@ def test_every_override_names_a_real_label_and_is_distinct_from_its_group():
     for seed in range(1, 80):
         language = _language(seed)
         g = language.grammar
-        for paradigm in g.noun_paradigms + g.verb_paradigms:
-            fields = inflection_gen._NOUN_SUFFIX_FIELDS if paradigm.pos == "noun" else inflection_gen._VERB_SUFFIX_FIELDS
+        for paradigm in g.noun_paradigms + g.verb_paradigms + g.adjective_paradigms:
+            fields = (
+                inflection_gen._NOUN_SUFFIX_FIELDS if paradigm.pos == "noun"
+                else inflection_gen._VERB_SUFFIX_FIELDS if paradigm.pos == "verb"
+                else inflection_gen._MODIFIER_SUFFIX_FIELDS
+            )
             base = {
                 language.romanization.apply("".join(a.suffix)).lower()
                 for name in fields for a in getattr(g, name, ()) if a.suffix and not a.prefix
             }
             seen: set[str] = set()
+            targets = {cell.split("=")[0] for cell in paradigm.syncretisms}
             for override in paradigm.overrides:
                 field, _, label = override.label.partition("/")
                 assert any(a.label == label for a in getattr(g, field))
+                if override.label in targets:
+                    continue  # spelled like its source on purpose
                 spelled = language.romanization.apply("".join(override.suffix)).lower()
                 assert spelled not in base and spelled not in seen
                 seen.add(spelled)
