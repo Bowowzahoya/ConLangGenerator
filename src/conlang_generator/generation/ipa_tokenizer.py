@@ -13,6 +13,7 @@ full decoration-aware structure).
 
 from __future__ import annotations
 
+import functools
 import unicodedata
 
 from conlang_generator.core.phonology import TONE_DIACRITICS, ToneLevel
@@ -32,6 +33,16 @@ def _strands_a_modifier(text: str, end: int) -> bool:
     return end < len(text) and text[end] in _ARTICULATION_MODIFIERS
 
 
+@functools.lru_cache(maxsize=64)
+def _ordered_by_first_char(known: frozenset[str]) -> dict[str, tuple[str, ...]]:
+    """``known`` grouped by first character, longest first."""
+    grouped: dict[str, list[str]] = {}
+    for symbol in sorted(known, key=len, reverse=True):
+        if symbol:
+            grouped.setdefault(symbol[0], []).append(symbol)
+    return {first: tuple(symbols) for first, symbols in grouped.items()}
+
+
 def tokenize(text: str, known_symbols: tuple[str, ...]) -> list[tuple[str, str]]:
     """Returns ``(symbol, trailing_combining_marks)`` pairs. ``STRESS_MARK``
     and ``WORD_ACCENT_MARK`` (the ``"glottalization"``-realization word-
@@ -49,7 +60,7 @@ def tokenize(text: str, known_symbols: tuple[str, ...]) -> list[tuple[str, str]]
     trailing-combining-mark slurp below the same way tone diacritics
     always have been. Every other unrecognized, non-combining character
     is silently skipped -- unrecognized input, not an error."""
-    ordered = sorted(set(known_symbols), key=len, reverse=True)
+    ordered = _ordered_by_first_char(frozenset(known_symbols))
     tokens: list[tuple[str, str]] = []
     i = 0
     while i < len(text):
@@ -57,7 +68,7 @@ def tokenize(text: str, known_symbols: tuple[str, ...]) -> list[tuple[str, str]]
             tokens.append((text[i], ""))
             i += 1
             continue
-        candidates = [s for s in ordered if text.startswith(s, i)]
+        candidates = [s for s in ordered.get(text[i], ()) if text.startswith(s, i)]
         matched = next((s for s in candidates if not _strands_a_modifier(text, i + len(s))), None)
         if matched is None and candidates:
             matched = candidates[0]  # every reading strands one: keep plain longest-match

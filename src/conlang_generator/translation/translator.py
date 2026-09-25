@@ -1979,6 +1979,21 @@ def _decode_noun(language: Language, token: str) -> tuple[LexicalEntry, str] | N
     # A subject/object argument may be a real noun or a pronoun -- both fill
     # the same syntactic slot.
     noun_entries = [e for e in language.lexicon.entries if e.pos in (PartOfSpeech.NOUN, PartOfSpeech.PRONOUN)]
+    # With suffixes only, an inflected noun keeps its first two letters, so only
+    # the nouns that start like the token can spell it (a prefix marker changes the start).
+    other_prefixes = any(
+        a.prefix for name in inflection_gen._NOUN_SUFFIX_FIELDS if name != "class_marker_affixes"
+        for a in getattr(grammar, name)
+    )
+    if not other_prefixes:
+        prefix = _stem_prefix(token)
+        if any(a.prefix for a in grammar.class_marker_affixes):
+            # A class prefix is the only thing that changes the start: compare with the marked bare form.
+            noun_entries = [
+                e for e in noun_entries if _stem_prefix(_apply_case(language, e, None, None)[0]) == prefix
+            ]
+        else:
+            noun_entries = [e for e in noun_entries if _stem_prefix(e.romanization) == prefix]
 
     def spells(entry, case, number, possessed=False, person=None) -> bool:
         return _normalize(_apply_case(language, entry, case, number, possessed, person)[0]) == normalized
@@ -2117,49 +2132,61 @@ def _decode_verb_full(
     for entry in verb_entries:
         if _normalize(entry.romanization) == normalized:
             return entry, None, None, None, None, None, None, None, False, None, None, False
-    imperative = next((a for a in language.grammar.mood_affixes if a.label == "imperative"), None)
-    if imperative is not None:
-        for entry in verb_entries:
-            rng = _translation_rng(language, _imperative_salt(entry))
-            ipa = inflection_gen.apply_affix(
-                rng, imperative, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
-            )
-            candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
-            if _normalize(candidate) == normalized:
-                return entry, "imperative", None, None, None, None, None, None, False, None, None, False
-    prohibitive = next((a for a in language.grammar.mood_affixes if a.label == "prohibitive"), None)
-    if prohibitive is not None:
-        for entry in verb_entries:
-            rng = _translation_rng(language, _prohibitive_salt(entry))
-            ipa = inflection_gen.apply_affix(
-                rng, prohibitive, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
-            )
-            candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
-            if _normalize(candidate) == normalized:
-                return entry, "prohibitive", None, None, None, None, None, None, False, None, None, False
-    grammar_forms = language.grammar
-    form_candidates: list[tuple[InflectionAffix, str | None, str | None]] = []
-    for form_affix in () if skip_forms else grammar_forms.verb_form_affixes:
-        agreement_options: list[str | None] = [None]
-        if form_affix.label == "infinitive" and grammar_forms.infinitive_agrees:
-            agreement_options += list(pronoun_gen.PERSON_LABELS)
-        case_options: list[str | None] = [None]
-        if form_affix.label == "nominalized" and grammar_forms.nominalized_takes_case:
-            case_options += list(grammar_forms.cases)
-        form_candidates += [(form_affix, ag, cs) for ag in agreement_options for cs in case_options]
-    # The plain forms first: a suffix plus an agreement or case suffix can spell
-    # the same word as another form.
-    form_candidates.sort(key=lambda c: (c[1] is not None) + (c[2] is not None))
-    for form_affix, form_agreement, form_case in form_candidates:
-        affix = _non_finite_affix(grammar_forms, form_affix, form_agreement, form_case)
-        for entry in verb_entries:
-            rng = _translation_rng(language, _verb_form_salt(entry, form_affix.label, form_agreement, form_case))
-            ipa = inflection_gen.apply_affix(
-                rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
-            )
-            candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
-            if _normalize(candidate) == normalized:
-                return entry, form_affix.label, None, None, None, form_agreement, None, None, False, form_case, None, False
+    def special(entries):
+        """The command and non-finite readings of ``entries``."""
+        imperative = next((a for a in language.grammar.mood_affixes if a.label == "imperative"), None)
+        if imperative is not None:
+            for entry in entries:
+                rng = _translation_rng(language, _imperative_salt(entry))
+                ipa = inflection_gen.apply_affix(
+                    rng, imperative, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+                )
+                candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+                if _normalize(candidate) == normalized:
+                    return entry, "imperative", None, None, None, None, None, None, False, None, None, False
+        prohibitive = next((a for a in language.grammar.mood_affixes if a.label == "prohibitive"), None)
+        if prohibitive is not None:
+            for entry in entries:
+                rng = _translation_rng(language, _prohibitive_salt(entry))
+                ipa = inflection_gen.apply_affix(
+                    rng, prohibitive, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+                )
+                candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+                if _normalize(candidate) == normalized:
+                    return entry, "prohibitive", None, None, None, None, None, None, False, None, None, False
+        grammar_forms = language.grammar
+        form_candidates: list[tuple[InflectionAffix, str | None, str | None]] = []
+        for form_affix in () if skip_forms else grammar_forms.verb_form_affixes:
+            agreement_options: list[str | None] = [None]
+            if form_affix.label == "infinitive" and grammar_forms.infinitive_agrees:
+                agreement_options += list(pronoun_gen.PERSON_LABELS)
+            case_options: list[str | None] = [None]
+            if form_affix.label == "nominalized" and grammar_forms.nominalized_takes_case:
+                case_options += list(grammar_forms.cases)
+            form_candidates += [(form_affix, ag, cs) for ag in agreement_options for cs in case_options]
+        # The plain forms first: a suffix plus an agreement or case suffix can spell
+        # the same word as another form.
+        form_candidates.sort(key=lambda c: (c[1] is not None) + (c[2] is not None))
+        for form_affix, form_agreement, form_case in form_candidates:
+            affix = _non_finite_affix(grammar_forms, form_affix, form_agreement, form_case)
+            for entry in entries:
+                rng = _translation_rng(language, _verb_form_salt(entry, form_affix.label, form_agreement, form_case))
+                ipa = inflection_gen.apply_affix(
+                    rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+                )
+                candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+                if _normalize(candidate) == normalized:
+                    return entry, form_affix.label, None, None, None, form_agreement, None, None, False, form_case, None, False
+        return None
+
+    prefix = _stem_prefix(token)
+    prefix_marked = any(a.prefix for name in inflection_gen._VERB_SUFFIX_FIELDS for a in getattr(language.grammar, name))
+    # An inflected verb keeps its first two letters (suffixes never change them),
+    # so an unknown token is only tried against the verbs that start like it.
+    likely = verb_entries if prefix_marked else [e for e in verb_entries if _stem_prefix(e.romanization) == prefix]
+    found_special = special(likely)
+    if found_special is not None:
+        return found_special
     kwargs = _stress_and_word_accent_kwargs(language)
     grammar = language.grammar
     tense_options: list[str | None] = [None] + list(grammar.tenses)
@@ -2233,8 +2260,6 @@ def _decode_verb_full(
                         )
         return None
 
-    prefix = _stem_prefix(token)
-    likely = [e for e in verb_entries if _stem_prefix(e.romanization) == prefix]
     # Stages, cheapest first: tense x agreement x object agreement; then a
     # voice; then aspect/mood without an object marker (alone, and with a
     # voice); then aspect/mood with object agreement (only in languages that
@@ -2264,6 +2289,10 @@ def _decode_verb_full(
         if found is not None:
             return found
     if len(likely) != len(verb_entries):
+        rest = [e for e in verb_entries if e not in likely]
+        found_rest = special(rest)
+        if found_rest is not None:
+            return found_rest
         return search(verb_entries, [None], [None], [None], [None], [_NO_EXTRA])
     return None
 

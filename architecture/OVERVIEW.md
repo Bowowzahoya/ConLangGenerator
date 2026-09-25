@@ -4701,3 +4701,15 @@ reading code or one-off ad hoc scripts.
   suppletive past reads back as tense past on its base verb, an auxiliary's host verb prefers the reading without a tense
   suffix when the auxiliary carries the tense (`auxiliary_tense` in `_decode_verb_full`; this also fixes an ambiguity in
   pass 16), and a case-only noun is read as `in/with/from/to/together with`. 24 tests in `test_np_followups3.py`.
+
+- **Decoding speed (pass 20).** Unknown-token decoding is generate-and-compare (render every candidate, compare with the
+  token), so the cost is candidates x per-candidate rendering. Per candidate: `ipa_tokenizer.tokenize` indexes its symbol set
+  by first character (`lru_cache` on the frozenset), `RomanizationScheme._known_by_first_char` (a `cached_property`) does the
+  same for `_tokenize`, and `inflection_gen._known_symbols_for` computes an inventory's tokenizer symbols once (an id-keyed
+  cache that holds the inventory). Fewer candidates: `_decode_noun` only tries nouns whose first two letters match the token
+  when every noun affix is a suffix (with a class-marker *prefix*, it compares against each noun's marked bare form instead;
+  any other prefix disables the filter), and `_decode_verb_full` runs the command and non-finite forms (`special`) over the
+  same first-letter candidates before the rest. Results are unchanged: `test_decoding_speed.py` compares the indexed
+  tokenizer and romanization lookup with the plain algorithms, sweeps encode -> decode over 40 languages and bounds an
+  unknown token's decode time.
+

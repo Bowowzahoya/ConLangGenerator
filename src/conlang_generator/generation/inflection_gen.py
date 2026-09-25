@@ -220,6 +220,23 @@ def generate_voice_affixes(
     return distinct_suffixes(rng, inventory, structure, voices, taken)
 
 
+_KNOWN_SYMBOLS_CACHE: dict[int, tuple[object, tuple[str, ...]]] = {}
+
+
+def _known_symbols_for(inventory: PhonemeInventory) -> tuple[str, ...]:
+    """The tokenizer's symbol set for ``inventory`` -- the single-character pool
+    plus its multi-character phonemes -- computed once per inventory (the cache
+    holds the inventory, so an id is never reused while it is cached)."""
+    cached = _KNOWN_SYMBOLS_CACHE.get(id(inventory))
+    if cached is not None and cached[0] is inventory:
+        return cached[1]
+    known = tuple(_ALL_SINGLE_CHAR_SYMBOLS | {symbol for symbol in inventory.all_symbols() if len(symbol) > 1})
+    if len(_KNOWN_SYMBOLS_CACHE) >= 32:
+        _KNOWN_SYMBOLS_CACHE.clear()
+    _KNOWN_SYMBOLS_CACHE[id(inventory)] = (inventory, known)
+    return known
+
+
 def apply_affix(
     rng: random.Random,
     affix: InflectionAffix | None,
@@ -251,7 +268,7 @@ def apply_affix(
     SYMBOLS``'s own docstring."""
     if affix is None or not (affix.prefix or affix.suffix):
         return ipa
-    known_symbols = tuple(_ALL_SINGLE_CHAR_SYMBOLS | {symbol for symbol in inventory.all_symbols() if len(symbol) > 1})
+    known_symbols = _known_symbols_for(inventory)
     stripped = ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, "")
     raw_tokens = ipa_tokenizer.tokenize(stripped, known_symbols)
     stem_symbols = tuple(symbol + deco for symbol, deco in raw_tokens)

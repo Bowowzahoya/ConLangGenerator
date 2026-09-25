@@ -236,10 +236,10 @@ impersonal voice are single suffixes (no true valency change: an applicative doe
 the beneficiary's case beyond what the planner writes); an impersonal takes no subject
 agreement but the renderer does not drop a planned subject; reciprocals stay a suffix or a
 word; the fake planner only produces the new voices from short fixed shapes ("The man eats.",
-"The door opens.", "I cook for him."). Decoding a token in a language that rolled many
-features (object agreement, aspects, moods, voices, classes, evidentials, negation) can take
-a few seconds when the token is not a word of the language, because it searches suffix
-combinations (staged and prefix-filtered); a cache or smarter suffix matching would fix it (S-M).
+"The door opens.", "I cook for him."). Decoding an unknown token was sped up (pass 20: about 3x on
+average, worst case from ~4.6 s to under 1 s in a 40-language sample) but is still a
+generate-and-compare search: a feature-heavy language spends ~0.5 s on a token that is not one of
+its words. A real fix would index inflected forms per language, or match suffixes right to left (M).
 
 **Existence/possession follow-ups (S-M):** more strategies (locative
 possession "at me is", topic-comment possession, a possessive verb that

@@ -54,6 +54,7 @@ for -- see its own docstring.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import random
 import re
@@ -614,6 +615,16 @@ class RomanizationScheme(BaseModel, frozen=True):
     conditioning -- see ``JointSpelling``'s docstring), but the mechanism
     is symmetric so it's ready the moment one does."""
 
+    @functools.cached_property
+    def _known_by_first_char(self) -> dict[str, tuple[str, ...]]:
+        """This scheme's ipa symbols grouped by first character, longest first
+        (computed once: tokenizing is called for every candidate when decoding)."""
+        grouped: dict[str, list[str]] = {}
+        for symbol in sorted({rule.ipa for rule in self.rules}, key=len, reverse=True):
+            if symbol:
+                grouped.setdefault(symbol[0], []).append(symbol)
+        return {first: tuple(symbols) for first, symbols in grouped.items()}
+
     def _known_symbols(self) -> list[str]:
         return sorted({rule.ipa for rule in self.rules}, key=len, reverse=True)
 
@@ -636,7 +647,7 @@ class RomanizationScheme(BaseModel, frozen=True):
         spelling resolution) sees exactly the same list it always has,
         with zero risk of either marker being mistaken for a real phoneme
         anywhere in this scheme's own following/preceding conditioning."""
-        known = self._known_symbols()
+        known_by_first = self._known_by_first_char
         tokens: list[tuple[str | None, str, str]] = []
         stress_before: int | None = None
         word_accent_after: int | None = None
@@ -650,7 +661,7 @@ class RomanizationScheme(BaseModel, frozen=True):
                 word_accent_after = len(tokens) - 1
                 i += 1
                 continue
-            matched = next((s for s in known if ipa_text.startswith(s, i)), None)
+            matched = next((s for s in known_by_first.get(ipa_text[i], ()) if ipa_text.startswith(s, i)), None)
             if matched is None:
                 tokens.append((None, "", ipa_text[i]))
                 i += 1
