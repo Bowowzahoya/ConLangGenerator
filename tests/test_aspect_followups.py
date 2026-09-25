@@ -313,7 +313,7 @@ def test_sound_change_reaches_the_inflectional_affixes():
             before = getattr(base.grammar, name)
             after = getattr(evolved.grammar, name)
             assert [a.label for a in after] == [a.label for a in before]
-            assert all(a.suffix or a.prefix for a in after)
+            assert all(a.suffix or a.prefix or a.infix for a in after)
             changed += sum(1 for a, b in zip(before, after) if a != b)
     assert changed > 0
 

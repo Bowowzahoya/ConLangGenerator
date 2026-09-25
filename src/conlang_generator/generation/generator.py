@@ -19,6 +19,7 @@ from conlang_generator.generation import (
     noun_class_gen,
     voice_np_gen,
     np_followups_gen,
+    affix_position_gen,
     comparison_gen,
     paradigm_gen,
     noun_phrase_gen,
@@ -667,6 +668,13 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         update=paradigm_gen.roll_paradigms(
             random.Random(f"{spec.seed}:paradigms"), grammar, inventory, syllable_structure, romanization
         )
+    )
+    # Where the affixes sit (prefix, circumfix, infix), last, from its own stream.
+    grammar = affix_position_gen.roll_and_apply(
+        random.Random(f"{spec.seed}:affix-positions"), grammar, inventory, syllable_structure
+    )
+    grammar = inflection_gen.resolve_collisions(
+        random.Random(f"{spec.seed}:distinct-affixes"), inventory, syllable_structure, grammar, romanization
     )
 
     return Language(

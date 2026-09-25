@@ -60,7 +60,7 @@ def test_pro_drop_needs_distinct_person_suffixes():
     for seed in range(1, 80):
         grammar = _language(seed).grammar
         if grammar.pro_drop:
-            suffixes = [a.suffix for a in grammar.agreement_affixes if a.label in pronoun_gen.PERSON_LABELS]
+            suffixes = [(a.prefix, a.infix, a.suffix) for a in grammar.agreement_affixes if a.label in pronoun_gen.PERSON_LABELS]
             assert len(set(suffixes)) == len(pronoun_gen.PERSON_LABELS)
 
 

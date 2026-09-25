@@ -1148,3 +1148,19 @@ conlang translate "I see the fire." --lang t38 --to conlang --llm fake
 
 `moon` is in the syncretic declension, so its accusative `numzriqak` is also its nominative form; `fire` is in the
 base declension and has a distinct accusative (`sadjkaxfu` against the nominative `sadjkaxfoq`). Stem changes show in the verbs: `see` is a strong verb whose stem vowel shifts in the past (IPA `ˈmə̀patʃoŋ` against the present `ˈmàpujoŋ`; this language spells both vowels `a`, so the shift shows only in the IPA), and the CLI language marks the past with an auxiliary word, so the exact forms are checked in `tests/test_paradigm_stems.py`.
+
+**Affix positions.** Some languages inflect by prefix, circumfix or infix instead of only by suffix. Verified with `--llm fake`:
+`--seed 13 --prompt p` as `t40` (a circumfix for number, an infix for object agreement) and `--seed 6` as `u6` (an infix for aspect):
+
+```bash
+conlang translate "I see the dog." --lang t40 --to conlang --llm fake
+conlang translate "I see the dogs." --lang t40 --to conlang --llm fake
+conlang translate "I see the dog." --lang u6 --to conlang --llm fake
+conlang translate "I am seeing the dog." --lang u6 --to conlang --llm fake
+conlang translate "I have seen the dog." --lang u6 --to conlang --llm fake
+```
+
+In `t40` the plural wraps the stem (`nuwōkáhū'o'i` "dog" becomes `linuwōkáhū'e'u'o'i`: a prefix in front and a suffix before
+the case ending). In `u6` the aspect goes inside the verb: the plain `fuseirhid` becomes `fanuseirhid` (progressive) and
+`fe'useirhid` (perfect), the infixes `-an-` and `-e'-` placed before the stem's last vowel. Both read back correctly
+(`I see dogs`, `I see dog`).

@@ -138,6 +138,12 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   ablaut (a vowel shifts, as in strong verbs) or consonant gradation (a final voiceless consonant voices), each a rule over
   the language's own inventory. A noun's class follows its gender where the language has gender, otherwise a hash of its
   gloss; verbs and adjectives follow a hash.
+- **Affix positions are illustrative**: about a third of languages put some inflectional fields in another position
+  -- a prefix (an open syllable), a circumfix (a prefix around the usual suffix) or an infix (after the stem's first
+  consonant or before its last vowel) -- chosen per field (noun case, number, possession; verb tense, agreement, aspect,
+  mood, voice, object agreement, verb number) by morphological type; the rest are suffixing. Exponents are drawn fresh but keep
+  the paradigm's shape (labels that shared a suffix share the new exponent). Infixing can produce odd clusters, and
+  no affix triggers sandhi.
 - **Noun-phrase features are illustrative**: the dual is one extra suffix; the
   possessive particle, possessed-noun suffix and genitive are the only
   possession strategies (no alienable/inalienable split, no agreement with the

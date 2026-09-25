@@ -85,7 +85,7 @@ def test_affixes_exist_exactly_where_the_strategy_needs_them():
             assert g.honorific_you
         if g.object_pro_drop:
             assert g.object_agreement
-            suffixes = [a.suffix for a in g.object_agreement_affixes if a.label in pronoun_gen.PERSON_LABELS]
+            suffixes = [(a.prefix, a.infix, a.suffix) for a in g.object_agreement_affixes if a.label in pronoun_gen.PERSON_LABELS]
             assert len(set(suffixes)) == 4
 
 

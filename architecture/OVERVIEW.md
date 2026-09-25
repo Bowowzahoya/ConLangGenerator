@@ -4753,3 +4753,19 @@ reading code or one-off ad hoc scripts.
   `_apply_verb_inflection`, `_apply_class_agreement` and the decoders; the pro-drop reading of an agreement suffix checks the
   verb's own conjugation (`_person_suffix_is_distinct(_paradigm_grammar(...))`). Sound change evolves `stem_maps` symbols too.
   10 tests in `test_paradigm_stems.py`.
+
+- **Affix positions (grammar pass 24).** `InflectionAffix` gained `infix` and `infix_at` (`after_first_consonant`/`before_last_vowel`);
+  `GrammarProfile.affix_positions` records the non-suffix fields. `generation/affix_position_gen.py` (`roll_and_apply`, own
+  `{seed}:affix-positions` stream, run after the paradigms and followed by a `resolve_collisions` pass): 35% of languages are
+  mixed; each of nine noun/verb fields then rolls suffix/prefix/circumfix/infix by morphological type, and every distinct suffix of a
+  converted field (in the grammar and in paradigm overrides) maps to one fresh exponent -- so syncretisms and distinctness survive. A
+  prefix is onset + vowel, a circumfix keeps the suffix and adds one, an infix is nucleus + coda. `inflection_gen.apply_affix` inserts
+  the infix (`_insert_infix`) before attaching the prefix/suffix and re-deriving stress; `translator._compose_affixes` concatenates
+  prefixes, infixes and suffixes of composed affixes. `resolve_collisions` now compares (prefix, infix, suffix) as spelled and redraws
+  the exponent that is present. Decoding: `_decode_mode` picks how many stems an unknown token is tried against (`start`: the
+  token starts like the stem; `contains`: a prefix is possible, so the stem's first letters appear anywhere; `all-after`/
+  `all-before`/`all-both`: an infix can split the stem, so only its far end is checked; short stems always pass),
+  `_may_spell` applies it, and the verb search skips any label combination whose affix symbols cannot be spelled with the token's
+  letters (`_symbol_letters`: every letter a symbol can take in any context, so the test never rules out a real form).
+  `_person_suffix_is_distinct` compares whole exponents. Sound change evolves prefixes, infixes and suffixes. 14 tests in
+  `test_affix_positions.py`.

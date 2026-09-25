@@ -275,7 +275,7 @@ def _clause_verb(language, tokens):
 
 def test_an_if_clause_takes_the_subjunctive_in_a_language_that_does_so():
     language = _with(
-        _find(lambda g: g.subordinate_mood_use and not g.periphrastic_labels and ("subjunctive" in g.moods or "irrealis" in g.moods)),
+        _find(lambda g: g.subordinate_mood_use and not g.periphrastic_labels and not g.affix_positions and not g.correlative_adverbials and ("subjunctive" in g.moods or "irrealis" in g.moods)),
         suppletive_past=(),
     )
     main = _noun("dog")
@@ -288,7 +288,7 @@ def test_an_if_clause_takes_the_subjunctive_in_a_language_that_does_so():
 
 def test_a_planners_own_mood_wins_over_the_forced_one():
     language = _with(
-        _find(lambda g: g.subordinate_mood_use and not g.periphrastic_labels and "subjunctive" in g.moods and "conditional" in g.moods),
+        _find(lambda g: g.subordinate_mood_use and not g.periphrastic_labels and not g.affix_positions and not g.correlative_adverbials and "subjunctive" in g.moods and "conditional" in g.moods),
         suppletive_past=(),
     )
     forced = _clause_verb(language, _render(language, _noun("dog"), _clause("if", "adverbial", _verb("see")))[1])

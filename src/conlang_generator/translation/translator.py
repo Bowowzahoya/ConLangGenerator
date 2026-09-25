@@ -157,6 +157,19 @@ def _stress_and_word_accent_kwargs(language: Language) -> dict:
     }
 
 
+def _compose_affixes(label: str, parts) -> InflectionAffix:
+    """One synthetic affix from several: the prefixes, infixes and suffixes each
+    concatenated in order (the first infix's place decides where the infixes go)."""
+    present = [part for part in parts if part]
+    return InflectionAffix(
+        label=label,
+        prefix=tuple(sym for part in present for sym in part.prefix),
+        suffix=tuple(sym for part in present for sym in part.suffix),
+        infix=tuple(sym for part in present for sym in part.infix),
+        infix_at=next((part.infix_at for part in present if part.infix), ""),
+    )
+
+
 def _combined_tense_agreement_affix(
     grammar: GrammarProfile,
     tense_label: str | None,
@@ -197,11 +210,8 @@ def _combined_tense_agreement_affix(
         voice_affix, aspect_affix, tense_affix, mood_affix, evidential_affix, negative_affix, agreement_affix,
         number_affix, polite_affix, object_affix,
     ]
-    prefix = tuple(sym for part in parts if part for sym in part.prefix)
-    suffix = tuple(sym for part in parts if part for sym in part.suffix)
-    if not prefix and not suffix:
-        return None
-    return InflectionAffix(label="verb-inflection", prefix=prefix, suffix=suffix)
+    composed = _compose_affixes("verb-inflection", parts)
+    return composed if (composed.prefix or composed.suffix or composed.infix) else None
 
 
 def _case_affix_salt(entry: LexicalEntry, case_label: str) -> str:
@@ -284,9 +294,7 @@ def _noun_affix(
     if number_affix is None and possessed_affix is None and person_affix is None and marker_affix is None:
         return case_affix, resolved_case
     parts = [marker_affix, number_affix, person_affix, possessed_affix, case_affix]
-    prefix = tuple(sym for part in parts if part for sym in part.prefix)
-    suffix = tuple(sym for part in parts if part for sym in part.suffix)
-    return InflectionAffix(label="number+case", prefix=prefix, suffix=suffix), resolved_case
+    return _compose_affixes("number+case", parts), resolved_case
 
 
 def _noun_affix_salt(
@@ -385,6 +393,83 @@ def _stem_ipa(language: Language, entry: LexicalEntry, cells) -> str:
     return entry.ipa
 
 
+def _decode_mode(language: Language, fields) -> str:
+    """How much of the lexicon an unknown token must be tried against: ``"start"`` (every affix
+    of these fields is a suffix, so a form starts like its stem), ``"contains"`` (a prefix or
+    circumfix is possible, so the stem's first letters only appear somewhere in the form) or
+    ``"all-after"``/``"all-before"``/``"all-both"`` (an infix can split the stem, so only its far end is checked)."""
+    grammar = language.grammar
+    mode = "start"
+    places: set[str] = set()
+    for name in fields:
+        for affix in getattr(grammar, name, ()):
+            if affix.infix:
+                places.add(affix.infix_at)
+            if affix.prefix:
+                mode = "contains"
+    if places:
+        return "all-" + ("both" if len(places) > 1 else "after" if "after_first_consonant" in places else "before")
+    return mode
+
+
+_SYMBOL_LETTERS_CACHE: dict[tuple[int, str], tuple[object, frozenset[str] | None]] = {}
+
+
+def _symbol_letters(language: Language, symbol: str) -> frozenset[str] | None:
+    """Every letter a spelling of ``symbol`` can contain in any context (its conditioned rules and the
+    joint spellings it takes part in); ``None`` when it can be silent or is not in the scheme."""
+    scheme = language.romanization
+    key = (id(scheme), symbol)
+    cached = _SYMBOL_LETTERS_CACHE.get(key)
+    if cached is not None and cached[0] is scheme:
+        return cached[1]
+    base = symbol[:1] if not any(rule.ipa == symbol for rule in scheme.rules) else symbol
+    latin = [rule.latin for rule in scheme.rules if rule.ipa == base]
+    latin += [
+        joint.latin
+        for joint in (*scheme.onset_nucleus_spellings, *scheme.nucleus_coda_spellings)
+        if base in (joint.first, joint.second)
+    ]
+    result: frozenset[str] | None
+    if not latin or any(text == "" for text in latin):
+        result = None
+    else:
+        result = frozenset(ch for text in latin for ch in _letters(text))
+    if len(_SYMBOL_LETTERS_CACHE) >= 4096:
+        _SYMBOL_LETTERS_CACHE.clear()
+    _SYMBOL_LETTERS_CACHE[key] = (scheme, result)
+    return result
+
+
+def _symbol_may_appear(language: Language, symbol: str, token_letters: str) -> bool:
+    """Whether some spelling of ``symbol`` could occur in a token spelled ``token_letters``."""
+    letters = _symbol_letters(language, symbol)
+    return letters is None or any(ch in token_letters for ch in letters)
+
+
+def _letters(text: str) -> str:
+    """Lower-case letters without diacritics (what ``_stem_prefix`` compares)."""
+    return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(c))
+
+
+def _may_spell(language: Language, entry: LexicalEntry, token_letters: str, mode: str) -> bool:
+    """Whether ``entry`` could be the stem of a token, by ``mode`` (see ``_decode_mode``)."""
+    if mode.startswith("all"):
+        # An infix can split the stem, but not its far end: after the first consonant the stem's end stays
+        # whole, before the last vowel its start does. Short stems are always tried.
+        if any(p.stem_change for p in _entry_paradigms(language, entry)):
+            return True
+        letters = _letters(entry.romanization)
+        if len(letters) <= 4:
+            return True
+        head, tail = letters[:3] in token_letters, letters[-3:] in token_letters
+        return (head or tail) if mode == "all-both" else tail if mode == "all-after" else head
+    prefixes = _stem_prefixes(language, entry)
+    if mode == "start":
+        return token_letters[:2] in prefixes
+    return any(p in token_letters for p in prefixes)
+
+
 def _stem_prefixes(language: Language, entry: LexicalEntry) -> set[str]:
     """The first two letters ``entry`` can start with in any form: its own, and its changed stem's."""
     prefixes = {_stem_prefix(entry.romanization)}
@@ -465,11 +550,7 @@ def _non_finite_affix(
         parts.append(next((a for a in grammar.agreement_affixes if a.label == agreement), None))
     if case is not None:
         parts.append(next((a for a in grammar.case_affixes if a.label == case), None))
-    return InflectionAffix(
-        label="non-finite",
-        prefix=tuple(sym for part in parts if part for sym in part.prefix),
-        suffix=tuple(sym for part in parts if part for sym in part.suffix),
-    )
+    return _compose_affixes("non-finite", parts)
 
 
 def _imperative_salt(entry: LexicalEntry) -> str:
@@ -869,11 +950,7 @@ def _apply_class_agreement(
     parts = [degree_affix, class_affix, number_affix, case_affix]
     if not any(parts):
         return entry.romanization, entry.ipa
-    affix = InflectionAffix(
-        label="adjective-agreement",
-        prefix=tuple(sym for part in parts if part for sym in part.prefix),
-        suffix=tuple(sym for part in parts if part for sym in part.suffix),
-    )
+    affix = _compose_affixes("adjective-agreement", parts)
     rng = _translation_rng(
         language,
         _class_agreement_salt(
@@ -2092,23 +2169,12 @@ def _decode_noun(language: Language, token: str) -> tuple[LexicalEntry, str] | N
     # A subject/object argument may be a real noun or a pronoun -- both fill
     # the same syntactic slot.
     noun_entries = [e for e in language.lexicon.entries if e.pos in (PartOfSpeech.NOUN, PartOfSpeech.PRONOUN)]
-    # With suffixes only, an inflected noun keeps its first two letters, so only
-    # the nouns that start like the token can spell it (a prefix marker changes the start).
-    other_prefixes = any(
-        a.prefix for name in inflection_gen._NOUN_SUFFIX_FIELDS if name != "class_marker_affixes"
-        for a in getattr(grammar, name)
-    )
-    if not other_prefixes:
-        prefix = _stem_prefix(token)
-        if any(a.prefix for a in grammar.class_marker_affixes):
-            # A class prefix is the only thing that changes the start: compare with the marked bare form.
-            noun_entries = [
-                e for e in noun_entries
-                if _stem_prefix(_apply_case(language, e, None, None)[0]) == prefix
-                or any(p.stem_change for p in _entry_paradigms(language, e))
-            ]
-        else:
-            noun_entries = [e for e in noun_entries if prefix in _stem_prefixes(language, e)]
+    # Only nouns whose stem could appear in the token can spell it: with suffixes only, the token
+    # starts like its stem; with a prefix or circumfix the stem is somewhere inside it; an infix
+    # can split it, so nothing is ruled out.
+    noun_mode = _decode_mode(language, inflection_gen._NOUN_SUFFIX_FIELDS)
+    token_letters = _letters(token)
+    noun_entries = [e for e in noun_entries if _may_spell(language, e, token_letters, noun_mode)]
 
     def spells(entry, case, number, possessed=False, person=None) -> bool:
         return _normalize(_apply_case(language, entry, case, number, possessed, person)[0]) == normalized
@@ -2164,9 +2230,11 @@ def _decode_adjective_full(language: Language, token: str) -> tuple[LexicalEntry
     prefix = _stem_prefix(token)
     grammar = language.grammar
     degree_options: list[str | None] = [None] + [a.label for a in grammar.degree_affixes]
+    adjective_mode = _decode_mode(language, ("degree_affixes", "class_affixes", "number_affixes", "case_affixes"))
+    token_letters = _letters(token)
     for entry in language.lexicon.entries:
         category = _agreement_category(entry)
-        if category is None or _stem_prefix(entry.romanization) != prefix:
+        if category is None or not _may_spell(language, entry, token_letters, adjective_mode):
             continue
         class_options, number_options, case_options = _agreement_options(grammar, category)
         combos = sorted(
@@ -2301,10 +2369,11 @@ def _decode_verb_full(
         return None
 
     prefix = _stem_prefix(token)
-    prefix_marked = any(a.prefix for name in inflection_gen._VERB_SUFFIX_FIELDS for a in getattr(language.grammar, name))
-    # An inflected verb keeps its first two letters (suffixes never change them),
-    # so an unknown token is only tried against the verbs that start like it.
-    likely = verb_entries if prefix_marked else [e for e in verb_entries if prefix in _stem_prefixes(language, e)]
+    verb_mode = _decode_mode(language, inflection_gen._VERB_SUFFIX_FIELDS)
+    verb_letters = _letters(token)
+    # An inflected verb keeps its first two letters (suffixes never change them), so an unknown token is
+    # only tried against the verbs whose stem could be in it (see ``_decode_mode``).
+    likely = [e for e in verb_entries if _may_spell(language, e, verb_letters, verb_mode)]
     found_special = special(likely)
     if found_special is not None:
         return found_special
@@ -2353,6 +2422,7 @@ def _decode_verb_full(
         )
         entry_grammars = {id(e): _paradigm_grammar(language, e) for e in entries}
         stems: dict[tuple, str] = {}
+        fragment_ok: dict[tuple, bool] = {}
         for (
             tense_label, aspect_label, mood_label, object_label, voice_label,
             (number_label, polite, evidential_label, negative),
@@ -2364,6 +2434,18 @@ def _decode_verb_full(
                         number_label, polite, evidential_label, negative,
                     )
                     if affix is None:
+                        continue
+                    # Every part of the affix must be visible in the token (a cheap necessary condition that
+                    # rules out most label combinations without rendering a single candidate).
+                    fragments = (affix.prefix, affix.infix, affix.suffix)
+                    plausible = fragment_ok.get(fragments)
+                    if plausible is None:
+                        plausible = all(
+                            _symbol_may_appear(language, symbol, verb_letters)
+                            for part in fragments for symbol in part
+                        )
+                        fragment_ok[fragments] = plausible
+                    if not plausible:
                         continue
                     rng = _translation_rng(
                         language,
@@ -2425,6 +2507,10 @@ def _decode_verb_full(
     return None
 
 
+def _affix_key(affix: InflectionAffix) -> tuple:
+    return (affix.prefix, affix.infix, affix.suffix)
+
+
 def _person_suffix_is_distinct(grammar: GrammarProfile, label: str, objects: bool = False) -> bool:
     """Whether the agreement suffix for person ``label`` (subject agreement, or
     object agreement with ``objects``) differs from every other one in its
@@ -2433,7 +2519,7 @@ def _person_suffix_is_distinct(grammar: GrammarProfile, label: str, objects: boo
     own = next((a for a in affixes if a.label == label), None)
     if own is None:
         return False
-    return all(a.suffix != own.suffix for a in affixes if a.label != label)
+    return all(_affix_key(a) != _affix_key(own) for a in affixes if a.label != label)
 
 
 def _decode_verb(language: Language, token: str) -> tuple[LexicalEntry, str | None] | None:

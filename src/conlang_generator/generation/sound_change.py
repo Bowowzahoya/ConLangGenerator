@@ -1277,7 +1277,9 @@ def _evolve_grammar_affixes(
     from conlang_generator.core.grammar import Paradigm
 
     def evolve_affix(item):
-        return item.model_copy(update={"prefix": evolve(item.prefix), "suffix": evolve(item.suffix)})
+        return item.model_copy(
+            update={"prefix": evolve(item.prefix), "suffix": evolve(item.suffix), "infix": evolve(item.infix)}
+        )
 
     updates: dict[str, tuple] = {}
     for field in type(grammar).model_fields:

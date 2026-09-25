@@ -220,6 +220,21 @@ def generate_voice_affixes(
     return distinct_suffixes(rng, inventory, structure, voices, taken)
 
 
+def _insert_infix(stem_symbols, raw_tokens, affix: InflectionAffix, inventory: PhonemeInventory):
+    """``stem_symbols`` with ``affix.infix`` put after the first consonant (at the very start of
+    a vowel-initial stem) or before the last vowel (at the end of a vowelless one)."""
+    vowels = set(inventory.vowel_symbols()) | {
+        symbol for symbol, _ in raw_tokens if symbol and symbol[0] in "aeiouəɛɔɪʊɐɑæøyɨɯɤ"
+    }
+    is_vowel = [symbol in vowels for symbol, _ in raw_tokens]
+    if affix.infix_at == "before_last_vowel":
+        vowel_positions = [i for i, v in enumerate(is_vowel) if v]
+        at = vowel_positions[-1] if vowel_positions else len(stem_symbols)
+    else:
+        at = 1 if stem_symbols and not is_vowel[0] else 0
+    return stem_symbols[:at] + tuple(affix.infix) + stem_symbols[at:]
+
+
 _KNOWN_SYMBOLS_CACHE: dict[int, tuple[object, tuple[str, ...]]] = {}
 
 
@@ -266,12 +281,14 @@ def apply_affix(
     plus only whichever multi-character symbols this run's own inventory
     actually has), for the identical reason -- see ``_ALL_SINGLE_CHAR_
     SYMBOLS``'s own docstring."""
-    if affix is None or not (affix.prefix or affix.suffix):
+    if affix is None or not (affix.prefix or affix.suffix or affix.infix):
         return ipa
     known_symbols = _known_symbols_for(inventory)
     stripped = ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, "")
     raw_tokens = ipa_tokenizer.tokenize(stripped, known_symbols)
     stem_symbols = tuple(symbol + deco for symbol, deco in raw_tokens)
+    if affix.infix:
+        stem_symbols = _insert_infix(stem_symbols, raw_tokens, affix, inventory)
     return word_builder.attach_affix_and_restress(
         rng, affix.prefix, stem_symbols, affix.suffix, inventory,
         stress_pattern, stress_deviation_rate, stress_strictness,
@@ -356,15 +373,37 @@ _MODIFIER_SUFFIX_FIELDS = ("class_affixes", "degree_affixes")
 def resolve_collisions(
     rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure, grammar, romanization=None
 ):
-    """Re-draws any suffix that spells the same as an earlier one that can
-    occur on the same kind of word (verb, noun, adjective), so no two labels
-    of a paradigm collapse into one form. The first occurrence keeps its
-    suffix, so only actual collisions change; when the short suffix shapes are
-    used up a longer one is drawn. With ``romanization``, two suffixes spelled
-    alike (a different phoneme with the same letter) count as colliding."""
+    """Re-draws any affix that is spelled like an earlier one that can occur on the
+    same kind of word (verb, noun, adjective), so no two labels of a paradigm collapse
+    into one form. The first occurrence keeps its exponent, so only actual collisions
+    change: a suffix-only affix gets a new suffix (a longer one when the short shapes
+    are used up), a prefixed or circumfixed one a new prefix, an infixed one a new
+    infix. With ``romanization``, exponents spelled alike (a different phoneme with the
+    same letter) count as colliding."""
 
-    def spelled(suffix: tuple[str, ...]):
-        return romanization.apply("".join(suffix)).lower() if romanization is not None else suffix
+    def spelled(symbols: tuple[str, ...]):
+        if not symbols:
+            return ""
+        return romanization.apply("".join(symbols)).lower() if romanization is not None else symbols
+
+    def key(affix: InflectionAffix):
+        return (spelled(affix.prefix), spelled(affix.infix), spelled(affix.suffix))
+
+    def redraw(affix: InflectionAffix, used: set) -> InflectionAffix:
+        for attempt in range(120):
+            if affix.prefix:
+                onset, nucleus, _coda = word_builder._build_syllable_parts(rng, inventory, structure)
+                candidate = affix.model_copy(update={"prefix": tuple(onset[:1]) + (nucleus,)})
+            elif affix.infix:
+                candidate = affix.model_copy(update={"infix": word_builder.build_class_suffix(rng, inventory, structure)})
+            else:
+                suffix = word_builder.build_class_suffix(rng, inventory, structure)
+                for _ in range(attempt // 30):  # the short shapes are used up: allow a longer suffix
+                    suffix = suffix + word_builder.build_class_suffix(rng, inventory, structure)
+                candidate = affix.model_copy(update={"suffix": suffix})
+            if key(candidate) not in used:
+                return candidate
+        return candidate
 
     updates: dict[str, tuple] = {}
     for fields in (_VERB_SUFFIX_FIELDS, _NOUN_SUFFIX_FIELDS, _MODIFIER_SUFFIX_FIELDS):
@@ -374,20 +413,13 @@ def resolve_collisions(
             changed = False
             fixed = []
             for affix in affixes:
-                if not affix.suffix or affix.prefix:
+                if not (affix.prefix or affix.suffix or affix.infix):
                     fixed.append(affix)
                     continue
-                suffix = affix.suffix
-                if spelled(suffix) in used:
-                    for attempt in range(120):
-                        suffix = word_builder.build_class_suffix(rng, inventory, structure)
-                        for _ in range(attempt // 30):  # the short shapes are used up: allow a longer suffix
-                            suffix = suffix + word_builder.build_class_suffix(rng, inventory, structure)
-                        if spelled(suffix) not in used:
-                            break
-                    affix = affix.model_copy(update={"suffix": suffix})
+                if key(affix) in used:
+                    affix = redraw(affix, used)
                     changed = True
-                used.add(spelled(suffix))
+                used.add(key(affix))
                 fixed.append(affix)
             if changed:
                 updates[name] = tuple(fixed)

@@ -225,6 +225,11 @@ class InflectionAffix(BaseModel, frozen=True):
     the unmarked default" pattern)."""
     prefix: tuple[str, ...] = ()
     suffix: tuple[str, ...] = ()
+    infix: tuple[str, ...] = ()
+    """Symbols inserted *inside* the stem, at ``infix_at``; an affix may combine any of
+    prefix, suffix (a circumfix is both) and infix."""
+    infix_at: str = ""
+    """``"after_first_consonant"`` (Tagalog ``s-um-ulat``) or ``"before_last_vowel"``."""
 
 
 class GrammarProfile(BaseModel, frozen=True):
@@ -599,6 +604,10 @@ class GrammarProfile(BaseModel, frozen=True):
     adverb_degree: bool = False
     """An adverb takes a degree suffix too ("more quickly") where the language has one."""
 
+    affix_positions: tuple[tuple[str, str], ...] = ()
+    """Inflectional fields (``"case_affixes"``, ``"tense_affixes"``...) whose affixes are
+    not plain suffixes, with their position (``prefix``, ``circumfix`` or ``infix``);
+    empty for a uniformly suffixing language."""
     noun_paradigms: tuple[Paradigm, ...] = ()
     """Further noun declensions (class 0 is the language's own case/number affixes)."""
     verb_paradigms: tuple[Paradigm, ...] = ()

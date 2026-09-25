@@ -82,6 +82,8 @@ def test_every_override_names_a_real_label_and_is_distinct_from_its_group():
     for seed in range(1, 80):
         language = _language(seed)
         g = language.grammar
+        if g.affix_positions:
+            continue  # suffix exponents only; affix positions are tested in test_affix_positions.py
         for paradigm in g.noun_paradigms + g.verb_paradigms + g.adjective_paradigms:
             fields = (
                 inflection_gen._NOUN_SUFFIX_FIELDS if paradigm.pos == "noun"
