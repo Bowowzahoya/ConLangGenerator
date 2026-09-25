@@ -1252,6 +1252,41 @@ def _coin_borrowed_word(
     return ipa, scheme.apply(ipa)
 
 
+def _evolve_grammar_affixes(
+    grammar, seed: int, rates, known_symbols, consonant_by_ipa, vowel_by_ipa, inventory, structure
+):
+    """Runs the language's sound changes over every inflectional affix (case,
+    tense, agreement, aspect, mood, voice, evidential, negative, class ...) --
+    one shared result per distinct affix shape, so two labels that shared
+    sounds keep sharing them -- and then re-separates any labels the change
+    made collide. Uses its own rng stream, so no word's evolution shifts."""
+    from conlang_generator.core.grammar import InflectionAffix
+
+    rng = random.Random(f"{seed}:affix-evolution")
+    memo: dict[tuple[str, ...], tuple[str, ...]] = {}
+
+    def evolve(symbols: tuple[str, ...]) -> tuple[str, ...]:
+        if not symbols:
+            return symbols
+        if symbols not in memo:
+            evolved, _ = _evolve_ipa("".join(symbols), rng, rates, known_symbols, consonant_by_ipa, vowel_by_ipa)
+            tokens = ipa_tokenizer.tokenize(evolved, known_symbols)
+            memo[symbols] = tuple(symbol + deco for symbol, deco in tokens) or symbols
+        return memo[symbols]
+
+    updates: dict[str, tuple] = {}
+    for field in type(grammar).model_fields:
+        value = getattr(grammar, field)
+        if isinstance(value, tuple) and value and all(isinstance(item, InflectionAffix) for item in value):
+            updates[field] = tuple(
+                item.model_copy(update={"prefix": evolve(item.prefix), "suffix": evolve(item.suffix)})
+                for item in value
+            )
+    from conlang_generator.generation import inflection_gen
+
+    return inflection_gen.resolve_collisions(rng, inventory, structure, grammar.model_copy(update=updates))
+
+
 def evolve_language(
     name: str,
     base: Language,
@@ -1489,6 +1524,10 @@ def evolve_language(
         evolved_entries.append(entry.model_copy(update=update))
     evolved_entries = tuple(evolved_entries)
 
+    evolved_grammar = _evolve_grammar_affixes(
+        base.grammar, seed, rates, known_symbols, consonant_by_ipa, vowel_by_ipa, inventory, syllable_structure
+    )
+
     spec = GenerationSpec(
         prompt=f"evolved from '{base.name}' over {years} years",
         seed=seed,
@@ -1503,7 +1542,7 @@ def evolve_language(
         tone_system=new_tone_system,
         word_accent=base.word_accent,
         romanization=romanization,
-        grammar=base.grammar,
+        grammar=evolved_grammar,
         lexicon=Lexicon(entries=evolved_entries, idioms=base.lexicon.idioms),
         history=base.history + (f"evolved {years} years (seed={seed})",),
     )

@@ -264,3 +264,107 @@ def apply_affix(
         word_accent_length_rate=word_accent_length_rate,
         word_accent_window=word_accent_window,
     )
+
+
+# ---------------------------------------------------------------------------
+# Aspect/mood follow-ups: evidentiality, negation strategy, prohibitives,
+# auxiliary (periphrastic) tenses/aspects/moods, and suffix collisions.
+# ---------------------------------------------------------------------------
+
+EVIDENTIAL_SYSTEMS: tuple[tuple[str, ...], ...] = (
+    (),
+    ("reported",),
+    ("inferred", "reported"),
+    ("witnessed", "inferred", "reported"),
+)
+_EVIDENTIAL_WEIGHTS = (0.55, 0.15, 0.15, 0.15)
+NEGATION_STRATEGIES = (("particle", 0.55), ("affix", 0.25), ("both", 0.20))
+PERIPHRASTIC_CANDIDATES = (
+    "past", "future", "perfective", "imperfective", "progressive", "perfect", "habitual",
+    "irrealis", "subjunctive", "conditional", "potential",
+)
+"""The labels a language may express with an auxiliary word (only those it
+actually has are kept)."""
+_PERIPHRASTIC_RATE = 0.25
+AUXILIARY_GLOSS_PREFIX = "aux-"
+
+
+def roll_aspect_followups(rng: random.Random, grammar) -> dict[str, object]:
+    """Rolls for evidentiality, negation strategy, a prohibitive, periphrastic
+    labels and their position (every draw always made, so the count never
+    depends on the grammar)."""
+    roll = rng.random()
+    cumulative = 0.0
+    evidentials = EVIDENTIAL_SYSTEMS[0]
+    for system, weight in zip(EVIDENTIAL_SYSTEMS, _EVIDENTIAL_WEIGHTS):
+        cumulative += weight
+        if roll < cumulative:
+            evidentials = system
+            break
+    roll = rng.random()
+    cumulative = 0.0
+    strategy = NEGATION_STRATEGIES[-1][0]
+    for label, weight in NEGATION_STRATEGIES:
+        cumulative += weight
+        if roll < cumulative:
+            strategy = label
+            break
+    prohibitive = rng.random() < 0.30
+    drawn = [rng.random() < _PERIPHRASTIC_RATE for _ in PERIPHRASTIC_CANDIDATES]
+    available = {*grammar.tenses, *grammar.aspects, *grammar.moods}
+    periphrastic = tuple(
+        label for label, hit in zip(PERIPHRASTIC_CANDIDATES, drawn) if hit and label in available
+    )
+    position = "after" if rng.random() < 0.5 else "before"
+    return {
+        "evidentials": evidentials,
+        "negation_strategy": strategy,
+        "prohibitive": prohibitive,
+        "periphrastic_labels": periphrastic,
+        "auxiliary_position": position,
+    }
+
+
+_VERB_SUFFIX_FIELDS = (
+    "tense_affixes", "agreement_affixes", "object_agreement_affixes", "mood_affixes", "aspect_affixes",
+    "voice_affixes", "verb_number_affixes", "verb_polite_affixes", "verb_form_affixes", "evidential_affixes",
+    "verb_negative_affixes",
+)
+_NOUN_SUFFIX_FIELDS = (
+    "case_affixes", "number_affixes", "class_marker_affixes", "possession_affixes", "possessor_person_affixes",
+)
+_MODIFIER_SUFFIX_FIELDS = ("class_affixes", "degree_affixes")
+
+
+def resolve_collisions(rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure, grammar):
+    """Re-draws any suffix that spells the same as an earlier one that can
+    occur on the same kind of word (verb, noun, adjective), so no two labels
+    of a paradigm collapse into one form. The first occurrence keeps its
+    suffix, so only actual collisions change; when the short suffix shapes are
+    used up a longer one is drawn."""
+    updates: dict[str, tuple] = {}
+    for fields in (_VERB_SUFFIX_FIELDS, _NOUN_SUFFIX_FIELDS, _MODIFIER_SUFFIX_FIELDS):
+        used: set[tuple[str, ...]] = set()
+        for name in fields:
+            affixes = getattr(grammar, name, ())
+            changed = False
+            fixed = []
+            for affix in affixes:
+                if not affix.suffix or affix.prefix:
+                    fixed.append(affix)
+                    continue
+                suffix = affix.suffix
+                if suffix in used:
+                    for attempt in range(60):
+                        suffix = word_builder.build_class_suffix(rng, inventory, structure)
+                        if attempt >= 30:  # the short shapes are used up: allow a longer suffix
+                            suffix = suffix + word_builder.build_class_suffix(rng, inventory, structure)
+                        if suffix not in used:
+                            break
+                    affix = affix.model_copy(update={"suffix": suffix})
+                    changed = True
+                used.add(suffix)
+                fixed.append(affix)
+            if changed:
+                updates[name] = tuple(fixed)
+    return grammar.model_copy(update=updates) if updates else grammar

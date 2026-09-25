@@ -4634,3 +4634,23 @@ reading code or one-off ad hoc scripts.
   `_apply_class_agreement` composes degree, class, number and case suffixes. Decoding: `_decode_noun` loops over marker,
   case, number and possession stages; `_decode_adjective_full` and `_article_forms` enumerate class x number x case.
   Planner prompt says agreement is inferred and `agrees_with` optional. 24 tests in `test_agreement_followups.py`.
+
+- **Aspect/mood follow-ups (grammar pass 16).** `inflection_gen.roll_aspect_followups` (own `{seed}:aspect-followups` stream)
+  rolls `evidentials` (`EVIDENTIAL_SYSTEMS`), `negation_strategy` (`particle`/`affix`/`both`, with a `verb_negative_affixes`
+  suffix unless `particle`), a `prohibitive` (one more `mood_affixes` label), `periphrastic_labels` (tense/aspect/mood
+  labels spelled by an `aux-<label>` particle, from `PERIPHRASTIC_CANDIDATES`) and `auxiliary_position`.
+  `inflection_gen.resolve_collisions` runs last in `generate_language`: over the verb, noun and modifier suffix
+  groups it keeps the first suffix of each shape and re-draws later duplicates (longer ones when the short shapes run
+  out). Renderer: `_split_periphrastic` takes the periphrastic labels off a verb/copula (never a command or non-finite
+  form) and `_auxiliary_entries` coins/reuses the auxiliary words, emitted before or after the verb;
+  `_negation_absorption` folds a `negation` slot into its nearest finite verb (`affix`/`both`) or, in an imperative,
+  into the prohibitive (`_prohibitive_salt`); `PlannedSlot.evidential` adds an evidential suffix; the composed verb
+  affix order is voice, aspect, tense, mood, evidential, negative, agreement, number, politeness, object.
+  Decoding: `_split_auxiliary_tokens` reads each auxiliary word's label onto the verb beside it (`finite_first` tries
+  finite readings before non-finite forms), `_decode_verb_full` returns twelve fields (evidential and negative appended),
+  tries the prohibitive like the imperative, and searches evidential/negative combinations in extra stages. English readings:
+  `will`, `reportedly`/`apparently`, `not`, `do not`. `sound_change._evolve_grammar_affixes` runs the language's sound
+  changes over every `InflectionAffix` (own `{seed}:affix-evolution` stream, one result per distinct shape) and then
+  re-resolves collisions, so an evolved language's grammar no longer stays frozen. The fake planner marks evidentials
+  (`reportedly`, `apparently` ...) when the language has the label and understands "did/does/do not". 23 tests in
+  `test_aspect_followups.py`.

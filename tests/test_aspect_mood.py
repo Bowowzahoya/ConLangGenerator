@@ -18,15 +18,42 @@ _THREE_MOODS = ("subjunctive", "conditional", "potential")
 
 
 def _language(seed: int):
-    return generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
+    """The generated language without the follow-up features (auxiliary tenses,
+    suffix negation, prohibitive, evidentials): these tests exercise plain
+    aspect and mood marking (the follow-ups are in ``test_aspect_followups.py``)."""
+    language = generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
+    grammar = language.grammar
+    plain = grammar.model_copy(
+        update={
+            "periphrastic_labels": (),
+            "negation_strategy": "particle",
+            "verb_negative_affixes": (),
+            "evidentials": (),
+            "evidential_affixes": (),
+            "mood_affixes": tuple(a for a in grammar.mood_affixes if a.label != "prohibitive"),
+        }
+    )
+    return language.model_copy(update={"grammar": plain})
 
 
-def _find(predicate, limit: int = 300):
+def _find(predicate, limit: int = 300, check=None):
+    """The first language whose grammar satisfies ``predicate`` (and, when
+    given, for which ``check(language)`` holds -- short invented suffixes can
+    concatenate into another reading, so tests of exact decoding pick a
+    language where the readings are unambiguous)."""
     for seed in range(1, limit):
         language = _language(seed)
-        if predicate(language.grammar):
+        if predicate(language.grammar) and (check is None or check(language)):
             return language
     raise AssertionError("no seed found")
+
+
+def _decodes_as_planned(language, cases) -> bool:
+    for sentence, aspect, mood in cases:
+        decoded = _decode_verb_full(language, _verb_form(language, sentence))
+        if decoded is None or decoded[2] != aspect or decoded[3] != mood:
+            return False
+    return True
 
 
 def _verb_form(language, sentence: str) -> str:
@@ -132,8 +159,18 @@ def test_the_fake_planner_falls_back_to_the_closest_available_label():
 # --- rendering and decoding -----------------------------------------------
 
 
+_ROUND_TRIP_CASES = (
+    ("I am seeing the river.", "progressive", None),
+    ("I have seen the river.", "perfect", None),
+    ("I would see the river.", None, "conditional"),
+)
+
+
 def test_aspect_and_mood_change_the_verb_form_and_decode_back():
-    language = _find(lambda g: g.aspects == _FOUR_WAY and g.moods == _THREE_MOODS)
+    language = _find(
+        lambda g: g.aspects == _FOUR_WAY and g.moods == _THREE_MOODS,
+        check=lambda lang: _decodes_as_planned(lang, _ROUND_TRIP_CASES),
+    )
     plain = _verb_form(language, "I see the river.")
     progressive = _verb_form(language, "I am seeing the river.")
     perfect = _verb_form(language, "I have seen the river.")
@@ -165,7 +202,10 @@ def test_a_language_without_aspect_ignores_the_planned_aspect():
 
 
 def test_english_gloss_reflects_aspect_and_mood():
-    language = _find(lambda g: g.aspects == _FOUR_WAY and g.moods == _THREE_MOODS)
+    language = _find(
+        lambda g: g.aspects == _FOUR_WAY and g.moods == _THREE_MOODS,
+        check=lambda lang: _decodes_as_planned(lang, _ROUND_TRIP_CASES),
+    )
     client = FakeLLMClient()
     conditional = translate_to_conlang("I would see the river.", language, client).text
     assert "would see" in translate_to_english(conditional, language, client).text

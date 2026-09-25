@@ -350,6 +350,45 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         }
     )
 
+    # Aspect/mood follow-ups: evidentials, negation strategy, prohibitive,
+    # periphrastic labels -- another independent stream.
+    followup_rng = random.Random(f"{spec.seed}:aspect-followups")
+    followups = inflection_gen.roll_aspect_followups(followup_rng, grammar)
+    taken = frozenset(
+        affix.suffix
+        for name in inflection_gen._VERB_SUFFIX_FIELDS
+        for affix in getattr(grammar, name)
+    )
+    evidential_affixes = inflection_gen.distinct_suffixes(
+        followup_rng, inventory, syllable_structure, tuple(followups["evidentials"]), taken
+    )
+    negative_affixes = (
+        inflection_gen.distinct_suffixes(
+            followup_rng, inventory, syllable_structure, ("negative",),
+            taken | {a.suffix for a in evidential_affixes},
+        )
+        if followups["negation_strategy"] != "particle"
+        else ()
+    )
+    prohibitive_affixes = (
+        inflection_gen.distinct_suffixes(
+            followup_rng, inventory, syllable_structure, ("prohibitive",),
+            taken | {a.suffix for a in (*evidential_affixes, *negative_affixes)},
+        )
+        if followups["prohibitive"]
+        else ()
+    )
+    grammar = grammar.model_copy(
+        update={
+            "evidentials": followups["evidentials"],
+            "evidential_affixes": evidential_affixes,
+            "negation_strategy": followups["negation_strategy"],
+            "verb_negative_affixes": negative_affixes,
+            "mood_affixes": grammar.mood_affixes + prohibitive_affixes,
+            "periphrastic_labels": followups["periphrastic_labels"],
+            "auxiliary_position": followups["auxiliary_position"],
+        }
+    )
     seed_entries = tuple(
         LexicalEntry(
             ipa=example.ipa,
@@ -488,6 +527,11 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
                 break
             possessive = inflection_gen.generate_question_particle(np_rng, inventory, syllable_structure)
         grammar = grammar.model_copy(update={"possessive_particle": possessive})
+
+    # Last, once every inflectional affix exists: no two labels of a paradigm may spell alike.
+    grammar = inflection_gen.resolve_collisions(
+        random.Random(f"{spec.seed}:distinct-suffixes"), inventory, syllable_structure, grammar
+    )
 
     return Language(
         name=name,

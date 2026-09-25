@@ -163,6 +163,8 @@ def _combined_tense_agreement_affix(
     voice_label: str | None = None,
     verb_number: str | None = None,
     polite: bool = False,
+    evidential_label: str | None = None,
+    negative: bool = False,
 ) -> InflectionAffix | None:
     """Composes this sentence's own aspect, tense, verbal mood and agreement
     affixes (in that order) into one synthetic ``InflectionAffix`` so
@@ -183,7 +185,14 @@ def _combined_tense_agreement_affix(
         next((a for a in grammar.verb_number_affixes if a.label == verb_number), None) if verb_number else None
     )
     polite_affix = next((a for a in grammar.verb_polite_affixes if a.label == "polite"), None) if polite else None
-    parts = [voice_affix, aspect_affix, tense_affix, mood_affix, agreement_affix, number_affix, polite_affix, object_affix]
+    evidential_affix = (
+        next((a for a in grammar.evidential_affixes if a.label == evidential_label), None) if evidential_label else None
+    )
+    negative_affix = next((a for a in grammar.verb_negative_affixes if a.label == "negative"), None) if negative else None
+    parts = [
+        voice_affix, aspect_affix, tense_affix, mood_affix, evidential_affix, negative_affix, agreement_affix,
+        number_affix, polite_affix, object_affix,
+    ]
     prefix = tuple(sym for part in parts if part for sym in part.prefix)
     suffix = tuple(sym for part in parts if part for sym in part.suffix)
     if not prefix and not suffix:
@@ -212,6 +221,8 @@ def _verb_affix_salt(
     voice_label: str | None = None,
     verb_number: str | None = None,
     polite: bool = False,
+    evidential_label: str | None = None,
+    negative: bool = False,
 ) -> str:
     """The rng salt for marking ``entry`` with a given tense+agreement
     (+ aspect, verbal mood) combination -- same "identical salt on both
@@ -231,6 +242,10 @@ def _verb_affix_salt(
         salt += f":n={verb_number}"
     if polite:
         salt += ":h=polite"
+    if evidential_label:
+        salt += f":e={evidential_label}"
+    if negative:
+        salt += ":neg"
     return salt
 
 
@@ -363,6 +378,114 @@ def _imperative_salt(entry: LexicalEntry) -> str:
     return f"mood:{entry.ipa}:imperative"
 
 
+def _prohibitive_salt(entry: LexicalEntry) -> str:
+    return f"mood:{entry.ipa}:prohibitive"
+
+
+def _finite_verb_indices(language: Language, slots) -> list[int]:
+    """Indices of the finite verb/copula slots (the ones that take inflection)."""
+    grammar = language.grammar
+    has_be = language.lexicon.by_gloss("be") is not None
+    found = []
+    for index, slot in enumerate(slots):
+        if slot.verb_form in grammar.verb_forms:
+            continue
+        if slot.kind == "copula" and has_be:
+            found.append(index)
+        elif slot.kind == "content" and slot.pos == "verb" and slot.gloss:
+            found.append(index)
+    return found
+
+
+def _negation_absorption(language: Language, slots, imperative: bool) -> tuple[set[int], set[int], set[int]]:
+    """``(negative verbs, prohibitive verbs, dropped negation slots)``: with a
+    negative suffix (``affix``/``both``) a negation slot marks its nearest
+    finite verb (and, for ``affix``, no longer renders as a word); in a
+    language with a prohibitive, a negated command takes that mood on its verb
+    instead of any negation word."""
+    grammar = language.grammar
+    prohibitive_ok = any(a.label == "prohibitive" for a in grammar.mood_affixes)
+    affix_ok = grammar.negation_strategy in ("affix", "both") and bool(grammar.verb_negative_affixes)
+    negatives: set[int] = set()
+    prohibitives: set[int] = set()
+    dropped: set[int] = set()
+    if not (affix_ok or (imperative and prohibitive_ok)):
+        return negatives, prohibitives, dropped
+    verbs = _finite_verb_indices(language, slots)
+    if not verbs:
+        return negatives, prohibitives, dropped
+    for index, slot in enumerate(slots):
+        if slot.kind != "negation":
+            continue
+        target = min(verbs, key=lambda v: (abs(v - index), v))
+        if imperative:
+            if prohibitive_ok and target == verbs[0]:
+                prohibitives.add(target)
+                dropped.add(index)
+        elif affix_ok:
+            negatives.add(target)
+            if grammar.negation_strategy == "affix":
+                dropped.add(index)
+    return negatives, prohibitives, dropped
+
+
+_EVIDENTIAL_ADVERB = {"reported": "reportedly", "inferred": "apparently", "witnessed": "visibly"}
+_AUXILIARY_ENGLISH = {
+    "past": "did", "future": "will", "perfective": "has", "imperfective": "was", "progressive": "is",
+    "perfect": "has", "habitual": "usually", "irrealis": "might", "subjunctive": "might",
+    "conditional": "would", "potential": "can",
+}
+
+
+def _auxiliary_entries(
+    language: Language, labels: list[str], coined: list[LexicalEntry], llm_client: LLMClient
+) -> tuple[Language, list[LexicalEntry]]:
+    """The auxiliary words (``aux-<label>``) for these labels, coined on first use."""
+    entries = []
+    for label in labels:
+        gloss = inflection_gen.AUXILIARY_GLOSS_PREFIX + label
+        language, entry = _lookup_or_coin(language, gloss, PartOfSpeech.PARTICLE, coined, llm_client, [gloss])
+        entries.append(entry)
+    return language, entries
+
+
+def _split_auxiliary_tokens(language: Language, tokens: list[str]) -> tuple[list[str], dict[int, list[str]]]:
+    """Takes the auxiliary words out of a token list and returns the labels
+    each one carries, keyed by the index (in the shortened list) of the verb
+    it belongs to -- the next token, or the previous with ``after``."""
+    after = language.grammar.auxiliary_position == "after"
+    kept: list[str] = []
+    hosts: dict[int, list[str]] = {}
+    for token in tokens:
+        entry = language.lexicon.by_form(token)
+        if entry is not None and entry.primary_gloss.startswith(inflection_gen.AUXILIARY_GLOSS_PREFIX):
+            label = entry.primary_gloss[len(inflection_gen.AUXILIARY_GLOSS_PREFIX):]
+            hosts.setdefault(max(len(kept) - 1, 0) if after else len(kept), []).append(label)
+            continue
+        kept.append(token)
+    return kept, hosts
+
+
+def _split_periphrastic(
+    language: Language, tense: str | None, aspect: str | None, mood: str | None
+) -> tuple[str | None, str | None, str | None, list[str]]:
+    """Removes the tense/aspect/mood labels this language spells with an
+    auxiliary word and returns them (in tense, aspect, mood order)."""
+    grammar = language.grammar
+    labels = grammar.periphrastic_labels
+    auxiliaries: list[str] = []
+    if tense in labels and tense in grammar.tenses:
+        auxiliaries.append(tense)
+        tense = None
+    if aspect in labels and aspect in grammar.aspects:
+        auxiliaries.append(aspect)
+        aspect = None
+    if mood in labels and mood in grammar.moods:
+        auxiliaries.append(mood)
+        mood = None
+    return tense, aspect, mood, auxiliaries
+
+
 def _apply_verb_inflection(
     language: Language,
     entry: LexicalEntry,
@@ -377,6 +500,9 @@ def _apply_verb_inflection(
     polite: bool = False,
     verb_form: str | None = None,
     nominal_case: str | None = None,
+    evidential: str | None = None,
+    negative: bool = False,
+    prohibitive: bool = False,
 ) -> tuple[str, str]:
     """The verb/copula-side counterpart of ``_apply_case`` -- composes and
     applies this sentence's own tense+agreement affix (see
@@ -398,9 +524,13 @@ def _apply_verb_inflection(
     if mood == "imperative":
         # An imperative takes its own marker instead of tense/agreement.
         imperative = next((a for a in grammar.mood_affixes if a.label == "imperative"), None)
+        prohibitive_affix = next((a for a in grammar.mood_affixes if a.label == "prohibitive"), None)
+        if prohibitive and prohibitive_affix is not None:
+            imperative = prohibitive_affix  # a negated command: the verb carries the negation
         if imperative is None:
             return entry.romanization, entry.ipa
-        rng = _translation_rng(language, _imperative_salt(entry))
+        salt = _prohibitive_salt(entry) if imperative is prohibitive_affix else _imperative_salt(entry)
+        rng = _translation_rng(language, salt)
         ipa = inflection_gen.apply_affix(
             rng, imperative, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
         )
@@ -441,9 +571,11 @@ def _apply_verb_inflection(
     resolved_voice = voice_label if voice_label in grammar.voices else None
     resolved_number = verb_number_label if verb_number_label and grammar.verb_number_agreement else None
     resolved_polite = bool(polite and grammar.verb_politeness)
+    resolved_evidential = evidential if evidential in grammar.evidentials else None
+    resolved_negative = bool(negative and grammar.verb_negative_affixes)
     affix = _combined_tense_agreement_affix(
         grammar, resolved_tense, resolved_agreement, resolved_aspect, resolved_verb_mood, resolved_object,
-        resolved_voice, resolved_number, resolved_polite,
+        resolved_voice, resolved_number, resolved_polite, resolved_evidential, resolved_negative,
     )
     if affix is None:
         return entry.romanization, entry.ipa
@@ -451,7 +583,7 @@ def _apply_verb_inflection(
         language,
         _verb_affix_salt(
             entry, resolved_tense, resolved_agreement, resolved_aspect, resolved_verb_mood, resolved_object,
-            resolved_voice, resolved_number, resolved_polite,
+            resolved_voice, resolved_number, resolved_polite, resolved_evidential, resolved_negative,
         ),
     )
     ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
@@ -1215,11 +1347,15 @@ def _render_plan(
     main_mood = _main_clause_mood(language, slots)
     dropped_pronouns = _dropped_subject_pronouns(language, slots)
     dropped_pronouns = dropped_pronouns | _dropped_object_pronouns(language, slots, dropped_pronouns)
+    negative_verbs, prohibitive_verbs, dropped_negations = _negation_absorption(
+        language, slots, plan.mood == "imperative"
+    )
     possessor_person_pending: str | None = None  # an affix-strategy possessor waiting for its noun
     for slot_index, slot in enumerate(slots):
         rendered: tuple[str, str] | None = None
         entry: LexicalEntry | None = None
-        if slot_index in dropped_pronouns:
+        aux_entries: list[LexicalEntry] = []
+        if slot_index in dropped_pronouns or slot_index in dropped_negations:
             continue
         if slot.kind == "clause":
             if slot.clause is None:
@@ -1260,11 +1396,20 @@ def _render_plan(
                 rendered = (entry.romanization, entry.ipa)  # the case form is a word of its own
             elif pos is PartOfSpeech.VERB:
                 agreement_label, object_label = _verb_agreement(working_language, slot)
+                tense_in = slot.tense or forced_verb_tense
+                aspect_in = slot.aspect
+                mood_in = slot.verb_mood or forced_verb_mood or main_mood
+                if not mood_pending and slot.verb_form not in working_language.grammar.verb_forms:
+                    tense_in, aspect_in, mood_in, aux_labels = _split_periphrastic(
+                        working_language, tense_in, aspect_in, mood_in
+                    )
+                    working_language, aux_entries = _auxiliary_entries(working_language, aux_labels, coined, llm_client)
                 rendered = _apply_verb_inflection(
-                    working_language, entry, slot.tense or forced_verb_tense, agreement_label,
+                    working_language, entry, tense_in, agreement_label,
                     "imperative" if mood_pending else "declarative",
-                    slot.aspect, slot.verb_mood or forced_verb_mood or main_mood, object_label, slot.voice,
+                    aspect_in, mood_in, object_label, slot.voice,
                     slot.subject_number, slot.polite, slot.verb_form, forced_nominal_case,
+                    slot.evidential, slot_index in negative_verbs, slot_index in prohibitive_verbs,
                 )
                 mood_pending = False
             elif pos is PartOfSpeech.ADJECTIVE and (
@@ -1315,10 +1460,18 @@ def _render_plan(
             entry = working_language.lexicon.by_gloss("be")
             if entry is not None:
                 agreement_label, object_label = _verb_agreement(working_language, slot)
+                tense_in, aspect_in, mood_in = slot.tense, slot.aspect, slot.verb_mood
+                if not mood_pending:
+                    tense_in, aspect_in, mood_in, aux_labels = _split_periphrastic(
+                        working_language, tense_in, aspect_in, mood_in
+                    )
+                    working_language, aux_entries = _auxiliary_entries(working_language, aux_labels, coined, llm_client)
                 rendered = _apply_verb_inflection(
-                    working_language, entry, slot.tense, agreement_label,
+                    working_language, entry, tense_in, agreement_label,
                     "imperative" if mood_pending else "declarative",
-                    slot.aspect, slot.verb_mood, object_label, None, slot.subject_number, slot.polite,
+                    aspect_in, mood_in, object_label, None, slot.subject_number, slot.polite,
+                    evidential=slot.evidential, negative=slot_index in negative_verbs,
+                    prohibitive=slot_index in prohibitive_verbs,
                 )
                 mood_pending = False
         elif slot.kind == "demonstrative":
@@ -1381,9 +1534,18 @@ def _render_plan(
                         )
 
         if rendered is not None:
+            before = working_language.grammar.auxiliary_position == "before"
+            for aux_entry in aux_entries if before else ():
+                romanization_parts.append(aux_entry.romanization)
+                ipa_parts.append(aux_entry.ipa)
+                gloss_parts.append(aux_entry.primary_gloss)
             romanization_parts.append(rendered[0])
             ipa_parts.append(rendered[1])
             gloss_parts.append(entry.primary_gloss if entry is not None else None)
+            for aux_entry in () if before else aux_entries:
+                romanization_parts.append(aux_entry.romanization)
+                ipa_parts.append(aux_entry.ipa)
+                gloss_parts.append(aux_entry.primary_gloss)
             if slot.possessive and slot.kind in ("content", "name"):
                 if possession == "particle" and _possessive_particle(working_language) is not None:
                     particle_rom, particle_ipa = _possessive_particle(working_language)
@@ -1554,21 +1716,35 @@ def _article_forms(language: Language) -> set[str]:
     return forms
 
 
+_NO_EXTRA = (None, False, None, False)
+"""``(verb number, polite, evidential, negative)`` with nothing marked."""
+
+
 def _decode_verb_full(
-    language: Language, token: str
-) -> tuple[LexicalEntry, str | None, str | None, str | None, str | None, str | None, str | None, str | None, bool, str | None] | None:
+    language: Language, token: str, finite_first: bool = False, skip_forms: bool = False
+) -> tuple[
+    LexicalEntry, str | None, str | None, str | None, str | None, str | None, str | None, str | None, bool,
+    str | None, str | None, bool,
+] | None:
     """``(entry, tense_label, aspect_label, verb_mood_label, voice_label,
-    agreement_label)`` for a verb-position token, with ``"imperative"`` in the tense slot for an
-    imperative. Generate-and-compare like ``_decode_noun``. The full search
+    agreement_label, object, number, polite, form case, evidential, negative)``
+    for a verb-position token, with ``"imperative"`` (or ``"prohibitive"``)
+    in the tense slot for a command. Generate-and-compare like ``_decode_noun``. The full search
     over tense x aspect x mood x voice x object x agreement is large, so it is
     staged (see below) and restricted to verbs whose first two letters match
     the token's (suffixes never change them); if that finds nothing, the
-    earlier tense x agreement search runs over every verb."""
+    earlier tense x agreement search runs over every verb. ``finite_first``
+    (a verb with an auxiliary word beside it, hence probably no tense suffix of
+    its own) tries the finite readings before the non-finite forms."""
+    if finite_first and not skip_forms:
+        finite = _decode_verb_full(language, token, skip_forms=True)
+        if finite is not None:
+            return finite
     normalized = _normalize(token)
     verb_entries = [e for e in language.lexicon.entries if e.pos is PartOfSpeech.VERB]
     for entry in verb_entries:
         if _normalize(entry.romanization) == normalized:
-            return entry, None, None, None, None, None, None, None, False, None
+            return entry, None, None, None, None, None, None, None, False, None, None, False
     imperative = next((a for a in language.grammar.mood_affixes if a.label == "imperative"), None)
     if imperative is not None:
         for entry in verb_entries:
@@ -1578,10 +1754,20 @@ def _decode_verb_full(
             )
             candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
             if _normalize(candidate) == normalized:
-                return entry, "imperative", None, None, None, None, None, None, False, None
+                return entry, "imperative", None, None, None, None, None, None, False, None, None, False
+    prohibitive = next((a for a in language.grammar.mood_affixes if a.label == "prohibitive"), None)
+    if prohibitive is not None:
+        for entry in verb_entries:
+            rng = _translation_rng(language, _prohibitive_salt(entry))
+            ipa = inflection_gen.apply_affix(
+                rng, prohibitive, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+            )
+            candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+            if _normalize(candidate) == normalized:
+                return entry, "prohibitive", None, None, None, None, None, None, False, None, None, False
     grammar_forms = language.grammar
     form_candidates: list[tuple[InflectionAffix, str | None, str | None]] = []
-    for form_affix in grammar_forms.verb_form_affixes:
+    for form_affix in () if skip_forms else grammar_forms.verb_form_affixes:
         agreement_options: list[str | None] = [None]
         if form_affix.label == "infinitive" and grammar_forms.infinitive_agrees:
             agreement_options += list(pronoun_gen.PERSON_LABELS)
@@ -1601,7 +1787,7 @@ def _decode_verb_full(
             )
             candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
             if _normalize(candidate) == normalized:
-                return entry, form_affix.label, None, None, None, form_agreement, None, None, False, form_case
+                return entry, form_affix.label, None, None, None, form_agreement, None, None, False, form_case, None, False
     kwargs = _stress_and_word_accent_kwargs(language)
     grammar = language.grammar
     tense_options: list[str | None] = [None] + list(grammar.tenses)
@@ -1609,16 +1795,24 @@ def _decode_verb_full(
     mood_options: list[str | None] = [None] + [m for m in grammar.moods if m != "imperative"]
     object_options: list[str | None] = [None] + [a.label for a in grammar.object_agreement_affixes]
     voice_options: list[str | None] = [None] + list(grammar.voices)
-    extra_options: list[tuple[str | None, bool]] = [(None, False)]
+    number_polite: list[tuple[str | None, bool]] = [(None, False)]
     if grammar.verb_number_agreement:
-        extra_options.append(("plural", False))
+        number_polite.append(("plural", False))
     if grammar.verb_politeness:
-        extra_options.append((None, True))
+        number_polite.append((None, True))
         if grammar.verb_number_agreement:
-            extra_options.append(("plural", True))
+            number_polite.append(("plural", True))
+    evidential_options: list[str | None] = [None] + list(grammar.evidentials)
+    negative_options = [False] + ([True] if grammar.verb_negative_affixes else [])
+    marker_only = [
+        (None, False, e, n) for e in evidential_options for n in negative_options if (e, n) != (None, False)
+    ]
+    extra_options = [(n, p, None, False) for n, p in number_polite] + [
+        (n, p, e, g) for (_, _, e, g) in marker_only for n, p in number_polite
+    ]
     agreement_options = _agreement_labels(grammar)
 
-    def search(entries, aspects, moods, objects, voices, extras=((None, False),)):
+    def search(entries, aspects, moods, objects, voices, extras=(_NO_EXTRA,)):
         # Different label combinations can spell the same word (short
         # suffixes concatenate alike), so try the plainest reading first:
         # fewest optional labels, and a tense whenever the language has
@@ -1634,14 +1828,18 @@ def _decode_verb_full(
                 for extra in extras
             ),
             key=lambda c: (c[1] is not None) + (c[2] is not None) + (c[3] is not None) + (c[4] is not None)
-            + (c[5] != (None, False)) + (c[0] is None and bool(grammar.tenses)),
+            + (c[5][0] is not None) + c[5][1] + (c[5][2] is not None) + c[5][3]
+            + (c[0] is None and bool(grammar.tenses)),
         )
-        for tense_label, aspect_label, mood_label, object_label, voice_label, (number_label, polite) in combos:
+        for (
+            tense_label, aspect_label, mood_label, object_label, voice_label,
+            (number_label, polite, evidential_label, negative),
+        ) in combos:
             for entry in entries:
                 for agreement_label in agreement_options:
                     affix = _combined_tense_agreement_affix(
                         grammar, tense_label, agreement_label, aspect_label, mood_label, object_label, voice_label,
-                        number_label, polite,
+                        number_label, polite, evidential_label, negative,
                     )
                     if affix is None:
                         continue
@@ -1649,7 +1847,7 @@ def _decode_verb_full(
                         language,
                         _verb_affix_salt(
                             entry, tense_label, agreement_label, aspect_label, mood_label, object_label, voice_label,
-                            number_label, polite,
+                            number_label, polite, evidential_label, negative,
                         ),
                     )
                     ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **kwargs)
@@ -1659,7 +1857,7 @@ def _decode_verb_full(
                     if _normalize(candidate) == normalized:
                         return (
                             entry, tense_label, aspect_label, mood_label, voice_label, agreement_label,
-                            object_label, number_label, polite, None,
+                            object_label, number_label, polite, None, evidential_label, negative,
                         )
         return None
 
@@ -1670,13 +1868,19 @@ def _decode_verb_full(
     # voice); then aspect/mood with object agreement (only in languages that
     # have it at all).
     stages = [
-        ([None], [None], object_options, [None], [(None, False)]),
-        ([None], [None], [None], voice_options, [(None, False)]),
+        ([None], [None], object_options, [None], [_NO_EXTRA]),
+        ([None], [None], [None], voice_options, [_NO_EXTRA]),
         ([None], [None], [None], [None], extra_options),
-        (aspect_options, mood_options, [None], [None], [(None, False)]),
-        (aspect_options, [None], [None], voice_options, [(None, False)]),
-        (aspect_options, mood_options, object_options, [None], [(None, False)]),
+        (aspect_options, mood_options, [None], [None], [_NO_EXTRA]),
+        (aspect_options, [None], [None], voice_options, [_NO_EXTRA]),
+        (aspect_options, mood_options, object_options, [None], [_NO_EXTRA]),
     ]
+    if marker_only:
+        stages += [
+            ([None], [None], object_options, [None], [_NO_EXTRA] + marker_only),
+            (aspect_options, [None], [None], [None], [_NO_EXTRA] + marker_only),
+            ([None], mood_options, [None], [None], [_NO_EXTRA] + marker_only),
+        ]
     tried: list[tuple] = []
     for stage in stages:
         aspects, moods, objects, voices, extras = stage
@@ -1688,7 +1892,7 @@ def _decode_verb_full(
         if found is not None:
             return found
     if len(likely) != len(verb_entries):
-        return search(verb_entries, [None], [None], [None], [None], [(None, False)])
+        return search(verb_entries, [None], [None], [None], [None], [_NO_EXTRA])
     return None
 
 
@@ -1719,7 +1923,9 @@ def _english_verb_gloss(entry: LexicalEntry, tense_label: str | None) -> str:
     otherwise the bare lemma for anything but a ``"past"`` reading, or
     ``_PAST_FORM_BY_LEMMA``'s irregular form/a regular ``-ed`` suffix."""
     if entry.primary_gloss == "be":
-        return "was" if tense_label == "past" else "is"
+        return "was" if tense_label == "past" else "will be" if tense_label == "future" else "is"
+    if tense_label == "future":
+        return f"will {entry.primary_gloss}"
     if tense_label != "past":
         return entry.primary_gloss
     return _PAST_FORM_BY_LEMMA.get(entry.primary_gloss, entry.primary_gloss + "ed")
@@ -1860,6 +2066,7 @@ def translate_to_english(
     tokens = [t for t in raw_tokens if _normalize(t) not in article_forms]
     if language.grammar.repeater_rate > 0.0:
         tokens = _drop_repeaters(language, tokens)
+    tokens, auxiliary_labels = _split_auxiliary_tokens(language, tokens)
 
     # Per-token, structure-agnostic decode -- the plan-driven encoder can
     # produce genuinely arbitrary structure, so there's no fixed sentence
@@ -1877,7 +2084,7 @@ def translate_to_english(
     is_question = False
     is_imperative = False
     seen_persons: set[str] = set()  # persons named by a pronoun already decoded in this sentence
-    for tok in tokens:
+    for token_index, tok in enumerate(tokens):
         if particle_form is not None and _normalize(tok) == particle_form and language.lexicon.by_form(tok) is None:
             is_question = True
             continue
@@ -1959,11 +2166,11 @@ def translate_to_english(
             )
             annotated.append(gloss if degree_label is None else f"{gloss} ({degree_label})")
             continue
-        verb_full = _decode_verb_full(language, tok)
+        verb_full = _decode_verb_full(language, tok, finite_first=token_index in auxiliary_labels)
         if verb_full is not None:
             (
                 verb_entry, tense_label, aspect_label, mood_label, voice_label, agreement_label,
-                object_label, number_label, polite_label, form_case,
+                object_label, number_label, polite_label, form_case, evidential_label, negative_label,
             ) = verb_full
             if tense_label in subordination_gen.VERB_FORM_LABELS:
                 gloss = verb_entry.primary_gloss
@@ -1984,7 +2191,24 @@ def translate_to_english(
                 plain.append(verb_entry.primary_gloss)
                 annotated.append(f"{verb_entry.primary_gloss} (mood: imperative)")
                 continue
+            if tense_label == "prohibitive":
+                is_imperative = True
+                plain.append(f"do not {verb_entry.primary_gloss}")
+                annotated.append(f"{verb_entry.primary_gloss} (mood: imperative, negative)")
+                continue
+            for aux_label in auxiliary_labels.pop(token_index, []):
+                grammar_now = language.grammar
+                if aux_label in grammar_now.tenses and tense_label is None:
+                    tense_label = aux_label
+                elif aux_label in grammar_now.aspects and aspect_label is None:
+                    aspect_label = aux_label
+                elif aux_label in grammar_now.moods and mood_label is None:
+                    mood_label = aux_label
             gloss = _english_verb_phrase(verb_entry, tense_label, aspect_label, mood_label, voice_label)
+            if evidential_label in _EVIDENTIAL_ADVERB:
+                gloss = f"{_EVIDENTIAL_ADVERB[evidential_label]} {gloss}"
+            if negative_label and language.grammar.negation_strategy != "both":
+                gloss = f"not {gloss}"
             if (
                 language.grammar.pro_drop
                 and agreement_label in pronoun_gen.PERSON_LABELS
@@ -2003,14 +2227,19 @@ def translate_to_english(
             notes = (["subject: plural"] if number_label else []) + (["polite"] if polite_label else []) + [
                 f"{name}: {label}"
                 for name, label in (
-                    ("tense", tense_label), ("aspect", aspect_label), ("mood", mood_label), ("voice", voice_label)
+                    ("tense", tense_label), ("aspect", aspect_label), ("mood", mood_label), ("voice", voice_label),
+                    ("evidential", evidential_label),
                 )
                 if label is not None
-            ]
+            ] + (["negative"] if negative_label else [])
             annotated.append(gloss if not notes else f"{gloss} ({', '.join(notes)})")
             continue
         plain.append(f"<unknown:{tok}>")
         annotated.append(f"<unknown:{tok}>")
+    for leftover in auxiliary_labels.values():
+        for label in leftover:  # an auxiliary word with no verb beside it
+            plain.append(_AUXILIARY_ENGLISH.get(label, label))
+            annotated.append(f"{_AUXILIARY_ENGLISH.get(label, label)} (auxiliary: {label})")
 
     plain_draft = " ".join(plain) + ("?" if is_question else "!" if is_imperative else "")
     annotated_draft = " ".join(annotated) + (
@@ -2030,6 +2259,8 @@ def translate_to_english(
             "detected tense, aspect, verbal mood or voice -- render them as the matching English "
             "tense, progressive/perfect/habitual aspect, would/can/might, or a passive (the patient "
             "is the subject, the agent follows 'by'), antipassive (no object) or causative (make X do)). "
+            "An '(evidential: X)' marks the source of the information "
+            "(reportedly, apparently, or first-hand) and '(negative)' means the verb is negated. "
             "Keep the meaning and the word order's implied roles; do not "
             "add new content; drop the annotations themselves from your "
             "output."

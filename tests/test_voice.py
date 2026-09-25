@@ -161,13 +161,13 @@ def test_an_antipassive_in_an_ergative_language_decodes_back():
 
 
 def test_tense_and_voice_are_independent():
-    language = _find(lambda g: "passive" in g.voices and "past" in g.tenses)
+    language = _find(lambda g: "passive" in g.voices and "past" in g.tenses and not g.periphrastic_labels)
     past_passive = _decode_verb_full(language, _verb_form(language, "passive", tense="past"))
     assert past_passive[1] == "past" and past_passive[4] == "passive"
 
 
 def test_voice_combines_with_aspect():
-    language = _find(lambda g: "passive" in g.voices and bool(g.aspects))
+    language = _find(lambda g: "passive" in g.voices and bool(g.aspects) and not g.periphrastic_labels)
     aspect = language.grammar.aspects[0]
     decoded = _decode_verb_full(language, _verb_form(language, "passive", aspect=aspect))
     assert decoded is not None and decoded[2] == aspect and decoded[4] == "passive"

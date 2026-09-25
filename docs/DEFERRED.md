@@ -199,7 +199,7 @@ plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
 structure with complement, relative and adverbial clauses (pass 2); aspect and
 verbal mood as systems separate from tense (pass 3); noun classes with article,
 adjective and verb (subject and object) agreement (pass 4); dual number,
-demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12); subordination -- linker position, relativization strategies and position, non-finite verb forms, subordinate mood (pass 13); subordination follow-ups -- relativization reach, declining relative pronouns, agreeing infinitives, case-marked nominalizations, conditional sequencing, correlative adverbials, clause coordination, complementizers by verb class (pass 14); agreement follow-ups -- class assignment by semantic field or final sound, class marked on the noun (prefix/suffix), number and case agreement, numeral agreement, agreement inferred from position (pass 15). See
+demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12); subordination -- linker position, relativization strategies and position, non-finite verb forms, subordinate mood (pass 13); subordination follow-ups -- relativization reach, declining relative pronouns, agreeing infinitives, case-marked nominalizations, conditional sequencing, correlative adverbials, clause coordination, complementizers by verb class (pass 14); agreement follow-ups -- class assignment by semantic field or final sound, class marked on the noun (prefix/suffix), number and case agreement, numeral agreement, agreement inferred from position (pass 15); aspect/mood follow-ups -- auxiliary tenses, aspects and moods, evidentials, negation strategies and a prohibitive, distinct inflectional suffixes, affixes that evolve (pass 16). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
@@ -222,10 +222,14 @@ nouns in class-marked languages render bare (no de-duplication of marked
 forms); prefix-marked languages have no stem-prefix prefiltering when decoding
 a noun; the planner still supplies each noun's own case/number.
 
-**Aspect/mood follow-ups (M):** tense, case and agreement suffixes can still
-collide with one another (only aspect and mood suffixes are made distinct);
-no periphrastic (auxiliary) tenses or moods; no evidentiality or negative
-mood; aspect/mood affixes do not yet evolve in `sound_change`.
+**Aspect/mood follow-ups (done, pass 16); still missing (S-M):** an auxiliary is an
+invariant particle (it takes no agreement, unlike a real auxiliary "have"); suffixes are only
+distinct one by one, so two *concatenated* suffixes can still spell the same word as one other
+suffix (decoding then picks the plainest reading, which the fluent-English step may correct);
+evidential marking is optional and taken from the planner (no obligatory evidential system, no
+evidential-tense interaction); the prohibitive and a suffix negation exist only on finite verbs
+(no negative non-finite forms, no negative existentials); affix evolution is plain sound change
+(no grammaticalization of auxiliaries into suffixes, no affixes fusing with the stem).
 
 **Voice follow-ups (M):** the middle/reflexive voice, reciprocals, applicatives
 and impersonal passives; an agent case (instrumental/ergative-as-agent)

@@ -58,6 +58,12 @@ def _language(seed: int):
             "class_marker_affixes": (),
             "number_agreement_targets": (),
             "case_agreement_targets": (),
+            "periphrastic_labels": (),
+            "negation_strategy": "particle",
+            "verb_negative_affixes": (),
+            "evidentials": (),
+            "evidential_affixes": (),
+            "mood_affixes": tuple(a for a in grammar.mood_affixes if a.label != "prohibitive"),
         }
     )
     return language.model_copy(update={"grammar": classless})

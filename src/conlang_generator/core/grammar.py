@@ -502,6 +502,23 @@ class GrammarProfile(BaseModel, frozen=True):
     """How a noun with no natural gender/animacy gets its class: ``"hash"``,
     ``"semantic"`` (by semantic field) or ``"formal"`` (by final sound)."""
 
+    evidentials: tuple[str, ...] = ()
+    """This language's evidential labels (``witnessed``, ``inferred``,
+    ``reported``), marking the source of the speaker's information on the
+    verb; empty: no evidentiality. Marked only when the sentence plan asks."""
+    evidential_affixes: tuple[InflectionAffix, ...] = ()
+    negation_strategy: str = "particle"
+    """How a verb is negated: ``"particle"`` (a separate word), ``"affix"``
+    (a negative suffix on the verb) or ``"both"`` (particle *and* suffix, as
+    in negative concord)."""
+    verb_negative_affixes: tuple[InflectionAffix, ...] = ()
+    """The single ``negative`` verb suffix (empty with ``"particle"``)."""
+    periphrastic_labels: tuple[str, ...] = ()
+    """Tense, aspect and verbal mood labels this language expresses with an
+    auxiliary word (``aux-<label>`` in the lexicon) instead of a verb suffix."""
+    auxiliary_position: str = "before"
+    """``"before"`` or ``"after"`` the main verb."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their

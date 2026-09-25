@@ -89,9 +89,14 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
 - **Aspect and verbal mood are single suffixes** in a fixed order (aspect, tense,
   mood, agreement), chosen from illustrative label sets (two-way or four-way
   aspect; irrealis or subjunctive/conditional/potential). Auxiliaries ("have",
-  "would", "is ...-ing") are never separate words. When several label
-  combinations spell alike, decoding prefers the reading with the fewest
-  aspect/mood labels.
+  "would", "is ...-ing") are separate words only for the labels a language
+  rolls as periphrastic (each an invariant `aux-<label>` particle before or after the verb, with no
+  agreement of its own). Evidentials (reported/inferred/witnessed) are a further optional verb
+  suffix set by the planner. Negation is a word, a verb suffix or both (negative concord), and
+  a language may have a prohibitive for negated commands. Suffixes are made distinct one by one,
+  but when several label combinations still spell alike, decoding prefers the reading with the
+  fewest labels. Inflectional affixes follow sound change when a language evolves, but do not
+  grammaticalize or fuse.
 - **Noun classes are illustrative**: one of five fixed systems, derived from
   the English gloss (natural gender/animacy first, otherwise a hash, a semantic
   field from a small gloss list, or the noun's final sound), never stored on the

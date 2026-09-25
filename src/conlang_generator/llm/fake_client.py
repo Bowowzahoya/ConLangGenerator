@@ -98,6 +98,10 @@ _FAKE_PLURAL_EXCLUDED = {"this", "does", "always", "perhaps", "thanks", "news", 
 _FAKE_ADVERBS = {"very", "extremely", "quite", "really", "too", "so", "always", "never", "often"}
 
 
+_FAKE_EVIDENTIAL_WORDS = {
+    "reportedly": "reported", "allegedly": "reported", "apparently": "inferred", "evidently": "inferred",
+    "visibly": "witnessed",
+}
 _FAKE_PERFECT_AUX = {"have", "has", "had"}
 _FAKE_MODALS = {"would": "conditional", "may": "potential", "might": "potential", "can": "potential", "could": "potential"}
 _FAKE_PARTICIPLE_LEMMA = {
@@ -298,6 +302,13 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     ends_with = prompt.rstrip()[-1:]
     prompt, name_by_placeholder = _fake_extract_names(prompt)
     raw_tokens = _fake_merge_reciprocal(_fake_tokenize(prompt))
+    evidentials = [e for e in metadata.get("evidentials", "").split(",") if e]
+    evidential_label: str | None = None
+    for position, word in enumerate(raw_tokens):
+        if _FAKE_EVIDENTIAL_WORDS.get(word) in evidentials:
+            evidential_label = _FAKE_EVIDENTIAL_WORDS[word]
+            raw_tokens = raw_tokens[:position] + raw_tokens[position + 1:]
+            break
     raw_tokens, np_info = _fake_group_noun_phrases(raw_tokens)
     wh_token = next((t for t in raw_tokens[:1] if t in _FAKE_WH), None)
     mood = "declarative"
@@ -353,6 +364,12 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     )
     if perfect_aux:
         tokens = [t for t in tokens if t != perfect_aux]
+    do_support = next(
+        (t for i, t in enumerate(tokens) if t in ("do", "does", "did") and i + 1 < len(tokens) and tokens[i + 1] == "not"),
+        None,
+    )
+    if do_support:
+        tokens = [t for t in tokens if t != do_support]  # "I do not see": the "do" only supports the "not"
     modal = next((t for t in tokens[1:] if t in _FAKE_MODALS), None)
     if modal:
         tokens = [t for t in tokens if t != modal]
@@ -470,6 +487,8 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     elif voice_slots is not None:
         slots = voice_slots
     elif mood == "imperative" and content_tokens:
+        if negated and content_tokens[0] == "do" and len(content_tokens) > 1:
+            content_tokens = content_tokens[1:]  # "Do not go!": the "do" is only support for the "not"
         verb_tok, rest = content_tokens[0], content_tokens[1:]
         object_case = "accusative" if alignment == "nominative_accusative" else None
         verb_group = adverb_slots + [{"kind": "content", "gloss": verb_tok, "pos": "verb"}]
@@ -496,6 +515,8 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
                 copula_slot["subject_gloss"] = base_of(subject_tok)
             if tense_label:
                 copula_slot["tense"] = tense_label
+            if evidential_label:
+                copula_slot["evidential"] = evidential_label
             copula_group = [copula_slot]
         if negated:
             copula_group = copula_group + [{"kind": "negation"}]
@@ -515,6 +536,8 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
             verb_lemma = verb_tok[:-3]
             detected_tense = "past" if copula_tok in _FAKE_PAST_COPULAS else "non_past"
             aspect_label = _fake_aspect_label("progressive", aspects)
+        if do_support == "did":
+            detected_tense = "past"
         if modal:
             verb_mood_label = _fake_mood_label(_FAKE_MODALS[modal], verb_moods)
             detected_tense = "non_past"
@@ -557,6 +580,8 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
             verb_slot["polite"] = True
         if tense_label:
             verb_slot["tense"] = tense_label
+        if evidential_label:
+            verb_slot["evidential"] = evidential_label
         if noun_classes and subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder:
             verb_slot["subject_gloss"] = base_of(subject_tok)
         if object_agreement and (reflexive_person is not None or is_reciprocal):

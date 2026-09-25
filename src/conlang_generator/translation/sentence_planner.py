@@ -104,6 +104,10 @@ class PlannedSlot:
     aspect: str | None = None
     """One of this language's own ``GrammarProfile.aspects`` labels, or
     ``None`` -- only ever meaningful on a finite verb or the copula."""
+    evidential: str | None = None
+    """One of this language's own ``GrammarProfile.evidentials`` labels (the
+    source of the speaker's information), or ``None`` -- only ever meaningful
+    on a finite verb or the copula."""
     verb_mood: str | None = None
     """One of this language's own ``GrammarProfile.moods`` labels (never
     ``"imperative"``, which is the sentence's mood), or ``None`` -- only
@@ -197,6 +201,9 @@ def _build_system_prompt(language: Language) -> str:
     )
     moods_desc = (
         ", ".join(grammar.moods) if grammar.moods else 'none -- never set "verb_mood" on anything'
+    )
+    evidentials_desc = (
+        ", ".join(grammar.evidentials) if grammar.evidentials else 'none -- never set "evidential" on anything'
     )
     classes_desc = (
         ", ".join(grammar.noun_classes)
@@ -478,6 +485,7 @@ predicate adjective, regardless of word_order.
 - grammatical cases this language actually has: {cases_desc}.
 - tenses this language actually has: {tenses_desc}.
 - aspects this language actually has: {aspects_desc}.
+- evidentials this language actually has: {evidentials_desc}.
 - personal pronouns: use exactly these glosses on "pronoun" slots: {pronoun_list}. \
 Mapping: {pronoun_rules_text}. When the verb agrees in person and the language \
 drops subject pronouns ({pro_drop_word}), still write the pronoun \
@@ -562,7 +570,13 @@ label). Tense and aspect are independent: "I was seeing" is tense past + \
 aspect progressive. Omit "aspect"/"verb_mood" when the English is plain, or \
 when this language has no fitting label. Never write English auxiliaries \
 ("have", "would", "may", "is" before -ing) as their own slots: they are \
-expressed only through these fields.
+expressed only through these fields (the renderer decides whether a label is \
+a verb suffix or an auxiliary word). A verb may also set "evidential" (one \
+of the evidentials above) when the English states the source of the \
+information: "reportedly"/"allegedly"/"they say" -> reported; \
+"apparently"/"evidently"/"must have" -> inferred; "I saw that" -> witnessed; \
+never write those adverbs as slots when you use the field. Negation stays \
+one {{"kind":"negation"}} slot; the renderer may fold it into the verb.
 
 Noun-phrase pieces, each its own slot placed next to its noun as the bullets above say: a demonstrative is {{"kind":"demonstrative","gloss":"this"}} or "that" ("these"/"those" are the demonstrative plus the noun with "number":"plural"); a numeral is an ordinary "content" slot with pos "numeral" ("two dogs": numeral two, then dog with "number" -- "dual" when exactly two and the language has a dual, otherwise "plural"); an English "a"/"an" is an "indefinite_article" slot only when this language has one, otherwise nothing. Possession ("my dog", "the dog's bone", "Bruno's leg"): the possessor is its own slot with "possessive":true placed directly before the possessed noun -- for a pronoun possessor the pronoun itself ("my" -> the pronoun "I", "your" -> "you", "his"/"her" -> "he", "our" -> "we", "their" -> "they"). Never add the possessive marking yourself.
 
@@ -732,6 +746,7 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "noun_classes": ",".join(grammar.noun_classes),
             "object_agreement": "true" if grammar.object_agreement else "false",
             "verb_moods": ",".join(grammar.moods),
+            "evidentials": ",".join(grammar.evidentials),
             "has_articles": "true" if grammar.has_articles else "false",
             "has_overt_copula": "true" if grammar.has_overt_copula else "false",
             "adjective_after_noun": "true" if grammar.adjective_after_noun else "false",
@@ -834,6 +849,7 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                 possessive=item.get("possessive") is True,
                 aspect=_coerce_optional_str(item.get("aspect")),
                 verb_mood=_coerce_optional_str(item.get("verb_mood")),
+                evidential=_coerce_optional_str(item.get("evidential")),
                 voice=_coerce_optional_str(item.get("voice")),
                 verb_form=_coerce_optional_str(item.get("verb_form")),
                 subject_number="plural" if item.get("subject_number") == "plural" else None,

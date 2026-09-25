@@ -1030,3 +1030,23 @@ conlang translate "The river is big." --lang t26 --to conlang --llm fake
 
 Gives `skè ngûgo phutâ-al nǐ-i-akhudh` and `skè ngûgang phuzó-i nǐ-i-akhip`: the nouns
 `phutâ-` (dog) and `phuzó-` (river) end in different class markers (`-al`, `-i`).
+
+**Aspect/mood follow-ups.** Per language: which tenses, aspects and moods are spelled with an
+auxiliary word (before or after the verb) instead of a suffix; an evidential system
+(`reported`/`inferred`/`witnessed`); whether negation is a word, a verb suffix or both; and a
+prohibitive for negated commands. Inflectional suffixes no longer repeat within a paradigm, and
+they change when a language evolves. Verified with `--llm fake` on `--seed 27 --prompt p`
+(negation as a verb suffix, a prohibitive, all three evidentials, periphrastic future/perfect
+before the verb):
+
+```bash
+conlang translate "I did not see the river." --lang t27 --to conlang --llm fake
+conlang translate "I will see the river." --lang t27 --to conlang --llm fake
+conlang translate "I reportedly see the river." --lang t27 --to conlang --llm fake
+conlang translate "Do not see the river!" --lang t27 --to conlang --llm fake
+```
+
+The negated verb `ksinàaaokan` carries past and the negative suffix (read back as `not saw`); the
+future is the auxiliary `nīfprúkǎ` before the plain verb `ksinà` (read back as `will see`);
+`ksinàaiyokan` adds the reported evidential (`reportedly`); and the negated command is the single
+prohibitive form `ksinàap` (`do not see!`).
