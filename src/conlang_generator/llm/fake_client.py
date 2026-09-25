@@ -95,6 +95,10 @@ heuristic self-consistent, not a shared source of truth."""
 _FAKE_WH = {"what", "who", "where", "why", "how", "when", "which"}
 _FAKE_AUX = {"do", "does", "did"}
 _FAKE_PLURAL_EXCLUDED = {"this", "does", "always", "perhaps", "thanks", "news", "yes"}
+_FAKE_ADJECTIVES = {
+    "big", "small", "old", "new", "young", "red", "blue", "green", "white", "black", "good", "bad", "long", "tall",
+    "beautiful", "ugly", "large", "little", "yellow", "brown",
+}
 _FAKE_ADVERBS = {"very", "extremely", "quite", "really", "too", "so", "always", "never", "often"}
 
 
@@ -174,10 +178,20 @@ def _fake_group_noun_phrases(raw_tokens: list[str]) -> tuple[list[str], dict[str
                 mods["numeral"] = word
             elif word in _FAKE_QUANTIFIERS and j + 1 < len(raw_tokens) and raw_tokens[j + 1] not in _FAKE_NOT_A_NOUN:
                 mods["quantifier"] = word
+            elif word in ("certain", "particular") and mods.get("indefinite"):
+                mods["specific"] = True
+            elif (
+                word in _FAKE_ADJECTIVES and j + 1 < len(raw_tokens)
+                and (raw_tokens[j + 1] in _FAKE_ADJECTIVES or raw_tokens[j + 1] not in _FAKE_NOT_A_NOUN)
+                and not _fake_is_adverb(raw_tokens[j + 1]) and raw_tokens[j + 1] not in ("than", "and")
+            ):
+                mods.setdefault("adjectives", []).append(word)
             else:
                 break
             j += 1
-        real_mods = set(mods) - {"the"}
+        real_mods = set(mods) - {"the", "specific"}
+        if "adjectives" in mods and mods["adjectives"] and j < len(raw_tokens) and raw_tokens[j] in _FAKE_ADJECTIVES:
+            real_mods = set()  # a trailing adjective is the noun-less predicate, not part of a phrase
         if real_mods and j < len(raw_tokens) and raw_tokens[j] not in _FAKE_NOT_A_NOUN and not _fake_is_adverb(raw_tokens[j]):
             placeholder = f"zznp{chr(97 + len(info) % 26)}{chr(97 + len(info) // 26)}zz"
             info[placeholder] = {**mods, "noun": raw_tokens[j]}
@@ -331,6 +345,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         tokens = tokens[1:]
     aspects = [a for a in metadata.get("aspects", "").split(",") if a]
     has_indefinite_article = metadata.get("has_indefinite_article") == "true"
+    has_specific_article = metadata.get("has_specific_article") == "true"
     demonstrative_after_noun = metadata.get("demonstrative_after_noun") == "true"
     has_dual = "dual" in metadata.get("number_labels", "").split(",")
     has_trial = "trial" in metadata.get("number_labels", "").split(",")
@@ -424,7 +439,9 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
             demonstrative = {"kind": "demonstrative", "gloss": info["demonstrative"]}
             (after if demonstrative_after_noun else before).append(demonstrative)
         elif "possessor" not in info:
-            if info.get("indefinite") and has_indefinite_article:
+            if info.get("specific") and has_indefinite_article and has_specific_article:
+                before.append({"kind": "specific_article"})
+            elif info.get("indefinite") and has_indefinite_article:
                 before.append({"kind": "indefinite_article"})
             elif has_articles and (info.get("indefinite") or info.get("the") or used_article):
                 before.append({"kind": "article"})
@@ -432,7 +449,10 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
             before.append({"kind": "content", "gloss": numeral, "pos": "numeral"})
         if info.get("quantifier"):
             before.append({"kind": "content", "gloss": info["quantifier"], "pos": "quantifier"})
-        return before + [noun_slot] + after
+        adjective_slots = [content_slot(a, "adjective") for a in info.get("adjectives", [])]
+        if adjective_after_noun:
+            return before + [noun_slot] + adjective_slots + after
+        return before + adjective_slots + [noun_slot] + after
 
     def pronoun_gloss(tok: str) -> str:
         """This language's own gloss for an English pronoun token (the fake

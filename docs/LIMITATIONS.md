@@ -114,6 +114,12 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   its case; the case is read back as "in" or "with" only. Irregular plurals and the
   good/bad comparatives come from small fixed lists, and inalienable possession covers body
   parts and kin from a short word list.
+- **Adjective order, pronoun suppletion and articles are illustrative**: stacked adjectives are
+  ordered by five word-list classes (quality, size, age, colour, other) in a rolled order, mirrored after the
+  noun, optionally joined by "and"; a "split" language puts some classes before and the rest after
+  the noun. A suppletive pronoun person can be suppletive in only some of its cases. A language may have
+  a third, specific article ("a certain"; invariant, it does not agree) and/or a definite article
+  built by reducing "that" (non-tonal languages only).
 - **Noun-phrase features are illustrative**: the dual is one extra suffix; the
   possessive particle, possessed-noun suffix and genitive are the only
   possession strategies (no alienable/inalienable split, no agreement with the

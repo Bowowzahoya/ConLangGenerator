@@ -69,6 +69,7 @@ from conlang_generator.generation import (
     pronoun_gen,
     stress_gen,
     subordination_gen,
+    np_followups_gen,
     tone_sandhi,
     voice_np_gen,
     word_accent_gen,
@@ -785,7 +786,10 @@ def _apply_class_agreement(
     return romanization, ipa
 
 
-_TRANSPARENT_KINDS = ("article", "indefinite_article", "demonstrative", "possessive_pronoun", "classifier", "copula", "negation")
+_TRANSPARENT_KINDS = (
+    "article", "indefinite_article", "specific_article", "demonstrative", "possessive_pronoun", "classifier", "copula",
+    "negation", "conjunction",
+)
 
 
 def _is_transparent(slot) -> bool:
@@ -822,6 +826,8 @@ def _agreement_target(language: Language, slots, index: int, category: str) -> i
         else grammar.adjective_after_noun if category == "adjective"
         else False
     )
+    if category == "adjective" and grammar.adjective_placement == "split" and slots[index].gloss:
+        after = np_followups_gen.adjective_class(slots[index].gloss) not in grammar.adjective_before_classes
     first, second = (-1, 1) if after else (1, -1)
     target = _search_noun(slots, index, first)
     if target is None and category in ("adjective", "demonstrative"):
@@ -1074,7 +1080,9 @@ def _normalize_possessives(language: Language, slots) -> tuple:
     return tuple(normalized)
 
 
-_NP_MODIFIER_KINDS = ("article", "indefinite_article", "demonstrative", "possessive_pronoun", "classifier")
+_NP_MODIFIER_KINDS = (
+    "article", "indefinite_article", "specific_article", "demonstrative", "possessive_pronoun", "classifier",
+)
 
 
 def _is_np_head(slot) -> bool:
@@ -1128,6 +1136,68 @@ def _np_extent(language: Language, slots, adposition_index: int, forward: bool):
             break
         j -= 1
     return (first, last, head) if head is not None else None
+
+
+def _is_attributive_adjective(slot) -> bool:
+    return slot.kind == "content" and slot.pos == "adjective" and bool(slot.gloss)
+
+
+def _arrange_adjectives(language: Language, slots) -> tuple:
+    """Puts the adjectives around each noun where this language has them: on
+    their class's side in a ``split`` language, in the class order of
+    ``adjective_stack_order`` (mirrored after the noun) when stacked, and
+    joined by "and" when the language links them. A language with none of
+    these keeps the planner's arrangement. An adjective directly after a noun
+    in a sentence with no verb is a predicate ("the dog big"), so a split
+    language leaves it be."""
+    grammar = language.grammar
+    if grammar.adjective_placement == "global" and not grammar.adjective_stack_order and not grammar.adjective_stack_linker:
+        return tuple(slots)
+    has_finite = any(s.kind == "copula" or (s.kind == "content" and s.pos == "verb") for s in slots)
+    out = list(slots)
+    i = 0
+    while i < len(out):
+        if not _is_np_head(out[i]) or out[i].kind == "name":
+            i += 1
+            continue
+        left = i
+        while left > 0 and _is_attributive_adjective(out[left - 1]):
+            left -= 1
+        right = i
+        while right + 1 < len(out) and _is_attributive_adjective(out[right + 1]):
+            right += 1
+        adjectives = out[left:i] + out[i + 1:right + 1]
+        if not adjectives:
+            i += 1
+            continue
+        split = grammar.adjective_placement == "split"
+        if split and not has_finite and right > i and left == i:
+            i = right + 1
+            continue
+        order = grammar.adjective_stack_order
+        rank = (lambda a: order.index(np_followups_gen.adjective_class(a.gloss))) if order else (lambda a: 0)
+        if split:
+            before = [a for a in adjectives if np_followups_gen.adjective_class(a.gloss) in grammar.adjective_before_classes]
+            after = [a for a in adjectives if a not in before]
+        elif grammar.adjective_after_noun:
+            before, after = [], list(adjectives)
+        else:
+            before, after = list(adjectives), []
+        before = sorted(before, key=rank)
+        after = sorted(after, key=rank, reverse=bool(order))
+
+        def linked(group):
+            joined: list = []
+            for position, adjective in enumerate(group):
+                if position and grammar.adjective_stack_linker:
+                    joined.append(PlannedSlot(kind="conjunction"))
+                joined.append(adjective)
+            return joined
+
+        rebuilt = linked(before) + [out[i]] + linked(after)
+        out[left:right + 1] = rebuilt
+        i = left + len(rebuilt)
+    return tuple(out)
 
 
 def _arrange_adpositions(language: Language, slots) -> tuple:
@@ -1215,7 +1285,13 @@ def _suppletive_case(language: Language, slot, pos: PartOfSpeech, possession: st
     case = "genitive" if slot.possessive and possessive_marked and possession == "genitive" else slot.case
     if case is None or case not in grammar.cases or case in ("nominative", "absolutive"):
         return None
-    return case if pronoun_gen.person_label(slot.gloss) in grammar.suppletive_pronoun_persons else None
+    person = pronoun_gen.person_label(slot.gloss)
+    if person not in grammar.suppletive_pronoun_persons:
+        return None
+    limited = dict(grammar.suppletive_pronoun_case_limits).get(person)
+    if limited is not None and case not in limited:
+        return None  # this case of this person is regular: the ordinary case suffix
+    return case
 
 
 def _dropped_object_pronouns(language: Language, slots, already: set[int]) -> set[int]:
@@ -1428,7 +1504,9 @@ def _np_start(slots, head: int) -> int:
     while k > 0:
         previous = slots[k - 1]
         modifier = (
-            previous.kind in ("article", "indefinite_article", "demonstrative", "possessive_pronoun", "classifier")
+            previous.kind in (
+                "article", "indefinite_article", "specific_article", "demonstrative", "possessive_pronoun", "classifier"
+            )
             or (previous.kind == "content" and (previous.possessive or previous.pos in ("adjective", "numeral", "quantifier", "adverb")))
         )
         if not modifier:
@@ -1482,7 +1560,7 @@ def _render_plan(
     mood_pending = plan.mood == "imperative"
     possessed_pending = False  # a possessor was rendered; the next noun takes the "possessed" affix
     possession = language.grammar.possession
-    slots = _annotate_relative_heads(_arrange_adpositions(language, plan.slots))
+    slots = _annotate_relative_heads(_arrange_adpositions(language, _arrange_adjectives(language, plan.slots)))
     slots = _arrange_coordination(language, slots)
     slots = _arrange_relatives(language, slots)
     slots = _arrange_correlative_adverbials(language, slots)
@@ -1644,6 +1722,16 @@ def _render_plan(
             features = _agreement_features(working_language, slots, slot_index, "article")
             if any(features):
                 rendered = _apply_class_agreement(working_language, entry, features[0], None, features[1], features[2])
+        elif slot.kind == "specific_article":
+            specific = working_language.grammar.has_specific_article
+            if not specific and not working_language.grammar.has_indefinite_article:
+                continue
+            article_gloss = np_followups_gen.SPECIFIC_ARTICLE_GLOSS if specific else "a"
+            working_language, entry = _lookup_or_coin(
+                working_language, article_gloss, PartOfSpeech.PARTICLE, coined, llm_client,
+                lemma_candidates=[article_gloss],
+            )
+            rendered = (entry.romanization, entry.ipa)
         elif slot.kind == "possessive_pronoun":
             if slot.gloss == "self":
                 if working_language.grammar.reflexive_possessive == "affix":

@@ -9,6 +9,7 @@ import unicodedata
 from conlang_generator.core.grammar import MorphologicalType
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
+from conlang_generator.core.romanization import apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import (
     grammar_gen,
@@ -17,6 +18,7 @@ from conlang_generator.generation import (
     lexicon_gen,
     noun_class_gen,
     voice_np_gen,
+    np_followups_gen,
     noun_phrase_gen,
     real_words,
     phonology_gen,
@@ -563,6 +565,39 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             possessive = inflection_gen.generate_question_particle(np_rng, inventory, syllable_structure)
         grammar = grammar.model_copy(update={"possessive_particle": possessive})
 
+    # Noun-phrase follow-ups, round two (own stream).
+    np2 = np_followups_gen.roll_followups(random.Random(f"{spec.seed}:np-followups-2"), grammar)
+    article_source = np2["article_source"]
+    entries_now = list(seed_entries + generated_entries)
+    if article_source == "demonstrative":
+        the = next((i for i, e in enumerate(entries_now) if e.primary_gloss == "the"), None)
+        that = next((e for e in entries_now if e.primary_gloss == "that"), None)
+        derived = (
+            np_followups_gen.derive_article_ipa(that.ipa, inventory)
+            if that is not None and the is not None and not tone_system.enabled and not that.tones
+            else None
+        )
+        if derived is not None:
+            spelled = apply_grammatical_spelling(romanization, romanization.apply(derived), PartOfSpeech.PARTICLE)
+            others = {normalized_form(e.romanization) for i, e in enumerate(entries_now) if i != the}
+            if normalized_form(spelled) not in others:
+                entries_now[the] = entries_now[the].model_copy(update={"ipa": derived, "romanization": spelled})
+            else:
+                derived = None
+        if derived is None:
+            article_source = "own"
+    grammar = grammar.model_copy(
+        update={
+            "suppletive_pronoun_case_limits": np2["suppletive_pronoun_case_limits"],
+            "adjective_placement": np2["adjective_placement"],
+            "adjective_before_classes": np2["adjective_before_classes"],
+            "adjective_stack_order": np2["adjective_stack_order"],
+            "adjective_stack_linker": np2["adjective_stack_linker"],
+            "article_source": article_source,
+            "has_specific_article": np2["has_specific_article"],
+        }
+    )
+
     # Last, once every inflectional affix exists: no two labels of a paradigm may spell alike.
     grammar = inflection_gen.resolve_collisions(
         random.Random(f"{spec.seed}:distinct-suffixes"), inventory, syllable_structure, grammar
@@ -577,7 +612,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         word_accent=word_accent_system,
         romanization=romanization,
         grammar=grammar,
-        lexicon=Lexicon(entries=seed_entries + generated_entries),
+        lexicon=Lexicon(entries=tuple(entries_now)),
         history=("generated core language",),
     )
 

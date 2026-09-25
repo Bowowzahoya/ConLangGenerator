@@ -49,7 +49,7 @@ actually produces) to the real ``core.lexicon.PartOfSpeech`` enum
 
 _SLOT_KINDS = (
     "content", "article", "copula", "negation", "conjunction", "name", "clause", "demonstrative",
-    "indefinite_article", "possessive_pronoun",
+    "indefinite_article", "specific_article", "possessive_pronoun",
 )
 
 NUMBER_LABELS = ("plural", "dual", "trial", "collective")
@@ -459,6 +459,10 @@ def _build_system_prompt(language: Language) -> str:
     optional_kinds = []
     if grammar.has_indefinite_article:
         optional_kinds.append('"indefinite_article" (English "a"/"an" -- no other field needed)')
+    if grammar.has_specific_article:
+        optional_kinds.append(
+            '"specific_article" (English "a certain"/"a particular" -- a specific but unnamed one; no other field needed)'
+        )
     if grammar.has_articles:
         optional_kinds.append('"article" (a definite-article slot -- no other field needed)')
     if grammar.has_overt_copula:
@@ -578,7 +582,7 @@ information: "reportedly"/"allegedly"/"they say" -> reported; \
 never write those adverbs as slots when you use the field. Negation stays \
 one {{"kind":"negation"}} slot; the renderer may fold it into the verb.
 
-Noun-phrase pieces, each its own slot placed next to its noun as the bullets above say: a demonstrative is {{"kind":"demonstrative","gloss":"this"}} or "that" ("these"/"those" are the demonstrative plus the noun with "number":"plural"); a numeral is an ordinary "content" slot with pos "numeral" ("two dogs": numeral two, then dog with "number" -- "dual" when exactly two and the language has a dual, "trial" when exactly three and it has a trial, otherwise "plural"; "collective" for a group taken as one -- "all the dogs" -- when it has that); an English "a"/"an" is an "indefinite_article" slot only when this language has one, otherwise nothing. Possession ("my dog", "the dog's bone", "Bruno's leg"): the possessor is its own slot with "possessive":true placed directly before the possessed noun -- for a pronoun possessor the pronoun itself ("my" -> the pronoun "I", "your" -> "you", "his"/"her" -> "he", "our" -> "we", "their" -> "they"). Never add the possessive marking yourself.
+Noun-phrase pieces, each its own slot placed next to its noun as the bullets above say: a demonstrative is {{"kind":"demonstrative","gloss":"this"}} or "that" ("these"/"those" are the demonstrative plus the noun with "number":"plural"); a numeral is an ordinary "content" slot with pos "numeral" ("two dogs": numeral two, then dog with "number" -- "dual" when exactly two and the language has a dual, "trial" when exactly three and it has a trial, otherwise "plural"; "collective" for a group taken as one -- "all the dogs" -- when it has that); an English "a"/"an" is an "indefinite_article" slot only when this language has one, otherwise nothing. Possession ("my dog", "the dog's bone", "Bruno's leg"): the possessor is its own slot with "possessive":true placed directly before the possessed noun -- for a pronoun possessor the pronoun itself ("my" -> the pronoun "I", "your" -> "you", "his"/"her" -> "he", "our" -> "we", "their" -> "they"). Never add the possessive marking yourself. Each attributive adjective ("the big red dog") is its own "content" slot with pos "adjective", written in the English order; the renderer puts stacked adjectives in this language's order and on its side of the noun (and joins them if it does).
 
 Voice, only when the voices bullet lists it: set "voice" on the finite \
 verb slot (never on the copula) and reassign the arguments to match. \
@@ -747,6 +751,7 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "voices": ",".join(grammar.voices),
             "postpositional": "true" if grammar.postpositional else "false",
             "has_indefinite_article": "true" if grammar.has_indefinite_article else "false",
+            "has_specific_article": "true" if grammar.has_specific_article else "false",
             "demonstrative_after_noun": "true" if grammar.demonstrative_after_noun else "false",
             "number_labels": ",".join(a.label for a in grammar.number_affixes),
             "possession": grammar.possession,

@@ -141,7 +141,7 @@ def test_the_nominative_and_absolutive_are_never_suppletive():
 
 
 def test_a_genitive_possessor_pronoun_uses_the_suppletive_genitive():
-    language = _find(lambda g: "I" in g.suppletive_pronoun_persons and g.possession == "genitive")
+    language = _find(lambda g: "I" in g.suppletive_pronoun_persons and g.possession == "genitive" and "I" not in dict(g.suppletive_pronoun_case_limits))
     updated, tokens, glosses = _render(language, _pronoun("I", possessive=True), _noun("dog"))
     assert glosses[0] == "i-genitive" and len(tokens) == 2
     assert "my" in translate_to_english(tokens[0], updated, _CLIENT).text.split()

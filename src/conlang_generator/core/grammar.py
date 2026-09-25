@@ -536,6 +536,24 @@ class GrammarProfile(BaseModel, frozen=True):
     inalienable_possession: bool = False
     """Body parts and kin are possessed without the possessive marking."""
 
+    suppletive_pronoun_case_limits: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    """Per person in ``suppletive_pronoun_persons``, the only cases that have a
+    word of their own (I/me); the person's other cases take the ordinary case
+    suffix. A person with no entry is suppletive in every non-nominative case."""
+    adjective_placement: str = "global"
+    """``"global"`` (``adjective_after_noun`` for all) or ``"split"`` (the
+    classes in ``adjective_before_classes`` precede the noun, the rest follow)."""
+    adjective_before_classes: tuple[str, ...] = ()
+    adjective_stack_order: tuple[str, ...] = ()
+    """The order stacked adjectives take by class (quality, size, age, colour,
+    other; mirrored after the noun); empty leaves the planner's order."""
+    adjective_stack_linker: bool = False
+    """Stacked adjectives are joined by "and"."""
+    article_source: str = "own"
+    """``"demonstrative"``: the definite article is a reduced "that"."""
+    has_specific_article: bool = False
+    """A third article for a specific indefinite ("a certain dog")."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their

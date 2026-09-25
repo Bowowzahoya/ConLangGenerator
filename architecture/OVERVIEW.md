@@ -4671,3 +4671,16 @@ reading code or one-off ad hoc scripts.
   `better`. The fake planner produces trial/collective from "three"/"all" and the new voices from short shapes. The
   planner prompt lists the new labels and says adpositions are always separate slots. 25 tests in
   `test_voice_np_followups.py`.
+
+- **Noun-phrase follow-ups, round two (grammar pass 18).** `generation/np_followups_gen.py` (`roll_followups`, own
+  `{seed}:np-followups-2` stream): `suppletive_pronoun_case_limits` (per suppletive person, the only cases with a word
+  of their own), `adjective_placement` (`global`/`split` with `adjective_before_classes`), `adjective_stack_order` (a
+  permutation of `ADJECTIVE_CLASSES`), `adjective_stack_linker`, `article_source` (`demonstrative`: `generate_language`
+  replaces the `the` entry by `derive_article_ipa(that)` when that is shorter, non-tonal and collision-free) and
+  `has_specific_article`. Renderer: `_arrange_adjectives` (first in the pre-transforms) gathers the adjectives around each
+  noun head, sorts by class order (mirrored after the noun), places them by class in a split language (a sentence with no
+  verb is treated as a predicate and left alone) and inserts `conjunction` slots; `_agreement_target` picks an
+  adjective's direction from its class in a split language; `_suppletive_case` honours the limits (other cases take the
+  ordinary suffix on the base pronoun); a `specific_article` slot renders the `a-certain` particle (falling back to `a`, or
+  nothing). English readings: `a certain`. The fake planner now plans attributive adjectives (on the language's side) and
+  "a certain". 22 tests in `test_np_followups2.py`.

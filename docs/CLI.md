@@ -1069,3 +1069,21 @@ conlang translate "I see the child." --lang t30 --to conlang --llm fake
 The middle verb `fukilnevo` reads back as `gets opened`; the applicative verb `za3memiwy'` as `I cook for` (with `khir4` = `him`);
 and `t30`'s irregular plural (`kèkhuẻi`) is a different word from the singular (`fyǐi`) and reads
 back as `children`.
+
+**Noun-phrase follow-ups, round two.** Per language: a suppletive pronoun may be suppletive in only some of
+its cases; adjectives keep to a language-wide order when stacked (and may be joined by "and" or split
+around the noun by class); and a third article ("a certain") or a definite article reduced from "that" may
+exist. Verified with `--llm fake`: `--seed 2 --prompt p` as `t31` (specific article; the pronoun `I`
+suppletive only in accusative and dative) and `--seed 4` as `t32` (adjectives ordered quality, colour, size
+and joined by "and"):
+
+```bash
+conlang translate "I see a certain dog." --lang t31 --to conlang --llm fake
+conlang translate "I see a dog." --lang t31 --to conlang --llm fake
+conlang translate "I see the big red dog." --lang t32 --to conlang --llm fake
+conlang translate "I see the red big dog." --lang t32 --to conlang --llm fake
+```
+
+`t31` gives `fnaīnyê` for "a certain" (read back as `a certain`) against `ts'sēi` for plain "a"; `t32`
+gives the same six words for both adjective orders, with the joining word `shiz` between the two
+adjectives (read back as `red and big`).
