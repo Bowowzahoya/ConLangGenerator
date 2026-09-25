@@ -604,6 +604,17 @@ class GrammarProfile(BaseModel, frozen=True):
     adverb_degree: bool = False
     """An adverb takes a degree suffix too ("more quickly") where the language has one."""
 
+    harmony: str = "none"
+    """``"backness"``, ``"height"`` or ``"rounding"``: affix vowels agree with the stem's (see ``harmony_pairs``)."""
+    harmony_pairs: tuple[tuple[str, str], ...] = ()
+    """(first class, second class) vowel counterparts: (front, back) for backness, (unrounded, rounded) for rounding."""
+    boundary_rule: str = "none"
+    """Where a vowel meets a vowel at an affix boundary: ``"none"``, ``"elision"`` or ``"glide"``."""
+    boundary_glide: str = ""
+    mutation_cells: tuple[str, ...] = ()
+    """Cells (``"<field>/<label>"``) that mutate the stem's initial consonant (Celtic-style)."""
+    mutation_pairs: tuple[tuple[str, str], ...] = ()
+    """(consonant, its mutated form) for the initial consonant."""
     affix_positions: tuple[tuple[str, str], ...] = ()
     """Inflectional fields (``"case_affixes"``, ``"tense_affixes"``...) whose affixes are
     not plain suffixes, with their position (``prefix``, ``circumfix`` or ``infix``);

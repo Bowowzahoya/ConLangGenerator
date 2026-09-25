@@ -4769,3 +4769,16 @@ reading code or one-off ad hoc scripts.
   letters (`_symbol_letters`: every letter a symbol can take in any context, so the test never rules out a real form).
   `_person_suffix_is_distinct` compares whole exponents. Sound change evolves prefixes, infixes and suffixes. 14 tests in
   `test_affix_positions.py`.
+
+- **Morphophonology (grammar pass 25).** `GrammarProfile` gained `harmony` (`none`/`backness`/`height`/`rounding`) and
+  `harmony_pairs`, `boundary_rule` (`none`/`elision`/`glide`) and `boundary_glide`, and `mutation_cells` and `mutation_pairs`.
+  `generation/morphophonology_gen.py` (`roll_morphophonology`, own `{seed}:morphophonology` stream, run last): `harmony_pairs(inventory)`
+  finds at least two vowel pairs (front/back of the same height, else vowels one height step apart, else unrounded/rounded);
+  `mutation_pairs` maps a voiceless stop to its voiced twin and a voiced stop to the fricative of its place. `build_rules` makes a
+  `Morphophonology` (vowel classes, boundary rule, glide) that `inflection_gen.apply_affix(..., morphophonology=...)` applies to the
+  prefix, stem and suffix before restressing: an affix vowel in a pair takes the stem's class (last class vowel for a suffix, first for
+  a prefix), then a vowel meeting a vowel at a boundary is elided or separated by the glide. `translator._stem_ipa` also mutates the
+  initial consonant when the cell is in `mutation_cells`; `_stem_prefixes` includes the mutated start so decoding's first-letter filter
+  still finds the stem, `_may_spell` always tries short stems under elision, and the verb search's affix-symbol test accepts a
+  harmonic counterpart and ignores a prefix's last vowel under elision. Sound change evolves the pairs and the glide.
+  20 tests in `test_morphophonology.py`.

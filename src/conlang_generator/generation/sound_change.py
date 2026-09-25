@@ -1286,6 +1286,13 @@ def _evolve_grammar_affixes(
         value = getattr(grammar, field)
         if isinstance(value, tuple) and value and all(isinstance(item, InflectionAffix) for item in value):
             updates[field] = tuple(evolve_affix(item) for item in value)
+        elif field in ("harmony_pairs", "mutation_pairs") and value:
+            def evolve_pair_symbol(symbol):
+                return "".join(evolve((symbol,))) or symbol
+
+            updates[field] = tuple((evolve_pair_symbol(a), evolve_pair_symbol(b)) for a, b in value)
+        elif field == "boundary_glide" and value:
+            updates[field] = "".join(evolve((value,))) or value
         elif field == "stem_maps" and value:
             def evolve_symbol(symbol):
                 return "".join(evolve((symbol,))) or symbol

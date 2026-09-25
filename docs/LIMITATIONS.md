@@ -144,6 +144,11 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   mood, voice, object agreement, verb number) by morphological type; the rest are suffixing. Exponents are drawn fresh but keep
   the paradigm's shape (labels that shared a suffix share the new exponent). Infixing can produce odd clusters, and
   no affix triggers sandhi.
+- **Morphophonology is illustrative**: some languages have vowel harmony (an affix's vowels take the class of the stem's
+  last vowel, or its first for a prefix, over vowel pairs the inventory has, by backness, height or rounding), a hiatus
+  rule where a vowel meets a vowel across an affix boundary (drop the stem's or prefix's vowel, or insert a glide), and
+  lenition of the stem's initial consonant in one or two cells (a voiceless stop voices, a voiced stop becomes the
+  fricative of its place). These are simple, exceptionless rules; they do not apply to compounds or citation suffixes.
 - **Noun-phrase features are illustrative**: the dual is one extra suffix; the
   possessive particle, possessed-noun suffix and genitive are the only
   possession strategies (no alienable/inalienable split, no agreement with the

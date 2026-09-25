@@ -70,6 +70,7 @@ from conlang_generator.generation import (
     stress_gen,
     subordination_gen,
     comparison_gen,
+    morphophonology_gen,
     np_followups_gen,
     paradigm_gen,
     tone_sandhi,
@@ -126,6 +127,22 @@ def _translation_rng(language: Language, salt: str) -> random.Random:
     return random.Random(int(hashlib.sha256(payload).hexdigest(), 16))
 
 
+_MORPHOPHONOLOGY_CACHE: dict[int, tuple[object, object]] = {}
+
+
+def _morphophonology(language: Language):
+    """The boundary rules (harmony, hiatus) of ``language`` -- built once per grammar."""
+    grammar = language.grammar
+    cached = _MORPHOPHONOLOGY_CACHE.get(id(grammar))
+    if cached is not None and cached[0] is grammar:
+        return cached[1]
+    rules = morphophonology_gen.build_rules(grammar, language.phonology)
+    if len(_MORPHOPHONOLOGY_CACHE) >= 64:
+        _MORPHOPHONOLOGY_CACHE.clear()
+    _MORPHOPHONOLOGY_CACHE[id(grammar)] = (grammar, rules)
+    return rules
+
+
 def _stress_and_word_accent_kwargs(language: Language) -> dict:
     """Sources the same ``stress_pattern``/``stress_deviation_rate``/
     ``word_accent_*``/``strictness`` values ``sound_change._coin_native_word``
@@ -146,6 +163,7 @@ def _stress_and_word_accent_kwargs(language: Language) -> dict:
             _, word_accent_pattern, word_accent_deviation_rate, word_accent_length_rate, word_accent_window,
         ) = word_accent_gen.resolve_word_accent(reference_profiles)
     return {
+        "morphophonology": _morphophonology(language),
         "stress_pattern": stress_pattern,
         "stress_deviation_rate": stress_deviation_rate,
         "stress_strictness": strictness,
@@ -378,19 +396,53 @@ def _paradigm_grammar(language: Language, entry: LexicalEntry) -> GrammarProfile
 
 
 def _stem_ipa(language: Language, entry: LexicalEntry, cells) -> str:
-    """``entry``'s stem as it is when it takes one of ``cells`` (``"<field>/<label>"``): changed by
-    the umlaut, ablaut or gradation of a class or irregular lexeme that has that cell as a trigger."""
+    """``entry``'s stem as it is when it takes one of ``cells`` (``"<field>/<label>"``): changed by the
+    umlaut, ablaut or gradation of a class or irregular lexeme that has that cell as a trigger, then
+    its initial consonant mutated where the language mutates after that cell."""
     grammar = language.grammar
-    if not grammar.stem_maps:
-        return entry.ipa
-    for paradigm in _entry_paradigms(language, entry):
-        if paradigm.stem_change and any(c in paradigm.stem_cells for c in cells):
-            mapping = dict(dict(grammar.stem_maps).get(paradigm.stem_change, ()))
-            return paradigm_gen.change_stem(
-                entry.ipa, mapping, frozenset(language.phonology.vowel_symbols()),
-                inflection_gen._known_symbols_for(language.phonology), paradigm.stem_change == "gradation",
+    ipa = entry.ipa
+    if grammar.stem_maps:
+        for paradigm in _entry_paradigms(language, entry):
+            if paradigm.stem_change and any(c in paradigm.stem_cells for c in cells):
+                mapping = dict(dict(grammar.stem_maps).get(paradigm.stem_change, ()))
+                ipa = paradigm_gen.change_stem(
+                    ipa, mapping, frozenset(language.phonology.vowel_symbols()),
+                    inflection_gen._known_symbols_for(language.phonology), paradigm.stem_change == "gradation",
+                )
+                break
+    if grammar.mutation_cells and any(c in grammar.mutation_cells for c in cells):
+        ipa = morphophonology_gen.mutate_initial(
+            ipa, dict(grammar.mutation_pairs), inflection_gen._known_symbols_for(language.phonology),
+            frozenset(language.phonology.vowel_symbols()),
+        )
+    return ipa
+
+
+def _stem_variants(language: Language, entry: LexicalEntry) -> list[str]:
+    """The spellings of ``entry``'s stem in any form: its own, its changed stem's and its mutated stem's."""
+    variants = [entry.romanization]
+    grammar = language.grammar
+    ipas = []
+    if grammar.stem_maps:
+        for paradigm in _entry_paradigms(language, entry):
+            if paradigm.stem_change:
+                ipas.append(_stem_ipa(language, entry, paradigm.stem_cells))
+    if grammar.mutation_cells:
+        ipas.append(_stem_ipa(language, entry, grammar.mutation_cells))
+        for paradigm in _entry_paradigms(language, entry):
+            if paradigm.stem_change:
+                ipas.append(_stem_ipa(language, entry, (*paradigm.stem_cells, *grammar.mutation_cells)))
+    for changed in dict.fromkeys(ipas):
+        if changed != entry.ipa:
+            variants.append(
+                apply_grammatical_spelling(language.romanization, language.romanization.apply(changed), entry.pos)
             )
-    return entry.ipa
+    return variants
+
+
+def _stem_prefixes(language: Language, entry: LexicalEntry) -> set[str]:
+    """The first two letters ``entry`` can start with in any form (see ``_stem_variants``)."""
+    return {_stem_prefix(v) for v in _stem_variants(language, entry)}
 
 
 def _decode_mode(language: Language, fields) -> str:
@@ -443,8 +495,15 @@ def _symbol_letters(language: Language, symbol: str) -> frozenset[str] | None:
 
 def _symbol_may_appear(language: Language, symbol: str, token_letters: str) -> bool:
     """Whether some spelling of ``symbol`` could occur in a token spelled ``token_letters``."""
+    grammar = language.grammar
     letters = _symbol_letters(language, symbol)
-    return letters is None or any(ch in token_letters for ch in letters)
+    if letters is None or any(ch in token_letters for ch in letters):
+        return True
+    for first, second in grammar.harmony_pairs:  # harmony may have swapped it for its counterpart
+        if symbol in (first, second):
+            other = _symbol_letters(language, second if symbol == first else first)
+            return other is None or any(ch in token_letters for ch in other)
+    return False
 
 
 def _letters(text: str) -> str:
@@ -454,34 +513,23 @@ def _letters(text: str) -> str:
 
 def _may_spell(language: Language, entry: LexicalEntry, token_letters: str, mode: str) -> bool:
     """Whether ``entry`` could be the stem of a token, by ``mode`` (see ``_decode_mode``)."""
+    if language.grammar.boundary_rule == "elision" and len(_letters(entry.romanization)) <= 3:
+        return True  # a vowel-final stem can lose its vowel before a vowel-initial suffix
     if mode.startswith("all"):
         # An infix can split the stem, but not its far end: after the first consonant the stem's end stays
         # whole, before the last vowel its start does. Short stems are always tried.
-        if any(p.stem_change for p in _entry_paradigms(language, entry)):
-            return True
-        letters = _letters(entry.romanization)
-        if len(letters) <= 4:
-            return True
-        head, tail = letters[:3] in token_letters, letters[-3:] in token_letters
-        return (head or tail) if mode == "all-both" else tail if mode == "all-after" else head
+        for variant in _stem_variants(language, entry):
+            letters = _letters(variant)
+            if len(letters) <= 4:
+                return True
+            head, tail = letters[:3] in token_letters, letters[-3:] in token_letters
+            if (head or tail) if mode == "all-both" else tail if mode == "all-after" else head:
+                return True
+        return False
     prefixes = _stem_prefixes(language, entry)
     if mode == "start":
         return token_letters[:2] in prefixes
     return any(p in token_letters for p in prefixes)
-
-
-def _stem_prefixes(language: Language, entry: LexicalEntry) -> set[str]:
-    """The first two letters ``entry`` can start with in any form: its own, and its changed stem's."""
-    prefixes = {_stem_prefix(entry.romanization)}
-    grammar = language.grammar
-    if grammar.stem_maps:
-        for paradigm in _entry_paradigms(language, entry):
-            if paradigm.stem_change:
-                changed = _stem_ipa(language, entry, paradigm.stem_cells)
-                if changed != entry.ipa:
-                    spelled = apply_grammatical_spelling(language.romanization, language.romanization.apply(changed), entry.pos)
-                    prefixes.add(_stem_prefix(spelled))
-    return prefixes
 
 
 def _apply_case(
@@ -2440,9 +2488,12 @@ def _decode_verb_full(
                     fragments = (affix.prefix, affix.infix, affix.suffix)
                     plausible = fragment_ok.get(fragments)
                     if plausible is None:
+                        elides = language.grammar.boundary_rule == "elision"
                         plausible = all(
                             _symbol_may_appear(language, symbol, verb_letters)
-                            for part in fragments for symbol in part
+                            for slot, part in enumerate(fragments) for position, symbol in enumerate(part)
+                            # elision can drop a prefix's last vowel before a vowel-initial stem
+                            if not (elides and slot == 0 and position == len(part) - 1)
                         )
                         fragment_ok[fragments] = plausible
                     if not plausible:

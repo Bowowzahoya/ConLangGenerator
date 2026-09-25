@@ -1164,3 +1164,20 @@ In `t40` the plural wraps the stem (`nuwōkáhū'o'i` "dog" becomes `linuwōkáh
 the case ending). In `u6` the aspect goes inside the verb: the plain `fuseirhid` becomes `fanuseirhid` (progressive) and
 `fe'useirhid` (perfect), the infixes `-an-` and `-e'-` placed before the stem's last vowel. Both read back correctly
 (`I see dogs`, `I see dog`).
+
+**Morphophonology.** Some languages mutate the stem's initial consonant in some cells, resolve a vowel-vowel clash at an affix
+boundary (dropping a vowel or inserting a glide) and/or make affix vowels agree with the stem's (vowel harmony). Verified with
+`--llm fake`: `--seed 19 --prompt p` as `m19` (the plural lenites the initial consonant: `t` -> `d`, `d` -> `z`, `k` -> `ng`),
+`--seed 24` as `m24` (elision) and `--seed 20` as `m20` (a glide `j`):
+
+```bash
+conlang translate "I see the wind." --lang m19 --to conlang --llm fake
+conlang translate "I see the winds." --lang m19 --to conlang --llm fake
+conlang translate "I see the waters." --lang m24 --to conlang --llm fake
+conlang translate "I see the waters." --lang m20 --to conlang --llm fake
+```
+
+In `m19` "wind" is `tì'` and its plural is `dì'e` (the initial consonant weakens and the plural suffix follows). In `m24` the
+vowel-final stem `pi` "water" loses its vowel before the vowel-initial plural (`paka`, from `p` + `ak` + the case ending). Both read
+back correctly (`I see winds`, `I waters see`). Vowel harmony is exercised in `tests/test_morphophonology.py`; it was not rolled by any of the CLI
+seeds tried, since it needs an inventory with two matching vowel pairs.

@@ -265,6 +265,7 @@ def apply_affix(
     word_accent_deviation_rate: float | None = None,
     word_accent_length_rate: float | None = None,
     word_accent_window: int | None = None,
+    morphophonology=None,
 ) -> str:
     """Attaches ``affix`` (a single case, tense, or agreement label's own
     generated form) onto ``ipa`` and re-derives stress/word-accent on the
@@ -289,8 +290,11 @@ def apply_affix(
     stem_symbols = tuple(symbol + deco for symbol, deco in raw_tokens)
     if affix.infix:
         stem_symbols = _insert_infix(stem_symbols, raw_tokens, affix, inventory)
+    prefix, suffix = affix.prefix, affix.suffix
+    if morphophonology is not None:
+        prefix, stem_symbols, suffix = morphophonology.apply(prefix, stem_symbols, suffix)
     return word_builder.attach_affix_and_restress(
-        rng, affix.prefix, stem_symbols, affix.suffix, inventory,
+        rng, prefix, stem_symbols, suffix, inventory,
         stress_pattern, stress_deviation_rate, stress_strictness,
         word_accent_realization=word_accent_realization,
         word_accent_pattern=word_accent_pattern,
