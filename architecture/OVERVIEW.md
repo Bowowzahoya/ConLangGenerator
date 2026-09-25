@@ -4727,3 +4727,17 @@ reading code or one-off ad hoc scripts.
   `DEGREE_READING` ("as big as", "too big", "very big"), and the case-marked standard reads "than"/"as" instead of "in" when
   it follows a comparison. `inflection_gen.resolve_collisions` now takes the romanization so two suffixes spelled alike
   (`i` and `ɪ`) are treated as colliding (generation and evolution). 16 tests in `test_comparison_followups.py`.
+
+- **Real inflection paradigms (grammar pass 22).** `core.grammar.Paradigm(name, pos, overrides)` and three
+  `GrammarProfile` fields (`noun_paradigms`, `verb_paradigms`, `irregular_lexemes`, all default empty).
+  `generation/paradigm_gen.py` (`roll_paradigms`, own `{seed}:paradigms` stream, drawn after
+  `resolve_collisions`): the language's existing affixes are class 0; each further declension (1-3) or conjugation (1-2)
+  gives about 55% of the changeable cells (noun `case_affixes`/`number_affixes`, verb `tense_affixes` and person
+  `agreement_affixes`) a suffix of its own, drawn distinct -- as spelled -- from every suffix on the same kind of word;
+  irregular lexemes (`IRREGULAR_NOUNS`/`IRREGULAR_VERBS`, 30% each) override one or two cells and avoid the classes' suffixes
+  too. The rate follows the morphological type (fusional 0.85, isolating 0.10). `translator._paradigm_grammar(language, entry)`
+  returns the grammar as that word sees it (an id-keyed cache; class by `noun_classes` index or `paradigm_gen.class_index`,
+  a weighted hash of seed and gloss; suppletive forms use their base gloss), swapping the overridden affixes under the
+  same labels, so `_apply_case`, `_apply_verb_inflection` and the decoders (`_decode_noun` via `_apply_case`; the verb
+  search and non-finite forms per entry) need no other change. Pronouns, particles, numerals and names use the base
+  grammar. `sound_change._evolve_grammar_affixes` evolves the overrides too. 14 tests in `test_paradigms.py`.

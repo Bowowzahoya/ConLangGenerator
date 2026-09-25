@@ -1122,3 +1122,16 @@ conlang translate "The more you read, the more you learn." --lang t37 --to conla
 In `t36` "big" is `mbnaèi` and becomes `mbnaèeia` (as big as), `mbnaèeui` (too big) and `mbnaèaii` (very big);
 the equative's standard is `sīoi knaỉa`, "the cat" in the dative. In `t37` the standard `chami-ue` carries the
 locative and reads back as `than cat`.
+
+**Real inflection paradigms.** A fusional language may have several declensions and conjugations and a few irregular
+words, instead of one suffix per feature for every word. Verified with `--llm fake` on `--seed 1 --prompt p`
+(`t38`, fusional: two extra declensions, one extra conjugation, irregular `dog`, `hand`, `be`, `go`, `have` and `say`):
+
+```bash
+conlang translate "I see the birds." --lang t38 --to conlang --llm fake
+conlang translate "I see the rivers." --lang t38 --to conlang --llm fake
+conlang translate "I see the dogs." --lang t38 --to conlang --llm fake
+```
+
+The plural accusative of the ordinary noun `bird` is `haijamu` (plural `-am`, accusative `-u`); `river` belongs
+to another declension (`co'q'ejaiu`, plural `-ai`); and `dog` is irregular (`pux'aru`, plural `-ar`). Verbs differ the same way, by conjugation: a verb in a further class changes some of the tense or person suffixes.

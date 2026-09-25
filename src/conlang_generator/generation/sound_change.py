@@ -1274,13 +1274,19 @@ def _evolve_grammar_affixes(
             memo[symbols] = tuple(symbol + deco for symbol, deco in tokens) or symbols
         return memo[symbols]
 
+    from conlang_generator.core.grammar import Paradigm
+
+    def evolve_affix(item):
+        return item.model_copy(update={"prefix": evolve(item.prefix), "suffix": evolve(item.suffix)})
+
     updates: dict[str, tuple] = {}
     for field in type(grammar).model_fields:
         value = getattr(grammar, field)
         if isinstance(value, tuple) and value and all(isinstance(item, InflectionAffix) for item in value):
+            updates[field] = tuple(evolve_affix(item) for item in value)
+        elif isinstance(value, tuple) and value and all(isinstance(item, Paradigm) for item in value):
             updates[field] = tuple(
-                item.model_copy(update={"prefix": evolve(item.prefix), "suffix": evolve(item.suffix)})
-                for item in value
+                item.model_copy(update={"overrides": tuple(evolve_affix(o) for o in item.overrides)}) for item in value
             )
     from conlang_generator.generation import inflection_gen
 

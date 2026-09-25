@@ -25,6 +25,18 @@ class WordOrder(str, Enum):
     OSV = "OSV"
 
 
+class Paradigm(BaseModel, frozen=True):
+    """One inflection class beyond the language's base affixes (a declension or
+    conjugation), or one irregular lexeme's own cells. ``overrides`` are
+    ``InflectionAffix`` values labelled ``"<field>/<label>"`` (for example
+    ``"case_affixes/accusative"``) that replace that label's affix for the words
+    of this class; every other cell is shared with the base paradigm."""
+
+    name: str
+    pos: str
+    overrides: tuple["InflectionAffix", ...] = ()
+
+
 class MorphologicalType(str, Enum):
     ISOLATING = "isolating"
     AGGLUTINATIVE = "agglutinative"
@@ -578,6 +590,13 @@ class GrammarProfile(BaseModel, frozen=True):
     """"very big": a suffix (``affix``) or the adverb "very" (``word``)."""
     adverb_degree: bool = False
     """An adverb takes a degree suffix too ("more quickly") where the language has one."""
+
+    noun_paradigms: tuple[Paradigm, ...] = ()
+    """Further noun declensions (class 0 is the language's own case/number affixes)."""
+    verb_paradigms: tuple[Paradigm, ...] = ()
+    """Further verb conjugations (class 0 is the language's own tense/agreement affixes)."""
+    irregular_lexemes: tuple[Paradigm, ...] = ()
+    """Lexemes with cells of their own, named by their (lower-case) gloss."""
 
     @property
     def postpositional(self) -> bool:

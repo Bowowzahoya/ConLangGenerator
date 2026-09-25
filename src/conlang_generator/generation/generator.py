@@ -20,6 +20,7 @@ from conlang_generator.generation import (
     voice_np_gen,
     np_followups_gen,
     comparison_gen,
+    paradigm_gen,
     noun_phrase_gen,
     real_words,
     phonology_gen,
@@ -660,6 +661,12 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     # Last, once every inflectional affix exists: no two labels of a paradigm may spell alike.
     grammar = inflection_gen.resolve_collisions(
         random.Random(f"{spec.seed}:distinct-suffixes"), inventory, syllable_structure, grammar, romanization
+    )
+    # Inflection classes and irregular lexemes, once the affixes are final (own stream, drawn last).
+    grammar = grammar.model_copy(
+        update=paradigm_gen.roll_paradigms(
+            random.Random(f"{spec.seed}:paradigms"), grammar, inventory, syllable_structure, romanization
+        )
     )
 
     return Language(

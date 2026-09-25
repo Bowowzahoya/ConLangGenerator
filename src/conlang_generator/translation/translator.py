@@ -71,6 +71,7 @@ from conlang_generator.generation import (
     subordination_gen,
     comparison_gen,
     np_followups_gen,
+    paradigm_gen,
     tone_sandhi,
     voice_np_gen,
     word_accent_gen,
@@ -310,6 +311,54 @@ def _noun_affix_salt(
     )
 
 
+_PARADIGM_CACHE: dict[tuple[int, str, tuple[str, ...]], tuple[GrammarProfile, GrammarProfile]] = {}
+
+
+def _paradigm_grammar(language: Language, entry: LexicalEntry) -> GrammarProfile:
+    """The grammar as seen by ``entry``: its declension (noun) or conjugation
+    (verb) class and any irregular cells replace the base tense/agreement or
+    case/number affixes; the labels are the same, so callers are unchanged. A
+    language without paradigm classes, and every other part of speech, gets the
+    language's own grammar."""
+    grammar = language.grammar
+    if not (grammar.noun_paradigms or grammar.verb_paradigms or grammar.irregular_lexemes):
+        return grammar
+    if entry.pos is PartOfSpeech.NOUN and not names.is_name_entry(entry):
+        pos, classes = "noun", grammar.noun_paradigms
+    elif entry.pos is PartOfSpeech.VERB:
+        pos, classes = "verb", grammar.verb_paradigms
+    else:
+        return grammar
+    gloss = _class_gloss(entry.primary_gloss).strip().lower()
+    if pos == "noun" and grammar.noun_classes and classes:
+        noun_class = _entry_class(language, entry)
+        index = grammar.noun_classes.index(noun_class) % (len(classes) + 1) if noun_class in grammar.noun_classes else 0
+    else:
+        index = paradigm_gen.class_index(language.spec.seed, pos, gloss, len(classes) + 1)
+    chosen = ([classes[index - 1]] if index > 0 else []) + [
+        p for p in grammar.irregular_lexemes if p.pos == pos and p.name == gloss
+    ]
+    if not chosen:
+        return grammar
+    key = (id(grammar), pos, tuple(p.name for p in chosen))
+    cached = _PARADIGM_CACHE.get(key)
+    if cached is not None and cached[0] is grammar:
+        return cached[1]
+    updates: dict[str, tuple[InflectionAffix, ...]] = {}
+    for paradigm in chosen:
+        for override in paradigm.overrides:
+            field, _, label = override.label.partition("/")
+            current = updates.get(field, getattr(grammar, field))
+            updates[field] = tuple(
+                override.model_copy(update={"label": label}) if a.label == label else a for a in current
+            )
+    derived = grammar.model_copy(update=updates)
+    if len(_PARADIGM_CACHE) >= 512:
+        _PARADIGM_CACHE.clear()
+    _PARADIGM_CACHE[key] = (grammar, derived)
+    return derived
+
+
 def _apply_case(
     language: Language,
     entry: LexicalEntry,
@@ -325,7 +374,7 @@ def _apply_case(
     isolating language with no case, or the argument alignment leaves it bare
     (only one argument is ever case-marked per sentence -- see ``translate_to_
     conlang``'s own SVO handling)."""
-    grammar = language.grammar
+    grammar = _paradigm_grammar(language, entry)
     resolved_possessed = possessed and any(a.label == "possessed" for a in grammar.possession_affixes)
     resolved_person = (
         possessor_person if any(a.label == possessor_person for a in grammar.possessor_person_affixes) else None
@@ -523,7 +572,7 @@ def _apply_verb_inflection(
     encode/decode salt mismatch is a real, previously-hit bug -- an
     unnormalized invalid label here would reintroduce it, since
     ``_decode_verb`` only ever tries genuinely valid labels)."""
-    grammar = language.grammar
+    grammar = _paradigm_grammar(language, entry)
     if mood == "imperative":
         # An imperative takes its own marker instead of tense/agreement.
         imperative = next((a for a in grammar.mood_affixes if a.label == "imperative"), None)
@@ -2185,8 +2234,8 @@ def _decode_verb_full(
         # the same word as another form.
         form_candidates.sort(key=lambda c: (c[1] is not None) + (c[2] is not None))
         for form_affix, form_agreement, form_case in form_candidates:
-            affix = _non_finite_affix(grammar_forms, form_affix, form_agreement, form_case)
             for entry in entries:
+                affix = _non_finite_affix(_paradigm_grammar(language, entry), form_affix, form_agreement, form_case)
                 rng = _translation_rng(language, _verb_form_salt(entry, form_affix.label, form_agreement, form_case))
                 ipa = inflection_gen.apply_affix(
                     rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
@@ -2247,6 +2296,7 @@ def _decode_verb_full(
             + (c[5][0] is not None) + c[5][1] + (c[5][2] is not None) + c[5][3]
             + (c[0] is None and bool(grammar.tenses) and not auxiliary_tense) + (c[0] is not None and auxiliary_tense),
         )
+        entry_grammars = {id(e): _paradigm_grammar(language, e) for e in entries}
         for (
             tense_label, aspect_label, mood_label, object_label, voice_label,
             (number_label, polite, evidential_label, negative),
@@ -2254,7 +2304,7 @@ def _decode_verb_full(
             for entry in entries:
                 for agreement_label in agreement_options:
                     affix = _combined_tense_agreement_affix(
-                        grammar, tense_label, agreement_label, aspect_label, mood_label, object_label, voice_label,
+                        entry_grammars[id(entry)], tense_label, agreement_label, aspect_label, mood_label, object_label, voice_label,
                         number_label, polite, evidential_label, negative,
                     )
                     if affix is None:
