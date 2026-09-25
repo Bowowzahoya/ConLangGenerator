@@ -483,6 +483,25 @@ class GrammarProfile(BaseModel, frozen=True):
     """The complementizer depends on the class of the governing verb
     (speech, desire, perception, factive)."""
 
+    class_agreement_targets: tuple[str, ...] = ("article", "adjective", "demonstrative", "possessive")
+    """The word categories that agree with their noun in class (of
+    ``noun_class_gen.AGREEMENT_CATEGORIES``); the default is what agreed before
+    targets were rolled."""
+    number_agreement_targets: tuple[str, ...] = ()
+    """The categories that agree with their noun in number (plural/dual)."""
+    case_agreement_targets: tuple[str, ...] = ()
+    """The categories that agree with their noun in case."""
+    class_marking: str = "none"
+    """``"suffix"`` or ``"prefix"``: the noun itself carries its class
+    (``class_marker_affixes``); ``"none"``: the class shows only through
+    agreement."""
+    class_marker_affixes: tuple[InflectionAffix, ...] = ()
+    """One marker per class, for the noun itself (separate from
+    ``class_affixes``, which the agreeing words take)."""
+    noun_class_assignment: str = "hash"
+    """How a noun with no natural gender/animacy gets its class: ``"hash"``,
+    ``"semantic"`` (by semantic field) or ``"formal"`` (by final sound)."""
+
     @property
     def postpositional(self) -> bool:
         """Object-before-verb orders (SOV, OSV, OVS) put adpositions after their

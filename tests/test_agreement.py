@@ -215,7 +215,10 @@ def test_without_object_agreement_the_object_does_not_change_the_verb():
 
 
 def test_a_language_without_classes_leaves_the_article_bare():
-    language = _find(lambda g: not g.noun_classes and g.has_articles)
+    language = _find(
+        lambda g: not g.noun_classes and g.has_articles
+        and "article" not in g.number_agreement_targets and "article" not in g.case_agreement_targets
+    )
     bare = language.lexicon.by_gloss("the").romanization
     assert _tokens(language, "the dog sees the river")[0] == bare
     assert _article_forms(language) == {bare.lower()}

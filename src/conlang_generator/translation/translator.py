@@ -240,6 +240,7 @@ def _noun_affix(
     number_label: str | None,
     possessed: bool = False,
     possessor_person: str | None = None,
+    class_marker: str | None = None,
 ) -> tuple[InflectionAffix | None, str | None]:
     """This noun's own affix (number, then possessed, then case, composed into
     one synthetic affix so stress is re-derived once -- see ``_combined_tense_
@@ -258,9 +259,12 @@ def _noun_affix(
         if possessor_person
         else None
     )
-    if number_affix is None and possessed_affix is None and person_affix is None:
+    marker_affix = (
+        next((a for a in grammar.class_marker_affixes if a.label == class_marker), None) if class_marker else None
+    )
+    if number_affix is None and possessed_affix is None and person_affix is None and marker_affix is None:
         return case_affix, resolved_case
-    parts = [number_affix, person_affix, possessed_affix, case_affix]
+    parts = [marker_affix, number_affix, person_affix, possessed_affix, case_affix]
     prefix = tuple(sym for part in parts if part for sym in part.prefix)
     suffix = tuple(sym for part in parts if part for sym in part.suffix)
     return InflectionAffix(label="number+case", prefix=prefix, suffix=suffix), resolved_case
@@ -272,17 +276,19 @@ def _noun_affix_salt(
     number_label: str | None,
     possessed: bool = False,
     possessor_person: str | None = None,
+    class_marker: str | None = None,
 ) -> str:
     """``_case_affix_salt`` for a case-only marking (so every pre-number
     sentence keeps its exact rng stream); a distinct salt once number or
     possession is involved. Shared by encoding and decoding like the other
     salts."""
-    if number_label is None and not possessed and not possessor_person:
+    if number_label is None and not possessed and not possessor_person and not class_marker:
         return _case_affix_salt(entry, case_label or "")
     return (
         f"noun:{entry.ipa}:{case_label}:{number_label}"
         + (":possessed" if possessed else "")
         + (f":pp={possessor_person}" if possessor_person else "")
+        + (f":cm={class_marker}" if class_marker else "")
     )
 
 
@@ -306,12 +312,17 @@ def _apply_case(
     resolved_person = (
         possessor_person if any(a.label == possessor_person for a in grammar.possessor_person_affixes) else None
     )
-    affix, resolved_case = _noun_affix(grammar, case_label, number_label, resolved_possessed, resolved_person)
+    marker = (
+        _entry_class(language, entry)
+        if grammar.class_marking != "none" and entry.pos is PartOfSpeech.NOUN and not names.is_name_entry(entry)
+        else None
+    )
+    affix, resolved_case = _noun_affix(grammar, case_label, number_label, resolved_possessed, resolved_person, marker)
     if affix is None:
         return entry.romanization, entry.ipa
     resolved_number = number_label if any(a.label == number_label for a in grammar.number_affixes) else None
     rng = _translation_rng(
-        language, _noun_affix_salt(entry, resolved_case, resolved_number, resolved_possessed, resolved_person)
+        language, _noun_affix_salt(entry, resolved_case, resolved_number, resolved_possessed, resolved_person, marker)
     )
     ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
     romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
@@ -525,8 +536,23 @@ def _class_label_of(language: Language, gloss: str | None) -> str | None:
     ``gloss`` (``None`` in a language with no noun classes)."""
     if not gloss:
         return None
-    noun_cls = noun_class_gen.noun_class(language.grammar.noun_classes, language.spec.seed, gloss)
+    grammar = language.grammar
+    entry = _find_word(language, gloss) if grammar.noun_class_assignment == "formal" else None
+    noun_cls = noun_class_gen.assigned_class(
+        grammar.noun_classes, language.spec.seed, gloss, grammar.noun_class_assignment, entry.ipa if entry else None
+    )
     return noun_class_gen.class_agreement_label(noun_cls) if noun_cls else None
+
+
+def _entry_class(language: Language, entry: LexicalEntry) -> str | None:
+    """The class name of a lexicon noun (``None`` in a language without
+    classes) -- from its own gloss and, in a ``formal`` language, its form."""
+    grammar = language.grammar
+    if not grammar.noun_classes:
+        return None
+    return noun_class_gen.assigned_class(
+        grammar.noun_classes, language.spec.seed, entry.primary_gloss, grammar.noun_class_assignment, entry.ipa
+    )
 
 
 def _verb_agreement(language: Language, slot: sentence_planner.PlannedSlot) -> tuple[str, str | None]:
@@ -550,42 +576,162 @@ def _verb_agreement(language: Language, slot: sentence_planner.PlannedSlot) -> t
     return agreement, object_label
 
 
-def _class_agreement_salt(entry: LexicalEntry, noun_cls: str | None, degree: str | None = None) -> str:
-    """Rng salt for an agreeing word: the earlier class-only salt when there is
-    no degree (so existing output is unchanged), distinct salts otherwise."""
+def _class_agreement_salt(
+    entry: LexicalEntry,
+    noun_cls: str | None,
+    degree: str | None = None,
+    number: str | None = None,
+    case: str | None = None,
+) -> str:
+    """Rng salt for an agreeing word: the earlier salts when there is no
+    number or case agreement (so existing output is unchanged), distinct
+    salts otherwise."""
     if degree is None:
-        return f"classagr:{entry.ipa}:{noun_cls}"
-    if noun_cls is None:
-        return f"degree:{entry.ipa}:{degree}"
-    return f"classagr:{entry.ipa}:{noun_cls}:d={degree}"
+        salt = f"classagr:{entry.ipa}:{noun_cls}"
+    elif noun_cls is None:
+        salt = f"degree:{entry.ipa}:{degree}"
+    else:
+        salt = f"classagr:{entry.ipa}:{noun_cls}:d={degree}"
+    if number:
+        salt += f":n={number}"
+    if case:
+        salt += f":c={case}"
+    return salt
 
 
 def _apply_class_agreement(
-    language: Language, entry: LexicalEntry, class_label: str | None, degree_label: str | None = None
+    language: Language,
+    entry: LexicalEntry,
+    class_label: str | None,
+    degree_label: str | None = None,
+    number_label: str | None = None,
+    case_label: str | None = None,
 ) -> tuple[str, str]:
-    """An article/adjective ``entry`` agreeing with a noun of class
-    ``class_label`` (a ``"class:<name>"`` label or a bare class name) and/or
-    carrying a ``degree_label`` (``"comparative"``/``"superlative"``) suffix --
-    bare when the language has neither. The degree suffix sits closer to the
-    root than the class one."""
+    """An agreeing word (article, adjective, demonstrative, numeral,
+    possessive) ``entry`` taking the class of its noun (``class_label``: a
+    ``"class:<name>"`` label or a bare class name), its number and its case,
+    plus an adjective's ``degree_label`` suffix -- bare when the language has
+    none of them. The suffixes are composed in the order degree, class,
+    number, case."""
     grammar = language.grammar
     noun_cls = (class_label or "").removeprefix(noun_class_gen.CLASS_AGREEMENT_PREFIX) or None
     class_affix = next((a for a in grammar.class_affixes if a.label == noun_cls), None) if noun_cls else None
     degree_affix = next((a for a in grammar.degree_affixes if a.label == degree_label), None) if degree_label else None
-    if class_affix is None and degree_affix is None:
+    number_affix = next((a for a in grammar.number_affixes if a.label == number_label), None) if number_label else None
+    case_affix = next((a for a in grammar.case_affixes if a.label == case_label), None) if case_label else None
+    parts = [degree_affix, class_affix, number_affix, case_affix]
+    if not any(parts):
         return entry.romanization, entry.ipa
-    parts = [degree_affix, class_affix]
     affix = InflectionAffix(
         label="adjective-agreement",
         prefix=tuple(sym for part in parts if part for sym in part.prefix),
         suffix=tuple(sym for part in parts if part for sym in part.suffix),
     )
-    resolved_class = noun_cls if class_affix is not None else None
-    resolved_degree = degree_label if degree_affix is not None else None
-    rng = _translation_rng(language, _class_agreement_salt(entry, resolved_class, resolved_degree))
+    rng = _translation_rng(
+        language,
+        _class_agreement_salt(
+            entry,
+            noun_cls if class_affix is not None else None,
+            degree_label if degree_affix is not None else None,
+            number_label if number_affix is not None else None,
+            case_label if case_affix is not None else None,
+        ),
+    )
     ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
     romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
     return romanization, ipa
+
+
+_TRANSPARENT_KINDS = ("article", "indefinite_article", "demonstrative", "possessive_pronoun", "classifier", "copula", "negation")
+
+
+def _is_transparent(slot) -> bool:
+    """A slot an agreement search looks through on its way to the noun."""
+    if slot.kind in _TRANSPARENT_KINDS:
+        return True
+    return slot.kind == "content" and (
+        slot.pos in ("adjective", "adverb", "numeral", "quantifier", "preposition") or slot.possessive
+    )
+
+
+def _search_noun(slots, index: int, step: int) -> int | None:
+    j = index + step
+    while 0 <= j < len(slots):
+        slot = slots[j]
+        if slot.kind == "content" and slot.gloss and slot.pos in ("noun", "pronoun") and not slot.possessive:
+            return j
+        if not _is_transparent(slot):
+            return None
+        j += step
+    return None
+
+
+def _agreement_target(language: Language, slots, index: int, category: str) -> int | None:
+    """The index of the noun slot the word at ``slots[index]`` agrees with,
+    worked out from position (the planner need not name it): the next noun for
+    an article, numeral or possessive, the next or previous one for a
+    demonstrative and an adjective according to the language's own order, and
+    the other side as a fallback (a predicate adjective sits across the
+    copula from its subject)."""
+    grammar = language.grammar
+    after = (
+        grammar.demonstrative_after_noun if category == "demonstrative"
+        else grammar.adjective_after_noun if category == "adjective"
+        else False
+    )
+    first, second = (-1, 1) if after else (1, -1)
+    target = _search_noun(slots, index, first)
+    if target is None and category in ("adjective", "demonstrative"):
+        target = _search_noun(slots, index, second)
+    return target
+
+
+def _agreement_features(
+    language: Language, slots, index: int, category: str, named_noun: str | None = None
+) -> tuple[str | None, str | None, str | None]:
+    """``(class label, number label, case label)`` the word at ``slots[index]``
+    of ``category`` agrees in, for the categories the language has as
+    agreement targets. ``named_noun`` is a noun the planner named
+    (``agrees_with``); it decides the class but not the number or case."""
+    grammar = language.grammar
+    target = _agreement_target(language, slots, index, category)
+    noun = slots[target] if target is not None else None
+    class_label = None
+    if grammar.noun_classes and category in grammar.class_agreement_targets:
+        gloss = named_noun or (noun.gloss if noun is not None else None)
+        class_label = _class_label_of(language, gloss)
+    number_label = None
+    if noun is not None and category in grammar.number_agreement_targets:
+        effective = _effective_number(language, slots, target)
+        if effective is not None and any(a.label == effective for a in grammar.number_affixes):
+            number_label = effective
+    case_label = None
+    if noun is not None and category in grammar.case_agreement_targets:
+        if noun.case in grammar.cases and any(a.label == noun.case for a in grammar.case_affixes):
+            case_label = noun.case
+    return class_label, number_label, case_label
+
+
+def _agreement_options(grammar: GrammarProfile, category: str):
+    """The class, number and case options (``None`` first) an agreeing word of
+    ``category`` may carry."""
+    class_options = [None] + ([a.label for a in grammar.class_affixes] if category in grammar.class_agreement_targets else [])
+    number_options = [None] + ([a.label for a in grammar.number_affixes] if category in grammar.number_agreement_targets else [])
+    case_options = [None] + ([a.label for a in grammar.case_affixes] if category in grammar.case_agreement_targets else [])
+    return class_options, number_options, case_options
+
+
+def _agreement_category(entry: LexicalEntry) -> str | None:
+    """The agreement category of a lexicon word (``None`` if it does not agree)."""
+    if entry.pos is PartOfSpeech.ADJECTIVE:
+        return "adjective"
+    if entry.primary_gloss in ("this", "that"):
+        return "demonstrative"
+    if entry.primary_gloss.startswith(pronoun_gen.POSSESSIVE_GLOSS_PREFIX):
+        return "possessive"
+    if entry.pos is PartOfSpeech.NUMERAL:
+        return "numeral"
+    return None
 
 
 def _next_noun_gloss(slots, index: int) -> str | None:
@@ -1122,14 +1268,18 @@ def _render_plan(
                 )
                 mood_pending = False
             elif pos is PartOfSpeech.ADJECTIVE and (
-                (slot.agrees_with and working_language.grammar.noun_classes) or slot.degree
+                slot.degree
+                or any(_agreement_features(working_language, slots, slot_index, "adjective", slot.agrees_with))
             ):
-                rendered = _apply_class_agreement(
-                    working_language,
-                    entry,
-                    _class_label_of(working_language, slot.agrees_with) if slot.agrees_with else None,
-                    slot.degree,
-                )
+                features = _agreement_features(working_language, slots, slot_index, "adjective", slot.agrees_with)
+                rendered = _apply_class_agreement(working_language, entry, features[0], slot.degree, features[1], features[2])
+            elif (
+                pos is PartOfSpeech.NUMERAL
+                and slot.pos == "numeral"
+                and any(_agreement_features(working_language, slots, slot_index, "numeral"))
+            ):
+                features = _agreement_features(working_language, slots, slot_index, "numeral")
+                rendered = _apply_class_agreement(working_language, entry, features[0], None, features[1], features[2])
             else:
                 is_noun = pos is PartOfSpeech.NOUN
                 rendered = _apply_case(
@@ -1177,13 +1327,9 @@ def _render_plan(
                 lemma_candidates=[slot.gloss or "this"],
             )
             rendered = (entry.romanization, entry.ipa)
-            if working_language.grammar.noun_classes:
-                noun_gloss = (
-                    _prev_noun_gloss(slots, slot_index)
-                    if working_language.grammar.demonstrative_after_noun
-                    else _next_noun_gloss(slots, slot_index)
-                )
-                rendered = _apply_class_agreement(working_language, entry, _class_label_of(working_language, noun_gloss))
+            features = _agreement_features(working_language, slots, slot_index, "demonstrative")
+            if any(features):
+                rendered = _apply_class_agreement(working_language, entry, features[0], None, features[1], features[2])
         elif slot.kind == "indefinite_article":
             if not working_language.grammar.has_indefinite_article:
                 continue
@@ -1191,10 +1337,9 @@ def _render_plan(
                 working_language, "a", PartOfSpeech.PARTICLE, coined, llm_client, lemma_candidates=["a"]
             )
             rendered = (entry.romanization, entry.ipa)
-            if working_language.grammar.noun_classes:
-                rendered = _apply_class_agreement(
-                    working_language, entry, _class_label_of(working_language, _next_noun_gloss(slots, slot_index))
-                )
+            features = _agreement_features(working_language, slots, slot_index, "article")
+            if any(features):
+                rendered = _apply_class_agreement(working_language, entry, features[0], None, features[1], features[2])
         elif slot.kind == "possessive_pronoun":
             if slot.gloss == "self":
                 if working_language.grammar.reflexive_possessive == "affix":
@@ -1209,10 +1354,9 @@ def _render_plan(
                 lemma_candidates=[possessive_word],
             )
             rendered = (entry.romanization, entry.ipa)
-            if working_language.grammar.noun_classes:
-                rendered = _apply_class_agreement(
-                    working_language, entry, _class_label_of(working_language, _next_noun_gloss(slots, slot_index))
-                )
+            features = _agreement_features(working_language, slots, slot_index, "possessive")
+            if any(features):
+                rendered = _apply_class_agreement(working_language, entry, features[0], None, features[1], features[2])
         elif slot.kind == "classifier":
             if slot.gloss.startswith(classifier_gen.REPEATER_GLOSS_PREFIX):
                 repeated = slot.gloss[len(classifier_gen.REPEATER_GLOSS_PREFIX):]
@@ -1229,10 +1373,12 @@ def _render_plan(
             entry = working_language.lexicon.by_gloss(_BARE_GLOSS_BY_SLOT_KIND[slot.kind])
             if entry is not None:
                 rendered = (entry.romanization, entry.ipa)
-                if slot.kind == "article" and working_language.grammar.noun_classes:
-                    rendered = _apply_class_agreement(
-                        working_language, entry, _class_label_of(working_language, _next_noun_gloss(slots, slot_index))
-                    )
+                if slot.kind == "article":
+                    features = _agreement_features(working_language, slots, slot_index, "article")
+                    if any(features):
+                        rendered = _apply_class_agreement(
+                            working_language, entry, features[0], None, features[1], features[2]
+                        )
 
         if rendered is not None:
             romanization_parts.append(rendered[0])
@@ -1287,96 +1433,52 @@ def translate_to_conlang(
 
 
 def _decode_noun(language: Language, token: str) -> tuple[LexicalEntry, str] | None:
-    """Reverse of ``_apply_case``: returns ``(entry, case_label)`` for a
-    noun-position conlang token, ``"unmarked"`` for a bare/uninflected
-    match (the common case -- an isolating language, or the argument
-    alignment leaves unmarked). Decoding is generate-and-compare, not a
-    parse: since spelling isn't a clean invertible function in general
-    (the same reason ``sound_change.py``'s own reform-detection compares
-    via ``apply()`` rather than string surgery), this renders each real
-    noun entry's own bare form and, if that doesn't match, each of its
-    case-marked forms via the identical ``inflection_gen.apply_affix``
-    path encoding used, then compares against the observed token. ``None``
-    when no noun entry (marked or not) matches at all."""
+    """Reverse of ``_apply_case``: returns ``(entry, label)`` for a noun-
+    position conlang token -- ``"unmarked"`` for a bare/uninflected match (the
+    common case), else the marking joined by ``+`` (``"accusative"``,
+    ``"plural"``, ``"accusative+plural"``, ``"possessed"``, ``"poss:I"``...).
+    Decoding is generate-and-compare, not a parse: since spelling isn't a
+    clean invertible function in general (the same reason ``sound_change.py``'s
+    own reform-detection compares via ``apply()`` rather than string
+    surgery), this renders each real noun entry through ``_apply_case`` --
+    which also adds the noun's own class marker in a language that has one --
+    and compares it with the observed token. ``None`` when nothing matches."""
     normalized = _normalize(token)
-    # A subject/object argument may be a real noun or a pronoun (e.g. "I")
-    # -- both fill the same syntactic slot, the same reason
-    # translate_to_conlang's own _lookup_or_coin never restricts a
-    # subject/object lookup to PartOfSpeech.NOUN (only the *coining*
-    # fallback POS, for a genuinely new word, is NOUN).
+    grammar = language.grammar
+    # A subject/object argument may be a real noun or a pronoun -- both fill
+    # the same syntactic slot.
     noun_entries = [e for e in language.lexicon.entries if e.pos in (PartOfSpeech.NOUN, PartOfSpeech.PRONOUN)]
+
+    def spells(entry, case, number, possessed=False, person=None) -> bool:
+        return _normalize(_apply_case(language, entry, case, number, possessed, person)[0]) == normalized
+
     for entry in noun_entries:
-        if _normalize(entry.romanization) == normalized:
+        if spells(entry, None, None):
             return entry, "unmarked"
+    case_labels = [a.label for a in grammar.case_affixes]
+    number_labels = [a.label for a in grammar.number_affixes]
     for entry in noun_entries:
-        for affix in language.grammar.case_affixes:
-            rng = _translation_rng(language, _case_affix_salt(entry, affix.label))
-            ipa = inflection_gen.apply_affix(
-                rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
-            )
-            candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
-            if _normalize(candidate) == normalized:
-                return entry, affix.label
+        for case in case_labels:
+            if spells(entry, case, None):
+                return entry, case
     for entry in noun_entries:
-        for number_affix in language.grammar.number_affixes:
-            for case_affix in [None, *language.grammar.case_affixes]:
-                case_label = case_affix.label if case_affix else None
-                affix, resolved_case = _noun_affix(language.grammar, case_label, number_affix.label)
-                if affix is None:
-                    continue
-                rng = _translation_rng(language, _noun_affix_salt(entry, resolved_case, number_affix.label))
-                ipa = inflection_gen.apply_affix(
-                    rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
-                )
-                candidate = apply_grammatical_spelling(
-                    language.romanization, language.romanization.apply(ipa), entry.pos
-                )
-                if _normalize(candidate) == normalized:
-                    return entry, number_affix.label if case_label is None else f"{case_label}+{number_affix.label}"
-    if language.grammar.possession_affixes:
+        for number in number_labels:
+            for case in [None, *case_labels]:
+                if spells(entry, case, number):
+                    return entry, number if case is None else f"{case}+{number}"
+    if grammar.possession_affixes:
         for entry in noun_entries:
-            for number_affix in [None, *language.grammar.number_affixes]:
-                number_label = number_affix.label if number_affix else None
-                for case_affix in [None, *language.grammar.case_affixes]:
-                    case_label = case_affix.label if case_affix else None
-                    affix, resolved_case = _noun_affix(language.grammar, case_label, number_label, True)
-                    if affix is None:
-                        continue
-                    rng = _translation_rng(language, _noun_affix_salt(entry, resolved_case, number_label, True))
-                    ipa = inflection_gen.apply_affix(
-                        rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
-                    )
-                    candidate = apply_grammatical_spelling(
-                        language.romanization, language.romanization.apply(ipa), entry.pos
-                    )
-                    if _normalize(candidate) == normalized:
-                        return entry, "+".join(p for p in (case_label, number_label, "possessed") if p)
-    if language.grammar.possessor_person_affixes:
+            for number in [None, *number_labels]:
+                for case in [None, *case_labels]:
+                    if spells(entry, case, number, True):
+                        return entry, "+".join(p for p in (case, number, "possessed") if p)
+    if grammar.possessor_person_affixes:
         for entry in noun_entries:
-            for number_affix in [None, *language.grammar.number_affixes]:
-                number_label = number_affix.label if number_affix else None
-                for case_affix in [None, *language.grammar.case_affixes]:
-                    case_label = case_affix.label if case_affix else None
-                    for person_affix in language.grammar.possessor_person_affixes:
-                        affix, resolved_case = _noun_affix(
-                            language.grammar, case_label, number_label, False, person_affix.label
-                        )
-                        if affix is None:
-                            continue
-                        rng = _translation_rng(
-                            language,
-                            _noun_affix_salt(entry, resolved_case, number_label, False, person_affix.label),
-                        )
-                        ipa = inflection_gen.apply_affix(
-                            rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
-                        )
-                        candidate = apply_grammatical_spelling(
-                            language.romanization, language.romanization.apply(ipa), entry.pos
-                        )
-                        if _normalize(candidate) == normalized:
-                            return entry, "+".join(
-                                p for p in (case_label, number_label, f"poss:{person_affix.label}") if p
-                            )
+            for number in [None, *number_labels]:
+                for case in [None, *case_labels]:
+                    for person_affix in grammar.possessor_person_affixes:
+                        if spells(entry, case, number, False, person_affix.label):
+                            return entry, "+".join(p for p in (case, number, f"poss:{person_affix.label}") if p)
     return None
 
 
@@ -1393,31 +1495,33 @@ def _stem_prefix(text: str) -> str:
 
 
 def _decode_adjective_full(language: Language, token: str) -> tuple[LexicalEntry, str | None, str | None] | None:
-    """``(entry, class_name, degree_label)`` for an adjective (or demonstrative)
-    carrying a class-agreement and/or degree suffix; ``None`` when no
-    combination spells ``token``. Plainest reading first."""
+    """``(entry, class_name, degree_label)`` for an agreeing word (an adjective,
+    demonstrative, numeral or possessive word) carrying a class, number, case
+    and/or degree suffix; ``None`` when no combination spells ``token``.
+    Plainest reading first."""
     normalized = _normalize(token)
     prefix = _stem_prefix(token)
     grammar = language.grammar
-    class_options: list[str | None] = [None] + [a.label for a in grammar.class_affixes]
     degree_options: list[str | None] = [None] + [a.label for a in grammar.degree_affixes]
-    combos = sorted(
-        ((c, d) for c in class_options for d in degree_options if c is not None or d is not None),
-        key=lambda cd: (cd[0] is not None) + (cd[1] is not None),
-    )
     for entry in language.lexicon.entries:
-        is_adjective = entry.pos is PartOfSpeech.ADJECTIVE
-        agrees = (
-            is_adjective
-            or entry.primary_gloss in ("this", "that")
-            or entry.primary_gloss.startswith(pronoun_gen.POSSESSIVE_GLOSS_PREFIX)
-        )
-        if not agrees or _stem_prefix(entry.romanization) != prefix:
+        category = _agreement_category(entry)
+        if category is None or _stem_prefix(entry.romanization) != prefix:
             continue
-        for class_label, degree_label in combos:
-            if degree_label is not None and not is_adjective:
-                continue
-            if _normalize(_apply_class_agreement(language, entry, class_label, degree_label)[0]) == normalized:
+        class_options, number_options, case_options = _agreement_options(grammar, category)
+        combos = sorted(
+            (
+                (c, d, n, k)
+                for c in class_options
+                for d in (degree_options if category == "adjective" else [None])
+                for n in number_options
+                for k in case_options
+                if c is not None or d is not None or n is not None or k is not None
+            ),
+            key=lambda combo: sum(x is not None for x in combo),
+        )
+        for class_label, degree_label, number_label, case_label in combos:
+            candidate = _apply_class_agreement(language, entry, class_label, degree_label, number_label, case_label)
+            if _normalize(candidate[0]) == normalized:
                 return entry, class_label, degree_label
     return None
 
@@ -1438,8 +1542,15 @@ def _article_forms(language: Language) -> set[str]:
         if entry is None:
             continue
         forms.add(_normalize(entry.romanization))
-        for affix in language.grammar.class_affixes:
-            forms.add(_normalize(_apply_class_agreement(language, entry, affix.label)[0]))
+        class_options, number_options, case_options = _agreement_options(language.grammar, "article")
+        for class_label in class_options:
+            for number_label in number_options:
+                for case_label in case_options:
+                    if class_label is None and number_label is None and case_label is None:
+                        continue
+                    forms.add(
+                        _normalize(_apply_class_agreement(language, entry, class_label, None, number_label, case_label)[0])
+                    )
     return forms
 
 
@@ -1830,7 +1941,12 @@ def translate_to_english(
             continue
         adjective_decoded = (
             _decode_adjective_full(language, tok)
-            if language.grammar.class_affixes or language.grammar.degree_affixes
+            if (
+                language.grammar.class_affixes
+                or language.grammar.degree_affixes
+                or language.grammar.number_agreement_targets
+                or language.grammar.case_agreement_targets
+            )
             else None
         )
         if adjective_decoded is not None:

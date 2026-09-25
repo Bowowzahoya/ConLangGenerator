@@ -588,8 +588,11 @@ make the agent the subject; without one, use the pronoun "they" as subject). \
 Never write an English auxiliary ("is", "was", "made") for a voice as its \
 own slot.
 
-Agreement (only where the two bullets above allow it): an adjective slot \
-sets "agrees_with" to the lemma of the noun it modifies or, as a predicate, \
+Agreement (only where the two bullets above allow it): the renderer works \
+out from position which noun an adjective, article, demonstrative, numeral \
+or possessive agrees with (in class, number and case, as this language does), \
+so "agrees_with" is optional -- set it only when the noun is not next to the \
+adjective. An adjective slot may set "agrees_with" to the lemma of the noun it modifies or, as a predicate, \
 of the sentence's subject ("the red dog": agrees_with "dog"). A finite verb \
 or copula whose subject is an ordinary noun (not a pronoun, not a name) \
 keeps "agreement":"default" and sets "subject_gloss" to that noun's lemma; \

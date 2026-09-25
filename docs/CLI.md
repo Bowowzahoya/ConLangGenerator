@@ -1014,3 +1014,19 @@ Requires the optional `web` dependency group: `uv sync --group web`.
 `--reload` auto-restarts on source changes (development only). See
 the README's Web app section for what the UI covers, and
 `docs/DEFERRED.md` §2 for what is still planned.
+
+**Agreement follow-ups.** Per language: how nouns without natural gender get a class
+(arbitrarily, by semantic field, or by final sound), whether the noun itself carries
+its class as a prefix or suffix, and which of article, adjective, demonstrative,
+possessive and numeral agree in class, number and case. The renderer works out the
+agreeing noun from word position. Verified with `--llm fake` on `--seed 7 --prompt p`
+(three classes, class suffix on the noun):
+
+```bash
+conlang translate "I see the dog." --lang t26 --to conlang --llm fake
+conlang translate "I see the river." --lang t26 --to conlang --llm fake
+conlang translate "The river is big." --lang t26 --to conlang --llm fake
+```
+
+Gives `skè ngûgo phutâ-al nǐ-i-akhudh` and `skè ngûgang phuzó-i nǐ-i-akhip`: the nouns
+`phutâ-` (dog) and `phuzó-` (river) end in different class markers (`-al`, `-i`).

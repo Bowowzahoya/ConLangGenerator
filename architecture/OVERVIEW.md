@@ -4621,3 +4621,16 @@ reading code or one-off ad hoc scripts.
   `whom`/`whose`, `that (complementizer for a desire verb)`, `see and`, `to go (controller: he)`. The fake planner marks
   relative functions, keeps resumptive pronouns where needed, plans object-controlled infinitives and clause
   coordinations, and gives the main verb of a "that" sentence a verb pos. 34 tests in `test_subordination_followups.py`.
+
+- **Agreement follow-ups (grammar pass 15).** A separate `{seed}:agreement` rng stream (`noun_class_gen.roll_agreement_extras`)
+  sets `noun_class_assignment` (`hash`/`semantic`/`formal`; `assigned_class` uses natural gender first, then a
+  semantic-field hash from `_SEMANTIC_FIELDS` or the noun's final sound), `class_marking` (`none`/`suffix`/`prefix`, with
+  `class_marker_affixes` from `distinct_suffixes` or `generate_class_prefixes`, only when the language has classes) and
+  `class_agreement_targets` / `number_agreement_targets` / `case_agreement_targets` over `AGREEMENT_CATEGORIES`
+  (article, adjective, demonstrative, possessive, numeral). Old saved languages default to the legacy four class targets.
+  Renderer: the class marker is the first noun affix (`_noun_affix`, `_apply_case`); `_agreement_target` finds the noun a
+  word agrees with from position (direction from `adjective_after_noun`/`demonstrative_after_noun`, copula, negation and
+  adverbs transparent), `_agreement_features` yields class/number/case (an explicit `agrees_with` still wins), and
+  `_apply_class_agreement` composes degree, class, number and case suffixes. Decoding: `_decode_noun` loops over marker,
+  case, number and possession stages; `_decode_adjective_full` and `_article_forms` enumerate class x number x case.
+  Planner prompt says agreement is inferred and `agrees_with` optional. 24 tests in `test_agreement_followups.py`.

@@ -199,7 +199,7 @@ plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
 structure with complement, relative and adverbial clauses (pass 2); aspect and
 verbal mood as systems separate from tense (pass 3); noun classes with article,
 adjective and verb (subject and object) agreement (pass 4); dual number,
-demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12); subordination -- linker position, relativization strategies and position, non-finite verb forms, subordinate mood (pass 13); subordination follow-ups -- relativization reach, declining relative pronouns, agreeing infinitives, case-marked nominalizations, conditional sequencing, correlative adverbials, clause coordination, complementizers by verb class (pass 14). See
+demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12); subordination -- linker position, relativization strategies and position, non-finite verb forms, subordinate mood (pass 13); subordination follow-ups -- relativization reach, declining relative pronouns, agreeing infinitives, case-marked nominalizations, conditional sequencing, correlative adverbials, clause coordination, complementizers by verb class (pass 14); agreement follow-ups -- class assignment by semantic field or final sound, class marked on the noun (prefix/suffix), number and case agreement, numeral agreement, agreement inferred from position (pass 15). See
 `architecture/OVERVIEW.md`.
 
 **Next, in order:**
@@ -213,14 +213,14 @@ demonstratives, numerals, an indefinite article and possession marking (pass 5);
    shared verb (gapping) and a shared object (right-node raising), and
    complementizer choice for more verb classes. The subordinator itself is still
    coined as an ordinary particle word.
-2. **Agreement follow-ups (M).** See below.
 
-**Agreement follow-ups (M):** number agreement (plural verbs/adjectives); a
-noun's class is not marked on the noun itself (no Bantu-style prefixes or
-Romance-style endings), only through agreement; class assignment for
-non-gendered nouns is a hash, not real lexical gender; adjective agreement
-depends on the planner naming the noun (`agrees_with`); no agreement of
-possessives, numerals or demonstratives; case agreement on adjectives.
+**Agreement follow-ups (done, pass 15); still missing (S-M):** plural
+*verbs* agreeing with a plural subject beyond the person/number the pronoun
+system already gives; class assignment is by semantic field or final sound for
+nouns without natural gender, but from small gloss lists; classifier "repeater"
+nouns in class-marked languages render bare (no de-duplication of marked
+forms); prefix-marked languages have no stem-prefix prefiltering when decoding
+a noun; the planner still supplies each noun's own case/number.
 
 **Aspect/mood follow-ups (M):** tense, case and agreement suffixes can still
 collide with one another (only aspect and mood suffixes are made distinct);

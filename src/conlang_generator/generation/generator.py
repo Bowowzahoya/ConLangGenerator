@@ -321,6 +321,35 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         }
     )
 
+    # Agreement follow-ups: another independent stream.
+    agreement_rng = random.Random(f"{spec.seed}:agreement")
+    agreement_extras = noun_class_gen.roll_agreement_extras(agreement_rng)
+    class_marking = agreement_extras["class_marking"] if grammar.noun_classes else "none"
+    marker_taken = frozenset(
+        affix.suffix
+        for affix in (*grammar.class_affixes, *grammar.case_affixes, *grammar.number_affixes)
+    )
+    if class_marking == "suffix":
+        class_marker_affixes = inflection_gen.distinct_suffixes(
+            agreement_rng, inventory, syllable_structure, tuple(grammar.noun_classes), marker_taken
+        )
+    elif class_marking == "prefix":
+        class_marker_affixes = noun_class_gen.generate_class_prefixes(
+            agreement_rng, inventory, syllable_structure, tuple(grammar.noun_classes)
+        )
+    else:
+        class_marker_affixes = ()
+    grammar = grammar.model_copy(
+        update={
+            "noun_class_assignment": agreement_extras["noun_class_assignment"] if grammar.noun_classes else "hash",
+            "class_marking": class_marking,
+            "class_marker_affixes": class_marker_affixes,
+            "class_agreement_targets": agreement_extras["class_agreement_targets"],
+            "number_agreement_targets": agreement_extras["number_agreement_targets"],
+            "case_agreement_targets": agreement_extras["case_agreement_targets"],
+        }
+    )
+
     seed_entries = tuple(
         LexicalEntry(
             ipa=example.ipa,

@@ -93,10 +93,14 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   combinations spell alike, decoding prefers the reading with the fewest
   aspect/mood labels.
 - **Noun classes are illustrative**: one of five fixed systems, derived from
-  the English gloss (natural gender/animacy, otherwise a hash), never stored
-  on the lexicon entry and never marked on the noun. Classes reach only
-  articles, adjectives and verbs (subject, and optionally object,
-  agreement). A very small inventory can repeat a suffix across labels.
+  the English gloss (natural gender/animacy first, otherwise a hash, a semantic
+  field from a small gloss list, or the noun's final sound), never stored on the
+  lexicon entry. The noun itself carries its class (a prefix or suffix) in about
+  a third of class languages, otherwise it shows only through agreement.
+  Articles, adjectives, demonstratives, possessive words and sometimes numerals
+  agree in class, and a rolled subset also in number and case; verbs agree with
+  subject and optionally object. Agreement is worked out from word position, so
+  the planner need not name the noun. A very small inventory can repeat a suffix across labels.
 - **Noun-phrase features are illustrative**: the dual is one extra suffix; the
   possessive particle, possessed-noun suffix and genitive are the only
   possession strategies (no alienable/inalienable split, no agreement with the
