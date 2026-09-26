@@ -4796,3 +4796,17 @@ reading code or one-off ad hoc scripts.
   (`derived: agent of teach`, `compound: moon + light`). A form that would spell like an existing word is coined instead. The planner
   prompt tells the LLM to keep derived and compound words whole. Sound change evolves the exponents and the linker. 21 tests in
   `test_derivation.py`.
+
+- **Reduplication and root-and-pattern beyond the citation shape (grammar pass 27).** `core.grammar.PatternCell(cell, skeleton)` and
+  `Reduplication(cell, kind)` with `GrammarProfile.pattern_cells` and `reduplications`, and `DerivationRule.pattern` (a template name).
+  `root_pattern.roll_patterns` (own `{seed}:patterns` stream; empty unless `uses_root_and_pattern`) gives each verb tense and aspect, the
+  plural and the comparative its own skeleton (distinct from the templates and each other); `reduplication_gen.roll_reduplication` (own
+  `{seed}:reduplication` stream, before the derivation roll) chooses cells among `CANDIDATE_CELLS` by morphological type (isolating
+  0.22 ... fusional 0.05) and a kind among `full`/`initial_cv`/`initial_syllable`/`final_syllable`; `reduplicate` copies the part
+  (tones travel with their vowel, stress marks are dropped). `translator._stem_ipa(language, entry, cells)` now also rebuilds the stem
+  from the word's root (`_entry_root`: the stored root if its consonants still occur in the word in order) when a cell has a pattern
+  and the word's part of speech matches (`reduplication_gen.CELL_POS`), reduplicates it, then mutates it; the verb cells are now tense,
+  aspect, mood and voice (the decoder's stem memo keys on all four) and an adjective's degree cell is passed too. `_stem_variants` adds
+  each trigger cell's stem so the first-letter filter still finds patterned and reduplicated forms. In a templatic language a derivation
+  with a `pattern` builds the word from the base's root and the template (`_pattern_derived_entry`, root shared, notes name the
+  pattern) and falls back to the affix. Sound change evolves the skeleton vowels. 19 tests in `test_patterns_reduplication.py`.

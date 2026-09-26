@@ -1286,6 +1286,13 @@ def _evolve_grammar_affixes(
         value = getattr(grammar, field)
         if isinstance(value, tuple) and value and all(isinstance(item, InflectionAffix) for item in value):
             updates[field] = tuple(evolve_affix(item) for item in value)
+        elif field == "pattern_cells" and value:
+            def evolve_slot(slot):
+                return slot if slot == "C" else ("".join(evolve((slot,))) or slot)
+
+            updates[field] = tuple(
+                item.model_copy(update={"skeleton": tuple(evolve_slot(slot) for slot in item.skeleton)}) for item in value
+            )
         elif field == "derivations" and value:
             updates[field] = tuple(rule.model_copy(update={"affix": evolve_affix(rule.affix)}) for rule in value)
         elif field == "compound_linker" and value:

@@ -154,6 +154,11 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   compound nouns (modifier first or head first, sometimes with a linking vowel). An English word such as "teacher",
   "happiness", "unhappy" or "moonlight" is built from words the language already has when a suffix
   heuristic finds a base in its lexicon, and coined as usual otherwise. The result is stored as an ordinary word.
+- **Reduplication and vowel patterns are illustrative**: a language may reduplicate the stem (in full, its first CV or syllable, or its
+  final syllable) to mark the plural, an aspect or an intensive degree, in addition to the cell's affix. A root-and-pattern language
+  also marks each verb tense and aspect, the plural and the comparative with its own vowel melody on the root, and derives
+  agent, abstract and adjectival words from a base's root and a template. Roots are triliteral; after sound change a word
+  whose root consonants have shifted falls back to its citation stem.
 - **Noun-phrase features are illustrative**: the dual is one extra suffix; the
   possessive particle, possessed-noun suffix and genitive are the only
   possession strategies (no alienable/inalienable split, no agreement with the

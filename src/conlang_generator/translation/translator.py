@@ -75,9 +75,12 @@ from conlang_generator.generation import (
     morphophonology_gen,
     np_followups_gen,
     paradigm_gen,
+    reduplication_gen,
+    root_pattern,
     tone_sandhi,
     voice_np_gen,
     word_accent_gen,
+    word_builder,
 )
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
@@ -397,26 +400,58 @@ def _paradigm_grammar(language: Language, entry: LexicalEntry) -> GrammarProfile
     return derived
 
 
+def _entry_root(language: Language, entry: LexicalEntry) -> tuple[str, ...] | None:
+    """The consonantal root of a templatic word, if its consonants still contain it in order (sound
+    change can have altered them since it was built)."""
+    root = entry.root
+    if not root:
+        return None
+    vowels = frozenset(language.phonology.vowel_symbols())
+    known = inflection_gen._known_symbols_for(language.phonology)
+    consonants = iter(
+        symbol for symbol, _ in ipa_tokenizer.tokenize(entry.ipa, known) if symbol not in vowels and symbol not in ("ˈ", "ˌ")
+    )
+    return tuple(root) if all(any(c == r for c in consonants) for r in root) else None
+
+
+def _cell_pos(cell: str) -> str:
+    return reduplication_gen.CELL_POS.get(cell.partition("/")[0], "")
+
+
+def _entry_pos_name(entry: LexicalEntry) -> str:
+    return entry.pos.value
+
+
 def _stem_ipa(language: Language, entry: LexicalEntry, cells) -> str:
-    """``entry``'s stem as it is when it takes one of ``cells`` (``"<field>/<label>"``): changed by the
-    umlaut, ablaut or gradation of a class or irregular lexeme that has that cell as a trigger, then
-    its initial consonant mutated where the language mutates after that cell."""
+    """``entry``'s stem as it is when it takes one of ``cells`` (``"<field>/<label>"``): rebuilt from its
+    root by the language's vowel pattern for that cell, or changed by the umlaut, ablaut or gradation of a
+    class or irregular lexeme; then reduplicated where the language reduplicates for the cell; then its
+    initial consonant mutated where the language mutates after it."""
     grammar = language.grammar
     ipa = entry.ipa
-    if grammar.stem_maps:
+    known = inflection_gen._known_symbols_for(language.phonology)
+    vowels = frozenset(language.phonology.vowel_symbols())
+    patterned = False
+    for pattern in grammar.pattern_cells:
+        if pattern.cell in cells and _cell_pos(pattern.cell) == _entry_pos_name(entry):
+            root = _entry_root(language, entry)
+            if root is not None and pattern.skeleton.count("C") == len(root):
+                slots = iter(root)
+                ipa = "".join(next(slots) if slot == "C" else slot for slot in pattern.skeleton)
+                patterned = True
+                break
+    if not patterned and grammar.stem_maps:
         for paradigm in _entry_paradigms(language, entry):
             if paradigm.stem_change and any(c in paradigm.stem_cells for c in cells):
                 mapping = dict(dict(grammar.stem_maps).get(paradigm.stem_change, ()))
-                ipa = paradigm_gen.change_stem(
-                    ipa, mapping, frozenset(language.phonology.vowel_symbols()),
-                    inflection_gen._known_symbols_for(language.phonology), paradigm.stem_change == "gradation",
-                )
+                ipa = paradigm_gen.change_stem(ipa, mapping, vowels, known, paradigm.stem_change == "gradation")
                 break
+    for red in grammar.reduplications:
+        if red.cell in cells and _cell_pos(red.cell) == _entry_pos_name(entry):
+            ipa = reduplication_gen.reduplicate(ipa, red.kind, known, vowels)
+            break
     if grammar.mutation_cells and any(c in grammar.mutation_cells for c in cells):
-        ipa = morphophonology_gen.mutate_initial(
-            ipa, dict(grammar.mutation_pairs), inflection_gen._known_symbols_for(language.phonology),
-            frozenset(language.phonology.vowel_symbols()),
-        )
+        ipa = morphophonology_gen.mutate_initial(ipa, dict(grammar.mutation_pairs), known, vowels)
     return ipa
 
 
@@ -434,6 +469,12 @@ def _stem_variants(language: Language, entry: LexicalEntry) -> list[str]:
         for paradigm in _entry_paradigms(language, entry):
             if paradigm.stem_change:
                 ipas.append(_stem_ipa(language, entry, (*paradigm.stem_cells, *grammar.mutation_cells)))
+    triggers = [p.cell for p in grammar.pattern_cells] + [r.cell for r in grammar.reduplications]
+    for cell in triggers:
+        if _cell_pos(cell) == _entry_pos_name(entry):
+            ipas.append(_stem_ipa(language, entry, (cell,)))
+            if grammar.mutation_cells:
+                ipas.append(_stem_ipa(language, entry, (cell, *grammar.mutation_cells)))
     for changed in dict.fromkeys(ipas):
         if changed != entry.ipa:
             variants.append(
@@ -815,7 +856,13 @@ def _apply_verb_inflection(
             resolved_voice, resolved_number, resolved_polite, resolved_evidential, resolved_negative,
         ),
     )
-    stem = _stem_ipa(language, entry, [f"tense_affixes/{resolved_tense}"] if resolved_tense else [])
+    stem = _stem_ipa(
+        language, entry,
+        [f"{field}/{label}" for field, label in (
+            ("tense_affixes", resolved_tense), ("aspect_affixes", resolved_aspect),
+            ("mood_affixes", resolved_verb_mood), ("voice_affixes", resolved_voice),
+        ) if label],
+    )
     ipa = inflection_gen.apply_affix(rng, affix, stem, language.phonology, **_stress_and_word_accent_kwargs(language))
     romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
     return romanization, ipa
@@ -878,7 +925,41 @@ def _find_of_pos(language: Language, gloss: str, pos: PartOfSpeech) -> LexicalEn
     return entry if entry is not None and entry.pos is pos else None
 
 
+def _pattern_derived_entry(language: Language, base: LexicalEntry, rule, token: str) -> LexicalEntry | None:
+    """In a root-and-pattern language, the word built from the base's root and the rule's template
+    (``teacher`` shares ``teach``'s root), or ``None`` when there is no such root or template."""
+    template = next((t for t in language.grammar.templates if t.name == rule.pattern), None)
+    root = _entry_root(language, base)
+    if template is None or root is None or template.skeleton.count("C") != len(root):
+        return None
+    slots = iter(root)
+    filled = "".join(next(slots) if slot == "C" else slot for slot in template.skeleton)
+    known = inflection_gen._known_symbols_for(language.phonology)
+    symbols = tuple(symbol + deco for symbol, deco in ipa_tokenizer.tokenize(filled, known))
+    kwargs = _stress_and_word_accent_kwargs(language)
+    rng = _translation_rng(language, f"derive-pattern:{rule.name}:{base.ipa}")
+    ipa = word_builder.attach_affix_and_restress(
+        rng, (), symbols, (), language.phonology, kwargs["stress_pattern"], kwargs["stress_deviation_rate"],
+        kwargs["stress_strictness"], word_accent_realization=kwargs["word_accent_realization"],
+        word_accent_pattern=kwargs["word_accent_pattern"],
+        word_accent_deviation_rate=kwargs["word_accent_deviation_rate"],
+        word_accent_length_rate=kwargs["word_accent_length_rate"], word_accent_window=kwargs["word_accent_window"],
+    )
+    pos = PartOfSpeech(rule.pos_out)
+    spelled = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), pos)
+    if language.lexicon.by_form(spelled) is not None or ipa.replace("ˈ", "") == base.ipa.replace("ˈ", ""):
+        return None
+    return LexicalEntry(
+        ipa=ipa, romanization=spelled, glosses=(token,), pos=pos, root=base.root,
+        notes=f"derived: {rule.name} of {base.primary_gloss} (pattern {rule.pattern})",
+    )
+
+
 def _derived_entry(language: Language, base: LexicalEntry, rule, token: str) -> LexicalEntry | None:
+    if rule.pattern:
+        patterned = _pattern_derived_entry(language, base, rule, token)
+        if patterned is not None:
+            return patterned
     rng = _translation_rng(language, f"derive:{rule.name}:{base.ipa}")
     ipa = inflection_gen.apply_affix(rng, rule.affix, base.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
     spelled = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), PartOfSpeech(rule.pos_out))
@@ -1088,7 +1169,8 @@ def _apply_class_agreement(
             case_label if case_affix is not None else None,
         ),
     )
-    ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
+    stem = _stem_ipa(language, entry, [f"degree_affixes/{degree_label}"] if degree_label else [])
+    ipa = inflection_gen.apply_affix(rng, affix, stem, language.phonology, **_stress_and_word_accent_kwargs(language))
     romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
     return romanization, ipa
 
@@ -2584,10 +2666,14 @@ def _decode_verb_full(
                             number_label, polite, evidential_label, negative,
                         ),
                     )
-                    stem_key = (id(entry), tense_label)
+                    stem_key = (id(entry), tense_label, aspect_label, mood_label, voice_label)
                     if stem_key not in stems:
                         stems[stem_key] = _stem_ipa(
-                            language, entry, [f"tense_affixes/{tense_label}"] if tense_label else []
+                            language, entry,
+                            [f"{field}/{label}" for field, label in (
+                                ("tense_affixes", tense_label), ("aspect_affixes", aspect_label),
+                                ("mood_affixes", mood_label), ("voice_affixes", voice_label),
+                            ) if label],
                         )
                     ipa = inflection_gen.apply_affix(rng, affix, stems[stem_key], language.phonology, **kwargs)
                     candidate = apply_grammatical_spelling(

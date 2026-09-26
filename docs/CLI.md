@@ -1195,3 +1195,20 @@ conlang translate "I see the moonlight." --lang d8 --to conlang --llm fake
 Each reports the one word it added: `na3me` "teacher" (`nam3` "teach" plus the agent suffix), `tapiz1kom4` "unhappy" (the negative prefix `ta-` on
 `piz1kom4` "happy") and `pil2nak3` "moonlight" (`pil2` "moon" + `nak3` "light"). The lexicon records how each was made
 (`derived: agent of teach`, `compound: moon + light`), so later sentences reuse the word.
+
+**Reduplication and root-and-pattern inflection.** Some languages mark the plural, an aspect or a degree by copying part of the stem;
+a root-and-pattern (Semitic-style) language marks tense, aspect, the plural and the comparative by changing the vowels around the root's
+consonants. Verified with `--llm fake`: `--seed 14 --prompt p` as `r14` (the plural copies the first CV) and
+`--seed 2 --prompt "an Arabic-like language" --source-language Arabic --strictness 0.6` as `a2` (vowel patterns):
+
+```bash
+conlang translate "I see the dog." --lang r14 --to conlang --llm fake
+conlang translate "I see the dogs." --lang r14 --to conlang --llm fake
+conlang translate "I saw the river." --lang a2 --to conlang --llm fake
+conlang translate "I see the river." --lang a2 --to conlang --llm fake
+conlang translate "I see the rivers." --lang a2 --to conlang --llm fake
+```
+
+In `r14` "dog" `kyó` becomes `kyókyóen` (the copy plus the plural suffix). In `a2` the verb's vowels change with the tense
+around the same consonants (`ẓālāzikhs` past, `ẓeluzirtikhs` present), and the plural of "river" is a different vowel melody on the root
+(`misyisi't` -> `soyosuyimi't`). All read back correctly (`I saw river`, `I see rivers`, `dogs I see`).

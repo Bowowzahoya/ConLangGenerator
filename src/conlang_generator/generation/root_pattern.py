@@ -357,3 +357,56 @@ def propose_templatic_word(
         rng, pending.candidates, gloss, pos, llm_client, language_name, context, word_selection
     )
     return pending.finish(chosen)
+
+
+# ---------------------------------------------------------------------------
+# Patterns beyond the citation shape: inflection and derivation by vowel melody.
+# ---------------------------------------------------------------------------
+
+PATTERN_CELLS = (
+    ("tense_affixes", "verb"), ("aspect_affixes", "verb"), ("number_affixes", "noun"), ("degree_affixes", "adjective"),
+)
+_PATTERN_LABELS = {"number_affixes": ("plural",), "degree_affixes": ("comparative",)}
+_PATTERN_RATE = 0.85
+
+
+def _pattern_skeleton(rng: random.Random, inventory: PhonemeInventory, field: str, used: set) -> tuple[str, ...]:
+    """A skeleton not used by another cell: verbs and aspects two vowels around three consonants,
+    a (broken) plural three, an adjective's comparative starting with a vowel (Arabic ``aktar``)."""
+    skeleton: tuple[str, ...] = ()
+    for _ in range(40):
+        first, second, third = (word_builder.weighted_choice(rng, inventory.vowels).ipa for _ in range(3))
+        if field == "number_affixes":
+            skeleton = ("C", first, "C", second, "C", third)
+        elif field == "degree_affixes":
+            skeleton = (first, "C", "C", second, "C")
+        else:
+            skeleton = ("C", first, "C", second, "C")
+        if skeleton not in used:
+            break
+    used.add(skeleton)
+    return skeleton
+
+
+def roll_patterns(rng: random.Random, grammar, inventory: PhonemeInventory):
+    """The cells this language marks by a vowel pattern on the root (empty unless it uses
+    root-and-pattern words): each verb tense and aspect, the plural and the comparative gets
+    its own skeleton, distinct from the citation templates and from each other."""
+    from conlang_generator.core.grammar import PatternCell
+
+    presence = [rng.random() for _ in range(32)]
+    if not grammar.uses_root_and_pattern:
+        return ()
+    used = {t.skeleton for t in grammar.templates}
+    found: list[PatternCell] = []
+    index = 0
+    for field, _pos in PATTERN_CELLS:
+        labels = _PATTERN_LABELS.get(field) or tuple(a.label for a in getattr(grammar, field))
+        for label in labels:
+            if not any(a.label == label for a in getattr(grammar, field)):
+                continue
+            here = presence[index % len(presence)] < _PATTERN_RATE
+            index += 1
+            if here:
+                found.append(PatternCell(cell=f"{field}/{label}", skeleton=_pattern_skeleton(rng, inventory, field, used)))
+    return tuple(found)

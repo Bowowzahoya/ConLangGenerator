@@ -53,6 +53,26 @@ class DerivationRule(BaseModel, frozen=True):
     pos_in: str
     pos_out: str
     affix: "InflectionAffix"
+    pattern: str = ""
+    """In a root-and-pattern language, the ``WordTemplate`` (by name) that derives the word from the
+    base's root instead of attaching ``affix`` (empty: the affix is used)."""
+
+
+class PatternCell(BaseModel, frozen=True):
+    """A cell of a root-and-pattern language marked by a vowel pattern: a word with a root that takes
+    ``cell`` (``"<field>/<label>"``, e.g. ``"tense_affixes/past"``) is rebuilt from its root and
+    ``skeleton`` (``"C"`` takes the next root consonant, anything else is a literal vowel)."""
+
+    cell: str
+    skeleton: tuple[str, ...]
+
+
+class Reduplication(BaseModel, frozen=True):
+    """A cell marked by copying part of the stem: ``kind`` is ``full``, ``initial_cv``,
+    ``initial_syllable`` or ``final_syllable`` (see ``generation.reduplication_gen``)."""
+
+    cell: str
+    kind: str
 
 
 class MorphologicalType(str, Enum):
@@ -614,6 +634,10 @@ class GrammarProfile(BaseModel, frozen=True):
     adverb_degree: bool = False
     """An adverb takes a degree suffix too ("more quickly") where the language has one."""
 
+    pattern_cells: tuple[PatternCell, ...] = ()
+    """Cells a root-and-pattern language marks by a vowel pattern rather than (only) an affix."""
+    reduplications: tuple[Reduplication, ...] = ()
+    """Cells marked by reduplication of the stem (alongside the cell's affix)."""
     derivations: tuple[DerivationRule, ...] = ()
     """Derivational rules the language has (see ``generation.derivation_gen``)."""
     compounding: bool = False

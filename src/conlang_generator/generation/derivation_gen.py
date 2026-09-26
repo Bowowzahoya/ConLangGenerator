@@ -35,6 +35,8 @@ _COMPOUND_RATE = {
     MorphologicalType.ISOLATING: 0.90, MorphologicalType.AGGLUTINATIVE: 0.60,
     MorphologicalType.FUSIONAL: 0.50, MorphologicalType.POLYSYNTHETIC: 0.40,
 }
+_PATTERN_TEMPLATE = {"agent": "noun-agent", "abstract": "noun-basic", "adjectival": "adjective-basic"}
+"""The root-and-pattern template each derivation uses in a templatic language."""
 _ENGLISH_ONLY = frozenset({"river", "silver", "water", "mother", "father", "brother", "sister", "hammer"})
 
 
@@ -77,7 +79,12 @@ def roll_derivation(
             if prefix_roll < _PREFIX_RATE[name]
             else InflectionAffix(label=name, suffix=exponent)
         )
-        rules.append(DerivationRule(name=name, pos_in=pos_in, pos_out=pos_out, affix=affix))
+        rules.append(
+            DerivationRule(
+                name=name, pos_in=pos_in, pos_out=pos_out, affix=affix,
+                pattern=_PATTERN_TEMPLATE.get(name, "") if grammar.uses_root_and_pattern else "",
+            )
+        )
     vowels = [v for v in inventory.vowel_symbols() if len(v) == 1]
     linker = (vowels[int(linker_pick * len(vowels))],) if linked and vowels else ()
     return {

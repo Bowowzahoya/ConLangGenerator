@@ -21,6 +21,7 @@ from conlang_generator.generation import (
     np_followups_gen,
     affix_position_gen,
     derivation_gen,
+    reduplication_gen,
     morphophonology_gen,
     comparison_gen,
     paradigm_gen,
@@ -683,6 +684,12 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         update=morphophonology_gen.roll_morphophonology(
             random.Random(f"{spec.seed}:morphophonology"), grammar, inventory
         )
+    )
+    # Root-and-pattern inflection and reduplication (own streams), before the derivation roll (its rules name templates).
+    pattern_cells = root_pattern.roll_patterns(random.Random(f"{spec.seed}:patterns"), grammar, inventory)
+    grammar = grammar.model_copy(update={"pattern_cells": pattern_cells})
+    grammar = grammar.model_copy(
+        update={"reduplications": reduplication_gen.roll_reduplication(random.Random(f"{spec.seed}:reduplication"), grammar)}
     )
     # Derivation and compounding, after the morphophonology (own stream).
     grammar = grammar.model_copy(
