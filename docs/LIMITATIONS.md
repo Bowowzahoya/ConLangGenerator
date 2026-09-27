@@ -213,8 +213,20 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   `rel_function`, an infinitive's controller and a nominal clause's case come
   from the planner, and a resumptive pronoun has to be written by it (the
   renderer only switches the linking word to `rel`). Complementizer classes are
-  four fixed lists of English verbs; conditional sequencing is one fixed "if"
-  tense and one main-clause mood; coordination is binary.
+  six fixed lists of English verbs; conditional sequencing is one fixed "if"
+  tense and one main-clause mood.
+- **The second follow-up round is illustrative in the same way**: a prepositional
+  relative clause ("the house in which I live") is pied-piped or stranded purely by
+  the language's own relativization strategy, with no resumptive fallback; stacked
+  relatives and coordination chains are each right-branching plan nesting, with no
+  depth limit in the renderer but a narrow fake-planner detector (two stacked
+  relatives, three-conjunct chains); a raising verb ("seem") renders exactly like a
+  control verb; a passivized-control matrix ("he is believed to...") is restricted
+  to a pronoun subject; reported-speech backshift is a rendering default the
+  planner's own tense still overrides, so it only shows through a directly built
+  plan, not through the fake planner's free text; gapping and right-node raising are
+  each represented by simply omitting a slot from the plan, detected in the fake
+  planner only from the written comma convention ("I eat rice, and she, beans.").
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

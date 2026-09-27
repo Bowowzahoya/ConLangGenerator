@@ -60,7 +60,7 @@ flattened into its parent's slots (its own words are kept, only the linking
 word and the nesting are lost) rather than dropped."""
 
 CLAUSE_ROLES = ("complement", "relative", "adverbial", "nominal", "coordinate")
-RELATIVE_FUNCTION_LABELS = ("subject", "object", "oblique", "possessor")
+RELATIVE_FUNCTION_LABELS = ("subject", "object", "oblique", "possessor", "oblique_pp")
 
 _ARTICLES = {"a", "an", "the"}
 
@@ -120,7 +120,14 @@ class PlannedSlot:
     verbs carry politeness."""
     rel_function: str | None = None
     """On a relative clause slot: the position of the relativized noun inside
-    its own clause (``subject``, ``object``, ``oblique``, ``possessor``)."""
+    its own clause (``subject``, ``object``, ``oblique``, ``possessor``, or
+    ``oblique_pp`` for a prepositional argument -- "the house in which I
+    live", see ``oblique_prep``)."""
+    oblique_prep: str | None = None
+    """On an ``oblique_pp`` relative clause: the preposition governing the
+    relativized position ("in", "with"...); the renderer fronts it with the
+    relative word or leaves it stranded in the clause per the language's own
+    strategy."""
     verb_form: str | None = None
     """``"infinitive"``, ``"nominalized"`` or ``"participle"``: a non-finite verb
     (no tense or agreement), only in a language that has that form -- the verb of
@@ -422,7 +429,10 @@ def _build_system_prompt(language: Language) -> str:
     )
     infinitive_agreement_desc = (
         'an infinitive agrees with its controller: set "agreement" (I/you/he/we) on the infinitive verb to the '
-        'controller\'s person -- the subject for "I want to go", the object for "I told him to go"'
+        'controller\'s person -- the subject for "I want to go"/"He seems to go" (raising: the matrix verb has no '
+        'argument of its own, its subject is really the infinitive\'s), the object for "I told him to go", or the '
+        'matrix subject again for a passivized control verb ("He is believed to go": the matrix verb takes '
+        '"voice":"passive")'
         if grammar.infinitive_agrees and "infinitive" in grammar.verb_forms
         else "an infinitive carries no agreement"
     )
@@ -457,10 +467,32 @@ def _build_system_prompt(language: Language) -> str:
         "juxtapose": "the clauses simply follow each other with no conjunction",
     }.get(grammar.clause_coordination, "a conjunction word joins the clauses")
     complementizer_desc = (
-        'the complementizer depends on the class of the governing verb (speech, desire, perception, factive): still '
-        'write "that" as the gloss; the renderer chooses'
+        'the complementizer depends on the class of the governing verb (speech, desire, perception, factive, '
+        'manipulative "make/let/force", epistemic "doubt/suspect"): still write "that" as the gloss; the renderer chooses'
         if grammar.complementizer_by_verb
         else 'one complementizer ("that") for every verb'
+    )
+    pp_relative_desc = (
+        'fronted with the relative word ("in which", "with whom")' if subordination_gen.pp_relative_pied_pipes(grammar.relativization)
+        else 'left in the clause where its own verb governs it ("which I live in")'
+    )
+    backshift_desc = (
+        'a complement clause of a past-tense speech verb ("said", "told") backshifts its own tense to past even if '
+        "the English says otherwise -- still write the tense the English shows"
+        if grammar.reported_speech_backshift
+        else "complement clauses keep their own tense"
+    )
+    gapping_desc = (
+        'a later coordinate clause may drop a finite verb it shares with an earlier one -- write it as a clause with '
+        "no verb slot, subject and object only (\"I eat rice and she, beans\")"
+        if grammar.clause_gapping
+        else "every coordinate clause keeps its own verb"
+    )
+    rnr_desc = (
+        "an earlier coordinate clause may drop a direct object it shares with the last one -- write it as a clause "
+        'with no object slot ("I bought, and she sold, the car": the object is only in the last clause)'
+        if grammar.clause_right_node_raising
+        else "every coordinate clause keeps its own object"
     )
     verb_extras = []
     if grammar.verb_number_agreement:
@@ -524,13 +556,21 @@ other"): {reciprocal_desc}.
 clause slot directly after its noun; the renderer moves it if this language \
 puts relative clauses before their noun.
 - position of the relativized noun: set "rel_function" on every relative clause slot to "subject" ("the dog \
-that sleeps"), "object" ("the dog that I see": the clause has NO object slot), "oblique" ("the house in \
-which I live") or "possessor" ("the man whose dog sleeps": the clause holds the possessed noun with no \
-possessor); {reach_desc}. {declension_desc}.
-- non-finite verb forms: {forms_desc}. {infinitive_agreement_desc}. Nominalizations: {nominal_desc}.
+that sleeps"), "object" ("the dog that I see": the clause has NO object slot), "oblique" ("the man to whom I \
+gave the book": a dative-marked argument, no preposition), "oblique_pp" ("the house in which I live": a \
+prepositional argument -- also set "oblique_prep" to the preposition, e.g. "in"; the clause has no object for \
+that role) or "possessor" ("the man whose dog sleeps": the clause holds the possessed noun with no \
+possessor); {reach_desc}. {declension_desc}. An "oblique_pp" preposition is {pp_relative_desc}. Two relative \
+clauses may modify the same noun (stacked): write them as two clause slots, both directly after that noun.
+- non-finite verb forms: {forms_desc}. {infinitive_agreement_desc}. Nominalizations: {nominal_desc}. A \
+nominalized clause may be the sentence's subject too (placed first, like any subject) -- "seeing the river \
+pleases me": a clause slot with "role":"nominal" in subject position, its own verb "verb_form":"nominalized".
+- reported speech: {backshift_desc}.
 - conditionals: {conditional_desc}. Correlatives: {correlative_desc}.
 - coordinated clauses ("I see the dog and I hear the cat"): a clause slot with "role":"coordinate" and gloss \
-"and"/"but"/"or" holding the second clause; {coordination_desc}.
+"and"/"but"/"or" holding the second clause; {coordination_desc}. More than two clauses nest the same way \
+(the coordinate clause's own plan holds a further "coordinate" clause slot for the next one). Ellipsis in \
+coordination: {gapping_desc}; {rnr_desc}.
 - complementizers: {complementizer_desc}.
 - subordinate moods: {subordinate_mood_desc}.
 - reflexive possessives ("his own dog"): {own_desc}.
@@ -791,6 +831,8 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "has_articles": "true" if grammar.has_articles else "false",
             "has_overt_copula": "true" if grammar.has_overt_copula else "false",
             "adjective_after_noun": "true" if grammar.adjective_after_noun else "false",
+            "clause_gapping": "true" if grammar.clause_gapping else "false",
+            "clause_right_node_raising": "true" if grammar.clause_right_node_raising else "false",
         },
     )
     response = llm_client.complete(request)
@@ -869,6 +911,7 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                     pos="other",
                     role=role if role in CLAUSE_ROLES else None,
                     rel_function=item.get("rel_function") if item.get("rel_function") in RELATIVE_FUNCTION_LABELS else None,
+                    oblique_prep=_coerce_optional_str(item.get("oblique_prep")),
                     case=_coerce_optional_str(item.get("case")),
                     clause=SentencePlan(slots=tuple(nested)),
                 )

@@ -1898,14 +1898,70 @@ def _governing_verb(slots, index: int) -> str | None:
     return None
 
 
+def _governing_verb_tense(slots, index: int) -> str | None:
+    """The tense the closest finite verb before ``slots[index]`` was planned
+    with (the governing verb of a complement clause, for reported-speech
+    backshift)."""
+    for earlier in reversed(slots[:index]):
+        if earlier.kind == "content" and earlier.pos == "verb" and earlier.gloss:
+            return earlier.tense
+    return None
+
+
+def _extract_pied_piped_preposition(
+    language: Language, slot
+) -> tuple[sentence_planner.SentencePlan | None, str | None]:
+    """For an ``oblique_pp`` relative clause in a language that pied-pipes,
+    pulls the trailing preposition slot the embedded clause carries (see
+    ``_fake_relative_plan``'s own docstring for why it's always last) out of
+    the clause and returns ``(clause without it, the preposition's gloss)``;
+    ``(slot.clause, None)`` when the language strands it (the preposition
+    stays in the clause and renders in place) or there is none to pull."""
+    if (
+        slot.rel_function != "oblique_pp"
+        or slot.clause is None
+        or not subordination_gen.pp_relative_pied_pipes(language.grammar.relativization)
+    ):
+        return slot.clause, None
+    clause_slots = list(slot.clause.slots)
+    if clause_slots and clause_slots[-1].kind == "content" and clause_slots[-1].pos == "preposition":
+        prep_slot = clause_slots.pop()
+        return sentence_planner.SentencePlan(slots=tuple(clause_slots), mood=slot.clause.mood), prep_slot.gloss
+    return slot.clause, None
+
+
+def _reported_speech_tense(language: Language, slot, governing_tense: str | None) -> str | None:
+    """The tense forced on a complement clause of a past-tense speech verb in
+    a language with ``reported_speech_backshift`` (``None`` otherwise, or
+    without a past tense to backshift to)."""
+    grammar = language.grammar
+    if not grammar.reported_speech_backshift or slot.role != "complement" or governing_tense != "past":
+        return None
+    return "past" if "past" in grammar.tenses else None
+
+
+def _relative_run_start(slots, index: int) -> int:
+    """The index of the first relative clause slot in the run ending at
+    ``index`` -- stacked relative clauses on the same noun sit right after
+    each other, so a second one's own head noun is not the slot right before
+    it but the one before the whole run."""
+    while index > 0 and slots[index - 1].kind == "clause" and slots[index - 1].role == "relative":
+        index -= 1
+    return index
+
+
 def _annotate_relative_heads(slots) -> tuple:
-    """Gives each relative clause slot the number of its head noun (the slot
-    just before it), so a declining relative pronoun can agree with it."""
+    """Gives each relative clause slot the number of its head noun -- the
+    slot before the whole run of relative clauses on that noun, for stacked
+    relatives -- so a declining relative pronoun can agree with it."""
     out = list(slots)
     for i in range(1, len(out)):
         clause = out[i]
-        head = out[i - 1]
-        if clause.kind == "clause" and clause.role == "relative" and head.kind == "content" and head.pos in ("noun", "pronoun"):
+        if clause.kind != "clause" or clause.role != "relative":
+            continue
+        head_index = _relative_run_start(out, i) - 1
+        head = out[head_index] if head_index >= 0 else None
+        if head is not None and head.kind == "content" and head.pos in ("noun", "pronoun"):
             out[i] = dataclasses.replace(clause, number=head.number)
     return tuple(out)
 
@@ -2025,27 +2081,36 @@ def _arrange_relatives(language: Language, slots) -> tuple:
     its noun) where the language puts it: unchanged after the noun; before the
     whole noun phrase in a ``before_noun`` language; at the front of the plan,
     with the correlate "that" added before the noun in the main clause, in a
-    ``correlative`` language."""
+    ``correlative`` language. Two or more relative clauses stacked on the same
+    noun (right after each other) move together, keeping their own order."""
     grammar = language.grammar
     correlative = grammar.relativization == "correlative"
     if grammar.relative_clause_position == "after_noun" and not correlative:
         return tuple(slots)
     out = list(slots)
     front: list[PlannedSlot] = []
-    for i in range(len(out) - 1, -1, -1):
+    i = len(out) - 1
+    while i >= 0:
         clause = out[i]
         if clause.kind != "clause" or clause.role != "relative" or i == 0:
+            i -= 1
             continue
-        head = i - 1
-        if out[head].kind not in ("content", "name") or (out[head].kind == "content" and out[head].pos not in ("noun", "pronoun")):
+        run_start = _relative_run_start(out, i)
+        head = run_start - 1
+        if head < 0 or out[head].kind not in ("content", "name") or (
+            out[head].kind == "content" and out[head].pos not in ("noun", "pronoun")
+        ):
+            i = run_start - 1
             continue
+        run = out[run_start : i + 1]
         start = _np_start(out, head)
-        out.pop(i)
+        del out[run_start : i + 1]
         if correlative:
             out.insert(start, PlannedSlot(kind="demonstrative", gloss="that"))
-            front.insert(0, clause)
+            front[0:0] = run
         else:
-            out.insert(start, clause)
+            out[start:start] = run
+        i = run_start - 1
     return tuple(front + out)
 
 
@@ -2092,25 +2157,37 @@ def _render_plan(
                 continue
             linker_gloss = _linker_gloss(working_language, slot, _governing_verb(slots, slot_index))
             nested_mood = _subordinate_mood(working_language, slot, linker_gloss)
-            nested_tense = _subordinate_tense(working_language, slot, linker_gloss)
+            nested_tense = _subordinate_tense(working_language, slot, linker_gloss) or _reported_speech_tense(
+                working_language, slot, _governing_verb_tense(slots, slot_index)
+            )
             nested_case = slot.case if slot.role == "nominal" and working_language.grammar.nominalized_takes_case else None
-            nested_plan = slot.clause
+            nested_plan, pied_piped_prep = _extract_pied_piped_preposition(working_language, slot)
             if slot.role == "coordinate" and working_language.grammar.conjunct_reduction:
-                nested_plan = _reduce_conjunct(slots[:slot_index], slot.clause)
+                nested_plan = _reduce_conjunct(slots[:slot_index], nested_plan)
             working_language, nested_rom, nested_ipa, nested_gloss = _render_plan(
                 nested_plan, working_language, llm_client, coined, nested_mood, nested_tense, nested_case
             )
-            linker: tuple[str, str, str | None] | None = None
+            linker_words: list[tuple[str, str, str | None]] = []
+            if pied_piped_prep:
+                working_language, prep_entry = _lookup_or_coin(
+                    working_language, pied_piped_prep, PartOfSpeech.PARTICLE, coined, llm_client,
+                    lemma_candidates=[pied_piped_prep],
+                )
+                linker_words.append((prep_entry.romanization, prep_entry.ipa, prep_entry.primary_gloss))
             if linker_gloss:
                 working_language, linker_entry = _lookup_or_coin(
                     working_language, linker_gloss, PartOfSpeech.PARTICLE, coined, llm_client,
                     lemma_candidates=[linker_gloss],
                 )
-                linker = (linker_entry.romanization, linker_entry.ipa, linker_entry.primary_gloss)
-            if linker is not None and _linker_follows_clause(working_language, slot.role):
-                nested_rom, nested_ipa, nested_gloss = nested_rom + [linker[0]], nested_ipa + [linker[1]], nested_gloss + [linker[2]]
-            elif linker is not None:
-                nested_rom, nested_ipa, nested_gloss = [linker[0]] + nested_rom, [linker[1]] + nested_ipa, [linker[2]] + nested_gloss
+                linker_words.append((linker_entry.romanization, linker_entry.ipa, linker_entry.primary_gloss))
+            if linker_words and _linker_follows_clause(working_language, slot.role):
+                nested_rom = nested_rom + [w[0] for w in linker_words]
+                nested_ipa = nested_ipa + [w[1] for w in linker_words]
+                nested_gloss = nested_gloss + [w[2] for w in linker_words]
+            elif linker_words:
+                nested_rom = [w[0] for w in linker_words] + nested_rom
+                nested_ipa = [w[1] for w in linker_words] + nested_ipa
+                nested_gloss = [w[2] for w in linker_words] + nested_gloss
             romanization_parts.extend(nested_rom)
             ipa_parts.extend(nested_ipa)
             gloss_parts.extend(nested_gloss)
@@ -2211,7 +2288,9 @@ def _render_plan(
             entry = working_language.lexicon.by_gloss("be")
             if entry is not None:
                 agreement_label, object_label = _verb_agreement(working_language, slot)
-                tense_in, aspect_in, mood_in = slot.tense, slot.aspect, slot.verb_mood
+                tense_in = slot.tense or forced_verb_tense
+                aspect_in = slot.aspect
+                mood_in = slot.verb_mood or forced_verb_mood or main_mood
                 if not mood_pending:
                     tense_in, aspect_in, mood_in, aux_labels = _split_periphrastic(
                         working_language, tense_in, aspect_in, mood_in

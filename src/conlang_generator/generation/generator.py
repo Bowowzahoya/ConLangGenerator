@@ -330,6 +330,11 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         }
     )
 
+    # Subordination follow-ups, round two: another independent stream.
+    grammar = grammar.model_copy(
+        update=subordination_gen.roll_subordination_followups_2(random.Random(f"{spec.seed}:subordination2"))
+    )
+
     # Agreement follow-ups: another independent stream.
     agreement_rng = random.Random(f"{spec.seed}:agreement")
     agreement_extras = noun_class_gen.roll_agreement_extras(agreement_rng)

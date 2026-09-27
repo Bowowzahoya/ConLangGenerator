@@ -100,7 +100,9 @@ _SPEECH = frozenset({"say", "think", "believe", "tell", "claim", "hear", "guess"
 _DESIRE = frozenset({"want", "wish", "hope", "order", "ask", "demand", "need", "prefer", "command", "beg", "permit"})
 _PERCEPTION = frozenset({"see", "watch", "notice", "feel", "smell", "observe"})
 _FACTIVE = frozenset({"know", "regret", "realize", "forget", "remember", "learn", "discover", "understand"})
-COMPLEMENT_CLASSES = ("speech", "desire", "perception", "factive")
+_MANIPULATIVE = frozenset({"make", "let", "force", "cause", "allow"})
+_EPISTEMIC = frozenset({"doubt", "suspect", "deny", "assume"})
+COMPLEMENT_CLASSES = ("speech", "desire", "perception", "factive", "manipulative", "epistemic")
 
 _RELATIVE_BASES = ("who", "which")
 _RELATIVE_ENGLISH = {
@@ -151,6 +153,26 @@ def roll_subordination_followups(rng: random.Random) -> dict[str, object]:
     }
 
 
+def pp_relative_pied_pipes(relativization: str) -> bool:
+    """Whether a relative clause on a prepositional argument ("the house IN
+    WHICH I live") fronts the preposition with the relative word -- only
+    possible in a language that fronts a relative pronoun in the first
+    place; every other strategy leaves the preposition stranded where the
+    embedded clause's own verb governs it ("the house which I live IN")."""
+    return relativization in ("pronoun", "correlative")
+
+
+def roll_subordination_followups_2(rng: random.Random) -> dict[str, object]:
+    """A further round of subordination draws (own stream, after the earlier
+    rolls, which are unchanged): reported-speech tense backshift and clause
+    coordination ellipsis (gapping, right-node raising)."""
+    return {
+        "reported_speech_backshift": rng.random() < 0.45,
+        "clause_gapping": rng.random() < 0.4,
+        "clause_right_node_raising": rng.random() < 0.4,
+    }
+
+
 def beyond_reach(reach: str, function: str) -> bool:
     """Whether a relative clause on ``function`` lies beyond what the
     language's plain (gap or particle) strategy reaches."""
@@ -192,7 +214,10 @@ def relative_reading(gloss: str) -> str | None:
 def complement_class(lemma: str) -> str | None:
     """The class of a governing verb that selects a complementizer."""
     word = lemma.strip().lower()
-    for label, verbs in (("speech", _SPEECH), ("desire", _DESIRE), ("perception", _PERCEPTION), ("factive", _FACTIVE)):
+    for label, verbs in (
+        ("speech", _SPEECH), ("desire", _DESIRE), ("perception", _PERCEPTION), ("factive", _FACTIVE),
+        ("manipulative", _MANIPULATIVE), ("epistemic", _EPISTEMIC),
+    ):
         if word in verbs:
             return label
     return None

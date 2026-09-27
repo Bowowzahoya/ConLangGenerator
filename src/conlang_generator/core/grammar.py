@@ -536,7 +536,16 @@ class GrammarProfile(BaseModel, frozen=True):
     """A second conjunct drops a subject pronoun it shares with the first."""
     complementizer_by_verb: bool = False
     """The complementizer depends on the class of the governing verb
-    (speech, desire, perception, factive)."""
+    (speech, desire, perception, factive, manipulative, epistemic)."""
+    reported_speech_backshift: bool = False
+    """A complement clause of a past-tense speech verb backshifts its own
+    tense to past (English "he said that he WAS tired")."""
+    clause_gapping: bool = False
+    """A later coordinate clause may drop a finite verb it shares with an
+    earlier one ("I eat rice and she [eats] beans")."""
+    clause_right_node_raising: bool = False
+    """An earlier coordinate clause may drop a direct object it shares with
+    the last one ("I bought, and she sold, [the car]")."""
 
     class_agreement_targets: tuple[str, ...] = ("article", "adjective", "demonstrative", "possessive")
     """The word categories that agree with their noun in class (of

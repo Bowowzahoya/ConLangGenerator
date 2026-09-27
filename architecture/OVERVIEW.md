@@ -4810,3 +4810,31 @@ reading code or one-off ad hoc scripts.
   each trigger cell's stem so the first-letter filter still finds patterned and reduplicated forms. In a templatic language a derivation
   with a `pattern` builds the word from the base's root and the template (`_pattern_derived_entry`, root shared, notes name the
   pattern) and falls back to the affix. Sound change evolves the skeleton vowels. 19 tests in `test_patterns_reduplication.py`.
+
+- **Subordination follow-ups, second round (grammar pass 28).** `GrammarProfile` gained `reported_speech_backshift`,
+  `clause_gapping`, `clause_right_node_raising` (`subordination_gen.roll_subordination_followups_2`, own
+  `{seed}:subordination2` stream); `COMPLEMENT_CLASSES` grew from four to six (`manipulative`: make/let/force/cause/allow,
+  `epistemic`: doubt/suspect/deny/assume); `subordination_gen.pp_relative_pied_pipes(relativization)` says whether a
+  prepositional relative ("the house in which I live") fronts its preposition with the relative word (pronoun/correlative
+  strategies) or leaves it stranded where the embedded clause's own verb governs it (every other strategy). `PlannedSlot`
+  gained `oblique_prep`; `rel_function` gained `"oblique_pp"`. Renderer: `translator._extract_pied_piped_preposition` pulls
+  a trailing `pos="preposition"` slot out of an `oblique_pp` clause's own plan in a pied-piping language and hands its gloss
+  back for the (now list-valued, not single-tuple) `linker_words`, fronted with the relative pronoun; a stranding language
+  leaves it where the planner put it, rendering in place. `_relative_run_start`/`_annotate_relative_heads`/`_arrange_relatives`
+  were rewritten to move a *run* of consecutive relative clauses on the same noun together (stacked relatives), keeping their
+  own order, instead of one clause at a time. `_governing_verb_tense` and `_reported_speech_tense` (mirroring
+  `_subordinate_tense`) force a complement clause's tense to past after a past-tense speech verb in a backshifting language
+  (the planner's own tense still wins); wired into `_render_plan`'s clause branch alongside the existing conditional forcing.
+  Fixed in passing: the `copula` render branch never received `forced_verb_tense`/`forced_verb_mood`/`main_mood` at all (only
+  the content-verb branch did), silently defeating conditional-tense/mood forcing and now backshift on any copula predicate;
+  it now mirrors the content-verb branch. Coordination chains, gapping and right-node raising need no renderer changes at
+  all -- a chain is just right-branching clause nesting (each level's own `_arrange_coordination` pass, already run once per
+  nested `_render_plan` call, converbs that level's own last verb); gapping/right-node raising are just the planner omitting a
+  verb or object slot from a clause, which already renders as nothing. The fake planner: `_fake_stacked_relative_plan` (two
+  `who`/`which` subject relatives), the "PREP which" scan branch of the relative detector, `_fake_coordination_chain_plan`
+  (the ordinary "X, Y, and Z" written style, without needing a conjunction before every conjunct), `_fake_gapping_plan`/
+  `_fake_right_node_raising_plan` (the written comma convention for each construction, gated on the language's own flag --
+  the full form is rebuilt when it lacks one), `_fake_gerund_subject_plan` ("seeing the river pleases me": a nominal clause as
+  the subject), and raising verbs (seem/appear/happen/tend, added to the existing infinitive-verb set) and
+  `_fake_passive_control_plan` ("he is believed to sleep": a passivized object-control verb, matrix voice `passive`, no object
+  slot, the infinitive controlled by the matrix subject). 36 tests in `test_subordination_followups2.py`.

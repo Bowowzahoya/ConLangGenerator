@@ -1212,3 +1212,33 @@ conlang translate "I see the rivers." --lang a2 --to conlang --llm fake
 In `r14` "dog" `kyó` becomes `kyókyóen` (the copy plus the plural suffix). In `a2` the verb's vowels change with the tense
 around the same consonants (`ẓālāzikhs` past, `ẓeluzirtikhs` present), and the plural of "river" is a different vowel melody on the root
 (`misyisi't` -> `soyosuyimi't`). All read back correctly (`I saw river`, `I see rivers`, `dogs I see`).
+
+**Subordination follow-ups, second round.** Per language: a prepositional relative clause ("the house
+in which I live") fronts its preposition with the relative word or leaves it stranded, purely by the
+language's own relativization strategy; two relative clauses may stack on the same noun; a raising verb
+("seem") and a passivized-control verb ("he is believed to...") use the same infinitive machinery as an
+ordinary control verb; a nominalized clause may be the sentence's subject; clauses may coordinate in a
+chain of three or more; a shared verb (gapping) or a shared object (right-node raising) may be dropped from
+all but one conjunct; and the complementizer classes grow from four to six (manipulative, epistemic).
+Verified with `--llm fake` on `--seed 1 --prompt p` (stacked relatives; a nominal subject clause),
+`--seed 2` (converb coordination, chained), `--seed 3` (pied-piped prepositional relatives),
+`--seed 4` (gapping), `--seed 5` (right-node raising) and `--seed 8` (passivized control):
+
+```bash
+conlang translate "I see the house in which I live." --lang s3 --to conlang --llm fake
+conlang translate "I see the dog which barks which bites." --lang s1 --to conlang --llm fake
+conlang translate "Seeing the river pleases me." --lang s1 --to conlang --llm fake
+conlang translate "He is known to sleep." --lang s8 --to conlang --llm fake
+conlang translate "I go, you go, and she works." --lang s2 --to conlang --llm fake
+conlang translate "I eat rice, and she, beans." --lang s4 --to conlang --llm fake
+conlang translate "I washed, and she cooked, the fish." --lang s5 --to conlang --llm fake
+```
+
+`s3` reads back as `I live in which I house see` -- "in" and "which" sit together, pied-piped. `s1`'s
+stacked relatives read back as `bark bite I dog see` (both clauses kept), and its nominal-subject sentence
+as `seeing river please I`. `s8`'s passivized control reads back exactly as written: `he is known to
+sleep`. `s2`'s three-clause chain reads back `I go and you go and she work` (its converb coordination
+marks the first two clauses, not the last). `s4`'s gapped sentence drops the second clause's verb
+(`I eat and rice she beans`); `s5`'s right-node-raised sentence keeps the shared object only in the last
+clause (`wash and fish he cooked`). A directly built plan (not the fake planner, which always infers an
+explicit tense) also verifies reported-speech tense backshift; see `test_subordination_followups2.py`.

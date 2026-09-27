@@ -651,9 +651,21 @@ _FAKE_INFINITIVE_VERBS = {
     "want", "wants", "wanted", "like", "likes", "liked", "try", "tries", "tried", "begin", "begins", "began",
     "start", "starts", "started", "need", "needs", "needed", "hope", "hopes", "hoped", "decide", "decides",
     "decided", "love", "loves", "loved",
+    # subject-to-subject raising verbs: mechanically the same same-subject infinitive as the verbs above (the
+    # matrix verb takes no argument of its own; its subject really belongs to the infinitive) -- "he SEEMS to like her".
+    "seem", "seems", "seemed", "appear", "appears", "appeared", "happen", "happens", "happened",
+    "tend", "tends", "tended",
 }
+_FAKE_PASSIVE_CONTROL_PARTICIPLES = {
+    "believed": "believe", "thought": "think", "expected": "expect", "known": "know", "said": "say",
+    "reported": "report",
+}
+"""A copula plus one of these (``"is believed"``) before "to VERB" passivizes an object-control verb: the matrix
+subject is really the infinitive's own subject, raised through the passive (see ``_fake_infinitive_plan``)."""
 _FAKE_SUBORDINATORS = {"that", "because", "if", "when", "although", "while"}
 _FAKE_SUBORDINATOR_ROLE = {"that": "complement"}
+_FAKE_PP_RELATIVE_PREPS = {"in", "at", "with", "about", "to", "on", "for", "from"}
+"""Prepositions a "the house IN WHICH I live"-style relative clause can pied-pipe."""
 
 
 def _fake_existence_slots(
@@ -996,14 +1008,23 @@ _FAKE_RELATIVE_ORDER = ("subject", "object", "oblique", "possessor")
 _FAKE_SUBJECT_PRONOUNS = {"i", "you", "we", "they", "he", "she", "it"}
 
 
-def _fake_relative_plan(prompt: str, match, metadata: dict[str, str]) -> dict:
+def _fake_relative_plan(prompt: str, match, metadata: dict[str, str], prep: str | None = None, prep_match=None) -> dict:
     """"I see the dog who sleeps" / "the dog which I see" / "the man whose dog
-    sleeps": the main clause, then a relative clause slot right after its last
-    noun, with its ``rel_function`` (subject, object or possessor) and the
-    relativized position left as a gap -- or filled by a resumptive pronoun
-    where the language needs one."""
+    sleeps" / "the house in which I live": the main clause, then a relative
+    clause slot right after its last noun, with its ``rel_function`` (subject,
+    object, possessor, or ``oblique_pp`` for a prepositional argument -- see
+    ``prep``) and the relativized position left as a gap -- or filled by a
+    resumptive pronoun where the language needs one. ``prep``/``prep_match``
+    (set only for the pied-piped "in which" spelling; the stranded "which ...
+    live in" spelling is built directly, not detected from free text) mark the
+    split point at the preposition instead of the relative word, and the
+    preposition is appended to the embedded clause as an ordinary trailing
+    "preposition" slot -- the renderer pulls it back out and fronts it with
+    the relative word in a language that pied-pipes, or leaves it there,
+    stranded after the verb that governs it, in one that doesn't."""
     terminal = prompt.rstrip()[-1:] if prompt.rstrip()[-1:] in ".!?" else ""
-    main = prompt[: match.start()].rstrip(" ,;") + terminal
+    split = prep_match if prep else match
+    main = prompt[: split.start()].rstrip(" ,;") + terminal
     rest = prompt[match.end():].strip().rstrip(".!?").strip()
     word = match.group(0).lower()
     main_plan = _fake_single_clause_plan(main, metadata)
@@ -1011,7 +1032,10 @@ def _fake_relative_plan(prompt: str, match, metadata: dict[str, str]) -> dict:
     reach = metadata.get("relativization_reach", "possessor")
     first_rest = rest.split()[0].lower() if rest.split() else ""
     tenses = [t for t in metadata.get("tenses", "").split(",") if t]
-    if word == "whose":
+    if prep:
+        function = "oblique_pp"
+        clause_slots = _fake_single_clause_plan(rest, metadata)["slots"]
+    elif word == "whose":
         function = "possessor"
         clause_slots = _fake_single_clause_plan("The " + rest, metadata)["slots"]
     elif word == "whom" or first_rest in _FAKE_SUBJECT_PRONOUNS:
@@ -1023,8 +1047,13 @@ def _fake_relative_plan(prompt: str, match, metadata: dict[str, str]) -> dict:
         if strategy != "resumptive":
             _fake_drop_subject(clause_slots)
     _fake_ensure_verb(clause_slots, tenses)
-    plain_reaches = strategy in ("gap", "particle") and _FAKE_RELATIVE_ORDER.index(function) > _FAKE_RELATIVE_ORDER.index(reach)
-    if strategy == "resumptive" or plain_reaches:
+    plain_reaches = (
+        strategy in ("gap", "particle") and function in _FAKE_RELATIVE_ORDER
+        and _FAKE_RELATIVE_ORDER.index(function) > _FAKE_RELATIVE_ORDER.index(reach)
+    )
+    if prep:
+        clause_slots.append({"kind": "content", "gloss": prep, "pos": "preposition"})
+    elif strategy == "resumptive" or plain_reaches:
         if function == "object":
             clause_slots.append({"kind": "content", "gloss": "he", "pos": "pronoun", "case": "accusative"})
         elif function == "possessor":
@@ -1034,30 +1063,320 @@ def _fake_relative_plan(prompt: str, match, metadata: dict[str, str]) -> dict:
         "kind": "clause", "gloss": "who" if word == "whom" else word, "role": "relative", "rel_function": function,
         "clause": {"slots": clause_slots},
     }
+    if prep:
+        clause["oblique_prep"] = prep
     slots = list(main_plan["slots"])
     last_noun = max((i for i, slot in enumerate(slots) if slot.get("kind") == "content" and slot.get("pos") == "noun"), default=None)
     slots.insert(len(slots) if last_noun is None else last_noun + 1, clause)
     return {"mood": main_plan["mood"], "slots": slots}
 
 
+def _fake_stacked_relative_plan(prompt: str, metadata: dict[str, str]) -> dict | None:
+    """"the dog that barks that bites": two subject relative clauses stacked
+    on the same head noun (a common, unambiguous surface shape for stacking;
+    the fake has no way to tell from raw text which noun a *third* relative
+    would stack on, so only exactly two are detected). ``None`` when the
+    prompt doesn't have this shape."""
+    match = re.search(r"\b(who|which)\s+(\w+)\s+(who|which)\s+(\w+)\b", prompt, re.IGNORECASE)
+    if match is None:
+        return None
+    terminal = prompt.rstrip()[-1:] if prompt.rstrip()[-1:] in ".!?" else ""
+    main = prompt[: match.start()].rstrip(" ,;") + terminal
+    tail = prompt[match.end():].strip().rstrip(".!?").strip()
+    if tail:
+        return None  # more content after the second clause: not this narrow shape
+    main_plan = _fake_single_clause_plan(main, metadata)
+    tenses = [t for t in metadata.get("tenses", "").split(",") if t]
+
+    def subject_relative(rel: str, verb_word: str) -> dict:
+        clause_slots = _fake_single_clause_plan("He " + verb_word, metadata)["slots"]
+        _fake_drop_subject(clause_slots)
+        _fake_ensure_verb(clause_slots, tenses)
+        return {"kind": "clause", "gloss": rel.lower(), "role": "relative", "rel_function": "subject", "clause": {"slots": clause_slots}}
+
+    clause1 = subject_relative(match.group(1), match.group(2))
+    clause2 = subject_relative(match.group(3), match.group(4))
+    slots = list(main_plan["slots"])
+    last_noun = max((i for i, slot in enumerate(slots) if slot.get("kind") == "content" and slot.get("pos") == "noun"), default=None)
+    at = len(slots) if last_noun is None else last_noun + 1
+    slots[at:at] = [clause1, clause2]
+    return {"mood": main_plan["mood"], "slots": slots}
+
+
 def _fake_coordination_plan(prompt: str, match, metadata: dict[str, str]) -> dict:
     """"I see the dog and I hear the cat": the first clause, then a
-    ``coordinate`` clause slot holding the second."""
+    ``coordinate`` clause slot holding the second -- built by recursing on the
+    remainder (not just planning it as one bare clause), so a further
+    "and"/"but"/"or" in it nests as a *further* coordinate clause inside this
+    one's own plan, one clause per level: "I go, you go, and she goes" is
+    clause1 + [clause2 + [clause3]], not three siblings. Each level's own
+    renderer pass (``translator._arrange_coordination``, run once per nested
+    plan) then converbs that level's own last verb, so a converb-coordinating
+    language correctly marks every conjunct but the last."""
     terminal = prompt.rstrip()[-1:] if prompt.rstrip()[-1:] in ".!?" else ""
     main = prompt[: match.start()].rstrip(" ,;") + terminal
     rest = prompt[match.end():].strip().rstrip(".!?").strip()
     tenses = [t for t in metadata.get("tenses", "").split(",") if t]
     main_plan = _fake_single_clause_plan(main, metadata)
-    clause_slots = _fake_single_clause_plan(rest, metadata)["slots"]
+    nested = _fake_plan_dict(rest, metadata)
+    clause_slots = list(nested["slots"])
     _fake_ensure_verb(clause_slots, tenses)
     clause = {"kind": "clause", "gloss": match.group(0).lower(), "role": "coordinate", "clause": {"slots": clause_slots}}
     return {"mood": main_plan["mood"], "slots": list(main_plan["slots"]) + [clause]}
 
 
+_FAKE_COORDINATION_CHAIN = re.compile(
+    r"^\s*(\w+)\s+(\w+)\s*,\s*(\w+)\s+(\w+)\s*,\s*(and|but|or)\s+(\w+)\s+(\w+)\s*([.!?]?)\s*$", re.IGNORECASE
+)
+
+
+def _fake_coordination_chain_plan(prompt: str, metadata: dict[str, str]) -> dict | None:
+    """"I go, you go, and she works.": the ordinary written English style for
+    three or more coordinated clauses -- a conjunction ("and"/"but"/"or")
+    only before the *last* one, commas alone between the earlier ones (real
+    English almost never repeats the conjunction the way ``_fake_plan_dict``'s
+    own recursive "and ... and ..." handling needs). Each conjunct here is a
+    bare subject + intransitive verb; built directly as the same right-
+    branching nest recursive coordination produces (clause1 + [clause2 +
+    [clause3]]), so it renders exactly the same way. ``None`` when the prompt
+    isn't this three-conjunct shape (a real fourth conjunct would need
+    another comma-separated pair before the conjunction, not attempted here)."""
+    match = _FAKE_COORDINATION_CHAIN.match(prompt)
+    if match is None:
+        return None
+    subject1, verb1, subject2, verb2, conj, subject3, verb3, _terminal = match.groups()
+    tenses = [t for t in metadata.get("tenses", "").split(",") if t]
+
+    def clause_slots(subject: str, verb_word: str) -> list[dict]:
+        detected_tense, lemma = _fake_detect_tense_and_lemma(verb_word.lower())
+        tense_label = _fake_tense_label(detected_tense, tenses)
+        verb_slot = {
+            "kind": "content", "gloss": lemma, "pos": "verb",
+            "agreement": _FAKE_AGREEMENT_BY_PRONOUN.get(subject.lower(), "default"),
+        }
+        if tense_label:
+            verb_slot["tense"] = tense_label
+        return [{"kind": "content", "gloss": subject.lower(), "pos": "pronoun"}, verb_slot]
+
+    innermost = {"kind": "clause", "gloss": conj.lower(), "role": "coordinate", "clause": {"slots": clause_slots(subject3, verb3)}}
+    middle = {
+        "kind": "clause", "gloss": conj.lower(), "role": "coordinate",
+        "clause": {"slots": clause_slots(subject2, verb2) + [innermost]},
+    }
+    return {"mood": "declarative", "slots": clause_slots(subject1, verb1) + [middle]}
+
+
+def _fake_gapping_plan(prompt: str, metadata: dict[str, str]) -> dict | None:
+    """"I eat rice, and she, beans.": gapping -- the second conjunct's own
+    verb, shared with the first, is dropped, written on the page (per the
+    usual linguistics convention for this construction) with a comma setting
+    off the residual bare subject. In a language with ``clause_gapping`` the
+    conlang clause is built with no verb slot at all (subject and object
+    only, the object taking the case the shared verb's alignment gives it);
+    a language without it gets the full form, the shared verb repeated.
+    ``None`` when the prompt isn't this shape."""
+    match = re.match(
+        r"\s*(\w+)\s+(\w+)\s+(\w+)\s*,\s*(and|but|or)\s+(\w+)\s*,\s*(\w+)\s*([.!?]?)\s*$", prompt, re.IGNORECASE
+    )
+    if match is None:
+        return None
+    subject1, verb_word, object1, conj, subject2, object2, _terminal = match.groups()
+    tenses = [t for t in metadata.get("tenses", "").split(",") if t]
+    word_order = metadata.get("word_order", "SVO")
+    alignment = metadata.get("alignment", "nominative_accusative")
+    object_case = "accusative" if alignment == "nominative_accusative" else None
+    detected_tense, lemma = _fake_detect_tense_and_lemma(verb_word.lower())
+    tense_label = _fake_tense_label(detected_tense, tenses)
+    order = _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O"))
+
+    def make_verb(subject: str) -> dict:
+        slot = {"kind": "content", "gloss": lemma, "pos": "verb", "agreement": _FAKE_AGREEMENT_BY_PRONOUN.get(subject.lower(), "default")}
+        if tense_label:
+            slot["tense"] = tense_label
+        return slot
+
+    def make_object(word: str) -> dict:
+        lowered = word.lower()
+        singular = _fake_singular(lowered)
+        slot = {"kind": "content", "gloss": singular or lowered, "pos": "noun"}
+        if singular:
+            slot["number"] = "plural"
+        if object_case:
+            slot["case"] = object_case
+        return slot
+
+    roles1 = {"S": [{"kind": "content", "gloss": subject1.lower(), "pos": "pronoun"}], "V": [make_verb(subject1)], "O": [make_object(object1)]}
+    main_slots = [s for role in order for s in roles1[role]]
+    gapping = metadata.get("clause_gapping") == "true"
+    roles2 = {
+        "S": [{"kind": "content", "gloss": subject2.lower(), "pos": "pronoun"}],
+        "V": [] if gapping else [make_verb(subject2)],
+        "O": [make_object(object2)],
+    }
+    clause_slots = [s for role in order for s in roles2[role]]
+    clause = {"kind": "clause", "gloss": conj.lower(), "role": "coordinate", "clause": {"slots": clause_slots}}
+    return {"mood": "declarative", "slots": main_slots + [clause]}
+
+
+def _fake_right_node_raising_plan(prompt: str, metadata: dict[str, str]) -> dict | None:
+    """"I bought, and she sold, the car.": right-node raising -- a direct
+    object shared by every conjunct is written only once, after all of them,
+    the earlier conjuncts left without one (again the usual written
+    convention, commas setting off each verb-only conjunct). A language
+    without ``clause_right_node_raising`` gets the shared object repeated
+    in every conjunct instead. The shared object is a single bare noun (no
+    article, no adjective); ``None`` when the prompt isn't this shape."""
+    match = re.match(
+        r"\s*(\w+)\s+(\w+)\s*,\s*(and|but|or)\s+(\w+)\s+(\w+)\s*,\s*(?:the\s+)?(.+?)\s*([.!?]?)\s*$", prompt,
+        re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    subject1, verb1, conj, subject2, verb2, shared_object, _terminal = match.groups()
+    if " " in shared_object.strip():
+        return None  # more than a bare noun: not this narrow shape
+    tenses = [t for t in metadata.get("tenses", "").split(",") if t]
+    word_order = metadata.get("word_order", "SVO")
+    alignment = metadata.get("alignment", "nominative_accusative")
+    object_case = "accusative" if alignment == "nominative_accusative" else None
+    order = _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O"))
+
+    def clause_slots(subject: str, verb_word: str, with_object: bool) -> list[dict]:
+        detected_tense, lemma = _fake_detect_tense_and_lemma(verb_word.lower())
+        tense_label = _fake_tense_label(detected_tense, tenses)
+        verb_slot = {
+            "kind": "content", "gloss": lemma, "pos": "verb",
+            "agreement": _FAKE_AGREEMENT_BY_PRONOUN.get(subject.lower(), "default"),
+        }
+        if tense_label:
+            verb_slot["tense"] = tense_label
+        roles = {"S": [{"kind": "content", "gloss": subject.lower(), "pos": "pronoun"}], "V": [verb_slot], "O": []}
+        if with_object:
+            roles["O"] = [
+                {"kind": "content", "gloss": shared_object.strip().lower(), "pos": "noun",
+                 **({"case": object_case} if object_case else {})}
+            ]
+        return [s for role in order for s in roles[role]]
+
+    keep_object = metadata.get("clause_right_node_raising") != "true"
+    main_slots = clause_slots(subject1, verb1, with_object=keep_object)
+    clause = {
+        "kind": "clause", "gloss": conj.lower(), "role": "coordinate",
+        "clause": {"slots": clause_slots(subject2, verb2, with_object=True)},
+    }
+    return {"mood": "declarative", "slots": main_slots + [clause]}
+
+
+_FAKE_GERUND_SUBJECT = re.compile(
+    r"^\s*(\w+)ing\s+(?:the\s+)?(\w+)\s+(pleases|pleased|please|surprises|surprised|surprise|"
+    r"worries|worried|worry|annoys|annoyed|annoy)\s+(me|him|her|us|them|you)\s*([.!?]?)\s*$",
+    re.IGNORECASE,
+)
+_FAKE_PSYCH_VERBS = {
+    "pleases": "please", "pleased": "please", "please": "please",
+    "surprises": "surprise", "surprised": "surprise", "surprise": "surprise",
+    "worries": "worry", "worried": "worry", "worry": "worry",
+    "annoys": "annoy", "annoyed": "annoy", "annoy": "annoy",
+}
+_FAKE_PSYCH_PAST = {"pleased", "surprised", "worried", "annoyed"}
+_FAKE_DOUBLED_FINAL = ("mm", "nn", "tt", "pp", "gg", "bb", "dd")
+_FAKE_OBJECT_TO_SUBJECT_GLOSS = {"me": "i", "him": "he", "her": "she", "us": "we", "them": "they", "you": "you"}
+"""The base (subject-form) gloss of an English object pronoun -- an object is
+never a lexicon gloss of its own (only "I"/"you"/"he"/"we"/"she"/"they"/"it"
+are; "me" etc. are the SAME word, marked with the accusative case)."""
+
+
+def _fake_gerund_subject_plan(prompt: str, metadata: dict[str, str]) -> dict | None:
+    """"Seeing the river pleases me.": a nominalized clause AS THE SUBJECT
+    (not, as usual, an object or a bare predicate) of a small closed set of
+    "psych" verbs. ``None`` when the prompt isn't this shape."""
+    match = _FAKE_GERUND_SUBJECT.match(prompt)
+    if match is None:
+        return None
+    verb_stem, obj_noun, psych_word, obj_pronoun, _terminal = match.groups()
+    lemma = verb_stem.lower()
+    if lemma.endswith(_FAKE_DOUBLED_FINAL) and len(lemma) > 2:
+        lemma = lemma[:-1]
+    tenses = [t for t in metadata.get("tenses", "").split(",") if t]
+    psych_lemma = _FAKE_PSYCH_VERBS[psych_word.lower()]
+    tense_label = _fake_tense_label("past" if psych_word.lower() in _FAKE_PSYCH_PAST else "non_past", tenses)
+    nominalized_available = "nominalized" in [f for f in metadata.get("verb_forms", "").split(",") if f]
+    embedded_verb: dict = {"kind": "content", "gloss": lemma, "pos": "verb", "agreement": "default"}
+    if nominalized_available:
+        embedded_verb["verb_form"] = "nominalized"
+    elif tense_label:
+        embedded_verb["tense"] = tense_label
+    embedded_slots = [embedded_verb, {"kind": "content", "gloss": obj_noun.lower(), "pos": "noun"}]
+    subject_clause = {"kind": "clause", "gloss": "", "role": "nominal", "clause": {"slots": embedded_slots}}
+    verb_slot = {"kind": "content", "gloss": psych_lemma, "pos": "verb", "agreement": "default"}
+    if tense_label:
+        verb_slot["tense"] = tense_label
+    object_case = "accusative" if metadata.get("alignment", "nominative_accusative") == "nominative_accusative" else None
+    object_gloss = _FAKE_OBJECT_TO_SUBJECT_GLOSS.get(obj_pronoun.lower(), obj_pronoun.lower())
+    object_slot = {"kind": "content", "gloss": object_gloss, "pos": "pronoun"}
+    if object_case:
+        object_slot["case"] = object_case
+    return {"mood": "declarative", "slots": [subject_clause, verb_slot, object_slot]}
+
+
+def _fake_passive_control_plan(prompt: str, words, to_index: int, metadata: dict[str, str]) -> dict:
+    """"He is believed to sleep.": a passivized control verb. The matrix is
+    just subject + a passive verb (no object slot -- the erstwhile object was
+    promoted to subject by the passive); the infinitive complement's own
+    controller is that same matrix subject, exactly like an ordinary
+    same-subject infinitive. Restricted to a pronoun subject (a name would
+    need the same noun-phrase handling the ordinary SVO path already has,
+    not attempted here)."""
+    subject_word = words[0].group(0)
+    copula_tok = words[to_index - 2].group(0).lower()
+    participle = words[to_index - 1].group(0).lower()
+    lemma = _FAKE_PASSIVE_CONTROL_PARTICIPLES[participle]
+    rest = prompt[words[to_index].end():].strip().rstrip(".!?").strip()
+    tenses = [t for t in metadata.get("tenses", "").split(",") if t]
+    tense_label = _fake_tense_label("past" if copula_tok in _FAKE_PAST_COPULAS else "non_past", tenses)
+    verb_slot = {
+        "kind": "content", "gloss": lemma, "pos": "verb",
+        "agreement": _FAKE_AGREEMENT_BY_PRONOUN.get(subject_word.lower(), "default"), "voice": "passive",
+    }
+    if tense_label:
+        verb_slot["tense"] = tense_label
+    main_slots = [{"kind": "content", "gloss": subject_word.lower(), "pos": "pronoun"}, verb_slot]
+    if "infinitive" in [f for f in metadata.get("verb_forms", "").split(",") if f]:
+        clause_slots = _fake_single_clause_plan("He " + rest, metadata)["slots"]
+        _fake_drop_subject(clause_slots)
+        _fake_ensure_verb(clause_slots, tenses)
+        for slot in clause_slots:
+            if slot.get("pos") == "verb":
+                for key in ("tense", "agreement", "subject_gloss", "aspect", "verb_mood"):
+                    slot.pop(key, None)
+                slot["verb_form"] = "infinitive"
+                if metadata.get("infinitive_agrees") == "true":
+                    slot["agreement"] = _FAKE_CONTROLLER_PERSON.get(subject_word.lower(), "default")
+        linker = ""
+    else:
+        clause_slots = _fake_single_clause_plan(f"{subject_word} {rest}", metadata)["slots"]
+        linker = "that"
+    main_slots.append({"kind": "clause", "gloss": linker, "role": "complement", "clause": {"slots": clause_slots}})
+    return {"mood": "declarative", "slots": main_slots}
+
+
 def _fake_infinitive_plan(prompt: str, words, to_index: int, metadata: dict[str, str]) -> dict:
     """"I want to see the river": the main clause with the complement after
     it -- an infinitive (no subject, no tense) where the language has one,
-    else a finite clause repeating the subject."""
+    else a finite clause repeating the subject. "He seems to see the river"
+    (subject-to-subject raising) is mechanically the same shape, already
+    handled by ``_FAKE_INFINITIVE_VERBS`` including the raising verbs.
+    "He is believed to see the river" (a *passivized* control verb: an
+    object-control verb's own object, promoted to subject by the passive, now
+    controls the infinitive) is different enough structurally -- the matrix
+    has no object slot at all, and its own verb is passive -- to build
+    separately; see ``_fake_passive_control_plan``."""
+    if (
+        words[to_index - 1].group(0).lower() in _FAKE_PASSIVE_CONTROL_PARTICIPLES
+        and to_index >= 2
+        and words[to_index - 2].group(0).lower() in _FAKE_COPULAS
+    ):
+        return _fake_passive_control_plan(prompt, words, to_index, metadata)
     terminal = prompt.rstrip()[-1:] if prompt.rstrip()[-1:] in ".!?" else ""
     main = prompt[: words[to_index].start()].rstrip(" ,;") + terminal
     rest = prompt[words[to_index].end():].strip().rstrip(".!?").strip()
@@ -1111,9 +1430,30 @@ def _fake_plan_dict(prompt: str, metadata: dict[str, str]) -> dict:
     the_more = re.match(r"\s*the more\s+(.+?)\s*,\s*the more\s+(.+?)\s*([.!?]?)\s*$", prompt, re.IGNORECASE)
     if the_more:
         return _fake_the_more_plan(the_more, metadata)
+    coordination_chain = _fake_coordination_chain_plan(prompt, metadata)
+    if coordination_chain:
+        return coordination_chain
+    gerund_subject = _fake_gerund_subject_plan(prompt, metadata)
+    if gerund_subject:
+        return gerund_subject
+    gapping = _fake_gapping_plan(prompt, metadata)
+    if gapping:
+        return gapping
+    right_node_raising = _fake_right_node_raising_plan(prompt, metadata)
+    if right_node_raising:
+        return right_node_raising
+    stacked_relative = _fake_stacked_relative_plan(prompt, metadata)
+    if stacked_relative:
+        return stacked_relative
     words = list(re.finditer(r"[A-Za-z']+", prompt))
     for index, match in enumerate(words):
         word = match.group(0).lower()
+        if (
+            word == "which" and index >= 1
+            and words[index - 1].group(0).lower() in _FAKE_PP_RELATIVE_PREPS
+            and len(words) - index - 1 >= 1
+        ):
+            return _fake_relative_plan(prompt, match, metadata, prep=words[index - 1].group(0).lower(), prep_match=words[index - 1])
         if word in ("who", "which", "whom", "whose") and index >= 1 and len(words) - index - 1 >= 1:
             return _fake_relative_plan(prompt, match, metadata)
         if word == "to" and index >= 2 and len(words) - index - 1 >= 1:
@@ -1121,7 +1461,11 @@ def _fake_plan_dict(prompt: str, metadata: dict[str, str]) -> dict:
             control = (
                 before in _FAKE_OBJECT_PRONOUNS and index >= 3 and words[index - 2].group(0).lower() in _FAKE_OBJECT_CONTROL
             )
-            if before in _FAKE_INFINITIVE_VERBS or control:
+            passive_control = (
+                before in _FAKE_PASSIVE_CONTROL_PARTICIPLES and index >= 2
+                and words[index - 2].group(0).lower() in _FAKE_COPULAS
+            )
+            if before in _FAKE_INFINITIVE_VERBS or control or passive_control:
                 return _fake_infinitive_plan(prompt, words, index, metadata)
         if (
             word in ("and", "but", "or")
