@@ -487,6 +487,20 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
             slot["number"] = "plural"
         return prefix + [slot]
 
+    def is_plural_subject(tok: str) -> bool:
+        """A plural pronoun ("we"/"they"), a noun phrase already marked plural
+        (a numeral above one, a plural demonstrative, an English "-s" noun) or a
+        bare plural noun token -- shared by every clause shape a subject can
+        appear in, so a verb's own number agreement is decided the same way
+        everywhere."""
+        return tok in ("we", "they", "us", "them") or (
+            tok in np_info and (
+                _FAKE_NUMERALS.get(np_info[tok].get("numeral", ""), 1) > 1
+                or np_info[tok].get("demonstrative_plural")
+                or _fake_singular(np_info[tok]["noun"]) is not None
+            )
+        ) or (tok not in _FAKE_PRONOUN_TOKENS and tok not in np_info and _fake_singular(tok) is not None)
+
     if wh_token in ("what", "who") and len(content_tokens) == 2 and not has_copula:
         content_tokens = content_tokens + [wh_token]  # "what do you see" -> you see WHAT (object)
         wh_token = None
@@ -551,6 +565,48 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         slots = (subject_np + copula_group + adjective_group) if adjective_after_noun else (
             adjective_group + copula_group + subject_np
         )
+    elif len(content_tokens) == 2:
+        # a subject and an intransitive verb ("I sleep.", "The dogs sleep.") -- the narrower voice
+        # shapes above (existentials, comparisons, the closed middle/antipassive verb lists) claim
+        # this same two-content-word shape first when they apply; this is the plain, general case,
+        # including the number agreement a plural subject (pronoun or noun) gives its verb.
+        subject_tok, verb_tok = content_tokens
+        order = _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O"))
+        verb_first = order.index("V") < order.index("S")
+        detected_tense, lemma = _fake_detect_tense_and_lemma(verb_tok)
+        aspect_label = None
+        verb_mood_label = None
+        if perfect_aux:
+            lemma = _fake_participle_lemma(verb_tok)
+            detected_tense = "past" if perfect_aux == "had" else "non_past"
+            aspect_label = _fake_aspect_label("perfect", aspects)
+        if do_support == "did":
+            detected_tense = "past"
+        if modal:
+            verb_mood_label = _fake_mood_label(_FAKE_MODALS[modal], verb_moods)
+            detected_tense = "non_past"
+        tense_label = _fake_tense_label(detected_tense, tenses)
+        subject_np = noun_phrase(subject_tok, None)
+        verb_slot = {
+            "kind": "content", "gloss": lemma, "pos": "verb",
+            "agreement": _FAKE_AGREEMENT_BY_PRONOUN.get(subject_tok, "default"),
+        }
+        if verb_number_agreement and is_plural_subject(subject_tok):
+            verb_slot["subject_number"] = "plural"
+        if verb_politeness and subject_tok == "you" and pronoun_gloss("you") == "you-polite":
+            verb_slot["polite"] = True
+        if tense_label:
+            verb_slot["tense"] = tense_label
+        if evidential_label:
+            verb_slot["evidential"] = evidential_label
+        if noun_classes and subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder:
+            verb_slot["subject_gloss"] = base_of(subject_tok)
+        if aspect_label:
+            verb_slot["aspect"] = aspect_label
+        if verb_mood_label:
+            verb_slot["verb_mood"] = verb_mood_label
+        verb_group = adverb_slots + [verb_slot] + ([{"kind": "negation"}] if negated else [])
+        slots = (verb_group + subject_np) if verb_first else (subject_np + verb_group)
     elif len(content_tokens) == 3:
         subject_tok, verb_tok, obj_tok = content_tokens
         detected_tense, verb_lemma = _fake_detect_tense_and_lemma(verb_tok)
@@ -595,14 +651,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         }
         if reflexive_voice:
             verb_slot["voice"] = reflexive_voice
-        plural_subject = subject_tok in ("we", "they", "us", "them") or (
-            subject_tok in np_info and (
-                _FAKE_NUMERALS.get(np_info[subject_tok].get("numeral", ""), 1) > 1
-                or np_info[subject_tok].get("demonstrative_plural")
-                or _fake_singular(np_info[subject_tok]["noun"]) is not None
-            )
-        ) or (subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in np_info and _fake_singular(subject_tok) is not None)
-        if verb_number_agreement and plural_subject:
+        if verb_number_agreement and is_plural_subject(subject_tok):
             verb_slot["subject_number"] = "plural"
         if verb_politeness and subject_tok == "you" and pronoun_gloss("you") == "you-polite":
             verb_slot["polite"] = True

@@ -99,12 +99,16 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   grammaticalize or fuse.
 - **Noun classes are illustrative**: one of five fixed systems, derived from
   the English gloss (natural gender/animacy first, otherwise a hash, a semantic
-  field from a small gloss list, or the noun's final sound), never stored on the
-  lexicon entry. The noun itself carries its class (a prefix or suffix) in about
-  a third of class languages, otherwise it shows only through agreement.
+  field from a curated gloss list covering most core nouns, or the noun's final
+  sound), never stored on the lexicon entry. A gloss outside that list falls
+  back to the arbitrary hash assignment. The noun itself carries its class (a
+  prefix or suffix) in about a third of class languages, otherwise it shows
+  only through agreement -- including a classifier "repeater" noun, which
+  carries the same class marker as the head noun it repeats.
   Articles, adjectives, demonstratives, possessive words and sometimes numerals
   agree in class, and a rolled subset also in number and case; verbs agree with
-  subject and optionally object. Agreement is worked out from word position, so
+  subject and optionally object, including a plain subject-plus-intransitive-verb
+  sentence. Agreement is worked out from word position, so
   the planner need not name the noun. A very small inventory can repeat a suffix across labels.
 - **Voice and noun-phrase follow-ups are illustrative**: the middle, applicative and impersonal
   voices are one suffix each; the passive agent is "by" or an instrumental case, and the passive

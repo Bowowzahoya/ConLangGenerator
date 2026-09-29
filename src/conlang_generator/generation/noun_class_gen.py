@@ -142,20 +142,32 @@ _SEMANTIC_FIELDS: dict[str, frozenset[str]] = {
     ),
     "nature": frozenset(
         "sun moon star sky cloud rain wind snow ice thunder lightning storm air earth sea river lake island forest "
-        "mountain hill valley cave sand dust ash smoke fire water shadow light".split()
+        "mountain hill valley cave sand dust ash smoke fire water shadow light heat".split()
     ),
     "plant": frozenset("tree leaf root branch seed flower fruit grass vegetable".split()),
     "artifact": frozenset(
         "knife spear bow arrow axe stick boat ship wheel pot cup bowl basket net cloth shoe hat ring key book letter "
         "picture mirror lamp tool bag box bridge gate rope house door roof wall bed".split()
     ),
-    "food": frozenset("bread meat milk rice honey oil wine sugar soup salt egg".split()),
+    "food": frozenset("bread meat milk rice honey oil wine sugar soup salt egg food".split()),
     "abstract": frozenset(
         "song story word law war peace money gift game dream death life time power truth luck reason question news "
-        "voice sound color shape size weight age name".split()
+        "voice sound color shape size weight age name number part thing way end".split()
     ),
-    "place": frozenset("road path field village town place".split()),
+    "place": frozenset("road path field village town place top bottom middle center edge side".split()),
     "time": frozenset("night day year month morning evening".split()),
+    "animal": frozenset(
+        "animal ant bear bird cat cow deer dog elephant fish frog goat horse insect lion monkey mouse pig rabbit "
+        "sheep snake spider turtle wolf worm".split()
+    ),
+    "material": frozenset("gold iron silver stone wood".split()),
+    # Only reached for a noun-class system with neither gender nor animacy
+    # (see ``assigned_class``): those already decide every word below via
+    # ``_MASCULINE``/``_FEMININE``/``_HUMAN`` before ``semantic_field`` runs.
+    "person": frozenset(
+        "person child man woman boy girl mother father brother sister friend enemy king chief teacher hunter "
+        "farmer family god spirit".split()
+    ),
 }
 ASSIGNMENTS = (("hash", 0.30), ("semantic", 0.40), ("formal", 0.30))
 _MARKING_RATES = (("suffix", 0.20), ("prefix", 0.15))

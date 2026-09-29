@@ -4838,3 +4838,34 @@ reading code or one-off ad hoc scripts.
   the subject), and raising verbs (seem/appear/happen/tend, added to the existing infinitive-verb set) and
   `_fake_passive_control_plan` ("he is believed to sleep": a passivized object-control verb, matrix voice `passive`, no object
   slot, the infinitive controlled by the matrix subject). 36 tests in `test_subordination_followups2.py`.
+
+- **Agreement follow-ups, second round (grammar pass 29).** No new grammar fields -- three bug fixes and a
+  data-breadth addition to pass 15's existing machinery. (1) The fake planner's `_fake_single_clause_plan` never had a
+  general shape for a plain subject-plus-intransitive-verb sentence ("I sleep.", "The dogs sleep."): only a two-word
+  copula-predicate-adjective branch, a three-word SVO branch and a handful of closed-list detectors (middle voice,
+  antipassive, existentials) existed, so any other two-content-word sentence fell to the bare-noun fallback and got no
+  verb slot at all -- no agreement, because there was no verb. A new `elif len(content_tokens) == 2:` branch fills this
+  in (tense/aspect/mood, `verb_number_agreement`, politeness, evidentials, noun-class `subject_gloss`, negation), with a
+  shared `is_plural_subject(tok)` closure the three-word branch was refactored to reuse. The branch initially had a real
+  bug of its own: it swapped `subject_tok`/`verb_tok` based on the *target* language's `verb_first` word order, but the
+  input tokens are always in fixed English surface order (subject before verb) regardless of the target word order --
+  only the *output* slot order should follow it, as the three-word branch (which never reorders its input) already
+  showed. Fixed by reading `subject_tok, verb_tok = content_tokens` unconditionally and keeping `verb_first` only for
+  the trailing `slots = (verb_group + subject_np) if verb_first else (subject_np + verb_group)`. (2) A classifier
+  "repeater" noun (`_classifier_slot`, the noun standing in as its own classifier) rendered through a bare
+  `_lookup_or_coin` lookup, never through `_apply_case`, so in a class-marked language it never carried the class
+  marker its head-noun copy carried a few tokens later -- the two surface forms differed, and `_drop_repeaters`
+  (decode-side de-duplication) additionally identified a noun token via a raw `lexicon.by_form` lookup, which only
+  matches a bare citation form and so silently failed on *either* copy once either one carried a class marker. Fixed
+  by rendering the repeater through `_apply_case(language, entry, None, None)` (class marker only, matching the head
+  noun's own marker) and rewriting `_drop_repeaters` to identify a noun by its decoded lexical entry (`_decode_noun`,
+  the same generate-and-compare decoder used everywhere else) rather than by literal spelling, so identity survives
+  whatever case/number marking the head noun carries and the repeater does not. (3) `noun_class_gen._SEMANTIC_FIELDS`
+  grew three new fields (`animal`, `material`, `person`) and picked up stragglers in existing ones, raising its
+  coverage of the lexicon's noun glosses from 72% to over 95% (most of the `person` field's words are already handled
+  by `_MASCULINE`/`_FEMININE`/`_HUMAN` before `semantic_field` is even consulted, so its practical effect is limited to
+  a language with a non-gender, non-animacy class system using `semantic` assignment). The stale-doc item "prefix-marked
+  languages have no stem-prefix prefiltering when decoding a noun" was checked and found already resolved as a side
+  effect of pass 24's general `_stem_prefixes`/`_decode_mode`/`_may_spell` infrastructure (`class_marker_affixes` is
+  one of `inflection_gen._NOUN_SUFFIX_FIELDS`); "the planner still supplies each noun's own case/number" is a design
+  choice, not a gap, and stays as-is. 11 tests in `test_agreement_followups2.py`.

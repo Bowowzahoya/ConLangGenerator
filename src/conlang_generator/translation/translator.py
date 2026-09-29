@@ -2363,12 +2363,17 @@ def _render_plan(
                 working_language, entry = _lookup_or_coin(
                     working_language, repeated, PartOfSpeech.NOUN, coined, llm_client, lemma_candidates=[repeated]
                 )
+                # A repeater classifier is the noun itself, so it carries the
+                # same class marker the head noun would -- otherwise the two
+                # copies of one word would render differently in a class-marked
+                # language.
+                rendered = _apply_case(working_language, entry, None, None)
             else:
                 working_language, entry = _lookup_or_coin(
                     working_language, slot.gloss, PartOfSpeech.PARTICLE, coined, llm_client,
                     lemma_candidates=[slot.gloss],
                 )
-            rendered = (entry.romanization, entry.ipa)
+                rendered = (entry.romanization, entry.ipa)
         elif slot.kind in _BARE_GLOSS_BY_SLOT_KIND:
             entry = working_language.lexicon.by_gloss(_BARE_GLOSS_BY_SLOT_KIND[slot.kind])
             if entry is not None:
@@ -2960,18 +2965,24 @@ def _construction_note(language: Language) -> str:
 def _drop_repeaters(language: Language, tokens: list[str]) -> list[str]:
     """Removes a noun repeated as its own classifier: the same noun twice in a
     row ("two dog dog"), or a noun, a numeral/quantifier and the noun again
-    ("dog two dog")."""
+    ("dog two dog"). Identity is by decoded lexical entry (``_decode_noun``),
+    not raw spelling -- a class-marked language's repeater classifier and its
+    head noun carry the same class marker but not necessarily the same
+    case/number, so their surface forms need not be identical even though
+    they are the same repeated noun."""
     kept: list[str] = []
+    kept_entries: list[LexicalEntry | None] = []
     for token in tokens:
-        entry = language.lexicon.by_form(token)
-        is_noun = entry is not None and entry.pos is PartOfSpeech.NOUN
-        if is_noun and kept and _normalize(kept[-1]) == _normalize(token):
+        decoded = _decode_noun(language, token)
+        entry = decoded[0] if decoded is not None and decoded[0].pos is PartOfSpeech.NOUN else None
+        if entry is not None and kept_entries and kept_entries[-1] is entry:
             continue
-        if is_noun and len(kept) >= 2 and _normalize(kept[-2]) == _normalize(token):
+        if entry is not None and len(kept_entries) >= 2 and kept_entries[-2] is entry:
             middle = language.lexicon.by_form(kept[-1])
             if middle is not None and middle.pos is PartOfSpeech.NUMERAL:
                 continue
         kept.append(token)
+        kept_entries.append(entry)
     return kept
 
 

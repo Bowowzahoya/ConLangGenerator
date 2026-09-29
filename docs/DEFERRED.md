@@ -203,8 +203,11 @@ demonstratives, numerals, an indefinite article and possession marking (pass 5);
 subordination follow-ups -- prepositional (pied-piped/stranded) relative clauses, stacked
 relatives, raising and passivized-control infinitives, a nominalized clause as the subject,
 reported-speech tense backshift, chained clause coordination, gapping, right-node raising and
-two more complementizer classes (pass 28). See
-`architecture/OVERVIEW.md`.
+two more complementizer classes (pass 28); agreement follow-ups, second round -- a plain
+subject-plus-intransitive-verb sentence now gets verb agreement (the fake planner's plainest
+sentence shape had never carried one before), a classifier repeater carries its noun's own class
+marker and decodes back once, and semantic-field class assignment now covers animals, people and
+materials (pass 29). See `architecture/OVERVIEW.md`.
 
 **Subordination follow-ups (done, pass 28); still missing (S-M):** an "oblique_pp" relative
 clause has no resumptive-pronoun fallback (real-world "beyond reach" reach limiting only
@@ -223,13 +226,14 @@ and right-node raising are detected in the fake planner only from the written co
 comma before the residual subject/object. The subordinator itself is still coined as an ordinary
 particle word.
 
-**Agreement follow-ups (done, pass 15); still missing (S-M):** plural
-*verbs* agreeing with a plural subject beyond the person/number the pronoun
-system already gives; class assignment is by semantic field or final sound for
-nouns without natural gender, but from small gloss lists; classifier "repeater"
-nouns in class-marked languages render bare (no de-duplication of marked
-forms); prefix-marked languages have no stem-prefix prefiltering when decoding
-a noun; the planner still supplies each noun's own case/number.
+**Agreement follow-ups (done, pass 15 + pass 29); still missing (S):** the
+planner still supplies each noun's own case/number -- a design choice, not a
+gap: the planner already knows a slot's syntactic role (subject/object/
+oblique), so there is nothing an agreement pass would add by re-deriving it.
+Semantic-field class assignment now covers the great majority of noun glosses
+(`noun_class_gen._SEMANTIC_FIELDS`) but is still a curated list, not a real
+semantic ontology, so a gloss outside it falls back to the arbitrary `hash`
+assignment.
 
 **Aspect/mood follow-ups (done, pass 16); still missing (S-M):** an auxiliary is an
 invariant particle (it takes no agreement, unlike a real auxiliary "have"); suffixes are only

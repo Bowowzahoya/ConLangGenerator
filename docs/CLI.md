@@ -1242,3 +1242,26 @@ marks the first two clauses, not the last). `s4`'s gapped sentence drops the sec
 (`I eat and rice she beans`); `s5`'s right-node-raised sentence keeps the shared object only in the last
 clause (`wash and fish he cooked`). A directly built plan (not the fake planner, which always infers an
 explicit tense) also verifies reported-speech tense backshift; see `test_subordination_followups2.py`.
+
+**Agreement follow-ups, second round.** A plain subject-plus-intransitive-verb sentence ("I sleep.",
+"The dogs sleep.") now gets a verb slot with real person/number agreement -- the fake planner's other
+sentence shapes (a copula predicate, a subject-verb-object transitive) already had this, but this plainer
+shape fell through to a bare-noun fallback with no verb at all. A classifier "repeater" noun (the noun
+standing in as its own numeral classifier) now carries the same class marker its head-noun copy carries a
+few tokens later, and decodes back to one reading instead of two. Verified with `--llm fake` on
+`--seed 4 --prompt p` as `s9` (verb number agreement) and `--seed 39 --prompt p` as `s10`
+(class-marked classifier repeater):
+
+```bash
+conlang translate "I sleep." --lang s9 --to conlang --llm fake
+conlang translate "The dogs sleep." --lang s9 --to conlang --llm fake
+conlang translate "The dog sleeps." --lang s9 --to conlang --llm fake
+conlang translate "I see two dogs." --lang s10 --to conlang --llm fake
+```
+
+In `s9`, "The dogs sleep." renders `lizma 'riune` and "The dog sleeps." renders `lizmij 'riun` -- the verb
+itself differs (`'riune` vs `'riun`), and each reads back correctly (`dogs sleep`, `dog sleep`). In `s10`
+(suffix class marking), "I see two dogs." renders `fut napuken ma nukot'imu'ip nukot'imu'ipik`: the
+repeater classifier `nukot'imu'ip` and the head noun `nukot'imu'ipik` both carry the class suffix, differing
+only in the head noun's own accusative case marking, and the sentence reads back as `I see two dog` --
+one "dog", not two.
