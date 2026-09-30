@@ -120,7 +120,11 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   sentence. Agreement is worked out from word position, so
   the planner need not name the noun. A very small inventory can repeat a suffix across labels.
 - **Voice and noun-phrase follow-ups are illustrative**: the middle, applicative and impersonal
-  voices are one suffix each; the passive agent is "by" or an instrumental case, and the passive
+  voices are one suffix each. An impersonal verb has no subject at all (dropped even from an
+  already-built plan, not just left unagreed with); an applicative verb's promoted beneficiary
+  triggers the verb's own object agreement, in a language that has it, but still keeps whatever
+  case the plan gives it -- no further applicative-aware case reassignment. The passive agent is
+  "by" or an instrumental case, and the passive
   agrees with its patient or not. Trial, collective, locative and instrumental are extra rolled
   labels (the cases only in a language that already has cases). An adposition is moved to the
   language's side and either kept (governing a case from a small English table) or replaced by

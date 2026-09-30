@@ -4958,3 +4958,61 @@ reading code or one-off ad hoc scripts.
   existing entry with that label before appending.
 
   22 tests in `test_aspect_followups2.py`, 6 more in `test_sound_change.py`.
+
+- **Voice follow-ups, second round (grammar pass 31).** No new grammar fields -- three fixes to
+  pass 17's middle/applicative/impersonal voices, all in `fake_client.py`/`translator.py`.
+
+  (1) **Impersonal has no subject at all.** Pass 17 only suppressed subject *agreement*
+  (`_verb_agreement`'s existing `voice == "impersonal"` check); nothing ever stopped a subject
+  noun/pronoun slot next to an impersonal verb from rendering like any other subject, and the fake
+  planner never produced impersonal voice at all (confirmed by grep: zero references to
+  `"impersonal"` anywhere in `fake_client.py` before this pass). Fixed on both sides: a new
+  `_dropped_impersonal_subjects` (mirroring `_dropped_subject_pronouns`'s own shape) finds, for
+  every finite verb slot with `voice == "impersonal"`, the adjacent noun/pronoun slot (either side)
+  and drops it, folded into `_render_plan`'s existing `dropped_pronouns` set -- a genuine safety net
+  for a hand-built plan or a real LLM's own plan, not just the fake planner's. `_fake_voice_slots`
+  gained an impersonal branch in its 2-token shape, triggered by the subject token "someone" (not
+  English impersonal "one" -- confirmed by tracing that `_fake_group_noun_phrases` always swallows
+  "one <word>" into a numeral-quantified noun-phrase placeholder before voice detection ever sees the
+  tokens, regardless of whether the second word is a noun or a verb -- "one dances" plans as a single
+  bogus noun slot, not two tokens, so "one" can never reach this branch); the branch builds the verb
+  slot with no subject token at all (`agreement` stays "default", matching pass 17's own agreement
+  suppression) and returns just the verb, omitting the subject noun-phrase entirely.
+
+  (2) **Applicative promotion triggers real object agreement.** The promoted beneficiary
+  ("I cook for him" -> the applicative verb takes "him" as its object) never set `object_gloss` on the
+  verb slot, even in a language with `object_agreement` -- the applicative branch's own `verb_slot(...)`
+  helper (shared with middle/impersonal) only ever took a subject token, never an object one, unlike the
+  ordinary 3-word transitive branch a few hundred lines away which already does exactly this
+  (`verb_slot["object_gloss"] = pronoun_gloss(obj_tok) if ... else base_of(obj_tok)`). Threaded
+  `object_agreement`/`pronoun_gloss` into `_fake_voice_slots`'s signature (both already existed as
+  locals in the caller) and set `object_gloss` on the applicative verb the same way, when the language
+  has object agreement -- a real valency-changing effect (the promoted argument now behaves exactly
+  like an ordinary object for agreement purposes), not just a bare suffix on the verb.
+
+  This surfaced a real, independent decode bug: `_decode_verb_full`'s staged search (six -- nine with
+  evidential/negative "extras" -- increasingly expensive stages, each varying a different subset of
+  tense/aspect/mood/object/voice, cheapest first) had **no stage that ever varied voice and object
+  agreement together** -- every stage fixed one to `[None]` whenever the other varied. This had never
+  mattered before: reflexive/reciprocal (the only existing voices that could combine with an object)
+  deliberately *never* set `object_gloss` when using the affix strategy (`fake_client.py`: `if
+  object_agreement and (...): if reflexive_voice is None: verb_slot["object_gloss"] = ...` --
+  reflexive/reciprocal voice already covers the missing object, so the two conditions were mutually
+  exclusive by construction). Applicative is different: the beneficiary is a real, distinct object, so
+  it genuinely needs both a voice suffix *and* object agreement on the same word -- the first
+  combination this decode search ever had to find. Fixed by adding two more stages, `object x voice`
+  (cheap, tense/aspect/mood fixed) and `aspect x mood x object x voice` (the full combination, for a
+  verb that also carries aspect/mood), in the existing cost-ordered position.
+
+  (3) **A bit wider verb-list detection.** `_FAKE_ANTIPASSIVE_VERBS`/`_FAKE_MIDDLE_VERBS` (the closed
+  lists gating the 2-token bare-clause voice shapes) grew from ~19/~13 entries to ~33/~28, adding more
+  common activity verbs (antipassive: bake, wash, sew, clean, build, paint, weave) and
+  change-of-state verbs (middle: boil, freeze, crack, tear, bend, split, sink) -- the same kind of
+  bounded, low-risk data-breadth expansion as pass 29's semantic-field growth. The applicative and
+  impersonal *structural* shapes (exactly "S V for O", "someone V") stay fixed, as does the passive/
+  causative detection -- widening those further was judged out of scope for this pass.
+
+  Decode-speed indexing (a real, separately-tracked "S-M" item in this same DEFERRED.md bullet since
+  pass 20) and expanding reciprocal marking beyond "word"/"affix"/"none" were both left untouched --
+  neither is really a *voice* gap, and both are larger, more speculative undertakings than this
+  pass's three concrete fixes. 11 tests in `test_voice_followups2.py`.

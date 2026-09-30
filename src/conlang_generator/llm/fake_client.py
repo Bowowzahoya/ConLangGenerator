@@ -521,7 +521,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     )
     voice_slots = None if (existence_slots is not None or degree_slots is not None) else _fake_voice_slots(
         tokens, metadata, voices, postpositional, word_order, alignment, tenses, noun_phrase, base_of,
-        noun_classes, name_by_placeholder, tokens_no_copula,
+        noun_classes, name_by_placeholder, tokens_no_copula, object_agreement, pronoun_gloss,
     )
     if existence_slots is not None:
         slots = existence_slots
@@ -934,17 +934,20 @@ def _fake_degree_slots(
 _FAKE_MAKE = {"make", "makes", "made"}
 _FAKE_ANTIPASSIVE_VERBS = {
     "eat", "eats", "ate", "drink", "drinks", "drank", "read", "reads", "hunt", "hunts", "hunted", "cook", "cooks",
-    "cooked", "sing", "sings", "sang", "write", "writes", "wrote",
+    "cooked", "sing", "sings", "sang", "write", "writes", "wrote", "bake", "bakes", "baked", "wash", "washes",
+    "washed", "sew", "sews", "sewed", "clean", "cleans", "cleaned", "build", "builds", "built", "paint", "paints",
+    "painted", "weave", "weaves", "wove",
 }
 _FAKE_MIDDLE_VERBS = {
     "open", "opens", "opened", "close", "closes", "closed", "break", "breaks", "broke", "melt", "melts", "melted",
-    "burn", "burns", "burned",
+    "burn", "burns", "burned", "boil", "boils", "boiled", "freeze", "freezes", "froze", "crack", "cracks",
+    "cracked", "tear", "tears", "tore", "bend", "bends", "bent", "split", "splits", "sink", "sinks", "sank",
 }
 
 
 def _fake_voice_slots(
     tokens, metadata, voices, postpositional, word_order, alignment, tenses, noun_phrase, base_of,
-    noun_classes, name_by_placeholder, tokens_no_copula,
+    noun_classes, name_by_placeholder, tokens_no_copula, object_agreement=False, pronoun_gloss=None,
 ):
     """Plans a passive ("the river is seen by the dog") or a causative ("I made
     the dog see the river") when the tokens have that shape; ``None``
@@ -971,21 +974,41 @@ def _fake_voice_slots(
     if len(tokens) == 2 and not any(t in _FAKE_COPULAS for t in tokens):
         subject_tok, verb_tok = tokens
         voice = None
-        if verb_tok in _FAKE_ANTIPASSIVE_VERBS and "antipassive" in voices:
+        # "someone", not English impersonal "one" -- "one" is also a numeral,
+        # and _fake_group_noun_phrases always swallows "one <word>" into a
+        # numeral-quantified noun phrase before this function ever runs,
+        # regardless of whether the second word is really a noun or a verb.
+        if subject_tok == "someone" and "impersonal" in voices:
+            voice = "impersonal"
+        elif verb_tok in _FAKE_ANTIPASSIVE_VERBS and "antipassive" in voices:
             voice = "antipassive"
         elif verb_tok in _FAKE_MIDDLE_VERBS and "middle" in voices:
             voice = "middle"
         if voice is not None:
             detected, lemma = _fake_detect_tense_and_lemma(verb_tok)
-            verb = [verb_slot(lemma, _fake_tense_label(detected, tenses), subject_tok, voice)]
+            tense_label = _fake_tense_label(detected, tenses)
+            if voice == "impersonal":
+                # A real impersonal construction has no subject at all --
+                # "someone" here is only the English placeholder that signals it.
+                return [verb_slot(lemma, tense_label, None, voice)]
+            verb = [verb_slot(lemma, tense_label, subject_tok, voice)]
             subject_np = noun_phrase(subject_tok, None)
             return verb + subject_np if verb_first else subject_np + verb
     if len(tokens) == 4 and tokens[2] == "for" and "applicative" in voices:
         subject_tok, verb_tok, _, beneficiary = tokens
         detected, lemma = _fake_detect_tense_and_lemma(verb_tok)
+        applicative_verb = verb_slot(lemma, _fake_tense_label(detected, tenses), subject_tok, "applicative")
+        if object_agreement and pronoun_gloss is not None:
+            # The beneficiary is promoted to a full direct object by the
+            # applicative -- it triggers the verb's own object agreement
+            # exactly like an ordinary object would (a real valency change,
+            # not just a bare suffix on the verb).
+            applicative_verb["object_gloss"] = (
+                pronoun_gloss(beneficiary) if beneficiary in _FAKE_PRONOUN_TOKENS else base_of(beneficiary)
+            )
         roles = {
             "S": noun_phrase(subject_tok, subject_case),
-            "V": [verb_slot(lemma, _fake_tense_label(detected, tenses), subject_tok, "applicative")],
+            "V": [applicative_verb],
             "O": noun_phrase(beneficiary, object_case),
         }
         return [x for role in order for x in roles[role]]

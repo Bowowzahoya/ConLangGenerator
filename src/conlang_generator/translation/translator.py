@@ -1581,6 +1581,32 @@ def _dropped_subject_pronouns(language: Language, slots) -> set[int]:
     return dropped
 
 
+def _dropped_impersonal_subjects(language: Language, slots) -> set[int]:
+    """Indices of a subject noun/pronoun slot sitting next to an
+    impersonal-voice verb -- a real impersonal construction ("one dances",
+    "it is said that...") has no subject argument at all, so this drops one
+    even if the plan itself still wrote a stand-in (the fake planner never
+    does; a real LLM's own plan might)."""
+    dropped: set[int] = set()
+    for index, slot in enumerate(slots):
+        is_finite = slot.kind == "copula" or (slot.kind == "content" and slot.pos == "verb")
+        if not is_finite or slot.voice != "impersonal":
+            continue
+        candidates = [
+            j
+            for j in (index - 1, index + 1)
+            if 0 <= j < len(slots)
+            and j not in dropped
+            and slots[j].kind == "content"
+            and slots[j].pos in ("noun", "pronoun")
+            and not slots[j].possessive
+            and slots[j].case in (None, "nominative", "ergative")
+        ]
+        if candidates:
+            dropped.add(candidates[0])
+    return dropped
+
+
 def _normalize_possessives(language: Language, slots) -> tuple:
     """A ``possessive_pronoun`` slot in a language that has no special form
     for it is just the personal pronoun as a possessor: everywhere for
@@ -2231,6 +2257,7 @@ def _render_plan(
     main_mood = _main_clause_mood(language, slots)
     dropped_pronouns = _dropped_subject_pronouns(language, slots)
     dropped_pronouns = dropped_pronouns | _dropped_object_pronouns(language, slots, dropped_pronouns)
+    dropped_pronouns = dropped_pronouns | _dropped_impersonal_subjects(language, slots)
     negative_verbs, prohibitive_verbs, dropped_negations = _negation_absorption(
         language, slots, plan.mood == "imperative"
     )
@@ -2879,16 +2906,22 @@ def _decode_verb_full(
         return None
 
     # Stages, cheapest first: tense x agreement x object agreement; then a
-    # voice; then aspect/mood without an object marker (alone, and with a
-    # voice); then aspect/mood with object agreement (only in languages that
-    # have it at all).
+    # voice; then a voice *with* object agreement (a valency-changing voice
+    # like applicative promotes its own argument to a real object, so the
+    # verb can carry both at once -- unlike reflexive/reciprocal, which
+    # never combine the two since the voice itself already covers the
+    # missing object); then aspect/mood without an object marker (alone, and
+    # with a voice); then aspect/mood with object agreement (only in
+    # languages that have it at all).
     stages = [
         ([None], [None], object_options, [None], [_NO_EXTRA]),
         ([None], [None], [None], voice_options, [_NO_EXTRA]),
+        ([None], [None], object_options, voice_options, [_NO_EXTRA]),
         ([None], [None], [None], [None], extra_options),
         (aspect_options, mood_options, [None], [None], [_NO_EXTRA]),
         (aspect_options, [None], [None], voice_options, [_NO_EXTRA]),
         (aspect_options, mood_options, object_options, [None], [_NO_EXTRA]),
+        (aspect_options, mood_options, object_options, voice_options, [_NO_EXTRA]),
     ]
     if marker_only:
         stages += [

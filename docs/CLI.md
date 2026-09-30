@@ -1327,3 +1327,20 @@ CLI-visible change): across 60 generated languages, this dropped the number of s
 from 59 (11 of 60 seeds affected) to 26 (9 of 60 seeds) -- a real reduction, not a full fix, since only
 pairs from different fields are checked and a very small phoneme inventory can run out of free shapes;
 see `test_resolve_collisions_also_fixes_a_two_affix_concatenation` in `test_aspect_followups2.py`.
+
+**Voice follow-ups, second round.** An impersonal verb now has no subject at all in the plan (not just
+no subject agreement); an applicative verb's promoted beneficiary now triggers the verb's own object
+agreement in a language that has it, a real valency-changing effect (this also surfaced and fixed a
+decode-search gap: voice and object agreement were never tried together before). Verified with
+`--llm fake` on `--seed 1 --prompt p` as `s15` (impersonal) and `--seed 3 --prompt p` as `s16`
+(applicative + object agreement):
+
+```bash
+conlang translate "Someone dances." --lang s15 --to conlang --llm fake
+conlang translate "I cook for him." --lang s16 --to conlang --llm fake
+```
+
+`s15` renders "Someone dances." as the single word `gazopuyar` -- no subject word at all -- reading
+back as `one dances`. `s16` renders "I cook for him." as `mipap yiyadusu-am`: the beneficiary "him" is
+pro-dropped (recoverable from the verb's own object agreement, exactly like an ordinary object would
+be), and it reads back correctly as `I cook for him`.

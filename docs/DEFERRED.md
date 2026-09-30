@@ -214,7 +214,12 @@ no X" (and "A has no B") can use one dedicated negative-existential word instead
 negation particle; a second collision-resolution pass now also catches a suffix *concatenation*
 spelling like some other single affix, not just single affixes one by one; and evolving a language
 can now grammaticalize a periphrastic auxiliary into a bound suffix, and grow its suppletive-past
-list, the longer the time depth (pass 30). See `architecture/OVERVIEW.md`.
+list, the longer the time depth (pass 30); voice follow-ups, second round -- an impersonal verb now
+plans (and, defensively, renders) with no subject at all, not just no subject agreement; an
+applicative verb's promoted beneficiary now triggers the verb's own object agreement, a real
+valency-changing effect (and a matching decode-search gap -- a voice and object agreement
+combination together, never tried before -- fixed along the way); and the fake planner's closed
+middle/antipassive verb lists are a bit wider (pass 31). See `architecture/OVERVIEW.md`.
 
 **Subordination follow-ups (done, pass 28); still missing (S-M):** an "oblique_pp" relative
 clause has no resumptive-pronoun fallback (real-world "beyond reach" reach limiting only
@@ -258,12 +263,17 @@ auxiliary into a suffix only fires once that auxiliary has actually been coined 
 translation (coined lazily, on first use) -- a language that has never needed it keeps it
 periphrastic regardless of time depth.
 
-**Voice follow-ups (done, pass 17); still missing (S-M):** a rolled middle, applicative and
-impersonal voice are single suffixes (no true valency change: an applicative does not reassign
-the beneficiary's case beyond what the planner writes); an impersonal takes no subject
-agreement but the renderer does not drop a planned subject; reciprocals stay a suffix or a
-word; the fake planner only produces the new voices from short fixed shapes ("The man eats.",
-"The door opens.", "I cook for him."). Decoding an unknown token was sped up (pass 20: about 3x on
+**Voice follow-ups (done, pass 17 + pass 31); still missing (S-M):** the beneficiary an applicative
+promotes still keeps whatever *case* the plan happens to give it (accusative/absolutive already falls
+out of the ordinary transitive-object rules the fake planner already applies, so this rarely shows in
+practice, but the renderer itself does nothing applicative-aware for case, only for object agreement
+now); a middle/applicative/impersonal voice is still a single suffix (no further valency-changing
+morphology beyond what pass 31 added); reciprocals stay a suffix or a word (no other strategy);
+the fake planner's free-text detection is still short fixed shapes, now a bit wider ("The man eats.",
+"The door boiled.", "I cook for him.", "Someone dances." -- English impersonal "one" itself can't be
+used as a trigger, since the tokenizer's numeral-grouping pass always swallows "one X" into a
+numeral-quantified noun phrase before voice detection ever runs, whether X is a noun or a verb).
+Decoding an unknown token was sped up (pass 20: about 3x on
 average, worst case from ~4.6 s to under 1 s in a 40-language sample) but is still a
 generate-and-compare search: a feature-heavy language spends ~0.5 s on a token that is not one of
 its words. A real fix would index inflected forms per language, or match suffixes right to left (M).
