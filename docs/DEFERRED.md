@@ -207,7 +207,14 @@ two more complementizer classes (pass 28); agreement follow-ups, second round --
 subject-plus-intransitive-verb sentence now gets verb agreement (the fake planner's plainest
 sentence shape had never carried one before), a classifier repeater carries its noun's own class
 marker and decodes back once, and semantic-field class assignment now covers animals, people and
-materials (pass 29). See `architecture/OVERVIEW.md`.
+materials (pass 29); aspect/mood follow-ups, second round -- a periphrastic auxiliary word can now
+agree with the subject like a real auxiliary "have"/"has" instead of being an invariant particle;
+the ordinary negative suffix can now mark a non-finite verb form, not only a finite one; "there is
+no X" (and "A has no B") can use one dedicated negative-existential word instead of the ordinary
+negation particle; a second collision-resolution pass now also catches a suffix *concatenation*
+spelling like some other single affix, not just single affixes one by one; and evolving a language
+can now grammaticalize a periphrastic auxiliary into a bound suffix, and grow its suppletive-past
+list, the longer the time depth (pass 30). See `architecture/OVERVIEW.md`.
 
 **Subordination follow-ups (done, pass 28); still missing (S-M):** an "oblique_pp" relative
 clause has no resumptive-pronoun fallback (real-world "beyond reach" reach limiting only
@@ -235,14 +242,21 @@ Semantic-field class assignment now covers the great majority of noun glosses
 semantic ontology, so a gloss outside it falls back to the arbitrary `hash`
 assignment.
 
-**Aspect/mood follow-ups (done, pass 16); still missing (S-M):** an auxiliary is an
-invariant particle (it takes no agreement, unlike a real auxiliary "have"); suffixes are only
-distinct one by one, so two *concatenated* suffixes can still spell the same word as one other
-suffix (decoding then picks the plainest reading, which the fluent-English step may correct);
-evidential marking is optional and taken from the planner (no obligatory evidential system, no
-evidential-tense interaction); the prohibitive and a suffix negation exist only on finite verbs
-(no negative non-finite forms, no negative existentials); affix evolution is plain sound change
-(no grammaticalization of auxiliaries into suffixes, no affixes fusing with the stem).
+**Aspect/mood follow-ups (done, pass 16 + pass 30); still missing (S-M):** a suffix concatenation
+(tense+agreement, say) can still spell the same word as some other single suffix -- pass 30 added a
+second, bounded collision-resolution pass that measurably reduces this (59 residual collisions
+across 60 test seeds down to 26) but does not guarantee eliminating it, since only pairs from
+different fields are checked and a very small phoneme inventory can run out of free shapes
+(decoding then picks the plainest reading, which the fluent-English step may correct); evidential
+marking is optional and taken from the planner (no obligatory evidential system, no evidential-tense
+interaction -- deliberately not attempted in pass 30); a verb's past tense can now fuse into an
+irregular lexeme over time, but only from the same small, fixed candidate list
+(`voice_np_gen.IRREGULAR_PASTS`, ~13 verbs) ordinary generation already draws `suppletive_past`
+from -- a genuinely arbitrary verb can't fuse, since the decode/prompt-generation side
+(`voice_np_gen.suppletive_split`) gates on that same fixed list; grammaticalizing a periphrastic
+auxiliary into a suffix only fires once that auxiliary has actually been coined by an earlier
+translation (coined lazily, on first use) -- a language that has never needed it keeps it
+periphrastic regardless of time depth.
 
 **Voice follow-ups (done, pass 17); still missing (S-M):** a rolled middle, applicative and
 impersonal voice are single suffixes (no true valency change: an applicative does not reassign

@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .pytest_tmp/
+.testmondata
 .cache/
 conlangs/
 experiments/output/

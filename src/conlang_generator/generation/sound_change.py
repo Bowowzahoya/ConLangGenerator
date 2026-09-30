@@ -1322,6 +1322,75 @@ def _evolve_grammar_affixes(
     )
 
 
+def _grammaticalize_and_fuse(
+    seed: int, grammar, entries: tuple, inventory, structure, known_symbols, romanization, years: int
+):
+    """Two more diachronic changes, both more likely the longer the time
+    depth, layered on top of plain sound change: (1) a periphrastic
+    auxiliary word grammaticalizes into a bound suffix -- a common real
+    path (Latin "cantare habeo" > French "chanter-ai" > "-ai"; English
+    "will" already shows the first half of the same drift). The label
+    leaves ``periphrastic_labels`` and its own (already sound-changed)
+    auxiliary word supplies a brand-new tense/aspect/mood affix; the old
+    auxiliary word itself is simply never referenced again. (2) a verb's
+    past tense fuses into an irregular lexeme of its own -- reusing
+    ``suppletive_past`` exactly as generation already does (a language may
+    already start with some), just growing it over time from the same
+    fixed candidate list, since real languages keep accumulating
+    irregularity rather than only ever losing it."""
+    from conlang_generator.core.grammar import InflectionAffix
+    from conlang_generator.generation import inflection_gen, voice_np_gen
+
+    rng = random.Random(f"{seed}:grammaticalization")
+    grammaticalize_rate = min(0.5, years / 4000)
+    fuse_rate = min(0.4, years / 5000)
+
+    if grammar.periphrastic_labels:
+        by_gloss = {e.primary_gloss: e for e in entries}
+        remaining: list[str] = []
+        tense_affixes = list(grammar.tense_affixes)
+        aspect_affixes = list(grammar.aspect_affixes)
+        mood_affixes = list(grammar.mood_affixes)
+        changed = False
+        for label in grammar.periphrastic_labels:
+            aux_entry = by_gloss.get(f"aux-{label}")
+            target = (
+                tense_affixes if label in grammar.tenses
+                else aspect_affixes if label in grammar.aspects
+                else mood_affixes if label in grammar.moods
+                else None
+            )
+            if aux_entry is None or target is None or rng.random() >= grammaticalize_rate:
+                remaining.append(label)
+                continue
+            symbols = tuple(symbol + deco for symbol, deco in ipa_tokenizer.tokenize(aux_entry.ipa, known_symbols))
+            if not symbols:
+                remaining.append(label)
+                continue
+            # A label can already have a dead, unused affix entry (defined
+            # before it became periphrastic, or from an earlier such swap
+            # this same run) -- replace it rather than appending a duplicate.
+            target[:] = [a for a in target if a.label != label]
+            target.append(InflectionAffix(label=label, suffix=symbols))
+            changed = True
+        if changed:
+            grammar = grammar.model_copy(
+                update={
+                    "periphrastic_labels": tuple(remaining), "tense_affixes": tuple(tense_affixes),
+                    "aspect_affixes": tuple(aspect_affixes), "mood_affixes": tuple(mood_affixes),
+                }
+            )
+            grammar = inflection_gen.resolve_collisions(rng, inventory, structure, grammar, romanization)
+
+    if "past" in grammar.tenses:
+        candidates = [v for v in voice_np_gen.IRREGULAR_PASTS if v not in grammar.suppletive_past]
+        grown = tuple(v for v in candidates if rng.random() < fuse_rate)
+        if grown:
+            grammar = grammar.model_copy(update={"suppletive_past": grammar.suppletive_past + grown})
+
+    return grammar
+
+
 def evolve_language(
     name: str,
     base: Language,
@@ -1561,6 +1630,9 @@ def evolve_language(
 
     evolved_grammar = _evolve_grammar_affixes(
         base.grammar, seed, rates, known_symbols, consonant_by_ipa, vowel_by_ipa, inventory, syllable_structure, romanization
+    )
+    evolved_grammar = _grammaticalize_and_fuse(
+        seed, evolved_grammar, evolved_entries, inventory, syllable_structure, known_symbols, romanization, years
     )
 
     spec = GenerationSpec(

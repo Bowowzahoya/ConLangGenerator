@@ -406,6 +406,10 @@ class GrammarProfile(BaseModel, frozen=True):
     subject, B object) or ``"dative_be"`` (A first, in the dative -- or
     possessor-marked where there is no dative -- then the existential
     construction with B as its subject; no verb "have")."""
+    negative_existential: bool = False
+    """Whether "there is no X" (and, in a ``dative_be`` language, "A has no
+    B") uses one dedicated negative-existential word instead of the ordinary
+    negated existential predicate -- like Russian "net" or Turkish "yok"."""
 
     comparative_strategy: str = "particle"
     """How the standard of a comparison ("bigger THAN Y") is marked:
@@ -582,6 +586,10 @@ class GrammarProfile(BaseModel, frozen=True):
     auxiliary word (``aux-<label>`` in the lexicon) instead of a verb suffix."""
     auxiliary_position: str = "before"
     """``"before"`` or ``"after"`` the main verb."""
+    auxiliary_agreement: bool = False
+    """Whether a periphrastic auxiliary word agrees with the subject (person,
+    number, politeness) like a real auxiliary "have"/"has", instead of being
+    an invariant particle."""
 
     passive_agreement: str = "patient"
     """``"patient"`` (the passive verb agrees with its subject, the patient) or

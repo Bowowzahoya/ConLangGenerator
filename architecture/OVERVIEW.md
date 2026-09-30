@@ -4869,3 +4869,92 @@ reading code or one-off ad hoc scripts.
   effect of pass 24's general `_stem_prefixes`/`_decode_mode`/`_may_spell` infrastructure (`class_marker_affixes` is
   one of `inflection_gen._NOUN_SUFFIX_FIELDS`); "the planner still supplies each noun's own case/number" is a design
   choice, not a gap, and stays as-is. 11 tests in `test_agreement_followups2.py`.
+
+- **Aspect/mood follow-ups, second round (grammar pass 30).** Everything from the pass-16 "still missing"
+  list except evidential-tense interaction (left as a documented gap; evidential marking itself was explicitly
+  out of scope for this pass).
+
+  (1) **Agreeing auxiliaries.** `GrammarProfile` gained `auxiliary_agreement: bool` (~35%, its own
+  `{seed}:auxiliary-agreement` stream -- deliberately *not* a further draw on `roll_aspect_followups`'s own
+  `rng`, which generator.py keeps reusing afterward for the evidential/negative/prohibitive suffixes; an
+  earlier version drew it there and silently shifted those suffixes for every seed). A periphrastic auxiliary
+  word (`_auxiliary_entries`, `aux-<label>`) was always an invariant particle; in a language with this trait it
+  now agrees with the subject exactly like the main verb does, reusing the *same* `agreement_affixes`/
+  `verb_number_affixes`/`verb_polite_affixes` paradigm (`_apply_auxiliary_agreement`, via `_combined_tense_
+  agreement_affix` with tense/aspect/mood/voice/object/evidential all `None` so only agreement/number/polite
+  contribute -- no new affix tables needed). `_auxiliary_entries` now returns `(entry, romanization, ipa)`
+  triples instead of bare entries; both call sites (content-verb and copula) pass the slot's own
+  `agreement_label`/`subject_number`/`polite`. Decoding: `_decode_auxiliary_entry` tries the bare citation form
+  first (the common, fast case), and only searches every agreement x number x polite combination when
+  `auxiliary_agreement` is set, mirroring `_decode_noun`'s generate-and-compare against `_apply_case`;
+  `_split_auxiliary_tokens` uses it instead of an exact `lexicon.by_form` match, which would otherwise silently
+  fail to recognize an inflected auxiliary (the same class of bug pass 29's classifier-repeater fix hit).
+
+  (2) **Negative non-finite forms.** A non-finite verb form (infinitive, nominalized...) could never take the
+  ordinary negative suffix -- `_finite_verb_indices` (the negation-absorption target list) explicitly excluded
+  any slot with a `verb_form`, so a negation slot near a non-finite-only clause (a bare infinitival complement
+  has no finite verb in its own nested `_render_plan` scope at all) fell back to the bare "not" particle even
+  in a suffix-negating language. Split into `_finite_verb_indices` (finite only, still used for the
+  imperative/prohibitive target, which must remain finite) and a new `_negatable_verb_indices` (finite or
+  non-finite, used for the ordinary affix path); `_non_finite_affix`/`_verb_form_salt` gained a `negative`
+  parameter that composes in `verb_negative_affixes` alongside the form's own suffix; `_apply_verb_inflection`'s
+  non-finite branch (which had a `negative` parameter it silently ignored) now uses it. Decoding:
+  `_decode_verb_full`'s non-finite `form_candidates` search gained a `negative` axis; the English reading
+  (`tense_label in subordination_gen.VERB_FORM_LABELS`) gained a negated reading per verb form ("to not go",
+  "not going"...) and a "negative" note.
+
+  (3) **Negative existentials.** `GrammarProfile` gained `negative_existential: bool` (~35%, the existing
+  `{seed}:existence` stream -- safe to extend since nothing downstream reuses that rng afterward). In such a
+  language, "there is no X" (and, in a `dative_be` language, "A has no B") now plans as one dedicated
+  `{"kind": "content", "gloss": "not-exist", "pos": "preposition"}` slot (an invariant particle, `pos`
+  "preposition" only because that's the JSON-string key that maps to `PartOfSpeech.PARTICLE` -- "particle"
+  itself isn't a valid `PlannedSlot.pos` value) in place of the copula/verb-exist slot *and* the negation slot,
+  in `_fake_existence_slots`'s `be_slots` closure and the planner's own system-prompt text
+  (`negative_existential_desc`). Decoding special-cases the gloss directly (`"does not exist"`) in
+  `translate_to_english`'s per-token loop, alongside the other special-gloss checks (relative pronoun,
+  complementizer, suppletive form). In passing, fixed a real, independent bug in the `dative_be` possession
+  path: `_fake_existence_slots` located the possessed noun as `tokens[have_index + 1]` unconditionally, so "I
+  have no dog" read the negation word "no" itself as the possessed noun and silently dropped "dog"; now skips
+  over "no"/"not" to find the real possessed token.
+
+  (4) **Suffix concatenation collisions.** `inflection_gen.resolve_collisions` gained a second, narrower pass,
+  `_resolve_concatenation_collisions`, run to a bounded fixed point (5 iterations) per word-kind group: for
+  every pair of suffix-only affixes from *different* fields (the only pairing that can actually co-occur on
+  one word), if their concatenation spells like some *other*, single affix in the group, that third affix is
+  redrawn (mirroring the existing single-affix pass's own `redraw`/`key` helpers -- an early version passed
+  `redraw` a `set` of bare spelled strings instead of its expected `key()` 3-tuples, so the membership check
+  never matched and no real redraw ever happened; fixed by building `used` from `key()` throughout). Measured
+  before/after across 60 seeds: 59 residual collisions (11 of 60 seeds) down to 26 (9 of 60) -- a real
+  reduction, not a full fix, since a tiny phoneme inventory can still run out of free shapes within the bound.
+  `resolve_collisions` gained a `check_concatenations: bool = True` parameter: `generator.py`'s *second* call
+  (after paradigms and affix positions) passes `False`, because a redraw there is never revalidated against
+  paradigm overrides already built from the *first* call's output (`paradigm_gen`'s own overrides only get
+  reshaped by `affix_position_gen` when their field's *position* changes, never re-checked against a later
+  suffix-content redraw) -- running the new pass there was observed to make an already-built override collide
+  with a freshly-redrawn base affix. A companion ordering fix was tried and reverted: moving `paradigm_gen.
+  roll_paradigms` to run strictly last (after affix positions) looked more "correct" from the collision
+  pass's point of view, but `affix_position_gen`'s own docstring is explicit that it must run *after*
+  paradigms specifically to reshape their overrides to match a repositioned field -- reordering silently
+  stopped paradigms from ever varying a field that had already been moved to prefix position (`_override_
+  labels`'s suffix-only filter then never matches). Kept the original order; `check_concatenations=False` on
+  the second call is the actual fix.
+
+  (5) **Affix evolution: grammaticalization and fusion** (`sound_change.py`, a new `_grammaticalize_and_fuse`,
+  called in `evolve_language` right after `_evolve_grammar_affixes`, own `{seed}:grammaticalization` stream).
+  Two more diachronic changes on top of plain sound change, both more likely at greater time depth (rates
+  capped at 0.5/0.4): a periphrastic auxiliary word can grammaticalize into a bound tense/aspect/mood suffix
+  (built from the auxiliary's own, already sound-changed, IPA -- tokenized the same way `_evolve_grammar_
+  affixes` already tokenizes evolved affixes) once that auxiliary has actually been coined by an earlier
+  translation (the lexicon entry is created lazily on first use, so a never-used auxiliary has no word yet to
+  grammaticalize, at any time depth -- verified both ways); and `suppletive_past` can grow over time from the
+  same fixed `voice_np_gen.IRREGULAR_PASTS` candidate list generation itself draws from (not a novel erosion
+  mechanic -- `voice_np_gen.suppletive_split`'s own gate, used at decode and prompt-generation time, is
+  hard-limited to that fixed list, so a genuinely arbitrary verb can't be made to fuse without touching that
+  gate too, which was judged out of scope here). Fixed a real bug found while building the CLI-verified
+  example: a label being grammaticalized could already have a dead, never-rendered affix entry for that same
+  label (defined before it became periphrastic) sitting in `tense_affixes`/etc; the first version *appended*
+  the new suffix affix alongside it, leaving two entries with the same label (whichever came first in the list
+  would then win at both encode and decode, not necessarily the new one) -- fixed by filtering out any
+  existing entry with that label before appending.
+
+  22 tests in `test_aspect_followups2.py`, 6 more in `test_sound_change.py`.

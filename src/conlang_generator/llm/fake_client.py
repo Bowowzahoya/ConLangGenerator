@@ -366,6 +366,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     honorific_you = metadata.get("honorific_you") == "true"
     existential = metadata.get("existential", "copula")
     possession_clause = metadata.get("possession_clause", "have")
+    negative_existential = metadata.get("negative_existential") == "true"
     cases = [c for c in metadata.get("cases", "").split(",") if c]
     postpositional = metadata.get("postpositional") == "true"
     noun_classes = [c for c in metadata.get("noun_classes", "").split(",") if c]
@@ -507,7 +508,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
 
     existence_slots = _fake_existence_slots(
         tokens, word_order, tenses, has_overt_copula, existential, possession_clause, cases, noun_phrase, base_of,
-        noun_classes, name_by_placeholder,
+        noun_classes, name_by_placeholder, negative_existential,
     )
     degree_slots = None if existence_slots is not None else _fake_degree_slots(
         tokens, tenses, has_overt_copula, comparative_strategy, comparative_case, comparative_marking,
@@ -719,7 +720,7 @@ _FAKE_PP_RELATIVE_PREPS = {"in", "at", "with", "about", "to", "on", "for", "from
 
 def _fake_existence_slots(
     tokens, word_order, tenses, has_overt_copula, existential, possession_clause, cases, noun_phrase, base_of,
-    noun_classes, name_by_placeholder,
+    noun_classes, name_by_placeholder, negative_existential=False,
 ):
     """Plans an existential ("there is/are/was X", "is there X?", "there is no
     X") and, in a ``dative_be`` language, a possession clause ("I have X"),
@@ -732,6 +733,11 @@ def _fake_existence_slots(
     skip = _FAKE_COPULAS | {"there", "not", "no"}
 
     def be_slots(tense_label: str | None, x_tok: str) -> list[dict]:
+        if negated and negative_existential:
+            # A dedicated negative-existential word (Russian "net", Turkish
+            # "yok") replaces the whole predicate -- no separate copula/verb
+            # "exist" and no ordinary negation particle beside it.
+            return [{"kind": "content", "gloss": "not-exist", "pos": "preposition"}]
         agrees = {"agreement": "default"}
         if noun_classes and x_tok not in _FAKE_PRONOUN_TOKENS and x_tok not in name_by_placeholder:
             agrees["subject_gloss"] = base_of(x_tok)
@@ -762,8 +768,12 @@ def _fake_existence_slots(
         return arrange(noun_phrase(x_tok, None), be_slots(tense_label, x_tok))
 
     have_index = next((i for i, t in enumerate(tokens) if t in ("have", "has", "had")), None)
-    if possession_clause == "dative_be" and have_index is not None and 0 < have_index < len(tokens) - 1:
-        possessor_tok, possessed_tok = tokens[have_index - 1], tokens[have_index + 1]
+    possessed_index = (
+        next((j for j in range(have_index + 1, len(tokens)) if tokens[j] not in ("no", "not")), None)
+        if have_index is not None else None
+    )
+    if possession_clause == "dative_be" and have_index is not None and 0 < have_index and possessed_index is not None:
+        possessor_tok, possessed_tok = tokens[have_index - 1], tokens[possessed_index]
         tense_label = _fake_tense_label("past" if tokens[have_index] == "had" else "non_past", tenses)
         if "dative" in cases:
             possessor = noun_phrase(possessor_tok, "dative")

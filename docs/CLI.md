@@ -1265,3 +1265,65 @@ itself differs (`'riune` vs `'riun`), and each reads back correctly (`dogs sleep
 repeater classifier `nukot'imu'ip` and the head noun `nukot'imu'ipik` both carry the class suffix, differing
 only in the head noun's own accusative case marking, and the sentence reads back as `I see two dog` --
 one "dog", not two.
+
+**Aspect/mood follow-ups, second round.** A periphrastic auxiliary word can now agree with the subject
+like a real auxiliary "have"/"has", per language, instead of always being an invariant particle; and the
+ordinary negative suffix can now mark a non-finite verb form (infinitive, nominalized...), not only a
+finite one -- a bare infinitival complement, which has no finite verb of its own, previously always fell
+back to the plain "not" particle even in a suffix-negating language. Verified with `--llm fake` on
+`--seed 56 --prompt p` as `s13` (agreeing auxiliary):
+
+```bash
+conlang translate "I saw the river." --lang s13 --to conlang --llm fake
+conlang translate "He saw the river." --lang s13 --to conlang --llm fake
+```
+
+`s13`'s past auxiliary itself changes with the subject -- `lan̄mimas kāwim hyúkîs nêrêo dỳr` ("I saw the
+river") against `lan̄mias kāwi sēkhlás nêrêo dỳr` ("he saw the river"): the auxiliary `kāwim`/`kāwi`
+differs (not just the main verb's own, separately-differing agreement suffix), and each reads back
+correctly (`saw I river`, `saw he river`). The negative non-finite suffix is verified directly (the fake
+planner has no free-text shape for a negated bare infinitive):
+`test_a_negated_infinitive_carries_the_suffix_not_a_bare_particle` and
+`test_the_negated_infinitive_decodes_with_the_negative_flag` in `test_aspect_followups2.py`.
+
+**Negative existentials.** "There is no X" (and, in a `dative_be` language, "A has no B") can now use one
+dedicated word for the whole predicate instead of the ordinary negated existential/copula plus a separate
+"not". Verified with `--llm fake` on `--seed 2 --prompt p` as `s14`:
+
+```bash
+conlang translate "There is a dog." --lang s14 --to conlang --llm fake
+conlang translate "There is no dog." --lang s14 --to conlang --llm fake
+```
+
+`s14`'s positive existential is the ordinary 3-word construction, `ts'sēyi fyaě kỉkngẻyeaa`; the negative
+one collapses to two words, `ghû fyaě` -- one dedicated word (`ghû`) for the whole negated predicate,
+reading back as `does not exist dog`.
+
+**Affix evolution: grammaticalization and fusion.** `conlang generate --evolve-from`/`--years` (see
+"Evolution" above) can now, the longer the time depth, (1) grammaticalize a periphrastic auxiliary word
+into a bound tense/aspect/mood suffix -- a real, common drift (Latin "cantare habeo" > French
+"chanter-ai" > "-ai") -- once that auxiliary has actually been coined by some earlier translation (an
+auxiliary a language has never needed has no word yet to grammaticalize); and (2) grow `suppletive_past`
+over time, from the same fixed candidate list generation itself draws from, since real languages keep
+accumulating irregularity. Verified end to end:
+
+```bash
+conlang generate --name base1 --seed 1 --prompt p --llm fake
+conlang translate "I saw the river." --lang base1 --to conlang --llm fake
+conlang generate --name evolved1 --evolve-from base1 --years 8000 --seed 2 \
+  --prompt "evolved forward 8000 years" --llm fake
+conlang translate "I saw the river." --lang evolved1 --to conlang --llm fake
+```
+
+`base1` has "past" as a periphrastic auxiliary; translating first coins its `aux-past` word. Evolved 8000
+years (seed 2), "past" is gone from `periphrastic_labels` and `evolved1` renders "I saw the river." as
+`gogah hap kuyebdaru madobiaiy` -- four words, no separate auxiliary -- reading back as `I river saw`.
+
+**Suffix concatenation collisions.** A second, narrower collision-resolution pass now also catches a
+suffix *concatenation* (e.g. tense+agreement) that happens to spell the same as some other, single
+affix -- suffixes were previously only checked one at a time, so e.g. an accusative-case suffix plus a
+plural-number suffix could spell exactly like an unrelated dual-number suffix. Measured directly (not a
+CLI-visible change): across 60 generated languages, this dropped the number of such residual collisions
+from 59 (11 of 60 seeds affected) to 26 (9 of 60 seeds) -- a real reduction, not a full fix, since only
+pairs from different fields are checked and a very small phoneme inventory can run out of free shapes;
+see `test_resolve_collisions_also_fixes_a_two_affix_concatenation` in `test_aspect_followups2.py`.

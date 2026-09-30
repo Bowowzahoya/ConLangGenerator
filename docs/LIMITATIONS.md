@@ -90,13 +90,22 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   mood, agreement), chosen from illustrative label sets (two-way or four-way
   aspect; irrealis or subjunctive/conditional/potential). Auxiliaries ("have",
   "would", "is ...-ing") are separate words only for the labels a language
-  rolls as periphrastic (each an invariant `aux-<label>` particle before or after the verb, with no
-  agreement of its own). Evidentials (reported/inferred/witnessed) are a further optional verb
-  suffix set by the planner. Negation is a word, a verb suffix or both (negative concord), and
-  a language may have a prohibitive for negated commands. Suffixes are made distinct one by one,
-  but when several label combinations still spell alike, decoding prefers the reading with the
-  fewest labels. Inflectional affixes follow sound change when a language evolves, but do not
-  grammaticalize or fuse.
+  rolls as periphrastic (each an `aux-<label>` particle before or after the verb; a further
+  rolled trait lets it agree with the subject like a real auxiliary "have"/"has", otherwise it
+  stays invariant). Evidentials (reported/inferred/witnessed) are a further optional verb
+  suffix set by the planner -- there is no obligatory evidential system, and no evidential-tense
+  interaction. Negation is a word, a verb suffix (on a finite or non-finite verb
+  alike) or both (negative concord), and a language may have a prohibitive for negated commands;
+  a further rolled trait gives "there is no X" (and "A has no B") one dedicated
+  negative-existential word instead of the ordinary negated predicate, otherwise it falls back to
+  the plain negation particle. Suffixes are checked pairwise (a concatenation, e.g. tense+agreement,
+  against every other single suffix, not just individually) but this is a bounded pass, not a
+  guarantee -- a small phoneme inventory can still leave a genuine collision, and decoding then
+  prefers the reading with the fewest labels. Evolving a language can now, the longer the time
+  depth, grammaticalize a periphrastic auxiliary into a bound suffix (only once that auxiliary has
+  actually been coined by an earlier translation) and grow a suppletive-past list -- from the same
+  small, fixed candidate list ordinary generation already draws from, not a novel, arbitrary-verb
+  erosion mechanic.
 - **Noun classes are illustrative**: one of five fixed systems, derived from
   the English gloss (natural gender/animacy first, otherwise a hash, a semantic
   field from a curated gloss list covering most core nouns, or the noun's final

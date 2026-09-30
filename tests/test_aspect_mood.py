@@ -57,11 +57,13 @@ def _decodes_as_planned(language, cases) -> bool:
 
 
 def _verb_form(language, sentence: str) -> str:
-    """The rendered token for the first verb of ``sentence``."""
+    """The rendered token for the first verb of ``sentence`` -- matched by
+    the stem appearing anywhere in the token, not just at the start, since a
+    prefix- or circumfix-marked language (pass 24) puts material before it."""
     verb = language.lexicon.by_gloss("see")
     result = translate_to_conlang(sentence, language, FakeLLMClient())
     stem = verb.romanization[:2]
-    return next(t for t in result.text.split() if t.startswith(stem))
+    return next(t for t in result.text.split() if stem in t)
 
 
 # --- generation -----------------------------------------------------------

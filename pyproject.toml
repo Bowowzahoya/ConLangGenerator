@@ -23,6 +23,7 @@ build-backend = "uv_build"
 dev = [
     "pytest>=8.3",
     "pytest-cov>=6.0",
+    "pytest-testmon>=2.2.0",
 ]
 web = [
     "fastapi>=0.115",

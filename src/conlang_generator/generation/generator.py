@@ -180,6 +180,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         update={
             "existential": "verb" if existence_rng.random() < 0.45 else "copula",
             "possession_clause": "have" if existence_rng.random() < 0.55 else "dative_be",
+            "negative_existential": existence_rng.random() < 0.35,
         }
     )
 
@@ -392,6 +393,11 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         if followups["prohibitive"]
         else ()
     )
+    # Whether a periphrastic auxiliary agrees with the subject: its own
+    # independent stream, not a further draw on `followup_rng` above, since
+    # that rng is still reused below for the evidential/negative/prohibitive
+    # suffixes -- an extra draw here would shift those for every seed.
+    auxiliary_agreement = random.Random(f"{spec.seed}:auxiliary-agreement").random() < 0.35
     grammar = grammar.model_copy(
         update={
             "evidentials": followups["evidentials"],
@@ -401,6 +407,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "mood_affixes": grammar.mood_affixes + prohibitive_affixes,
             "periphrastic_labels": followups["periphrastic_labels"],
             "auxiliary_position": followups["auxiliary_position"],
+            "auxiliary_agreement": auxiliary_agreement,
         }
     )
     # Voice and noun-phrase follow-ups: one more independent stream.
@@ -668,6 +675,13 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     )
 
     # Last, once every inflectional affix exists: no two labels of a paradigm may spell alike.
+    # The concatenation-collision pass only runs here (not in the second call
+    # below): a paradigm override drawn just after this checks its own
+    # suffix against this call's output, and affix_position_gen (next) only
+    # reshapes an override to match a *repositioned* field, never
+    # revalidates one against a further suffix redraw -- so a second
+    # concatenation-driven redraw after paradigms are drawn could silently
+    # make an already-built override collide (a real, once-observed case).
     grammar = inflection_gen.resolve_collisions(
         random.Random(f"{spec.seed}:distinct-suffixes"), inventory, syllable_structure, grammar, romanization
     )
@@ -682,7 +696,8 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         random.Random(f"{spec.seed}:affix-positions"), grammar, inventory, syllable_structure
     )
     grammar = inflection_gen.resolve_collisions(
-        random.Random(f"{spec.seed}:distinct-affixes"), inventory, syllable_structure, grammar, romanization
+        random.Random(f"{spec.seed}:distinct-affixes"), inventory, syllable_structure, grammar, romanization,
+        check_concatenations=False,
     )
     # Vowel harmony, boundary rules and mutation, last (own stream).
     grammar = grammar.model_copy(

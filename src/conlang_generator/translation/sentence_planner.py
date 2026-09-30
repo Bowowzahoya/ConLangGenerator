@@ -255,6 +255,13 @@ def _build_system_prompt(language: Language) -> str:
             else "just the noun phrase X (this language has no overt copula)"
         )
     )
+    negative_existential_desc = (
+        ' For a NEGATED existential ("there is no X") or possession clause ("A has no B"), this '
+        'language instead uses one dedicated word for the whole predicate: a single content slot with '
+        'gloss "not-exist" (pos "preposition", no tense/agreement/case) in place of the existential slot '
+        'above AND any negation slot -- write no separate "negation" slot in that case.'
+        if grammar.negative_existential else ""
+    )
     dative_desc = 'the dative case ("case":"dative")' if "dative" in grammar.cases else (
         'possessor marking ("possessive":true on the possessor slot, as for "my dog")'
     )
@@ -589,7 +596,7 @@ the gloss is the plain adjective lemma ("big"). Equatives ("as big as Y"): \
 "more water" (more of a noun) is a content slot with gloss "more" and pos \
 "quantifier" before the noun.
 - existential sentences ("there is/are X", "is there X?"): {existential_desc}. \
-Never write a slot for the English "there".
+Never write a slot for the English "there".{negative_existential_desc}
 - possession clauses ("I have a dog", "the man had two horses"): \
 {possession_clause_desc}. (Possession INSIDE a noun phrase, "my dog", is the \
 separate "possessive" mechanism.)
@@ -816,6 +823,7 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "elative_marking": grammar.elative_marking,
             "existential": grammar.existential,
             "possession_clause": grammar.possession_clause,
+            "negative_existential": "true" if grammar.negative_existential else "false",
             "cases": ",".join(grammar.cases),
             "voices": ",".join(grammar.voices),
             "postpositional": "true" if grammar.postpositional else "false",

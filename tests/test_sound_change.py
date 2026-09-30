@@ -21,7 +21,7 @@ from conlang_generator.core.phonology import TONE_DIACRITICS, Consonant, Lexical
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK, RomanizationRule, RomanizationScheme, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
-from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, sonority, sound_change
+from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, sonority, sound_change, voice_np_gen
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, ReferenceLanguageProfile
 from conlang_generator.generation.sound_change import evolve_language
@@ -1505,3 +1505,121 @@ def test_zero_years_never_changes_a_sandhi_bearing_tone_system_either():
     evolved = evolve_language("Evolved", base, 0, TraitProfile(contact_intensity=1.0), seed=1)
     assert evolved.tone_system == base.tone_system
     assert [e.tones for e in evolved.lexicon.entries] == [e.tones for e in base.lexicon.entries]
+
+
+# --- grammaticalization (auxiliary -> suffix) and fusion (a verb's past tense
+# becomes an irregular lexeme of its own), both more likely at greater time
+# depth ---------------------------------------------------------------------
+
+
+def _periphrastic_past_grammar(base):
+    """``base``'s own grammar, with "past" forced periphrastic and no suffix
+    of its own yet -- so grammaticalizing it is the only way it could ever
+    get one."""
+    return base.grammar.model_copy(
+        update={
+            "tenses": ("non_past", "past"),
+            "tense_affixes": tuple(a for a in base.grammar.tense_affixes if a.label != "past"),
+            "periphrastic_labels": ("past",),
+        }
+    )
+
+
+def _aux_past_entry() -> LexicalEntry:
+    return LexicalEntry(ipa="falo", romanization="falo", glosses=("aux-past",), pos=PartOfSpeech.PARTICLE)
+
+
+def test_grammaticalization_turns_a_coined_auxiliary_into_a_tense_suffix():
+    base = _base_language()
+    grammar = _periphrastic_past_grammar(base)
+    entries = base.lexicon.entries + (_aux_past_entry(),)
+    hit = None
+    for seed in range(1, 60):
+        result = sound_change._grammaticalize_and_fuse(
+            seed, grammar, entries, base.phonology, base.syllable_structure, _KNOWN_SYMBOLS, base.romanization, 10000,
+        )
+        if "past" not in result.periphrastic_labels:
+            hit = result
+            break
+    assert hit is not None, "expected at least one seed (of 60) to grammaticalize within 10000 years"
+    new_affix = next((a for a in hit.tense_affixes if a.label == "past"), None)
+    assert new_affix is not None and (new_affix.suffix or new_affix.prefix or new_affix.infix)
+
+
+def test_grammaticalization_never_fires_for_an_auxiliary_never_coined():
+    # The auxiliary word is coined lazily, on first actual use (see
+    # translator._auxiliary_entries) -- a language that has never needed
+    # "aux-past" has no word yet to grammaticalize, at any time depth.
+    base = _base_language()
+    grammar = _periphrastic_past_grammar(base)
+    for seed in range(1, 20):
+        result = sound_change._grammaticalize_and_fuse(
+            seed, grammar, base.lexicon.entries, base.phonology, base.syllable_structure, _KNOWN_SYMBOLS,
+            base.romanization, 10000,
+        )
+        assert result.periphrastic_labels == ("past",)
+        assert not any(a.label == "past" for a in result.tense_affixes)
+
+
+def test_grammaticalization_and_fusion_never_fire_at_zero_years():
+    base = _base_language()
+    grammar = _periphrastic_past_grammar(base).model_copy(update={"suppletive_past": ()})
+    entries = base.lexicon.entries + (_aux_past_entry(),)
+    for seed in range(1, 20):
+        result = sound_change._grammaticalize_and_fuse(
+            seed, grammar, entries, base.phonology, base.syllable_structure, _KNOWN_SYMBOLS, base.romanization, 0,
+        )
+        assert result.periphrastic_labels == ("past",) and result.suppletive_past == ()
+
+
+def test_a_verbs_past_can_fuse_into_a_new_irregular_over_time():
+    base = _base_language()
+    grammar = base.grammar.model_copy(update={"tenses": ("non_past", "past"), "suppletive_past": ()})
+    hit = None
+    for seed in range(1, 60):
+        result = sound_change._grammaticalize_and_fuse(
+            seed, grammar, base.lexicon.entries, base.phonology, base.syllable_structure, _KNOWN_SYMBOLS,
+            base.romanization, 10000,
+        )
+        if result.suppletive_past:
+            hit = result
+            break
+    assert hit is not None, "expected at least one seed (of 60) to grow suppletive_past within 10000 years"
+    assert set(hit.suppletive_past) <= set(voice_np_gen.IRREGULAR_PASTS)
+
+
+def test_fusion_only_grows_suppletive_past_never_shrinks_it():
+    base = _base_language()
+    grammar = base.grammar.model_copy(update={"tenses": ("non_past", "past"), "suppletive_past": ("go", "see")})
+    for seed in range(1, 20):
+        result = sound_change._grammaticalize_and_fuse(
+            seed, grammar, base.lexicon.entries, base.phonology, base.syllable_structure, _KNOWN_SYMBOLS,
+            base.romanization, 10000,
+        )
+        assert {"go", "see"} <= set(result.suppletive_past)
+
+
+def test_a_grammaticalized_tense_still_renders_and_reads_back():
+    cl = FakeLLMClient()
+    base = language = None
+    for seed in range(1, 60):
+        candidate = generate_language("T", GenerationSpec(prompt="p", seed=seed), cl)
+        if candidate.grammar.periphrastic_labels and "past" in candidate.grammar.tenses:
+            base = candidate
+            break
+    assert base is not None
+    from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
+
+    coined = translate_to_conlang("I saw the river.", base, cl)
+    base = coined.language
+    assert base.lexicon.by_gloss("aux-past") is not None
+    evolved = None
+    for evolve_seed in range(1, 20):
+        candidate = evolve_language("Evolved", base, 8000, TraitProfile(), evolve_seed)
+        if "past" not in candidate.grammar.periphrastic_labels:
+            evolved = candidate
+            break
+    assert evolved is not None, "expected at least one evolution seed to grammaticalize"
+    result = translate_to_conlang("I saw the river.", evolved, cl)
+    english = translate_to_english(result.text, result.language, cl).text
+    assert "saw" in english or "see" in english

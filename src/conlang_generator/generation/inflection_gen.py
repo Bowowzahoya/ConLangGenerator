@@ -375,7 +375,8 @@ _MODIFIER_SUFFIX_FIELDS = ("class_affixes", "degree_affixes")
 
 
 def resolve_collisions(
-    rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure, grammar, romanization=None
+    rng: random.Random, inventory: PhonemeInventory, structure: SyllableStructure, grammar, romanization=None,
+    check_concatenations: bool = True,
 ):
     """Re-draws any affix that is spelled like an earlier one that can occur on the
     same kind of word (verb, noun, adjective), so no two labels of a paradigm collapse
@@ -383,7 +384,11 @@ def resolve_collisions(
     change: a suffix-only affix gets a new suffix (a longer one when the short shapes
     are used up), a prefixed or circumfixed one a new prefix, an infixed one a new
     infix. With ``romanization``, exponents spelled alike (a different phoneme with the
-    same letter) count as colliding."""
+    same letter) count as colliding. ``check_concatenations=False`` skips the
+    second, narrower pass (see ``_resolve_concatenation_collisions``) -- used
+    for the call after paradigms/affix-positions have already run, since a
+    redraw there could silently invalidate an already-built paradigm
+    override that nothing revalidates afterward."""
 
     def spelled(symbols: tuple[str, ...]):
         if not symbols:
@@ -427,4 +432,59 @@ def resolve_collisions(
                 fixed.append(affix)
             if changed:
                 updates[name] = tuple(fixed)
+    grammar = grammar.model_copy(update=updates) if updates else grammar
+    if not check_concatenations:
+        return grammar
+    return _resolve_concatenation_collisions(grammar, spelled, redraw, key)
+
+
+def _resolve_concatenation_collisions(grammar, spelled, redraw, key):
+    """A second, narrower pass: two suffix-only affixes from *different*
+    fields of the same word-kind group (the only pairing that can actually
+    co-occur on one word -- a word has at most one tense, one mood...) may
+    still concatenate to spell exactly like some *other*, single affix in
+    that group ("suffixes are only distinct one by one"). Re-draws that
+    third affix when found, repeating (bounded) since a redraw can itself
+    create a fresh collision with a pair not yet checked. This reduces, but
+    -- the search only covers pairs, not every real composition, and a tiny
+    phoneme inventory can run out of free shapes -- does not guarantee
+    eliminating, this class of ambiguity; decoding already falls back to the
+    plainest reading when one slips through."""
+    updates: dict[str, tuple] = {}
+
+    def current(name: str) -> tuple:
+        return updates.get(name, getattr(grammar, name, ()))
+
+    for fields in (_VERB_SUFFIX_FIELDS, _NOUN_SUFFIX_FIELDS, _MODIFIER_SUFFIX_FIELDS):
+        for _pass in range(5):
+            entries = [
+                (name, index, affix)
+                for name in fields
+                for index, affix in enumerate(current(name))
+                if affix.suffix and not affix.prefix and not affix.infix
+            ]
+            if len(entries) < 3:
+                break
+            used = {key(affix) for _, _, affix in entries}
+            found = False
+            for a_pos in range(len(entries)):
+                name_a, _, a = entries[a_pos]
+                for b_pos in range(len(entries)):
+                    name_b, _, b = entries[b_pos]
+                    if name_a == name_b:
+                        continue  # a word never carries two labels of the same field at once
+                    combo = spelled(a.suffix + b.suffix)
+                    for c_pos, (name_c, index_c, c) in enumerate(entries):
+                        if c_pos in (a_pos, b_pos) or spelled(c.suffix) != combo:
+                            continue
+                        found = True
+                        used.discard(key(c))
+                        redrawn = redraw(c, used)
+                        used.add(key(redrawn))
+                        fixed = list(current(name_c))
+                        fixed[index_c] = redrawn
+                        updates[name_c] = tuple(fixed)
+                        entries[c_pos] = (name_c, index_c, redrawn)
+            if not found:
+                break
     return grammar.model_copy(update=updates) if updates else grammar

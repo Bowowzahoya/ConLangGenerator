@@ -71,3 +71,28 @@ Keep randomness and external model calls explicit.
 Add tests around architectural invariants.
 
 Do not introduce a database, graph framework, distributed execution, elaborate plugin system or broad abstraction layer without an immediate need.
+
+## Testing
+
+The suite is large and `generate_language()` is expensive (phonology, a
+several-hundred-word lexicon, ~30 grammar passes), so a full run regularly
+takes 20-50+ minutes. Day to day, use `pytest-testmon` (a dev dependency) for
+selective re-runs: `uv run pytest --testmon` runs only the tests whose actual
+*covered code* changed since the last run (tracked via coverage, in
+`.testmondata`, gitignored) -- real impact analysis, not a same-file guess,
+so it also catches indirect effects (a shared rng stream, a generation-order
+dependency) that touching an unrelated-looking file can still have.
+
+- While iterating on a change: `uv run pytest --testmon` after each edit.
+- Before committing: `uv run pytest --testmon` is enough on most commits.
+  Run the full suite (`rm -rf .cache && uv run pytest -q -p no:cacheprovider`,
+  no `--testmon`) every ~10 commits, whenever `.testmondata` doesn't exist yet
+  or looks stale, or whenever asked -- and always after a change plausibly
+  wide-reaching (shared rng streams, generation ordering, anything in
+  `generator.py`'s own pipeline, a shared low-level helper many modules call).
+  A clean full run is also the moment to note it (e.g. in the commit
+  message) so the next session knows how fresh `--testmon`'s baseline is.
+- `--testmon` needs its `.testmondata` baseline already built (one full run
+  with `--testmon` first) to be selective; without it, it just runs
+  everything once, slowly, while building the baseline -- effectively a
+  slow full run, not a shortcut.
