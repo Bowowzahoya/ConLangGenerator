@@ -83,15 +83,20 @@ selective re-runs: `uv run pytest --testmon` runs only the tests whose actual
 so it also catches indirect effects (a shared rng stream, a generation-order
 dependency) that touching an unrelated-looking file can still have.
 
-- While iterating on a change: `uv run pytest --testmon` after each edit.
-- Before committing: `uv run pytest --testmon` is enough on most commits.
-  Run the full suite (`rm -rf .cache && uv run pytest -q -p no:cacheprovider`,
+- While iterating on a change confined to one module/feature: `uv run pytest
+  --testmon` after each edit, and trust its answer -- don't re-verify with a
+  manual full run afterward "to be safe." A change to a genuinely hot-path
+  function (`_render_plan`, `generate_language`, `_decode_verb_full` --
+  anything that runs on nearly every render/decode) makes testmon select
+  nearly the whole suite anyway, since nearly every test's coverage profile
+  includes it; in that case `--testmon` and a plain full run cost about the
+  same wall-clock time (testmon usually a bit *slower*, from tracing
+  overhead) -- pick one, don't run both in sequence.
+- Run the full suite (`rm -rf .cache && uv run pytest -q -p no:cacheprovider`,
   no `--testmon`) every ~10 commits, whenever `.testmondata` doesn't exist yet
-  or looks stale, or whenever asked -- and always after a change plausibly
-  wide-reaching (shared rng streams, generation ordering, anything in
-  `generator.py`'s own pipeline, a shared low-level helper many modules call).
-  A clean full run is also the moment to note it (e.g. in the commit
-  message) so the next session knows how fresh `--testmon`'s baseline is.
+  or looks stale, or whenever asked. A clean full run is also the moment to
+  note it (e.g. in the commit message) so the next session knows how fresh
+  `--testmon`'s baseline is.
 - `--testmon` needs its `.testmondata` baseline already built (one full run
   with `--testmon` first) to be selective; without it, it just runs
   everything once, slowly, while building the baseline -- effectively a
