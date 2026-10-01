@@ -517,7 +517,10 @@ def _build_system_prompt(language: Language) -> str:
     if grammar.verb_number_agreement:
         verb_extras.append('set "subject_number":"plural" on a finite verb whose subject is plural (a plural pronoun, or a plural noun)')
     if grammar.verb_politeness:
-        verb_extras.append('set "polite":true on a finite verb whose subject is "you-polite"')
+        polite_trigger = 'whose subject is "you-polite"'
+        if grammar.referent_honorifics:
+            polite_trigger += ' or whose subject is a titled or socially elevated third party (e.g. "the professor", "the king")'
+        verb_extras.append(f'set "polite":true on a finite verb {polite_trigger}')
     verb_extras_text = "; ".join(verb_extras) if verb_extras else "verbs here carry no number or politeness (never set those fields)"
     object_drop_word = "yes" if grammar.object_pro_drop else "no"
     classified = ", ".join(grammar.classified_quantifiers) if grammar.classified_quantifiers else "none"
@@ -831,6 +834,7 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "clusivity": "true" if grammar.clusivity else "false",
             "third_person_gender": "true" if grammar.third_person_gender else "false",
             "honorific_you": "true" if grammar.honorific_you else "false",
+            "referent_honorifics": "true" if grammar.referent_honorifics else "false",
             "comparative_strategy": grammar.comparative_strategy,
             "comparative_case": grammar.comparative_case,
             "comparative_marking": grammar.comparative_marking,

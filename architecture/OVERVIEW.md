@@ -5119,3 +5119,42 @@ reading code or one-off ad hoc scripts.
     constructions ("it is X that..."); a modified topic noun phrase (adjectives, numerals, possessors);
     cross-sentence (discourse-level) topic continuity -- each sentence is still planned and translated
     independently. 10 tests in `test_topic.py`.
+
+- **Politeness/honorific registers, second round (grammar pass 34, a Discourse follow-up).** The
+  second Discourse item. Before this pass, politeness was addressee-only: `honorific_you` (a polite
+  "you" pronoun, triggered by a vocative cue like "sir"/"madam") and `verb_politeness` (a verb suffix
+  when the subject is "you-polite"). Real honorific systems (Japanese, Korean) also mark deference
+  toward whoever a sentence's *subject* is, independent of who's being addressed. This pass adds that,
+  deliberately reusing the *existing* `polite` verb affix rather than inventing a second one -- the
+  same kind of simplification as pass 32's `comparative_negative`/`superlative_negative` reusing their
+  positive counterpart's own marking choice:
+
+  - `GrammarProfile.referent_honorifics: bool` -- rolled in `pronoun_gen.roll_pronoun_system` right
+    alongside `honorific_you` (its own independent draw, same rate formula, added *after* every
+    existing draw in that function so no old seed's sequence shifts) -- a language can have either,
+    both, or neither honorific system.
+  - `verb_politeness`'s own gate in `generator.py` widened from `honorific_you and
+    verb_politeness_wish` to `(honorific_you or referent_honorifics) and verb_politeness_wish` -- the
+    affix gets invented whenever the language wants one *and* has at least one honorific system to
+    apply it to.
+  - `fake_client.py` gains a closed title list, `_FAKE_REFERENT_TITLES` ("professor", "doctor",
+    "teacher", "elder", "king", "queen", "president", "master") -- deliberately titles, not proper
+    names: a bare name carries no inferable social status, a title does. Checked via the
+    `base_of(subject_tok)` closure already in scope at both of `_fake_single_clause_plan`'s existing
+    "polite" trigger sites (the plain intransitive and plain transitive sentence builders), widened
+    with an `or` alongside the pre-existing addressee check -- the same two generic shapes the
+    addressee trigger itself was already limited to, not a new limitation this pass introduces.
+  - **Render and decode needed zero changes.** `translator.py` already resolves `slot.polite`
+    generically regardless of why it was set, and already annotates an unknown verb's recognized
+    polite affix generically (`notes += ["polite"] if polite_label else []`) -- this pass's entire
+    point was landing on that existing, affix-reuse path.
+  - **Investigated and explicitly deferred: distinct honorific vocabulary** (Japanese
+    謙譲語/尊敬語-style suppletive verb stems, e.g. plain "eat" vs. an honorific word). The existing
+    suppletion machinery (`voice_np_gen.suppletive_split`/`suppletive_reading`, used for irregular past
+    tense and degree) is reusable *in shape* -- same hyphenated-gloss trick, same "independently coined
+    lexicon entry" trick -- but needs a new "kind" added to a closed tuple baked into that machinery, a
+    new hand-written English word-pair dict, a new `GrammarProfile` field, and, unlike tense/degree, a
+    register/addressee-status signal that doesn't exist anywhere yet in `PlannedSlot`/`GrammarProfile`.
+    A genuinely bigger lift than the affix-reuse approach taken here, left as its own future pass. An
+    object/addressee-humbling (kenjougo-style) counterpart is likewise deferred -- this pass is
+    subject-referent only. 9 tests in `test_honorifics.py`.

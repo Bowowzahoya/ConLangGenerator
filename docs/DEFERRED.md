@@ -224,8 +224,9 @@ negative degree ("less big [than Y]", "least big") and a sufficiency degree ("bi
 degree word that follows the adjective rather than precedes it); an equative's own standard case,
 rolled independently of the comparative's; and a wider fake-planner adjective list (pass 32); a
 topicalized sentence ("as for the cat, it sleeps") fronts the topic and marks it with a dedicated
-particle where the language has one, dropping the main clause's resumptive subject (pass 33). See
-`architecture/OVERVIEW.md`.
+particle where the language has one, dropping the main clause's resumptive subject (pass 33); a
+subject-referent honorific ("the professor sleeps") reuses the addressee-politeness verb affix for a
+closed list of titled subjects (pass 34). See `architecture/OVERVIEW.md`.
 
 **Subordination follow-ups (done, pass 28); still missing (S-M):** an "oblique_pp" relative
 clause has no resumptive-pronoun fallback (real-world "beyond reach" reach limiting only
@@ -331,17 +332,21 @@ English word; class assignment is by gender or a hash of the gloss; an infix goe
 before the last vowel only. Decoding an unknown token in a language with infixed verbs can still take a few seconds. The plural,
 imperative and question-particle forms do not yet evolve with `sound_change` (S).
 
-**Discourse (topic/focus done, pass 33; optional, L otherwise):** a topicalized sentence ("as for the
-cat, it sleeps") fronts the topic noun phrase, marks it with a dedicated particle in the languages
-that rolled one, and drops the main clause's own resumptive subject pronoun -- subject-coreferent
-topics only, a bare topic noun phrase only (no adjectives/numerals/possessors on it), no focus/cleft
-constructions ("it is X that..."), no cross-sentence topic continuity. See `architecture/OVERVIEW.md`.
-Still missing: pro-drop and ellipsis beyond today's morphological (within-sentence, agreement-driven)
-kind -- no discourse-driven, cross-sentence ellipsis; politeness/honorific registers beyond today's
-`honorific_you` pronoun and verb-politeness suffix (uses `social_hierarchy`) -- no referent-honorific
-verb stems or distinct vocabulary registers; reported speech beyond today's tense backshift -- no
-quotative particles/evidentials specific to reported speech; idioms (`Idiom`/`with_new_idiom` exist as
-types but nothing generates one).
+**Discourse (topic/focus done, pass 33; referent honorifics done, pass 34; optional, L otherwise):**
+a topicalized sentence ("as for the cat, it sleeps") fronts the topic noun phrase, marks it with a
+dedicated particle in the languages that rolled one, and drops the main clause's own resumptive
+subject pronoun -- subject-coreferent topics only, a bare topic noun phrase only (no
+adjectives/numerals/possessors on it), no focus/cleft constructions ("it is X that..."), no
+cross-sentence topic continuity (pass 33). A subject-referent honorific ("the professor sleeps") marks
+deference toward whoever a sentence's subject is, independent of the already-existing addressee-only
+`honorific_you`/verb-politeness, reusing the *same* verb affix rather than a second one -- a closed
+title list only (professor, doctor, teacher, elder, king, queen, president, master), no proper-name
+trigger, subject position only (pass 34). See `architecture/OVERVIEW.md`. Still missing: pro-drop and
+ellipsis beyond today's morphological (within-sentence, agreement-driven) kind -- no discourse-driven,
+cross-sentence ellipsis; distinct honorific vocabulary (Japanese-style suppletive verb stems for a
+closed list of common verbs) and object/addressee-humbling (kenjougo-style) marking; reported speech
+beyond today's tense backshift -- no quotative particles/evidentials specific to reported speech;
+idioms (`Idiom`/`with_new_idiom` exist as types but nothing generates one).
 
 **Wiring existing traits (M each):** `evidentiality_culture`, `spatial_reference`, `ritual_register`,
 `taboo_register`, `terrain_communication_distance`,

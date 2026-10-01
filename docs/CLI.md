@@ -1385,3 +1385,21 @@ pro-dropped subject). `s20` renders it as `hapx hailx yozluyar`, reading back as
 topic noun is still fronted (ahead of the verb, exactly as in `s19`) but, with no particle to recognize,
 decode has no signal that it was ever a topic rather than an ordinary subject -- a documented
 limitation of the unmarked strategy, not a bug.
+
+**Politeness/honorific registers, second round (Discourse follow-up).** "The professor sleeps" marks
+the verb with the *same* politeness affix as addressee politeness ("you (polite) sleep"), reusing it
+for a subject-referent honorific instead of inventing a second one. Verified with `--llm fake` on
+`--seed 5 --prompt p` as `s21` (`referent_honorifics` and `verb_politeness` both rolled true):
+
+```bash
+conlang translate "The professor sleeps." --lang s21 --to conlang --llm fake
+conlang translate "The dog sleeps." --lang s21 --to conlang --llm fake
+```
+
+"The professor sleeps." renders as `nuhim1tal3 hiwinger`; "The dog sleeps." as `repe3nuw hiwar` -- the
+two verbs differ by more than the noun-class agreement suffix every subject here would get regardless
+(this language also has noun classes, masculine/feminine): decoding each verb form directly shows the
+professor's carries the polite affix (`polite=True`) and the dog's doesn't (`polite=False`), even
+though neither sentence addresses anyone as "you" at all. Both still read back in plain English as
+`professor sleep`/`dog sleep` -- the "(polite)" distinction is an annotation for the real-LLM fluency
+pass, not shown in the rough `--llm fake` decode text (the same way "(comparative)" etc. aren't).

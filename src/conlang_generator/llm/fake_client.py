@@ -82,6 +82,7 @@ _FAKE_REFLEXIVES = {
 }
 _FAKE_RECIPROCAL = "eachother"
 _FAKE_POLITE_CUES = {"sir", "madam", "lord", "lady", "mister", "mr", "mrs", "majesty"}
+_FAKE_REFERENT_TITLES = {"professor", "doctor", "teacher", "elder", "king", "queen", "president", "master"}
 _FAKE_AGREEMENT_BY_PRONOUN = {"i": "I", "you": "you", "he": "he", "we": "we", "she": "he", "it": "he", "they": "he"}
 _FAKE_IRREGULAR_PAST_LEMMA = {
     "went": "go", "saw": "see", "came": "come", "ate": "eat", "drank": "drink",
@@ -362,6 +363,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     reflexive_possessive = metadata.get("reflexive_possessive", "none")
     verb_number_agreement = metadata.get("verb_number_agreement") == "true"
     verb_politeness = metadata.get("verb_politeness") == "true"
+    referent_honorifics = metadata.get("referent_honorifics") == "true"
     clusivity = metadata.get("clusivity") == "true"
     third_person_gender = metadata.get("third_person_gender") == "true"
     honorific_you = metadata.get("honorific_you") == "true"
@@ -596,7 +598,10 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         }
         if verb_number_agreement and is_plural_subject(subject_tok):
             verb_slot["subject_number"] = "plural"
-        if verb_politeness and subject_tok == "you" and pronoun_gloss("you") == "you-polite":
+        referent_honorific = referent_honorifics and base_of(subject_tok) in _FAKE_REFERENT_TITLES
+        if verb_politeness and (
+            (subject_tok == "you" and pronoun_gloss("you") == "you-polite") or referent_honorific
+        ):
             verb_slot["polite"] = True
         if tense_label:
             verb_slot["tense"] = tense_label
@@ -656,7 +661,10 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
             verb_slot["voice"] = reflexive_voice
         if verb_number_agreement and is_plural_subject(subject_tok):
             verb_slot["subject_number"] = "plural"
-        if verb_politeness and subject_tok == "you" and pronoun_gloss("you") == "you-polite":
+        referent_honorific = referent_honorifics and base_of(subject_tok) in _FAKE_REFERENT_TITLES
+        if verb_politeness and (
+            (subject_tok == "you" and pronoun_gloss("you") == "you-polite") or referent_honorific
+        ):
             verb_slot["polite"] = True
         if tense_label:
             verb_slot["tense"] = tense_label

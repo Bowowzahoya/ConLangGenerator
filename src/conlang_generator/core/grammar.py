@@ -453,6 +453,14 @@ class GrammarProfile(BaseModel, frozen=True):
     """``she`` and ``it`` are pronouns of their own (else all map to ``he``)."""
     honorific_you: bool = False
     """A polite ``you-polite`` beside plain ``you``."""
+    referent_honorifics: bool = False
+    """Deference marked toward a sentence's own subject (a titled or
+    socially elevated third party), not just toward the addressee "you" --
+    independent of ``honorific_you``, a language can have either, both, or
+    neither. Uses the *same* ``polite`` verb marking as ``honorific_you``
+    rather than a second one -- a deliberate simplification (see
+    ``docs/LIMITATIONS.md``), not a claim that addressee and referent
+    honorifics always share surface marking in real languages."""
     pro_drop: bool = False
     """A subject pronoun is omitted when the verb's agreement names the
     person."""
@@ -475,7 +483,9 @@ class GrammarProfile(BaseModel, frozen=True):
     verb_number_affixes: tuple[InflectionAffix, ...] = ()
     verb_politeness: bool = False
     """The verb carries a ``polite`` suffix when its subject is ``you-polite``
-    (needs ``honorific_you``)."""
+    (needs ``honorific_you``) or, with ``referent_honorifics``, when its
+    subject is a referent-honorific-worthy third party -- needs at least
+    one of the two."""
     verb_polite_affixes: tuple[InflectionAffix, ...] = ()
     object_pro_drop: bool = False
     """An object pronoun is omitted when the verb's object agreement names it

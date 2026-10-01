@@ -258,6 +258,14 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   continuity -- each sentence is still planned and translated independently. Without a particle,
   decode has no signal left to recover "this was a topic" from -- it reads back as an ordinary fronted
   subject.
+- **Addressee and referent honorifics deliberately share one surface affix**: "the professor sleeps"
+  (a subject-referent honorific) marks the verb with the *same* "polite" suffix as "you (polite)
+  sleep" (addressee politeness) -- a simplification, not a claim that real languages always conflate
+  the two (Japanese, for instance, keeps them morphologically distinct). The fake planner's referent
+  trigger is a closed title list (professor, doctor, teacher, elder, king, queen, president, master),
+  not actually inferred social status, and a bare proper name never triggers it. No distinct honorific
+  vocabulary (a different word entirely for a polite register) and no object/addressee-humbling
+  marking.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

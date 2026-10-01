@@ -10,6 +10,9 @@ stream:
   (otherwise English she/it/he all map to ``he``).
 - ``honorific_you`` (15% plus up to 35% with the ``social_hierarchy`` trait):
   a separate polite ``you-polite`` beside plain ``you``.
+- ``referent_honorifics`` (same rate as ``honorific_you``, its own
+  independent draw): deference marked toward a sentence's own subject (a
+  titled third party), not just toward "you" -- see ``core.grammar``.
 - ``pro_drop`` (35%, and only when the four person agreement suffixes are
   distinct, since dropping a pronoun needs the verb to name the person): a
   subject pronoun is omitted when the verb's own agreement already names it.
@@ -60,13 +63,21 @@ _POLITE_CUES = frozenset({"sir", "madam", "lord", "lady", "mister", "mr", "mrs",
 def roll_pronoun_system(rng: random.Random, social_hierarchy: float) -> dict[str, bool]:
     """``clusivity``, ``third_person_gender``, ``honorific_you`` and the
     *wish* for ``pro_drop`` (the generator drops it when the person suffixes
-    are not distinct)."""
+    are not distinct). ``referent_honorifics`` is drawn last (an
+    independent roll, same rate formula as ``honorific_you``, added after
+    every existing draw above so no existing seed's draw sequence shifts)."""
     honorific_rate = _HONORIFIC_BASE + _HONORIFIC_HIERARCHY_WEIGHT * max(0.0, social_hierarchy)
+    clusivity = rng.random() < _CLUSIVITY_RATE
+    third_person_gender = rng.random() < _GENDER_RATE
+    honorific_you = rng.random() < honorific_rate
+    pro_drop = rng.random() < _PRO_DROP_RATE
+    referent_honorifics = rng.random() < honorific_rate
     return {
-        "clusivity": rng.random() < _CLUSIVITY_RATE,
-        "third_person_gender": rng.random() < _GENDER_RATE,
-        "honorific_you": rng.random() < honorific_rate,
-        "pro_drop": rng.random() < _PRO_DROP_RATE,
+        "clusivity": clusivity,
+        "third_person_gender": third_person_gender,
+        "honorific_you": honorific_you,
+        "pro_drop": pro_drop,
+        "referent_honorifics": referent_honorifics,
     }
 
 

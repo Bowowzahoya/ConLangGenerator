@@ -82,7 +82,7 @@ def test_affixes_exist_exactly_where_the_strategy_needs_them():
         assert bool(g.verb_number_affixes) == g.verb_number_agreement
         assert bool(g.verb_polite_affixes) == g.verb_politeness
         if g.verb_politeness:
-            assert g.honorific_you
+            assert g.honorific_you or g.referent_honorifics
         if g.object_pro_drop:
             assert g.object_agreement
             suffixes = [(a.prefix, a.infix, a.suffix) for a in g.object_agreement_affixes if a.label in pronoun_gen.PERSON_LABELS]

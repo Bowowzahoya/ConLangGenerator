@@ -267,7 +267,9 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         else ()
     )
     extras_taken = extras_taken | {a.suffix for a in verb_number_affixes}
-    verb_politeness = bool(grammar.honorific_you and extras["verb_politeness_wish"])
+    verb_politeness = bool(
+        (grammar.honorific_you or grammar.referent_honorifics) and extras["verb_politeness_wish"]
+    )
     verb_polite_affixes = (
         inflection_gen.distinct_suffixes(extras_rng, inventory, syllable_structure, ("polite",), extras_taken)
         if verb_politeness
