@@ -5016,3 +5016,106 @@ reading code or one-off ad hoc scripts.
   pass 20) and expanding reciprocal marking beyond "word"/"affix"/"none" were both left untouched --
   neither is really a *voice* gap, and both are larger, more speculative undertakings than this
   pass's three concrete fixes. 11 tests in `test_voice_followups2.py`.
+
+- **Comparison follow-ups, second round (grammar pass 32).** `comparison_gen.DEGREE_LABELS` grew from
+  5 to 8: `comparative_negative`/`superlative_negative` ("less big [than Y]"/"least big") and
+  `sufficiency` ("big enough"). `DEGREE_WORDS`/`DEGREE_READING` cover all 8 generically, so the
+  existing shared `degree_affixes` pool, `_apply_class_agreement` and `_decode_adjective_full` (all
+  already label-agnostic since pass 21) needed no changes at all for the new labels' own marking. Three
+  genuinely new pieces:
+
+  (1) **Negative degree.** Deliberately has no marking-strategy field of its own --
+  `comparative_negative`/`superlative_negative` reuse `comparative_marking`/`superlative_marking`
+  directly (a comparative suffix marks "degree exists", not "more" specifically, and English itself
+  never has a synthetic "-less" suffix, always the separate word "less"), so `generator.py`'s existing
+  `cmp_labels` tuple just adds two more entries gated on those same fields, with their own freshly
+  drawn suffix in the shared pool when applicable. `comparison_gen.roll_followups` needed no new rng
+  draw for this at all.
+
+  (2) **Sufficiency.** Gained its own `sufficiency_marking` field (own coin flip, same shape as
+  equative/excessive/elative) since, unlike the negative degree, it has no natural tie to an existing
+  marking choice. The one real wrinkle: "big enough" is the sole degree whose English word *follows*
+  the adjective rather than precedes it -- `sentence_planner.py`'s `_degree_desc` gained an `after`
+  parameter for the prompt text, and `fake_client.py`'s word-marking branch now orders
+  `[adjective, word]` instead of `[word, adjective]` specifically for `degree == "sufficiency"`.
+
+  (3) **An equative's own standard case**, rolled independently of the comparative's
+  (`equative_standard_case`, its own rng draws appended *after* every existing draw in
+  `roll_followups` so no old seed's comparative/equative/excessive/elative/adverb_degree shifts).
+  `_equative_now_case` (mirrors `grammar_now_case`) falls back to `comparative_case` when
+  `equative_standard_case` is empty -- the field's own default, so an older saved language keeps
+  exactly its old shared behavior. `_fake_degree_slots` computes one `effective_case` per degree
+  (equative's own-or-fallback; every other degree's own `comparative_case if strategy == "case"`,
+  unchanged) instead of the old single shared check.
+
+  **Two real, independent bugs found and fixed along the way, not part of the plan:** (a)
+  `_fake_group_noun_phrases`'s attributive-adjective grouping excludes a fixed list of words
+  (`"than"`, `"and"`, `"as"`, `"too"`, `"very"`) from being treated as the *noun* of a phrase headed by
+  the adjective before them -- "enough"/"less"/"least" were missing from that list, so "big enough"
+  silently planned as one bogus noun phrase (adjective "big" modifying a fake noun "enough") instead of
+  the intended construction; same root cause, same fix shape, as pass 31's "someone"/numeral-grouping
+  bug. (b) the decode-side standard-word heuristic (choosing "as"/"than" instead of a literal case
+  preposition like "in" when re-reading a comparison's case-marked standard) only ever matched the
+  *combined* string `"as big as"` in the per-token `plain` list -- which only exists when the equative
+  is *affix*-marked (`DEGREE_READING["equative"].format(gloss)` produces it as one entry); a
+  *word*-marked equative's "as" is its own separate token, which the check never matched, so a
+  word-marked equative with a case-marked standard always read back with the literal case preposition
+  ("as big **in** cat") instead of "as" -- pre-existing, just never exercised before this pass gave a
+  word-marked equative a case-marked standard independent of the comparative's own strategy. Fixed by
+  also matching a bare `"as"` token.
+
+  Also widened `_FAKE_KNOWN_ADJECTIVES` from ~87 to ~125 words (the same bounded, low-risk data-breadth
+  expansion as pass 29's semantic fields and pass 31's verb lists). "Not as big as" beyond plain
+  negation, "so big that..." result clauses (a genuinely new subordinate-clause construction -- the
+  "that" linker would collide with the fake planner's existing complementizer and
+  correlative-relative uses of that same surface word) and multiplicative comparison ("three times as
+  big") were all investigated and left as documented limitations, not implemented -- each is either a
+  design choice already accepted in the original pass-21 scope, or large/speculative enough to warrant
+  its own separate pass. 14 tests in `test_comparison_followups2.py`.
+
+- **Topic/focus and information structure (grammar pass 33, a Discourse follow-up).** The first of
+  `docs/DEFERRED.md`'s five Discourse items ("as for the cat, it sleeps" -- a sentence's topic marked
+  separately from its ordinary subject, Japanese `-wa`/Korean `-neun`). Had zero scaffolding before
+  this pass. Built entirely from existing precedent rather than new machinery:
+
+  - `GrammarProfile.topic_particle: str = ""` -- the invented particle's own IPA, empty meaning the
+    topic is fronted but left unmarked (realistic: Mandarin, for instance, has no topic particle at
+    all, relying on position alone). Mirrors `question_particle`/`possessive_particle` exactly, same
+    file -- a particle's surface form lives directly on the field, not a separate bool + form pair.
+    Rolled in `generator.py` right next to those two particles' own rolls (~40% chance, own rng
+    stream, built and collision-checked with the same `inflection_gen.generate_question_particle`
+    call already reused for the possessive particle).
+  - The topicalized sentence itself reuses the existing nested-clause-with-`role` mechanism already
+    used for the correlative "the-more" adverbial and for relativization (`sentence_planner.
+    CLAUSE_ROLES` gains `"topic"`): the topic noun phrase is a `role="topic"` clause slot (no verb)
+    placed first. This is why no new per-slot boolean or manual token-span tracking was needed --
+    `_render_plan` already knows how to splice a nested clause's own rendered tokens into the parent
+    stream for every other clause role.
+  - `fake_client._fake_topic_plan`, hooked into `_fake_plan_dict` the same way and at the same
+    priority as the existing `the_more` regex check, recognizes "as for X, Y" on the *raw* prompt text
+    (the only place a sentence-initial comma is visible at all -- `_fake_tokenize` drops all
+    punctuation). Deliberately builds the topic noun from the bare top-level helpers
+    (`_fake_tokenize`, `_fake_singular`, `_FAKE_ARTICLES`) rather than the richer `noun_phrase`/
+    `build_np` closures (local to `_fake_single_clause_plan`, not reusable standalone) -- the concrete
+    shape of this pass's "bare topic noun only" scope limit.
+  - `translator._arrange_topic` fronts any `role="topic"` clause slot (a no-op for the fake planner,
+    which already puts it there; a safety net for a real LLM that might not), and the clause-rendering
+    branch of `_render_plan` appends the particle (when set) directly after that nested clause's own
+    rendered tokens -- the same place a relative/adverbial clause's own linker word gets appended.
+    `translator._dropped_topic_resumptive_pronouns` drops the main clause's subject pronoun
+    unconditionally when a topic is present, mirroring `_dropped_impersonal_subjects`'s "no agreement
+    check needed" reasoning exactly.
+  - Decode mirrors the `question_particle` detection exactly (a `topic_form` computed from the
+    grammar field, a same-shaped swallow-check in the per-token loop). One genuine wrinkle, found via
+    manual round-trip testing rather than anticipated in the plan: an *uncased* topic noun (no case
+    suffix at all -- the common case for a bare subject in many languages) matches
+    `language.lexicon.by_form` directly in `translate_to_english`'s *earlier*, generic
+    direct-lexicon-entry branch, never reaching `_decode_noun` at all -- so the topic tagging needed
+    adding in *two* places, not one. Factored into a single `is_topic_marked(index)` closure used by
+    both. With no particle, decode has no signal to recover "this was a topic" from at all (documented
+    limitation, the same tradeoff already accepted elsewhere for an unmarked/fronting-only strategy).
+  - Explicitly deferred, matching the DEFERRED.md item's own remaining scope: object/oblique-coreferent
+    topics ("as for the cat, I saw it" -- only subject-coreferent topics are supported); focus/cleft
+    constructions ("it is X that..."); a modified topic noun phrase (adjectives, numerals, possessors);
+    cross-sentence (discourse-level) topic continuity -- each sentence is still planned and translated
+    independently. 10 tests in `test_topic.py`.

@@ -59,7 +59,7 @@ MAX_CLAUSE_DEPTH = 3
 flattened into its parent's slots (its own words are kept, only the linking
 word and the nesting are lost) rather than dropped."""
 
-CLAUSE_ROLES = ("complement", "relative", "adverbial", "nominal", "coordinate")
+CLAUSE_ROLES = ("complement", "relative", "adverbial", "nominal", "coordinate", "topic")
 RELATIVE_FUNCTION_LABELS = ("subject", "object", "oblique", "possessor", "oblique_pp")
 
 _ARTICLES = {"a", "an", "the"}
@@ -279,17 +279,24 @@ def _build_system_prompt(language: Language) -> str:
         if grammar.comparative_marking == "affix"
         else 'put a content slot with gloss "more" and pos "adverb" directly before the adjective'
     )
-    def _degree_desc(label: str, marking: str) -> str:
+    def _degree_desc(label: str, marking: str, after: bool = False) -> str:
         if marking == "affix":
             return f'set "degree":"{label}" on the adjective slot (this language has a {label} suffix)'
-        return f'put a content slot with gloss "{comparison_gen.DEGREE_WORDS[label]}" and pos "adverb" directly before the adjective'
+        position = "directly after" if after else "directly before"
+        return f'put a content slot with gloss "{comparison_gen.DEGREE_WORDS[label]}" and pos "adverb" {position} the adjective'
 
     equative_desc = _degree_desc("equative", grammar.equative_marking)
     excessive_desc = _degree_desc("excessive", grammar.excessive_marking)
     elative_desc = _degree_desc("elative", grammar.elative_marking)
+    sufficiency_desc = _degree_desc("sufficiency", grammar.sufficiency_marking, after=True)
+    comparative_negative_desc = _degree_desc("comparative_negative", grammar.comparative_marking)
+    superlative_negative_desc = _degree_desc("superlative_negative", grammar.superlative_marking)
+    _equative_standard_case = grammar.equative_standard_case or (
+        grammar.comparative_case if grammar.comparative_strategy == "case" else ""
+    )
     equative_standard_desc = (
-        f'the standard takes the "{grammar.comparative_case}" case'
-        if grammar.comparative_strategy == "case" and grammar.comparative_case
+        f'the standard takes the "{_equative_standard_case}" case'
+        if _equative_standard_case
         else 'a content slot with gloss "as" and pos "preposition" with the standard noun phrase (placed per the adposition order)'
     )
     adverb_degree_desc = (
@@ -468,6 +475,11 @@ def _build_system_prompt(language: Language) -> str:
         if grammar.correlative_adverbials
         else 'write "the more..., the more..." as an adverbial clause slot with gloss "the-more"'
     )
+    topic_desc = (
+        'a topicalized sentence ("as for the cat, it sleeps") is a clause slot with "role":"topic" holding just '
+        "the topic noun phrase (no verb), placed first; the main clause follows normally but drops its own "
+        "subject pronoun when it is coreferent with the topic -- the renderer does the particle and the dropping"
+    )
     coordination_desc = {
         "word": 'a conjunction word joins the clauses (the renderer places it)',
         "converb": 'no conjunction: the first clause\'s last verb becomes a medial form (the renderer does it)',
@@ -574,6 +586,7 @@ nominalized clause may be the sentence's subject too (placed first, like any sub
 pleases me": a clause slot with "role":"nominal" in subject position, its own verb "verb_form":"nominalized".
 - reported speech: {backshift_desc}.
 - conditionals: {conditional_desc}. Correlatives: {correlative_desc}.
+- topicalization: {topic_desc}.
 - coordinated clauses ("I see the dog and I hear the cat"): a clause slot with "role":"coordinate" and gloss \
 "and"/"but"/"or" holding the second clause; {coordination_desc}. More than two clauses nest the same way \
 (the coordinate clause's own plan holds a further "coordinate" clause slot for the next one). Ellipsis in \
@@ -594,7 +607,11 @@ the gloss is the plain adjective lemma ("big"). Equatives ("as big as Y"): \
 {equative_desc}, then the standard: {equative_standard_desc}. "Too big": \
 {excessive_desc}. "Very big": {elative_desc}. An adverb: {adverb_degree_desc}; \
 "more water" (more of a noun) is a content slot with gloss "more" and pos \
-"quantifier" before the noun.
+"quantifier" before the noun. "Less big"/"less beautiful than Y" (the negative \
+of the comparative, same standard-marking as "more"): {comparative_negative_desc}. \
+"Least big" (the negative of the superlative): {superlative_negative_desc}. \
+"Big enough" (this one word comes AFTER the adjective, not before): \
+{sufficiency_desc}.
 - existential sentences ("there is/are X", "is there X?"): {existential_desc}. \
 Never write a slot for the English "there".{negative_existential_desc}
 - possession clauses ("I have a dog", "the man had two horses"): \
@@ -821,6 +838,8 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> Sente
             "equative_marking": grammar.equative_marking,
             "excessive_marking": grammar.excessive_marking,
             "elative_marking": grammar.elative_marking,
+            "sufficiency_marking": grammar.sufficiency_marking,
+            "equative_standard_case": grammar.equative_standard_case,
             "existential": grammar.existential,
             "possession_clause": grammar.possession_clause,
             "negative_existential": "true" if grammar.negative_existential else "false",

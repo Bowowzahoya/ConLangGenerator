@@ -583,6 +583,24 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             possessive = inflection_gen.generate_question_particle(np_rng, inventory, syllable_structure)
         grammar = grammar.model_copy(update={"possessive_particle": possessive})
 
+    # Topic particle ("as for X, ..."): own independent rng stream, rolled
+    # here rather than a dedicated roll_* module since it's a single
+    # boolean-shaped draw, the same weight class as the particles above.
+    topic_rng = random.Random(f"{spec.seed}:topic")
+    topic = (
+        inflection_gen.generate_question_particle(topic_rng, inventory, syllable_structure)
+        if topic_rng.random() < 0.4 else ""
+    )
+    if topic:
+        taken_forms = known_forms | {normalized_form(romanization.apply(particle))} | (
+            {normalized_form(romanization.apply(possessive))} if possessive else set()
+        )
+        for _ in range(50):
+            if normalized_form(romanization.apply(topic)) not in taken_forms:
+                break
+            topic = inflection_gen.generate_question_particle(topic_rng, inventory, syllable_structure)
+    grammar = grammar.model_copy(update={"topic_particle": topic})
+
     # Noun-phrase follow-ups, round two (own stream).
     np2 = np_followups_gen.roll_followups(random.Random(f"{spec.seed}:np-followups-2"), grammar)
     article_source = np2["article_source"]
@@ -650,7 +668,8 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         label
         for label, marking in (
             ("equative", cmp["equative_marking"]), ("excessive", cmp["excessive_marking"]),
-            ("elative", cmp["elative_marking"]),
+            ("elative", cmp["elative_marking"]), ("sufficiency", cmp["sufficiency_marking"]),
+            ("comparative_negative", comparative_marking), ("superlative_negative", superlative_marking),
         )
         if marking == "affix"
     )
@@ -666,7 +685,9 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "equative_marking": cmp["equative_marking"],
             "excessive_marking": cmp["excessive_marking"],
             "elative_marking": cmp["elative_marking"],
+            "sufficiency_marking": cmp["sufficiency_marking"],
             "adverb_degree": cmp["adverb_degree"],
+            "equative_standard_case": cmp["equative_standard_case"],
             "degree_affixes": grammar.degree_affixes
             + inflection_gen.distinct_suffixes(
                 cmp_rng, inventory, syllable_structure, cmp_labels, cmp_taken | {a.suffix for a in grammar.degree_affixes}

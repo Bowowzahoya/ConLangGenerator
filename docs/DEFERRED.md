@@ -219,7 +219,13 @@ plans (and, defensively, renders) with no subject at all, not just no subject ag
 applicative verb's promoted beneficiary now triggers the verb's own object agreement, a real
 valency-changing effect (and a matching decode-search gap -- a voice and object agreement
 combination together, never tried before -- fixed along the way); and the fake planner's closed
-middle/antipassive verb lists are a bit wider (pass 31). See `architecture/OVERVIEW.md`.
+middle/antipassive verb lists are a bit wider (pass 31); comparison follow-ups, second round -- a
+negative degree ("less big [than Y]", "least big") and a sufficiency degree ("big enough", the one
+degree word that follows the adjective rather than precedes it); an equative's own standard case,
+rolled independently of the comparative's; and a wider fake-planner adjective list (pass 32); a
+topicalized sentence ("as for the cat, it sleeps") fronts the topic and marks it with a dedicated
+particle where the language has one, dropping the main clause's resumptive subject (pass 33). See
+`architecture/OVERVIEW.md`.
 
 **Subordination follow-ups (done, pass 28); still missing (S-M):** an "oblique_pp" relative
 clause has no resumptive-pronoun fallback (real-world "beyond reach" reach limiting only
@@ -286,14 +292,13 @@ isn't"); habitual/experiential possession ("I have to"); the English
 direction relies on the fluency prompt note rather than recognizing the
 construction itself.
 
-**Comparison follow-ups (done, pass 21); still missing (S):** the equative, excessive and elative
-share the comparative's machinery (a suffix or the adverb "as"/"too"/"very", one shared standard
-strategy); no "as ... as" with a different standard case, no "not as big as" beyond a plain
-negation, no "so big that ..." result clauses, no "enough"/"less"/"least" (a negative degree), no
-comparison of quantities beyond the word "more" ("three times as big" is left to the planner); an
-adverb only takes a degree suffix in the languages that roll `adverb_degree`; "the more..., the
-more..." is the pass-14 correlative with a fake-planner shape for exactly that sentence; the fake
-planner's adjective list is about 90 words.
+**Comparison follow-ups (done, pass 21 + pass 32); still missing (S):** no "not as big as" beyond a
+plain negation, no "so big that ..." result clauses (a genuinely new subordinate-clause construction
+-- the "that" linker would collide with the existing complementizer and correlative-relative uses of
+that same surface word in the fake planner), no comparison of quantities beyond the word "more"
+("three times as big" is left to the planner); an adverb only takes a degree suffix in the languages
+that roll `adverb_degree`; "the more..., the more..." is the pass-14 correlative with a fake-planner
+shape for exactly that sentence; the fake planner's adjective list is about 125 words.
 
 **Noun phrase (passes 17-19 done; the list is cleared apart from these smaller gaps):**
 suppletion covers only the irregular past of about a dozen verbs (no suppletive present/participle
@@ -326,15 +331,23 @@ English word; class assignment is by gender or a hash of the gloss; an infix goe
 before the last vowel only. Decoding an unknown token in a language with infixed verbs can still take a few seconds. The plural,
 imperative and question-particle forms do not yet evolve with `sound_change` (S).
 
-**Discourse (optional, L):** topic/focus and information structure, pro-drop
-and ellipsis, politeness/honorific registers (uses `social_hierarchy`),
-reported speech, idioms.
+**Discourse (topic/focus done, pass 33; optional, L otherwise):** a topicalized sentence ("as for the
+cat, it sleeps") fronts the topic noun phrase, marks it with a dedicated particle in the languages
+that rolled one, and drops the main clause's own resumptive subject pronoun -- subject-coreferent
+topics only, a bare topic noun phrase only (no adjectives/numerals/possessors on it), no focus/cleft
+constructions ("it is X that..."), no cross-sentence topic continuity. See `architecture/OVERVIEW.md`.
+Still missing: pro-drop and ellipsis beyond today's morphological (within-sentence, agreement-driven)
+kind -- no discourse-driven, cross-sentence ellipsis; politeness/honorific registers beyond today's
+`honorific_you` pronoun and verb-politeness suffix (uses `social_hierarchy`) -- no referent-honorific
+verb stems or distinct vocabulary registers; reported speech beyond today's tense backshift -- no
+quotative particles/evidentials specific to reported speech; idioms (`Idiom`/`with_new_idiom` exist as
+types but nothing generates one).
 
-**Wiring existing traits (M each):** `social_hierarchy`,
-`evidentiality_culture`, `spatial_reference`, `ritual_register`,
+**Wiring existing traits (M each):** `evidentiality_culture`, `spatial_reference`, `ritual_register`,
 `taboo_register`, `terrain_communication_distance`,
 `salient_vocabulary_domains` are extracted and stored but consumed by
-nothing (`orality_literacy` only affects evolution's orthography reform).
+nothing (`orality_literacy` only affects evolution's orthography reform; `social_hierarchy` is
+consumed -- it raises the probability a language rolls `honorific_you` at all, see `pronoun_gen.py`).
 Word order is not trait-linked (S). Matched-language grammar bias is partial:
 `real_word_order`, `real_alignment`, `real_has_articles`, ... exist for ~16
 of ~50 profiles, and `morphological_type` has no matched-language bias (M).

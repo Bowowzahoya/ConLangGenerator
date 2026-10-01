@@ -144,10 +144,16 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   comitative cases join languages whose adposition strategy uses cases; an attributive demonstrative may
   be a reduced clitic (`this-article`) and may be doubled with the definite article; the specific
   article agrees like the other articles.
-- **Degrees are illustrative**: comparative, superlative, equative ("as big as"), excessive ("too big") and
-  elative ("very big") are each a suffix or an adverb word, rolled per language; the standard of a comparison is
-  "than", a case (ablative, locative, dative or genitive), or the verb "exceed" (an equative always uses "as" or the case).
-  Adverbs take a degree suffix only in some languages; "more" of a noun is just the word "more".
+- **Degrees are illustrative**: comparative, superlative, equative ("as big as"), excessive ("too big"),
+  elative ("very big"), the negative degree ("less big [than Y]", "least big") and sufficiency ("big
+  enough", the one degree word that follows the adjective rather than precedes it) are each a suffix or
+  an adverb word, rolled per language (the negative degree shares its positive counterpart's own
+  marking choice rather than rolling its own). The standard of a comparison is "than", a case (ablative,
+  locative, dative or genitive), or the verb "exceed"; an equative's own standard case is rolled
+  independently of the comparative's, falling back to it when not otherwise set. Adverbs take a degree
+  suffix only in some languages; "more" of a noun is just the word "more"; there is no "not as big as"
+  beyond plain negation, no "so big that..." result clause, and no comparison of quantities beyond the
+  word "more" ("three times as big" is left to the planner).
 - **Paradigms are illustrative**: a language may have up to three extra declensions, two extra conjugations and two
   adjective classes, each changing some of the case/number/possession, tense/agreement/aspect/mood/voice or degree/class
   suffixes (the rest are shared, sometimes by a patterned syncretism such as accusative = nominative), and a few irregular
@@ -244,6 +250,14 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   plan, not through the fake planner's free text; gapping and right-node raising are
   each represented by simply omitting a slot from the plan, detected in the fake
   planner only from the written comma convention ("I eat rice, and she, beans.").
+- **Topicalization is subject-coreferent and the topic noun phrase is bare**: "as for the cat, it
+  sleeps" fronts the topic and marks it with a dedicated particle in the languages that rolled one
+  (otherwise unmarked, like Mandarin); the main clause's own resumptive subject is dropped. No
+  object/oblique-coreferent topics ("as for the cat, I saw it"), no adjectives/numerals/possessors on
+  the topic noun itself, no focus/cleft constructions ("it is X that..."), no cross-sentence topic
+  continuity -- each sentence is still planned and translated independently. Without a particle,
+  decode has no signal left to recover "this was a topic" from -- it reads back as an ordinary fronted
+  subject.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

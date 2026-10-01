@@ -183,7 +183,8 @@ def _fake_group_noun_phrases(raw_tokens: list[str]) -> tuple[list[str], dict[str
             elif (
                 word in _FAKE_ADJECTIVES and j + 1 < len(raw_tokens)
                 and (raw_tokens[j + 1] in _FAKE_ADJECTIVES or raw_tokens[j + 1] not in _FAKE_NOT_A_NOUN)
-                and not _fake_is_adverb(raw_tokens[j + 1]) and raw_tokens[j + 1] not in ("than", "and", "as", "too", "very")
+                and not _fake_is_adverb(raw_tokens[j + 1])
+                and raw_tokens[j + 1] not in ("than", "and", "as", "too", "very", "enough", "less", "least")
             ):
                 mods.setdefault("adjectives", []).append(word)
             else:
@@ -516,8 +517,9 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         name_by_placeholder,
         {
             "equative": metadata.get("equative_marking", "word"), "excessive": metadata.get("excessive_marking", "word"),
-            "elative": metadata.get("elative_marking", "word"),
+            "elative": metadata.get("elative_marking", "word"), "sufficiency": metadata.get("sufficiency_marking", "word"),
         },
+        metadata.get("equative_standard_case", ""),
     )
     voice_slots = None if (existence_slots is not None or degree_slots is not None) else _fake_voice_slots(
         tokens, metadata, voices, postpositional, word_order, alignment, tenses, noun_phrase, base_of,
@@ -795,6 +797,10 @@ _FAKE_KNOWN_ADJECTIVES = {
     "big", "small", "high", "low", "long", "short", "old", "new", "young", "good", "bad", "large", "tall", "wide",
     "narrow", "strong", "weak", "fast", "slow", "hot", "cold", "heavy", "light", "beautiful", "happy", "dark", "deep",
     "thick", "thin", "rich", "poor", "clean", "dirty", "near", "far", "wise", "brave", "quiet", "loud",
+    "wild", "tame", "gentle", "fierce", "broad", "sturdy", "fragile", "plain", "ancient", "modern", "noisy",
+    "silent", "pure", "bold", "wicked", "gloomy", "cheerful", "stale", "shallow", "solid", "loose", "tight",
+    "straight", "crooked", "salty", "spicy", "mild", "cowardly", "generous", "greedy", "lazy", "diligent",
+    "polite", "rude", "friendly", "hostile",
 }
 _FAKE_IRREGULAR_DEGREES = {
     "better": ("good", "comparative"), "best": ("good", "superlative"),
@@ -826,14 +832,24 @@ def _fake_degree_of(token: str) -> tuple[str, str] | None:
     return None
 
 
+_FAKE_DEGREE_WORD_GLOSS = {
+    "comparative": "more", "superlative": "most", "equative": "as", "excessive": "too", "elative": "very",
+    "comparative_negative": "less", "superlative_negative": "least", "sufficiency": "enough",
+}
+
+
 def _fake_degree_slots(
     tokens, tenses, has_overt_copula, strategy, comparative_case, comparative_marking, superlative_marking,
     postpositional, word_order, alignment, noun_phrase, base_of, noun_classes, name_by_placeholder, marks=None,
+    equative_standard_case="",
 ):
     """Plans "X is bigger/more beautiful than Y", "X is more beautiful" and
     "X is the biggest/most beautiful" as ``subject + copula + adjective
     [+ standard]``, marking the degree and the standard per the language's own
-    strategy; ``None`` when the tokens are not of that shape."""
+    strategy; ``None`` when the tokens are not of that shape. Also plans the
+    negative degree ("less big [than Y]", "least big") and sufficiency ("big
+    enough" -- the one degree word that follows the adjective, not precedes
+    it)."""
     copula_index = next((i for i, t in enumerate(tokens) if t in _FAKE_COPULAS), None)
     if copula_index is None or copula_index != 1 or len(tokens) < 3:
         return None
@@ -851,6 +867,8 @@ def _fake_degree_slots(
         lemma, degree, standard_tok = rest[1], "equative", rest[3]
     elif len(rest) == 2 and rest[0] == "too" and rest[1] in _FAKE_KNOWN_ADJECTIVES:
         lemma, degree = rest[1], "excessive"
+    elif len(rest) == 2 and rest[1] == "enough" and rest[0] in _FAKE_KNOWN_ADJECTIVES:
+        lemma, degree = rest[0], "sufficiency"
     elif (
         len(rest) == 2 and rest[0] == "very" and rest[1] in _FAKE_KNOWN_ADJECTIVES and marks.get("elative") == "affix"
     ):
@@ -864,12 +882,17 @@ def _fake_degree_slots(
         found = _fake_degree_of(head[-1])
         if len(head) >= 2 and head[-2] == "more":
             lemma, degree = head[-1], "comparative"
+        elif len(head) >= 2 and head[-2] == "less":
+            lemma, degree = head[-1], "comparative_negative"
         elif found is not None and found[1] == "comparative":
             lemma, degree = found
         else:
             return None
-    elif len(rest) == 2 and rest[0] in ("more", "most"):
-        lemma, degree = rest[1], "comparative" if rest[0] == "more" else "superlative"
+    elif len(rest) == 2 and rest[0] in ("more", "most", "less", "least"):
+        degree = {
+            "more": "comparative", "most": "superlative", "less": "comparative_negative", "least": "superlative_negative",
+        }[rest[0]]
+        lemma = rest[1]
     elif len(rest) == 1 and _fake_degree_of(rest[0]):
         lemma, degree = _fake_degree_of(rest[0])
     else:
@@ -880,6 +903,8 @@ def _fake_degree_slots(
         "comparative": comparative_marking, "superlative": superlative_marking,
         "equative": marks.get("equative", "word"), "excessive": marks.get("excessive", "word"),
         "elative": marks.get("elative", "affix"),
+        "comparative_negative": comparative_marking, "superlative_negative": superlative_marking,
+        "sufficiency": marks.get("sufficiency", "word"),
     }[degree]
     if degree == "equative" and strategy == "exceed":
         strategy = "particle"  # no verb "exceed" for an equality
@@ -892,14 +917,13 @@ def _fake_degree_slots(
     adjective_group: list[dict] = []
     if marking == "affix":
         adjective["degree"] = degree
+        adjective_group.append(adjective)
     else:
-        adjective_group.append(
-            {
-                "kind": "content", "pos": "adverb",
-                "gloss": {"comparative": "more", "superlative": "most", "equative": "as", "excessive": "too", "elative": "very"}[degree],
-            }
-        )
-    adjective_group.append(adjective)
+        word_slot = {"kind": "content", "pos": "adverb", "gloss": _FAKE_DEGREE_WORD_GLOSS[degree]}
+        if degree == "sufficiency":
+            adjective_group.extend([adjective, word_slot])  # "big enough": the word follows
+        else:
+            adjective_group.extend([word_slot, adjective])
 
     def agrees(slot: dict) -> dict:
         slot["agreement"] = "default"
@@ -918,8 +942,17 @@ def _fake_degree_slots(
     standard_phrase: list[dict] = []
     if standard_tok is not None:
         object_case = "accusative" if alignment == "nominative_accusative" else None
-        if strategy == "case" and comparative_case:
-            standard_phrase = noun_phrase(standard_tok, comparative_case)
+        # An equative's own standard case is rolled independently of the
+        # comparative's; an older saved language (or one whose roll didn't
+        # switch it) falls back to sharing the comparative's, the original
+        # behavior.
+        effective_case = (
+            (equative_standard_case or (comparative_case if strategy == "case" else None))
+            if degree == "equative"
+            else (comparative_case if strategy == "case" else None)
+        )
+        if effective_case:
+            standard_phrase = noun_phrase(standard_tok, effective_case)
         elif strategy == "exceed":
             verb = [agrees({"kind": "content", "gloss": "exceed", "pos": "verb"})]
             standard_np = noun_phrase(standard_tok, object_case)
@@ -1512,6 +1545,9 @@ def _fake_plan_dict(prompt: str, metadata: dict[str, str]) -> dict:
     the_more = re.match(r"\s*the more\s+(.+?)\s*,\s*the more\s+(.+?)\s*([.!?]?)\s*$", prompt, re.IGNORECASE)
     if the_more:
         return _fake_the_more_plan(the_more, metadata)
+    topic_match = re.match(r"\s*as for\s+(.+?)\s*,\s*(.+?)\s*([.!?]?)\s*$", prompt, re.IGNORECASE)
+    if topic_match:
+        return _fake_topic_plan(topic_match, metadata)
     coordination_chain = _fake_coordination_chain_plan(prompt, metadata)
     if coordination_chain:
         return coordination_chain
@@ -1592,6 +1628,32 @@ def _fake_the_more_plan(match, metadata: dict[str, str]) -> dict:
     main = with_more(match.group(2) + terminal)
     clause = {"kind": "clause", "gloss": "the-more", "role": "adverbial", "clause": {"slots": nested["slots"]}}
     return {"mood": main["mood"], "slots": main["slots"] + [clause]}
+
+
+def _fake_topic_plan(match, metadata: dict[str, str]) -> dict:
+    """"As for the cat, it sleeps": the topic noun phrase is planned as its
+    own "topic"-role clause slot (no verb), placed first. Deliberately a
+    bare noun only (optionally plural, optionally with "the") -- the richer
+    modifier-grouping machinery (``noun_phrase``/``build_np``) is a closure
+    local to ``_fake_single_clause_plan`` and not reusable standalone here.
+    The main clause's own resumptive subject pronoun is left in this plan
+    as an ordinary pronoun; the renderer drops it
+    (``translator._dropped_topic_resumptive_pronouns``), not this function."""
+    has_articles = metadata.get("has_articles") == "true"
+    topic_tokens = _fake_tokenize(match.group(1))
+    has_article = bool(topic_tokens) and topic_tokens[0] in _FAKE_ARTICLES
+    if has_article:
+        topic_tokens = topic_tokens[1:]
+    noun_tok = topic_tokens[-1] if topic_tokens else match.group(1).strip().lower()
+    singular = _fake_singular(noun_tok)
+    noun_slot: dict = {"kind": "content", "gloss": singular or noun_tok, "pos": "noun"}
+    if singular:
+        noun_slot["number"] = "plural"
+    topic_slots = ([{"kind": "article"}] if has_article and has_articles else []) + [noun_slot]
+    terminal = match.group(3) or "."
+    remainder = _fake_plan_dict(match.group(2) + terminal, metadata)
+    topic_clause = {"kind": "clause", "role": "topic", "clause": {"slots": topic_slots}}
+    return {"mood": remainder["mood"], "slots": [topic_clause] + list(remainder["slots"])}
 
 
 def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:

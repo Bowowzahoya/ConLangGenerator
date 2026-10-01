@@ -1143,9 +1143,19 @@ _OBJECT_PERSON_BY_GLOSS = pronoun_gen.PERSON_BY_GLOSS
 
 
 def grammar_now_case(language: Language) -> str | None:
-    """The case that marks the standard of a comparison, or ``None``."""
+    """The case that marks the standard of a comparative (or negative-comparative)
+    comparison, or ``None``."""
     grammar = language.grammar
     return grammar.comparative_case if grammar.comparative_strategy == "case" and grammar.comparative_case else None
+
+
+def _equative_now_case(language: Language) -> str | None:
+    """The case that marks an equative's own standard -- its own independent
+    roll, falling back to ``grammar_now_case`` for an older saved language
+    (or one whose own roll didn't switch it away from sharing the
+    comparative's), the original, shared behavior."""
+    grammar = language.grammar
+    return grammar.equative_standard_case or grammar_now_case(language)
 
 
 def _class_gloss(gloss: str) -> str:
@@ -2123,6 +2133,38 @@ def _arrange_correlative_adverbials(language: Language, slots) -> tuple:
     return tuple(front + correlates[:1] + out)
 
 
+def _arrange_topic(language: Language, slots) -> tuple:
+    """Moves a "topic"-role clause slot to the very front of the sentence
+    (the fake planner already puts it there; a real LLM's own plan might
+    not). Topic fronting itself is universal here -- only the particle
+    (handled in ``_render_plan``, not here) depends on the grammar."""
+    out = list(slots)
+    for i, slot in enumerate(out):
+        if slot.kind == "clause" and slot.role == "topic" and i != 0:
+            out.insert(0, out.pop(i))
+            break
+    return tuple(out)
+
+
+def _dropped_topic_resumptive_pronouns(language: Language, slots) -> set[int]:
+    """When the plan has a "topic"-role clause slot, the main clause's own
+    subject pronoun -- coreferent with the fronted topic -- is dropped
+    unconditionally: the topic itself identifies the referent, the same
+    reasoning already used for impersonal-subject dropping
+    (``_dropped_impersonal_subjects``). Object/oblique-coreferent topics
+    are out of scope, so the first subject-case-shaped pronoun found is
+    always the right one."""
+    if not any(s.kind == "clause" and s.role == "topic" for s in slots):
+        return set()
+    for index, slot in enumerate(slots):
+        if (
+            slot.kind == "content" and slot.pos == "pronoun" and not slot.possessive
+            and slot.case in (None, "nominative", "ergative")
+        ):
+            return {index}
+    return set()
+
+
 def _reduce_conjunct(main_slots, clause) -> sentence_planner.SentencePlan:
     """Conjunction reduction: the second conjunct drops a subject pronoun that
     repeats the first clause's own subject pronoun."""
@@ -2253,11 +2295,13 @@ def _render_plan(
     slots = _arrange_coordination(language, slots)
     slots = _arrange_relatives(language, slots)
     slots = _arrange_correlative_adverbials(language, slots)
+    slots = _arrange_topic(language, slots)
     slots = _with_classifiers(language, _normalize_possessives(language, slots))
     main_mood = _main_clause_mood(language, slots)
     dropped_pronouns = _dropped_subject_pronouns(language, slots)
     dropped_pronouns = dropped_pronouns | _dropped_object_pronouns(language, slots, dropped_pronouns)
     dropped_pronouns = dropped_pronouns | _dropped_impersonal_subjects(language, slots)
+    dropped_pronouns = dropped_pronouns | _dropped_topic_resumptive_pronouns(language, slots)
     negative_verbs, prohibitive_verbs, dropped_negations = _negation_absorption(
         language, slots, plan.mood == "imperative"
     )
@@ -2285,6 +2329,11 @@ def _render_plan(
             working_language, nested_rom, nested_ipa, nested_gloss = _render_plan(
                 nested_plan, working_language, llm_client, coined, nested_mood, nested_tense, nested_case
             )
+            if slot.role == "topic" and working_language.grammar.topic_particle:
+                particle_ipa = working_language.grammar.topic_particle
+                nested_rom = nested_rom + [working_language.romanization.apply(particle_ipa)]
+                nested_ipa = nested_ipa + [particle_ipa]
+                nested_gloss = nested_gloss + [None]
             linker_words: list[tuple[str, str, str | None]] = []
             if pied_piped_prep:
                 working_language, prep_entry = _lookup_or_coin(
@@ -3150,10 +3199,23 @@ def translate_to_english(
     particle_form = _normalize(language.romanization.apply(particle_ipa)) if particle_ipa else None
     possessive_ipa = language.grammar.possessive_particle
     possessive_form = _normalize(language.romanization.apply(possessive_ipa)) if possessive_ipa else None
+    topic_ipa = language.grammar.topic_particle
+    topic_form = _normalize(language.romanization.apply(topic_ipa)) if topic_ipa else None
+
+    def is_topic_marked(index: int) -> bool:
+        """Whether the token right after ``tokens[index]`` is the topic
+        particle -- the only signal decode has for "this noun was the
+        sentence's fronted topic" (a bare noun may reach either the
+        direct-lexicon-entry branch below or ``_decode_noun``, so both call
+        this)."""
+        return topic_form is not None and index + 1 < len(tokens) and _normalize(tokens[index + 1]) == topic_form
+
     is_question = False
     is_imperative = False
     seen_persons: set[str] = set()  # persons named by a pronoun already decoded in this sentence
     for token_index, tok in enumerate(tokens):
+        if topic_form is not None and _normalize(tok) == topic_form and language.lexicon.by_form(tok) is None:
+            continue  # already folded into the preceding noun's "as for"/"(topic)" (see below)
         if particle_form is not None and _normalize(tok) == particle_form and language.lexicon.by_form(tok) is None:
             is_question = True
             continue
@@ -3201,8 +3263,9 @@ def translate_to_english(
             if person is not None:
                 seen_persons.add(person)
             reading = pronoun_gen.english_reading(gloss)
-            plain.append(reading)
-            annotated.append(reading)
+            topic_marked = entry.pos == PartOfSpeech.NOUN and is_topic_marked(token_index)
+            plain.append(f"as for {reading}" if topic_marked else reading)
+            annotated.append(f"{reading} (topic)" if topic_marked else reading)
             continue
         noun_decoded = _decode_noun(language, tok)
         if noun_decoded is not None:
@@ -3227,12 +3290,22 @@ def translate_to_english(
             noun_plain = {"trial": f"three {noun_plain}", "collective": f"group of {noun_plain}"}.get(number_part, noun_plain)
             if case_part in voice_np_gen.CASE_PREPOSITION:
                 standard_word = None
-                if grammar_now_case(language) == case_part:  # the standard of a comparison
-                    if any(p.startswith("as ") and p.endswith(" as") for p in plain):
-                        standard_word = "as"
-                    elif any(p == "more" or p.startswith("more ") or p.startswith("most ") for p in plain):
-                        standard_word = "than"
+                if case_part == grammar_now_case(language) and any(
+                    p in ("more", "less") or p.startswith(("more ", "most ", "less ", "least "))
+                    for p in plain
+                ):
+                    standard_word = "than"
+                elif case_part == _equative_now_case(language) and any(
+                    p == "as" or (p.startswith("as ") and p.endswith(" as")) for p in plain
+                ):
+                    # "as" alone (a word-marked equative's own adverb slot) or
+                    # the combined "as big as" (an affix-marked equative's
+                    # DEGREE_READING, all one plain-text entry).
+                    standard_word = "as"
                 noun_plain = f"{standard_word or voice_np_gen.CASE_PREPOSITION[case_part]} {noun_plain}"
+            noun_topic_marked = is_topic_marked(token_index)
+            if noun_topic_marked:
+                noun_plain = f"as for {noun_plain}"
             plain.append(noun_plain)
             notes = (
                 ([number_part] if number_part else [])
@@ -3240,6 +3313,7 @@ def translate_to_english(
                 + ([f"possessed by: {'the subject (his/her/its own)' if possessor_part == 'self' else possessor_part}"]
                    if possessor_part else [])
                 + ([f"case: {case_part}"] if case_part else [])
+                + (["topic"] if noun_topic_marked else [])
             )
             annotated.append(noun_gloss if not notes else f"{noun_gloss} ({', '.join(notes)})")
             continue
@@ -3369,14 +3443,16 @@ def translate_to_english(
             "annotated with '(plural)'/'(dual)' (render the noun plural or with 'two'), '(trial)' (three of them) "
             "or '(collective)' (a group of them), "
             "'(possessed)' (owned by the preceding word), 'of' (a possessive marker between an "
-            "owner and the thing owned), '(mood: imperative)' "
+            "owner and the thing owned), '(topic)' (this noun is the sentence's topic -- render as "
+            "'As for X, ...' or integrate it naturally), '(mood: imperative)' "
             "(a command), '(case: X)' (this word's grammatical role -- "
             "e.g. an accusative/absolutive/ergative-marked word is "
             "typically a direct object; locative means 'in/on/at' the word, instrumental 'with/by' it, ablative 'from', allative 'to/into', comitative 'together with') or '(tense: X)', '(aspect: X)', '(mood: X)' or '(voice: X)' (a verb's "
             "detected tense, aspect, verbal mood or voice -- render them as the matching English "
             "tense, progressive/perfect/habitual aspect, would/can/might, or a passive (the patient "
             "is the subject, the agent follows 'by'), antipassive (no object) or causative (make X do)). "
-            "A '(comparative)', '(superlative)', '(equative)' (as X as), '(excessive)' (too X) or '(elative)' (very X) "
+            "A '(comparative)', '(superlative)', '(equative)' (as X as), '(excessive)' (too X), '(elative)' (very X), "
+            "'(comparative_negative)' (less X), '(superlative_negative)' (least X) or '(sufficiency)' (X enough) "
             "on an adjective or adverb is its degree. "
             "An '(evidential: X)' marks the source of the information "
             "(reportedly, apparently, or first-hand) and '(negative)' means the verb is negated. "

@@ -1344,3 +1344,44 @@ conlang translate "I cook for him." --lang s16 --to conlang --llm fake
 back as `one dances`. `s16` renders "I cook for him." as `mipap yiyadusu-am`: the beneficiary "him" is
 pro-dropped (recoverable from the verb's own object agreement, exactly like an ordinary object would
 be), and it reads back correctly as `I cook for him`.
+
+**Comparison follow-ups, second round.** A negative degree ("less big [than Y]", "least big") and a
+sufficiency degree ("big enough" -- the one degree word that follows the adjective, not precedes it);
+an equative's own standard case, rolled independently of the comparative's. Verified with `--llm fake`
+on `--seed 3 --prompt p` as `s18` (sufficiency as a suffix, negative degree as a word) and
+`--seed 39 --prompt p` as `s17` (the equative's own case, different from the comparative's own
+particle strategy):
+
+```bash
+conlang translate "The dog is big enough." --lang s18 --to conlang --llm fake
+conlang translate "The dog is less big than the cat." --lang s18 --to conlang --llm fake
+conlang translate "The dog is as big as the cat." --lang s17 --to conlang --llm fake
+conlang translate "The dog is bigger than the cat." --lang s17 --to conlang --llm fake
+```
+
+`s18`'s "big enough" renders as one suffixed word (`stazaumbu:k`, against the bare `stazu:k` for "big"
+alone) and reads back as `dog is big enough`; "less big than the cat" reads back as `dog is less big
+than cat`. `s17` marks the equative's own standard with the locative case (rolled independently) while
+the comparative, in the very same language, still uses the particle "than" -- `bigger than the cat`
+renders with a separate `than`-glossed word and reads back as `dog is more big than cat`, while
+"as big as the cat" carries no such word at all, the standard instead taking the locative case, and
+reads back (via the plain, not-yet-fluent decode text) as `dog is as cat big`.
+
+**Topic/focus and information structure (Discourse follow-up).** "As for the cat, it sleeps" is a
+topicalized sentence: the topic noun phrase is fronted and, in a language that rolled one, followed by
+a dedicated topic particle; the main clause's own subject pronoun, coreferent with the topic, is
+dropped. Verified with `--llm fake` on `--seed 2 --prompt p` as `s19` (has a topic particle) and
+`--seed 1 --prompt p` as `s20` (fronts the topic but marks it with nothing, like Mandarin):
+
+```bash
+conlang translate "As for the cat, it sleeps." --lang s19 --to conlang --llm fake
+conlang translate "As for the cat, it sleeps." --lang s20 --to conlang --llm fake
+```
+
+`s19` renders it as `sīyoi knaỉ kne féyeoiaa`, reading back as `as for cat sleep` -- the particle
+(`kne`) is recognized on decode and prepended as "as for"; the resumptive subject is gone from both
+the render and the reading (recovered instead from the verb's own agreement, same as any other
+pro-dropped subject). `s20` renders it as `hapx hailx yozluyar`, reading back as `cat sleep` -- the
+topic noun is still fronted (ahead of the verb, exactly as in `s19`) but, with no particle to recognize,
+decode has no signal that it was ever a topic rather than an ordinary subject -- a documented
+limitation of the unmarked strategy, not a bug.

@@ -65,6 +65,8 @@ def test_comparison_strategies_and_markings_are_all_rolled():
             for label, marking in (
                 ("comparative", g.comparative_marking), ("superlative", g.superlative_marking),
                 ("equative", g.equative_marking), ("excessive", g.excessive_marking), ("elative", g.elative_marking),
+                ("sufficiency", g.sufficiency_marking),
+                ("comparative_negative", g.comparative_marking), ("superlative_negative", g.superlative_marking),
             )
             if marking == "affix"
         ]

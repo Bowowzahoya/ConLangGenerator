@@ -349,6 +349,14 @@ class GrammarProfile(BaseModel, frozen=True):
     particle (a standalone word, not an affix). Empty means the language
     marks no yes/no questions (a language saved before this field existed). See ``translation.translator`` for where it
     is placed."""
+    topic_particle: str = ""
+    """The IPA of this language's own free topic particle ("as for the cat,
+    ..." -- Japanese -wa, Korean -neun), placed directly after a fronted
+    topic noun phrase. Empty (a language saved before this field existed,
+    or one whose roll didn't give it one) means the topic is still fronted
+    but left unmarked -- realistic: many topic-prominent languages (e.g.
+    Mandarin) have no dedicated topic particle at all, relying on position
+    alone."""
     aspects: tuple[str, ...] = ()
     """This language's own aspect labels (empty: no aspect marking) -- a
     system separate from ``tenses``. Either two-way (``perfective``,
@@ -650,6 +658,16 @@ class GrammarProfile(BaseModel, frozen=True):
     """"very big": a suffix (``affix``) or the adverb "very" (``word``)."""
     adverb_degree: bool = False
     """An adverb takes a degree suffix too ("more quickly") where the language has one."""
+    sufficiency_marking: str = "word"
+    """"big enough": a suffix (``affix``) or the adverb "enough" (``word``, following the
+    adjective -- the one degree whose word comes after it, not before)."""
+    equative_standard_case: str = ""
+    """The case an equative's own standard ("as big AS Y") takes, rolled
+    independently of ``comparative_case`` -- empty: an older saved language
+    (this field's own default), or one where the roll didn't switch it, falls
+    back to ``comparative_case`` when ``comparative_strategy == "case"``
+    (the original, shared behavior); otherwise the standard is the particle
+    "as"."""
 
     pattern_cells: tuple[PatternCell, ...] = ()
     """Cells a root-and-pattern language marks by a vowel pattern rather than (only) an affix."""
