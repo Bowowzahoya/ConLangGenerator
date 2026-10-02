@@ -5550,3 +5550,68 @@ reading code or one-off ad hoc scripts.
   survives two *successive* evolution steps unchanged -- the multi-generation case the CLI's own print
   can't reach on its own; a seed-search test confirming `real_word` is cleared specifically on a
   borrowed/replaced entry, not on an ordinary sound-changed one).
+
+- **Orthography reform is partial -- spelling-pronunciation drift (grammar pass 42).**
+  `docs/DEFERRED.md`'s "Orthography reform is partial (M)" item. `evolve_romanization`
+  (`generation/romanization_gen.py`) already modeled two real diachronic forces per symbol: reform
+  (drop + regenerate a symbol's own spelling rule) and freeze (keep it verbatim -- why real
+  orthographies get silent letters, e.g. Dutch "berg" [bɛrx] still spelled "g"). Missing: a third real
+  phenomenon where a letter's own *written form* stays exactly the same while its *conventional
+  reading* quietly reassigns to a nearby sound, with no formal reform event (real Latin "c" -- always
+  /k/ -- came to be read /s/ before front vowels purely by reinterpretation, not a spelling reform;
+  English "gh" similarly drifted from a real consonant to silence).
+
+  Confirmed via research before designing: this project has **zero existing notion** of "a spelling's
+  own customary reading, independent of a word's authoritative stored `ipa`." `RomanizationRule`
+  (`core/romanization.py`) is strictly `ipa -> latin`, one-directional, never reversed anywhere in the
+  codebase; a word's `entry.ipa` is the sole authoritative pronunciation, and `entry.romanization` is
+  always freshly re-derived from `(scheme, entry.ipa)` on every evolution call. This rules out
+  preserving an *individual already-written word's* old fossilized spelling independent of its current
+  sound (no such second, tracked quantity exists anywhere, and adding one would be a materially bigger
+  architectural change) -- what the fix *can* do, within the existing one-directional architecture, is
+  make the **scheme itself** reassign a grapheme's own meaning, with the natural, already-existing
+  consequence that every word still pronouncing the *old* symbol gets a freshly-reformed spelling this
+  same run (exactly how ordinary `reform` already behaves for any symbol). This captures the real
+  phenomenon's visible effect (a letter's meaning changes) honestly within the project's existing
+  "spelling is always freshly computed" design, short of a genuinely bigger rewrite -- documented as a
+  real scope limit in `docs/LIMITATIONS.md`, not glossed over.
+
+  **Mechanism**: a new `_OrthographyRates.reading_drift` field (`sound_change.py`), its own
+  `_ORTHOGRAPHY_HALF_LIVES["reading_drift"] = 350.0` (between `reform`'s 500 -- rarer, deliberate -- and
+  the existing cosmetic grapheme-simplification `drift`'s 200 -- this is quieter and more gradual than
+  a formal reform but still a slow, centuries-scale reinterpretation), computed via the same
+  `-traits.orality_literacy` link `reform` already uses (a well-taught written norm is exactly what
+  keeps a letter's own conventional reading stable, the same force that keeps formal reform rare).
+  Threaded into `evolve_romanization`'s new `reading_drift_rate: float = 0.0` parameter (default keeps
+  every existing call byte-identical).
+
+  In the per-symbol loop, a symbol that would otherwise *freeze* gets one further, independent roll:
+  if it fires, its own rule(s) -- a symbol with multiple old context-conditioned rules moves as one
+  group, the same "never split" discipline reform already uses -- keep their `latin` spelling exactly,
+  but their `ipa` key reassigns to a same-class nearest neighbor still in the new inventory
+  (`phoneme_fit.neighbours`, promoted from the previously-private `_neighbours` -- the exact same
+  nearby-sound-substitution machinery `deviate_ipa` already uses for an analogous purpose, no new
+  distance code needed; the one existing internal caller's own local variable, confusingly also named
+  `neighbours`, was renamed `nearby` to avoid shadowing the newly-public function). The *vacated*
+  original symbol needs its own rule now -- handled by a small two-pass structure: the main loop tracks
+  which symbols "drifted away," then a short cleanup pass generates a fresh rule (via the exact same
+  `_rules_for_symbol` reform already calls) for any drifted-away symbol not already covered by some
+  *other* symbol's own inbound drift. That "already covered" check (by `ipa` value, not by object
+  identity) is deliberate, not incidental: it lets a short reassignment chain (symbol A's old grapheme
+  ends up serving symbol B, which itself later drifts away too) resolve correctly for free, without any
+  cascading/recursive logic -- confirmed via a 200-seed sweep that no inventory symbol is ever left
+  without a rule, including seeds that produce exactly this kind of chain.
+
+  **Explicitly deferred**: context-conditioned drift (real Latin c/s is conditioned on a following
+  front vowel, not a flat reassignment) -- a materially bigger, more linguistically precise
+  undertaking; preventing two different symbols' own independently-generated replacement graphemes
+  from coincidentally colliding on the same letter -- an existing risk ordinary reform already has, not
+  one this introduces, so left unguarded the same way.
+
+  Tests: `tests/test_romanization_gen.py` (`reading_drift_rate=0.0` byte-identical to omitting it
+  entirely; a drifted symbol's grapheme moves to a *different* ipa key while the vacated original stays
+  covered; zero dropped symbols across 200 seeds; a lone vowel with no same-class neighbor always
+  keeps its own spelling, confirming the "no neighbor, freeze instead" fallback). `tests/test_sound_change.py`
+  (`orality_literacy` moves `reading_drift` the same direction as the existing `reform` rate; a real
+  evolved language's romanization still covers every phoneme in its final inventory across 10 seeds at
+  a long time depth and low literacy, where reading drift is near-certain to fire at least once).

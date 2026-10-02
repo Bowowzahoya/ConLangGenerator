@@ -323,6 +323,17 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   doesn't track the exact-vs-deviated distinction evolution's own `notes` tag used to carry either (both
   kinds just get the same literal real-source form/ipa) -- only `notes` still distinguishes "real word"
   from "real-based word," and only until the first evolution step overwrites it.
+- **Reading drift is a flat symbol reassignment, not phonetically context-conditioned.** Real Latin "c"
+  drifted to /s/ specifically before front vowels, keeping /k/ before back vowels -- this project's own
+  `reading_drift_rate` reassigns a symbol's whole rule-group unconditionally, the same "reformed or kept
+  as a whole group, never split" discipline ordinary reform already uses. Every *existing* word still
+  pronouncing the vacated symbol gets re-spelled with its own fresh replacement grapheme this same
+  evolution run -- no word's own spelling is ever tracked independently of its current `ipa` + the
+  current scheme (true of ordinary reform too, not specific to drift), so there's no simulation of old
+  written words keeping a fossilized spelling while new ones follow the reassigned convention. Two
+  different symbols' own freshly-generated replacement graphemes can coincidentally collide (pick the
+  same letter) -- an existing risk `_rules_for_symbol` already has for ordinary reform, not newly
+  introduced here.
 
 ## Classifier
 

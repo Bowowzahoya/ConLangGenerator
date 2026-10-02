@@ -479,5 +479,25 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   comparison when set; the web UI's lexicon table and its `real_words` count switched from
   the old `notes`-prefix check (which evolution already overwrote, silently undercounting
   after one evolution step) to this new, evolution-proof field.
-- **Orthography reform is partial (M).** Only rate-driven; no
-  spelling-pronunciation drift.
+- **Orthography reform is partial -- done (pass 42).** `evolve_romanization`
+  already modeled reform (drop + regenerate a symbol's own spelling rule) and
+  freeze (keep it verbatim, why real orthographies get silent letters); now adds
+  the third real force, *reading drift*: a letter's own written form stays
+  exactly the same while its conventional reading quietly reassigns to a nearby
+  symbol, with no formal reform event (real Latin "c" originally /k/, later read
+  /s/ before front vowels; English "gh" drifting from a real consonant to
+  silence). New `reading_drift_rate` (own `_ORTHOGRAPHY_HALF_LIVES["reading_drift"]`
+  half-life, same `-orality_literacy` link `reform` already uses): a symbol that
+  would otherwise freeze gets one further roll; if it fires, its own rule(s)
+  keep their spelling but move to a same-class nearest neighbor
+  (`phoneme_fit.neighbours`, promoted public, the same nearby-sound machinery
+  `deviate_ipa` already used); the vacated original symbol gets a freshly
+  generated rule of its own (same helper reform already calls), so the scheme
+  stays total -- confirmed never dropping a symbol across 200+ seeds, including
+  chained reassignments. Honestly scoped: this is a flat symbol reassignment,
+  not phonetically context-conditioned (real Latin c/s is conditioned on a
+  following front vowel), and every *existing* word still pronouncing the
+  vacated symbol gets re-spelled this same run -- this project tracks no word's
+  own spelling independent of its current `ipa` + the current scheme, for any
+  word, drifted or not (true of ordinary reform today too, not a new
+  limitation).

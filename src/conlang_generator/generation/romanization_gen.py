@@ -116,7 +116,7 @@ from conlang_generator.core.romanization import (
     ToneMarkingStrategy,
     VowelLengthStrategy,
 )
-from conlang_generator.generation import sonority
+from conlang_generator.generation import phoneme_fit, sonority
 from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles_weighted
 from conlang_generator.generation.trait_bias import biased_probability
 
@@ -1731,6 +1731,7 @@ def evolve_romanization(
     source_languages: tuple[str, ...] = (),
     reform_rate: float = 0.0,
     drift_rate: float = 0.0,
+    reading_drift_rate: float = 0.0,
     forced_orthography: OrthographyForce = OrthographyForce(),
     strictness: float = 0.0,
     source_language_weights: tuple[float, ...] = (),
@@ -1753,13 +1754,29 @@ def evolve_romanization(
     discrete events (Dutch's own history: 1804, 1863, 1946/47, 1996, 2005),
     not a continuous process.
 
+    A symbol that would otherwise freeze gets one further, independent
+    roll at ``reading_drift_rate``: real *spelling-pronunciation drift*
+    (unlike ``reform``, no new grapheme is invented, and unlike freeze,
+    the rule's own `ipa` key -- not its `latin` spelling -- is what
+    moves: the written form "k" stays exactly "k", but it now renders a
+    *different*, nearby symbol going forward, real Latin "c" originally
+    /k/ later read /s/ before front vowels, or English "gh" drifting from
+    a real consonant to silence, both with no spelling reform at all).
+    The vacated original symbol (here, the real /k/) gets its own fresh
+    rule the same way a reformed symbol would -- every existing word still
+    pronouncing it gets re-spelled with that fresh grapheme this same run,
+    the identical downstream consequence an ordinary reform already has
+    (this project tracks no word's own spelling independent of its
+    current `ipa` + the current scheme, for any word, drifted or not).
+
     ``drift_rate`` then independently rolls, per *rule* in the resulting
     scheme, whether ``_apply_orthography_drift`` simplifies its grapheme --
-    again decided once per symbol, not per word. Reform and drift run as
-    two separate passes (not interleaved per symbol) specifically so that
-    varying one rate alone, at a fixed seed, doesn't perturb the rng draws
-    the other pass consumes -- each stays independently comparable, same
-    reasoning as ``sound_change.py``'s same-seed-monotonicity tests.
+    again decided once per symbol, not per word. Reform, reading drift,
+    and (cosmetic) drift run as separate passes (not interleaved per
+    symbol) specifically so that varying one rate alone, at a fixed seed,
+    doesn't perturb the rng draws the other passes consume -- each stays
+    independently comparable, same reasoning as ``sound_change.py``'s
+    same-seed-monotonicity tests.
 
     ``forced_orthography`` behaves exactly as it does in
     ``generate_romanization``, except reference-profile/prompt bias is
@@ -1787,17 +1804,39 @@ def evolve_romanization(
     effective_strictness = strictness if weighted_profiles else 0.0
     structural = _structural_rules(category, new_inventory)
 
+    def fresh_rules_for(symbol: str) -> list[RomanizationRule]:
+        return _rules_for_symbol(
+            symbol, reference, reference_weight_by_symbol, structural, category, weighted_profiles, rng, effective_strictness
+        )
+
     rules: list[RomanizationRule] = []
+    drifted_away: set[str] = set()
     for symbol in new_inventory.all_symbols():
+        if symbol in drifted_away:
+            continue  # this symbol's own rule(s) already moved to serve another symbol below
         keep_old = symbol in old_by_ipa and rng.random() >= reform_rate
+        if keep_old and rng.random() < reading_drift_rate:
+            targets = phoneme_fit.neighbours(symbol, new_inventory)
+            if targets:
+                target = rng.choice(targets)
+                rules.extend(rule.model_copy(update={"ipa": target}) for rule in old_by_ipa[symbol])
+                drifted_away.add(symbol)
+                continue
+            keep_old = True  # no same-class neighbour to drift onto (e.g. a lone vowel) -- freeze instead
         if keep_old:
             rules.extend(old_by_ipa[symbol])
         else:
-            rules.extend(
-                _rules_for_symbol(
-                    symbol, reference, reference_weight_by_symbol, structural, category, weighted_profiles, rng, effective_strictness
-                )
-            )
+            rules.extend(fresh_rules_for(symbol))
+
+    # A symbol whose own rule(s) drifted away needs a fresh one of its own
+    # -- unless it already inherited coverage from a *different* symbol's
+    # own drift targeting it (checked by `ipa`, not by identity: a short
+    # reassignment chain, one symbol's old grapheme now serving another,
+    # is a real, acceptable outcome, not a bug to prevent).
+    covered = {rule.ipa for rule in rules}
+    for symbol in drifted_away:
+        if symbol not in covered:
+            rules.extend(fresh_rules_for(symbol))
 
     rules = [
         rule.model_copy(update={"latin": _apply_orthography_drift(rule.latin, rng, drift_rate)})

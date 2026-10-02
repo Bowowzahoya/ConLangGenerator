@@ -533,6 +533,12 @@ _ORTHOGRAPHY_HALF_LIVES = {
     # change, so freeze dominates by default, especially at short `years`.
     "reform": 500.0,
     "drift": 200.0,
+    # Spelling-pronunciation drift (real Latin "c" originally always /k/,
+    # later read /s/ before front vowels; English "gh" drifting from a real
+    # consonant to silence) -- quieter and more gradual than a formal
+    # reform, but still a slow, centuries-scale reinterpretation, not the
+    # faster, purely cosmetic grapheme-simplification "drift" above.
+    "reading_drift": 350.0,
     # Glottochronology's commonly-cited retention rate for stable core
     # vocabulary (~80-86% per 1000 years) implies a half-life on the order
     # of 3200-4700 years -- this is the *default*-tier (verb/adjective)
@@ -546,6 +552,7 @@ _ORTHOGRAPHY_HALF_LIVES = {
 class _OrthographyRates:
     reform: float
     drift: float
+    reading_drift: float
 
 
 def _compute_orthography_rates(years: int, traits: TraitProfile) -> _OrthographyRates:
@@ -554,6 +561,10 @@ def _compute_orthography_rates(years: int, traits: TraitProfile) -> _Orthography
         # the reform rate -- standardization is why spelling freezes.
         reform=_saturating_rate(years, _ORTHOGRAPHY_HALF_LIVES["reform"], -traits.orality_literacy),
         drift=_saturating_rate(years, _ORTHOGRAPHY_HALF_LIVES["drift"], traits.contact_intensity),
+        # Same literacy link as reform -- a well-taught written norm is
+        # exactly what keeps a letter's own conventional reading stable,
+        # the same force that keeps formal reform rare.
+        reading_drift=_saturating_rate(years, _ORTHOGRAPHY_HALF_LIVES["reading_drift"], -traits.orality_literacy),
     )
 
 
@@ -2007,6 +2018,7 @@ def evolve_language(
     romanization = romanization_gen.evolve_romanization(
         base.romanization, inventory, rng, lineage_languages,
         reform_rate=orthography_rates.reform, drift_rate=orthography_rates.drift,
+        reading_drift_rate=orthography_rates.reading_drift,
         forced_orthography=forced_orthography,
         strictness=traits.source_language_strictness,
         source_language_weights=lineage_weights,

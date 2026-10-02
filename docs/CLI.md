@@ -310,6 +310,22 @@ modes:
   usual; the same reading also drives the evolution period's character,
   since there's only one prompt to read from.
 
+**Spelling-pronunciation drift** (low `orality_literacy`, a long enough
+time depth) can also reassign a letter's own conventional reading with no
+formal spelling reform -- the written form itself never changes, only
+which sound it's understood to represent going forward:
+
+```bash
+conlang generate --prompt p --name drift-base --seed 2 --llm fake
+conlang generate --name drift-evolved --evolve-from drift-base --years 2000 \
+  --seed 1 --prompt "oral tradition" --trait orality_literacy=-0.95 --llm fake
+```
+
+Inspecting both saved languages' own `romanization.rules` (no CLI flag
+prints this directly) shows the letter "k" -- which spelled /k/ in
+`drift-base` -- now spells the ejective /kʼ/ in `drift-evolved`, with no
+reform having touched either symbol's own grapheme.
+
 Leaving `--years` blank uses the time depth the prompt itself implies
 (e.g. "evolved forward 200 years"); `--years 0` with `--evolve-from`
 evolves nothing (a no-op round trip, useful for testing).

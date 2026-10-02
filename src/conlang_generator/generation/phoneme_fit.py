@@ -183,9 +183,13 @@ def _fix_final(
     return coda_start + 1, False
 
 
-def _neighbours(symbol: str, inventory: PhonemeInventory, count: int = 3) -> list[str]:
+def neighbours(symbol: str, inventory: PhonemeInventory, count: int = 3) -> list[str]:
     """The ``count`` inventory phonemes nearest ``symbol`` (same class),
-    excluding ``symbol`` itself."""
+    excluding ``symbol`` itself. Public (promoted from ``_neighbours``) --
+    shared with ``generation/romanization_gen.py``'s own "reading drift"
+    mechanism, the same nearby-sound-substitution idea ``deviate_ipa``
+    already uses below, just picking a target grapheme to reassign rather
+    than a target sound to pronounce."""
     if symbol in _VOWEL_BY_IPA or symbol in {v.ipa for v in inventory.vowels}:
         source = _VOWEL_BY_IPA.get(symbol)
         pool = [v for v in inventory.vowels if v.ipa != symbol]
@@ -211,8 +215,8 @@ def deviate_ipa(
     for symbol in symbols:
         mapped, is_vowel = _nearest(symbol, inventory)
         if rng.random() < probability:
-            neighbours = _neighbours(mapped, inventory)
-            if neighbours:
-                mapped = rng.choice(neighbours)
+            nearby = neighbours(mapped, inventory)
+            if nearby:
+                mapped = rng.choice(nearby)
         tokens.append((mapped, is_vowel))
     return _repair(tokens, inventory, structure)

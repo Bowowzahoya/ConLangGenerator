@@ -263,6 +263,71 @@ def test_evolve_romanization_reform_rate_one_always_regenerates():
     assert by_ipa["ʃ"] != "zzq"  # old rule dropped, regenerated fresh instead of inherited
 
 
+def _kxt_scheme_and_inventory():
+    consonants = (
+        Consonant(ipa="k", place=Place.VELAR, manner=Manner.STOP, voiced=False),
+        Consonant(ipa="x", place=Place.VELAR, manner=Manner.FRICATIVE, voiced=False),
+        Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False),
+    )
+    vowels = (Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False),)
+    inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
+    scheme = RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="k", latin="k"),
+            RomanizationRule(ipa="x", latin="kh"),
+            RomanizationRule(ipa="t", latin="t"),
+            RomanizationRule(ipa="a", latin="a"),
+        )
+    )
+    return scheme, inventory
+
+
+def test_reading_drift_rate_zero_is_byte_identical_to_no_reading_drift_at_all():
+    scheme, inventory = _kxt_scheme_and_inventory()
+    without_param = evolve_romanization(scheme, inventory, random.Random(5), reform_rate=0.0)
+    with_zero = evolve_romanization(scheme, inventory, random.Random(5), reform_rate=0.0, reading_drift_rate=0.0)
+    assert without_param == with_zero
+
+
+def test_reading_drift_reassigns_an_old_graphemes_own_ipa_key_leaving_its_spelling_untouched():
+    # Real spelling-pronunciation drift: the written form "k" survives
+    # unchanged, but it now renders a *different* nearby symbol going
+    # forward -- and the vacated original symbol (/k/ itself) still gets
+    # its own rule, so the scheme stays total.
+    scheme, inventory = _kxt_scheme_and_inventory()
+    evolved = evolve_romanization(scheme, inventory, random.Random(5), reform_rate=0.0, reading_drift_rate=1.0)
+    by_ipa: dict[str, list[str]] = {}
+    for rule in evolved.rules:
+        by_ipa.setdefault(rule.ipa, []).append(rule.latin)
+    # Every symbol in the inventory is still covered by at least one rule.
+    for symbol in inventory.all_symbols():
+        assert symbol in by_ipa, (symbol, by_ipa)
+    # The grapheme "k" moved to mean a different symbol than it used to.
+    assert "k" not in by_ipa["k"]
+    assert any("k" in graphemes for ipa, graphemes in by_ipa.items() if ipa != "k")
+
+
+def test_reading_drift_never_drops_an_inventory_symbol_across_many_seeds():
+    scheme, inventory = _kxt_scheme_and_inventory()
+    for seed in range(200):
+        evolved = evolve_romanization(scheme, inventory, random.Random(seed), reform_rate=0.0, reading_drift_rate=1.0)
+        covered = {rule.ipa for rule in evolved.rules}
+        for symbol in inventory.all_symbols():
+            assert symbol in covered, (seed, symbol, covered)
+
+
+def test_reading_drift_only_targets_a_same_class_neighbour():
+    scheme, inventory = _kxt_scheme_and_inventory()
+    for seed in range(50):
+        evolved = evolve_romanization(scheme, inventory, random.Random(seed), reform_rate=0.0, reading_drift_rate=1.0)
+        by_ipa: dict[str, list[str]] = {}
+        for rule in evolved.rules:
+            by_ipa.setdefault(rule.ipa, []).append(rule.latin)
+        # "a" is the only vowel -- it has no same-class neighbour to drift
+        # onto, so it must always keep its own original spelling.
+        assert by_ipa["a"] == ["a"]
+
+
 def test_every_pool_symbol_has_a_deliberate_mapping_in_every_style_table():
     # Regression guard: no phoneme should fall through to a raw, non-Latin
     # IPA glyph in any of the three exotic-symbol style tables.

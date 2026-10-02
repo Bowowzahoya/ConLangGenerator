@@ -543,6 +543,31 @@ def test_orality_literacys_existing_orthography_effect_and_new_rule_effect_both_
     assert sound_change._compute_rates(100, traits).lenition > sound_change._compute_rates(100, neutral).lenition
 
 
+def test_orality_literacy_moves_reading_drift_the_same_direction_as_reform():
+    # Spelling-pronunciation drift (docs/DEFERRED.md's "Orthography reform
+    # is partial" item): a well-taught written norm is the same force that
+    # keeps both a formal reform and a letter's own conventional reading
+    # stable -- one trait, two related but independent orthography rates.
+    oral = sound_change._compute_orthography_rates(100, TraitProfile(orality_literacy=-0.8))
+    neutral = sound_change._compute_orthography_rates(100, TraitProfile())
+    literate = sound_change._compute_orthography_rates(100, TraitProfile(orality_literacy=0.8))
+    assert oral.reading_drift > neutral.reading_drift > literate.reading_drift
+
+
+def test_evolved_languages_romanization_still_covers_every_phoneme_with_reading_drift_active():
+    # End-to-end coverage guard: evolve a real language at a long enough
+    # time depth and low enough orality_literacy to make reading drift
+    # near-certain, and confirm no phoneme in the final inventory is left
+    # without a spelling rule.
+    base = _base_language()
+    traits = TraitProfile(orality_literacy=-0.95)
+    for seed in range(10):
+        evolved = evolve_language("Evolved", base, 2000, traits, seed)
+        covered = {rule.ipa for rule in evolved.romanization.rules}
+        for symbol in evolved.phonology.all_symbols():
+            assert symbol in covered, (seed, symbol)
+
+
 def test_tonal_friendliness_and_terrain_communication_distance_both_resist_vowel_reduction():
     generic = sound_change._compute_rates(100, TraitProfile())
     tonal = sound_change._compute_rates(100, TraitProfile(tonal_friendliness=0.8))
