@@ -5615,3 +5615,48 @@ reading code or one-off ad hoc scripts.
   (`orality_literacy` moves `reading_drift` the same direction as the existing `reform` rate; a real
   evolved language's romanization still covers every phoneme in its final inventory across 10 seeds at
   a long time depth and low literacy, where reading drift is near-certain to fire at least once).
+
+- **Orthography reform follow-up: an unaffected existing word keeps its own old spelling through reading
+  drift (same grammar pass 42).** User follow-up directly asking to close the gap the pass above had
+  just documented as an explicit limitation: "every existing word still pronouncing the vacated symbol
+  gets re-spelled this same run... no simulation of old written words keeping a fossilized spelling
+  while new ones follow the reassigned convention." Confirmed the real-world asymmetry that makes this
+  tractable without a bigger rewrite: a genuine, deliberate *reform* really does retroactively re-spell
+  every existing word (dictionaries get updated); *reading drift* is a quiet reinterpretation nobody is
+  actively enforcing, so an already-written word whose own sound never moved has no real-world reason to
+  look any different. The fix only needs the caller to tell the two apart per word, not a general
+  per-word spelling-history mechanism.
+
+  `evolve_romanization`'s return type changed from `RomanizationScheme` to `tuple[RomanizationScheme,
+  frozenset[str]]` -- the second element is every symbol touched by drift this call, from *either* side
+  of a reassignment: the already-tracked `drifted_away` (the symbol that lost its own grapheme) *and* a
+  new `drift_targets` (the symbol that received a donated one, which could just as easily outweigh/
+  replace whatever spelling it already had). Missing the target side initially made the fix's own first
+  draft noticeably rarer to trigger in practice (confirmed via a quick seed sweep before writing the
+  real test: searching for a seed that actually produces a frozen entry) -- adding it roughly doubled
+  the observed hit rate (e.g. ~50% of seeds at years=300/`orality_literacy=-0.95`, up from a source-only
+  version), since either side of one reassignment can now protect an affected existing word.
+
+  `evolve_language`'s entry-rebuild loop (the "same word, sound-changed" branch) checks the returned set
+  *before* its existing reform/unchanged/conventional comparison: if the word's own sound is unaffected
+  this run (`final_ipa == entry.ipa`, the same condition the pre-existing "unchanged" path already uses)
+  *and* its own `spelling_ipa` uses a drift-touched symbol, its spelling freezes exactly where it was
+  (`notes: "orthography: pre-drift"`) -- skipping the reform/unreformed comparison entirely, since the
+  whole point is to *not* re-render through the new scheme. Every other path (borrowed, replaced, a
+  word whose own sound did move, or a word untouched by drift at all) is completely unaffected -- this
+  is a new, narrow carve-out ahead of the existing logic, not a rewrite of it.
+
+  All ~11 existing callers of `evolve_romanization` (the one production call site plus direct test
+  calls) needed updating to unpack the new tuple return -- mechanical, `evolved, _ = ...` where the
+  second value wasn't needed, following this project's own "returns `(value, auxiliary)` when there's
+  real auxiliary info to report" precedent (`_evolve_ipa`, `_evolve_tone_system`).
+
+  Tests: `tests/test_romanization_gen.py`'s existing reading-drift tests updated to also assert on the
+  returned set directly (e.g. a known-drifted symbol is actually named in it, and the set never contains
+  anything outside the inventory); `tests/test_sound_change.py` adds a seed-searched end-to-end test
+  confirming a real "pre-drift" entry keeps `ipa`/`romanization` byte-identical to its pre-evolution
+  values (years=150 was empirically found to produce this far more reliably than the original pass's own
+  years=2000 example -- a *shorter* time depth leaves more words' own sounds genuinely unaffected by
+  actual sound change, which is exactly the population this fix targets; a very long time depth leaves
+  almost nothing unaffected, since `orality_literacy` -- needed to make drift likely -- also speeds up
+  the six segmental rules themselves via this session's own earlier "rules are generic" pass).

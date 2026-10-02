@@ -1735,7 +1735,7 @@ def evolve_romanization(
     forced_orthography: OrthographyForce = OrthographyForce(),
     strictness: float = 0.0,
     source_language_weights: tuple[float, ...] = (),
-) -> RomanizationScheme:
+) -> tuple[RomanizationScheme, frozenset[str]]:
     """Orthographic inertia for sound-changed languages, decided per
     *symbol* rather than per word -- so every word sharing a symbol gets
     the exact same spelling for it, the way a real spelling convention
@@ -1787,6 +1787,20 @@ def evolve_romanization(
     matching the "carried forward, not re-rolled" behavior described
     above -- a force is still honored, as a deliberate, user-triggered
     reform.
+
+    Returns ``(scheme, reading_drifted)`` -- the second element is every
+    symbol touched by reading drift this call, from *either* side of a
+    reassignment: the *source* (its own old grapheme now spells something
+    else) and the *target* (it just inherited an extra, donated spelling
+    alternative it didn't have before) -- empty whenever
+    ``reading_drift_rate`` never fires. The caller
+    (``sound_change.evolve_language``) uses it to tell a genuine *reform*
+    (which legitimately re-spells every existing word using the affected
+    symbol, the same way a real deliberate reform would) apart from mere
+    *reading drift* (which should not retroactively re-spell an existing
+    word whose own sound never moved -- only a word's own old grapheme's
+    newly-reassigned meaning should affect *future* coinages, not force
+    already-written words into the new convention).
     """
     old_by_ipa: dict[str, list[RomanizationRule]] = {}
     for rule in base_scheme.rules:
@@ -1811,6 +1825,7 @@ def evolve_romanization(
 
     rules: list[RomanizationRule] = []
     drifted_away: set[str] = set()
+    drift_targets: set[str] = set()
     for symbol in new_inventory.all_symbols():
         if symbol in drifted_away:
             continue  # this symbol's own rule(s) already moved to serve another symbol below
@@ -1821,6 +1836,7 @@ def evolve_romanization(
                 target = rng.choice(targets)
                 rules.extend(rule.model_copy(update={"ipa": target}) for rule in old_by_ipa[symbol])
                 drifted_away.add(symbol)
+                drift_targets.add(target)
                 continue
             keep_old = True  # no same-class neighbour to drift onto (e.g. a lone vowel) -- freeze instead
         if keep_old:
@@ -1837,6 +1853,15 @@ def evolve_romanization(
     for symbol in drifted_away:
         if symbol not in covered:
             rules.extend(fresh_rules_for(symbol))
+
+    # Both sides of a drift touch an existing word's own likely spelling:
+    # the *source* symbol (its own old grapheme now spells something
+    # else, so an existing word using it needs a freshly-generated
+    # replacement grapheme) and the *target* symbol (it just inherited an
+    # extra, donated spelling alternative it didn't have before, which
+    # could just as easily outweigh/replace whatever it already had). The
+    # caller freezes an unaffected existing word's own spelling for either.
+    reading_drifted = frozenset(drifted_away | drift_targets)
 
     rules = [
         rule.model_copy(update={"latin": _apply_orthography_drift(rule.latin, rng, drift_rate)})
@@ -1880,7 +1905,7 @@ def evolve_romanization(
     nucleus_coda_spellings = _evolve_joint_field(base_scheme.nucleus_coda_spellings, "nucleus_coda_spellings")
 
     vowel_symbols, legal_onset_clusters, vowel_backness, vowel_length = _scheme_context(new_inventory)
-    return RomanizationScheme(
+    scheme = RomanizationScheme(
         rules=tuple(rules),
         vowel_symbols=vowel_symbols,
         legal_onset_clusters=legal_onset_clusters,
@@ -1902,3 +1927,4 @@ def evolve_romanization(
         consonant_gemination_marked=category.consonant_gemination_marked,
         grammatical_spelling=base_scheme.grammatical_spelling,
     )
+    return scheme, reading_drifted

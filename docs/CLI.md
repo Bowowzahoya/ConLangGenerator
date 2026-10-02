@@ -317,14 +317,25 @@ which sound it's understood to represent going forward:
 
 ```bash
 conlang generate --prompt p --name drift-base --seed 2 --llm fake
-conlang generate --name drift-evolved --evolve-from drift-base --years 2000 \
-  --seed 1 --prompt "oral tradition" --trait orality_literacy=-0.95 --llm fake
+conlang generate --name drift-evolved --evolve-from drift-base --years 300 \
+  --seed 2 --prompt p --trait orality_literacy=-0.95 --llm fake
 ```
 
-Inspecting both saved languages' own `romanization.rules` (no CLI flag
-prints this directly) shows the letter "k" -- which spelled /k/ in
-`drift-base` -- now spells the ejective /kʼ/ in `drift-evolved`, with no
-reform having touched either symbol's own grapheme.
+No CLI flag prints the romanization scheme's own rules directly, but
+inspecting both saved languages' own `romanization.rules` confirms the
+letter "k" -- which spelled /k/ in `drift-base` -- now spells the ejective
+/kʼ/ in `drift-evolved`, with no reform having touched either symbol's own
+grapheme.
+
+An *existing* word whose own sound didn't move keeps its own old spelling
+through this -- it's not swept into the new convention, only future
+coinages are. The CLI's own evolve-print can't show this distinctly from
+an ordinary unchanged word (both print with `=`), but the entry's own
+`notes` field does: here, "I" (`gaì`) stays spelled exactly `gaì` and is
+tagged `orthography: pre-drift`, since the vowel it uses just received a
+drifted-in alternative spelling this run -- its own sound never moved, so
+it keeps its historical spelling rather than possibly rendering with the
+new alternative.
 
 Leaving `--years` blank uses the time depth the prompt itself implies
 (e.g. "evolved forward 200 years"); `--years 0` with `--evolve-from`

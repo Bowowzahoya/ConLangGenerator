@@ -2015,7 +2015,7 @@ def evolve_language(
     # twice surfaced.
     final_ipas = _refit_rejected_symbols(final_ipas, final_reconstruction_symbols, inventory, syllable_structure)
     spelling_ipas = _refit_rejected_symbols(spelling_ipas, final_reconstruction_symbols, inventory, syllable_structure)
-    romanization = romanization_gen.evolve_romanization(
+    romanization, reading_drifted = romanization_gen.evolve_romanization(
         base.romanization, inventory, rng, lineage_languages,
         reform_rate=orthography_rates.reform, drift_rate=orthography_rates.drift,
         reading_drift_rate=orthography_rates.reading_drift,
@@ -2042,6 +2042,20 @@ def evolve_language(
     # protects a real or curated spelling exception the general rule table
     # can't capture, the same "why real orthographies end up with silent
     # letters" freeze `evolve_romanization` already models per symbol.
+    #
+    # Reading drift (`reading_drifted`) is deliberately excluded from that
+    # "reform touches every word" treatment: unlike a genuine reform (a
+    # deliberate, uniform convention change real orthographies really do
+    # retroactively apply to every existing word), reading drift is a
+    # *quiet* reinterpretation nobody is actively enforcing -- a word
+    # already written down, whose own sound never moved, has no reason to
+    # suddenly change how it's spelled just because some symbol it uses
+    # happens to have drifted. Checked first, before the reform/unchanged/
+    # conventional comparison below: if the word's own sound is unaffected
+    # *and* it uses a symbol that drifted this run, its spelling freezes
+    # exactly where it was -- only a *newly coined* word (the replaced/
+    # borrowed branches above, or any future generation) actually follows
+    # the drifted convention.
     evolved_entries = []
     for i, (entry, final_ipa) in enumerate(zip(base.lexicon.entries, final_ipas)):
         root: tuple[str, ...] | None = entry.root
@@ -2074,15 +2088,20 @@ def evolve_language(
             # devoicing this run should still spell as its pre-devoicing
             # voiced form (Dutch "berg" [bɛrx], spelled "g").
             spelling_ipa = spelling_ipas[i]
-            latin = apply_grammatical_spelling(romanization, romanization.apply(spelling_ipa), entry.pos)
-            unreformed = apply_grammatical_spelling(base.romanization, base.romanization.apply(spelling_ipa), entry.pos)
-            if latin != unreformed:
-                path = "reformed"
-            elif final_ipa == entry.ipa:
+            spelling_symbols = frozenset(ipa_tokenizer.symbols_only(spelling_ipa, final_reconstruction_symbols))
+            if final_ipa == entry.ipa and spelling_symbols & reading_drifted:
                 latin = entry.romanization
-                path = "unchanged"
+                path = "pre-drift"
             else:
-                path = "conventional"
+                latin = apply_grammatical_spelling(romanization, romanization.apply(spelling_ipa), entry.pos)
+                unreformed = apply_grammatical_spelling(base.romanization, base.romanization.apply(spelling_ipa), entry.pos)
+                if latin != unreformed:
+                    path = "reformed"
+                elif final_ipa == entry.ipa:
+                    latin = entry.romanization
+                    path = "unchanged"
+                else:
+                    path = "conventional"
         update = {
             "ipa": final_ipa, "romanization": latin, "notes": f"orthography: {path}",
             "root": root, "word_class": word_class, "real_word": real_word,

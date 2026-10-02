@@ -479,7 +479,7 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   comparison when set; the web UI's lexicon table and its `real_words` count switched from
   the old `notes`-prefix check (which evolution already overwrote, silently undercounting
   after one evolution step) to this new, evolution-proof field.
-- **Orthography reform is partial -- done (pass 42).** `evolve_romanization`
+- **Orthography reform is partial -- done (pass 42, +follow-up).** `evolve_romanization`
   already modeled reform (drop + regenerate a symbol's own spelling rule) and
   freeze (keep it verbatim, why real orthographies get silent letters); now adds
   the third real force, *reading drift*: a letter's own written form stays
@@ -496,8 +496,22 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   stays total -- confirmed never dropping a symbol across 200+ seeds, including
   chained reassignments. Honestly scoped: this is a flat symbol reassignment,
   not phonetically context-conditioned (real Latin c/s is conditioned on a
-  following front vowel), and every *existing* word still pronouncing the
-  vacated symbol gets re-spelled this same run -- this project tracks no word's
-  own spelling independent of its current `ipa` + the current scheme, for any
-  word, drifted or not (true of ordinary reform today too, not a new
-  limitation).
+  following front vowel).
+
+  **Follow-up, same pass**: the original version re-spelled every *existing*
+  word still pronouncing a drift-affected symbol this same run -- fine for a
+  genuine reform (real deliberate reforms really do apply retroactively), wrong
+  for mere reading drift (nobody is actively enforcing anything, so an
+  already-written word has no reason to suddenly look different). Fixed:
+  `evolve_romanization` now returns `(scheme, reading_drifted)` -- every symbol
+  touched by drift this call, from either side of a reassignment (the symbol
+  that lost its own grapheme, *and* the symbol that received a donated one).
+  `evolve_language`'s entry-rebuild loop checks this first: a word whose own
+  sound didn't change this run *and* uses a drift-touched symbol keeps its
+  exact old spelling (`notes: "orthography: pre-drift"`) rather than being
+  re-rendered through the new scheme -- only a newly-coined/replaced word, or
+  one whose own sound genuinely moved, follows the new convention. This project
+  still tracks no word's own spelling independent of its current `ipa` + the
+  current scheme for any *other* kind of change (true of ordinary reform
+  today, unchanged) -- reading drift specifically is now the one exception
+  that respects an existing, unaffected word's own history.

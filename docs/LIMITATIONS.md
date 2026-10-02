@@ -326,14 +326,15 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
 - **Reading drift is a flat symbol reassignment, not phonetically context-conditioned.** Real Latin "c"
   drifted to /s/ specifically before front vowels, keeping /k/ before back vowels -- this project's own
   `reading_drift_rate` reassigns a symbol's whole rule-group unconditionally, the same "reformed or kept
-  as a whole group, never split" discipline ordinary reform already uses. Every *existing* word still
-  pronouncing the vacated symbol gets re-spelled with its own fresh replacement grapheme this same
-  evolution run -- no word's own spelling is ever tracked independently of its current `ipa` + the
-  current scheme (true of ordinary reform too, not specific to drift), so there's no simulation of old
-  written words keeping a fossilized spelling while new ones follow the reassigned convention. Two
-  different symbols' own freshly-generated replacement graphemes can coincidentally collide (pick the
-  same letter) -- an existing risk `_rules_for_symbol` already has for ordinary reform, not newly
-  introduced here.
+  as a whole group, never split" discipline ordinary reform already uses. An *existing* word whose own
+  sound didn't move keeps its own old spelling through a drift (`notes: "orthography: pre-drift"`) --
+  only a newly-coined/replaced word, or one whose sound genuinely changed this run, follows the
+  reassigned convention; this still isn't a general "every word remembers its own historical spelling"
+  mechanism, just the one path (reading drift specifically) where an unaffected existing word's spelling
+  is deliberately protected -- an ordinary *reform* still legitimately re-spells every existing word
+  using the affected symbol (matching how real deliberate reforms actually work). Two different symbols'
+  own freshly-generated replacement graphemes can coincidentally collide (pick the same letter) -- an
+  existing risk `_rules_for_symbol` already has for ordinary reform, not newly introduced here.
 
 ## Classifier
 

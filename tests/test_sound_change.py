@@ -568,6 +568,36 @@ def test_evolved_languages_romanization_still_covers_every_phoneme_with_reading_
             assert symbol in covered, (seed, symbol)
 
 
+def test_an_existing_word_keeps_its_own_old_spelling_when_only_reading_drift_touched_it():
+    # The nuance explicitly deferred when reading drift first landed: a
+    # genuine *reform* legitimately re-spells every existing word using
+    # the affected symbol (real spelling reforms work that way), but
+    # reading drift is a quiet reinterpretation nobody is actively
+    # enforcing -- an already-written word whose own sound never moved
+    # has no reason to suddenly look different. Seed-searched (this
+    # file's own established convention) for a run that actually produces
+    # a "pre-drift" entry, since reading drift's own rate is derived from
+    # traits, not directly settable through the public evolve_language API.
+    base = _base_language()
+    traits = TraitProfile(orality_literacy=-0.95)
+    frozen_case = None
+    for seed in range(15):
+        evolved = evolve_language("Evolved", base, 150, traits, seed)
+        for old, new in zip(base.lexicon.entries, evolved.lexicon.entries):
+            if new.notes == "orthography: pre-drift":
+                frozen_case = (old, new)
+                break
+        if frozen_case:
+            break
+    assert frozen_case is not None, "no seed in range produced a pre-drift entry -- test would be vacuous"
+    old, new = frozen_case
+    # The word's own sound is unaffected (that's exactly the condition
+    # that triggers this path) and its spelling is kept byte-for-byte,
+    # not re-rendered through the drifted scheme.
+    assert new.ipa == old.ipa
+    assert new.romanization == old.romanization
+
+
 def test_tonal_friendliness_and_terrain_communication_distance_both_resist_vowel_reduction():
     generic = sound_change._compute_rates(100, TraitProfile())
     tonal = sound_change._compute_rates(100, TraitProfile(tonal_friendliness=0.8))

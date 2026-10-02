@@ -222,7 +222,7 @@ def test_evolve_romanization_keeps_old_rules_for_surviving_symbols():
             Vowel(ipa="ə", height=VowelHeight.MID, backness=VowelBackness.CENTRAL, rounded=False),
         ),
     )
-    evolved = evolve_romanization(base_scheme, new_inventory, random.Random(1))
+    evolved, _ = evolve_romanization(base_scheme, new_inventory, random.Random(1))
     by_ipa = {rule.ipa: rule.latin for rule in evolved.rules}
 
     assert by_ipa["ʃ"] == "š"  # inherited verbatim, not re-rolled
@@ -243,7 +243,7 @@ def test_evolve_romanization_uses_the_scheme_s_default_exotic_symbol_style_when_
             Vowel(ipa="ə", height=VowelHeight.MID, backness=VowelBackness.CENTRAL, rounded=False),
         ),
     )
-    evolved = evolve_romanization(base_scheme, new_inventory, random.Random(1))
+    evolved, _ = evolve_romanization(base_scheme, new_inventory, random.Random(1))
     by_ipa = {rule.ipa: rule.latin for rule in evolved.rules}
     assert by_ipa["ə"] == "e"  # digraph style, the scheme's own default
 
@@ -258,7 +258,7 @@ def test_evolve_romanization_reform_rate_one_always_regenerates():
         consonants=(Consonant(ipa="ʃ", place=Place.POSTALVEOLAR, manner=Manner.FRICATIVE, voiced=False),),
         vowels=(),
     )
-    evolved = evolve_romanization(base_scheme, new_inventory, random.Random(1), reform_rate=1.0)
+    evolved, _ = evolve_romanization(base_scheme, new_inventory, random.Random(1), reform_rate=1.0)
     by_ipa = {rule.ipa: rule.latin for rule in evolved.rules}
     assert by_ipa["ʃ"] != "zzq"  # old rule dropped, regenerated fresh instead of inherited
 
@@ -284,9 +284,12 @@ def _kxt_scheme_and_inventory():
 
 def test_reading_drift_rate_zero_is_byte_identical_to_no_reading_drift_at_all():
     scheme, inventory = _kxt_scheme_and_inventory()
-    without_param = evolve_romanization(scheme, inventory, random.Random(5), reform_rate=0.0)
-    with_zero = evolve_romanization(scheme, inventory, random.Random(5), reform_rate=0.0, reading_drift_rate=0.0)
+    without_param, without_drifted = evolve_romanization(scheme, inventory, random.Random(5), reform_rate=0.0)
+    with_zero, with_zero_drifted = evolve_romanization(
+        scheme, inventory, random.Random(5), reform_rate=0.0, reading_drift_rate=0.0
+    )
     assert without_param == with_zero
+    assert without_drifted == with_zero_drifted == frozenset()
 
 
 def test_reading_drift_reassigns_an_old_graphemes_own_ipa_key_leaving_its_spelling_untouched():
@@ -295,7 +298,7 @@ def test_reading_drift_reassigns_an_old_graphemes_own_ipa_key_leaving_its_spelli
     # forward -- and the vacated original symbol (/k/ itself) still gets
     # its own rule, so the scheme stays total.
     scheme, inventory = _kxt_scheme_and_inventory()
-    evolved = evolve_romanization(scheme, inventory, random.Random(5), reform_rate=0.0, reading_drift_rate=1.0)
+    evolved, drifted = evolve_romanization(scheme, inventory, random.Random(5), reform_rate=0.0, reading_drift_rate=1.0)
     by_ipa: dict[str, list[str]] = {}
     for rule in evolved.rules:
         by_ipa.setdefault(rule.ipa, []).append(rule.latin)
@@ -305,21 +308,26 @@ def test_reading_drift_reassigns_an_old_graphemes_own_ipa_key_leaving_its_spelli
     # The grapheme "k" moved to mean a different symbol than it used to.
     assert "k" not in by_ipa["k"]
     assert any("k" in graphemes for ipa, graphemes in by_ipa.items() if ipa != "k")
+    # The returned set names exactly which *old* symbols drifted away --
+    # this is what lets a caller tell drift apart from a genuine reform.
+    # (reading_drift_rate=1.0 rolls every eligible symbol, not just "k".)
+    assert "k" in drifted
 
 
 def test_reading_drift_never_drops_an_inventory_symbol_across_many_seeds():
     scheme, inventory = _kxt_scheme_and_inventory()
     for seed in range(200):
-        evolved = evolve_romanization(scheme, inventory, random.Random(seed), reform_rate=0.0, reading_drift_rate=1.0)
+        evolved, drifted = evolve_romanization(scheme, inventory, random.Random(seed), reform_rate=0.0, reading_drift_rate=1.0)
         covered = {rule.ipa for rule in evolved.rules}
         for symbol in inventory.all_symbols():
             assert symbol in covered, (seed, symbol, covered)
+        assert drifted <= frozenset(inventory.all_symbols())
 
 
 def test_reading_drift_only_targets_a_same_class_neighbour():
     scheme, inventory = _kxt_scheme_and_inventory()
     for seed in range(50):
-        evolved = evolve_romanization(scheme, inventory, random.Random(seed), reform_rate=0.0, reading_drift_rate=1.0)
+        evolved, _ = evolve_romanization(scheme, inventory, random.Random(seed), reform_rate=0.0, reading_drift_rate=1.0)
         by_ipa: dict[str, list[str]] = {}
         for rule in evolved.rules:
             by_ipa.setdefault(rule.ipa, []).append(rule.latin)
@@ -490,7 +498,7 @@ def test_category_from_scheme_reconstructs_every_axis_exactly():
 def test_category_round_trips_through_evolution_with_no_reform():
     inventory = _dutch_flavored_inventory()
     base = generate_romanization(random.Random(7), inventory, ("Dutch",))
-    evolved = evolve_romanization(base, inventory, random.Random(9), reform_rate=0.0)
+    evolved, _ = evolve_romanization(base, inventory, random.Random(9), reform_rate=0.0)
     assert evolved.category_name == base.category_name
     assert evolved.vowel_length_strategy == base.vowel_length_strategy
     assert evolved.short_vowel_consonant_doubling == base.short_vowel_consonant_doubling
@@ -982,7 +990,7 @@ def test_evolve_romanization_carries_grammatical_spelling_forward_unchanged():
         for seed in _SEEDS
         if (s := generate_romanization(random.Random(seed), inventory, ("German",))).grammatical_spelling.capitalized_pos
     )
-    evolved = evolve_romanization(base, inventory, random.Random(99), ())
+    evolved, _ = evolve_romanization(base, inventory, random.Random(99), ())
     assert evolved.grammatical_spelling == base.grammatical_spelling
 
 
@@ -1040,5 +1048,5 @@ def test_evolve_romanization_carries_joint_spellings_forward_when_not_reformed()
     inventory = _profile_inventory(french)
     base = generate_romanization(random.Random(1), inventory, ("French",), strictness=1.0)
     assert base.onset_nucleus_spellings  # sanity: the base scheme actually has it
-    evolved = evolve_romanization(base, inventory, random.Random(2), ("French",), reform_rate=0.0, strictness=1.0)
+    evolved, _ = evolve_romanization(base, inventory, random.Random(2), ("French",), reform_rate=0.0, strictness=1.0)
     assert evolved.onset_nucleus_spellings == base.onset_nucleus_spellings
