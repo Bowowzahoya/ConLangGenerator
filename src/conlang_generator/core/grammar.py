@@ -357,6 +357,16 @@ class GrammarProfile(BaseModel, frozen=True):
     but left unmarked -- realistic: many topic-prominent languages (e.g.
     Mandarin) have no dedicated topic particle at all, relying on position
     alone."""
+    quotative_particle: str = ""
+    """The IPA of this language's own free quotative particle, marking a
+    complement clause under a *speech* verb ("say", "tell", "claim",
+    "report", ...) as reported/quoted content -- Japanese と (to), Korean
+    -go. An *additional* marker alongside whatever "that"/complementizer-
+    by-verb marking already exists, not a replacement for it. Empty (a
+    language saved before this field existed, or one whose roll didn't
+    give it one) means no such particle -- most languages. Models only
+    indirect speech (the embedded clause's own pronouns/tense already
+    follow the ordinary planner rules); direct quotation isn't modeled."""
     aspects: tuple[str, ...] = ()
     """This language's own aspect labels (empty: no aspect marking) -- a
     system separate from ``tenses``. Either two-way (``perfective``,

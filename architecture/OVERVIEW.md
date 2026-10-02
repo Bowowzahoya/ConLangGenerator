@@ -5158,3 +5158,46 @@ reading code or one-off ad hoc scripts.
     A genuinely bigger lift than the affix-reuse approach taken here, left as its own future pass. An
     object/addressee-humbling (kenjougo-style) counterpart is likewise deferred -- this pass is
     subject-referent only. 9 tests in `test_honorifics.py`.
+
+- **Reported speech, second round (grammar pass 35, a Discourse follow-up).** The third Discourse
+  item. Before this pass, reported speech had only `reported_speech_backshift` (a past-tense speech
+  verb's complement clause backshifts its own tense). Missing per DEFERRED.md: "no quotative
+  particles/evidentials specific to reported speech." Investigated and rejected: reusing the existing
+  evidentiality system's `"reported"` label -- it marks the *speaker's own* epistemic source for a
+  clause's own verb ("how do I know this"), a different grammatical function from "this clause is
+  someone else's claim, embedded under a speech verb." Built instead as an independent mechanism,
+  following the `topic_particle` pattern from pass 33 almost exactly:
+
+  - `GrammarProfile.quotative_particle: str` -- rolled in `generator.py` right alongside
+    `question_particle`/`possessive_particle`/`topic_particle` (same ~40% weight class, same
+    `inflection_gen.generate_question_particle` call, collision-checked against all three).
+  - **No new plan shape, no fake-planner changes, no real-LLM prompt changes at all.** A speech-verb
+    complement clause is already an ordinary `role="complement"` clause slot -- the same structure
+    used for desire/perception/factive/etc. complements -- and `subordination_gen.complement_class
+    (governor)` is already computed purely from the plan's own governing-verb lemma, at render/decode
+    time only (exactly how `complementizer_by_verb` and `reported_speech_backshift` themselves already
+    work, needing no fake-planner wiring either). The entire footprint is render + decode:
+    - Render (`_render_plan`'s clause branch, the same spot `topic_particle` inserts at): when
+      `slot.role == "complement"` and `complement_class(governor) == "speech"` and
+      `grammar.quotative_particle`, the particle is appended after the nested clause's own rendered
+      tokens -- additive alongside whatever "that"/complementizer-by-verb marking already exists, not
+      a replacement.
+    - Decode: a swallow-check recognizes the particle's surface form anywhere in the token stream
+      (silent in `plain`, matching the `question_particle` precedent -- no natural single English
+      word to insert); for `annotated`, it retags the *last* word decoded so far with `(quoted
+      speech)`, the mirror image of `topic_particle`'s own forward lookahead (this particle trails its
+      clause instead of leading it).
+  - **Bundled bug fix**: `_reported_speech_tense` previously backshifted *any* past-tense verb's
+    complement ("I knew that she was late" is not reported speech), looser than its own docstring
+    claimed. Tightened to also require `complement_class(governor) == "speech"`, reusing the same
+    lookup the new feature needed anyway. One pre-existing test asserted the old, looser behavior
+    (`test_subordination_followups2.py::test_backshift_forces_past_after_a_past_speech_verb`, which
+    called the function with no governing verb at all) -- updated to pass a real speech-verb lemma,
+    plus a new sibling test asserting a factive verb's complement does *not* backshift.
+  - Explicitly deferred: direct quotation ("He said: 'I am sick.'" -- unshifted first person, literal
+    wording) -- the complement-clause mechanism only models *indirect* speech, a genuinely different,
+    larger construction; any interaction with the evidentiality system is left orthogonal, per the
+    investigation's own verdict; deep nesting ("she said that he said that...") isn't specially tested
+    though nothing should prevent it, since clauses already nest arbitrarily. 7 tests in
+    `test_reported_speech.py` (plus one new sibling test in
+    `test_subordination_followups2.py` for the bundled bug fix).

@@ -266,6 +266,13 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   not actually inferred social status, and a bare proper name never triggers it. No distinct honorific
   vocabulary (a different word entirely for a polite register) and no object/addressee-humbling
   marking.
+- **The quotative particle is additive, speech-class-gated by a fixed lemma list**: it marks a
+  complement clause under "say"/"tell"/"claim"/"report"/... alongside (never instead of) whatever
+  "that"/complementizer-by-verb marking the language already has -- not real semantic classification
+  of the governing verb, just the same closed `_SPEECH` lemma set the complementizer system already
+  uses. Only indirect speech is modeled (the embedded clause's own pronouns/tense follow the ordinary
+  planner rules); there is no direct-quotation construction, and the quotative particle has no
+  modeled interaction with the (separate) evidentiality system's own "reported" label.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

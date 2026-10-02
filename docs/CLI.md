@@ -1403,3 +1403,22 @@ professor's carries the polite affix (`polite=True`) and the dog's doesn't (`pol
 though neither sentence addresses anyone as "you" at all. Both still read back in plain English as
 `professor sleep`/`dog sleep` -- the "(polite)" distinction is an annotation for the real-LLM fluency
 pass, not shown in the rough `--llm fake` decode text (the same way "(comparative)" etc. aren't).
+
+**Reported speech, second round (Discourse follow-up).** "He said that she was late" marks the
+complement clause with a dedicated quotative particle, additional to (not replacing) whatever "that"
+marking the language already has -- only when the governing verb is a speech verb ("say", "tell",
+"claim", ...), never a factive/epistemic one ("know", "want", "see"). Verified with `--llm fake` on
+`--seed 2 --prompt p` as `s22` (`quotative_particle` rolled true):
+
+```bash
+conlang translate "He said that she was late." --lang s22 --to conlang --llm fake
+conlang translate "He knew that she was late." --lang s22 --to conlang --llm fake
+```
+
+"He said that she was late." renders as `nē fyě hmēyoiaa hù fnyàngûyi fyě kỉkngẻyoiaa nē ya` -- the
+trailing `ya` is the quotative particle, present only here. "He knew that she was late." renders as
+`nē fyě hủfyǐyoiaa hù fnyàngûyi fyě kỉkngẻyoiaa nē`, otherwise near-identical, with no trailing particle
+at all: "knew" isn't a speech verb, so the complement clause it governs is an ordinary "that"-clause,
+not reported speech. Both decode in plain `--llm fake` text the same way regardless (the particle is
+swallowed silently on decode, like the question particle) -- the distinction only shows up as a
+"(quoted speech)" annotation in the real-LLM fluency prompt, the same way "(polite)" does above.

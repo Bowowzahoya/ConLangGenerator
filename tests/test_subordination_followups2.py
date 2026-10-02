@@ -259,10 +259,19 @@ def test_a_gerund_subject_sentence_round_trips():
 def test_backshift_forces_past_after_a_past_speech_verb():
     language = _with(_find(lambda g: "past" in g.tenses), reported_speech_backshift=True)
     slot = PlannedSlot(kind="clause", role="complement")
-    assert _reported_speech_tense(language, slot, "past") == "past"
-    assert _reported_speech_tense(language, slot, "non_past") is None
+    assert _reported_speech_tense(language, slot, "past", "say") == "past"
+    assert _reported_speech_tense(language, slot, "non_past", "say") is None
     off = _with(language, reported_speech_backshift=False)
-    assert _reported_speech_tense(off, slot, "past") is None
+    assert _reported_speech_tense(off, slot, "past", "say") is None
+
+
+def test_backshift_is_gated_to_speech_verbs_specifically():
+    # "I knew that she was late" is not reported speech: a factive verb's
+    # complement must not backshift even when every other condition holds.
+    language = _with(_find(lambda g: "past" in g.tenses), reported_speech_backshift=True)
+    slot = PlannedSlot(kind="clause", role="complement")
+    assert _reported_speech_tense(language, slot, "past", "know") is None
+    assert _reported_speech_tense(language, slot, "past", None) is None
 
 
 def test_governing_verb_tense_reads_the_planned_tense():

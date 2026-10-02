@@ -2057,12 +2057,20 @@ def _extract_pied_piped_preposition(
     return slot.clause, None
 
 
-def _reported_speech_tense(language: Language, slot, governing_tense: str | None) -> str | None:
+def _reported_speech_tense(
+    language: Language, slot, governing_tense: str | None, governing_lemma: str | None
+) -> str | None:
     """The tense forced on a complement clause of a past-tense speech verb in
     a language with ``reported_speech_backshift`` (``None`` otherwise, or
-    without a past tense to backshift to)."""
+    without a past tense to backshift to). Speech-verb-gated (``say``,
+    ``tell``, ...): a factive/epistemic complement ("I knew that she was
+    late") is not reported speech, even though it's also a past-tense
+    verb's complement clause."""
     grammar = language.grammar
-    if not grammar.reported_speech_backshift or slot.role != "complement" or governing_tense != "past":
+    if (
+        not grammar.reported_speech_backshift or slot.role != "complement" or governing_tense != "past"
+        or subordination_gen.complement_class(governing_lemma or "") != "speech"
+    ):
         return None
     return "past" if "past" in grammar.tenses else None
 
@@ -2317,10 +2325,11 @@ def _render_plan(
         if slot.kind == "clause":
             if slot.clause is None:
                 continue
-            linker_gloss = _linker_gloss(working_language, slot, _governing_verb(slots, slot_index))
+            governor_lemma = _governing_verb(slots, slot_index)
+            linker_gloss = _linker_gloss(working_language, slot, governor_lemma)
             nested_mood = _subordinate_mood(working_language, slot, linker_gloss)
             nested_tense = _subordinate_tense(working_language, slot, linker_gloss) or _reported_speech_tense(
-                working_language, slot, _governing_verb_tense(slots, slot_index)
+                working_language, slot, _governing_verb_tense(slots, slot_index), governor_lemma
             )
             nested_case = slot.case if slot.role == "nominal" and working_language.grammar.nominalized_takes_case else None
             nested_plan, pied_piped_prep = _extract_pied_piped_preposition(working_language, slot)
@@ -2333,6 +2342,14 @@ def _render_plan(
                 particle_ipa = working_language.grammar.topic_particle
                 nested_rom = nested_rom + [working_language.romanization.apply(particle_ipa)]
                 nested_ipa = nested_ipa + [particle_ipa]
+                nested_gloss = nested_gloss + [None]
+            if (
+                slot.role == "complement" and working_language.grammar.quotative_particle
+                and subordination_gen.complement_class(governor_lemma or "") == "speech"
+            ):
+                quotative_ipa = working_language.grammar.quotative_particle
+                nested_rom = nested_rom + [working_language.romanization.apply(quotative_ipa)]
+                nested_ipa = nested_ipa + [quotative_ipa]
                 nested_gloss = nested_gloss + [None]
             linker_words: list[tuple[str, str, str | None]] = []
             if pied_piped_prep:
@@ -3201,6 +3218,8 @@ def translate_to_english(
     possessive_form = _normalize(language.romanization.apply(possessive_ipa)) if possessive_ipa else None
     topic_ipa = language.grammar.topic_particle
     topic_form = _normalize(language.romanization.apply(topic_ipa)) if topic_ipa else None
+    quotative_ipa = language.grammar.quotative_particle
+    quotative_form = _normalize(language.romanization.apply(quotative_ipa)) if quotative_ipa else None
 
     def is_topic_marked(index: int) -> bool:
         """Whether the token right after ``tokens[index]`` is the topic
@@ -3216,6 +3235,13 @@ def translate_to_english(
     for token_index, tok in enumerate(tokens):
         if topic_form is not None and _normalize(tok) == topic_form and language.lexicon.by_form(tok) is None:
             continue  # already folded into the preceding noun's "as for"/"(topic)" (see below)
+        if quotative_form is not None and _normalize(tok) == quotative_form and language.lexicon.by_form(tok) is None:
+            # Trails its complement clause (unlike the topic particle, which
+            # leads its noun phrase), so there is no "next token" to tag --
+            # instead retag the last word already decoded, the clause's own.
+            if annotated:
+                annotated[-1] = f"{annotated[-1]} (quoted speech)"
+            continue
         if particle_form is not None and _normalize(tok) == particle_form and language.lexicon.by_form(tok) is None:
             is_question = True
             continue
@@ -3444,7 +3470,9 @@ def translate_to_english(
             "or '(collective)' (a group of them), "
             "'(possessed)' (owned by the preceding word), 'of' (a possessive marker between an "
             "owner and the thing owned), '(topic)' (this noun is the sentence's topic -- render as "
-            "'As for X, ...' or integrate it naturally), '(mood: imperative)' "
+            "'As for X, ...' or integrate it naturally), '(quoted speech)' (the preceding clause is "
+            "someone's reported words, embedded under a speech verb -- no special rendering needed, "
+            "just keep it as an ordinary 'that'-clause), '(mood: imperative)' "
             "(a command), '(case: X)' (this word's grammatical role -- "
             "e.g. an accusative/absolutive/ergative-marked word is "
             "typically a direct object; locative means 'in/on/at' the word, instrumental 'with/by' it, ablative 'from', allative 'to/into', comitative 'together with') or '(tense: X)', '(aspect: X)', '(mood: X)' or '(voice: X)' (a verb's "

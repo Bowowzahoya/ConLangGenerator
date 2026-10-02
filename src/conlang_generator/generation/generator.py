@@ -603,6 +603,25 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             topic = inflection_gen.generate_question_particle(topic_rng, inventory, syllable_structure)
     grammar = grammar.model_copy(update={"topic_particle": topic})
 
+    # Quotative particle (a speech-verb complement clause's own marker):
+    # own independent rng stream, same shape as the topic particle above.
+    quotative_rng = random.Random(f"{spec.seed}:quotative")
+    quotative = (
+        inflection_gen.generate_question_particle(quotative_rng, inventory, syllable_structure)
+        if quotative_rng.random() < 0.4 else ""
+    )
+    if quotative:
+        taken_forms = (
+            known_forms | {normalized_form(romanization.apply(particle))}
+            | ({normalized_form(romanization.apply(possessive))} if possessive else set())
+            | ({normalized_form(romanization.apply(topic))} if topic else set())
+        )
+        for _ in range(50):
+            if normalized_form(romanization.apply(quotative)) not in taken_forms:
+                break
+            quotative = inflection_gen.generate_question_particle(quotative_rng, inventory, syllable_structure)
+    grammar = grammar.model_copy(update={"quotative_particle": quotative})
+
     # Noun-phrase follow-ups, round two (own stream).
     np2 = np_followups_gen.roll_followups(random.Random(f"{spec.seed}:np-followups-2"), grammar)
     article_source = np2["article_source"]
