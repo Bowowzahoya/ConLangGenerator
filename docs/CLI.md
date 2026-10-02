@@ -257,6 +257,36 @@ modes:
   describe the evolution period's own character (steering *how* the base
   language changes), not a fresh language's.
 
+  When the base language's own words were sourced from a real language
+  (`--word-strictness`, see above), each printed line also shows that
+  word's own real original -- surviving any number of evolution steps,
+  not just the one shown here:
+
+  ```bash
+  conlang generate --prompt p --name realword-base --seed 3 \
+    --source-language Dutch --strictness 1.0 --word-strictness 1.0 --llm fake
+  conlang generate --name realword-evolved --evolve-from realword-base \
+    --years 300 --seed 1 --prompt "evolution period" --llm fake
+  ```
+
+  ```
+  Evolved 'realword-base' -> 'realword-evolved' (realword-evolved) over 300 years.
+  consonants: 19 -> 25, vowels: 16 -> 16
+  Evolution traits: ...
+    I: ik -> ik'  (real Dutch ik [ɪk])
+    you: jij = jij  (real Dutch jij [jɛi])
+    he: hij = hij  (real Dutch hij [hɛi])
+    we: wij = wij  (real Dutch wij [wɛi])
+    this: dit = dit  (real Dutch dit [dɪt])
+    that: dat = dat  (real Dutch dat [dɑt])
+  Saved to conlangs\realword-evolved
+  ```
+
+  Evolving `realword-evolved` a second time still prints `(real Dutch ik
+  [ɪk])` for "I" -- the annotation always names the true original real
+  word, not whatever the immediately-preceding saved language's own form
+  happened to be.
+
 - **Without `--evolve-from`**: generate a fresh language exactly as
   `--prompt`/`--source-language`/etc. describe, then immediately evolve
   *that* language forward `--years` years before saving -- one step, not

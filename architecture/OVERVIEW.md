@@ -5506,3 +5506,47 @@ reading code or one-off ad hoc scripts.
   each new positional parameter (`lineage_profiles`, then `structural_bias`) broke all five until the
   lambdas were corrected -- fixed permanently the second time by switching them to `lambda *args,
   **kwargs: _ZERO_RATES`, immune to any further signature growth.
+
+- **Evolved real words (grammar pass 41).** `docs/DEFERRED.md`'s "Evolved real words (S)" item: a word
+  seeded from a real source language (`generation/real_words.py`) kept only a text tag in its own
+  `notes` field (`"real word: Dutch"`/`"real-based word: Dutch"`) marking *that* it had a real origin --
+  the literal original spelling/pronunciation (`RealChoice.form`/`.ipa`) was used once to build the
+  entry's own `ipa`/`romanization` and then discarded, never retained anywhere. Worse, `evolve_language`'s
+  own entry-rebuild loop unconditionally overwrites `notes` to an `"orthography: {path}"` tag every
+  single evolution run, destroying even that provenance *tag* the moment a real word evolves once.
+
+  Fix: a new `RealWordOrigin` model (`core/lexicon.py`: `language`/`form`/`ipa`) and a new
+  `LexicalEntry.real_word: RealWordOrigin | None` field, set once at coinage
+  (`real_words.build_real_entries`, for both the exact-copy and the deviated-variant path -- the
+  deviated path specifically stores the *true* original, not its own already-looser starting `ipa`,
+  which is a materially different string once word strictness is below 1.0). The key mechanism needing
+  no new propagation code at all: `evolve_language`'s entry-rebuild loop (`sound_change.py`, the
+  `evolved_entries` loop) never mentions `real_word` in its own `update` dict for the ordinary
+  "same word, sound-changed" path, so `entry.model_copy(update=update)` -- Pydantic's own "only touch
+  what's named" semantics -- preserves it automatically, across any number of successive evolution
+  calls, each one just carrying forward whatever the previous call already set. The one place it *is*
+  explicitly cleared: the "borrowed" and "replaced" paths (a genuinely different word filling the same
+  meaning's slot, scenario 2a/2b, not the same word sound-changing) -- mirroring exactly how `root`/
+  `word_class` are already reset to `None`/reassigned on those same two paths.
+
+  Display: `cli/main.py`'s existing evolve-print loop (`old_entry`/`new_entry`, the "old -> new"
+  comparison) appends `(real Dutch water [ˈvatər])` when `new_entry.real_word` is set -- deliberately
+  reading `new_entry.real_word`, not re-deriving anything from `old_entry` (which is only ever the
+  *immediately preceding* saved language; on a second-or-later evolution run it's already an evolved
+  form itself, not the real source word). Verified via the CLI on two successive evolution runs: the
+  printed origin stayed `(real Dutch ik [ɪk])` on both, correctly reaching all the way back past the
+  first evolution step. The web UI's own lexicon table and `real_words` summary count
+  (`webui/app.py`) switched from the same `notes`-prefix check to this new field for the same reason --
+  the old check was silently undercounting after any evolution, a latent instance of the identical bug.
+
+  Explicitly out of scope: a word seeded via the generic `--example gloss=form` flag (no claim of
+  realness, so no marker); the exact-vs-deviated distinction, which still only lives in `notes` and
+  still only survives until the first evolution step (not worth a second field for a cosmetic
+  distinction once the real fix -- keeping the *word* -- already landed).
+
+  Tests: `tests/test_real_words.py` (exact copies carry the correct `RealWordOrigin`; a deviated
+  real-based word's `real_word` is the true original, not empty/blank; an algorithmically coined word
+  has no `real_word` at all); `tests/test_sound_change.py` (survives one evolution step unchanged;
+  survives two *successive* evolution steps unchanged -- the multi-generation case the CLI's own print
+  can't reach on its own; a seed-search test confirming `real_word` is cleared specifically on a
+  borrowed/replaced entry, not on an ordinary sound-changed one).

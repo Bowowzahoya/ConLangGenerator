@@ -463,7 +463,21 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   `spatial_reference`/`evidentiality_culture`/`ritual_register`/
   `taboo_register` for Stage 3 (no individually crisp, sound-change-rate-
   specific motivation found).
-- **Evolved real words (S).** The original real word is not kept alongside
-  the evolved form for display ("water > waːter").
+- **Evolved real words -- done (pass 41).** A new `RealWordOrigin` (`core/lexicon.py`:
+  `language`/`form`/`ipa`) on `LexicalEntry.real_word`, set once at coinage by
+  `generation/real_words.py` (both exact and deviated real-based words -- the deviated
+  case keeps the *true* original, not its own already-looser starting form) and never
+  touched again by anything downstream: `evolve_language`'s entry-rebuild loop only
+  updates `ipa`/`romanization`/`notes`/`root`/`word_class` via `model_copy`, which leaves
+  every other field (`real_word` included) exactly as it was -- so it survives any number
+  of evolution steps unchanged, reaching all the way back to the real source word even
+  after a *second* evolution run, which the CLI's own existing "old -> new" print couldn't
+  do on its own (it only ever compares to the *immediately preceding* saved language).
+  Cleared to `None` when a word is borrowed or natively replaced (a genuinely different
+  word filling the same meaning's slot, not the same word sound-changing). `cli/main.py`'s
+  evolve print now appends `(real Dutch water [ˈvatər])` alongside the old -> new
+  comparison when set; the web UI's lexicon table and its `real_words` count switched from
+  the old `notes`-prefix check (which evolution already overwrote, silently undercounting
+  after one evolution step) to this new, evolution-proof field.
 - **Orthography reform is partial (M).** Only rate-driven; no
   spelling-pronunciation drift.

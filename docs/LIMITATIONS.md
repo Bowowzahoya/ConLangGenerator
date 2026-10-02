@@ -316,6 +316,13 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   language's own character") -- the prompt classifier itself is unchanged. The rules' own *mechanics*
   are still generic sound laws either way: only each rule's *rate* (whether it fires faster or slower)
   is now lineage/structure/trait-aware, not which sounds specifically change into which.
+- **A word's own real-world origin (`LexicalEntry.real_word`) is only tracked for words sourced via
+  `generation/real_words.py`** (curated or LLM-filled real source-language vocabulary) -- a word seeded
+  through the generic `--example gloss=form` CLI/API flag carries no such marker, even if the user
+  happened to type in a real word, since that flag makes no claim either way about realness. The field
+  doesn't track the exact-vs-deviated distinction evolution's own `notes` tag used to carry either (both
+  kinds just get the same literal real-source form/ipa) -- only `notes` still distinguishes "real word"
+  from "real-based word," and only until the first evolution step overwrites it.
 
 ## Classifier
 

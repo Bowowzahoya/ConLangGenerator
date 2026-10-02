@@ -16,7 +16,7 @@ from dataclasses import replace
 
 from conlang_generator.core.grammar import Alignment, GrammarProfile, MorphologicalType, WordOrder, WordTemplate
 from conlang_generator.core.language import Language
-from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
+from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech, RealWordOrigin
 from conlang_generator.core.phonology import TONE_DIACRITICS, Consonant, LexicalToneSandhiRule, Manner, Place, PhonemeInventory, SyllableStructure, ToneLevel, ToneSandhiRule, ToneSystem, Vowel, VowelBackness, VowelHeight, WordAccentSystem
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK, RomanizationRule, RomanizationScheme, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec, SeedExample
@@ -931,6 +931,58 @@ def test_glosses_and_pos_preserved():
     for old, new in zip(base.lexicon.entries, evolved.lexicon.entries):
         assert old.glosses == new.glosses
         assert old.pos == new.pos
+
+
+def _real_word_language(seed=3):
+    traits = TraitProfile(source_languages=("Dutch",), source_language_strictness=1.0, source_word_strictness=1.0)
+    return generate_language("T", GenerationSpec(prompt="p", seed=seed, traits=traits), FakeLLMClient())
+
+
+def test_real_word_origin_survives_one_evolution_step_unchanged():
+    base = _real_word_language()
+    water = base.lexicon.by_gloss("water")
+    assert water.real_word == RealWordOrigin(language="Dutch", form="water", ipa="ˈwatər")
+    evolved = evolve_language("Evolved", base, 300, TraitProfile(), seed=1)
+    evolved_water = evolved.lexicon.by_gloss("water")
+    assert evolved_water.real_word == water.real_word
+    # The whole point: the word's own sound/spelling may well have moved,
+    # while its real origin -- a fact about its *history*, not its
+    # current form -- stays exactly what it was.
+
+
+def test_real_word_origin_survives_two_successive_evolution_steps_unchanged():
+    # The multi-generation case the CLI's own "old -> new" print can't
+    # reach on its own (it only ever compares to the *immediately
+    # preceding* saved language) -- `real_word` must still point all the
+    # way back to the real Dutch original, not to whatever the first
+    # evolution step's own output was.
+    base = _real_word_language()
+    water = base.lexicon.by_gloss("water")
+    once = evolve_language("Once", base, 300, TraitProfile(), seed=1)
+    twice = evolve_language("Twice", once, 300, TraitProfile(), seed=2)
+    assert twice.lexicon.by_gloss("water").real_word == water.real_word
+
+
+def test_real_word_origin_is_cleared_when_the_word_is_replaced_not_sound_changed():
+    # A borrowed or natively-replaced word (sound_change.py's own
+    # scenario 2a/2b) is a genuinely *different* word filling the same
+    # meaning's slot -- the old word's real-world origin no longer
+    # describes it and must not be carried over by mistake.
+    base = _real_word_language()
+    traits = TraitProfile(contact_intensity=0.95)
+    evolved = None
+    for seed in range(20):
+        candidate = evolve_language("Evolved", base, 6000, traits, seed)
+        if any(
+            new.notes in ("orthography: borrowed", "orthography: replaced") and old.real_word is not None
+            for old, new in zip(base.lexicon.entries, candidate.lexicon.entries)
+        ):
+            evolved = candidate
+            break
+    assert evolved is not None, "no seed in range replaced a real-word entry -- test would be vacuous"
+    for old, new in zip(base.lexicon.entries, evolved.lexicon.entries):
+        if new.notes in ("orthography: borrowed", "orthography: replaced") and old.real_word is not None:
+            assert new.real_word is None
 
 
 def test_evolved_ipa_round_trips_through_the_tokenizer():

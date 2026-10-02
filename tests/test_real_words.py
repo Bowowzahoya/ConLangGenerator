@@ -1,7 +1,7 @@
 """Word strictness: real source-language words in a generated language, a
 knob separate from the sound strictness that only limits allowed sounds."""
 
-from conlang_generator.core.lexicon import PartOfSpeech
+from conlang_generator.core.lexicon import PartOfSpeech, RealWordOrigin
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import phoneme_fit, real_words
@@ -28,6 +28,31 @@ def test_word_strictness_one_makes_exact_copies_of_the_real_words_with_correct_p
     assert language.lexicon.by_gloss("mountain").pos is PartOfSpeech.NOUN
     assert language.lexicon.by_gloss("eat").pos is PartOfSpeech.VERB
     assert len(_real(language)) >= 350  # nearly every pregenerated meaning is a curated Dutch word
+
+
+def test_exact_real_words_carry_their_own_origin():
+    language = _language(1.0, sound=1.0)
+    water = language.lexicon.by_gloss("water")
+    assert water.real_word == RealWordOrigin(language="Dutch", form="water", ipa="ˈwatər")
+
+
+def test_deviated_real_words_still_carry_the_true_original_not_the_looser_variant():
+    language = _language(0.5)
+    based = [e for e in _real(language) if e.notes.startswith("real-based")]
+    assert based, "no deviated real-based word in this sample -- test would be vacuous"
+    for entry in based:
+        assert entry.real_word is not None
+        assert entry.real_word.language == "Dutch"
+        # The true original, not the deviated ipa/romanization this
+        # entry's own fields now hold.
+        assert entry.real_word.ipa != "" and entry.real_word.form != ""
+
+
+def test_algorithmically_coined_words_have_no_real_word_origin():
+    language = _language(0.0)
+    coined = [e for e in language.lexicon.entries if not e.notes.startswith("real")]
+    assert coined
+    assert all(e.real_word is None for e in coined)
 
 
 def test_exact_copies_force_their_sounds_into_the_inventory_even_at_low_sound_strictness():

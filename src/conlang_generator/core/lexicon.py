@@ -20,6 +20,20 @@ class PartOfSpeech(str, Enum):
     OTHER = "other"
 
 
+class RealWordOrigin(BaseModel, frozen=True):
+    """A real source-language word this entry was coined from
+    (``generation/real_words.py``) -- its own original spelling/
+    pronunciation, kept verbatim regardless of how far the entry itself
+    later drifts (deviated at coinage, evolved any number of times).
+    Distinct from a *deviated* real-based entry's own starting ``ipa``/
+    ``romanization``, which is already a looser variant of this, not the
+    literal source word."""
+
+    language: str
+    form: str
+    ipa: str
+
+
 class LexicalEntry(BaseModel, frozen=True):
     ipa: str
     romanization: str
@@ -55,6 +69,19 @@ class LexicalEntry(BaseModel, frozen=True):
     later inflection step doesn't have to re-derive which paradigm a
     word belongs to, the same "recorded even though nothing reads it
     back yet" precedent ``root`` above already sets."""
+    real_word: RealWordOrigin | None = None
+    """This word's own real-world origin, if it was coined from one
+    (``generation/real_words.py``) -- ``None`` for an algorithmically
+    coined word. Set once, at coinage, and never touched again by
+    anything downstream (evolution's own entry-rebuild loop in
+    ``generation/sound_change.py`` only ever updates ``ipa``/
+    ``romanization``/``notes``/``root``/``word_class`` via
+    ``model_copy(update=...)``, which leaves every other field -- this one
+    included -- exactly as it was): a word's own real history isn't
+    something any later sound change should be able to erase, so it
+    survives any number of evolution steps unchanged, for display
+    alongside however far the word has since drifted (see
+    ``cli/main.py``'s evolve print)."""
 
     @property
     def primary_gloss(self) -> str:

@@ -29,7 +29,7 @@ import random
 import unicodedata
 from dataclasses import dataclass
 
-from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
+from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech, RealWordOrigin
 from conlang_generator.core.phonology import (
     TONE_DIACRITICS, PhonemeInventory, SyllableStructure, ToneLevel, ToneSystem,
 )
@@ -158,7 +158,8 @@ def build_real_entries(
             notes = f"real-based word: {choice.language}"
         entries.append(
             LexicalEntry(
-                ipa=ipa, romanization=spelling, glosses=(choice.gloss,), pos=choice.pos, tones=tones, notes=notes
+                ipa=ipa, romanization=spelling, glosses=(choice.gloss,), pos=choice.pos, tones=tones, notes=notes,
+                real_word=RealWordOrigin(language=choice.language, form=choice.form, ipa=choice.ipa),
             )
         )
     return tuple(entries)

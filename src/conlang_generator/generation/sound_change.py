@@ -2034,16 +2034,25 @@ def evolve_language(
     for i, (entry, final_ipa) in enumerate(zip(base.lexicon.entries, final_ipas)):
         root: tuple[str, ...] | None = entry.root
         word_class: str | None = entry.word_class
+        # A borrowed/replaced word is a genuinely *different* word filling
+        # the same meaning's slot (scenario 2a/2b, not sound change of the
+        # same word) -- whatever real-world origin the old word had no
+        # longer describes it, so it's cleared, not carried over. The
+        # "same word, sound-changed" branch below leaves this alone
+        # entirely (not even in `update`), so `model_copy` preserves it.
+        real_word = entry.real_word
         if i in borrowed_romanizations:
             latin = apply_grammatical_spelling(romanization, borrowed_romanizations[i], entry.pos)
             path = "borrowed"
             root = None  # a foreign borrowing has no native root of its own
             word_class = None  # a foreign borrowing doesn't follow this language's own declension/conjugation classes either
+            real_word = None
         elif i in replaced_native:
             latin = apply_grammatical_spelling(romanization, romanization.apply(final_ipa), entry.pos)
             path = "replaced"
             root = replaced_roots.get(i)  # a new native root, or None if this wasn't templatic
             word_class = replaced_word_classes.get(i)  # this fresh replacement's own new class assignment, not the old word's
+            real_word = None
         else:
             # This branch is only reached for an entry pass 1 didn't
             # replace, so `final_ipa` is exactly `evolved_ipas[i]` by
@@ -2064,7 +2073,7 @@ def evolve_language(
                 path = "conventional"
         update = {
             "ipa": final_ipa, "romanization": latin, "notes": f"orthography: {path}",
-            "root": root, "word_class": word_class,
+            "root": root, "word_class": word_class, "real_word": real_word,
         }
         if tones_by_entry is not None:
             # A tone-system transition this run (see `_evolve_tone_system`)

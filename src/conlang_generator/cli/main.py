@@ -297,7 +297,16 @@ def generate(
             typer.echo(f"Forced orthography: {forced_orthography.model_dump(exclude_none=True)}")
         for old_entry, new_entry in list(zip(base.lexicon.entries, language.lexicon.entries))[:6]:
             arrow = "=" if old_entry.romanization == new_entry.romanization else "->"
-            typer.echo(f"  {old_entry.glosses[0]}: {old_entry.romanization} {arrow} {new_entry.romanization}")
+            line = f"  {old_entry.glosses[0]}: {old_entry.romanization} {arrow} {new_entry.romanization}"
+            if new_entry.real_word is not None:
+                # The word's own true original, regardless of how many
+                # evolution steps have happened since it was first coined --
+                # `old_entry` above is only ever the *immediately preceding*
+                # saved language, which on a second-or-later evolution isn't
+                # the real-world source anymore.
+                origin = new_entry.real_word
+                line += f"  (real {origin.language} {origin.form} [{origin.ipa}])"
+            typer.echo(line)
         typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
         return
 

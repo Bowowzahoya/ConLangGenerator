@@ -160,7 +160,11 @@ def _language_summary(language: Language) -> dict:
                 for r in language.tone_system.lexical_sandhi
             ],
         },
-        "real_words": sum(1 for e in language.lexicon.entries if e.notes.startswith("real")),
+        # `entry.real_word` (not `entry.notes`, which an evolution step
+        # overwrites to an "orthography: ..." tag regardless of a word's
+        # own real origin) survives any number of evolution steps --
+        # see `core/lexicon.py`'s own `RealWordOrigin` docstring.
+        "real_words": sum(1 for e in language.lexicon.entries if e.real_word is not None),
         "lexicon": [
             {
                 "gloss": entry.primary_gloss,
@@ -178,7 +182,11 @@ def _language_summary(language: Language) -> dict:
                 # hears the same real spoken form `cli/main.py`'s own
                 # `pronounce` command already produces for this word.
                 "spoken_ipa": apply_sandhi([entry.ipa], language.tone_system, [entry.primary_gloss])[0],
-                "provenance": entry.notes if entry.notes.startswith("real") else None,
+                "provenance": (
+                    f"real {entry.real_word.language}: {entry.real_word.form} [{entry.real_word.ipa}]"
+                    if entry.real_word is not None
+                    else None
+                ),
             }
             for entry in sorted(language.lexicon.entries, key=lambda e: e.primary_gloss)
         ],
