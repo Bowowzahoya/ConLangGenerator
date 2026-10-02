@@ -552,15 +552,44 @@ def _evolve_ipa(
     return evolved, spelling
 
 
+def _filter_pairs(pairs: tuple, first_set: set[str], second_set: set[str]) -> tuple:
+    """A (first, second) pair tuple, keeping only pairs whose own two
+    symbols both still exist (used for every onset/nucleus/coda boundary
+    pair field -- ``None`` passes through unchanged, meaning unrestricted)."""
+    if pairs is None:
+        return None
+    return tuple(p for p in pairs if p[0] in first_set and p[1] in second_set)
+
+
+def _filter_multipliers(multipliers: tuple[tuple[str, float], ...], allowed: set[str]) -> tuple[tuple[str, float], ...]:
+    """A (symbol, multiplier) tuple, dropping entries for a symbol that no
+    longer exists."""
+    return tuple((symbol, weight) for symbol, weight in multipliers if symbol in allowed)
+
+
 def _recompute_syllable_structure(
     base: SyllableStructure,
     consonants: tuple,
+    vowels: tuple,
     rng: random.Random,
     traits: TraitProfile,
     lineage_profiles: tuple[reference_languages.ReferenceLanguageProfile, ...],
 ) -> SyllableStructure:
     symbols = {c.ipa for c in consonants}
+    vowel_symbols = {v.ipa for v in vowels}
+    excluded_onset_consonants = tuple(s for s in base.excluded_onset_consonants if s in symbols)
     onset_pairs = sonority.legal_onset_pairs(consonants)
+    if excluded_onset_consonants:
+        # Mirrors phonology_gen.generate_phonology's own filtering: a
+        # symbol excluded from the onset at all can't legally sit in
+        # *either* position of a 2-consonant onset cluster either --
+        # confirmed this exact inconsistency surfaces post-evolution once
+        # excluded_onset_consonants is correctly preserved instead of
+        # discarded (see the regression test), since the freshly
+        # regenerated cluster list below never consulted it.
+        onset_pairs = tuple(
+            p for p in onset_pairs if p[0] not in excluded_onset_consonants and p[1] not in excluded_onset_consonants
+        )
     allowed_onset_clusters = (
         sonority.thin_cluster_pairs(rng, onset_pairs, traits.contact_intensity) if base.max_onset >= 2 else ()
     )
@@ -596,9 +625,22 @@ def _recompute_syllable_structure(
         allowed_coda_clusters=allowed_coda_clusters,
         allowed_onset_triples=tuple(t for t in base.allowed_onset_triples if all(s in symbols for s in t)),
         allowed_coda_triples=tuple(t for t in base.allowed_coda_triples if all(s in symbols for s in t)) if max_coda >= 2 else (),
+        allowed_onset_quads=tuple(q for q in base.allowed_onset_quads if all(s in symbols for s in q)),
+        allowed_coda_quads=tuple(q for q in base.allowed_coda_quads if all(s in symbols for s in q)) if max_coda >= 2 else (),
+        excluded_initial_onset_consonants=tuple(s for s in base.excluded_initial_onset_consonants if s in symbols),
         allowed_coda_consonants=allowed_coda_consonants,
         excluded_coda_consonants=excluded_coda_consonants,
         excluded_final_coda_consonants=excluded_final_coda_consonants,
+        excluded_onset_consonants=excluded_onset_consonants,
+        allowed_onset_nucleus_pairs=_filter_pairs(base.allowed_onset_nucleus_pairs, symbols, vowel_symbols),
+        excluded_onset_nucleus_pairs=_filter_pairs(base.excluded_onset_nucleus_pairs, symbols, vowel_symbols),
+        allowed_nucleus_coda_pairs=_filter_pairs(base.allowed_nucleus_coda_pairs, vowel_symbols, symbols),
+        excluded_nucleus_coda_pairs=_filter_pairs(base.excluded_nucleus_coda_pairs, vowel_symbols, symbols),
+        allowed_coda_onset_boundary_pairs=_filter_pairs(base.allowed_coda_onset_boundary_pairs, symbols, symbols),
+        excluded_coda_onset_boundary_pairs=_filter_pairs(base.excluded_coda_onset_boundary_pairs, symbols, symbols),
+        onset_symbol_multipliers=_filter_multipliers(base.onset_symbol_multipliers, symbols),
+        nucleus_symbol_multipliers=_filter_multipliers(base.nucleus_symbol_multipliers, vowel_symbols),
+        coda_symbol_multipliers=_filter_multipliers(base.coda_symbol_multipliers, symbols),
         vowel_harmony=base.vowel_harmony,
     )
 
@@ -1123,7 +1165,7 @@ def _inventory_and_structure(
     consonants = tuple(sorted((c for c in phonology_gen.ALL_CONSONANTS if c.ipa in used_symbols), key=lambda c: -c.prevalence))
     vowels = tuple(sorted((v for v in phonology_gen.ALL_VOWELS if v.ipa in used_symbols), key=lambda v: -v.prevalence))
     inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
-    return inventory, _recompute_syllable_structure(base_structure, consonants, rng, traits, lineage_profiles)
+    return inventory, _recompute_syllable_structure(base_structure, consonants, vowels, rng, traits, lineage_profiles)
 
 
 def _coin_native_word(

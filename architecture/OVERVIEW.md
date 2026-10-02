@@ -5242,3 +5242,81 @@ reading code or one-off ad hoc scripts.
     trait bias but no matched-reference-profile analogue, since no `real_morphological_type` field
     exists on `ReferenceLanguageProfile` -- adding one needs new data curated across ~50 profiles, not
     a formula. 10 tests in `test_trait_wiring.py`.
+
+- **Strictness does not reach evolution, stage 1 of 3 (grammar pass 38).** `docs/DEFERRED.md`'s
+  "Language evolution" item. The design process here is worth recording, since it changed twice from
+  the first instinct:
+
+  1. First instinct: a strict language's evolved inventory can pick up a phoneme the source language
+     never has (traced concretely: `_apply_ejective_drift` can turn `/k/` into `/kʼ/` regardless of
+     lineage; real Dutch never has ejectives) -- patch individual out-of-lineage symbols after sound
+     change, substituting the nearest in-lineage phoneme via `phoneme_fit`'s existing nearest-neighbor
+     machinery.
+  2. **Corrected**: that's unrealistic. Real languages gain new sounds constantly (contact, conditioned
+     splits, borrowing) -- a fix that made a strict lineage flatly *incapable* of ever gaining a sound,
+     even at strictness 1.0, would be wrong. The actual bug is narrower: today's mechanism is
+     completely lineage-blind, not that evolution changes phonemes at all.
+  3. **Corrected again**: patching individual symbols after the fact treats the symptom. The right
+     shape is the one fresh generation already uses: build the phonology *itself* (inventory,
+     per-position frequency/"likeliness", syllable structure, onset/coda rules, clusters) as one
+     evolving object -- the same rich spec `generate_phonology` already produces -- and have words draw
+     from *that*, instead of deriving the spec backward from whatever survived in already-mutated
+     words. Strictness then falls out naturally (reusing `_reference_biased_rate`'s own formula to
+     *damp*, never *forbid*, a lineage-foreign gain) rather than being bolted on as a post-hoc patch.
+
+  Investigated how much of stage 3's target already exists: per-phoneme frequency is a real, already-
+  stored field (`SyllableStructure.onset_symbol_multipliers`/`nucleus_symbol_multipliers`/
+  `coda_symbol_multipliers`, built by `phonology_gen._resolve_position_multipliers` at fresh
+  generation) -- not something to invent, something evolution was *discarding*. That discarding turned
+  out to be a real, separate, more basic bug worth fixing on its own first:
+
+  - **Stage 1 (landed this pass)**: `_recompute_syllable_structure` (`sound_change.py`) rebuilt its
+    returned `SyllableStructure` from scratch after every evolution, and the rebuild simply never
+    mentioned most of the rich fields fresh generation can populate -- `allowed_onset_quads`/
+    `allowed_coda_quads`, `excluded_initial_onset_consonants`, `excluded_onset_consonants`, all four
+    onset-nucleus/nucleus-coda pair-restriction fields, both coda-onset-boundary pair fields, and all
+    three frequency-multiplier fields. Pydantic defaults silently filled each one back to empty/`None`
+    -- not frozen, *dropped*, independent of strictness, on every single evolution. Fixed by carrying
+    each forward from the base structure, filtered to the post-evolution inventory the same way the
+    fields that already survived (`allowed_onset_triples` etc.) already were -- two small new helpers,
+    `_filter_pairs` (handles the `None`-means-unrestricted convention) and `_filter_multipliers`, reused
+    across all of them. Needed a new `vowels` parameter threaded through (`_inventory_and_structure`
+    already computes vowels, just never passed them on) since the nucleus-side pair/multiplier fields
+    need the vowel set, not just the consonant set, to filter correctly. Confirmed concretely via a
+    strict Dutch-lineage seed whose `onset_symbol_multipliers` (18 entries) and `excluded_onset_
+    consonants` (`/ŋ/`) both silently went to empty after one `evolve_language` call, pre-fix.
+  - **Two further, genuine inconsistencies surfaced once those fields actually started surviving**
+    (both only ever possible once `excluded_onset_consonants`/`allowed_onset_nucleus_pairs` are
+    non-empty post-evolution, which pre-fix they never were -- so both are pre-existing gaps the fix
+    exposed, not regressions it caused):
+    1. `word_builder._choose_nucleus` already has a documented, deliberate fallback for when
+       `allowed_onset_nucleus_pairs` has zero entries for a given onset (falls back to the full,
+       unrestricted vowel pool rather than crashing) -- so a brand-new consonant (introduced by sound
+       change, e.g. ejective drift's own `/pʼ/`) that the *inherited* whitelist never mentions at all
+       could get *picked* as a single onset by `_build_onset`, then paired with a vowel via that
+       fallback, producing a combination `SyllableStructure.is_valid_syllable` correctly rejects as
+       invalid -- confirmed `is_valid_syllable`'s own strict "unmentioned means illegal" semantics are
+       the deliberate, tested contract (an existing unit test asserts exactly that), so the first fix
+       attempt here (loosening that check) was wrong and reverted. The real fix belongs one step
+       earlier: `_build_onset`'s own single-consonant candidate list now excludes a symbol with zero
+       entries in the whitelist (same `or candidates` defensive fallback its neighboring
+       `excluded_onset_consonants` filter already uses), so a legal onset is chosen in the first place
+       whenever one exists, instead of validating an illegal choice after the fact.
+    2. `allowed_onset_clusters` is regenerated fresh every evolution from `sonority.legal_onset_pairs`,
+       which -- unlike `phonology_gen.generate_phonology`'s own onset-cluster setup -- never filtered
+       its candidate pairs against `excluded_onset_consonants` at all. A cluster like `("v", "ŋ")`
+       could end up whitelisted even though `/ŋ/` is separately marked onset-illegal *everywhere*.
+       Fixed by mirroring fresh generation's own filter (`p[0] not in excluded and p[1] not in
+       excluded`) before thinning the cluster pool, rather than inventing a new approach.
+    Both confirmed via dedicated regression tests (a strict Mandarin-lineage seed empirically found to
+    produce each clash) rather than just inferred from reading the code.
+  - **Stages 2 and 3 (still open)**: evolve the inventory and frequency multipliers as their own object
+    (loss: small time-scaled per-phoneme disappearance chance, strictness-independent; gain: the sound-
+    change rules still produce their candidate new phonemes exactly as today, but each candidate's
+    *acceptance* is scaled by `biased_probability` against strictness and lineage membership -- a dial,
+    not a wall, so a candidate within the lineage's own palette is barely suppressed and a wildly
+    foreign one is heavily suppressed but never literally impossible); then fit words to the evolved
+    spec via `phoneme_fit.fit_ipa` rather than deriving the spec from them. Left for a follow-up pass --
+    a real redesign of `evolve_language`'s phonology handling, not a small patch. 3 tests added to
+    `test_sound_change.py` for stage 1 (field preservation; onset-cluster/exclusion consistency;
+    onset/nucleus-pairing consistency); stages 2/3 will need their own.

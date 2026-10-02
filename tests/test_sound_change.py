@@ -338,6 +338,90 @@ def test_evolved_dutch_lineage_keeps_coda_devoicing_with_no_new_contact():
         assert consonant.manner.value in ("stop", "affricate", "fricative", "lateral_fricative")
 
 
+def test_evolution_keeps_the_richer_syllable_structure_fields():
+    # Same failure mode as the coda-devoicing test above, for the fields
+    # _recompute_syllable_structure used to omit outright (not just reset
+    # to a default, but never pass to SyllableStructure(...) at all):
+    # quads, both onset-exclusion fields, every onset/nucleus/coda boundary
+    # pair field, and the three frequency-multiplier fields. A strict
+    # source-language match is what populates most of these in the first
+    # place (see SyllableStructure's own field docstrings), so a strict
+    # Dutch-lineage language is the sanity base here too.
+    # seed=1 -- empirically found to populate onset_symbol_multipliers and
+    # excluded_onset_consonants (/ŋ/ is onset-illegal in Dutch).
+    base = generate_language(
+        "Dutch",
+        GenerationSpec(prompt="Dutch", seed=1, traits=TraitProfile(source_languages=("Dutch",), source_language_strictness=1.0)),
+        FakeLLMClient(),
+    )
+    before = base.syllable_structure
+    assert before.onset_symbol_multipliers  # sanity: the base actually has these
+    assert before.excluded_onset_consonants
+    evolved = evolve_language(
+        "Evolved", base, 300, TraitProfile(source_languages=("Dutch",), source_language_strictness=1.0), seed=1
+    )
+    after = evolved.syllable_structure
+    assert after.onset_symbol_multipliers
+    assert after.excluded_onset_consonants
+    # Each surviving entry's own symbol must still be a real consonant in
+    # the evolved inventory -- filtered, not just blindly copied forward.
+    consonant_symbols = {c.ipa for c in evolved.phonology.consonants}
+    for symbol, _ in after.onset_symbol_multipliers:
+        assert symbol in consonant_symbols
+    for symbol in after.excluded_onset_consonants:
+        assert symbol in consonant_symbols
+
+
+def test_evolved_onset_clusters_never_contain_an_onset_excluded_symbol():
+    # Found while adding the test above: once excluded_onset_consonants
+    # actually survives evolution instead of always resetting to empty,
+    # a second, independent inconsistency surfaced -- allowed_onset_clusters
+    # is regenerated fresh every evolution from sonority.legal_onset_pairs,
+    # which (unlike phonology_gen.generate_phonology's own onset-cluster
+    # setup) never filtered its candidate pairs against
+    # excluded_onset_consonants, so a cluster like ("v", "ŋ") could be
+    # whitelisted even though /ŋ/ is separately marked onset-illegal
+    # altogether -- is_valid_syllable then rejects a word that used it,
+    # an assertion failure mid-evolution, not just a quality issue. Never
+    # exercised pre-fix because excluded_onset_consonants was always empty
+    # after evolution. seed=3 Mandarin base + evolve seed=0, 500 years --
+    # empirically found to produce exactly this clash (/ŋ/ excluded from
+    # onsets altogether, yet present in a freshly regenerated cluster).
+    base = generate_language(
+        "Base",
+        GenerationSpec(prompt="p", seed=3, traits=TraitProfile(source_languages=("Mandarin",), source_language_strictness=1.0)),
+        FakeLLMClient(),
+    )
+    evolved = evolve_language("Evolved", base, 500, TraitProfile(), seed=0)
+    structure = evolved.syllable_structure
+    assert structure.excluded_onset_consonants  # sanity: there's something to violate
+    for cluster in structure.allowed_onset_clusters:
+        assert not any(symbol in structure.excluded_onset_consonants for symbol in cluster)
+
+
+def test_evolution_does_not_crash_when_a_new_consonant_has_no_nucleus_pairing():
+    # A third inconsistency found alongside the two above, same root cause
+    # (a field that now survives evolution exposes a combination nothing
+    # previously had to handle): ejective drift can introduce a consonant
+    # (here /pʼ/) the *inherited* allowed_onset_nucleus_pairs whitelist
+    # never mentions at all, since it was built before that consonant
+    # existed. word_builder._choose_nucleus already has a documented
+    # fallback for "zero legal pairings" (pick any vowel rather than
+    # crash) -- but that produced a combination
+    # SyllableStructure.is_valid_syllable correctly flags as invalid
+    # (confirmed its strict "unmentioned means illegal" semantics are the
+    # deliberate, tested contract, not a bug -- see test_phonology.py),
+    # so `word_builder.build_word`'s own consistency assertion failed.
+    # Fixed one step earlier: `_build_onset` no longer offers such a
+    # consonant as a single-onset candidate when a legal one exists,
+    # instead of validating an illegal choice after the fact.
+    # seed=7 (no special traits) + evolve seed=3, 800 years -- empirically
+    # found to roll ejective drift onto a consonant with no inherited
+    # nucleus pairing.
+    base = generate_language("Base", GenerationSpec(prompt="p", seed=7), FakeLLMClient())
+    evolve_language("Evolved", base, 800, TraitProfile(), seed=3)  # must not raise
+
+
 def test_glosses_and_pos_preserved():
     base = _base_language()
     evolved = evolve_language("Evolved", base, 500, TraitProfile(), seed=3)

@@ -290,6 +290,14 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   borrowing or family-tree/dialect branching; history is a flat list.
 - **Sound-change rules are generic**, not a language's own likely
   developments.
+- **Strictness damps evolution's lineage-foreign sound change; it doesn't prevent it (stage 1 of 3 --
+  see docs/DEFERRED.md)**: the sound-change rules themselves (ejective drift, lenition, etc.) are still
+  generic and still fire at the same rate regardless of source language -- only each candidate change's
+  *acceptance* will become lineage-aware once stages 2/3 land. Landed so far (stage 1): a strict
+  language's richer `SyllableStructure` fields (quads, exclusion lists, boundary-pair restrictions,
+  per-position frequency multipliers) now survive evolution instead of silently vanishing -- but the
+  phoneme *inventory* itself still isn't lineage-aware yet, so a strict Dutch-sourced language can
+  still end up with a sound real Dutch never has.
 
 ## Classifier
 

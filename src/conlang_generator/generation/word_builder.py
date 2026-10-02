@@ -108,6 +108,16 @@ def _build_onset(
         # added when it's already present in the inventory.
         restricted = tuple(c for c in candidates if c.ipa not in structure.excluded_onset_consonants) or candidates
         candidates = restricted
+    if structure.allowed_onset_nucleus_pairs is not None:
+        # A consonant with zero entries at all in the whitelist (e.g. one
+        # sound change introduced after the whitelist was built) would
+        # force `_choose_nucleus` into its own documented "ignore the
+        # restriction rather than crash" fallback -- avoided here instead,
+        # by never choosing such a consonant as a single-onset candidate
+        # in the first place when a legal one is available. Same `or
+        # candidates` defensive shape as the exclusion filter just above.
+        paired_onsets = {pair[0] for pair in structure.allowed_onset_nucleus_pairs}
+        candidates = tuple(c for c in candidates if c.ipa in paired_onsets) or candidates
     if prev_coda_final is not None:
         candidates = _filter_by_adjacency(
             candidates, key=lambda c: c.ipa, is_legal=lambda s: structure.is_valid_boundary(prev_coda_final, s)

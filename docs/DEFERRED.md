@@ -376,8 +376,26 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
 
 ## 11. Language evolution
 
-- **Strictness does not reach evolution (M).** `sound_change`'s inventory
-  recompute can drift a strict language back toward the generic.
+- **Strictness does not reach evolution (M; stage 1 of 3 done, pass 38).**
+  `sound_change`'s inventory recompute can drift a strict language back
+  toward the generic -- not because evolution gaining new sounds is wrong
+  (real languages do that constantly), but because today's mechanism is
+  completely lineage-blind, so a strictness promise silently stops
+  applying the moment evolution runs, by any degree. The real fix is
+  evolving the phonology *specification* itself (inventory, per-position
+  frequency, syllable structure, clusters) as its own object, the way
+  fresh generation already builds one, rather than deriving it backward
+  from whatever survived in already-mutated words -- still open (stages 2
+  and 3). Stage 1, landed: `_recompute_syllable_structure` was silently
+  *dropping* (not just freezing) most of that richness on every single
+  evolution regardless of strictness -- quads, both onset-exclusion
+  fields, every onset/nucleus/coda boundary pair field, and the three
+  per-position frequency-multiplier fields never survived one `evolve_
+  language` call. Now carried forward (filtered to the evolved inventory,
+  not blindly copied) -- a real, separately-valuable fix, confirmed via a
+  seed where a strict Dutch-sourced language's `onset_symbol_multipliers`/
+  `excluded_onset_consonants` went from populated to silently empty after
+  evolution before this fix.
 - **Rules are generic, not language-specific (L).** "Dutch evolved forward
   200 years" applies the general rule set, not Dutch's likely developments.
 - **Evolved real words (S).** The original real word is not kept alongside
