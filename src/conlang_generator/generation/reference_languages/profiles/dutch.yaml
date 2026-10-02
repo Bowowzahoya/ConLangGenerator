@@ -6,6 +6,8 @@ coda_profile: unrestricted
 max_onset: 2
 tonal: false
 coda_devoicing: true
+historical_final_devoicing_affinity: 0.8  # Auslautverhärtung, this project's own cited diachronic anchor for the rule
+historical_ejective_drift_affinity: -0.6  # real Dutch never developed ejectives -- this session's own running example for why strictness/lineage should damp this, not just the acceptance side
 orthography_category: germanic-doubling-style
 word_classes:
   # Real Dutch: no citation-form noun suffix distinguishes the real

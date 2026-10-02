@@ -21,7 +21,9 @@ from conlang_generator.core.phonology import TONE_DIACRITICS, Consonant, Lexical
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK, RomanizationRule, RomanizationScheme, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
-from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, sonority, sound_change, voice_np_gen
+from conlang_generator.generation import (
+    ipa_tokenizer, lexicon_gen, phonology_gen, reference_languages, sonority, sound_change, voice_np_gen,
+)
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, ReferenceLanguageProfile
 from conlang_generator.generation.sound_change import evolve_language
@@ -285,6 +287,280 @@ def test_half_life_calibration_reflects_the_intended_relative_speed_ordering():
     assert rates.lenition > rates.palatalization
     assert rates.vowel_reduction > rates.palatalization
     assert rates.palatalization > rates.ejective_drift
+
+
+def test_compute_rates_with_no_lineage_argument_is_byte_identical_to_before_rule_bias_existed():
+    # `lineage_profiles` defaults to `()` -- confirms the new third
+    # parameter never changes the two-argument call every pre-existing
+    # caller (including the test above) already uses.
+    assert sound_change._compute_rates(250, TraitProfile()) == sound_change._compute_rates(250, TraitProfile(), ())
+
+
+def test_lineage_rule_bias_is_a_plain_mean_and_zero_when_unmatched():
+    dummy_field = "historical_lenition_affinity"
+    assert sound_change._lineage_rule_bias((), dummy_field) == 0.0
+    one = ReferenceLanguageProfile(
+        name="One", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False,
+        historical_lenition_affinity=0.6,
+    )
+    assert sound_change._lineage_rule_bias((one,), dummy_field) == 0.6
+    # A second, uncurated (default 0.0) profile dilutes the mean rather
+    # than being weighted out -- the documented "plain, unweighted mean"
+    # simplification.
+    two = ReferenceLanguageProfile(name="Two", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False)
+    assert sound_change._lineage_rule_bias((one, two), dummy_field) == 0.3
+
+
+def test_biased_strength_combines_additively_and_clamps():
+    assert sound_change._biased_strength(0.2, 0.3) == pytest.approx(0.5)
+    assert sound_change._biased_strength(0.2, 0.3, 0.2) == pytest.approx(0.7)
+    assert sound_change._biased_strength(0.9, 0.9) == 1.0  # clamped, not 1.8
+    assert sound_change._biased_strength(-0.9, -0.9) == -1.0  # clamped the other way
+    assert sound_change._biased_strength(0.4) == 0.4  # no bias at all: unchanged
+
+
+def test_dutch_lineage_biases_final_devoicing_up_and_ejective_drift_down():
+    # Dutch's own curated historical_final_devoicing_affinity (Auslautverhärtung,
+    # this module's own cited diachronic anchor) and historical_ejective_drift_affinity
+    # (real Dutch never developed ejectives) should each move their own
+    # rule's rate in the expected direction relative to an unmatched run at
+    # the same years/traits.
+    dutch = reference_languages.match_profiles(("Dutch",))
+    generic = sound_change._compute_rates(100, TraitProfile())
+    biased = sound_change._compute_rates(100, TraitProfile(), dutch)
+    assert biased.final_devoicing > generic.final_devoicing
+    assert biased.ejective_drift < generic.ejective_drift
+    # Unrelated rules stay untouched -- Dutch curates neither.
+    assert biased.lenition == generic.lenition
+    assert biased.palatalization == generic.palatalization
+
+
+def test_english_lineage_biases_cluster_simplification_and_vowel_reduction_up():
+    english = reference_languages.match_profiles(("English",))
+    generic = sound_change._compute_rates(100, TraitProfile())
+    biased = sound_change._compute_rates(100, TraitProfile(), english)
+    assert biased.cluster_simplification > generic.cluster_simplification
+    assert biased.vowel_reduction > generic.vowel_reduction
+
+
+def test_romance_lineage_biases_lenition_up():
+    spanish = reference_languages.match_profiles(("Spanish",))
+    generic = sound_change._compute_rates(100, TraitProfile())
+    biased = sound_change._compute_rates(100, TraitProfile(), spanish)
+    assert biased.lenition > generic.lenition
+
+
+def test_slavic_lineage_biases_palatalization_up():
+    russian = reference_languages.match_profiles(("Russian",))
+    generic = sound_change._compute_rates(100, TraitProfile())
+    biased = sound_change._compute_rates(100, TraitProfile(), russian)
+    assert biased.palatalization > generic.palatalization
+
+
+def test_andean_and_caucasian_lineages_bias_ejective_drift_up():
+    quechua = reference_languages.match_profiles(("Quechua",))
+    georgian = reference_languages.match_profiles(("Georgian",))
+    generic = sound_change._compute_rates(100, TraitProfile())
+    assert sound_change._compute_rates(100, TraitProfile(), quechua).ejective_drift > generic.ejective_drift
+    assert sound_change._compute_rates(100, TraitProfile(), georgian).ejective_drift > generic.ejective_drift
+
+
+def test_mandarin_lineage_biases_vowel_reduction_down():
+    mandarin = reference_languages.match_profiles(("Mandarin",))
+    generic = sound_change._compute_rates(100, TraitProfile())
+    biased = sound_change._compute_rates(100, TraitProfile(), mandarin)
+    assert biased.vowel_reduction < generic.vowel_reduction
+
+
+def test_lineage_rule_bias_composes_additively_with_the_prompts_own_contact_trait():
+    # The whole point of the additive design: a real-lineage match never
+    # overrides what the prompt already says about the evolution period's
+    # own circumstances (here, contact_intensity) -- both move the rate in
+    # their own direction, together.
+    spanish = reference_languages.match_profiles(("Spanish",))
+    contact_only = sound_change._compute_rates(100, TraitProfile(contact_intensity=0.8))
+    lineage_only = sound_change._compute_rates(100, TraitProfile(), spanish)
+    both = sound_change._compute_rates(100, TraitProfile(contact_intensity=0.8), spanish)
+    assert both.lenition > contact_only.lenition
+    assert both.lenition > lineage_only.lenition
+
+
+def _minimal_inventory(**overrides) -> PhonemeInventory:
+    consonants = overrides.pop("consonants", (Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, prevalence=1.0),))
+    vowels = overrides.pop("vowels", (Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),))
+    return PhonemeInventory(consonants=consonants, vowels=vowels)
+
+
+def test_structural_bias_is_near_zero_for_a_minimal_fixture_with_no_distinguishing_structure():
+    # A fictional language with no clusters, no voiced obstruents, no
+    # codas, one vowel, no ejectives -- every structural signal should
+    # collapse to (essentially) nothing, so this stage never invents a
+    # bias out of thin air for a plain, unremarkable language.
+    bias = sound_change._derive_structural_bias(_minimal_inventory(), SyllableStructure(max_onset=1, max_coda=0))
+    assert bias.lenition == 0.0
+    assert bias.final_devoicing == 0.0
+    assert bias.cluster_simplification == 0.0
+    assert bias.palatalization == 0.0
+    assert bias.ejective_drift == 0.0
+    assert bias.vowel_reduction < 0.05  # a single vowel is still infinitesimal material, not exactly zero
+
+
+def test_structural_bias_cluster_simplification_scales_with_existing_cluster_richness():
+    no_clusters = SyllableStructure(max_onset=1, max_coda=0)
+    with_clusters = SyllableStructure(
+        max_onset=2, max_coda=2, allowed_onset_clusters=(("p", "l"), ("t", "r")), allowed_coda_clusters=(("n", "t"), ("s", "t")),
+    )
+    inventory = _minimal_inventory()
+    assert sound_change._derive_structural_bias(inventory, no_clusters).cluster_simplification == 0.0
+    assert sound_change._derive_structural_bias(inventory, with_clusters).cluster_simplification > 0.0
+
+
+def test_structural_bias_lenition_scales_with_voicing_readiness():
+    voiceless_only = _minimal_inventory(
+        consonants=(Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, prevalence=1.0),)
+    )
+    ready = _minimal_inventory(
+        consonants=(
+            Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, prevalence=1.0),
+            Consonant(ipa="d", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, prevalence=1.0),
+        )
+    )
+    structure = SyllableStructure(max_onset=1, max_coda=0)
+    assert sound_change._derive_structural_bias(voiceless_only, structure).lenition == 0.0
+    assert sound_change._derive_structural_bias(ready, structure).lenition > 0.0
+
+
+def test_structural_bias_final_devoicing_needs_a_voiced_obstruent_coda_slot():
+    voiced_obstruent = Consonant(ipa="d", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=True, prevalence=1.0)
+    inventory = _minimal_inventory(consonants=(voiced_obstruent,))
+    no_coda = SyllableStructure(max_onset=1, max_coda=0)
+    unrestricted_coda = SyllableStructure(max_onset=1, max_coda=1)
+    excluded_coda = SyllableStructure(max_onset=1, max_coda=1, excluded_coda_consonants=("d",))
+    assert sound_change._derive_structural_bias(inventory, no_coda).final_devoicing == 0.0
+    assert sound_change._derive_structural_bias(inventory, unrestricted_coda).final_devoicing > 0.0
+    assert sound_change._derive_structural_bias(inventory, excluded_coda).final_devoicing == 0.0
+
+
+def test_structural_bias_palatalization_needs_a_palatal_output_and_a_front_vowel():
+    front_vowel = Vowel(ipa="i", height=VowelHeight.CLOSE, backness=VowelBackness.FRONT, rounded=False, prevalence=1.0)
+    palatal = Consonant(ipa="tʃ", place=Place.POSTALVEOLAR, manner=Manner.AFFRICATE, voiced=False, prevalence=1.0)
+    plain = Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, prevalence=1.0)
+    structure = SyllableStructure(max_onset=1, max_coda=0)
+    assert sound_change._derive_structural_bias(
+        _minimal_inventory(consonants=(palatal,), vowels=(front_vowel,)), structure
+    ).palatalization > 0.0
+    # Missing the front vowel: no bias even with the palatal output present.
+    assert sound_change._derive_structural_bias(_minimal_inventory(consonants=(palatal,)), structure).palatalization == 0.0
+    # Missing the palatal output: no bias even with a front vowel present.
+    assert sound_change._derive_structural_bias(
+        _minimal_inventory(consonants=(plain,), vowels=(front_vowel,)), structure
+    ).palatalization == 0.0
+
+
+def test_structural_bias_vowel_reduction_scales_with_vowel_inventory_size():
+    small = _minimal_inventory(vowels=(Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0),))
+    big = _minimal_inventory(
+        vowels=tuple(
+            Vowel(ipa=s, height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False, prevalence=1.0)
+            for s in ("a", "e", "i", "o", "u", "ə", "ɛ", "ɔ")
+        )
+    )
+    structure = SyllableStructure(max_onset=1, max_coda=0)
+    small_bias = sound_change._derive_structural_bias(small, structure).vowel_reduction
+    big_bias = sound_change._derive_structural_bias(big, structure).vowel_reduction
+    assert big_bias > small_bias
+
+
+def test_structural_bias_ejective_drift_needs_an_existing_ejective():
+    plain = Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, prevalence=1.0)
+    ejective = Consonant(ipa="pʼ", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, ejective=True, prevalence=1.0)
+    structure = SyllableStructure(max_onset=1, max_coda=0)
+    assert sound_change._derive_structural_bias(_minimal_inventory(consonants=(plain,)), structure).ejective_drift == 0.0
+    assert sound_change._derive_structural_bias(_minimal_inventory(consonants=(ejective,)), structure).ejective_drift > 0.0
+
+
+def test_structural_bias_reaches_compute_rates_the_same_additive_way_as_lineage_bias():
+    structural = sound_change._StructuralBias(cluster_simplification=0.3)
+    generic = sound_change._compute_rates(100, TraitProfile())
+    biased = sound_change._compute_rates(100, TraitProfile(), structural_bias=structural)
+    assert biased.cluster_simplification > generic.cluster_simplification
+    assert biased.lenition == generic.lenition  # unrelated rules untouched
+
+
+def test_evolve_language_wires_the_base_being_evolveds_own_structure_into_compute_rates(monkeypatch):
+    # True wiring test (not just a direct `_derive_structural_bias` call):
+    # spies on what `evolve_language` itself actually passes to
+    # `_compute_rates`, confirming it derives the structural bias from
+    # *this run's own* `base.phonology`/`base.syllable_structure` rather
+    # than, say, forgetting the argument or passing a stale default --
+    # fictional (no `source_languages`, so Stage 1 never fires) bases only.
+    base = _base_language()
+    cluster_rich = base.model_copy(
+        update={
+            "syllable_structure": base.syllable_structure.model_copy(
+                update={"max_onset": 2, "allowed_onset_clusters": (("p", "l"), ("t", "r"), ("k", "r"), ("f", "l"))}
+            )
+        }
+    )
+    captured: list = []
+    real_compute_rates = sound_change._compute_rates
+
+    def spy(*args, **kwargs):
+        captured.append((args, kwargs))
+        return real_compute_rates(*args, **kwargs)
+
+    monkeypatch.setattr(sound_change, "_compute_rates", spy)
+    evolve_language("Evolved", cluster_rich, 100, TraitProfile(), seed=1)
+    assert captured, "evolve_language never called _compute_rates"
+    args, kwargs = captured[0]
+    structural_bias = kwargs.get("structural_bias", args[3] if len(args) > 3 else None)
+    assert structural_bias == sound_change._derive_structural_bias(cluster_rich.phonology, cluster_rich.syllable_structure)
+    assert structural_bias.cluster_simplification > 0.0
+
+
+def test_orality_literacy_speeds_up_or_slows_down_all_six_rules_uniformly():
+    # Stage 3 (see docs/DEFERRED.md): extends `_compute_orthography_rates`'s
+    # own existing `-traits.orality_literacy` reasoning (a written norm
+    # anchors pronunciation against drift the same way it anchors
+    # spelling) to the six segmental rules too.
+    generic = sound_change._compute_rates(100, TraitProfile())
+    oral = sound_change._compute_rates(100, TraitProfile(orality_literacy=-0.8))  # oral-tradition-leaning
+    literate = sound_change._compute_rates(100, TraitProfile(orality_literacy=0.8))  # literate/standardized
+    for rule in ("lenition", "final_devoicing", "cluster_simplification", "palatalization", "vowel_reduction"):
+        assert getattr(oral, rule) > getattr(generic, rule), rule
+        assert getattr(literate, rule) < getattr(generic, rule), rule
+    assert oral.ejective_drift > generic.ejective_drift
+    assert literate.ejective_drift < generic.ejective_drift
+
+
+def test_orality_literacys_existing_orthography_effect_and_new_rule_effect_both_fire_from_one_trait_profile():
+    # Guards against the two mechanisms silently drifting apart -- one
+    # TraitProfile value should move both the already-existing
+    # orthography-reform rate and the newly-wired segmental-rule rates.
+    traits = TraitProfile(orality_literacy=-0.8)
+    neutral = TraitProfile()
+    assert sound_change._compute_orthography_rates(100, traits).reform > sound_change._compute_orthography_rates(100, neutral).reform
+    assert sound_change._compute_rates(100, traits).lenition > sound_change._compute_rates(100, neutral).lenition
+
+
+def test_tonal_friendliness_and_terrain_communication_distance_both_resist_vowel_reduction():
+    generic = sound_change._compute_rates(100, TraitProfile())
+    tonal = sound_change._compute_rates(100, TraitProfile(tonal_friendliness=0.8))
+    loud_terrain = sound_change._compute_rates(100, TraitProfile(terrain_communication_distance=0.8))
+    assert tonal.vowel_reduction < generic.vowel_reduction
+    assert loud_terrain.vowel_reduction < generic.vowel_reduction
+    # Unrelated rules untouched by either.
+    assert tonal.lenition == generic.lenition
+    assert loud_terrain.lenition == generic.lenition
+
+
+def test_aesthetic_harshness_biases_ejective_drift_up():
+    generic = sound_change._compute_rates(100, TraitProfile())
+    harsh = sound_change._compute_rates(100, TraitProfile(aesthetic_harshness=0.8))
+    soft = sound_change._compute_rates(100, TraitProfile(aesthetic_harshness=-0.8))
+    assert harsh.ejective_drift > generic.ejective_drift
+    assert soft.ejective_drift < generic.ejective_drift
+    assert harsh.lenition == generic.lenition  # unrelated rule untouched
 
 
 @pytest.mark.slow
@@ -1203,7 +1479,7 @@ def test_tonogenesis_wires_correctly_through_the_full_evolve_language_pipeline(m
     # segmental change and tonogenesis compose (a real, separate question
     # this project doesn't yet have a rule ordering/interaction story for
     # -- see architecture/OVERVIEW.md).
-    monkeypatch.setattr(sound_change, "_compute_rates", lambda years, traits: _ZERO_RATES)
+    monkeypatch.setattr(sound_change, "_compute_rates", lambda *args, **kwargs: _ZERO_RATES)
     # Lexical *replacement* is tracked independently of _compute_rates
     # above (its own separate half-life table), so it's silenced the same
     # way -- otherwise this test's own single word could still coincide
@@ -1242,7 +1518,7 @@ def test_a_tonogenesis_runs_own_spelling_stays_consistent_with_its_own_new_ipa(m
     # word's stored IPA and its derived romanization could disagree about
     # whether this word even has a coda ʔ anymore. Same segmental-rules/
     # replacement silencing as the wiring test above, for the same reason.
-    monkeypatch.setattr(sound_change, "_compute_rates", lambda years, traits: _ZERO_RATES)
+    monkeypatch.setattr(sound_change, "_compute_rates", lambda *args, **kwargs: _ZERO_RATES)
     monkeypatch.setattr(sound_change, "_replacement_rate", lambda years, traits, pos: 0.0)
     base = _tonogenesis_base(with_glottal_coda=True, pos=PartOfSpeech.NUMERAL)
     evolved = evolve_language("Evolved", base, 5000, TraitProfile(), seed=1)
@@ -1554,7 +1830,7 @@ def test_tone_merger_wires_correctly_through_the_full_evolve_language_pipeline(m
     # Same segmental-rules/replacement silencing as the tonogenesis wiring
     # test above, for the same reason: isolates this to the plumbing
     # between _evolve_tone_system and the rest of evolve_language.
-    monkeypatch.setattr(sound_change, "_compute_rates", lambda years, traits: _ZERO_RATES)
+    monkeypatch.setattr(sound_change, "_compute_rates", lambda *args, **kwargs: _ZERO_RATES)
     monkeypatch.setattr(sound_change, "_replacement_rate", lambda years, traits, pos: 0.0)
     base = _merger_base()
     evolved = None
@@ -1571,7 +1847,7 @@ def test_tone_merger_wires_correctly_through_the_full_evolve_language_pipeline(m
 
 
 def test_tone_split_wires_correctly_through_the_full_evolve_language_pipeline(monkeypatch):
-    monkeypatch.setattr(sound_change, "_compute_rates", lambda years, traits: _ZERO_RATES)
+    monkeypatch.setattr(sound_change, "_compute_rates", lambda *args, **kwargs: _ZERO_RATES)
     monkeypatch.setattr(sound_change, "_replacement_rate", lambda years, traits, pos: 0.0)
     base = _split_base()
     evolved = None
@@ -1790,7 +2066,7 @@ def test_sandhi_lexicalization_never_fires_with_no_qualifying_word_in_the_lexico
 
 
 def test_sandhi_lexicalization_wires_correctly_through_the_full_evolve_language_pipeline(monkeypatch):
-    monkeypatch.setattr(sound_change, "_compute_rates", lambda years, traits: _ZERO_RATES)
+    monkeypatch.setattr(sound_change, "_compute_rates", lambda *args, **kwargs: _ZERO_RATES)
     monkeypatch.setattr(sound_change, "_replacement_rate", lambda years, traits, pos: 0.0)
     base = _lexicalization_base()
     evolved = None

@@ -302,6 +302,20 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   merged-away phoneme (`phoneme_fit.fit_ipa`) loses its own stress mark, word-accent mark and tone
   marks, since that shared, segment-only machinery doesn't model any of the three -- a rare path (only
   a word that actually used a rejected symbol is touched), but a real information loss when it fires.
+- **The six sound-change rules' own rates are now language-specific, but only partially.** Real-lineage
+  curation (`historical_*_affinity` on `ReferenceLanguageProfile`) covers 14 of 51 profiles so far --
+  the rest default to neutral (today's purely generic behavior). The per-profile bias is an unweighted
+  mean across multiple matched lineages, not weighted by `source_language_weights` the way fresh
+  generation's own bias is. Structural self-derived tendencies (`_derive_structural_bias`) are a small,
+  illustrative set of signals (cluster richness, voicing-readiness, an existing palatal output, vowel
+  count, an existing ejective) -- not every plausible structural predictor, and each is capped well
+  below the curated-lineage magnitudes since it's a weaker, inferred signal rather than a documented
+  real fact. The evolution-period trait wiring (`orality_literacy`/`tonal_friendliness`/
+  `terrain_communication_distance`/`aesthetic_harshness`) reuses today's fixed, already-extracted trait
+  set rather than extracting new free-text evolution-period concepts (e.g. a dedicated "contact donor
+  language's own character") -- the prompt classifier itself is unchanged. The rules' own *mechanics*
+  are still generic sound laws either way: only each rule's *rate* (whether it fires faster or slower)
+  is now lineage/structure/trait-aware, not which sounds specifically change into which.
 
 ## Classifier
 

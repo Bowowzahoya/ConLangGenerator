@@ -5393,3 +5393,116 @@ reading code or one-off ad hoc scripts.
     inventory-consistency check (the Stage 3 regression guard) across both configurations; frequency-
     multiplier drift (same symbol keys, moved values, still in bounds); determinism (same seed, same
     evolved spec).
+
+- **Rules are generic, not language-specific (grammar pass 40, stages 1-3).** `docs/DEFERRED.md`'s
+  "Language evolution" section's last open item: the strictness-reaches-evolution work above made each
+  rule's own *candidate output* lineage-aware, but the six rules themselves (which fire, how fast) were
+  still 100% generic -- `_compute_rates(years, traits)` read only `years` and the generic `TraitProfile`
+  (mostly `contact_intensity`, plus `altitude` for ejectives), never `lineage_profiles` at all.
+
+  **User feedback that reshaped a one-stage draft into three stages** -- worth recording, since it's
+  the design decision behind this pass's whole shape: a first draft covered only real-lineage curation
+  (Stage 1 below). Two corrections: (1) this must stay flexible to what the *prompt* says about the
+  evolution period's own circumstances, not just hard-coded per-language facts; (2) a *fictional*
+  language (no matched real source) should also get language-specific drift, not just the curated real
+  profiles. Resolved as three independently-landable stages, same shape this session's strictness arc
+  already established.
+
+  - **Stage 1 -- real-lineage curated historical tendencies.** Six new `historical_*_affinity` fields on
+    `ReferenceLanguageProfile` (one per rule), mirroring `coda_devoicing`'s own shape and the
+    `Field(default=0.0, ge=-1.0, le=1.0)` convention every signed `core/traits.py` field already uses.
+    `coda_devoicing`'s own docstring already flagged the gap directly ("not just `sound_change.py`'s
+    diachronic `final_devoicing` rule") -- confirming this is a real, previously-unfilled need, not an
+    invented one. A new `_lineage_rule_bias(lineage_profiles, field)` (a plain, unweighted mean across
+    matched profiles -- the same deliberate simplification already documented for the strictness-
+    acceptance work) and `_biased_strength(trait_strength, *biases)` (sums every bias, clamps to
+    `[-1, 1]`) combine each rule's existing generic trait input with its own lineage bias before
+    `_saturating_rate` runs. `_compute_rates` gained `lineage_profiles: tuple[...] = ()` (default keeps
+    every pre-existing 2-argument call byte-identical); `evolve_language`'s own `lineage_profiles`
+    computation moved a few lines earlier (it has no dependency on anything computed after it) so it's
+    ready before `_compute_rates` needs it.
+
+    First-batch curation, 14 of 51 profiles, each anchored to a real, citable case -- several already
+    this module's own docstring anchors: Dutch/German/Russian/Turkish/Polish get
+    `historical_final_devoicing_affinity=0.8` (reusing the exact five profiles already curated
+    `coda_devoicing=true`, not re-researched); Dutch/German also get `historical_ejective_drift_affinity
+    =-0.6` (real Dutch/German never developed ejectives -- this session's own running example, now
+    damping the rule's own *rate* in addition to Stage 2/3's existing acceptance-damping); English gets
+    `historical_cluster_simplification_affinity=0.8` and `historical_vowel_reduction_affinity=0.7` (both
+    this module's own cited anchors); Latin/Spanish/French/Portuguese get `historical_lenition_affinity
+    =0.7` (Western Romance intervocalic lenition) -- **Italian deliberately excluded**: a first draft
+    included it, caught and corrected before committing -- real Italian sits on the "Eastern Romance"
+    side of the La Spezia-Rimini isogloss and resisted this specific lenition, unlike its Western
+    relatives; Russian/Polish/Serbo-Croatian get `historical_palatalization_affinity=0.7` (Slavic
+    palatalization); Quechua/Georgian get `historical_ejective_drift_affinity=0.7` (confirmed both
+    profiles already curate real ejectives in their own `consonants` list, not just asserted by
+    reputation); Mandarin gets `historical_vowel_reduction_affinity=-0.5` (tonal, resists reduction).
+    Magnitudes (0.5-0.8) are illustrative, same honesty standard as every other hand-set trait value.
+
+  - **Stage 2 -- structural self-derived tendencies (any language, fictional included).** The direct
+    answer to "what about fictional languages": a new `_derive_structural_bias(inventory, structure)`
+    reads the evolving language's own *current* phonology/syllable structure -- no curation, no lineage
+    match needed, so it applies identically whether or not Stage 1 found anything to match. Six signals,
+    each capped at `_STRUCTURAL_BIAS_CAP=0.4` (deliberately smaller than Stage 1's 0.6-0.8 real-lineage
+    magnitudes -- an inferred structural tendency is a weaker signal than a documented real fact):
+    cluster_simplification scales with existing cluster-pair count; lenition scales with what fraction
+    of the rule's own lenition-target voiceless stops (`_VOICELESS_TO_VOICED`'s own keys) already have
+    their voiced counterpart present ("voicing-ready"); final_devoicing is a flat bonus only when the
+    syllable structure currently permits a voiced obstruent in coda position at all (reusing the exact
+    obstruent-manner tuple `_recompute_syllable_structure`'s own coda-devoicing check already uses);
+    palatalization needs *both* an existing palatal/postalveolar output and a front vowel to condition
+    it; vowel_reduction scales with vowel inventory size (the tonal counter-signal is deliberately left
+    to Stage 3's `tonal_friendliness` instead, to avoid double-counting the same idea as both a
+    structural and a trait signal); ejective_drift is a flat bonus when the inventory already has any
+    ejective (extending a small existing series is a smaller step than inventing the category). Returned
+    as a `_StructuralBias` dataclass -- same six field names as `_Rates` itself, composed into
+    `_compute_rates` via the same `_biased_strength(*biases)` call each rule already had, so adding this
+    source needed no new combination logic, just one more argument per call.
+
+  - **Stage 3 -- richer use of already-extracted traits for the evolution period's own circumstances.**
+    Reframes "stay flexible to the prompt" as "use traits the classifier already extracts more fully,"
+    not "extend the classifier" -- deliberate, reasoned choice: the classifier's one call already
+    extracts 23 distinct concepts via one large, tuned system prompt; a genuinely new free-text concept
+    needs its own careful prompt engineering and risks degrading that already-large call's accuracy.
+    Four traits already existed, already extracted, and were either previously proven-unused
+    (`terrain_communication_distance` -- explicitly deferred in the "Wiring existing traits" pass, pass
+    36, for lack of a mechanism; this *is* that mechanism, confirmed via its own classifier description,
+    "+ need for loud/long-distance communication; - close-quarters, no such need") or already
+    well-precedented for a directionally-similar purpose elsewhere: `orality_literacy` (already consumed
+    for `_compute_orthography_rates`'s own `-traits.orality_literacy` reform-rate reasoning) is extended
+    to all six segmental rules uniformly, same sign -- a written norm anchors pronunciation against
+    drift the same way it anchors spelling; `tonal_friendliness` biases `vowel_reduction` negative (a
+    tonal-leaning language's vowel quality carries real contrastive load, resisting reduction -- the
+    generic, trait-driven version of what Stage 1's Mandarin curation already illustrates for one
+    profile, now covering any tonal-leaning language); `terrain_communication_distance` also biases
+    `vowel_reduction` negative (a reduced, schwa-like vowel carries less distinctly over distance --
+    reinforcing, not duplicating, the `tonal_friendliness` link, same target rule, two independent real
+    reasons); `aesthetic_harshness` biases `ejective_drift` positive (mirrors the exact existing
+    fresh-generation precedent, `_fricative_inclusion_probability`'s own harsh-/soft-leaning fricative
+    bias). Deliberately *not* wired for this pass: `isolation`/`community_scale`/`social_hierarchy`/
+    `spatial_reference`/`evidentiality_culture`/`ritual_register`/`taboo_register` -- no individually
+    crisp, sound-change-*rate*-specific motivation found for these beyond what they already do
+    elsewhere, consistent with "illustrative, not exhaustive."
+
+  All three sources combine *additively*, never replacing each other or the evolution's own existing
+  generic traits -- the whole point of routing every one of them through the same `_biased_strength`
+  clamp: a real-lineage match, a structural signal, and a prompt-described circumstance all nudge a
+  rule's rate together, none silently overriding what the others already say.
+
+  Tests: 10 new tests for Stage 1 in `test_sound_change.py` (`_lineage_rule_bias`/`_biased_strength` unit
+  tests; a per-rule real-profile test for each of the six rules showing the biased rate moves in the
+  expected direction relative to an unmatched run at the same years/traits; a byte-identical-at-default
+  regression guard; an additive-composition-with-contact_intensity test) plus 5 in
+  `test_reference_languages.py` (one `test_only_the_real_X_declares_Y`-style set-pinning test per
+  curated field, mirroring the existing `coda_devoicing` precedent); 9 new tests for Stage 2 (one per
+  rule's own structural signal using small synthetic `PhonemeInventory`/`SyllableStructure` fixtures, a
+  minimal-fixture near-zero guard, a `_compute_rates` reach-through test, and a true wiring test that
+  monkeypatches `_compute_rates` to spy on what `evolve_language` itself actually passes it -- confirms
+  the derivation reads *this run's own* base being evolved, not a stale default); 4 new tests for Stage 3
+  (one per trait wiring, plus a guard that `orality_literacy`'s existing orthography effect and its new
+  segmental-rule effect both fire from one `TraitProfile` without silently drifting apart). A real
+  regression surfaced and fixed along the way, twice: five existing tests monkeypatch `_compute_rates`
+  with a fixed-arity lambda (`lambda years, traits: _ZERO_RATES`) to force a no-sound-change baseline;
+  each new positional parameter (`lineage_profiles`, then `structural_bias`) broke all five until the
+  lambdas were corrected -- fixed permanently the second time by switching them to `lambda *args,
+  **kwargs: _ZERO_RATES`, immune to any further signature growth.

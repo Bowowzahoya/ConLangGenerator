@@ -16,6 +16,8 @@ coda_profile: unrestricted
 restricted_initial_consonants: ["ʒ"]  # /ʒ/ opens a word only in loans (genre) but is an ordinary medial onset (vision, measure)
 max_onset: 2
 tonal: false
+historical_cluster_simplification_affinity: 0.8  # real loss of onset /kn-/, /gn-/, /wr-/ (knee, gnaw, write) -- this project's own cited diachronic anchor for the rule
+historical_vowel_reduction_affinity: 0.7  # real unstressed-vowel-to-schwa reduction -- also this project's own cited anchor
 orthography_category: silent-e-style
 stress_pattern: lexical  # real English stress is largely unpredictable from a word's shape alone (real/heavy noun/verb pairs like REcord/reCORD are a further refinement this project doesn't model -- see stress_gen.py)
 stress_deviation_rate: 0.5  # illustrative -- genuinely close to a coin flip relative to any single default, the least rule-governed of the six curated profiles

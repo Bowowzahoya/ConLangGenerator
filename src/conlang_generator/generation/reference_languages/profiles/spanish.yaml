@@ -4,6 +4,7 @@ vowels: [i, a, u, e, o]
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
+historical_lenition_affinity: 0.7  # Western Romance intervocalic p/t/k > b/d/g lenition -- this project's own cited diachronic anchor for the rule
 orthography_category: diacritic-style
 stress_pattern: penultimate_or_final_by_coda  # real Spanish: penultimate if the word ends in a vowel or n/s (casa, comen), final otherwise (hotel, papel, ciudad)
 stress_deviation_rate: 0.15  # illustrative -- the real exceptions are exactly what the written accent (á/é/í/ó/ú) marks

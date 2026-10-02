@@ -71,6 +71,7 @@ attested_onset_clusters:
   - ["kʰ", l]
   - ["kʰ", r]
 tonal: false
+historical_ejective_drift_affinity: 0.7  # real Georgian already has a rich ejective series (pʼ tʼ kʼ tsʼ tʃʼ above) -- one of the classic real Caucasian ejective-bearing languages, doubly motivated alongside the existing altitude trait link
 stress_pattern: lexical
 stress_deviation_rate: 0.48  # illustrative -- Georgian stress is a genuine, live dispute over whether it's even phonetically real at all (Aronson describes it as barely perceptible; others argue prominence is purely phrase-level/intonational), modeled the same "disputed, no simple flat rule" way this project's own Indonesian profile already is, at a comparably high rate
 # Real, genuinely distinctive fact that stays out of scope rather than

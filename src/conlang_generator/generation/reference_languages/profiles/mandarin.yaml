@@ -17,6 +17,7 @@ vowels: [i, a, u, e, o, y, "ə", "ɨ", "ɛ"]
 coda_profile: sonorant
 max_onset: 2
 tonal: true
+historical_vowel_reduction_affinity: -0.5  # real Mandarin vowel quality still carries real contrastive load alongside tone, resisting the unstressed-to-schwa reduction English/Russian/Portuguese are cited for
 tone_levels: [high, rising, dipping, falling]
 neutral_tone: true
 tone_sandhi:

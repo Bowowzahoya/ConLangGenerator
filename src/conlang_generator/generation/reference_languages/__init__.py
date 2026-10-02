@@ -107,7 +107,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from conlang_generator.core.grammar import Alignment, WordClass, WordOrder
 from conlang_generator.core.lexicon import PartOfSpeech
@@ -237,6 +237,48 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     """Voiced obstruents that keep their voicing word-finally even though
     ``coda_devoicing`` is on (Turkish devoices ``b d g dʒ`` but not
     ``z v ɣ ʒ``: *biz*, *yaz*, *av*). Ignored when ``coda_devoicing`` is off."""
+    historical_lenition_affinity: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """This lineage's own real *diachronic* tendency toward
+    ``sound_change.py``'s ``lenition`` rule (intervocalic voiceless stop ->
+    voiced) -- a genuinely different fact from ``coda_devoicing`` above,
+    which is *synchronic*. Positive: this lineage's real history leans
+    toward lenition firing faster/more (the Western Romance intervocalic
+    p/t/k > b/d/g case, `sound_change.py`'s own cited anchor). Negative:
+    leans away from it. ``0.0`` (default, the common case): not curated,
+    abstains -- same convention as every other optional field here, so
+    this needs no changes to profiles that don't set it. Combined
+    *additively* with the evolving run's own ``contact_intensity`` trait
+    (`sound_change._compute_rates`), never replacing it -- a real lineage
+    match nudges the rate, it doesn't override what the prompt already
+    says about the evolution period's own circumstances."""
+    historical_cluster_simplification_affinity: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Same idea as ``historical_lenition_affinity``, for ``sound_change.py``'s
+    ``cluster_simplification`` rule (a 2-consonant onset/coda run drops its
+    lower-sonority member). Positive: real English's own `/kn-/, /gn-/,
+    /wr-/` onset-cluster loss is this field's own cited anchor."""
+    historical_final_devoicing_affinity: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Same idea, for ``sound_change.py``'s *diachronic* ``final_devoicing``
+    rule (unlike the *synchronic* ``coda_devoicing`` above -- a language can
+    curate either, both, or neither independently). Positive: real Dutch
+    "berg" [bɛrx] (Auslautverhärtung) is this field's own cited anchor."""
+    historical_palatalization_affinity: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Same idea, for ``sound_change.py``'s ``palatalization`` rule (k/g
+    before a front vowel becomes tʃ/dʒ). Positive: the Slavic palatalization
+    series (First/Second/Third) is the classic real textbook case."""
+    historical_vowel_reduction_affinity: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Same idea, for ``sound_change.py``'s ``vowel_reduction`` rule (a
+    non-first vowel becomes ə). Positive: real English/Russian/Portuguese
+    unstressed-vowel-to-schwa reduction, `sound_change.py`'s own cited
+    anchor. Negative: a real lineage documented as resisting vowel
+    reduction (e.g. a tonal language, where vowel quality still carries
+    real contrastive load alongside tone)."""
+    historical_ejective_drift_affinity: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Same idea, for ``sound_change.py``'s ``ejective_drift`` rule (a plain
+    stop gains ejective release) -- combined additively with the existing
+    ``altitude`` trait link (Everett 2013), not a replacement for it.
+    Positive: real ejective-bearing lineages (Andean, Caucasian) are this
+    field's own cited anchor. Negative: a lineage essentially never
+    documented gaining ejectives historically."""
     restricted_final_coda_consonants: tuple[str, ...] = ()
     """Consonants that may close a syllable inside a word but never end one
     (Ancient Greek words end only in ``n r s`` -- ``ks``/``ps`` aside -- yet

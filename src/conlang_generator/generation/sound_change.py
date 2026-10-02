@@ -30,16 +30,27 @@ not precise quantitative calibration -- see ``_HALF_LIVES``) and a
 saturating rate model: ``rate(years) = 1 -
 exp(-years/effective_half_life)``, so a small ``years`` changes little
 (recognizable) and a large one approaches -- never reaches -- total
-replacement. ``effective_half_life`` is scaled by the one relevant graded
-trait per rule-cluster (``contact_intensity`` for the three simplification-
-leaning rules -- contact/creolization accelerates simplification;
-``altitude`` for ejective drift -- Everett 2013, same link fresh generation
-already uses): positive trait strength shortens the half-life (faster
+replacement. ``effective_half_life`` is scaled by each rule's own combined
+"strength" (``_compute_rates``/``_biased_strength``), additively built from
+up to four independent sources, any or all of which can be absent (no-op)
+on a given run: the one relevant generic graded trait per rule-cluster
+(``contact_intensity`` for the three simplification-leaning rules;
+``altitude`` for ejective drift -- Everett 2013, same link fresh
+generation already uses); a real matched source language's own curated
+historical tendency (``historical_lenition_affinity`` etc. on
+``ReferenceLanguageProfile`` -- see docs/DEFERRED.md's "rules are
+language-specific" item); a structural signal self-derived from the
+evolving language's own *current* phonology/syllable structure
+(``_derive_structural_bias`` -- applies even to a fictional language with
+no matched source); and (``orality_literacy``, uniformly; plus
+``tonal_friendliness``/``terrain_communication_distance`` for vowel
+reduction specifically, and ``aesthetic_harshness`` for ejective drift)
+further prompt-extracted traits describing the evolution period's own
+circumstances. Positive combined strength shortens the half-life (faster
 change), negative lengthens it. ``ejective_drift`` additionally gets a
 direct multiplicative suppression from positive ``contact_intensity``
 (sustained heavy contact keeps this marked-feature innovation unlikely at
-any time depth, not just slower to arrive). `final_devoicing`/
-`palatalization` aren't trait-linked in this v1 -- kept deliberately narrow.
+any time depth, not just slower to arrive).
 
 Grammar is copied from the base language unchanged (word-level focus only,
 per current project direction). The tone system is copied unchanged too,
@@ -241,9 +252,187 @@ def _saturating_rate(years: int, base_half_life: float, trait_strength: float) -
     return 1.0 - math.exp(-years / effective_half_life)
 
 
-def _compute_rates(years: int, traits: TraitProfile) -> _Rates:
+def _lineage_rule_bias(lineage_profiles: tuple["reference_languages.ReferenceLanguageProfile", ...], field: str) -> float:
+    """A plain, unweighted mean of ``field`` (one of the six
+    ``historical_*_affinity`` fields on ``ReferenceLanguageProfile``)
+    across every matched lineage profile -- ``0.0`` (neutral, no bias) when
+    none are matched, or when every matched profile leaves that field at
+    its own default. Not weighted by ``source_language_weights`` -- the
+    same deliberate simplification already documented for the strictness-
+    acceptance work in `_evolve_phonology_membership`."""
+    if not lineage_profiles:
+        return 0.0
+    return sum(getattr(p, field) for p in lineage_profiles) / len(lineage_profiles)
+
+
+def _biased_strength(trait_strength: float, *biases: float) -> float:
+    """Combines a rule's existing generic trait input with one or more
+    further signed biases (a real-lineage historical tendency, a
+    structural self-derived signal, a further trait wiring -- see
+    `_compute_rates`'s own callers), clamped back into the `[-1, 1]` range
+    `_saturating_rate`'s own `trait_strength` parameter expects. Additive,
+    never a replacement -- at every bias `0.0` (the common case: no
+    lineage matched, no structural signal, no further trait wired for this
+    rule), this returns `trait_strength` unchanged."""
+    return max(-1.0, min(1.0, trait_strength + sum(biases)))
+
+
+@dataclass(frozen=True)
+class _StructuralBias:
+    """Stage 2 of the "rules are language-specific" feature (see
+    docs/DEFERRED.md): a per-rule signal derived from the evolving
+    language's own *current* phonology/syllable structure -- applies to
+    *any* language, fictional or real-sourced, with no curation and no
+    lineage match needed (`_derive_structural_bias` below never looks at
+    `lineage_profiles` at all). Same six field names as `_Rates` itself,
+    all defaulting to `0.0` (no distinguishing structure -> no bias, the
+    common case for a minimal/default fixture)."""
+
+    lenition: float = 0.0
+    final_devoicing: float = 0.0
+    cluster_simplification: float = 0.0
+    palatalization: float = 0.0
+    vowel_reduction: float = 0.0
+    ejective_drift: float = 0.0
+
+
+_PALATALIZATION_OUTPUTS = frozenset(_PALATALIZATION.values()) | frozenset({"ʃ", "ʒ"})
+# Soft caps for every structural signal below -- deliberately smaller in
+# magnitude than Stage 1's curated real-lineage affinities (0.6-0.8):
+# inferring a tendency from a language's own current shape is a weaker,
+# softer signal than a documented real historical fact.
+_STRUCTURAL_BIAS_CAP = 0.4
+
+
+def _derive_structural_bias(inventory: PhonemeInventory, structure: SyllableStructure) -> _StructuralBias:
+    """See `_StructuralBias`'s own docstring. Each signal reuses data this
+    module already has in scope (the sound-change rules' own target-symbol
+    dicts, the standard obstruent-manner tuple `_recompute_syllable_
+    structure`'s own coda-devoicing check already uses) rather than
+    inventing new feature-distance machinery."""
+    consonant_symbols = {c.ipa for c in inventory.consonants}
+
+    # cluster_simplification: a richer existing cluster inventory is more
+    # material to simplify.
+    cluster_count = len(structure.allowed_onset_clusters) + len(structure.allowed_coda_clusters)
+    cluster_simplification = min(_STRUCTURAL_BIAS_CAP, cluster_count / 10 * _STRUCTURAL_BIAS_CAP)
+
+    # lenition: what fraction of the rule's own lenition-target voiceless
+    # stops already have their voiced counterpart present -- a
+    # "voicing-ready" system lenites more naturally.
+    lenition_candidates = [v for v in _VOICELESS_TO_VOICED if v in consonant_symbols]
+    lenition = (
+        _STRUCTURAL_BIAS_CAP
+        * sum(1 for v in lenition_candidates if _VOICELESS_TO_VOICED[v] in consonant_symbols)
+        / len(lenition_candidates)
+        if lenition_candidates
+        else 0.0
+    )
+
+    # final_devoicing: moot unless the syllable structure currently
+    # permits a voiced obstruent in coda position at all.
+    voiced_obstruents = [
+        c for c in inventory.consonants
+        if c.voiced and c.manner in (
+            Manner.STOP, Manner.AFFRICATE, Manner.LATERAL_AFFRICATE, Manner.FRICATIVE, Manner.LATERAL_FRICATIVE,
+        )
+    ]
+    has_voiced_coda_material = False
+    if structure.max_coda > 0 and voiced_obstruents:
+        if structure.allowed_coda_consonants is not None:
+            allowed = frozenset(structure.allowed_coda_consonants)
+            has_voiced_coda_material = any(c.ipa in allowed for c in voiced_obstruents)
+        else:
+            excluded = frozenset(structure.excluded_coda_consonants) | frozenset(structure.excluded_final_coda_consonants)
+            has_voiced_coda_material = any(c.ipa not in excluded for c in voiced_obstruents)
+    final_devoicing = _STRUCTURAL_BIAS_CAP if has_voiced_coda_material else 0.0
+
+    # palatalization: a system already partway down this path (has a
+    # palatal/postalveolar output) with a front vowel to condition it is
+    # more likely to extend it.
+    has_palatal_output = any(c.ipa in _PALATALIZATION_OUTPUTS for c in inventory.consonants)
+    has_front_vowel = any(v.backness == VowelBackness.FRONT for v in inventory.vowels)
+    palatalization = _STRUCTURAL_BIAS_CAP if (has_palatal_output and has_front_vowel) else 0.0
+
+    # vowel_reduction: more vowel contrasts is more material to collapse
+    # toward schwa. (The tonal-resistance counter-signal lives in Stage 3's
+    # `tonal_friendliness` wiring, not here -- avoids double-counting the
+    # same idea as both a structural and a trait signal.)
+    vowel_reduction = min(_STRUCTURAL_BIAS_CAP, len(inventory.vowels) / 20 * _STRUCTURAL_BIAS_CAP)
+
+    # ejective_drift: extending an already-present small ejective series
+    # is a smaller, more natural step than inventing the category from
+    # nothing.
+    ejective_drift = _STRUCTURAL_BIAS_CAP if any(c.ejective for c in inventory.consonants) else 0.0
+
+    return _StructuralBias(
+        lenition=lenition,
+        final_devoicing=final_devoicing,
+        cluster_simplification=cluster_simplification,
+        palatalization=palatalization,
+        vowel_reduction=vowel_reduction,
+        ejective_drift=ejective_drift,
+    )
+
+
+def _compute_rates(
+    years: int,
+    traits: TraitProfile,
+    lineage_profiles: tuple["reference_languages.ReferenceLanguageProfile", ...] = (),
+    structural_bias: _StructuralBias = _StructuralBias(),
+) -> _Rates:
     contact = traits.contact_intensity
-    ejective_base = _saturating_rate(years, _HALF_LIVES["ejective_drift"], traits.altitude)
+    # Stage 3 (see docs/DEFERRED.md): a written norm anchors pronunciation
+    # against drift the same way it anchors spelling (already
+    # `_compute_orthography_rates`'s own `-traits.orality_literacy` for
+    # reform) -- extended here to all six segmental rules uniformly, so a
+    # low-literacy/oral-tradition-leaning evolution period drifts a little
+    # faster across the board, a high-literacy one a little slower.
+    literacy_bias = -traits.orality_literacy
+    lenition_strength = _biased_strength(
+        contact, _lineage_rule_bias(lineage_profiles, "historical_lenition_affinity"), structural_bias.lenition,
+        literacy_bias,
+    )
+    final_devoicing_strength = _biased_strength(
+        0.0,
+        _lineage_rule_bias(lineage_profiles, "historical_final_devoicing_affinity"),
+        structural_bias.final_devoicing,
+        literacy_bias,
+    )
+    cluster_strength = _biased_strength(
+        contact,
+        _lineage_rule_bias(lineage_profiles, "historical_cluster_simplification_affinity"),
+        structural_bias.cluster_simplification,
+        literacy_bias,
+    )
+    palatalization_strength = _biased_strength(
+        0.0, _lineage_rule_bias(lineage_profiles, "historical_palatalization_affinity"), structural_bias.palatalization,
+        literacy_bias,
+    )
+    vowel_reduction_strength = _biased_strength(
+        contact,
+        _lineage_rule_bias(lineage_profiles, "historical_vowel_reduction_affinity"),
+        structural_bias.vowel_reduction,
+        literacy_bias,
+        # A tonal-leaning language's vowel quality still carries real
+        # contrastive load alongside tone, resisting reduction; a language
+        # shaped for loud/long-distance communication resists it too (a
+        # reduced, schwa-like vowel carries less distinctly over
+        # distance) -- two independent real reasons, the same target rule.
+        -traits.tonal_friendliness,
+        -traits.terrain_communication_distance,
+    )
+    ejective_strength = _biased_strength(
+        traits.altitude,
+        _lineage_rule_bias(lineage_profiles, "historical_ejective_drift_affinity"),
+        structural_bias.ejective_drift,
+        literacy_bias,
+        # Mirrors the exact existing fresh-generation precedent
+        # (`_fricative_inclusion_probability` already biases harsh- vs
+        # soft-leaning fricatives the same direction).
+        traits.aesthetic_harshness,
+    )
+    ejective_base = _saturating_rate(years, _HALF_LIVES["ejective_drift"], ejective_strength)
     # Contact/leveling suppresses this marked-feature innovation outright, not just
     # via a longer half-life -- a half-life stretch alone still creeps toward
     # certainty at long time depths regardless of how much contact pressure there
@@ -253,11 +442,11 @@ def _compute_rates(years: int, traits: TraitProfile) -> _Rates:
     # symmetric boost here -- altitude already carries the positive case.
     ejective_drift = ejective_base * (1.0 - 0.8 * max(0.0, contact))
     return _Rates(
-        lenition=_saturating_rate(years, _HALF_LIVES["lenition"], contact),
-        final_devoicing=_saturating_rate(years, _HALF_LIVES["final_devoicing"], 0.0),
-        cluster_simplification=_saturating_rate(years, _HALF_LIVES["cluster_simplification"], contact),
-        palatalization=_saturating_rate(years, _HALF_LIVES["palatalization"], 0.0),
-        vowel_reduction=_saturating_rate(years, _HALF_LIVES["vowel_reduction"], contact),
+        lenition=_saturating_rate(years, _HALF_LIVES["lenition"], lenition_strength),
+        final_devoicing=_saturating_rate(years, _HALF_LIVES["final_devoicing"], final_devoicing_strength),
+        cluster_simplification=_saturating_rate(years, _HALF_LIVES["cluster_simplification"], cluster_strength),
+        palatalization=_saturating_rate(years, _HALF_LIVES["palatalization"], palatalization_strength),
+        vowel_reduction=_saturating_rate(years, _HALF_LIVES["vowel_reduction"], vowel_reduction_strength),
         ejective_drift=ejective_drift,
     )
 
@@ -1638,8 +1827,6 @@ def evolve_language(
     forced_orthography: OrthographyForce = OrthographyForce(),
 ) -> Language:
     rng = random.Random(seed)
-    rates = _compute_rates(years, traits)
-    orthography_rates = _compute_orthography_rates(years, traits)
     # A language's own reference-language *lineage* (Dutch's own curated
     # x->ch/au->ou/ɛi->ij rules, say) needs to stay available for
     # newly-reformed symbols even on a run that adds no *new* contact --
@@ -1674,8 +1861,21 @@ def evolve_language(
     # devoicing) rather than orthography this time -- a separate variable
     # from `reference_profiles` below (which is deliberately current-run-
     # only, for lexical borrowing) for the same reason lineage and active
-    # contact stay distinct concepts for orthography.
+    # contact stay distinct concepts for orthography. Computed before
+    # `_compute_rates` below (moved up from its own original spot further
+    # down this function) so the six sound-change rules' own rates can
+    # read this lineage's real historical tendencies too, not just
+    # phonotactic constraints.
     lineage_profiles = reference_languages.match_profiles(lineage_languages)
+    # Stage 2 (see docs/DEFERRED.md): a per-rule signal from this language's
+    # own *current* phonology/syllable structure -- applies regardless of
+    # whether any lineage matched above, so a fictional language still
+    # drifts in a direction shaped by its own generated shape instead of a
+    # flat, uniform rate.
+    structural_bias = _derive_structural_bias(base.phonology, base.syllable_structure)
+
+    rates = _compute_rates(years, traits, lineage_profiles, structural_bias)
+    orthography_rates = _compute_orthography_rates(years, traits)
 
     consonant_by_ipa = {c.ipa: c for c in phonology_gen.ALL_CONSONANTS}
     vowel_by_ipa = {v.ipa: v for v in phonology_gen.ALL_VOWELS}

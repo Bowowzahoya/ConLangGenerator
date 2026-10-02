@@ -13,6 +13,8 @@ coda_profile: unrestricted
 max_onset: 2
 tonal: false
 coda_devoicing: true
+historical_final_devoicing_affinity: 0.8  # real Russian "друг" [druk] -- final-obstruent devoicing, the same diachronic process behind the synchronic fact above
+historical_palatalization_affinity: 0.7  # Slavic palatalization (First/Second/Third) is the classic real textbook case
 orthography_category: diacritic-style
 word_classes:
   # Real Russian noun gender genuinely correlates with a citation-form

@@ -411,8 +411,58 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   surfaced. Gated on `strictness > 0.0` (and on a matched lineage): at the
   default strictness 0, Stage 2/3 are a byte-identical no-op, confirmed by
   construction, not just by testing.
-- **Rules are generic, not language-specific (L).** "Dutch evolved forward
-  200 years" applies the general rule set, not Dutch's likely developments.
+- **Rules are generic, not language-specific -- done (pass 40, stages 1-3).**
+  "Dutch evolved forward 200 years" used to apply the general rule set
+  only -- now each of the six rules' own *rate* (not its mechanics: the
+  sound laws themselves are still generic) is additively biased by up to
+  three independent sources, any or all absent (no-op) on a given run:
+  - **Stage 1 -- real-lineage curated tendencies.** Six new
+    `historical_*_affinity` fields on `ReferenceLanguageProfile`
+    (`lenition`/`cluster_simplification`/`final_devoicing`/
+    `palatalization`/`vowel_reduction`/`ejective_drift`), curated for a
+    first batch of 14 of 51 profiles anchored directly to real, citable
+    cases (several already this module's own docstring anchors): Dutch/
+    German/Russian/Turkish/Polish (final devoicing -- Auslautverhärtung);
+    Dutch/German (ejective drift, negative -- never developed ejectives);
+    English (cluster simplification, vowel reduction); Latin/Spanish/
+    French/Portuguese (lenition -- Western Romance intervocalic p/t/k >
+    b/d/g; Italian deliberately excluded, see below); Russian/Polish/
+    Serbo-Croatian (palatalization -- Slavic); Quechua/Georgian (ejective
+    drift -- real ejective-bearing languages); Mandarin (vowel reduction,
+    negative -- tonal, resists it). Unweighted mean across multiple
+    matched lineages; combined additively with the evolution's own
+    generic traits via a shared `_biased_strength` clamp, never
+    overriding them.
+  - **Stage 2 -- structural self-derived tendencies.** Applies to *any*
+    evolving language, fictional included, with no curation and no
+    lineage match needed: `_derive_structural_bias` reads the language's
+    own *current* phonology/syllable structure (existing cluster
+    richness -> cluster simplification; voicing-readiness -> lenition;
+    voiced-obstruent coda material -> final devoicing; an existing
+    palatal output + front vowels -> palatalization; vowel inventory size
+    -> vowel reduction; an existing ejective -> ejective drift).
+  - **Stage 3 -- richer use of already-extracted traits.** `orality_literacy`
+    (already consumed for orthography-reform rate) extended to all six
+    rules uniformly (a written norm anchors pronunciation against drift
+    the same way it anchors spelling); `tonal_friendliness`/
+    `terrain_communication_distance` both resist vowel reduction (tone
+    carries contrastive load; loud/long-distance speech needs distinct
+    vowel quality -- `terrain_communication_distance`'s own real
+    mechanism, previously missing per the "Wiring existing traits" item
+    above); `aesthetic_harshness` biases ejective drift (mirrors the
+    existing fresh-generation fricative-harshness precedent).
+  Reshaped from a one-stage into this three-stage plan by direct user
+  feedback: stay flexible to what the *prompt* says about the evolution
+  period's own circumstances (never overridden -- everything above is
+  additive), and cover *fictional* languages too, not just real-sourced
+  ones (Stage 2's whole reason to exist). Deferred: curating the
+  remaining 36 profiles (Stage 1); extracting genuinely *new* free-text
+  evolution-period concepts in the prompt classifier, rather than reusing
+  today's fixed trait set (a bigger, riskier follow-up, not attempted
+  here); `isolation`/`community_scale`/`social_hierarchy`/
+  `spatial_reference`/`evidentiality_culture`/`ritual_register`/
+  `taboo_register` for Stage 3 (no individually crisp, sound-change-rate-
+  specific motivation found).
 - **Evolved real words (S).** The original real word is not kept alongside
   the evolved form for display ("water > waːter").
 - **Orthography reform is partial (M).** Only rate-driven; no

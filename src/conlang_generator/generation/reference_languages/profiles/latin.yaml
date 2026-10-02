@@ -10,6 +10,7 @@ coda_profile: unrestricted
 max_onset: 2
 max_coda: 2  # real Latin coda clusters exist (sunt, mons, pars) -- see attested_coda_clusters
 tonal: false
+historical_lenition_affinity: 0.7  # classical Latin's own descendants (Spanish/French/Portuguese/Italian) underwent the textbook Western Romance intervocalic p/t/k > b/d/g lenition -- "evolve Latin forward" should plausibly head that direction
 word_classes:
   # Real Latin noun declension classes -- an illustrative subset (real
   # Latin has 5 declensions; this models the two most common). Each

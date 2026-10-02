@@ -6,6 +6,8 @@ coda_profile: unrestricted
 max_onset: 2
 tonal: false
 coda_devoicing: true  # real, well-documented Polish word-final obstruent devoicing (real "chleb" [xlep], spelled unchanged) -- same real fact already modeled for Dutch/German
+historical_final_devoicing_affinity: 0.8  # the diachronic process behind the synchronic fact above
+historical_palatalization_affinity: 0.7  # Slavic palatalization (First/Second/Third) is the classic real textbook case
 orthography_category: diacritic-style
 # No restricted_onset_consonants: /ɲ/ opens Polish words freely (nie, niebo, nic) -- an earlier onset restriction was wrong (found by `conlang audit-lexicons`)
 attested_onset_clusters:

@@ -5,6 +5,7 @@ vowels: [i, e, "ɛ", a, "ɑ", "ɔ", o, u, y, "ø", "œ", "ə", "ã", "ɛ̃", "ɔ
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
+historical_lenition_affinity: 0.7  # Western Romance intervocalic p/t/k > b/d/g lenition -- this project's own cited diachronic anchor for the rule
 orthography_category: diacritic-style
 syllable_boundary_marker: diaeresis  # real French tréma (Noël, naïve) -- specific to French, not shared by the other diacritic-style profiles (Icelandic, Persian, Portuguese, Quechua, Russian, Spanish, Tibetan, Turkish)
 onset_nucleus_spellings:

@@ -239,6 +239,46 @@ def test_only_the_real_final_devoicing_languages_declare_coda_devoicing():
     assert actual == expected
 
 
+def test_only_the_real_final_devoicing_history_languages_declare_the_historical_affinity():
+    # The *diachronic* counterpart of the synchronic test above -- same
+    # five real languages, since the synchronic fact and the historical
+    # process behind it coincide here.
+    expected = {"Dutch", "German", "Russian", "Turkish", "Polish"}
+    actual = {p.name for p in REFERENCE_LANGUAGES if p.historical_final_devoicing_affinity > 0}
+    assert actual == expected
+
+
+def test_only_the_real_ejective_bearing_or_ejective_resistant_languages_declare_the_historical_affinity():
+    positive = {p.name for p in REFERENCE_LANGUAGES if p.historical_ejective_drift_affinity > 0}
+    negative = {p.name for p in REFERENCE_LANGUAGES if p.historical_ejective_drift_affinity < 0}
+    assert positive == {"Quechua", "Georgian"}
+    assert negative == {"Dutch", "German"}
+
+
+def test_only_real_english_declares_cluster_simplification_and_vowel_reduction_affinity():
+    assert {p.name for p in REFERENCE_LANGUAGES if p.historical_cluster_simplification_affinity > 0} == {"English"}
+    positive_vowel_reduction = {p.name for p in REFERENCE_LANGUAGES if p.historical_vowel_reduction_affinity > 0}
+    negative_vowel_reduction = {p.name for p in REFERENCE_LANGUAGES if p.historical_vowel_reduction_affinity < 0}
+    assert positive_vowel_reduction == {"English"}
+    assert negative_vowel_reduction == {"Mandarin"}
+
+
+def test_only_the_real_western_romance_languages_declare_lenition_affinity():
+    # Italian is deliberately excluded -- real Italian sits on the
+    # "Eastern Romance" side of the La Spezia-Rimini isogloss and resisted
+    # the Western Romance intervocalic lenition Spanish/French/Portuguese
+    # (and their own Latin ancestor) are the real textbook case for.
+    expected = {"Latin", "Spanish", "French", "Portuguese"}
+    actual = {p.name for p in REFERENCE_LANGUAGES if p.historical_lenition_affinity > 0}
+    assert actual == expected
+
+
+def test_only_the_real_slavic_languages_declare_palatalization_affinity():
+    expected = {"Russian", "Polish", "Serbo-Croatian"}
+    actual = {p.name for p in REFERENCE_LANGUAGES if p.historical_palatalization_affinity > 0}
+    assert actual == expected
+
+
 def test_orthography_category_round_trips_from_yaml_for_hawaiian():
     hawaiian = next(p for p in REFERENCE_LANGUAGES if p.name == "Hawaiian")
     assert hawaiian.orthography_category == "scholarly-macron-style"
