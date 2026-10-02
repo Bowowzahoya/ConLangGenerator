@@ -422,6 +422,38 @@ def test_evolution_does_not_crash_when_a_new_consonant_has_no_nucleus_pairing():
     evolve_language("Evolved", base, 800, TraitProfile(), seed=3)  # must not raise
 
 
+def test_evolution_does_not_crash_when_an_onset_cluster_has_no_nucleus_pairing():
+    # A fourth instance of the same root cause as the test above (and the
+    # two before it): `_build_onset`'s single-consonant branch already
+    # avoids offering a consonant with zero entries in `allowed_onset_
+    # nucleus_pairs` (so `_choose_nucleus` never has to fall back to
+    # "ignore the restriction"), but its cluster/triple/quad branches
+    # didn't -- they picked straight from `allowed_onset_clusters`/
+    # `allowed_onset_triples`/`allowed_onset_quads` with no awareness of
+    # the nucleus-pairing whitelist at all. Found via the CLI: generating
+    # a base language (no source_languages, so no whitelist yet) and then
+    # evolving it with CLI `--prompt "evolution period" --llm fake`'s
+    # classified traits introduces a fresh onset cluster (e.g. ('c', 's'))
+    # whose last member (the one actually adjacent to the nucleus) ends up
+    # with no inherited pairing at all once the evolved phonology spec's
+    # own `allowed_onset_nucleus_pairs` is rebuilt -- `_choose_nucleus`
+    # then falls back to picking from every vowel, `build_word`'s
+    # consistency assertion fails on the result.
+    # Reduced to a direct `evolve_language` call below (no save/load round
+    # trip needed): seed=11 (no special traits) + evolve seed=1 with this
+    # exact trait profile (the classify_prompt("evolution period", ...)
+    # output under FakeLLMClient) -- empirically found to roll a sound
+    # change that introduces such a cluster.
+    traits = TraitProfile(
+        isolation=-0.82, altitude=-0.5, community_scale=0.29, contact_intensity=-0.6,
+        aesthetic_harshness=-0.61, tonal_friendliness=-0.93, phonotactic_restrictiveness=-0.17,
+        tone_sandhi=-0.65, evidentiality_culture=0.88, spatial_reference=0.89, social_hierarchy=0.03,
+        orality_literacy=-0.94, ritual_register=-0.58, taboo_register=0.03, terrain_communication_distance=0.1,
+    )
+    base = generate_language("Base", GenerationSpec(prompt="a fictional language", seed=11), FakeLLMClient())
+    evolve_language("Evolved", base, 400, traits, seed=1)  # must not raise
+
+
 class _FixedRng:
     """A minimal stand-in for ``random.Random`` exposing only
     ``.random()``, returning the same fixed value every call -- lets a

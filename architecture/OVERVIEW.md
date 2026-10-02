@@ -5310,6 +5310,19 @@ reading code or one-off ad hoc scripts.
        excluded`) before thinning the cluster pool, rather than inventing a new approach.
     Both confirmed via dedicated regression tests (a strict Mandarin-lineage seed empirically found to
     produce each clash) rather than just inferred from reading the code.
+  - **A fourth inconsistency, found later via the CLI (`--evolve-from`), same root cause again**:
+    `_build_onset`'s single-consonant branch excludes a consonant with zero entries in
+    `allowed_onset_nucleus_pairs` (see point 1 above), but its cluster/triple/quad branches -- which
+    pick straight from `allowed_onset_clusters`/`allowed_onset_triples`/`allowed_onset_quads` -- never
+    applied that same filter to the cluster's *last* member (the one actually adjacent to the nucleus).
+    A sound-change-introduced cluster like `("c", "s")` whose `/s/` had zero inherited nucleus pairings
+    could still be chosen whole, `_choose_nucleus` then fell back to its unrestricted pool for that `/s/`,
+    and `is_valid_syllable` correctly rejected the resulting `(("c", "s"), "i", ("j",))`. Fixed the same
+    way as point 1: both branches now narrow their candidate pool to clusters/triples/quads whose last
+    member has at least one legal pairing, falling back to the unfiltered pool only if that would empty
+    it. Confirmed via a dedicated regression test (`test_evolution_does_not_crash_when_an_onset_cluster_
+    has_no_nucleus_pairing` in `test_sound_change.py`, a seed reproducing it without any source-language
+    lineage at all -- this gap didn't need one).
   - **Stage 2 (landed, pass 39): evolve the inventory and frequency multipliers as their own object.**
     New `_evolve_phonology_membership` (`sound_change.py`), called from `_inventory_and_structure`
     right after it tokenizes the sound-changed wordlist into `used_symbols`, before building the

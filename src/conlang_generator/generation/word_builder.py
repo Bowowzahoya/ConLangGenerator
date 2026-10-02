@@ -82,6 +82,13 @@ def _build_onset(
         triples = tuple(
             t for t in structure.allowed_onset_triples + structure.allowed_onset_quads if t[0] not in excluded_first
         )
+        if structure.allowed_onset_nucleus_pairs is not None:
+            # Same "zero legal pairings for the nucleus-adjacent symbol"
+            # guard as the single-consonant candidates below, extended to
+            # the cluster's *last* member -- that's the one `_choose_
+            # nucleus` actually filters against, not the cluster's first.
+            paired_onsets = {pair[0] for pair in structure.allowed_onset_nucleus_pairs}
+            triples = tuple(t for t in triples if t[-1] in paired_onsets) or triples
         if prev_coda_final is not None:
             triples = _filter_by_adjacency(
                 triples, key=lambda c: c[0], is_legal=lambda s: structure.is_valid_boundary(prev_coda_final, s)
@@ -91,6 +98,15 @@ def _build_onset(
             return rng.choices(triples, weights=[_cluster_weight(c, by_symbol, onset_multipliers) for c in triples])[0]
     if structure.max_onset >= 2 and structure.allowed_onset_clusters and rng.random() < 0.3:
         clusters = tuple(c for c in structure.allowed_onset_clusters if c[0] not in excluded_first) or structure.allowed_onset_clusters
+        if structure.allowed_onset_nucleus_pairs is not None:
+            # Same guard as the triples/quads branch above and the single-
+            # consonant branch below: a cluster whose last member (the one
+            # adjacent to the nucleus) has zero entries in the whitelist at
+            # all would otherwise force `_choose_nucleus` into its "ignore
+            # the restriction rather than crash" fallback, producing a
+            # pair `is_valid_syllable` then correctly rejects.
+            paired_onsets = {pair[0] for pair in structure.allowed_onset_nucleus_pairs}
+            clusters = tuple(c for c in clusters if c[-1] in paired_onsets) or clusters
         if prev_coda_final is not None:
             clusters = _filter_by_adjacency(
                 clusters, key=lambda c: c[0], is_legal=lambda s: structure.is_valid_boundary(prev_coda_final, s)
