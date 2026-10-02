@@ -101,3 +101,18 @@ dependency) that touching an unrelated-looking file can still have.
   with `--testmon` first) to be selective; without it, it just runs
   everything once, slowly, while building the baseline -- effectively a
   slow full run, not a shortcut.
+- Tests that generate many languages share one cache across files
+  (`tests/_shared_language.py`'s `cached_language`, aliased as each file's
+  own `_language`) instead of each file rebuilding the same seeds --
+  reuse it (`_language = cached_language`) in any new test file that
+  needs several generated languages, rather than writing a private
+  per-file cache.
+- A handful of tests are pure performance tripwires (decoding an unknown
+  token stays fast across many languages), marked `@pytest.mark.slow`
+  (skipped by default; run with `pytest -m slow`) and loosely thresholded
+  on purpose -- they're guarding against a real regression recurring, not
+  benchmarking exact speed, so don't tighten a threshold or lower a
+  sample-size cap "to be precise": a shared, loaded machine routinely
+  pushes single-digit-second decodes into the low tens of seconds with no
+  code change at all, and re-running a flaky failure to check it costs
+  more than the loose threshold ever would.
