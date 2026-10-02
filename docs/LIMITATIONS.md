@@ -323,18 +323,27 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   doesn't track the exact-vs-deviated distinction evolution's own `notes` tag used to carry either (both
   kinds just get the same literal real-source form/ipa) -- only `notes` still distinguishes "real word"
   from "real-based word," and only until the first evolution step overwrites it.
-- **Reading drift is a flat symbol reassignment, not phonetically context-conditioned.** Real Latin "c"
-  drifted to /s/ specifically before front vowels, keeping /k/ before back vowels -- this project's own
-  `reading_drift_rate` reassigns a symbol's whole rule-group unconditionally, the same "reformed or kept
-  as a whole group, never split" discipline ordinary reform already uses. An *existing* word whose own
-  sound didn't move keeps its own old spelling through a drift (`notes: "orthography: pre-drift"`) --
-  only a newly-coined/replaced word, or one whose sound genuinely changed this run, follows the
-  reassigned convention; this still isn't a general "every word remembers its own historical spelling"
-  mechanism, just the one path (reading drift specifically) where an unaffected existing word's spelling
-  is deliberately protected -- an ordinary *reform* still legitimately re-spells every existing word
-  using the affected symbol (matching how real deliberate reforms actually work). Two different symbols'
-  own freshly-generated replacement graphemes can coincidentally collide (pick the same letter) -- an
-  existing risk `_rules_for_symbol` already has for ordinary reform, not newly introduced here.
+- **Reading drift can now split by front/back vowel context, but only that one context.** A drifting
+  *consonant* can produce a conditioned split (old grapheme keeps its own meaning, plus a new one
+  specifically before a front vowel, the real Latin c/s shape) via the existing `following=
+  ("front_vowel",)` class tag -- but no other conditioning environment (a specific neighboring
+  consonant, syllable position, word-finality) is ever considered for a drift, and a vowel's own drift
+  is always flat (a vowel can't condition on its own frontness). An *existing* word whose own sound
+  didn't move keeps its own old spelling through either kind of drift (`notes: "orthography:
+  pre-drift"`) -- only a newly-coined/replaced word, or one whose sound genuinely changed this run,
+  follows the (possibly conditioned) new convention; this still isn't a general "every word remembers
+  its own historical spelling" mechanism, just the one path (reading drift specifically) where an
+  unaffected existing word's spelling is deliberately protected -- an ordinary *reform* still
+  legitimately re-spells every existing word using the affected symbol (matching how real deliberate
+  reforms actually work). Two different symbols' own freshly-generated replacement graphemes can
+  coincidentally collide (pick the same letter) -- an existing risk `_rules_for_symbol` already has for
+  ordinary reform, not newly introduced here.
+- **Palatalization's own two real outcomes (affricate vs. sibilant) are a flat, un-curated 0.65/0.35
+  weight**, not biased by which real lineage is matched (a Romance-lineage language is no more likely
+  to reach the sibilant stage than any other) -- a natural, deferred extension of the same
+  `historical_*_affinity` shape the "rules are generic" pass already established for the other six
+  rules. The intermediate `ts`/`dz` affricate-to-sibilant stage real Romance went through isn't modeled
+  at all, only the two endpoints.
 
 ## Classifier
 

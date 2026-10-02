@@ -1433,6 +1433,32 @@ def test_apply_final_devoicing_finds_the_real_final_consonant_past_a_trailing_wo
     assert original == "d"
 
 
+def test_apply_palatalization_produces_both_real_outcomes_across_seeds():
+    # Real palatalization's own outcome varies by lineage/stage: Italian
+    # stayed at the affricate (tʃ/dʒ); French/Latin-American Spanish went
+    # one step further, to a plain sibilant (s/z). Both must actually be
+    # reachable, with the affricate the more common of the two.
+    vowel_by_ipa = {"i": _VOWEL_BY_IPA["i"]}
+    outcomes: dict[str, int] = {}
+    for seed in range(300):
+        tokens = [("k", ""), ("i", "")]
+        result = sound_change._apply_palatalization(tokens, random.Random(seed), 1.0, vowel_by_ipa)
+        outcomes[result[0][0]] = outcomes.get(result[0][0], 0) + 1
+    assert set(outcomes) == {"tʃ", "s"}
+    assert outcomes["tʃ"] > outcomes["s"]
+
+
+def test_apply_palatalization_still_only_fires_before_a_front_vowel():
+    vowel_by_ipa = {"i": _VOWEL_BY_IPA["i"], "u": _VOWEL_BY_IPA["u"]}
+    tokens = [("k", ""), ("u", "")]
+    result = sound_change._apply_palatalization(tokens, random.Random(0), 1.0, vowel_by_ipa)
+    assert result == tokens  # back vowel -- untouched, same trigger condition as before
+
+
+def test_palatalization_outputs_recognizes_both_variants_for_the_structural_bias_check():
+    assert {"tʃ", "dʒ", "s", "z"} <= sound_change._PALATALIZATION_OUTPUTS
+
+
 def test_adjacent_real_symbol_skips_both_stress_and_word_accent_marks():
     tokens = [("t", ""), (STRESS_MARK, ""), ("a", ""), (WORD_ACCENT_MARK, ""), ("p", "")]
     # `STRESS_MARK` isn't a real token position in this list shape (it's

@@ -139,7 +139,17 @@ _VOICELESS_TO_VOICED: dict[str, str] = {
     "s": "z", "f": "v", "ʃ": "ʒ", "ʂ": "ʐ", "ɸ": "β", "ɕ": "ʑ", "ʈʂ": "ɖʐ", "θ": "ð", "ç": "ʝ", "χ": "ʁ", "x": "ɣ",
 }
 _VOICED_TO_VOICELESS: dict[str, str] = {voiced: voiceless for voiceless, voiced in _VOICELESS_TO_VOICED.items()}
-_PALATALIZATION: dict[str, str] = {"k": "tʃ", "g": "dʒ"}
+_PALATALIZATION_VARIANTS: dict[str, tuple[str, ...]] = {"k": ("tʃ", "s"), "g": ("dʒ", "z")}
+"""Real palatalization's own outcome varies by lineage/stage -- Italian
+stayed at the affricate (``tʃ``/``dʒ``); French/Latin-American Spanish went
+one step further, to a plain sibilant (``s``/``z``). Both stay single-
+character, so this never needs ``_reachable_sound_change_symbols``'s own
+multi-character-tokenizer-pool handling -- the intermediate ``ts``/``dz``
+stage is deliberately not modeled, to keep this illustrative, not a precise
+per-lineage simulation."""
+_PALATALIZATION_AFFRICATE_WEIGHT = 0.65
+"""Most lineages stop at the affricate stage -- illustrative, not trait- or
+lineage-linked (a natural, deferred follow-up; see docs/DEFERRED.md)."""
 _PLAIN_TO_EJECTIVE: dict[str, str] = {"p": "pʼ", "t": "tʼ", "k": "kʼ"}
 
 _HALF_LIVES = {
@@ -296,7 +306,7 @@ class _StructuralBias:
     ejective_drift: float = 0.0
 
 
-_PALATALIZATION_OUTPUTS = frozenset(_PALATALIZATION.values()) | frozenset({"ʃ", "ʒ"})
+_PALATALIZATION_OUTPUTS = frozenset(v for variants in _PALATALIZATION_VARIANTS.values() for v in variants) | frozenset({"ʃ", "ʒ"})
 # Soft caps for every structural signal below -- deliberately smaller in
 # magnitude than Stage 1's curated real-lineage affinities (0.6-0.8):
 # inferring a tendency from a language's own current shape is a weaker,
@@ -455,7 +465,7 @@ def _reachable_sound_change_symbols(rates: _Rates) -> frozenset[str]:
     """The bounded set of IPA symbols this run's sound-change rules could
     actually introduce beyond the base language's own inventory, given
     ``rates``. Each rule maps a small, fixed set of symbols to another
-    fixed symbol (``_VOICELESS_TO_VOICED``/``_PALATALIZATION``/
+    fixed symbol (``_VOICELESS_TO_VOICED``/``_PALATALIZATION_VARIANTS``/
     ``_PLAIN_TO_EJECTIVE`` above, plus vowel reduction's "ə"), and a rule
     at rate 0 can never fire at all (every ``_apply_*``/
     ``_simplify_clusters`` function early-returns on ``rate <= 0``), so
@@ -470,7 +480,7 @@ def _reachable_sound_change_symbols(rates: _Rates) -> frozenset[str]:
     inventory, or from a fresh token this same closure already
     accounts for) -- no rule's own *output* symbol ever becomes a later
     rule's *input* trigger (lenition's voiced outputs aren't in
-    ``_PALATALIZATION``'s keys, palatalization's affricate outputs
+    ``_PALATALIZATION_VARIANTS``'s keys, palatalization's own outputs
     aren't in ``_PLAIN_TO_EJECTIVE``'s keys, etc.), so there's no chain
     of introduced symbols enabling further introduced symbols to track.
 
@@ -490,7 +500,7 @@ def _reachable_sound_change_symbols(rates: _Rates) -> frozenset[str]:
     if rates.final_devoicing > 0:
         symbols.update(_VOICELESS_TO_VOICED.keys())
     if rates.palatalization > 0:
-        symbols.update(_PALATALIZATION.values())
+        symbols.update(v for variants in _PALATALIZATION_VARIANTS.values() for v in variants)
     if rates.vowel_reduction > 0:
         symbols.add("ə")
     if rates.ejective_drift > 0:
@@ -667,11 +677,20 @@ def _apply_palatalization(tokens: list[Token], rng: random.Random, rate: float, 
         return tokens
     result = list(tokens)
     for i, (symbol, deco) in enumerate(result):
-        if symbol not in _PALATALIZATION or i + 1 >= len(result):
+        if symbol not in _PALATALIZATION_VARIANTS or i + 1 >= len(result):
             continue
         next_vowel = vowel_by_ipa.get(result[i + 1][0])
         if next_vowel is not None and next_vowel.backness == VowelBackness.FRONT and rng.random() < rate:
-            result[i] = (_PALATALIZATION[symbol], deco)
+            # Which real outcome this lineage reaches: most stop at the
+            # affricate stage (Italian-like); some go one step further, to
+            # a plain sibilant (French/Latin-American-Spanish-like). A new
+            # draw strictly after the trigger roll above, only spent when
+            # it already fired -- this project's own RNG-stream convention
+            # for extending an existing roll's draw sequence.
+            variants = _PALATALIZATION_VARIANTS[symbol]
+            affricate, sibilant = variants
+            target = affricate if rng.random() < _PALATALIZATION_AFFRICATE_WEIGHT else sibilant
+            result[i] = (target, deco)
     return result
 
 

@@ -515,3 +515,34 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   current scheme for any *other* kind of change (true of ordinary reform
   today, unchanged) -- reading drift specifically is now the one exception
   that respects an existing, unaffected word's own history.
+
+  **Second follow-up -- phonetic-context conditioning, done.** Direct user
+  follow-up to the "not phonetically context-conditioned" limit above.
+  Working through a concrete design surfaced a correction: real Latin "c" ->
+  /s/ before front vowels wasn't pure orthography drift (no underlying sound
+  change) -- it was a genuine *conditioned sound change* (/k/ phonetically
+  shifted, specifically before front vowels) combined with ordinary spelling
+  *freeze* (the letter was never updated to reflect it). Landed as two
+  separate, independently useful mechanisms:
+  - `_apply_palatalization` (`sound_change.py`, already conditioned on a
+    following front vowel) gained a second real outcome per source
+    consonant -- `_PALATALIZATION_VARIANTS = {"k": ("tʃ", "s"), "g": ("dʒ",
+    "z")}`, weighted 0.65 toward the affricate (most lineages stop there;
+    French/Latin-American-Spanish-like lineages go one step further, to the
+    plain sibilant) -- a new `rng.choices`-style draw strictly after the
+    existing trigger roll, same RNG-stream convention as every other
+    extension this session.
+  - `evolve_romanization`'s own `reading_drift_rate` (`romanization_gen.py`)
+    can now produce a *conditioned split* instead of always a flat
+    reassignment, for a drifting *consonant* only (a vowel can't condition
+    on its own frontness -- its identity already fixes that): the old
+    grapheme keeps meaning the original symbol everywhere, but *also* means
+    the drift target specifically before a front vowel, via the
+    already-existing `RomanizationRule.following=("front_vowel",)` class tag
+    -- zero new conditioning infrastructure needed, `apply()`'s own
+    specificity ordering already does the rest. Both sides still feed the
+    prior follow-up's own `reading_drifted` set, so an unaffected existing
+    word keeps its own old spelling either way.
+  Deferred: lineage-biasing *which* palatalization variant a matched real
+  profile prefers; the intermediate `ts`/`dz` stage; a conditioning tag
+  other than front/back vowel.

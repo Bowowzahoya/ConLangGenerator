@@ -5660,3 +5660,78 @@ reading code or one-off ad hoc scripts.
   actual sound change, which is exactly the population this fix targets; a very long time depth leaves
   almost nothing unaffected, since `orality_literacy` -- needed to make drift likely -- also speeds up
   the six segmental rules themselves via this session's own earlier "rules are generic" pass).
+
+- **Phonetic-context conditioning: a real conditioned sound-change rule, and a context-conditioned
+  reading drift (grammar pass 43).** Direct user follow-up to the reading-drift pass's own explicitly-
+  deferred nuance ("real Latin c/s is conditioned on a following front vowel, not a flat reassignment").
+
+  Working through a concrete design before writing any code surfaced a correction worth recording: real
+  Latin "c" -> /s/ before front vowels wasn't pure *orthography* drift (the spelling's own meaning
+  silently reinterpreting with *no* underlying sound change, which is what `reading_drift_rate` models)
+  -- it was a genuine **conditioned sound change** (/k/ phonetically shifted, specifically before front
+  vowels) **combined with ordinary spelling freeze** (the letter "c" was never updated to reflect it).
+  That's two different, independently useful features, confirmed as landed separately, both as a first
+  pass each (user's own framing: "start with both"):
+
+  - **Part 1 (`sound_change.py`)**: `_apply_palatalization` (already conditioned on a following front
+    vowel -- unchanged) used to have one fixed target per source consonant,
+    `_PALATALIZATION: dict[str, str] = {"k": "tʃ", "g": "dʒ"}`. Real Romance palatalization's own outcome
+    varies by lineage/stage -- Italian stayed at the affricate; French/Latin-American Spanish went one
+    step further, to a plain sibilant. Replaced with `_PALATALIZATION_VARIANTS: dict[str, tuple[str,
+    ...]] = {"k": ("tʃ", "s"), "g": ("dʒ", "z")}` and a new `_PALATALIZATION_AFFRICATE_WEIGHT = 0.65`:
+    the existing trigger roll (`rng.random() < rate`, unchanged) is followed, only when it already
+    fired, by one new weighted draw picking which variant -- strictly after the existing draw in that
+    function's own sequence, this project's own established RNG-stream convention for extending a roll
+    rather than disturbing it. Both outcomes stay single-character, deliberately, so this never needs
+    `_reachable_sound_change_symbols`'s own multi-character-tokenizer-pool handling (the intermediate
+    `ts`/`dz` stage real Romance passed through is not modeled, to keep this pass's footprint small).
+    `_PALATALIZATION_OUTPUTS` (already read by Stage 2's own `_derive_structural_bias` palatalization
+    check, from the "rules are generic" pass) was updated to recognize both new variants too, so a
+    language that already drifted this way still correctly counts as "already partway down this path"
+    for that existing structural signal. Confirmed via a 300-seed sweep: both outcomes reachable, the
+    affricate the clear majority, matching the configured weight.
+
+  - **Part 2 (`romanization_gen.py`)**: confirmed via direct reading of `core/romanization.py`'s own
+    module docstring and `RomanizationScheme._neighbor_tags`/`_specificity` that the conditioning
+    infrastructure this needed **already fully existed and was already wired for exactly this real-
+    world pattern** -- `RomanizationRule.following`/`preceding` already accept the class tags
+    `"front_vowel"`/`"back_vowel"` (the docstring's own cited real example: French/Italian/Spanish
+    spelling a consonant differently before a front vs. back vowel), computed dynamically by
+    `_neighbor_tags` from `RomanizationScheme.vowel_backness` (already populated by `evolve_
+    romanization`'s own `_scheme_context(new_inventory)` call), and `apply()` already prefers the more
+    specific matching rule when both a conditioned and an unconditioned rule exist for the same symbol.
+    Zero new infrastructure needed in `core/romanization.py` at all -- only a different shape of rule
+    for `evolve_romanization` to *generate*. New `_CONTEXT_CONDITIONED_DRIFT_PROBABILITY = 0.4`: when
+    the drifting `symbol` is a **consonant** (gated via a new `consonant_symbols` set built once before
+    the loop -- a vowel can't condition on its own frontness, its identity already fixes that, per the
+    docstring's own note), a further roll decides flat reassignment (today's existing behavior,
+    unchanged) vs. a **conditioned split**: `symbol`'s own old rule(s) are kept completely unconditioned
+    for "elsewhere," *and* a second copy is added with `ipa=target, following=("front_vowel",)` -- the
+    same old grapheme now spells the target specifically before a front vowel too, while continuing to
+    spell `symbol` everywhere else. `symbol` is deliberately *not* added to `drifted_away` for a
+    conditioned split (nothing was vacated), but both `symbol` and `target` are still added to
+    `drift_targets` (and so to the returned `reading_drifted` set) -- the prior pass's own "pre-drift"
+    freeze check needs this either way: an existing word using `symbol` before a front vowel, whose own
+    sound didn't change, must not be swept into the new conditioned spelling just because that specific
+    context now has a competing, more-specific rule. Verified end to end with a direct `apply()` call on
+    a seed-searched conditioned-split scheme: `/k/` renders "k" in any context (unaffected); `/x/` before
+    a front vowel renders "k" too (the conditioned split firing); `/x/` before a back vowel still
+    renders its own old "kh" (falling back to the unconditioned rule) -- the real Latin c/s shape,
+    reproduced exactly.
+
+  **Explicitly deferred**: lineage-biasing *which* palatalization variant a matched real profile prefers
+  (a natural, well-precedented extension reusing the "rules are generic" pass's own `historical_*_
+  affinity` shape, but a separate, later enrichment); the intermediate `ts`/`dz` stage; a reading-drift
+  conditioning tag other than front/back vowel (syllable position, a specific neighboring consonant);
+  preserving any *pre-existing* `following`/`preceding` constraint a drifting rule already had (this
+  pass's own conditioned rule overwrites `following` outright -- a documented simplification, since
+  today's drifted-from rules are typically unconditioned to begin with).
+
+  Tests: `tests/test_sound_change.py` (both palatalization outcomes reachable across a 300-seed sweep
+  with the affricate dominant; the existing front-vowel trigger condition still gates it, unchanged;
+  `_PALATALIZATION_OUTPUTS` recognizes both variants). `tests/test_romanization_gen.py` (a vowel's own
+  drift never produces a conditioned rule, only a consonant's can; a seed-searched conditioned split
+  leaves the source symbol's own unconditioned rule intact, reports both sides in the returned
+  `reading_drifted` set, and renders correctly end to end via a direct `apply()` call covering all three
+  cases -- the unaffected symbol, the conditioned match, and the conditioned non-match falling back to
+  the old spelling).

@@ -1724,6 +1724,13 @@ def _apply_orthography_drift(text: str, rng: random.Random, rate: float) -> str:
     return "".join(ch for ch in text if not (ch in _EJECTIVE_SPELLING_MARKS and rng.random() < rate))
 
 
+_CONTEXT_CONDITIONED_DRIFT_PROBABILITY = 0.4
+"""When a consonant's reading drifts, the chance it's a *conditioned*
+split (real Latin "c" -- still /k/ before a back vowel, drifted to /s/
+before a front one) rather than a flat, unconditional reassignment --
+illustrative, not trait-linked."""
+
+
 def evolve_romanization(
     base_scheme: RomanizationScheme,
     new_inventory: PhonemeInventory,
@@ -1759,15 +1766,24 @@ def evolve_romanization(
     (unlike ``reform``, no new grapheme is invented, and unlike freeze,
     the rule's own `ipa` key -- not its `latin` spelling -- is what
     moves: the written form "k" stays exactly "k", but it now renders a
-    *different*, nearby symbol going forward, real Latin "c" originally
-    /k/ later read /s/ before front vowels, or English "gh" drifting from
-    a real consonant to silence, both with no spelling reform at all).
-    The vacated original symbol (here, the real /k/) gets its own fresh
-    rule the same way a reformed symbol would -- every existing word still
-    pronouncing it gets re-spelled with that fresh grapheme this same run,
-    the identical downstream consequence an ordinary reform already has
-    (this project tracks no word's own spelling independent of its
-    current `ipa` + the current scheme, for any word, drifted or not).
+    *different*, nearby symbol going forward -- English "gh" drifting
+    from a real consonant to silence, with no spelling reform at all).
+    A *consonant* drifting (never a vowel -- its own identity already
+    fixes its frontness, so there's nothing to condition on) gets a
+    further, independent roll at ``_CONTEXT_CONDITIONED_DRIFT_PROBABILITY``
+    for whether this is a flat, unconditional move (the vacated original
+    symbol gets its own fresh rule the same way a reformed symbol would)
+    or a *conditioned split*: the old grapheme keeps meaning the original
+    symbol everywhere, but *also* means the new target specifically
+    before a front vowel (real Latin "c" -- still /k/ before a back
+    vowel, drifted to /s/ before a front one -- via the already-existing
+    ``following=("front_vowel",)`` class tag, no new conditioning
+    machinery needed). Either way, an *existing* word whose own sound
+    didn't move keeps its own old spelling rather than being swept into
+    the new convention (``sound_change.evolve_language``'s own "pre-drift"
+    freeze, driven by this function's returned ``reading_drifted`` set) --
+    only a newly-coined word, or one whose own sound genuinely moved,
+    follows it.
 
     ``drift_rate`` then independently rolls, per *rule* in the resulting
     scheme, whether ``_apply_orthography_drift`` simplifies its grapheme --
@@ -1823,6 +1839,8 @@ def evolve_romanization(
             symbol, reference, reference_weight_by_symbol, structural, category, weighted_profiles, rng, effective_strictness
         )
 
+    consonant_symbols = frozenset(c.ipa for c in new_inventory.consonants)
+
     rules: list[RomanizationRule] = []
     drifted_away: set[str] = set()
     drift_targets: set[str] = set()
@@ -1834,6 +1852,22 @@ def evolve_romanization(
             targets = phoneme_fit.neighbours(symbol, new_inventory)
             if targets:
                 target = rng.choice(targets)
+                # A consonant's own reading can split by context (real
+                # Latin "c" -- still /k/ before a back vowel, drifted to
+                # /s/ before a front one) rather than always moving
+                # wholesale -- a vowel can't condition on its own
+                # frontness (its identity already fixes that, see
+                # RomanizationRule's own docstring), so this is
+                # consonant-only.
+                if symbol in consonant_symbols and rng.random() < _CONTEXT_CONDITIONED_DRIFT_PROBABILITY:
+                    rules.extend(
+                        rule.model_copy(update={"ipa": target, "following": ("front_vowel",)})
+                        for rule in old_by_ipa[symbol]
+                    )
+                    rules.extend(old_by_ipa[symbol])  # unconditioned fallback -- "elsewhere" keeps the old reading
+                    drift_targets.add(target)
+                    drift_targets.add(symbol)  # not vacated, but still touched -- see reading_drifted below
+                    continue
                 rules.extend(rule.model_copy(update={"ipa": target}) for rule in old_by_ipa[symbol])
                 drifted_away.add(symbol)
                 drift_targets.add(target)

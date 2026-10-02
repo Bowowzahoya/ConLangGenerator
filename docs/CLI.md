@@ -337,6 +337,35 @@ drifted-in alternative spelling this run -- its own sound never moved, so
 it keeps its historical spelling rather than possibly rendering with the
 new alternative.
 
+**Palatalization now has two real outcomes**, not just one: most of the
+time a plain stop before a front vowel becomes an affricate (`tʃ`/`dʒ`,
+Italian-like), but about a third of the time it goes one step further to a
+plain sibilant (`s`/`z`, French/Latin-American-Spanish-like):
+
+```bash
+conlang generate --name pal-test-3 --evolve-from drift2-base --years 300 \
+  --seed 3 --prompt p --trait altitude=0 --trait contact_intensity=-0.3 --llm fake
+```
+
+Inspecting `pal-test-3`'s own `phonology.consonants` (against `drift2-base`'s)
+shows `z` newly present alongside the usual `tʃ`/`dʒ` -- the sibilant
+outcome actually firing, not just the affricate.
+
+**Reading drift can also split by context now**, instead of always moving a
+grapheme wholesale: a drifting *consonant* can keep its own old meaning
+everywhere *and* gain a second meaning specifically before a front vowel --
+the real Latin "c" shape (still /k/ before a back vowel, /s/ before a front
+one), via `--llm fake`'s own deterministic hashing at
+`--prompt p --trait orality_literacy=-0.95 --years 300 --seed 4` evolving
+`drift2-base`: inspecting the saved language's own `romanization.rules`
+shows the grapheme "k" with three rules -- unconditioned for both `/k/` and
+`/kʼ/`, *and* a third, conditioned one (`following=("front_vowel",)`) now
+also spelling `/g/` specifically before a front vowel, while `/g/` keeps a
+separate, unconditioned spelling of its own everywhere else. (Exact rule
+sets are sensitive to every other trait dimension too, which `--llm fake`
+hashes from the prompt string -- the inspection method, not a specific
+CLI-reproducible rule table, is the durable thing to rely on here.)
+
 Leaving `--years` blank uses the time depth the prompt itself implies
 (e.g. "evolved forward 200 years"); `--years 0` with `--evolve-from`
 evolves nothing (a no-op round trip, useful for testing).

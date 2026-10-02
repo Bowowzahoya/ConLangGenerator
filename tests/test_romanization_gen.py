@@ -28,6 +28,7 @@ from conlang_generator.generation.romanization_gen import (
     _generate_length_rules,
     _reference_orthography,
     _roll_independent_axes,
+    _scheme_context,
     evolve_romanization,
     generate_romanization,
 )
@@ -334,6 +335,79 @@ def test_reading_drift_only_targets_a_same_class_neighbour():
         # "a" is the only vowel -- it has no same-class neighbour to drift
         # onto, so it must always keep its own original spelling.
         assert by_ipa["a"] == ["a"]
+
+
+def _kx_scheme_and_inventory_with_front_and_back_vowels():
+    consonants = (
+        Consonant(ipa="k", place=Place.VELAR, manner=Manner.STOP, voiced=False),
+        Consonant(ipa="x", place=Place.VELAR, manner=Manner.FRICATIVE, voiced=False),
+    )
+    vowels = (
+        Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.BACK, rounded=False),
+        Vowel(ipa="i", height=VowelHeight.CLOSE, backness=VowelBackness.FRONT, rounded=False),
+    )
+    inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
+    scheme = RomanizationScheme(
+        rules=(
+            RomanizationRule(ipa="k", latin="k"),
+            RomanizationRule(ipa="x", latin="kh"),
+            RomanizationRule(ipa="a", latin="a"),
+            RomanizationRule(ipa="i", latin="i"),
+        )
+    )
+    return scheme, inventory
+
+
+def test_a_vowel_is_never_offered_the_conditioned_split_path():
+    # core/romanization.py's own docstring: a vowel can't be conditioned
+    # on its own frontness -- its identity already fixes that. No rule
+    # this scheme ever produces should have a vowel symbol as its own
+    # `ipa` *and* a non-empty `following` -- a conditioned rule is only
+    # ever generated for a drifting *consonant's* own `ipa`.
+    scheme, inventory = _kx_scheme_and_inventory_with_front_and_back_vowels()
+    for seed in range(100):
+        evolved, _ = evolve_romanization(scheme, inventory, random.Random(seed), reform_rate=0.0, reading_drift_rate=1.0)
+        for rule in evolved.rules:
+            if rule.following:
+                assert rule.ipa in ("k", "x"), (seed, rule)
+
+
+def test_a_consonants_drift_can_split_by_front_vs_back_vowel_context():
+    # The real Latin "c" shape: the old grapheme keeps meaning the
+    # original symbol *and* gains a second, context-conditioned meaning --
+    # it doesn't lose its own unconditioned meaning the way a flat
+    # reassignment would.
+    scheme, inventory = _kx_scheme_and_inventory_with_front_and_back_vowels()
+    conditioned_case = None
+    for seed in range(500):
+        evolved, drifted = evolve_romanization(scheme, inventory, random.Random(seed), reform_rate=0.0, reading_drift_rate=0.5)
+        by_ipa: dict[str, list] = {}
+        for rule in evolved.rules:
+            by_ipa.setdefault(rule.ipa, []).append(rule)
+        k_rules, x_rules = by_ipa.get("k", []), by_ipa.get("x", [])
+        vowels_unchanged = (
+            all(r.latin == "a" for r in by_ipa.get("a", [])) and all(r.latin == "i" for r in by_ipa.get("i", []))
+        )
+        if (
+            vowels_unchanged
+            and len(k_rules) == 1 and k_rules[0].latin == "k" and not k_rules[0].following
+            and any(r.latin == "k" and r.following == ("front_vowel",) for r in x_rules)
+        ):
+            conditioned_case = (seed, evolved, drifted)
+            break
+    assert conditioned_case is not None, "no seed in range produced a conditioned split -- test would be vacuous"
+    seed, evolved, drifted = conditioned_case
+    # "k" (the consonant) kept its own unconditioned rule -- not vacated.
+    assert any(r.ipa == "k" and not r.following for r in evolved.rules)
+    # Both sides are still reported as drift-touched, for the caller's own
+    # "freeze an unaffected existing word's spelling" check.
+    assert {"k", "x"} <= drifted
+    # apply() actually renders the split correctly end to end.
+    vowel_symbols, _, vowel_backness, _ = _scheme_context(inventory)
+    renderable = evolved.model_copy(update={"vowel_symbols": vowel_symbols, "vowel_backness": vowel_backness})
+    assert renderable.apply("ki") == "ki"  # /k/ unaffected, any vowel
+    assert renderable.apply("xi") == "ki"  # /x/ before a front vowel -- conditioned split fires
+    assert renderable.apply("xa") == "kha"  # /x/ before a back vowel -- falls back to its own old spelling
 
 
 def test_every_pool_symbol_has_a_deliberate_mapping_in_every_style_table():
