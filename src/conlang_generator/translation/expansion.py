@@ -16,6 +16,7 @@ import random
 
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
+from conlang_generator.core.traits import coining_context
 from conlang_generator.generation import root_pattern
 from conlang_generator.generation.lexicon_gen import propose_word
 from conlang_generator.llm.base import LLMClient
@@ -43,7 +44,7 @@ def coin_word(
                 llm_client,
                 language.name,
                 structure=language.syllable_structure,
-                context=language.spec.traits.salient_context,
+                context=coining_context(language.spec.traits),
                 source_languages=language.spec.traits.source_languages,
                 strictness=language.spec.traits.source_language_strictness,
                 word_accent_system=language.word_accent,
@@ -61,7 +62,7 @@ def coin_word(
                 pos,
                 llm_client,
                 language.name,
-                context=language.spec.traits.salient_context,
+                context=coining_context(language.spec.traits),
                 favor_short=False,
                 source_languages=language.spec.traits.source_languages,
                 strictness=language.spec.traits.source_language_strictness,

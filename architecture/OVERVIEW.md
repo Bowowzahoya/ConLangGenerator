@@ -5201,3 +5201,44 @@ reading code or one-off ad hoc scripts.
     though nothing should prevent it, since clauses already nest arbitrarily. 7 tests in
     `test_reported_speech.py` (plus one new sibling test in
     `test_subordination_followups2.py` for the bundled bug fix).
+
+- **Wiring existing traits (grammar pass 36).** `docs/DEFERRED.md`'s own "Wiring existing traits"
+  bullet named six `TraitProfile` fields "extracted and stored but consumed by nothing." Investigated
+  all six: three had an existing flat roll or channel to bias, cheaply, with the same
+  `base + weight * max(0, trait)` shape `social_hierarchy` -> `honorific_you` already uses; three had
+  no mechanism anywhere to hook into, needing a real new feature first, not a formula -- those three
+  stay deferred, with the reasoning recorded directly in DEFERRED.md rather than re-attempted here.
+
+  - `evidentiality_culture` biases `inflection_gen.roll_aspect_followups`'s `EVIDENTIAL_SYSTEMS` pick:
+    the "no evidentiality" weight (flat `0.55`) shrinks by `_EVIDENTIALITY_CULTURE_WEIGHT *
+    max(0, trait)` (floored at `0.1`), and the freed probability mass is redistributed proportionally
+    across the three richer systems -- their own relative sizes to each other stay fixed, only the
+    overall "does this culture mark it at all" balance shifts.
+  - `spatial_reference` biases `np_followups_gen.roll_round_three`'s `SPATIAL_CASES` roll, but
+    precisely: of the five optional spatial-case candidates (locative, instrumental, ablative,
+    allative, comitative), only the three that are actually about *spatial* reference (locative,
+    ablative, allative) get the raised rate (`0.3 + 0.5 * max(0, trait)`, capped at `0.9`);
+    instrumental and comitative (means and accompaniment, not location) stay at the original flat
+    `0.3` -- a deliberately narrow, not blanket, bias.
+  - `salient_vocabulary_domains` was confusingly similar to, but entirely separate from, the already-
+    consumed `salient_context` (free-text word-coining flavor). Rather than giving it its own parallel
+    plumbing, a new `core.traits.coining_context(traits)` joins the two ("... (seafaring, herding
+    culture)"), and the four existing call sites that read `salient_context` directly (two in
+    `generator.py`, two in `translation/expansion.py`) now call this instead -- backward compatible by
+    construction, since an older saved language's empty `salient_vocabulary_domains` makes
+    `coining_context` return exactly its old `salient_context` string.
+  - Both roll functions gained an optional trait parameter (`evidentiality_culture`/
+    `spatial_reference`, both defaulting to `0.0`, today's unchanged behavior) rather than a new rng
+    draw -- these are reweightings of *existing* draws, not new ones, so no backward-compatibility
+    concern about an old seed's draw sequence shifting arises here at all, unlike most of this
+    session's other passes.
+  - `ritual_register`/`taboo_register`/`terrain_communication_distance` were investigated and
+    confirmed to have no analogous mechanism anywhere (no register/formal-speech system, no
+    euphemism/avoidance-vocabulary system, no long-range-communication proxy) -- each would need a
+    real new feature built before it could be "wired," a materially bigger undertaking than this
+    pass's three formula tweaks, left deferred with that reasoning recorded.
+  - Also out of scope, confirmed unrelated to these six traits: `word_order` has no graded-trait
+    influence at all today (only matched-reference-profile bias); `morphological_type` already has
+    trait bias but no matched-reference-profile analogue, since no `real_morphological_type` field
+    exists on `ReferenceLanguageProfile` -- adding one needs new data curated across ~50 profiles, not
+    a formula. 10 tests in `test_trait_wiring.py`.

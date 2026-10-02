@@ -84,12 +84,27 @@ class TraitProfile(BaseModel, frozen=True):
     matters for tonal languages. A source-language strictness of ``1.0``
     keeps the matched profiles' real rules regardless (see
     ``generation.phonology_gen.resolve_tone_sandhi``)."""
+    evidentiality_culture: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: a culture that marks evidentiality richly -- lowers the
+    chance a language rolls "no evidentiality" at all, redistributing that
+    weight proportionally across the three richer ``EVIDENTIAL_SYSTEMS``
+    (see ``generation.inflection_gen.roll_aspect_followups``). Negative:
+    today's flat rate, same as ``0.0``."""
+    spatial_reference: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: a culture for which precise spatial reference matters --
+    raises the roll rate specifically for the locative/ablative/allative
+    cases (not instrumental/comitative, which are about means/
+    accompaniment rather than location; see
+    ``generation.np_followups_gen.roll_round_three``). Negative: today's
+    flat rate, same as ``0.0``."""
+    social_hierarchy: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: a hierarchical culture -- raises the chance a language
+    rolls ``honorific_you``/``referent_honorifics`` at all (see
+    ``generation.pronoun_gen.roll_pronoun_system``). Negative: today's
+    flat rate, same as ``0.0``."""
 
     # -- Extracted and stored, not yet consumed by generation --
-    social_hierarchy: float = Field(default=0.0, ge=-1.0, le=1.0)
     orality_literacy: float = Field(default=0.0, ge=-1.0, le=1.0)
-    evidentiality_culture: float = Field(default=0.0, ge=-1.0, le=1.0)
-    spatial_reference: float = Field(default=0.0, ge=-1.0, le=1.0)
     ritual_register: float = Field(default=0.0, ge=-1.0, le=1.0)
     taboo_register: float = Field(default=0.0, ge=-1.0, le=1.0)
     terrain_communication_distance: float = Field(default=0.0, ge=-1.0, le=1.0)
@@ -133,7 +148,8 @@ class TraitProfile(BaseModel, frozen=True):
     text separately supports."""
     salient_vocabulary_domains: tuple[str, ...] = ()
     """Subsistence/culture-driven vocabulary domains (e.g. "seafaring",
-    "herding"); recorded only, not yet used to expand the core lexicon."""
+    "herding"). Folded into word-coining prompts via ``coining_context``
+    below (not yet used to expand the core lexicon's own meaning list)."""
     time_depth_years: int | None = None
     """"How would this sound in N years" -- recorded only; diachronic sound
     change is future work."""
@@ -152,3 +168,18 @@ class TraitProfile(BaseModel, frozen=True):
     """Free-text catch-all for anything notable that doesn't map to a field
     above -- the "unknown unknowns" channel. Consumed as extra flavor
     context in word-coinage LLM prompts; never parsed further."""
+
+
+def coining_context(traits: TraitProfile) -> str:
+    """The flavor text actually passed as word-coining's own ``context``
+    parameter: ``salient_context`` with ``salient_vocabulary_domains``
+    folded in (e.g. "... (seafaring, herding culture)"). A language saved
+    before ``salient_vocabulary_domains`` was consumed, or one where it's
+    simply empty, gets back exactly its old ``salient_context`` string."""
+    domains = ", ".join(traits.salient_vocabulary_domains)
+    if not domains:
+        return traits.salient_context
+    domain_text = f"{domains} culture"
+    if not traits.salient_context:
+        return domain_text
+    return f"{traits.salient_context} ({domain_text})"

@@ -273,6 +273,11 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   uses. Only indirect speech is modeled (the embedded clause's own pronouns/tense follow the ordinary
   planner rules); there is no direct-quotation construction, and the quotative particle has no
   modeled interaction with the (separate) evidentiality system's own "reported" label.
+- **Trait wiring is still simple linear reweighting of existing flat rolls, not a deeper typological
+  model**: `evidentiality_culture` and `spatial_reference` each raise an existing roll's rate by a
+  fixed formula, nothing more. Half of `docs/DEFERRED.md`'s six named traits
+  (`ritual_register`/`taboo_register`/`terrain_communication_distance`) remain completely unconsumed
+  -- no register, euphemism, or long-range-communication mechanism exists yet for any of them to bias.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

@@ -90,14 +90,30 @@ def derive_article_ipa(demonstrative_ipa: str, inventory: PhonemeInventory) -> s
 
 SPATIAL_CASES = ("locative", "instrumental", "ablative", "allative", "comitative")
 """Cases a language may add for its adpositions (only where its adposition strategy uses cases)."""
+_TRULY_SPATIAL_CASES = frozenset({"locative", "ablative", "allative"})
+"""Of ``SPATIAL_CASES``, the ones ``spatial_reference`` actually biases --
+instrumental/comitative are about means/accompaniment, not spatial reference."""
+_SPATIAL_REFERENCE_BASE_RATE = 0.3
+_SPATIAL_REFERENCE_WEIGHT = 0.5
+_SPATIAL_REFERENCE_CAP = 0.9
 
 
-def roll_round_three(rng: random.Random, grammar) -> dict[str, object]:
+def roll_round_three(rng: random.Random, grammar, spatial_reference: float = 0.0) -> dict[str, object]:
     """Third round of noun-phrase draws (own stream, every draw always made):
     more spatial cases, classifiers beside adjectives, dropping "of" after a
     measure noun, which persons have their own possessive word, irregular pasts,
-    deictic (reduced-demonstrative) articles and article + demonstrative doubling."""
-    case_hits = [rng.random() < 0.3 for _ in SPATIAL_CASES]
+    deictic (reduced-demonstrative) articles and article + demonstrative doubling.
+    A culture with strong ``spatial_reference`` (0 or negative: today's flat
+    30% rate unchanged) more often adds locative/ablative/allative
+    specifically -- instrumental/comitative stay at the flat rate."""
+    spatial_rate = min(
+        _SPATIAL_REFERENCE_CAP,
+        _SPATIAL_REFERENCE_BASE_RATE + _SPATIAL_REFERENCE_WEIGHT * max(0.0, spatial_reference),
+    )
+    case_hits = [
+        rng.random() < (spatial_rate if case in _TRULY_SPATIAL_CASES else _SPATIAL_REFERENCE_BASE_RATE)
+        for case in SPATIAL_CASES
+    ]
     with_adjective = rng.random() < 0.3
     drop_of = rng.random() < 0.5
     person_hits = [rng.random() < 0.6 for _ in range(4)]

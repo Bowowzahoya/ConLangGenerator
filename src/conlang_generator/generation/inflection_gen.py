@@ -316,6 +316,8 @@ EVIDENTIAL_SYSTEMS: tuple[tuple[str, ...], ...] = (
     ("witnessed", "inferred", "reported"),
 )
 _EVIDENTIAL_WEIGHTS = (0.55, 0.15, 0.15, 0.15)
+_EVIDENTIALITY_CULTURE_WEIGHT = 0.35
+_EVIDENTIALITY_CULTURE_FLOOR = 0.1
 NEGATION_STRATEGIES = (("particle", 0.55), ("affix", 0.25), ("both", 0.20))
 PERIPHRASTIC_CANDIDATES = (
     "past", "future", "perfective", "imperfective", "progressive", "perfect", "habitual",
@@ -327,14 +329,24 @@ _PERIPHRASTIC_RATE = 0.25
 AUXILIARY_GLOSS_PREFIX = "aux-"
 
 
-def roll_aspect_followups(rng: random.Random, grammar) -> dict[str, object]:
+def roll_aspect_followups(rng: random.Random, grammar, evidentiality_culture: float = 0.0) -> dict[str, object]:
     """Rolls for evidentiality, negation strategy, a prohibitive, periphrastic
     labels and their position (every draw always made, so the count never
-    depends on the grammar)."""
+    depends on the grammar). A culture that marks evidentiality richly
+    (``evidentiality_culture``, 0 or negative: today's flat rates unchanged)
+    makes "no evidentiality" less likely, redistributing the freed weight
+    proportionally across the three richer systems -- their own relative
+    weights to each other untouched."""
+    none_weight = max(
+        _EVIDENTIALITY_CULTURE_FLOOR,
+        _EVIDENTIAL_WEIGHTS[0] - _EVIDENTIALITY_CULTURE_WEIGHT * max(0.0, evidentiality_culture),
+    )
+    rest_total = sum(_EVIDENTIAL_WEIGHTS[1:])
+    weights = (none_weight,) + tuple(w / rest_total * (1.0 - none_weight) for w in _EVIDENTIAL_WEIGHTS[1:])
     roll = rng.random()
     cumulative = 0.0
     evidentials = EVIDENTIAL_SYSTEMS[0]
-    for system, weight in zip(EVIDENTIAL_SYSTEMS, _EVIDENTIAL_WEIGHTS):
+    for system, weight in zip(EVIDENTIAL_SYSTEMS, weights):
         cumulative += weight
         if roll < cumulative:
             evidentials = system

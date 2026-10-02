@@ -11,6 +11,7 @@ from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
 from conlang_generator.core.romanization import apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.core.traits import coining_context
 from conlang_generator.generation import (
     grammar_gen,
     inflection_gen,
@@ -370,7 +371,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     # Aspect/mood follow-ups: evidentials, negation strategy, prohibitive,
     # periphrastic labels -- another independent stream.
     followup_rng = random.Random(f"{spec.seed}:aspect-followups")
-    followups = inflection_gen.roll_aspect_followups(followup_rng, grammar)
+    followups = inflection_gen.roll_aspect_followups(followup_rng, grammar, spec.traits.evidentiality_culture)
     taken = frozenset(
         affix.suffix
         for name in inflection_gen._VERB_SUFFIX_FIELDS
@@ -524,12 +525,12 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         pending_words = [item for item in built if isinstance(item, lexicon_gen.PendingWord)]
         if use_llm and spec.word_selection == "llm":
             chosen_candidates = lexicon_gen.choose_best_candidates_batch(
-                pending_words, llm_client, name, spec.traits.salient_context
+                pending_words, llm_client, name, coining_context(spec.traits)
             )
         else:
             chosen_candidates = [
                 lexicon_gen.resolve_candidate(
-                    rng, pw.candidates, pw.gloss, pw.pos, llm_client, name, spec.traits.salient_context, "algorithmic"
+                    rng, pw.candidates, pw.gloss, pw.pos, llm_client, name, coining_context(spec.traits), "algorithmic"
                 )
                 for pw in pending_words
             ]
@@ -659,7 +660,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
 
     # Noun-phrase follow-ups, round three (own stream).
     np3_rng = random.Random(f"{spec.seed}:np-followups-3")
-    np3 = np_followups_gen.roll_round_three(np3_rng, grammar)
+    np3 = np_followups_gen.roll_round_three(np3_rng, grammar, spec.traits.spatial_reference)
     np3_taken = frozenset(
         affix.suffix
         for name in (*inflection_gen._VERB_SUFFIX_FIELDS, *inflection_gen._NOUN_SUFFIX_FIELDS)

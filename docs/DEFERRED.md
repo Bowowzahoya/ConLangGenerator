@@ -355,14 +355,24 @@ common verbs) and object/addressee-humbling (kenjougo-style) marking; direct quo
 interaction between the quotative particle and the (separate) evidentiality system; idioms
 (`Idiom`/`with_new_idiom` exist as types but nothing generates one).
 
-**Wiring existing traits (M each):** `evidentiality_culture`, `spatial_reference`, `ritual_register`,
-`taboo_register`, `terrain_communication_distance`,
-`salient_vocabulary_domains` are extracted and stored but consumed by
-nothing (`orality_literacy` only affects evolution's orthography reform; `social_hierarchy` is
-consumed -- it raises the probability a language rolls `honorific_you` at all, see `pronoun_gen.py`).
-Word order is not trait-linked (S). Matched-language grammar bias is partial:
-`real_word_order`, `real_alignment`, `real_has_articles`, ... exist for ~16
-of ~50 profiles, and `morphological_type` has no matched-language bias (M).
+**Wiring existing traits (`evidentiality_culture`/`spatial_reference`/`salient_vocabulary_domains` done;
+`ritual_register`/`taboo_register`/`terrain_communication_distance` still M each):**
+`evidentiality_culture` raises the chance of a richer `EVIDENTIAL_SYSTEMS` roll (less "no
+evidentiality", the freed weight split proportionally across the three richer systems);
+`spatial_reference` raises the roll rate specifically for the three truly spatial cases (locative,
+ablative, allative) -- instrumental/comitative, about means/accompaniment rather than spatial
+reference, stay at their flat rate; `salient_vocabulary_domains` folds into the same `salient_context`
+free-text channel word-coining prompts already read (via `core.traits.coining_context`), rather than
+getting its own separate plumbing. `ritual_register`, `taboo_register` and
+`terrain_communication_distance` remain genuinely unconsumed -- no register/formal-speech system, no
+euphemism/avoidance-vocabulary system, and no long-range-communication proxy exists anywhere yet to
+bias; each needs a real new mechanism built first, not just a formula (`orality_literacy` only affects
+evolution's orthography reform; `social_hierarchy` is consumed -- it raises the probability a language
+rolls `honorific_you` at all, see `pronoun_gen.py`). Word order is not trait-linked (S). Matched-language
+grammar bias is partial: `real_word_order`, `real_alignment`, `real_has_articles`, ... exist for ~16
+of ~50 profiles, and `morphological_type` has no matched-language bias -- it has no
+`real_morphological_type` field on any profile at all, so this needs new per-profile data curated
+across ~50 profiles, not a formula tweak (M, bigger than the three traits just wired).
 
 ## 11. Language evolution
 
