@@ -5,6 +5,7 @@ from conlang_generator.core.grammar import GrammarProfile
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.fake_client import FakeLLMClient, _fake_degree_of, _fake_plan_dict
+from tests._shared_language import cached_language
 from conlang_generator.translation import sentence_planner
 from conlang_generator.translation.sentence_planner import PlannedSlot, SentencePlan
 from conlang_generator.translation.translator import (
@@ -15,8 +16,6 @@ from conlang_generator.translation.translator import (
 )
 
 _CLIENT = FakeLLMClient()
-_CACHE: dict[int, object] = {}
-
 
 class _SpyClient(FakeLLMClient):
     def __init__(self) -> None:
@@ -27,10 +26,7 @@ class _SpyClient(FakeLLMClient):
         return super().complete(request)
 
 
-def _language(seed: int):
-    if seed not in _CACHE:
-        _CACHE[seed] = generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
-    return _CACHE[seed]
+_language = cached_language
 
 
 def _find(predicate, limit: int = 250):

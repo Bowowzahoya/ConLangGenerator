@@ -7,6 +7,7 @@ from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import voice_np_gen
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.fake_client import FakeLLMClient
+from tests._shared_language import cached_language
 from conlang_generator.translation import sentence_planner
 from conlang_generator.translation.sentence_planner import PlannedSlot, SentencePlan
 from conlang_generator.translation.translator import (
@@ -20,13 +21,8 @@ from conlang_generator.translation.translator import (
 )
 
 _CLIENT = FakeLLMClient()
-_CACHE: dict[int, object] = {}
 
-
-def _language(seed: int):
-    if seed not in _CACHE:
-        _CACHE[seed] = generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
-    return _CACHE[seed]
+_language = cached_language
 
 
 def _find(predicate, check=None, limit: int = 300):
