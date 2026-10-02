@@ -5243,7 +5243,7 @@ reading code or one-off ad hoc scripts.
     exists on `ReferenceLanguageProfile` -- adding one needs new data curated across ~50 profiles, not
     a formula. 10 tests in `test_trait_wiring.py`.
 
-- **Strictness does not reach evolution, stage 1 of 3 (grammar pass 38).** `docs/DEFERRED.md`'s
+- **Strictness does not reach evolution (grammar passes 38-39).** `docs/DEFERRED.md`'s
   "Language evolution" item. The design process here is worth recording, since it changed twice from
   the first instinct:
 
@@ -5310,13 +5310,73 @@ reading code or one-off ad hoc scripts.
        excluded`) before thinning the cluster pool, rather than inventing a new approach.
     Both confirmed via dedicated regression tests (a strict Mandarin-lineage seed empirically found to
     produce each clash) rather than just inferred from reading the code.
-  - **Stages 2 and 3 (still open)**: evolve the inventory and frequency multipliers as their own object
-    (loss: small time-scaled per-phoneme disappearance chance, strictness-independent; gain: the sound-
-    change rules still produce their candidate new phonemes exactly as today, but each candidate's
-    *acceptance* is scaled by `biased_probability` against strictness and lineage membership -- a dial,
-    not a wall, so a candidate within the lineage's own palette is barely suppressed and a wildly
-    foreign one is heavily suppressed but never literally impossible); then fit words to the evolved
-    spec via `phoneme_fit.fit_ipa` rather than deriving the spec from them. Left for a follow-up pass --
-    a real redesign of `evolve_language`'s phonology handling, not a small patch. 3 tests added to
-    `test_sound_change.py` for stage 1 (field preservation; onset-cluster/exclusion consistency;
-    onset/nucleus-pairing consistency); stages 2/3 will need their own.
+  - **Stage 2 (landed, pass 39): evolve the inventory and frequency multipliers as their own object.**
+    New `_evolve_phonology_membership` (`sound_change.py`), called from `_inventory_and_structure`
+    right after it tokenizes the sound-changed wordlist into `used_symbols`, before building the
+    `consonants`/`vowels` tuples from it:
+    - **Loss**: every phoneme the *base* (pre-evolution) inventory already had gets one roll against a
+      small, time-scaled merger rate (`_saturating_rate(years, _MERGER_HALF_LIFE=600.0, 0.0)` -- no
+      trait scales the rate itself, since losing a sound is ordinary lineage-internal drift, not a
+      "straying from the reference" question).
+    - **Gain**: the sound-change rules still produce their candidate new phonemes exactly as before --
+      `_apply_ejective_drift` etc. are untouched. Each phoneme sound change actually introduced (not in
+      the base inventory) gets an acceptance roll: `biased_probability(1.0, strictness if in_lineage
+      else -strictness)`, floored at `_MIN_GAIN_ACCEPTANCE = 0.1` -- a candidate already in the matched
+      lineage profile's own palette is accepted outright at any strictness; a foreign one is suppressed
+      proportionally to strictness but never driven to exactly 0, so gaining a sound stays possible even
+      for a fully strict lineage, just less likely (the "dial, not a wall" correction from this feature's
+      own design history, above). Membership is a plain "in any matched lineage profile or not" check,
+      not weighted by each profile's own relative influence the way fresh generation's own bias is --
+      a deliberate simplification, noted in `docs/LIMITATIONS.md`.
+    - **Frequency drift**: a new `_drift_position_multipliers` nudges each already-populated
+      `onset_symbol_multipliers`/`nucleus_symbol_multipliers`/`coda_symbol_multipliers` entry by a small
+      bounded random step (`±0.15`, clamped to `[0.1, 3.0]`) each evolution call, instead of leaving them
+      frozen at whatever fresh generation first rolled (Stage 1 only *preserved* them; this is what
+      finally makes them actually evolve). A no-op whenever every field is already empty -- true for any
+      language that never had a matched reference profile with positive strictness at generation time,
+      so this still spends no rng for the overwhelming common case.
+    - A dedicated safety floor, `_restore_class_floor`: Loss and Gain roll independently per symbol, so
+      an unlucky run could in principle empty out a whole consonant or vowel class for an already-small
+      inventory over a long time depth. Not a modeled linguistic draw (spends no rng) -- just puts back
+      one representative symbol (preferring one the base language already had) if a class would
+      otherwise end up with nothing.
+    - **Gated on `strictness > 0.0` (no matched lineage collapses `strictness` to `0.0` too)**: at the
+      project's own default (`source_language_strictness=0.0`), `_evolve_phonology_membership` returns
+      `used_symbols` completely unchanged and spends zero rng draws -- confirmed by construction (an
+      early return, not just a 100%-probability roll), matching this project's own "no signal, no draw"
+      convention used throughout `phonology_gen.py`. `_drift_position_multipliers` is additionally gated
+      on `years > 0`, matching this file's pre-existing "zero years, zero change" invariant.
+    - All three draws (Loss, Gain, and frequency drift) share one dedicated rng stream,
+      `random.Random(f"{seed}:phonology-evolution")`, constructed fresh inside `_inventory_and_structure`
+      each of its two call sites (provisional, pre-borrowing/coining; final, post-everything) -- an
+      independent per-feature stream, so this never perturbs any other draw sequence in the file.
+    - **Empirically verified** (not just unit-tested): a strict (`strictness=1.0`) Dutch-lineage language
+      evolved 500 years gained ejective drift's `/pʼ,tʼ,kʼ/` in 9 of 40 seeds, versus 40 of 40 at
+      `strictness=0.0` over the same seed range -- damped by roughly 4x, never blocked outright.
+  - **Stage 3 (landed, pass 39): words are fit to the evolved spec, not derived into it.** New
+    `_refit_rejected_symbols`, called once right after each `_inventory_and_structure` call that
+    produces output actually stored on the returned `Language` (the final call; the provisional call
+    feeds only word coinage, which already targets whatever inventory it's given). For each word's own
+    IPA, tokenizes it against the evolved language's own restricted symbol pool and, only if some symbol
+    isn't in the just-decided final inventory (a Stage-2-rejected gain, or a merged-away loss), repairs
+    it via the exact same nearest-neighbour-and-syllable-repair machinery `translation/names.py`/
+    `generation/real_words.py` already share (`phoneme_fit.fit_ipa`) -- no new feature-distance code
+    needed, confirmed generic and reusable as investigated during this feature's own design. Functions as
+    a real phonemic merger, consistently wherever that symbol occurs in the lexicon, closing exactly the
+    class of inventory/wordlist inconsistency Stage 1's own testing twice surfaced (a sound-change-
+    introduced consonant with no inherited onset/nucleus pairing; an onset cluster containing a
+    separately-excluded symbol) -- except this time by construction, for every evolution run, not just
+    patched for the two cases testing happened to find. Left deliberately untouched (never even
+    tokenized) when every symbol already belongs -- the overwhelming majority of words on every run, and
+    the only way to avoid `fit_ipa`'s own stress/word-accent/tone-mark-stripping preprocessing (it's
+    segment-only machinery, shared as-is from its two existing callers) touching a word that never
+    needed repairing; documented as a real, if rare, information loss in `docs/LIMITATIONS.md`.
+  - 7 tests added to `test_sound_change.py` for stages 2/3 (on top of stage 1's own 3): the
+    `strictness<=0`/no-lineage collapse-to-noop guarantee (two variants, using a `_PoisonRng` that raises
+    if `.random()` is ever called, proving zero draws rather than just a matching result); the gain
+    floor's exact threshold behavior via a `_FixedRng` stub (deterministic, not a seed search); a merger
+    test showing a retained symbol can be lost while `_restore_class_floor` prevents total class
+    collapse; the end-to-end strict-vs-loose ejective-damping statistic combined with a per-entry
+    inventory-consistency check (the Stage 3 regression guard) across both configurations; frequency-
+    multiplier drift (same symbol keys, moved values, still in bounds); determinism (same seed, same
+    evolved spec).

@@ -291,6 +291,36 @@ evolved) get unrelated hash noise; use `--llm anthropic`, or construct a
 `TraitProfile` directly in Python, for a real side-by-side comparison at a
 fixed trait profile across several `--years` values.
 
+**`--strictness`/`--source-language` reach evolution too, not just fresh
+generation.** A strict lineage's inventory doesn't just drift back toward
+the generic the moment `--years` runs -- gaining a sound stays possible
+(damped, never blocked), while losing one is an independent, bounded,
+at-most-one-symbol-per-run event. Same base language (`dutch-base-strict`,
+`--source-language Dutch --strictness 1.0`), same seed, evolved 500 years
+two different ways:
+
+```bash
+conlang generate --name dutch-evolved-strict --evolve-from dutch-base-strict \
+  --years 500 --source-language Dutch --strictness 1.0 --seed 5 --llm fake
+conlang generate --name dutch-evolved-loose --evolve-from dutch-base-strict \
+  --years 500 --strictness 0.0 --seed 5 --llm fake
+```
+
+```
+Evolved 'dutch-base-strict' -> 'dutch-evolved-strict' (dutch-evolved-strict) over 500 years.
+consonants: 19 -> 19, vowels: 16 -> 13
+...
+Evolved 'dutch-base-strict' -> 'dutch-evolved-loose' (dutch-evolved-loose) over 500 years.
+consonants: 19 -> 26, vowels: 16 -> 14
+...
+```
+
+At `--strictness 1.0` the inventory stays close to its original size (a
+small bounded loss, no net foreign gain); at `--strictness 0.0` the same
+500 years under the same underlying sound-change rolls lets the inventory
+balloon with contact-driven gains instead. See `docs/DEFERRED.md`'s
+"Language evolution" section for the mechanism.
+
 Two kinds of change run, independently gated: six gradient, per-position
 **segmental** rules (cluster simplification, lenition, final devoicing,
 palatalization, vowel reduction, ejective drift), each scaling from the

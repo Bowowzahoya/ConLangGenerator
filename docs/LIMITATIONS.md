@@ -290,14 +290,18 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   borrowing or family-tree/dialect branching; history is a flat list.
 - **Sound-change rules are generic**, not a language's own likely
   developments.
-- **Strictness damps evolution's lineage-foreign sound change; it doesn't prevent it (stage 1 of 3 --
-  see docs/DEFERRED.md)**: the sound-change rules themselves (ejective drift, lenition, etc.) are still
-  generic and still fire at the same rate regardless of source language -- only each candidate change's
-  *acceptance* will become lineage-aware once stages 2/3 land. Landed so far (stage 1): a strict
-  language's richer `SyllableStructure` fields (quads, exclusion lists, boundary-pair restrictions,
-  per-position frequency multipliers) now survive evolution instead of silently vanishing -- but the
-  phoneme *inventory* itself still isn't lineage-aware yet, so a strict Dutch-sourced language can
-  still end up with a sound real Dutch never has.
+- **Strictness damps evolution's lineage-foreign sound change; it doesn't prevent it.** The
+  sound-change rules themselves (ejective drift, lenition, etc.) are still generic and still fire at
+  the same rate regardless of source language -- only each candidate change's *acceptance* into the
+  final inventory is lineage-aware (`_evolve_phonology_membership`, gated on `strictness > 0.0`),
+  floored at a 10% minimum so a fully-foreign gain stays possible even at strictness 1.0 (never a hard
+  wall). The per-symbol acceptance roll isn't weighted by each matched source language's own relative
+  influence the way fresh generation's own bias is (unlike `source_language_weights` elsewhere) --
+  membership in *any* matched lineage profile is enough. The added phoneme-loss ("merger") mechanism is
+  a flat, generic rate, not modeled per real merger pathway. A word refit after a lineage-rejected or
+  merged-away phoneme (`phoneme_fit.fit_ipa`) loses its own stress mark, word-accent mark and tone
+  marks, since that shared, segment-only machinery doesn't model any of the three -- a rare path (only
+  a word that actually used a rejected symbol is touched), but a real information loss when it fires.
 
 ## Classifier
 

@@ -422,6 +422,201 @@ def test_evolution_does_not_crash_when_a_new_consonant_has_no_nucleus_pairing():
     evolve_language("Evolved", base, 800, TraitProfile(), seed=3)  # must not raise
 
 
+class _FixedRng:
+    """A minimal stand-in for ``random.Random`` exposing only
+    ``.random()``, returning the same fixed value every call -- lets a
+    test pin down exactly which side of an acceptance threshold a roll
+    lands on, deterministically, instead of searching for a seed."""
+
+    def __init__(self, value: float):
+        self.value = value
+
+    def random(self) -> float:
+        return self.value
+
+
+class _PoisonRng:
+    """Raises if ``.random()`` is ever called -- proves a code path spent
+    *no* rng draw at all, not just that its result happened to match."""
+
+    def random(self) -> float:
+        raise AssertionError("must not draw rng when strictness is not active")
+
+
+def test_phonology_membership_is_a_pure_noop_with_no_matched_lineage():
+    # Stage 2 (strictness reaching evolution -- see docs/DEFERRED.md) must
+    # collapse to exactly pre-Stage-2 behavior whenever there's no lineage
+    # to reason about: not just "same result," but literally the same
+    # object back and zero rng spent, matching this project's own
+    # established "no signal, no draw" convention (e.g. generate_phonology's
+    # own `weighted_profiles and ...` short-circuits).
+    base_inventory = PhonemeInventory(consonants=(_CONSONANT_BY_IPA["p"],), vowels=(_VOWEL_BY_IPA["a"],))
+    used_symbols = {"p", "a", "pʼ"}
+    accepted = sound_change._evolve_phonology_membership(
+        _PoisonRng(), used_symbols, base_inventory, (), TraitProfile(), years=500
+    )
+    assert accepted is used_symbols
+
+
+def test_phonology_membership_is_a_pure_noop_when_lineage_present_but_strictness_is_zero():
+    base_inventory = PhonemeInventory(consonants=(_CONSONANT_BY_IPA["p"],), vowels=(_VOWEL_BY_IPA["a"],))
+    lineage_profiles = (
+        ReferenceLanguageProfile(name="TestLineage", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False),
+    )
+    used_symbols = {"p", "a", "pʼ"}
+    accepted = sound_change._evolve_phonology_membership(
+        _PoisonRng(), used_symbols, base_inventory, lineage_profiles,
+        TraitProfile(source_languages=("TestLineage",), source_language_strictness=0.0), years=500,
+    )
+    assert accepted is used_symbols
+
+
+def test_gain_acceptance_has_a_floor_even_at_full_strictness_against_a_foreign_symbol():
+    # The concrete bug this whole stage fixes: at years=0 no sound change
+    # could have actually introduced "pʼ" for real (see
+    # _reachable_sound_change_symbols's own invariant), but this directly
+    # unit-tests the membership formula itself, isolated from sound
+    # change, so years=0 here just means "skip the unrelated merger roll,"
+    # not "nothing to test."
+    base_inventory = PhonemeInventory(consonants=(_CONSONANT_BY_IPA["p"],), vowels=(_VOWEL_BY_IPA["a"],))
+    lineage_profiles = (
+        ReferenceLanguageProfile(name="TestLineage", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False),
+    )
+    traits = TraitProfile(source_languages=("TestLineage",), source_language_strictness=1.0)
+    used_symbols = {"p", "a", "pʼ"}  # "pʼ" is foreign to this lineage
+
+    # A roll just below the floor (_MIN_GAIN_ACCEPTANCE = 0.1): accepted --
+    # without the floor, a fully-foreign candidate at strictness=1.0 would
+    # have exactly 0.0 acceptance and this roll would still reject it.
+    accepted = sound_change._evolve_phonology_membership(
+        _FixedRng(0.05), used_symbols, base_inventory, lineage_profiles, traits, years=0
+    )
+    assert "pʼ" in accepted
+
+    # A roll just above the floor: rejected.
+    rejected = sound_change._evolve_phonology_membership(
+        _FixedRng(0.15), used_symbols, base_inventory, lineage_profiles, traits, years=0
+    )
+    assert "pʼ" not in rejected
+
+
+def test_merger_never_empties_a_whole_class_even_with_only_one_member():
+    # Loss is a single whole-inventory event per run (does a merger
+    # happen at all; if so, exactly one retained symbol is picked), not
+    # independent per-symbol rolls -- those were tried first and found to
+    # compound across a normal-sized inventory into near-certain, heavy
+    # erosion (see this function's own docstring). With only one member
+    # per class here, whichever symbol a long-enough time depth's merger
+    # event picks would empty that whole class -- `_restore_class_floor`
+    # exists specifically to put it back rather than leave a classless
+    # inventory.
+    base_inventory = PhonemeInventory(consonants=(_CONSONANT_BY_IPA["p"],), vowels=(_VOWEL_BY_IPA["a"],))
+    lineage_profiles = (
+        ReferenceLanguageProfile(name="TestLineage", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False),
+    )
+    traits = TraitProfile(source_languages=("TestLineage",), source_language_strictness=1.0)
+    used_symbols = {"p", "a"}
+    for seed in range(30):
+        accepted = sound_change._evolve_phonology_membership(
+            random.Random(seed), set(used_symbols), base_inventory, lineage_profiles, traits, years=3000,
+        )
+        assert accepted == {"p", "a"}, f"seed={seed}: the sole consonant/vowel must survive via the class floor"
+
+
+def test_merger_can_actually_drop_exactly_one_retained_symbol_from_a_bigger_inventory():
+    base_inventory = PhonemeInventory(
+        consonants=tuple(_CONSONANT_BY_IPA[s] for s in ("p", "t", "k", "s")),
+        vowels=(_VOWEL_BY_IPA["a"], _VOWEL_BY_IPA["i"]),
+    )
+    lineage_profiles = (
+        ReferenceLanguageProfile(
+            name="TestLineage", consonants=("p", "t", "k", "s"), vowels=("a", "i"), coda_profile="none", max_onset=1, tonal=False,
+        ),
+    )
+    traits = TraitProfile(source_languages=("TestLineage",), source_language_strictness=1.0)
+    used_symbols = {"p", "t", "k", "s", "a", "i"}
+    dropped_something = False
+    for seed in range(50):
+        accepted = sound_change._evolve_phonology_membership(
+            random.Random(seed), set(used_symbols), base_inventory, lineage_profiles, traits, years=1000,
+        )
+        if accepted != used_symbols:
+            assert len(used_symbols - accepted) == 1, "a single merger event must drop exactly one symbol, never more"
+            dropped_something = True
+            break
+    assert dropped_something, "no seed in range triggered a merger -- test would be vacuous"
+
+
+def test_strictness_damps_but_never_forbids_ejective_gain_and_keeps_every_entry_consistent():
+    # End-to-end version of the unit tests above, through the real
+    # evolve_language pipeline: a strict Dutch-lineage language (Dutch has
+    # no ejectives) should gain ejective-drift's /pʼ,tʼ,kʼ/ far less often
+    # than an otherwise-identical strictness=0 run over the same seeds --
+    # damped, not blocked (the 9/40 vs. 40/40 split empirically observed
+    # while building this feature). Every entry's own evolved IPA is also
+    # checked against the final inventory on both runs -- the general
+    # consistency invariant Stage 3 exists for, re-verified here
+    # specifically under the new rejection mechanism that can trigger it.
+    # Tokenized against each evolved language's own restricted pool
+    # (single characters stay global candidates, multi-character ones
+    # narrowed to that language's own symbols) -- the same
+    # `_tokenizer_pool` discipline `evolve_language` itself uses, and for
+    # the same reason (the raw global pool can greedily misparse two real
+    # adjacent single-character phonemes as an unrelated multi-character
+    # one from some other profile's own palette).
+    single_char_symbols = frozenset(s for s in (*_CONSONANT_BY_IPA, *_VOWEL_BY_IPA) if len(s) == 1)
+    ejectives = frozenset({"pʼ", "tʼ", "kʼ"})
+    n = 8
+    strict_hits = 0
+    loose_hits = 0
+    for seed in range(n):
+        for strictness, counter_name in ((1.0, "strict"), (0.0, "loose")):
+            traits = TraitProfile(source_languages=("Dutch",), source_language_strictness=strictness)
+            base = generate_language("Base", GenerationSpec(prompt="p", seed=seed, traits=traits), FakeLLMClient())
+            evolved = evolve_language("Evolved", base, 500, traits, seed=seed + 500)
+            allowed = frozenset(evolved.phonology.all_symbols())
+            known = sound_change._tokenizer_pool(single_char_symbols, allowed)
+            for entry in evolved.lexicon.entries:
+                assert frozenset(ipa_tokenizer.symbols_only(entry.ipa, known)) <= allowed
+            if ejectives & allowed:
+                if counter_name == "strict":
+                    strict_hits += 1
+                else:
+                    loose_hits += 1
+    assert loose_hits >= n - 1, "sanity: strictness=0 should almost always gain an ejective at this time depth"
+    assert strict_hits < loose_hits, "strictness=1.0 must damp ejective-gain acceptance, not leave it unaffected"
+
+
+def test_frequency_multipliers_drift_across_evolution_instead_of_freezing():
+    base = generate_language(
+        "Dutch",
+        GenerationSpec(prompt="Dutch", seed=1, traits=TraitProfile(source_languages=("Dutch",), source_language_strictness=1.0)),
+        FakeLLMClient(),
+    )
+    before = dict(base.syllable_structure.onset_symbol_multipliers)
+    assert before  # sanity: the base actually has multipliers to drift
+    evolved = evolve_language(
+        "Evolved", base, 300, TraitProfile(source_languages=("Dutch",), source_language_strictness=1.0), seed=1
+    )
+    after = dict(evolved.syllable_structure.onset_symbol_multipliers)
+    shared = set(before) & set(after)
+    assert set(after) <= set(before)  # drift changes values, never adds a new symbol key
+    assert shared
+    assert any(abs(after[symbol] - before[symbol]) > 1e-9 for symbol in shared), "no multiplier moved at all"
+    for value in after.values():
+        assert 0.1 <= value <= 3.0
+
+
+def test_evolution_with_stage_2_membership_decisions_stays_deterministic():
+    traits = TraitProfile(source_languages=("Dutch",), source_language_strictness=1.0)
+    base = generate_language("Base", GenerationSpec(prompt="p", seed=2, traits=traits), FakeLLMClient())
+    first = evolve_language("Evolved", base, 400, traits, seed=7)
+    second = evolve_language("Evolved", base, 400, traits, seed=7)
+    assert first.phonology == second.phonology
+    assert first.syllable_structure == second.syllable_structure
+    assert [e.ipa for e in first.lexicon.entries] == [e.ipa for e in second.lexicon.entries]
+
+
 def test_glosses_and_pos_preserved():
     base = _base_language()
     evolved = evolve_language("Evolved", base, 500, TraitProfile(), seed=3)

@@ -376,26 +376,41 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
 
 ## 11. Language evolution
 
-- **Strictness does not reach evolution (M; stage 1 of 3 done, pass 38).**
-  `sound_change`'s inventory recompute can drift a strict language back
+- **Strictness does not reach evolution -- done (pass 38/39).**
+  `sound_change`'s inventory recompute could drift a strict language back
   toward the generic -- not because evolution gaining new sounds is wrong
-  (real languages do that constantly), but because today's mechanism is
-  completely lineage-blind, so a strictness promise silently stops
-  applying the moment evolution runs, by any degree. The real fix is
-  evolving the phonology *specification* itself (inventory, per-position
-  frequency, syllable structure, clusters) as its own object, the way
-  fresh generation already builds one, rather than deriving it backward
-  from whatever survived in already-mutated words -- still open (stages 2
-  and 3). Stage 1, landed: `_recompute_syllable_structure` was silently
-  *dropping* (not just freezing) most of that richness on every single
-  evolution regardless of strictness -- quads, both onset-exclusion
-  fields, every onset/nucleus/coda boundary pair field, and the three
-  per-position frequency-multiplier fields never survived one `evolve_
-  language` call. Now carried forward (filtered to the evolved inventory,
-  not blindly copied) -- a real, separately-valuable fix, confirmed via a
-  seed where a strict Dutch-sourced language's `onset_symbol_multipliers`/
-  `excluded_onset_consonants` went from populated to silently empty after
-  evolution before this fix.
+  (real languages do that constantly), but because the mechanism used to
+  be completely lineage-blind, so a strictness promise silently stopped
+  applying the moment evolution ran, by any degree. Fixed in three stages:
+  Stage 1 (pass 38) stopped `_recompute_syllable_structure` from silently
+  *dropping* (not just freezing) most of a language's own phonological
+  richness on every evolution regardless of strictness -- quads, both
+  onset-exclusion fields, every onset/nucleus/coda boundary pair field,
+  and the three per-position frequency-multiplier fields now survive
+  (filtered to the evolved inventory, not blindly copied). Stage 2 (pass
+  39) evolves the phonology *specification* itself as its own object,
+  mirroring how fresh generation already builds one, instead of deriving
+  it backward from whatever survived in already-mutated words:
+  `_evolve_phonology_membership` gives every phoneme a small,
+  time-scaled, strictness-independent chance of merging away (ordinary
+  lineage-internal drift), and gives every sound-change-introduced
+  phoneme an acceptance roll biased by `source_language_strictness`
+  against the matched lineage's own palette -- heavily suppressed at high
+  strictness when foreign to the lineage, but floored at 10% so it is
+  never literally impossible (a dial, not a wall; empirically verified:
+  Dutch-lineage ejective-drift acceptance dropped from 40/40 seeds at
+  strictness 0 to 9/40 at strictness 1.0, damped rather than blocked). Its
+  own per-position frequency multipliers also take a small bounded random
+  walk each evolution call instead of staying frozen forever. Stage 3
+  (pass 39) repairs any word whose own evolved IPA still contains a
+  symbol Stage 2 rejected, refitting it to the final inventory via the
+  same nearest-neighbour machinery (`phoneme_fit.fit_ipa`) `translation/
+  names.py`/`generation/real_words.py` already share -- functions as a
+  real merger, consistently wherever that symbol occurs, closing the
+  inventory/wordlist mismatch class of bug Stage 1's own testing twice
+  surfaced. Gated on `strictness > 0.0` (and on a matched lineage): at the
+  default strictness 0, Stage 2/3 are a byte-identical no-op, confirmed by
+  construction, not just by testing.
 - **Rules are generic, not language-specific (L).** "Dutch evolved forward
   200 years" applies the general rule set, not Dutch's likely developments.
 - **Evolved real words (S).** The original real word is not kept alongside

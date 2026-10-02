@@ -110,6 +110,7 @@ from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import (
     ipa_tokenizer,
     lexicon_gen,
+    phoneme_fit,
     phonology_gen,
     reference_languages,
     romanization_gen,
@@ -120,6 +121,7 @@ from conlang_generator.generation import (
     word_builder,
     word_class_gen,
 )
+from conlang_generator.generation.trait_bias import biased_probability
 
 _VOICELESS_TO_VOICED: dict[str, str] = {
     "p": "b", "t": "d", "k": "g", "ʈ": "ɖ", "c": "ɟ", "tʃ": "dʒ", "ts": "dz", "tɕ": "dʑ",
@@ -1151,21 +1153,215 @@ def _evolve_tone_system(
     return base_tone_system, None
 
 
+_ALL_CONSONANT_SYMBOLS = frozenset(c.ipa for c in phonology_gen.ALL_CONSONANTS)
+_ALL_VOWEL_SYMBOLS = frozenset(v.ipa for v in phonology_gen.ALL_VOWELS)
+
+# Phonemic merger beyond what a concrete sound-change rule above already
+# models (lenition, devoicing, ...) -- a slow, generic background rate for
+# the many real merger pathways this project doesn't simulate rule-by-rule.
+# Comparable to the slowest concrete rule (ejective_drift, 400y) since it's
+# meant to be a rare nudge, not a dominant force. No trait scales this rate
+# itself (losing a sound is ordinary lineage-internal drift, not a
+# "straying from the reference" question) -- see `_evolve_phonology_membership`.
+_MERGER_HALF_LIFE = 600.0
+# A floor, not a wall, on a lineage-foreign gained phoneme's own acceptance
+# probability: even a strictness-1.0 lineage keeps a real (if small) chance
+# of picking up a foreign-sounding innovation. A hard 0% here would make a
+# strict lineage flatly incapable of ever gaining a sound, which is
+# linguistically wrong (real conservative languages still occasionally pick
+# up something new) -- see docs/DEFERRED.md's own write-up of this
+# correction.
+_MIN_GAIN_ACCEPTANCE = 0.1
+# A small bounded step for frequency-multiplier drift, in the same units
+# `_FREQUENCY_TIER_WEIGHTS` uses (centered on 1.0 = unbiased).
+_MULTIPLIER_DRIFT_STEP = 0.15
+_MULTIPLIER_BOUNDS = (0.1, 3.0)
+
+
+def _restore_class_floor(
+    accepted: set[str], used_symbols: set[str], prior_symbols: frozenset[str], class_pool: frozenset[str]
+) -> set[str]:
+    """Stage 2's loss/gain rolls are independent per symbol, so an
+    unlucky run could in principle reject every consonant or every vowel
+    this run's wordlist actually used -- vanishingly unlikely for a
+    normal-sized inventory, but not impossible for an already-small one
+    over a long time depth. A pure safety floor (not a modeled linguistic
+    draw, so it spends no rng): if a whole class would end up empty, put
+    back the lexicographically-first symbol this run's wordlist actually
+    has for that class, preferring one the base language already had."""
+    if accepted & class_pool:
+        return accepted
+    candidates = used_symbols & class_pool
+    if not candidates:
+        return accepted
+    preferred = candidates & prior_symbols or candidates
+    return accepted | {min(preferred)}
+
+
+def _evolve_phonology_membership(
+    phon_rng: random.Random,
+    used_symbols: set[str],
+    base_inventory: PhonemeInventory,
+    lineage_profiles: tuple[reference_languages.ReferenceLanguageProfile, ...],
+    traits: TraitProfile,
+    years: int,
+) -> set[str]:
+    """Stage 2 of the strictness-reaches-evolution fix (see
+    docs/DEFERRED.md): decides which phonemes this run's inventory
+    actually keeps, instead of (as before Stage 2) mechanically accepting
+    whatever the sound-changed wordlist happens to contain verbatim.
+
+    Two independent decisions, both drawn from the one caller-supplied
+    ``phon_rng`` stream (``f"{seed}:phonology-evolution"`` -- see
+    ``_inventory_and_structure``) so neither disturbs any other draw
+    sequence:
+
+    - **Loss**: a single, time-scaled roll (``_MERGER_HALF_LIFE``) decides
+      whether *some* retained phoneme merges away this run at all; if it
+      fires, exactly one retained symbol is picked to lose -- one discrete
+      merger event, not every retained phoneme independently rolling for
+      extinction (which compounds across a whole inventory into much
+      heavier erosion than intended). Independent of strictness --
+      ordinary lineage-internal drift, not a "straying from the
+      reference" question.
+    - **Gain**: every phoneme sound change introduced that the base
+      inventory didn't have gets an acceptance roll, biased by
+      ``source_language_strictness`` against whether this lineage's own
+      matched reference profile(s) use it -- heavily suppressed when
+      foreign to the lineage at high strictness, but never driven below
+      ``_MIN_GAIN_ACCEPTANCE``: evolution gaining a sound stays possible
+      even for a strict lineage, just less likely.
+
+    Gated on ``strictness > 0.0`` (no matched lineage collapses to
+    ``0.0`` too): at the default ``strictness=0.0``, this is a no-op that
+    returns ``used_symbols`` unchanged and spends no rng draw at all --
+    byte-identical to this project's behavior before Stage 2 existed, for
+    every language that never engages ``source_languages``/``strictness``
+    in the first place.
+
+    A rejected/lost symbol isn't deleted from any word's IPA here --
+    ``evolve_language`` repairs every word's final IPA against the
+    resulting inventory afterward (Stage 3, ``phoneme_fit.fit_ipa``), so a
+    rejection functions as a real merger into that symbol's own nearest
+    surviving neighbour, consistently everywhere it occurs."""
+    strictness = traits.source_language_strictness if lineage_profiles else 0.0
+    if strictness <= 0.0:
+        return used_symbols
+
+    prior_symbols = frozenset(base_inventory.all_symbols())
+    reference_symbols: set[str] = set()
+    for profile in lineage_profiles:
+        reference_symbols.update(profile.symbols())
+
+    accepted = set(used_symbols)
+    retained = accepted & prior_symbols
+    merger_rate = _saturating_rate(years, _MERGER_HALF_LIFE, 0.0)
+    # A single whole-inventory roll for "does a merger happen at all this
+    # run," not one independent roll per retained symbol -- a real
+    # phonemic merger is one discrete event collapsing a pair of sounds,
+    # not every sound in the inventory separately rolling for extinction.
+    # Independent per-symbol rolls were tried first and found to compound
+    # across a typical ~30-symbol inventory into near-certain, heavy
+    # erosion every run regardless of how small each individual rate
+    # looked -- not the "small nudge" this was meant to be.
+    if merger_rate > 0.0 and retained and phon_rng.random() < merger_rate:
+        accepted.discard(phon_rng.choice(sorted(retained)))
+
+    for symbol in sorted(used_symbols - prior_symbols):
+        in_lineage = symbol in reference_symbols
+        acceptance = biased_probability(1.0, strictness if in_lineage else -strictness)
+        acceptance = max(acceptance, _MIN_GAIN_ACCEPTANCE)
+        if phon_rng.random() >= acceptance:
+            accepted.discard(symbol)
+
+    accepted = _restore_class_floor(accepted, used_symbols, prior_symbols, _ALL_CONSONANT_SYMBOLS)
+    accepted = _restore_class_floor(accepted, used_symbols, prior_symbols, _ALL_VOWEL_SYMBOLS)
+    return accepted
+
+
+def _drift_position_multipliers(phon_rng: random.Random, structure: SyllableStructure, years: int) -> SyllableStructure:
+    """Stage 2's third piece: the (now Stage-1-preserved) per-position
+    frequency multipliers take a small bounded random walk each evolution
+    call, rather than staying frozen forever once generation first rolls
+    them. A no-op at ``years<=0`` (this project's own "zero years, zero
+    change" invariant -- see ``test_zero_years_produces_no_changes``) and
+    whenever every field is already empty, which it always is unless some
+    ancestor generation run actually had a matched reference profile
+    *and* positive strictness (``phonology_gen._resolve_position_
+    multipliers`` never populates these fields otherwise) -- so this
+    spends no rng at all for the common case."""
+    if years <= 0:
+        return structure
+
+    def drift(multipliers: tuple[tuple[str, float], ...]) -> tuple[tuple[str, float], ...]:
+        if not multipliers:
+            return multipliers
+        low, high = _MULTIPLIER_BOUNDS
+        return tuple(
+            (symbol, max(low, min(high, weight + phon_rng.uniform(-_MULTIPLIER_DRIFT_STEP, _MULTIPLIER_DRIFT_STEP))))
+            for symbol, weight in multipliers
+        )
+
+    if not (structure.onset_symbol_multipliers or structure.nucleus_symbol_multipliers or structure.coda_symbol_multipliers):
+        return structure
+    return structure.model_copy(
+        update={
+            "onset_symbol_multipliers": drift(structure.onset_symbol_multipliers),
+            "nucleus_symbol_multipliers": drift(structure.nucleus_symbol_multipliers),
+            "coda_symbol_multipliers": drift(structure.coda_symbol_multipliers),
+        }
+    )
+
+
+def _refit_rejected_symbols(
+    ipas: list[str], known_symbols: tuple[str, ...], inventory: PhonemeInventory, structure: SyllableStructure
+) -> list[str]:
+    """Stage 3 of the strictness-reaches-evolution fix: a word whose own
+    evolved IPA still contains a symbol Stage 2 didn't accept into the
+    final inventory (a rejected gain candidate, or a merged-away loss)
+    gets repaired against that final inventory/structure via the same
+    nearest-neighbour-and-syllable-repair machinery `translation/names.py`/
+    `generation/real_words.py` already share (``phoneme_fit.fit_ipa``) --
+    functioning as a real merger, consistently wherever that symbol
+    occurs, rather than leaving a structure/wordlist mismatch of exactly
+    the kind Stage 1's own testing twice surfaced. Left completely
+    untouched when every symbol already belongs -- the overwhelming
+    majority of words on every run, and the only way to avoid
+    ``fit_ipa``'s own stress/word-accent-mark-stripping preprocessing (see
+    its own docstring) touching a word that never needed repairing in the
+    first place."""
+    allowed = frozenset(inventory.all_symbols())
+    result = []
+    for ipa in ipas:
+        symbols = ipa_tokenizer.symbols_only(ipa, known_symbols)
+        result.append(ipa if frozenset(symbols) <= allowed else phoneme_fit.fit_ipa(ipa, inventory, structure))
+    return result
+
+
 def _inventory_and_structure(
     base_structure: SyllableStructure,
+    base_inventory: PhonemeInventory,
     ipas: list[str],
     known_symbols: tuple[str, ...],
     rng: random.Random,
     traits: TraitProfile,
     lineage_profiles: tuple[reference_languages.ReferenceLanguageProfile, ...],
+    years: int,
+    seed: int,
 ) -> tuple[PhonemeInventory, SyllableStructure]:
     used_symbols: set[str] = set()
     for ipa in ipas:
         used_symbols.update(ipa_tokenizer.symbols_only(ipa, known_symbols))
-    consonants = tuple(sorted((c for c in phonology_gen.ALL_CONSONANTS if c.ipa in used_symbols), key=lambda c: -c.prevalence))
-    vowels = tuple(sorted((v for v in phonology_gen.ALL_VOWELS if v.ipa in used_symbols), key=lambda v: -v.prevalence))
+    phon_rng = random.Random(f"{seed}:phonology-evolution")
+    accepted_symbols = _evolve_phonology_membership(phon_rng, used_symbols, base_inventory, lineage_profiles, traits, years)
+    consonants = tuple(
+        sorted((c for c in phonology_gen.ALL_CONSONANTS if c.ipa in accepted_symbols), key=lambda c: -c.prevalence)
+    )
+    vowels = tuple(sorted((v for v in phonology_gen.ALL_VOWELS if v.ipa in accepted_symbols), key=lambda v: -v.prevalence))
     inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
-    return inventory, _recompute_syllable_structure(base_structure, consonants, vowels, rng, traits, lineage_profiles)
+    structure = _recompute_syllable_structure(base_structure, consonants, vowels, rng, traits, lineage_profiles)
+    structure = _drift_position_multipliers(phon_rng, structure, years)
+    return inventory, structure
 
 
 def _coin_native_word(
@@ -1521,7 +1717,8 @@ def evolve_language(
     # coinage target for any native (non-borrowed) lexical replacements
     # below, before borrowed/replaced words can widen it further.
     provisional_inventory, provisional_structure = _inventory_and_structure(
-        base.syllable_structure, evolved_ipas, reconstruction_symbols, rng, traits, lineage_profiles
+        base.syllable_structure, base.phonology, evolved_ipas, reconstruction_symbols, rng, traits, lineage_profiles,
+        years, seed,
     )
     reference_profiles = reference_languages.match_profiles(traits.source_languages)
     weighted_reference_profiles = reference_languages.match_profiles_weighted(
@@ -1596,8 +1793,17 @@ def evolve_language(
         spelling_ipas, _ = tone_transform(spelling_ipas)
 
     inventory, syllable_structure = _inventory_and_structure(
-        base.syllable_structure, final_ipas, final_reconstruction_symbols, rng, traits, lineage_profiles
+        base.syllable_structure, base.phonology, final_ipas, final_reconstruction_symbols, rng, traits, lineage_profiles,
+        years, seed,
     )
+    # Stage 3: repair any word whose own evolved IPA still contains a
+    # symbol Stage 2 just rejected (see `_refit_rejected_symbols`'s own
+    # docstring) -- keeps every stored entry consistent with the
+    # inventory/structure actually being saved below, instead of
+    # reintroducing the structure/wordlist mismatch Stage 1's own testing
+    # twice surfaced.
+    final_ipas = _refit_rejected_symbols(final_ipas, final_reconstruction_symbols, inventory, syllable_structure)
+    spelling_ipas = _refit_rejected_symbols(spelling_ipas, final_reconstruction_symbols, inventory, syllable_structure)
     romanization = romanization_gen.evolve_romanization(
         base.romanization, inventory, rng, lineage_languages,
         reform_rate=orthography_rates.reform, drift_rate=orthography_rates.drift,
