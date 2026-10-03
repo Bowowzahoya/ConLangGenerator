@@ -587,6 +587,26 @@ Translating the verb forms back gives `I is seeing river` and `I might see
 river` (the plain, fake-LLM draft; a real LLM turns the annotations into
 fluent English).
 
+**Deontic modality.** Independent of which mood tier (if any) a language
+rolled, it separately has a ~40% chance of also marking **obligation**
+("must"/"should") with its own `obligative` mood label -- realized as an
+ordinary verb suffix, or via a periphrastic auxiliary, exactly like any
+other mood. Verified with `--llm fake` on `--seed 10 --prompt "a plain
+language"` (an affixal `obligative`, no periphrastic auxiliary involved):
+
+```bash
+conlang translate "He sleeps." --lang oblig-test --to conlang --llm fake
+conlang translate "He must sleep." --lang oblig-test --to conlang --llm fake
+```
+
+```
+ʦamë kumëuo
+ʦamë kumëuĩao
+```
+
+The verb takes a distinct suffix (`kumëuo` -> `kumëuĩao`); translating it
+back gives `he must sleep`.
+
 **Noun classes and agreement.** Every language rolls a noun-class system
 (none, masculine/feminine, masculine/feminine/neuter, animate/inanimate, or
 human/animal/plant/thing) and whether its verb also agrees with the object.

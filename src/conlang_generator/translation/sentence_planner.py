@@ -661,12 +661,13 @@ language's own aspects above, chosen by the English wording: progressive \
 available; perfect "has seen" -> perfect, or perfective; simple past or \
 completed events -> perfective; "used to"/"usually" -> habitual, or \
 imperfective) and "verb_mood" (one of this language's own verbal moods \
-above: "would see" -> conditional; "may/can see" -> potential; a wish or \
-"if I were" -> subjunctive; any of these -> irrealis when that is the only \
-label). Tense and aspect are independent: "I was seeing" is tense past + \
-aspect progressive. Omit "aspect"/"verb_mood" when the English is plain, or \
-when this language has no fitting label. Never write English auxiliaries \
-("have", "would", "may", "is" before -ing) as their own slots: they are \
+above: "would see" -> conditional; "may/can see" -> potential; "must/ \
+should see" -> obligative; a wish or "if I were" -> subjunctive; any of \
+these -> irrealis when that is the only label). Tense and aspect are \
+independent: "I was seeing" is tense past + aspect progressive. Omit \
+"aspect"/"verb_mood" when the English is plain, or when this language \
+has no fitting label. Never write English auxiliaries \
+("have", "would", "may", "must", "is" before -ing) as their own slots: they are \
 expressed only through these fields (the renderer decides whether a label is \
 a verb suffix or an auxiliary word). A verb may also set "evidential" (one \
 of the evidentials above) when the English states the source of the \

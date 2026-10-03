@@ -108,7 +108,10 @@ _FAKE_EVIDENTIAL_WORDS = {
     "visibly": "witnessed",
 }
 _FAKE_PERFECT_AUX = {"have", "has", "had"}
-_FAKE_MODALS = {"would": "conditional", "may": "potential", "might": "potential", "can": "potential", "could": "potential"}
+_FAKE_MODALS = {
+    "would": "conditional", "may": "potential", "might": "potential", "can": "potential", "could": "potential",
+    "must": "obligative", "should": "obligative",
+}
 _FAKE_PARTICIPLE_LEMMA = {
     "seen": "see", "gone": "go", "eaten": "eat", "given": "give", "known": "know", "come": "come", "drunk": "drink",
 }

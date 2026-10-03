@@ -134,11 +134,25 @@ def roll_aspects(rng: random.Random) -> tuple[str, ...]:
     return ASPECT_SYSTEMS[0] if roll < 0.25 else ASPECT_SYSTEMS[1] if roll < 0.7 else ASPECT_SYSTEMS[2]
 
 
+_OBLIGATIVE_RATE = 0.4
+"""Deontic modality (obligation -- "must"/"should") is cross-linguistically
+independent of the irrealis/subjunctive/conditional/potential cluster
+above (a language can mark obligation with or without any of those), so
+it's an orthogonal roll, not a fourth `MOOD_SYSTEMS` tier -- a new,
+*independent* draw appended after the existing tier-choice roll, this
+project's own RNG-stream convention for extending an existing function's
+own draw sequence without disturbing what it already decided."""
+
+
 def roll_moods(rng: random.Random) -> tuple[str, ...]:
     """No verbal mood (30%), just irrealis (35%) or subjunctive/conditional/
-    potential (35%)."""
+    potential (35%); independently, a further 40% chance of obligative on
+    top of whichever of those this run already has."""
     roll = rng.random()
-    return MOOD_SYSTEMS[0] if roll < 0.3 else MOOD_SYSTEMS[1] if roll < 0.65 else MOOD_SYSTEMS[2]
+    moods = MOOD_SYSTEMS[0] if roll < 0.3 else MOOD_SYSTEMS[1] if roll < 0.65 else MOOD_SYSTEMS[2]
+    if rng.random() < _OBLIGATIVE_RATE:
+        moods = (*moods, "obligative")
+    return moods
 
 
 def distinct_suffixes(
@@ -321,10 +335,13 @@ _EVIDENTIALITY_CULTURE_FLOOR = 0.1
 NEGATION_STRATEGIES = (("particle", 0.55), ("affix", 0.25), ("both", 0.20))
 PERIPHRASTIC_CANDIDATES = (
     "past", "future", "perfective", "imperfective", "progressive", "perfect", "habitual",
-    "irrealis", "subjunctive", "conditional", "potential",
+    "irrealis", "subjunctive", "conditional", "potential", "obligative",
 )
 """The labels a language may express with an auxiliary word (only those it
-actually has are kept)."""
+actually has are kept). `"obligative"` is appended at the end, not
+inserted among the others -- `roll_aspect_followups` draws one roll per
+candidate in this exact order, so appending (rather than inserting)
+leaves every pre-existing candidate's own draw position untouched."""
 _PERIPHRASTIC_RATE = 0.25
 AUXILIARY_GLOSS_PREFIX = "aux-"
 

@@ -731,7 +731,7 @@ _EVIDENTIAL_ADVERB = {"reported": "reportedly", "inferred": "apparently", "witne
 _AUXILIARY_ENGLISH = {
     "past": "did", "future": "will", "perfective": "has", "imperfective": "was", "progressive": "is",
     "perfect": "has", "habitual": "usually", "irrealis": "might", "subjunctive": "might",
-    "conditional": "would", "potential": "can",
+    "conditional": "would", "potential": "can", "obligative": "must",
 }
 
 
@@ -3083,6 +3083,8 @@ def _english_verb_phrase(
         return f"would {gloss}"
     if mood_label in ("potential",):
         return f"can {gloss}"
+    if mood_label in ("obligative",):
+        return f"must {gloss}"
     if mood_label in ("subjunctive", "irrealis"):
         return f"might {gloss}"
     if aspect_label in ("progressive", "imperfective"):

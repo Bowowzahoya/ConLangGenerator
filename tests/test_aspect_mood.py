@@ -73,7 +73,12 @@ def test_every_language_has_one_of_the_defined_aspect_and_mood_systems():
     for seed in range(1, 30):
         grammar = _language(seed).grammar
         assert grammar.aspects in inflection_gen.ASPECT_SYSTEMS
-        assert grammar.moods in inflection_gen.MOOD_SYSTEMS
+        # `obligative` is a genuinely independent roll layered on top of
+        # whichever MOOD_SYSTEMS tier this seed got (see roll_moods's own
+        # docstring) -- strip it off before checking the tier itself.
+        non_obligative_moods = tuple(m for m in grammar.moods if m != "obligative")
+        assert non_obligative_moods in inflection_gen.MOOD_SYSTEMS
+        assert "obligative" not in grammar.moods or grammar.moods[-1] == "obligative"
         assert [a.label for a in grammar.aspect_affixes] == list(grammar.aspects)
         assert [a.label for a in grammar.mood_affixes] == ["imperative", *grammar.moods]
 
@@ -81,6 +86,41 @@ def test_every_language_has_one_of_the_defined_aspect_and_mood_systems():
 def test_all_three_aspect_systems_occur_across_seeds():
     systems = {_language(seed).grammar.aspects for seed in range(1, 40)}
     assert systems == set(inflection_gen.ASPECT_SYSTEMS)
+
+
+def test_obligative_mood_is_independent_of_which_mood_system_tier_rolled():
+    # Deontic modality (obligation) is cross-linguistically independent of
+    # irrealis/subjunctive/conditional/potential -- confirmed by rolling it
+    # alongside *every* tier, including the "no other mood" one.
+    import random
+
+    from conlang_generator.generation.inflection_gen import MOOD_SYSTEMS, roll_moods
+
+    seen_with_obligative: set[tuple[str, ...]] = set()
+    for seed in range(400):
+        moods = roll_moods(random.Random(seed))
+        if "obligative" in moods:
+            seen_with_obligative.add(tuple(m for m in moods if m != "obligative"))
+    assert seen_with_obligative == set(MOOD_SYSTEMS)
+
+
+def test_roll_moods_obligative_draw_never_disturbs_the_tier_choice_itself():
+    # The obligative roll is a new draw strictly *after* the existing
+    # tier-choice roll -- confirms the tier itself is unaffected by the
+    # new roll's own presence, for the same seed, as this project's own
+    # RNG-stream convention requires.
+    import random
+
+    from conlang_generator.generation.inflection_gen import MOOD_SYSTEMS, roll_moods
+
+    def old_roll_moods(rng: random.Random) -> tuple[str, ...]:
+        roll = rng.random()
+        return MOOD_SYSTEMS[0] if roll < 0.3 else MOOD_SYSTEMS[1] if roll < 0.65 else MOOD_SYSTEMS[2]
+
+    for seed in range(200):
+        old = old_roll_moods(random.Random(seed))
+        new = tuple(m for m in roll_moods(random.Random(seed)) if m != "obligative")
+        assert old == new
 
 
 def test_aspect_and_mood_suffixes_are_made_distinct_where_the_inventory_allows():
@@ -158,6 +198,13 @@ def test_the_fake_planner_falls_back_to_the_closest_available_label():
     assert "aspect" not in _verb_slot("I am seeing the river.", "", "")
 
 
+def test_the_fake_planner_reads_obligative_modals():
+    """Deontic modality ("must"/"should") is recognized by the fake planner
+    the same way the other modals already are -- ``_FAKE_MODALS``."""
+    assert _verb_slot("I must see the river.", "", "obligative")["verb_mood"] == "obligative"
+    assert _verb_slot("I should see the river.", "", "obligative")["verb_mood"] == "obligative"
+
+
 # --- rendering and decoding -----------------------------------------------
 
 
@@ -187,6 +234,36 @@ def test_aspect_and_mood_change_the_verb_form_and_decode_back():
         decoded = _decode_verb_full(language, form)
         assert decoded is not None and decoded[0] == see
         assert decoded[2] == aspect and decoded[3] == mood
+
+
+def test_obligative_mood_changes_the_verb_form_and_decodes_back():
+    """Deontic modality: a language that rolled ``obligative`` (independent
+    of whichever MOOD_SYSTEMS tier it also has) marks it distinctly from
+    the plain verb, whether via a suffix or a periphrastic auxiliary, and
+    decodes back with ``verb_mood == "obligative"``."""
+    cases = (("I must see the river.", None, "obligative"),)
+    language = _find(
+        lambda g: "obligative" in g.moods,
+        check=lambda lang: _decodes_as_planned(lang, cases),
+    )
+    plain = _verb_form(language, "I see the river.")
+    obligative = _verb_form(language, "I must see the river.")
+    assert plain != obligative
+    see = language.lexicon.by_gloss("see")
+    decoded = _decode_verb_full(language, obligative)
+    assert decoded is not None and decoded[0] == see
+    assert decoded[3] == "obligative"
+
+
+def test_english_gloss_reflects_obligative_mood():
+    cases = (("I must see the river.", None, "obligative"),)
+    language = _find(
+        lambda g: "obligative" in g.moods,
+        check=lambda lang: _decodes_as_planned(lang, cases),
+    )
+    client = FakeLLMClient()
+    obligative = translate_to_conlang("I must see the river.", language, client).text
+    assert "must see" in translate_to_english(obligative, language, client).text
 
 
 def test_tense_and_aspect_are_independent():

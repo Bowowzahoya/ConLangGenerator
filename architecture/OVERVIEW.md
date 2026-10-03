@@ -5735,3 +5735,60 @@ reading code or one-off ad hoc scripts.
   `reading_drifted` set, and renders correctly end to end via a direct `apply()` call covering all three
   cases -- the unaffected symbol, the conditioned match, and the conditioned non-match falling back to
   the old spelling).
+
+- **Deontic modality: an independent `"obligative"` mood (grammar pass 44).** User asked to "address
+  auxiliaries and periphrastic tenses from deferred in verb phrasing" -- `docs/DEFERRED.md`'s own "Verb
+  phrase still missing" bullet. Auditing that bullet against the real code found it **stale**:
+  auxiliaries/periphrastic tenses are already fully built (`GrammarProfile.periphrastic_labels`/
+  `auxiliary_position`/`auxiliary_agreement`; `PERIPHRASTIC_CANDIDATES`/`roll_aspect_followups` in
+  `inflection_gen.py`; `_auxiliary_entries`/`_apply_auxiliary_agreement`/`_split_periphrastic`/
+  `_decode_auxiliary_entry` in `translator.py`; `_grammaticalize_and_fuse` in `sound_change.py` --
+  passes 16, 29, 30), as is evidentiality. The bullet was rewritten to narrow it to what's actually
+  still missing (negative verbs, serial verbs, valency-changing morphology beyond pass 31, a
+  state-vs-identity copula distinction, adverb placement) -- and the audit surfaced one real,
+  previously-unnamed gap instead: the existing `MOOD_SYSTEMS` tiers cover epistemic/ability modality
+  (`potential`, "can"/"may"/"could") and counterfactual (`conditional`, "would"), but nothing anywhere
+  marked **obligation** ("must"/"should") as its own category.
+
+  Reuses the entire existing mood pipeline end to end -- no new `GrammarProfile` field, no new
+  mechanism class. One new label, `"obligative"`, threaded through every table a mood label already
+  flows through:
+  - **Generate** (`inflection_gen.py`): `roll_moods` gains a new, *independent* draw appended strictly
+    after its existing tier-choice roll (`_OBLIGATIVE_RATE = 0.4`) -- `"obligative"` is layered onto
+    whichever of the three `MOOD_SYSTEMS` tiers this seed already rolled (including the empty tier),
+    rather than inserted as a fourth tier, since obligation marking is cross-linguistically independent
+    of irrealis/subjunctive/conditional/potential (a language can have it with or without any of
+    those). `PERIPHRASTIC_CANDIDATES` gets `"obligative"` appended at the *end* of its 11-tuple, not
+    inserted into the middle -- preserves every pre-existing candidate's own draw position in
+    `roll_aspect_followups`'s per-candidate roll loop. Confirmed via direct scripted sweeps: the roll
+    fires at ≈40% across 2000 seeds (matching the configured rate); it fires independently of the base
+    tier, including when that tier is empty; a reconstructed pre-change `roll_moods` matches the new
+    one's tier-choice output byte-for-byte across 500 seeds, confirming the new draw disturbs nothing
+    before it in the same call. (Both additions do shift *downstream* rng draws for existing seeds on
+    their own shared streams -- `aspect_mood_rng`'s later affix-generation calls, and
+    `roll_aspect_followups`'s own `position` roll -- the same accepted cost every other new-feature
+    pass this session pays when extending a shared sequential stream.)
+  - **Plan/render/decode** (`translator.py`): `_AUXILIARY_ENGLISH["obligative"] = "must"`;
+    `_english_verb_phrase` gets a `"must {gloss}"` branch between the existing `"potential"`/
+    `"subjunctive"` ones. The generic `("mood", mood_label)` annotation builder needed no change --
+    already passes through any label string.
+  - **Fake planner** (`fake_client.py`): `_FAKE_MODALS` gains `"must"`/`"should"` -> `"obligative"`;
+    `_fake_mood_label`'s existing fallback-to-`"irrealis"` logic needed no change.
+  - **Real-LLM prompt** (`sentence_planner.py`): the existing `verb_mood` worked-example list gains
+    `"must/should see" -> obligative`, and "must" joins the never-write-as-its-own-slot auxiliary list.
+
+  **Explicitly deferred**: a separate `permissive` label for permission (English already loosely covers
+  it via `potential`'s "can"/"may" gloss -- splitting it out cleanly needs its own disambiguation work,
+  not attempted here); a weaker "advisable" shade distinct from strong obligation ("should" vs "must" as
+  two strengths sharing one label today); deontic-evidential interaction.
+
+  Tests (`tests/test_aspect_mood.py`): `roll_moods` produces `obligative` alongside every one of the
+  three `MOOD_SYSTEMS` tiers across a 400-seed sweep (confirms independence); a 200-seed sweep confirms
+  the obligative draw never changes the tier-choice roll's own outcome for the same seed; the fake
+  planner reads "must"/"should" as `obligative`; a direct-plan render+decode round trip on a seed where
+  `obligative` is in `grammar.moods` (found by search, periphrastic or affixal depending on the seed)
+  confirms the verb form differs from the plain form and decodes back with `verb_mood == "obligative"`;
+  a free-text round trip confirms "must see" survives translate_to_conlang -> translate_to_english. One
+  pre-existing test (`test_every_language_has_one_of_the_defined_aspect_and_mood_systems`) needed
+  updating since `grammar.moods` can now include `obligative` appended to a tier, no longer matching a
+  `MOOD_SYSTEMS` tuple literally -- fixed by stripping `obligative` off before comparing the tier itself.

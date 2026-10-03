@@ -314,10 +314,22 @@ finer choice left to the fluent-English step, and a case-less language only gain
 its adposition strategy uses them; the adjective classes are word lists; a deictic article is made
 only for `this`/`that` (no article per person or distance beyond two) and exists only beside a noun.
 
-**Verb phrase still missing:** auxiliaries and periphrastic tenses (M);
-negation strategies (affix, double negation, negative verbs) (M);
-evidentiality (M); serial verbs (L); valency-changing morphology (L); copula
-strategies (zero, state vs identity) (S); adverb placement (S).
+**Verb phrase (auxiliaries/periphrastic tenses and evidentiality done, pass
+16 + pass 29/30; deontic modality done, pass 44; this bullet otherwise
+predates those passes and was stale -- narrowed to what's actually still
+missing):** negative verbs (a dedicated negative-verb paradigm,
+Finnish/Samoyedic-style, as opposed to the existing particle/affix/both
+negation strategies) (M); serial verbs (L); valency-changing morphology
+beyond pass 31 (L); a state-vs-identity copula distinction (zero copula
+itself already exists, `has_overt_copula`) (S); adverb placement (S).
+Deontic modality itself (pass 44) covers obligation only, via a new
+independent `"obligative"` mood label (glossed "must", reusing the entire
+existing mood/periphrastic/decode pipeline) -- still missing within that:
+a separate `permissive` label for permission (English already loosely
+covers it via `potential`'s "can"/"may" gloss, so splitting it out cleanly
+needs its own disambiguation work) and a weaker "advisable" shade distinct
+from strong obligation ("should" vs "must" as two strengths sharing one
+label today).
 
 **Morphology (the morphology list is done, passes 22-27):** what is left is depth, not breadth (S-M each).
 Reduplication marks a cell *alongside* its ordinary affix (there is no pure reduplication that replaces the
