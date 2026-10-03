@@ -47,6 +47,14 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   a copied word are invented affixes, not the source language's own.
 - **Tibetan, Navajo and Zulu/Xhosa are written toneless** although their
   profiles are tonal.
+- **The systematic deviation shift is a flat, unconditioned per-symbol table**, not a context-sensitive
+  sound law (unlike, say, palatalization's own front-vowel conditioning elsewhere in this project) --
+  a given sound either always shifts or never does, regardless of its position or neighbors. Targets
+  are picked by feature-distance nearest-neighbor, not real historical sound-law knowledge, and there is
+  no lineage-specific bias on *which* neighbour a matched real source language would actually produce
+  (e.g. nothing nudges a Dutch-sourced shift toward Dutch's own real historical sound changes
+  specifically). One table is shared across every word regardless of which matched source language it
+  came from, when more than one is weighted.
 
 ## Tones
 

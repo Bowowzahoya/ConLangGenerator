@@ -93,6 +93,48 @@ def test_partial_strictness_gives_looser_variants_using_only_the_languages_own_s
             assert phoneme_fit.first_problem([(s, s in vowels) for s in symbols], language.syllable_structure) is None
 
 
+def test_build_deviation_shift_rolls_once_per_symbol_not_per_occurrence():
+    import random
+
+    language = _language(0.5)
+    inventory = language.phonology
+    full = phoneme_fit.build_deviation_shift(inventory, random.Random(1), rate=1.0)
+    assert full  # something shifted
+    assert set(full) <= set(inventory.all_symbols())
+    assert all(target != symbol for symbol, target in full.items())
+    none = phoneme_fit.build_deviation_shift(inventory, random.Random(1), rate=0.0)
+    assert none == {}
+
+
+def test_build_deviation_shift_is_deterministic():
+    import random
+
+    language = _language(0.5)
+    a = phoneme_fit.build_deviation_shift(language.phonology, random.Random(42), rate=0.5)
+    b = phoneme_fit.build_deviation_shift(language.phonology, random.Random(42), rate=0.5)
+    assert a == b
+
+
+def test_apply_shift_maps_the_same_symbol_identically_everywhere():
+    """The DEFERRED.md complaint this pass fixes: a given source phoneme
+    becomes the SAME target sound wherever it occurs -- not an
+    independently re-rolled substitution each time, like a real daughter
+    language's own systematic sound shift (Grimm's Law). Uses a plain
+    CV/CVCV construction so syllable repair can't obscure the comparison."""
+    language = _language(0.5)
+    inventory = language.phonology
+    structure = language.syllable_structure
+    consonant = inventory.consonants[0].ipa
+    vowel = inventory.vowels[0].ipa
+    target = phoneme_fit.neighbours(consonant, inventory)[0]
+    shift = {consonant: target}
+    once = phoneme_fit.apply_shift(consonant + vowel, inventory, structure, shift)
+    twice = phoneme_fit.apply_shift(consonant + vowel + consonant + vowel, inventory, structure, shift)
+    assert target in once
+    assert twice.count(target) >= 2  # both occurrences shifted the same way
+    assert consonant not in twice  # the source symbol never survives once it's in the table
+
+
 def test_higher_word_strictness_deviates_less_and_follows_more_words():
     def unchanged_fraction(word):
         language = _language(word, sound=1.0)

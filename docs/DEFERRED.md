@@ -148,9 +148,15 @@ multi-session feature.
 - **Vocabulary ceiling (M).** `ALL_MEANINGS` is ~496 meanings. Larger lists
   (Swadesh-207, Leipzig-Jakarta, a 1000-word core) and the unused
   `salient_vocabulary_domains` trait could drive domain vocabulary.
-- **Deviation is random, not systematic (M).** Below word strictness 1.0 a
-  real word is loosened by random nearest-phoneme swaps; a fixed per-language
-  consonant-shift table would look like a real daughter language.
+- **Deviation is random, not systematic (done, pass 46).** Below word
+  strictness 1.0, a real word's sounds now shift through a fixed,
+  per-language `symbol -> symbol` table (`phoneme_fit.build_deviation_
+  shift`/`apply_shift`) -- the same source phoneme always becomes the same
+  target everywhere in a language, like a real daughter language's own
+  sound laws, rather than an independent per-occurrence coin flip (the
+  old `deviate_ipa`). Still a flat, unconditioned table (not context-
+  sensitive) and feature-distance-nearest-neighbor, not lineage-aware --
+  see docs/LIMITATIONS.md.
 - **Blending several sources (M).** Each word comes from one source
   language by weight; no cognate blending.
 - **Proper-name lexicon (S).** Names are kept/adapted, but there is no

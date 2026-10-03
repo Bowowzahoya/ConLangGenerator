@@ -5894,3 +5894,69 @@ reading code or one-off ad hoc scripts.
   `auxiliary_position` gives; a free-text round trip decodes "not" and never leaks the auxiliary word as
   `<unknown:...>`; a negated command is unaffected (prohibitive if available, else an unabsorbed
   particle, exactly like `affix`/`both`).
+
+- **Systematic word deviation: a fixed per-language sound-shift table (grammar pass 46).**
+  `docs/DEFERRED.md`'s "## 7. Real lexicons" complaint: "Deviation is random, not systematic. Below
+  word strictness 1.0 a real word is loosened by random nearest-phoneme swaps; a fixed per-language
+  consonant-shift table would look like a real daughter language." Confirmed the word-strictness/
+  deviation feature itself (`generation/real_words.py`, wired into `generator.py`) was already fully
+  built and working -- only this one mechanism was the actual gap.
+
+  The culprit was `phoneme_fit.deviate_ipa(ipa, inventory, structure, rng, probability)` -- its one call
+  site, `real_words.build_real_entries`, ran it once per word inside a per-word loop, over a single
+  shared, sequentially-consumed `rng`. Inside it, each IPA symbol independently rolled `rng.random() <
+  probability`; on a hit it picked a random neighbour. So the *same* source phoneme (e.g. /p/) got an
+  independent fresh roll -- and could land on a *different* neighbour -- every time it occurred, in a
+  different word or even twice in the same word. Confirmed `deviate_ipa` had exactly one call site in
+  the whole codebase and no test referenced it by name directly, so it was replaced outright rather than
+  kept as unused dead code:
+
+  ```python
+  def build_deviation_shift(inventory: PhonemeInventory, rng: random.Random, rate: float) -> dict[str, str]:
+      shift: dict[str, str] = {}
+      for symbol in inventory.all_symbols():
+          if rng.random() < rate:
+              nearby = neighbours(symbol, inventory)
+              if nearby:
+                  shift[symbol] = rng.choice(nearby)
+      return shift
+
+  def apply_shift(ipa: str, inventory: PhonemeInventory, structure: SyllableStructure, shift: dict[str, str]) -> str:
+      symbols = ipa_tokenizer.symbols_only(...)
+      tokens = [(shift.get(_nearest(s, inventory)[0], _nearest(s, inventory)[0]), is_vowel) for s in symbols]
+      return _repair(tokens, inventory, structure)
+  ```
+
+  One roll **per inventory symbol**, not per occurrence -- a fixed table built once, then applied
+  uniformly everywhere that symbol appears. This exact shape already existed elsewhere in the codebase
+  and was the model to copy: `romanization_gen.py`'s `evolve_romanization` (its own docstring: "decided
+  per symbol rather than per word -- so every word sharing a symbol gets the exact same spelling for
+  it"), which even reuses the same `phoneme_fit.neighbours` helper to pick a drift target. `real_words.
+  build_real_entries` now builds the shift table once, before its per-word loop, from the same
+  pre-existing `rng`/`DEVIATION_SCALE` formula (`rate = (1.0 - strictness) * DEVIATION_SCALE`, same
+  constant, reinterpreted as "chance a given *distinct sound* shifts" rather than "chance a given
+  *occurrence* shifts") -- the rest of the function (tone-fitting, stress carry-over, exact-copy
+  short-circuit at strictness 1.0) is untouched.
+
+  Verified concretely (not just reasoned about): generating a Dutch-sourced language at word strictness
+  0.5 showed /ɪ/ consistently becoming /e/ and /ɣ/ consistently becoming /ŋ/ across multiple
+  independent deviated words -- exactly the systematic-shift behavior the DEFERRED item asked for. The
+  existing `test_higher_word_strictness_deviates_less_and_follows_more_words`/`test_partial_strictness_
+  gives_looser_variants_using_only_the_languages_own_sounds` regression tests re-ran unchanged: the
+  monotonic "lower strictness -> more deviation" trend holds under the new semantics too (more symbols
+  land in the shift table at a lower strictness, so more words contain at least one shifted symbol).
+
+  **Explicitly deferred**: a *conditioned* shift (context-sensitive, the way this session's earlier
+  palatalization/reading-drift passes modeled a shift before a front vowel specifically) -- a flat,
+  unconditioned per-symbol table is this pass's own scope, matching the DEFERRED item's wording ("a
+  fixed per-language consonant-shift table"); lineage-aware targeting (biasing *which* neighbour a
+  matched real source language's own historical sound changes would actually produce, reusing the
+  "rules are generic" pass's `historical_*_affinity` shape); sharing one shift table across multiple
+  matched source languages weighted differently (today's single table applies uniformly regardless of
+  which matched language a given word came from).
+
+  Tests (`tests/test_real_words.py`): `build_deviation_shift` rolls once per symbol (`rate=1.0` yields a
+  non-empty table covering only inventory symbols, no symbol maps to itself; `rate=0.0` yields an empty
+  table) and is deterministic for a fixed seed; `apply_shift` maps the same symbol identically wherever
+  it occurs, including twice in the same input, using a plain CV/CVCV construction so syllable repair
+  can't obscure the comparison; both pre-existing regression tests confirmed still passing.

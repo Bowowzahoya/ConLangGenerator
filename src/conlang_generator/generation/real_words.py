@@ -7,10 +7,14 @@ Word strictness decides both **how many** pregenerated meanings follow a
 real word (each, seeded and deterministic, with probability = the
 strictness) and **how closely** they follow it: at ``1.0`` every word is an
 exact copy of the real word (spelling verbatim, its sounds forced into the
-inventory); below that each is a looser variant -- every sound swapped for a
-near neighbour with probability ``(1 - strictness) * DEVIATION_SCALE`` --
-restricted to the sounds the sound strictness allows, and re-spelled through
-the language's own orthography. A meaning takes its word from a matched
+inventory); below that each is a looser variant -- shifted through this
+language's own fixed, systematic sound-shift table (see ``phoneme_fit.
+build_deviation_shift``: each distinct sound has probability ``(1 -
+strictness) * DEVIATION_SCALE`` of shifting to a near neighbour, but once it
+does, it shifts the *same* way everywhere it occurs, like a real daughter
+language's own sound laws) -- restricted to the sounds the sound strictness
+allows, and re-spelled through the language's own orthography. A meaning
+takes its word from a matched
 source language (weighted by ``source_language_weights``) that has one
 curated (``reference_languages/real_lexicon``); otherwise the LLM is asked
 for it (``real_words_llm``), and with no answer the word simply stays
@@ -46,9 +50,12 @@ from conlang_generator.generation.reference_languages.real_lexicon import real_w
 from conlang_generator.llm.base import LLMClient
 
 DEVIATION_SCALE = 0.6
-"""Per-sound swap probability at word strictness 0 (it shrinks linearly to
-0 at strictness 1). Below 1.0 there is always some chance a word survives
-unchanged, so short words often do."""
+"""Per-*distinct-sound* shift probability at word strictness 0 (it shrinks
+linearly to 0 at strictness 1) -- rolled once per sound in the language's
+own inventory, not per occurrence (see ``phoneme_fit.build_deviation_
+shift``). Below 1.0 there is always some chance a word's own sounds all
+dodge the shift table, so short words (fewer distinct sounds) often
+survive unchanged."""
 
 WARNING_MARGIN = 0.25
 """How far word strictness may exceed sound strictness before it is worth a
@@ -135,14 +142,15 @@ def build_real_entries(
     tone_system: ToneSystem = ToneSystem(),
 ) -> tuple[LexicalEntry, ...]:
     rng = random.Random(f"{seed}:real-deviation")
-    probability = (1.0 - strictness) * DEVIATION_SCALE
+    rate = (1.0 - strictness) * DEVIATION_SCALE
+    shift = phoneme_fit.build_deviation_shift(inventory, rng, rate)
     entries = []
     for choice in choices:
         exact = strictness >= 1.0
         ipa = choice.ipa
         real_tones = ipa_tokenizer.tone_sequence(choice.ipa, _SYMBOLS)
         if not exact:
-            deviated = phoneme_fit.deviate_ipa(choice.ipa, inventory, structure, rng, probability)
+            deviated = phoneme_fit.apply_shift(choice.ipa, inventory, structure, shift)
             unmarked = ipa_tokenizer.strip_tones(choice.ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, ""))
             # unchanged: keep the real spelling too
             exact = deviated == unmarked and _tones_fit(real_tones, tone_system)

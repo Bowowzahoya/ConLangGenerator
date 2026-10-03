@@ -6,9 +6,12 @@ sound maps to the nearest inventory phoneme by feature distance (place/
 manner/voicing for consonants, height/backness/rounding for vowels), and the
 result is repaired to the language's syllable structure -- an epenthetic
 vowel is inserted where a cluster/coda is illegal, and a consonant is
-dropped only as a last resort. ``fit_ipa`` is deterministic; ``deviate_ipa``
-additionally swaps sounds for near neighbours at a given probability, drawn
-from a caller-supplied rng.
+dropped only as a last resort. ``fit_ipa`` is deterministic; ``apply_shift``
+additionally swaps sounds through a fixed, per-language ``symbol -> symbol``
+table (see ``build_deviation_shift``) -- a systematic sound shift, the same
+source sound always becoming the same target everywhere in a language, like
+a real daughter language's own sound laws (Grimm's Law, the Great Vowel
+Shift), rather than independent per-occurrence randomness.
 """
 
 from __future__ import annotations
@@ -187,9 +190,9 @@ def neighbours(symbol: str, inventory: PhonemeInventory, count: int = 3) -> list
     """The ``count`` inventory phonemes nearest ``symbol`` (same class),
     excluding ``symbol`` itself. Public (promoted from ``_neighbours``) --
     shared with ``generation/romanization_gen.py``'s own "reading drift"
-    mechanism, the same nearby-sound-substitution idea ``deviate_ipa``
-    already uses below, just picking a target grapheme to reassign rather
-    than a target sound to pronounce."""
+    mechanism, the same nearby-sound-substitution idea ``build_deviation_
+    shift`` already uses below, just picking a target grapheme to reassign
+    rather than a target sound to pronounce."""
     if symbol in _VOWEL_BY_IPA or symbol in {v.ipa for v in inventory.vowels}:
         source = _VOWEL_BY_IPA.get(symbol)
         pool = [v for v in inventory.vowels if v.ipa != symbol]
@@ -203,20 +206,33 @@ def neighbours(symbol: str, inventory: PhonemeInventory, count: int = 3) -> list
     return [c.ipa for c in pool_c[:count]]
 
 
-def deviate_ipa(
-    ipa: str, inventory: PhonemeInventory, structure: SyllableStructure, rng: random.Random, probability: float
-) -> str:
-    """Like ``fit_ipa``, but each sound is also swapped, with the given
-    per-sound ``probability``, for one of its nearest neighbours in
-    ``inventory`` -- a looser variant of the same word that still uses only
-    this language's own sounds and syllable shapes."""
+def build_deviation_shift(inventory: PhonemeInventory, rng: random.Random, rate: float) -> dict[str, str]:
+    """A fixed, per-language ``symbol -> symbol`` table: one roll per
+    inventory symbol (not per occurrence), so a shifted sound becomes the
+    SAME neighbour everywhere it occurs, across every deviated word in this
+    language -- a systematic sound shift (the kind a real daughter
+    language's own sound laws, e.g. Grimm's Law, actually produce), rather
+    than independent per-occurrence randomness. A symbol absent from the
+    returned dict is unaffected (maps to itself)."""
+    shift: dict[str, str] = {}
+    for symbol in inventory.all_symbols():
+        if rng.random() < rate:
+            nearby = neighbours(symbol, inventory)
+            if nearby:
+                shift[symbol] = rng.choice(nearby)
+    return shift
+
+
+def apply_shift(ipa: str, inventory: PhonemeInventory, structure: SyllableStructure, shift: dict[str, str]) -> str:
+    """Like ``fit_ipa``, but each sound also passes through this language's
+    own fixed ``shift`` table (see ``build_deviation_shift``) before
+    syllable repair -- a looser variant of the same word that still uses
+    only this language's own sounds and syllable shapes, and shifts the
+    same way every time."""
     symbols = ipa_tokenizer.symbols_only(ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, ""), ALL_SYMBOLS)
     tokens: list[tuple[str, bool]] = []
     for symbol in symbols:
         mapped, is_vowel = _nearest(symbol, inventory)
-        if rng.random() < probability:
-            nearby = neighbours(mapped, inventory)
-            if nearby:
-                mapped = rng.choice(nearby)
+        mapped = shift.get(mapped, mapped)
         tokens.append((mapped, is_vowel))
     return _repair(tokens, inventory, structure)
