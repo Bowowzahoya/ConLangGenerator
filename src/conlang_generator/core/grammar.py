@@ -605,10 +605,21 @@ class GrammarProfile(BaseModel, frozen=True):
     evidential_affixes: tuple[InflectionAffix, ...] = ()
     negation_strategy: str = "particle"
     """How a verb is negated: ``"particle"`` (a separate word), ``"affix"``
-    (a negative suffix on the verb) or ``"both"`` (particle *and* suffix, as
-    in negative concord)."""
+    (a negative suffix on the verb), ``"both"`` (particle *and* suffix, as
+    in negative concord) or ``"negative_verb"`` (Finnish/Samoyedic-style: a
+    dedicated negative verb carries subject agreement while the main verb
+    takes an invariant ``connegative`` stem instead, see
+    ``connegative_affixes``)."""
     verb_negative_affixes: tuple[InflectionAffix, ...] = ()
-    """The single ``negative`` verb suffix (empty with ``"particle"``)."""
+    """The single ``negative`` verb suffix (empty unless ``"affix"``/``"both"``)."""
+    connegative_affixes: tuple[InflectionAffix, ...] = ()
+    """The single invariant ``connegative`` suffix a finite verb takes under
+    the ``"negative_verb"`` negation strategy, replacing its own
+    tense/aspect/mood/agreement entirely -- person/number marking moves onto
+    the dedicated negative-verb word instead (``translator._negative_verb_
+    entry``). Empty unless ``negation_strategy == "negative_verb"``. A
+    single stem regardless of tense is a deliberate simplification (real
+    Finnish also varies the connegative by tense); see docs/LIMITATIONS.md."""
     periphrastic_labels: tuple[str, ...] = ()
     """Tense, aspect and verbal mood labels this language expresses with an
     auxiliary word (``aux-<label>`` in the lexicon) instead of a verb suffix."""

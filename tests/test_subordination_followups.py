@@ -33,10 +33,10 @@ class _SpyClient(FakeLLMClient):
 _language = cached_language
 
 
-def _find(predicate, limit: int = 300):
+def _find(predicate, limit: int = 300, check=None):
     for seed in range(1, limit):
         language = _language(seed)
-        if predicate(language.grammar):
+        if predicate(language.grammar) and (check is None or check(language)):
             return language
     raise AssertionError("no seed found")
 
@@ -315,7 +315,18 @@ def _token_of(language, gloss: str, *slots) -> str:
 
 
 def test_the_main_clause_of_an_if_sentence_takes_the_conditional():
-    language = _find(lambda g: g.conditional_main_mood and ("conditional" in g.moods or "irrealis" in g.moods))
+    def distinct(language) -> bool:
+        # Short suffixes can concatenate alike (a known, accepted risk
+        # elsewhere in this suite too) -- pick a seed where the sequenced
+        # mood actually renders distinctly from the plain verb, rather than
+        # assuming whichever seed matches first always will.
+        with_if = _token_of(language, "see", _verb("see"), _clause("if", "adverbial", _verb("sleep")))
+        without = _token_of(language, "see", _verb("see"), _clause("because", "adverbial", _verb("sleep")))
+        return with_if != without
+
+    language = _find(
+        lambda g: g.conditional_main_mood and ("conditional" in g.moods or "irrealis" in g.moods), check=distinct
+    )
     mood = next(m for m in ("conditional", "irrealis", "subjunctive") if m in language.grammar.moods)
     with_if = _token_of(language, "see", _verb("see"), _clause("if", "adverbial", _verb("sleep")))
     without = _token_of(language, "see", _verb("see"), _clause("because", "adverbial", _verb("sleep")))

@@ -58,20 +58,52 @@ def _decoded(language, token):
 def test_the_follow_up_choices_are_rolled():
     grammars = [_language(s).grammar for s in range(1, 100)]
     assert {g.evidentials for g in grammars} == set(inflection_gen.EVIDENTIAL_SYSTEMS)
-    assert {g.negation_strategy for g in grammars} == {"particle", "affix", "both"}
+    assert {g.negation_strategy for g in grammars} == {"particle", "affix", "both", "negative_verb"}
     assert {g.auxiliary_position for g in grammars if g.periphrastic_labels} == {"before", "after"}
     assert any(a.label == "prohibitive" for g in grammars for a in g.mood_affixes)
     for g in grammars:
         assert [a.label for a in g.evidential_affixes] == list(g.evidentials)
-        assert bool(g.verb_negative_affixes) == (g.negation_strategy != "particle")
+        assert bool(g.verb_negative_affixes) == (g.negation_strategy in ("affix", "both"))
+        assert bool(g.connegative_affixes) == (g.negation_strategy == "negative_verb")
         available = {*g.tenses, *g.aspects, *g.moods}
         assert set(g.periphrastic_labels) <= available
+
+
+def test_negative_verb_is_an_independent_override_that_leaves_the_base_roll_untouched():
+    """`negative_verb` is a mutually-exclusive *alternative* to particle/
+    affix/both, not a layer like `obligative` -- so it's realized as a new
+    override roll strictly after the existing `NEGATION_STRATEGIES` draw,
+    not as a fourth weighted option inserted into that draw (which would
+    reshuffle that draw's own bucket boundaries for every existing seed).
+    Isolates the override by zeroing its rate (so the base roll is never
+    overridden) and confirms the un-overridden strategy matches the real
+    one for the same seed, whenever the real roll didn't end up as
+    `negative_verb`."""
+    import random
+
+    grammar = _language(1).grammar
+    original_rate = inflection_gen._NEGATIVE_VERB_RATE
+    negative_verb_count = 0
+    try:
+        for seed in range(1, 300):
+            new = inflection_gen.roll_aspect_followups(random.Random(seed), grammar)["negation_strategy"]
+            inflection_gen._NEGATIVE_VERB_RATE = 0.0
+            old = inflection_gen.roll_aspect_followups(random.Random(seed), grammar)["negation_strategy"]
+            inflection_gen._NEGATIVE_VERB_RATE = original_rate
+            if new == "negative_verb":
+                negative_verb_count += 1
+            else:
+                assert old == new
+    finally:
+        inflection_gen._NEGATIVE_VERB_RATE = original_rate
+    assert negative_verb_count > 0
 
 
 def test_the_new_grammar_fields_default_for_older_saved_languages():
     grammar = _language(1).grammar.__class__.model_fields
     assert grammar["evidentials"].default == () and grammar["negation_strategy"].default == "particle"
     assert grammar["periphrastic_labels"].default == () and grammar["auxiliary_position"].default == "before"
+    assert grammar["connegative_affixes"].default == ()
 
 
 def test_suffixes_of_one_paradigm_no_longer_collide():
@@ -213,6 +245,74 @@ def test_the_negated_verb_decodes_as_negative_and_reads_back_as_not():
     result = translate_to_conlang("I do not see the river.", language, _CLIENT)
     english = translate_to_english(result.text, result.language, _CLIENT).text
     assert "not" in english
+
+
+# --- negative verbs (Finnish/Samoyedic-style) ------------------------------------------
+
+
+def _negative_verb_language():
+    def ok(language) -> bool:
+        return _decodes(_with(language, periphrastic_labels=()), "negative_verb")
+
+    return _with(
+        _find(lambda g: g.negation_strategy == "negative_verb" and not g.object_agreement, ok),
+        periphrastic_labels=(),
+    )
+
+
+def test_a_negative_verb_strategy_absorbs_the_particle_and_marks_the_main_verb():
+    language = _negative_verb_language()
+    not_word = language.lexicon.by_gloss("not").romanization
+    _, parts, _ = _render(language, _verb(), _NEGATION)
+    _, positive, _ = _render(language, _verb())
+    assert not_word not in parts  # fully absorbed, like "affix" -- no standalone particle word
+    assert len(parts) == 2  # the main verb (connegative stem) + the new negative-verb word
+    main_verb_token = next(p for p in parts if _decoded(language, p) is not None)
+    assert main_verb_token != positive[0]  # the main verb's own form really changed (the connegative suffix)
+
+
+def test_the_negative_verb_word_agrees_with_the_subject():
+    """The whole point of this strategy: subject agreement moves off the
+    main verb (an invariant connegative stem) onto the dedicated word."""
+    language = _negative_verb_language()
+    _, i_parts, _ = _render(language, _verb(), _NEGATION)
+    _, he_parts, _ = _render(
+        language, PlannedSlot(kind="content", gloss="see", pos="verb", agreement="he"), _NEGATION
+    )
+    i_aux = next(p for p in i_parts if _decoded(language, p) is None)
+    he_aux = next(p for p in he_parts if _decoded(language, p) is None)
+    assert i_aux != he_aux
+
+
+def test_the_negative_verb_word_sits_at_the_configured_position():
+    language = _negative_verb_language()
+    _, parts, _ = _render(language, _verb(), _NEGATION)
+    main_verb_index = next(i for i, p in enumerate(parts) if _decoded(language, p) is not None)
+    aux_index = next(i for i, p in enumerate(parts) if _decoded(language, p) is None)
+    assert (aux_index < main_verb_index) == (language.grammar.auxiliary_position == "before")
+
+
+def test_the_negative_verb_sentence_decodes_as_negative_and_reads_back_as_not():
+    language = _negative_verb_language()
+    result = translate_to_conlang("I do not see the river.", language, _CLIENT)
+    english = translate_to_english(result.text, result.language, _CLIENT).text
+    assert "not" in english
+    assert "<unknown" not in english  # the dedicated negative-verb word must not leak through undecoded
+
+
+def test_a_negated_command_under_negative_verb_strategy_is_unaffected():
+    """Imperative negation never routes through ``negative_verbs`` at all
+    (see ``_negation_absorption``), so a command under ``negative_verb``
+    strategy falls back exactly like ``affix``/``both`` already do: the
+    prohibitive mood if the language has one, else an unabsorbed particle
+    -- no new special-casing for commands."""
+    language = _negative_verb_language()
+    not_word = language.lexicon.by_gloss("not").romanization
+    _, parts, _ = _render(language, _verb(), _NEGATION, mood="imperative")
+    if any(a.label == "prohibitive" for a in language.grammar.mood_affixes):
+        assert not_word not in parts
+    else:
+        assert not_word in parts
 
 
 def _prohibitive_language():

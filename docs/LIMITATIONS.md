@@ -278,6 +278,19 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   fixed formula, nothing more. Half of `docs/DEFERRED.md`'s six named traits
   (`ritual_register`/`taboo_register`/`terrain_communication_distance`) remain completely unconsumed
   -- no register, euphemism, or long-range-communication mechanism exists yet for any of them to bias.
+- **Deontic modality covers obligation only**: the new `"obligative"` mood (glossed "must") has no
+  separate `permissive` label for permission (English already loosely covers it via `potential`'s
+  "can"/"may" gloss) and no "should" vs "must" strength distinction -- both share one label.
+- **The dedicated negative-verb strategy (`negation_strategy == "negative_verb"`) is scoped to finite
+  verbs with a single, tense-invariant connegative stem**: a non-finite (infinitive/nominalized)
+  clause's own negation still falls back to an ordinary particle even under this strategy, the same as
+  `"particle"` strategy; real Finnish also varies its connegative by tense (a past-participle-based
+  negative form), not modeled here; the negative-verb word never grammaticalizes into a bound suffix
+  over evolution, unlike a periphrastic auxiliary (`sound_change._grammaticalize_and_fuse` would be the
+  natural place to extend this later). Rolling it is an *override* on top of the existing particle/
+  affix/both roll (15% chance, illustrative, not rigorously calibrated), not a fourth weighted option in
+  that same roll -- chosen specifically to avoid reshuffling every existing seed's own particle/affix/
+  both choice.
 - **Sentence-context spelling** (agreement-driven capitalization, mute
   letters, capitalization of specific words) is out of scope.
 - **Punctuation is dropped in translation** (see DEFERRED for the plan). Text is split into sentences on `.!?`, so an abbreviation like "Dr." splits wrongly.

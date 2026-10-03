@@ -333,6 +333,26 @@ _EVIDENTIAL_WEIGHTS = (0.55, 0.15, 0.15, 0.15)
 _EVIDENTIALITY_CULTURE_WEIGHT = 0.35
 _EVIDENTIALITY_CULTURE_FLOOR = 0.1
 NEGATION_STRATEGIES = (("particle", 0.55), ("affix", 0.25), ("both", 0.20))
+_NEGATIVE_VERB_RATE = 0.15
+"""A dedicated negative verb (Finnish/Samoyedic-style -- it carries subject
+agreement while the main verb takes an invariant "connegative" stem) is a
+distinct *strategy*, mutually exclusive with particle/affix/both, not a
+layer on top of them -- so it can't simply be appended the way `obligative`
+was onto `MOOD_SYSTEMS`. Inserting it as a fourth weighted option directly
+into `NEGATION_STRATEGIES` would reshuffle that roll's own bucket
+boundaries for every existing seed, so instead it's a new, *independent*
+override roll strictly after the existing strategy roll (this project's own
+RNG-stream convention): with this probability it replaces whatever
+`NEGATION_STRATEGIES` just chose. An existing seed's own particle/affix/both
+choice is byte-identical whenever this roll doesn't fire; only this
+function's own downstream draws (prohibitive, periphrastic flags/position)
+shift when it does -- the same accepted cost pass 44 already took for
+`obligative`'s own new draw, applied here to an override instead of an
+append since these two strategies can't coexist."""
+NEGATIVE_VERB_GLOSS = "neg-verb"
+"""The single dedicated negative-verb word's lexicon gloss -- unlike
+`AUXILIARY_GLOSS_PREFIX`, there is only ever one such word per language
+(not one per label), so this is a fixed gloss, not a prefix."""
 PERIPHRASTIC_CANDIDATES = (
     "past", "future", "perfective", "imperfective", "progressive", "perfect", "habitual",
     "irrealis", "subjunctive", "conditional", "potential", "obligative",
@@ -376,6 +396,8 @@ def roll_aspect_followups(rng: random.Random, grammar, evidentiality_culture: fl
         if roll < cumulative:
             strategy = label
             break
+    if rng.random() < _NEGATIVE_VERB_RATE:
+        strategy = "negative_verb"
     prohibitive = rng.random() < 0.30
     drawn = [rng.random() < _PERIPHRASTIC_RATE for _ in PERIPHRASTIC_CANDIDATES]
     available = {*grammar.tenses, *grammar.aspects, *grammar.moods}
@@ -395,7 +417,7 @@ def roll_aspect_followups(rng: random.Random, grammar, evidentiality_culture: fl
 _VERB_SUFFIX_FIELDS = (
     "tense_affixes", "agreement_affixes", "object_agreement_affixes", "mood_affixes", "aspect_affixes",
     "voice_affixes", "verb_number_affixes", "verb_polite_affixes", "verb_form_affixes", "evidential_affixes",
-    "verb_negative_affixes",
+    "verb_negative_affixes", "connegative_affixes",
 )
 _NOUN_SUFFIX_FIELDS = (
     "case_affixes", "number_affixes", "class_marker_affixes", "possession_affixes", "possessor_person_affixes",

@@ -607,6 +607,30 @@ conlang translate "He must sleep." --lang oblig-test --to conlang --llm fake
 The verb takes a distinct suffix (`kumëuo` -> `kumëuĩao`); translating it
 back gives `he must sleep`.
 
+**Negative verbs (Finnish/Samoyedic-style).** Independent of particle/
+affix/both, a language has a ~15% chance of instead using a dedicated
+**negative verb**: a separate word that carries subject agreement, while
+the main verb takes an invariant `connegative` stem instead of its usual
+tense/aspect/mood/agreement. Verified with `--llm fake` on `--seed 19
+--prompt "a plain language"`:
+
+```bash
+conlang translate "He sleeps." --lang negverb-test --to conlang --llm fake
+conlang translate "He does not sleep." --lang negverb-test --to conlang --llm fake
+conlang translate "I do not sleep." --lang negverb-test --to conlang --llm fake
+```
+
+```
+k̓ěm wũrãyu
+k̓ěm rěṅu’ wũrun
+wom rěṅom wũrun
+```
+
+The main verb's own form changes (`wũrãyu` -> `wũrun`, the connegative
+suffix), and the new negative-verb word itself (`rěṅu’`/`rěṅom`) agrees
+with the subject -- a different form for "he" than for "I". Translating
+either sentence back gives `he not sleep`/`I not sleep`.
+
 **Noun classes and agreement.** Every language rolls a noun-class system
 (none, masculine/feminine, masculine/feminine/neuter, animate/inanimate, or
 human/animal/plant/thing) and whether its verb also agrees with the object.

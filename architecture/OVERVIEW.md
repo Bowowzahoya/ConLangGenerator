@@ -5792,3 +5792,105 @@ reading code or one-off ad hoc scripts.
   pre-existing test (`test_every_language_has_one_of_the_defined_aspect_and_mood_systems`) needed
   updating since `grammar.moods` can now include `obligative` appended to a tier, no longer matching a
   `MOOD_SYSTEMS` tuple literally -- fixed by stripping `obligative` off before comparing the tier itself.
+
+- **Negative verbs: a dedicated `"negative_verb"` negation strategy (grammar pass 45).** The remaining
+  item in the verb-phrase bullet after pass 44 (deontic modality): "negative verbs (a dedicated
+  negative-verb paradigm, Finnish/Samoyedic-style, as opposed to the existing particle/affix/both
+  negation strategies)." In Finnish, negation isn't a particle or a suffix on the main verb -- a
+  dedicated *negative verb* ("ei") inflects for person/number while the main verb takes an invariant
+  *connegative* stem instead of its normal finite form ("minä en syö" -- "en" is "ei" conjugated for
+  1sg, "syö" is the bare connegative of "syödä"). Typologically a third thing, not a variant of particle
+  or affix negation: agreement moves *off* the main verb onto a dedicated word, and the main verb itself
+  takes a different, invariant stem.
+
+  **New `GrammarProfile` field** (`core/grammar.py`): `connegative_affixes: tuple[InflectionAffix, ...]
+  = ()` -- the single invariant `"connegative"` suffix a finite verb takes under this strategy,
+  replacing tense/aspect/mood/agreement entirely. No new boolean/position field: the negative-verb word
+  reuses the existing `auxiliary_position` for before/after placement (a documented shared-field
+  simplification, the same kind pass 34 already used for its shared politeness affix).
+
+  **Rolling it is an *override*, not a fourth weighted option** (`inflection_gen.py`): `negative_verb`
+  is a true alternative to particle/affix/both (mutually exclusive), unlike `obligative` (pass 44), which
+  layers independently on top of the mood tiers. Inserting it directly into `NEGATION_STRATEGIES` as a
+  fourth weight would reshuffle that single roll's own bucket boundaries for every existing seed, so
+  instead a new `_NEGATIVE_VERB_RATE = 0.15` roll runs strictly *after* the existing `NEGATION_STRATEGIES`
+  draw and, when it fires, replaces whatever that draw just chose. An existing seed's particle/affix/both
+  choice is byte-identical whenever the override doesn't fire; only downstream draws (prohibitive,
+  periphrastic flags/position) shift when it does -- the same accepted cost pass 44 already took for its
+  own new draw, applied here to an override instead of an append since these two strategies can't
+  coexist.
+
+  **Generation** (`generator.py`): the pre-existing `verb_negative_affixes` generation, previously gated
+  on `negation_strategy != "particle"`, narrowed to `in ("affix", "both")`; a parallel block generates
+  `connegative_affixes` (one suffix, label `"connegative"`) when the strategy is `"negative_verb"`,
+  threaded into the same suffix-collision `taken` set as the others. `connegative_affixes` was added to
+  `inflection_gen._VERB_SUFFIX_FIELDS` (the cross-paradigm collision guard).
+
+  **Absorption** (`translator.py::_negation_absorption`): a new `negative_verb_ok` gate alongside the
+  existing `affix_ok`, combined for both "should this run at all" and "drop the standalone negation
+  particle slot" (the negative-verb word, spliced in elsewhere, carries the meaning instead -- same drop
+  behavior as `"affix"`). Target selection deliberately uses `_finite_verb_indices` (the same list already
+  used for imperative), not `_negatable_verb_indices` -- scoping this strategy to **finite verbs only**; a
+  non-finite (infinitive/nominalized) clause's own negation stays an ordinary particle under
+  `negative_verb` strategy too, the same as it already does for `"particle"` strategy (a documented scope
+  limit, avoiding a connegative-for-non-finite-forms sub-feature this pass didn't need). Imperative/
+  prohibitive interaction needed zero new special-casing: `negatives` was already never populated when
+  `imperative=True` (the pre-existing `if imperative: ... elif affix_ok: ...` structure), so a negated
+  command under `negative_verb` strategy falls back exactly like `affix`/`both` already do.
+
+  **Rendering, the main verb** (`translator.py::_apply_verb_inflection`): a new branch mirroring the
+  existing `verb_form` "special stem replaces everything" shape -- when `negative` and strategy is
+  `negative_verb`, the entry's bare IPA takes just the `connegative` affix (bypassing tense/aspect/mood/
+  agreement composition entirely) via a new shared `_connegative_salt` helper (mirroring `_imperative_
+  salt`/`_prohibitive_salt`).
+
+  **Rendering, the negative-verb word itself**: `_negative_verb_agreement` mirrors `_apply_auxiliary_
+  agreement` almost exactly (same `_combined_tense_agreement_affix` reuse, same main-verb-paradigm
+  reuse for the affixes) but **unconditionally** -- unlike a periphrastic auxiliary's optional
+  `auxiliary_agreement` trait, marking person/number on this dedicated word is the strategy's entire
+  reason to exist, so there's no gate. `_negative_verb_entry` mirrors `_auxiliary_entries` but for the
+  single fixed `inflection_gen.NEGATIVE_VERB_GLOSS = "neg-verb"` word (one per language, not one per
+  label like `aux-<label>`). Spliced into `_render_plan`'s existing `aux_entries` list (both the
+  content-verb and copula branches), right after the periphrastic-auxiliary block -- reuses the already-
+  uniform `aux_entries`-splice code completely unchanged, since a negative-verb word and a periphrastic
+  auxiliary are positioned identically (both via `auxiliary_position`).
+
+  **Decode, the main verb** (`_decode_verb_full`'s `special()` closure): a new connegative candidate
+  check, mirroring the imperative/prohibitive shape, inserted between the prohibitive check and the
+  tense x agreement x ... fallback search. **Not optional**: that fallback search only ever tries
+  `negative=True` when `verb_negative_affixes` is non-empty, which is never the case for this strategy,
+  so without this candidate the connegative-suffixed token would never be recognized as a verb at all.
+
+  **Decode, the negative-verb word itself**: `_decode_negative_verb_entry`/`_split_negative_verb_tokens`
+  mirror `_decode_auxiliary_entry`/`_split_auxiliary_tokens`, simplified to a single fixed word/meaning
+  (a plain `dict[int, str | None]` of host index -> recovered agreement, not a per-label dict of lists).
+  Unlike `_decode_auxiliary_entry` (which only confirms recognition and discards which agreement
+  matched, since a periphrastic main verb always keeps its own redundant copy of agreement too), this
+  **does** report the matched agreement: a connegative main verb carries none of its own, so this is the
+  *only* place a pro-dropped subject's person can be recovered from for a negated sentence. Verified
+  concretely during implementation: without this, "He is not happy."/"I am not happy." on a pro-drop
+  language both decoded to the identical, subject-less "happy not is" -- a real round-trip regression,
+  not a hypothetical. `translate_to_english` calls `_split_negative_verb_tokens` right after the existing
+  `_split_auxiliary_tokens`, and uses the recovered agreement as a fallback (`if agreement_label is None:
+  agreement_label = negative_verb_hosts[token_index]`) so the existing, unchanged `pro_drop`/
+  `_person_suffix_is_distinct` recovery logic picks it up exactly as it already does for an ordinary
+  finite verb's own agreement. The existing readback line (`if negative_label and negation_strategy !=
+  "both": gloss = f"not {gloss}"`) needed no change at all, since it was already keyed on "not `both`",
+  not an enumerated allow-list.
+
+  **Explicitly deferred**: a non-finite clause's negation under this strategy (falls back to a particle,
+  see Absorption above); a tense-sensitive connegative (real Finnish also has a past-participle-based
+  negative form); the negative-verb word never grammaticalizing into a bound suffix over evolution
+  (`sound_change.py::_grammaticalize_and_fuse` is the natural, well-precedented place to extend this
+  later, not attempted here).
+
+  Tests (`tests/test_aspect_followups.py`): `negative_verb` appears across a seed sweep alongside
+  particle/affix/both; `verb_negative_affixes`/`connegative_affixes` are mutually exclusive by
+  construction; the override roll (isolated by temporarily zeroing `_NEGATIVE_VERB_RATE`) leaves the
+  base `NEGATION_STRATEGIES` roll's own outcome untouched whenever it doesn't fire, across a 300-seed
+  sweep; a direct-plan render test confirms the particle slot is fully absorbed, the main verb's own
+  form changes, and a new auxiliary token appears; the auxiliary's own form differs between an "I"
+  subject and a "he" subject (the core proof agreement moved off the main verb); it sits at the position
+  `auxiliary_position` gives; a free-text round trip decodes "not" and never leaks the auxiliary word as
+  `<unknown:...>`; a negated command is unaffected (prohibitive if available, else an unabsorbed
+  particle, exactly like `affix`/`both`).

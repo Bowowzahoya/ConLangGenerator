@@ -385,13 +385,21 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             followup_rng, inventory, syllable_structure, ("negative",),
             taken | {a.suffix for a in evidential_affixes},
         )
-        if followups["negation_strategy"] != "particle"
+        if followups["negation_strategy"] in ("affix", "both")
+        else ()
+    )
+    connegative_affixes = (
+        inflection_gen.distinct_suffixes(
+            followup_rng, inventory, syllable_structure, ("connegative",),
+            taken | {a.suffix for a in evidential_affixes} | {a.suffix for a in negative_affixes},
+        )
+        if followups["negation_strategy"] == "negative_verb"
         else ()
     )
     prohibitive_affixes = (
         inflection_gen.distinct_suffixes(
             followup_rng, inventory, syllable_structure, ("prohibitive",),
-            taken | {a.suffix for a in (*evidential_affixes, *negative_affixes)},
+            taken | {a.suffix for a in (*evidential_affixes, *negative_affixes, *connegative_affixes)},
         )
         if followups["prohibitive"]
         else ()
@@ -407,6 +415,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "evidential_affixes": evidential_affixes,
             "negation_strategy": followups["negation_strategy"],
             "verb_negative_affixes": negative_affixes,
+            "connegative_affixes": connegative_affixes,
             "mood_affixes": grammar.mood_affixes + prohibitive_affixes,
             "periphrastic_labels": followups["periphrastic_labels"],
             "auxiliary_position": followups["auxiliary_position"],

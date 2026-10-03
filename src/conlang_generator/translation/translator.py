@@ -661,6 +661,10 @@ def _prohibitive_salt(entry: LexicalEntry) -> str:
     return f"mood:{entry.ipa}:prohibitive"
 
 
+def _connegative_salt(entry: LexicalEntry) -> str:
+    return f"negation:{entry.ipa}:connegative"
+
+
 def _finite_verb_indices(language: Language, slots) -> list[int]:
     """Indices of the finite verb/copula slots (the ones that take ordinary
     tense/agreement inflection) -- the only ones an imperative's own mood, and
@@ -698,18 +702,25 @@ def _negatable_verb_indices(language: Language, slots) -> list[int]:
 def _negation_absorption(language: Language, slots, imperative: bool) -> tuple[set[int], set[int], set[int]]:
     """``(negative verbs, prohibitive verbs, dropped negation slots)``: with a
     negative suffix (``affix``/``both``) a negation slot marks its nearest
-    verb, finite or not (and, for ``affix``, no longer renders as a word); in a
-    language with a prohibitive, a negated command takes that mood on its
-    (necessarily finite) verb instead of any negation word."""
+    verb, finite or not (and, for ``affix``, no longer renders as a word); with
+    a dedicated negative verb (``negative_verb``) it marks its nearest *finite*
+    verb only (a non-finite clause's negation stays an ordinary particle, the
+    same as ``"particle"`` strategy -- a documented scope limit, see
+    ``connegative_affixes``), and is always dropped (the negative-verb word
+    itself, spliced in elsewhere, carries the meaning instead); in a language
+    with a prohibitive, a negated command takes that mood on its (necessarily
+    finite) verb instead of any negation word."""
     grammar = language.grammar
     prohibitive_ok = any(a.label == "prohibitive" for a in grammar.mood_affixes)
     affix_ok = grammar.negation_strategy in ("affix", "both") and bool(grammar.verb_negative_affixes)
+    negative_verb_ok = grammar.negation_strategy == "negative_verb" and bool(grammar.connegative_affixes)
     negatives: set[int] = set()
     prohibitives: set[int] = set()
     dropped: set[int] = set()
-    if not (affix_ok or (imperative and prohibitive_ok)):
+    if not (affix_ok or negative_verb_ok or (imperative and prohibitive_ok)):
         return negatives, prohibitives, dropped
-    verbs = _finite_verb_indices(language, slots) if imperative else _negatable_verb_indices(language, slots)
+    finite_only = imperative or negative_verb_ok
+    verbs = _finite_verb_indices(language, slots) if finite_only else _negatable_verb_indices(language, slots)
     if not verbs:
         return negatives, prohibitives, dropped
     for index, slot in enumerate(slots):
@@ -720,9 +731,9 @@ def _negation_absorption(language: Language, slots, imperative: bool) -> tuple[s
             if prohibitive_ok and target == verbs[0]:
                 prohibitives.add(target)
                 dropped.add(index)
-        elif affix_ok:
+        elif affix_ok or negative_verb_ok:
             negatives.add(target)
-            if grammar.negation_strategy == "affix":
+            if grammar.negation_strategy in ("affix", "negative_verb"):
                 dropped.add(index)
     return negatives, prohibitives, dropped
 
@@ -779,6 +790,100 @@ def _auxiliary_entries(
         romanization, ipa = _apply_auxiliary_agreement(language, entry, agreement_label, verb_number_label, polite)
         entries.append((entry, romanization, ipa))
     return language, entries
+
+
+def _negative_verb_agreement(
+    language: Language, entry: LexicalEntry, agreement_label: str, verb_number_label: str | None, polite: bool
+) -> tuple[str, str]:
+    """The dedicated negative verb's own subject agreement -- unlike
+    ``_apply_auxiliary_agreement``'s optional ``auxiliary_agreement`` gate,
+    this is unconditional: marking person/number on a dedicated word instead
+    of the main verb (Finnish/Samoyedic-style) is this negation strategy's
+    entire point. Reuses the main verb's own ``agreement_affixes``/
+    ``verb_number_affixes``/``verb_polite_affixes`` paradigm, exactly like
+    ``_apply_auxiliary_agreement`` (just unconditional)."""
+    resolved_agreement = agreement_label if agreement_label in _agreement_labels(language.grammar) else "default"
+    resolved_number = verb_number_label if verb_number_label and language.grammar.verb_number_agreement else None
+    resolved_polite = bool(polite and language.grammar.verb_politeness)
+    affix = _combined_tense_agreement_affix(
+        language.grammar, None, resolved_agreement, None, None, None, None, resolved_number, resolved_polite, None, False
+    )
+    if affix is None:
+        return entry.romanization, entry.ipa
+    rng = _translation_rng(
+        language, _verb_affix_salt(entry, None, resolved_agreement, verb_number=resolved_number, polite=resolved_polite)
+    )
+    ipa = inflection_gen.apply_affix(rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
+    romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+    return romanization, ipa
+
+
+def _negative_verb_entry(
+    language: Language, coined: list[LexicalEntry], llm_client: LLMClient,
+    agreement_label: str = "default", verb_number_label: str | None = None, polite: bool = False,
+) -> tuple[Language, tuple[LexicalEntry, str, str]]:
+    """The dedicated negative-verb word (``neg-verb``), coined on first use,
+    inflected for the subject's own agreement -- mirrors ``_auxiliary_
+    entries`` but for the single ``negative_verb``-strategy word rather than
+    a per-label periphrastic set."""
+    language, entry = _lookup_or_coin(
+        language, inflection_gen.NEGATIVE_VERB_GLOSS, PartOfSpeech.PARTICLE, coined, llm_client,
+        [inflection_gen.NEGATIVE_VERB_GLOSS],
+    )
+    romanization, ipa = _negative_verb_agreement(language, entry, agreement_label, verb_number_label, polite)
+    return language, (entry, romanization, ipa)
+
+
+def _decode_negative_verb_entry(language: Language, token: str) -> tuple[LexicalEntry, str | None] | None:
+    """``(entry, agreement_label)`` for the dedicated negative-verb word
+    ``token`` spells -- bare (agreement ``None``, either none matched or the
+    "default" affix happens to be empty) or (its own agreement is
+    unconditional, see ``_negative_verb_agreement``) inflected. Mirrors
+    ``_decode_auxiliary_entry``'s exact-match-first, then generate-and-
+    compare shape, but -- unlike that function, which only confirms
+    recognition -- also reports *which* agreement matched: the connegative
+    main verb carries none of its own, so this is the only place a
+    pro-dropped subject's person can be recovered from for a negated
+    sentence (see the ``negative_verb_hosts`` use in ``translate_to_
+    english``)."""
+    entry = language.lexicon.by_form(token)
+    if entry is not None and entry.primary_gloss == inflection_gen.NEGATIVE_VERB_GLOSS:
+        return entry, None
+    normalized = _normalize(token)
+    for entry in language.lexicon.entries:
+        if entry.primary_gloss != inflection_gen.NEGATIVE_VERB_GLOSS:
+            continue
+        for agreement in _agreement_labels(language.grammar):
+            for number in (None, "plural"):
+                for polite in (False, True):
+                    romanized, _ = _negative_verb_agreement(language, entry, agreement, number, polite)
+                    if _normalize(romanized) == normalized:
+                        return entry, agreement
+    return None
+
+
+def _split_negative_verb_tokens(language: Language, tokens: list[str]) -> tuple[list[str], dict[int, str | None]]:
+    """Takes the dedicated negative-verb word out of a token list (under the
+    ``"negative_verb"`` negation strategy) and returns, keyed by the index
+    (in the shortened list) of the verb each one negates, the agreement
+    label it was found to carry (or ``None`` if none could be recovered) --
+    the next token, or the previous with ``auxiliary_position == "after"``,
+    mirroring a periphrastic auxiliary's own position. Mirrors
+    ``_split_auxiliary_tokens`` but keyed on a single fixed word/meaning,
+    not a per-label dict of lists."""
+    if language.grammar.negation_strategy != "negative_verb":
+        return tokens, {}
+    after = language.grammar.auxiliary_position == "after"
+    kept: list[str] = []
+    hosts: dict[int, str | None] = {}
+    for token in tokens:
+        decoded = _decode_negative_verb_entry(language, token)
+        if decoded is not None:
+            _, agreement = decoded
+            hosts[max(len(kept) - 1, 0) if after else len(kept)] = agreement
+            continue
+        kept.append(token)
+    return kept, hosts
 
 
 def _decode_auxiliary_entry(language: Language, token: str) -> LexicalEntry | None:
@@ -891,6 +996,18 @@ def _apply_verb_inflection(
         rng = _translation_rng(language, salt)
         ipa = inflection_gen.apply_affix(
             rng, imperative, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+        )
+        romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+        return romanization, ipa
+    if negative and grammar.negation_strategy == "negative_verb" and grammar.connegative_affixes:
+        # The "negative_verb" strategy (Finnish/Samoyedic-style): the main verb
+        # takes its own invariant connegative stem instead of tense/aspect/
+        # mood/agreement -- person/number marking moves onto the dedicated
+        # negative-verb word instead (see ``_negative_verb_entry``).
+        connegative_affix = next(a for a in grammar.connegative_affixes if a.label == "connegative")
+        rng = _translation_rng(language, _connegative_salt(entry))
+        ipa = inflection_gen.apply_affix(
+            rng, connegative_affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
         )
         romanization = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
         return romanization, ipa
@@ -2401,6 +2518,14 @@ def _render_plan(
                         working_language, aux_labels, coined, llm_client,
                         agreement_label, slot.subject_number, slot.polite,
                     )
+                    if (
+                        slot_index in negative_verbs
+                        and working_language.grammar.negation_strategy == "negative_verb"
+                    ):
+                        working_language, neg_entry = _negative_verb_entry(
+                            working_language, coined, llm_client, agreement_label, slot.subject_number, slot.polite,
+                        )
+                        aux_entries = [*aux_entries, neg_entry]
                 past_base = (slot.gloss or "").strip().lower()
                 if (
                     tense_in == "past" and not mood_pending and past_base in working_language.grammar.suppletive_past
@@ -2486,6 +2611,14 @@ def _render_plan(
                         working_language, aux_labels, coined, llm_client,
                         agreement_label, slot.subject_number, slot.polite,
                     )
+                    if (
+                        slot_index in negative_verbs
+                        and working_language.grammar.negation_strategy == "negative_verb"
+                    ):
+                        working_language, neg_entry = _negative_verb_entry(
+                            working_language, coined, llm_client, agreement_label, slot.subject_number, slot.polite,
+                        )
+                        aux_entries = [*aux_entries, neg_entry]
                 rendered = _apply_verb_inflection(
                     working_language, entry, tense_in, agreement_label,
                     "imperative" if mood_pending else "declarative",
@@ -2826,6 +2959,26 @@ def _decode_verb_full(
                 candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
                 if _normalize(candidate) == normalized:
                     return entry, "prohibitive", None, None, None, None, None, None, False, None, None, False
+        connegative = next((a for a in language.grammar.connegative_affixes if a.label == "connegative"), None)
+        if connegative is not None:
+            # The "negative_verb" strategy's own invariant stem -- not
+            # optional/redundant: the full fallback search below only ever
+            # tries `negative=True` when `verb_negative_affixes` is non-empty,
+            # which is never the case for this strategy (see
+            # `connegative_affixes`'s own docstring), so without this the
+            # connegative-suffixed token would never be recognized as a verb.
+            for entry in entries:
+                affix = next(
+                    (a for a in _paradigm_grammar(language, entry).connegative_affixes if a.label == "connegative"),
+                    connegative,
+                )
+                rng = _translation_rng(language, _connegative_salt(entry))
+                ipa = inflection_gen.apply_affix(
+                    rng, affix, entry.ipa, language.phonology, **_stress_and_word_accent_kwargs(language)
+                )
+                candidate = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), entry.pos)
+                if _normalize(candidate) == normalized:
+                    return entry, None, None, None, None, None, None, None, False, None, None, True
         grammar_forms = language.grammar
         negative_options: list[bool] = [False, True] if grammar_forms.verb_negative_affixes else [False]
         form_candidates: list[tuple[InflectionAffix, str | None, str | None, bool]] = []
@@ -3204,6 +3357,7 @@ def translate_to_english(
     if language.grammar.repeater_rate > 0.0:
         tokens = _drop_repeaters(language, tokens)
     tokens, auxiliary_labels = _split_auxiliary_tokens(language, tokens)
+    tokens, negative_verb_hosts = _split_negative_verb_tokens(language, tokens)
 
     # Per-token, structure-agnostic decode -- the plan-driven encoder can
     # produce genuinely arbitrary structure, so there's no fixed sentence
@@ -3379,6 +3533,17 @@ def translate_to_english(
                 verb_entry, tense_label, aspect_label, mood_label, voice_label, agreement_label,
                 object_label, number_label, polite_label, form_case, evidential_label, negative_label,
             ) = verb_full
+            if token_index in negative_verb_hosts:
+                # Belt-and-suspenders on the flag itself: the connegative
+                # candidate in `_decode_verb_full`'s `special()` already
+                # recognizes this token as negative on its own. The
+                # agreement recovery is not redundant, though -- the
+                # connegative main verb carries none of its own, so without
+                # this a pro-dropped subject would be lost entirely for a
+                # negated sentence.
+                negative_label = True
+                if agreement_label is None:
+                    agreement_label = negative_verb_hosts[token_index]
             past_split = voice_np_gen.suppletive_split(verb_entry.primary_gloss)
             if past_split is not None and past_split[1] == "past":
                 verb_entry = verb_entry.model_copy(update={"glosses": (past_split[0],)})
