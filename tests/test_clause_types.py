@@ -3,8 +3,6 @@ questions), plus per-sentence planning -- generation, planning, rendering
 and decoding back to English."""
 
 from conlang_generator.core.grammar import GrammarProfile
-from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.translation import sentence_planner
 from conlang_generator.translation.translator import (
@@ -13,12 +11,13 @@ from conlang_generator.translation.translator import (
     translate_to_conlang,
     translate_to_english,
 )
+from tests._shared_language import cached_language
 
 _SEED = 278  # SVO, nominative-accusative; core vocabulary has mountain/see/river
 
 
 def _language(seed: int = _SEED):
-    return generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
+    return cached_language(seed)
 
 
 def _first_language_with_order(orders: set[str]):

@@ -517,6 +517,19 @@ def _resolve_concatenation_collisions(grammar, spelled, redraw, key):
             if len(entries) < 3:
                 break
             used = {key(affix) for _, _, affix in entries}
+            # Each entry's own spelling depends only on that entry, never on
+            # whichever (a, b) pair is currently being checked -- cached here
+            # and kept in lock-step with ``entries`` (updated in place on every
+            # redraw below) so it's computed once per entry instead of once
+            # per (a, b, c) triple, the single biggest cost in language
+            # generation before this fix (profiled: ~58000 romanization.apply
+            # calls across 3 generations, nearly all from this exact redundant
+            # recomputation). The scan order and every redraw() call stay
+            # identical to the un-cached version -- only which object answers
+            # "what does c spell" changes, not when or how many times a
+            # genuine collision gets redrawn -- so this does not change
+            # generation output for any seed.
+            spellings = [spelled(affix.suffix) for _, _, affix in entries]
             found = False
             for a_pos in range(len(entries)):
                 name_a, _, a = entries[a_pos]
@@ -526,7 +539,7 @@ def _resolve_concatenation_collisions(grammar, spelled, redraw, key):
                         continue  # a word never carries two labels of the same field at once
                     combo = spelled(a.suffix + b.suffix)
                     for c_pos, (name_c, index_c, c) in enumerate(entries):
-                        if c_pos in (a_pos, b_pos) or spelled(c.suffix) != combo:
+                        if c_pos in (a_pos, b_pos) or spellings[c_pos] != combo:
                             continue
                         found = True
                         used.discard(key(c))
@@ -536,6 +549,7 @@ def _resolve_concatenation_collisions(grammar, spelled, redraw, key):
                         fixed[index_c] = redrawn
                         updates[name_c] = tuple(fixed)
                         entries[c_pos] = (name_c, index_c, redrawn)
+                        spellings[c_pos] = spelled(redrawn.suffix)
             if not found:
                 break
     return grammar.model_copy(update=updates) if updates else grammar

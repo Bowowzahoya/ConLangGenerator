@@ -75,10 +75,40 @@ Do not introduce a database, graph framework, distributed execution, elaborate p
 ## Testing
 
 The suite is large and `generate_language()` is expensive (phonology, a
-several-hundred-word lexicon, ~30 grammar passes), so a full run regularly
-takes 20-50+ minutes. Day to day, use `pytest-testmon` (a dev dependency) for
-selective re-runs: `uv run pytest --testmon` runs only the tests whose actual
-*covered code* changed since the last run (tracked via coverage, in
+several-hundred-word lexicon, ~30 grammar passes), so a full run used to take
+20-50+ minutes. Two fixes landed to cut that down:
+`inflection_gen._resolve_concatenation_collisions` had an O(n^3) hot loop
+recomputing the same spelling on every (a, b) pair instead of once per entry
+(fixed -- 3.17x faster `generate_language`, verified byte-identical output);
+and `addopts` now runs the whole suite under `pytest-xdist` by default
+(`-n auto --dist loadfile`, one worker
+process per test *file*, not per individual test -- `tests/_shared_language.
+py`'s `cached_language` cache is a plain process-wide dict, so splitting a
+single file's tests across workers fragments that cache and erases the
+parallelism gain; `--dist loadfile` keeps a whole file on one worker so it
+survives). Measured on the full suite: 1687s serial (before either fix) ->
+1273s serial (after the collision-loop fix) -> 799s with `--dist loadfile`
+(after both) -- roughly 2.1x overall. A trivial one-file run now pays a few
+seconds of xdist worker-startup overhead it didn't before; that's the
+tradeoff for the full-suite win.
+
+**Known limitation, not yet fixed: `--testmon`'s selective re-run doesn't
+currently work.** `pytest-testmon` auto-disables selection whenever a `-m`
+marker expression is active ("testmon: selection automatically deactivated
+because -m was used" -- visible with `-v`), and `addopts` has always carried
+`-m 'not slow'` to skip the slow tripwire tests by default. So `uv run
+pytest --testmon` has been running the *entire* suite (minus `slow`-marked
+tests) every single time, not a selective subset -- the "day to day,
+selective re-runs" workflow described below has not actually been active.
+The fix (moving the slow-test skip into a `conftest.py` collection hook
+instead of an `-m` addopts flag, so testmon never sees a marker expression on
+the default path) is straightforward but touches the `-m slow`/`-m ''`
+escape hatches intentionally too, so it's being tracked as a deliberate
+follow-up rather than bundled into an unrelated change.
+
+Day to day (once the above is fixed), use `pytest-testmon` (a dev dependency)
+for selective re-runs: `uv run pytest --testmon` runs only the tests whose
+actual *covered code* changed since the last run (tracked via coverage, in
 `.testmondata`, gitignored) -- real impact analysis, not a same-file guess,
 so it also catches indirect effects (a shared rng stream, a generation-order
 dependency) that touching an unrelated-looking file can still have.

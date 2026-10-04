@@ -3,13 +3,12 @@ dropped by the real planner and misread as verbs by the fake one), and each
 LLM backend must get its own response cache (a shared, content-keyed file
 served a fake answer to a later real request)."""
 
-from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.base import LLMRequest
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.translation import sentence_planner
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
+from tests._shared_language import cached_language
 
 # seed=83 (re-found from seed=2 after the "Missing symbols still" batch's
 # own new phoneme-pool content shifted downstream rng draws -- needs
@@ -18,7 +17,7 @@ _SEED = 83
 
 
 def _language():
-    language = generate_language("T", GenerationSpec(prompt="p", seed=_SEED), FakeLLMClient())
+    language = cached_language(_SEED, name="T")
     # "very" as a word (an elative suffix language would mark the adjective instead)
     grammar = language.grammar.model_copy(
         update={

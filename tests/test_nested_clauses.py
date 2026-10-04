@@ -4,15 +4,14 @@ cap, rendering (linking word placement, recursion) and decoding."""
 
 import json
 
-from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.fake_client import FakeLLMClient, _fake_plan_dict
 from conlang_generator.translation import sentence_planner
 from conlang_generator.translation.translator import _decode_verb, translate_to_conlang, translate_to_english
+from tests._shared_language import cached_language
 
 
 def _language(seed: int = 278):
-    return generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
+    return cached_language(seed)
 
 
 def _with_order(orders: set[str]):

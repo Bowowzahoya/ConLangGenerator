@@ -2,9 +2,7 @@
 planning, rendering and decoding."""
 
 from conlang_generator.core.grammar import GrammarProfile
-from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.generation import inflection_gen
-from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.fake_client import FakeLLMClient, _fake_plan_dict
 from conlang_generator.translation import sentence_planner
 from conlang_generator.translation.translator import (
@@ -12,6 +10,7 @@ from conlang_generator.translation.translator import (
     translate_to_conlang,
     translate_to_english,
 )
+from tests._shared_language import cached_language
 
 _FOUR_WAY = ("perfective", "progressive", "perfect", "habitual")
 _THREE_MOODS = ("subjunctive", "conditional", "potential")
@@ -20,8 +19,12 @@ _THREE_MOODS = ("subjunctive", "conditional", "potential")
 def _language(seed: int):
     """The generated language without the follow-up features (auxiliary tenses,
     suffix negation, prohibitive, evidentials): these tests exercise plain
-    aspect and mood marking (the follow-ups are in ``test_aspect_followups.py``)."""
-    language = generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
+    aspect and mood marking (the follow-ups are in ``test_aspect_followups.py``).
+    Wraps the cross-file ``cached_language`` cache (not used directly, since
+    every call here needs the same follow-up-stripping post-processing) so the
+    expensive part -- generation itself -- is never redone for a seed another
+    test in this file, or another file entirely, already built this run."""
+    language = cached_language(seed)
     grammar = language.grammar
     plain = grammar.model_copy(
         update={

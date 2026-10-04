@@ -5,11 +5,10 @@ heuristic translate_to_conlang used to hard-code; a stub LLMClient covers
 the lenient-parsing/fallback behavior a real, occasionally-malformed LLM
 response needs."""
 
-from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.base import LLMResponse
 from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.translation import sentence_planner
+from tests._shared_language import cached_language
 
 # Same fixtures as test_translator.py -- seed=278 (nominative-accusative,
 # SVO, has_articles/has_overt_copula both true) and seed=28 (ergative-
@@ -26,7 +25,7 @@ _ERGATIVE_SEED = 28
 
 
 def _language(seed: int):
-    return generate_language("Test", GenerationSpec(prompt="p", seed=seed), FakeLLMClient())
+    return cached_language(seed)
 
 
 class _StubLLMClient:

@@ -35,7 +35,13 @@ web = [
 testpaths = ["tests"]
 # The default OS temp dir is locked down in some sandboxed environments this
 # project is developed in; keep pytest's tmp_path fixture inside the repo.
-addopts = "--basetemp=.pytest_tmp -m 'not slow'"
+# -n auto --dist loadfile: parallelize across CPU cores, one worker per test
+# FILE (not per individual test) -- this project's tests/_shared_language.py
+# cache is a plain process-wide dict, so splitting a single file's tests
+# across workers would fragment that cache and erase the parallelism gain
+# (measured: default `-n auto` load-balancing gave ~0% speedup on a
+# cache-heavy pair of files; `--dist loadfile` gave ~1.6x on the full suite).
+addopts = "--basetemp=.pytest_tmp -m 'not slow' -n auto --dist loadfile"
 markers = [
     "slow: takes more than a few seconds (hundreds of generated languages, real audio synthesis); skipped by default -- run with `pytest -m slow` (only these) or `pytest -m ''` (everything)",
 ]
