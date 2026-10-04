@@ -41,7 +41,15 @@ testpaths = ["tests"]
 # across workers would fragment that cache and erase the parallelism gain
 # (measured: default `-n auto` load-balancing gave ~0% speedup on a
 # cache-heavy pair of files; `--dist loadfile` gave ~1.6x on the full suite).
-addopts = "--basetemp=.pytest_tmp -m 'not slow' -n auto --dist loadfile"
+# No `-m` here on purpose: pytest-testmon auto-disables its own selective
+# test skipping whenever a `-m` marker expression is active anywhere in the
+# invocation, addopts included -- "skip slow tests by default" is handled
+# instead by tests/conftest.py's pytest_collection_modifyitems, which never
+# puts `-m` on the command line, so testmon's selection stays active for the
+# default `--testmon` invocation. `pytest -m slow`/`pytest -m ''` still work
+# as documented below (that conftest hook steps aside whenever the user
+# passes `-m` themselves).
+addopts = "--basetemp=.pytest_tmp -n auto --dist loadfile"
 markers = [
     "slow: takes more than a few seconds (hundreds of generated languages, real audio synthesis); skipped by default -- run with `pytest -m slow` (only these) or `pytest -m ''` (everything)",
 ]

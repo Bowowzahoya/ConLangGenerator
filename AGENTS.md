@@ -92,19 +92,24 @@ survives). Measured on the full suite: 1687s serial (before either fix) ->
 seconds of xdist worker-startup overhead it didn't before; that's the
 tradeoff for the full-suite win.
 
-**Known limitation, not yet fixed: `--testmon`'s selective re-run doesn't
-currently work.** `pytest-testmon` auto-disables selection whenever a `-m`
-marker expression is active ("testmon: selection automatically deactivated
-because -m was used" -- visible with `-v`), and `addopts` has always carried
-`-m 'not slow'` to skip the slow tripwire tests by default. So `uv run
-pytest --testmon` has been running the *entire* suite (minus `slow`-marked
-tests) every single time, not a selective subset -- the "day to day,
-selective re-runs" workflow described below has not actually been active.
-The fix (moving the slow-test skip into a `conftest.py` collection hook
-instead of an `-m` addopts flag, so testmon never sees a marker expression on
-the default path) is straightforward but touches the `-m slow`/`-m ''`
-escape hatches intentionally too, so it's being tracked as a deliberate
-follow-up rather than bundled into an unrelated change.
+**Fixed: `--testmon`'s selective re-run was inert.** `pytest-testmon`
+auto-disables selection whenever a `-m` marker expression is active anywhere
+in the invocation ("testmon: selection automatically deactivated because -m
+was used" -- visible with `-v`), and `addopts` used to carry `-m 'not slow'`
+to skip the slow tripwire tests by default -- so `uv run pytest --testmon`
+ran the *entire* suite (minus `slow`-marked tests) on every single
+invocation, never a selective subset. Fixed by moving the slow-test skip
+into `tests/conftest.py`'s `pytest_collection_modifyitems` hook instead,
+which never puts `-m` on the command line. The hook detects whether the user
+explicitly passed `-m` via `config.invocation_params.args` (not `config.
+option.markexpr`, which can't tell "`-m ''` was typed" apart from "`-m` was
+never typed" -- both parse to the same empty string) and steps aside when
+they did, so the documented `pytest -m slow` (only slow tests) and
+`pytest -m ''` (everything, slow included) escape hatches still work
+unchanged. Verified concretely both directions: a second run with no code
+changes now reports `testmon: changed files: 0` and runs nothing; editing
+one test file selects exactly the test(s) whose coverage touches it, not the
+whole suite.
 
 Day to day (once the above is fixed), use `pytest-testmon` (a dev dependency)
 for selective re-runs: `uv run pytest --testmon` runs only the tests whose
