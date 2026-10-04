@@ -142,12 +142,51 @@ top of a looser, more invented sound system is a legitimate choice (a
 deliberately "split" aesthetic), just one worth flagging. The reverse
 (low word strictness, high sound strictness) is normal and silent.
 
-`--example` takes `gloss=form` (IPA guessed from the spelling) or
-`gloss=form|ipa` (explicit pronunciation) and always inserts that literal
-word under that gloss, replacing whatever core-vocabulary generation
-would have produced -- its phonemes are also guaranteed to be in the
-generated inventory. Word-level only; sentence-level examples aren't
-supported yet.
+`--example` takes `gloss=form` (IPA guessed from the spelling),
+`gloss=form|ipa` (explicit pronunciation) or `gloss=form|ipa|pos` (also sets
+its part of speech -- one of `noun`, `verb`, `adjective`, `pronoun`,
+`particle`, `numeral`, `other`; omit `ipa` with `gloss=form||pos`; defaults
+to `noun` when not given, as before) and always inserts that literal word
+under that gloss, replacing whatever core-vocabulary generation would have
+produced -- its phonemes are also guaranteed to be in the generated
+inventory. `--examples-file PATH` reads many at once from a CSV file, one
+word per line (`gloss,form[,ipa[,pos]]`; an optional header row starting
+with `gloss` is skipped) -- combined with any `--example` flags, which are
+applied after the file's own rows. Word-level only; sentence-level examples
+aren't supported yet.
+
+If a seed word's own IPA isn't a legal syllable shape under this language's
+own generated phonotactics, it is still kept exactly as given -- never
+repaired -- and a warning prints instead:
+
+```bash
+conlang generate --prompt "a plain language" --name warn-test --seed 5 \
+  --llm fake --example "test=bzdrga|bzdrga"
+```
+
+```
+Seed examples: test=bzdrga (/bzdrga/)
+warning: seed word 'test' (bzdrga) is not a legal syllable shape in this language's own generated phonology -- kept verbatim anyway.
+```
+
+A `seedwords.csv` with:
+
+```
+gloss,form,ipa,pos
+fish,zumba,,verb
+water,aqua,,noun
+```
+
+combined with a repeated `--example` (file rows first, then the flags):
+
+```bash
+conlang generate --prompt "a plain language" --name file-test --seed 5 \
+  --llm fake --examples-file seedwords.csv --example "run=korru|korːu|verb"
+```
+
+```
+Seed examples: fish=zumba (/zumba/, verb), water=aqua (/akwa/, noun), run=korru (/korːu/, verb)
+```
 
 Two smaller flags round out word generation: `--word-selection` picks
 between the default `algorithmic` (a seeded, no-LLM choice among each

@@ -31,6 +31,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
 from conlang_generator.core.language import Language
+from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.phonology import TONE_CONTOURS, chao_letters
 from conlang_generator.core.romanization import (
     ExoticSymbolStyle,
@@ -48,7 +49,11 @@ from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.generation.real_words import strictness_warnings
 from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, lexicon_audit, real_lexicon
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
-from conlang_generator.generation.seed_examples import resolve_seed_examples
+from conlang_generator.generation.seed_examples import (
+    parse_bulk_seed_examples,
+    phonotactic_mismatch_warnings,
+    resolve_seed_examples,
+)
 from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.cost_tracker import CostTracker
 from conlang_generator.llm.factory import build_llm_client
@@ -217,6 +222,7 @@ class SeedExampleEntry(BaseModel):
     gloss: str
     form: str
     ipa: str | None = None
+    pos: str | None = None
 
 
 class GenerateRequest(BaseModel):
@@ -231,6 +237,10 @@ class GenerateRequest(BaseModel):
     source_languages: list[SourceLanguageEntry] = []
     strictness: float | None = None
     examples: list[SeedExampleEntry] = []
+    examples_text: str | None = None
+    """Bulk-paste seed words, one per line: gloss,form[,ipa[,pos]] -- see
+    ``generation.seed_examples.parse_bulk_seed_examples``. Combined with
+    ``examples`` (that list's own rows are applied after this text's)."""
     orthography_style: str | None = None
     exotic_symbol_style: str | None = None
     vowel_length_style: str | None = None
@@ -515,7 +525,12 @@ def generate(request: GenerateRequest) -> dict:
     if request.trait_overrides:
         traits = traits.model_copy(update=request.trait_overrides)
 
-    raw_examples = tuple(SeedExample(gloss=e.gloss, form=e.form, ipa=e.ipa) for e in request.examples)
+    text_examples = parse_bulk_seed_examples(request.examples_text) if request.examples_text else ()
+    row_examples = tuple(
+        SeedExample(gloss=e.gloss, form=e.form, ipa=e.ipa, pos=_parse_enum(e.pos, PartOfSpeech, "examples[].pos"))
+        for e in request.examples
+    )
+    raw_examples = text_examples + row_examples
     seed_examples = resolve_seed_examples(raw_examples, client)
 
     spec = GenerationSpec(
@@ -540,7 +555,7 @@ def generate(request: GenerateRequest) -> dict:
     after = _cost_snapshot()
     summary = _language_summary(language)
     summary["cost"] = _cost_delta(before, after)
-    summary["warnings"] = strictness_warnings(traits)
+    summary["warnings"] = strictness_warnings(traits) + phonotactic_mismatch_warnings(language)
     return summary
 
 

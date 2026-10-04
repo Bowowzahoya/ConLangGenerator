@@ -1,10 +1,15 @@
 import random
 
+from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import phonology_gen
 from conlang_generator.generation.generator import generate_language
-from conlang_generator.generation.seed_examples import resolve_seed_examples
+from conlang_generator.generation.seed_examples import (
+    parse_bulk_seed_examples,
+    phonotactic_mismatch_warnings,
+    resolve_seed_examples,
+)
 from conlang_generator.llm.fake_client import FakeLLMClient
 
 
@@ -102,3 +107,102 @@ def test_seeded_gloss_is_not_also_generated():
 
     water_entries = [e for e in language.lexicon.entries if "water" in e.glosses]
     assert len(water_entries) == 1
+
+
+# --- part of speech -------------------------------------------------------
+
+
+def test_a_given_pos_is_honored():
+    client = FakeLLMClient()
+    examples = (SeedExample(gloss="run", form="zim", ipa="zim", pos=PartOfSpeech.VERB),)
+    spec = GenerationSpec(prompt="p", seed=5, seed_examples=examples)
+    language = generate_language("Test", spec, client)
+
+    entry = language.lexicon.by_gloss("run")
+    assert entry is not None
+    assert entry.pos is PartOfSpeech.VERB
+
+
+def test_an_omitted_pos_still_defaults_to_noun():
+    client = FakeLLMClient()
+    examples = (SeedExample(gloss="water", form="aqua", ipa="akwa"),)
+    spec = GenerationSpec(prompt="p", seed=5, seed_examples=examples)
+    language = generate_language("Test", spec, client)
+
+    entry = language.lexicon.by_gloss("water")
+    assert entry is not None
+    assert entry.pos is PartOfSpeech.NOUN
+
+
+def test_seed_entries_are_tagged_as_seed_words():
+    client = FakeLLMClient()
+    examples = (SeedExample(gloss="water", form="aqua", ipa="akwa"),)
+    spec = GenerationSpec(prompt="p", seed=5, seed_examples=examples)
+    language = generate_language("Test", spec, client)
+
+    entry = language.lexicon.by_gloss("water")
+    assert entry is not None
+    assert entry.notes == "seed word"
+
+
+# --- bulk input -------------------------------------------------------------
+
+
+def test_parse_bulk_seed_examples_reads_gloss_form_ipa_pos():
+    text = "water,aqua,akwa,noun\nrun,zim,,verb"
+    examples = parse_bulk_seed_examples(text)
+    assert examples == (
+        SeedExample(gloss="water", form="aqua", ipa="akwa", pos=PartOfSpeech.NOUN),
+        SeedExample(gloss="run", form="zim", ipa=None, pos=PartOfSpeech.VERB),
+    )
+
+
+def test_parse_bulk_seed_examples_skips_an_optional_header_row():
+    with_header = parse_bulk_seed_examples("gloss,form,ipa,pos\nwater,aqua,akwa,noun")
+    without_header = parse_bulk_seed_examples("water,aqua,akwa,noun")
+    assert with_header == without_header
+
+
+def test_parse_bulk_seed_examples_tolerates_missing_optional_columns():
+    assert parse_bulk_seed_examples("water,aqua") == (SeedExample(gloss="water", form="aqua"),)
+
+
+def test_parse_bulk_seed_examples_skips_rows_missing_gloss_or_form_or_with_a_bad_pos():
+    text = "\n".join(["water,aqua,akwa,noun", ",missing-gloss", "missing-form,", "bad,pos,,notapos"])
+    examples = parse_bulk_seed_examples(text)
+    assert examples == (SeedExample(gloss="water", form="aqua", ipa="akwa", pos=PartOfSpeech.NOUN),)
+
+
+def test_parse_bulk_seed_examples_is_deterministic():
+    text = "water,aqua,akwa,noun\nrun,zim,,verb"
+    assert parse_bulk_seed_examples(text) == parse_bulk_seed_examples(text)
+
+
+# --- phonotactic-mismatch warning -------------------------------------------
+
+
+def test_a_wildly_clustered_seed_word_triggers_a_phonotactic_mismatch_warning():
+    # Five consonants before the only vowel -- an onset cluster far beyond
+    # any realistic generated syllable structure's own max. Confirmed
+    # empirically illegal across seeds 1-14, so this doesn't need a seed
+    # search.
+    client = FakeLLMClient()
+    examples = (SeedExample(gloss="test", form="bzdrga", ipa="bzdrga"),)
+    spec = GenerationSpec(prompt="p", seed=5, seed_examples=examples)
+    language = generate_language("Test", spec, client)
+
+    warnings = phonotactic_mismatch_warnings(language)
+    assert len(warnings) == 1
+    assert "test" in warnings[0] and "bzdrga" in warnings[0]
+    # Never auto-repaired -- the word is kept exactly as given regardless.
+    entry = language.lexicon.by_gloss("test")
+    assert entry is not None and entry.ipa == "bzdrga" and entry.romanization == "bzdrga"
+
+
+def test_an_ordinary_seed_word_triggers_no_warning():
+    client = FakeLLMClient()
+    examples = (SeedExample(gloss="test", form="pa", ipa="pa"),)
+    spec = GenerationSpec(prompt="p", seed=5, seed_examples=examples)
+    language = generate_language("Test", spec, client)
+
+    assert phonotactic_mismatch_warnings(language) == []

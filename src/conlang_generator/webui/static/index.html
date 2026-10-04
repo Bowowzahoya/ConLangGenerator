@@ -179,6 +179,9 @@
       <div id="seed-example-rows"></div>
       <button type="button" class="add-row" id="add-seed-example">+ seed example</button>
 
+      <label for="gen-examples-text">Bulk seed words <span class="ipa">(paste many at once, one per line: gloss,form[,ipa[,pos]]; an optional header row starting with "gloss" is skipped)</span></label>
+      <textarea id="gen-examples-text" rows="3" placeholder="water,aqua&#10;mountain,yama,jama,noun"></textarea>
+
       <div class="row">
         <div>
           <label for="gen-orthography-style">Orthography style</label>
@@ -347,13 +350,16 @@ function addSourceLangRow() {
   row.querySelector(".remove-row").onclick = () => row.remove();
   $("source-lang-rows").appendChild(row);
 }
+const PARTS_OF_SPEECH = ["", "noun", "verb", "adjective", "pronoun", "particle", "numeral", "other"];
 function addSeedExampleRow() {
   const row = document.createElement("div");
   row.className = "dyn-row";
+  const posOptions = PARTS_OF_SPEECH.map(p => `<option value="${p}">${p || "pos (optional)"}</option>`).join("");
   row.innerHTML = `
     <input type="text" placeholder="gloss, e.g. water" class="se-gloss">
     <input type="text" placeholder="form, e.g. aqua" class="se-form">
     <input type="text" placeholder="IPA (optional)" class="se-ipa">
+    <select class="se-pos">${posOptions}</select>
     <button type="button" class="remove-row">&times;</button>`;
   row.querySelector(".remove-row").onclick = () => row.remove();
   $("seed-example-rows").appendChild(row);
@@ -375,6 +381,7 @@ function collectSeedExamples() {
       gloss: row.querySelector(".se-gloss").value.trim(),
       form: row.querySelector(".se-form").value.trim(),
       ipa: row.querySelector(".se-ipa").value.trim() || null,
+      pos: row.querySelector(".se-pos").value || null,
     }))
     .filter(e => e.gloss && e.form);
 }
@@ -905,6 +912,7 @@ $("generate-btn").onclick = async () => {
     trait_overrides: collectTraitOverrides(),
     evolve_years: $("gen-evolve-years").value === "" ? null : parseInt($("gen-evolve-years").value, 10),
     examples: collectSeedExamples(),
+    examples_text: $("gen-examples-text").value.trim() || null,
     orthography_style: $("gen-orthography-style").value || null,
     exotic_symbol_style: $("gen-exotic-symbol-style").value || null,
     vowel_length_style: $("gen-vowel-length-style").value || null,

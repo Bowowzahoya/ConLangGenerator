@@ -467,7 +467,8 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             # the real spelling even in principle; `form` already has it.
             romanization=unicodedata.normalize("NFC", example.form),
             glosses=(example.gloss,),
-            pos=PartOfSpeech.NOUN,  # v1 simplification -- no POS guessing for seed examples
+            pos=example.pos or PartOfSpeech.NOUN,
+            notes="seed word",
         )
         for example in spec.seed_examples
     )

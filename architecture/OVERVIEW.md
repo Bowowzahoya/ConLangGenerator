@@ -5960,3 +5960,84 @@ reading code or one-off ad hoc scripts.
   table) and is deterministic for a fixed seed; `apply_shift` maps the same symbol identically wherever
   it occurs, including twice in the same input, using a plain CV/CVCV construction so syllable repair
   can't obscure the comparison; both pre-existing regression tests confirmed still passing.
+
+- **Seed words: part of speech, bulk input, phonotactic-mismatch warning (grammar pass 47).**
+  `docs/DEFERRED.md`'s "## 4. Generation from the user's own words": a user can already seed a
+  language with their own words (`core/spec.py`'s `SeedExample(gloss, form, ipa)`, in generation since
+  before this session) -- `generation/phonology_gen.py::generate_phonology` forces a seed word's own
+  phonemes into the inventory regardless of base inclusion probability, and `generator.py` builds each
+  as a `LexicalEntry` whose `romanization` is the user's own `form` verbatim (bypassing the romanization
+  scheme entirely -- already how verbatim spelling was guaranteed, no new mechanism needed for that
+  part). Confirmed via research three concrete, independent gaps, all directly named by the DEFERRED
+  text: part of speech was hardcoded to NOUN (`generator.py`, `# v1 simplification -- no POS guessing
+  for seed examples`); no bulk input existed, one repeatable `--example gloss=form[|ipa]` CLI flag and a
+  dynamic per-row web UI section only; nothing checked a seed word's IPA against the generated
+  `SyllableStructure` at all.
+
+  **`SeedExample` gains `pos: PartOfSpeech | None = None`** (`core/spec.py`) -- mirrors `real_words.
+  RealChoice.pos`, the closest existing precedent for a per-word POS. `generator.py`'s seed-entry
+  construction changes from the hardcoded `pos=PartOfSpeech.NOUN` to `pos=example.pos or PartOfSpeech.
+  NOUN` (preserves every existing caller's behavior unchanged) and gains `notes="seed word"` (previously
+  unset), mirroring how a real-word entry already carries `notes=f"real word: {language}"` -- makes seed
+  words visibly distinguishable in a saved language file. Parsing free text into `PartOfSpeech` reuses
+  the enum directly (`PartOfSpeech(text.lower())` -- its own values already equal their lowercase names)
+  rather than `translation/sentence_planner.POS_BY_PLAN_STRING`: confirmed via grep that no `generation/`
+  module imports from `translation/` today, and that mapping's own quirks (`"adverb" -> PARTICLE`) are
+  planner-specific, not what a CLI user typing "adverb" for a seed word should have to know about. CLI:
+  `_parse_seed_example` extends `gloss=form|ipa` with an optional third field, `gloss=form|ipa|pos`
+  (`gloss=form||pos` skips ipa) via a new `_parse_pos` helper; the `Seed examples: ...` echo and
+  `--example`'s own help text both updated. Web UI: `SeedExampleEntry`/`GenerateRequest` gain `pos: str |
+  None`, converted via the existing `_parse_enum(raw, enum_cls, field)` helper (member-*name* lookup,
+  already used elsewhere in `webui/app.py`) rather than inventing a second enum-parsing helper;
+  `index.html`'s per-row seed-example inputs gain a `<select>` of the enum's own seven values.
+
+  **Bulk input** -- one new shared parser, `generation/seed_examples.py::parse_bulk_seed_examples(text)`,
+  reused by both the CLI and the web UI rather than parsed twice: stdlib `csv`, one word per line
+  (`gloss,form[,ipa[,pos]]`), an optional header row (first cell `"gloss"`, case-insensitive) skipped if
+  present, a missing `ipa`/`pos` column tolerated, a row missing its required `gloss`/`form` or carrying
+  an unrecognized `pos` skipped rather than raising -- this project's own "degrade gracefully, report the
+  gap elsewhere" convention for lenient batch input (the same shape `real_words_llm.py`'s own batch-reply
+  parsing already uses). CLI: new `--examples-file PATH` option, its rows combined with any `--example`
+  flags (file first, then individual flags) before `resolve_seed_examples` runs. Web UI: `GenerateRequest`
+  gains `examples_text: str | None`; `index.html` gains a paste-many textarea under Advanced options
+  (deliberately no new file-upload plumbing -- the CLI already covers a real file path, so the web UI's
+  own addition is a paste box through the exact same parser server-side, not multipart upload handling).
+
+  **Phonotactic-mismatch warning** -- new `generation/seed_examples.py::phonotactic_mismatch_warnings
+  (language: Language) -> list[str]`, called *after* generation (unlike `strictness_warnings`, a pure
+  function of `TraitProfile` computable before generation, this needs the generated `SyllableStructure`,
+  which doesn't exist until `generate_language` returns): tokenizes each seed example's own IPA against
+  `language.phonology.all_symbols()` and checks `phoneme_fit.first_problem(...)` -- the exact same
+  legality check `real_words.py` already reuses for its own deviated words. On a hit, a warning naming
+  the gloss/IPA, noting it was kept verbatim anyway -- **never auto-repaired**: repairing would violate
+  "the given words must appear verbatim," this feature's own core guarantee, so a mismatch is surfaced,
+  not silently fixed, mirroring `strictness_warnings`' own "allowed, never blocked" stance on a
+  word-strictness/sound-strictness mismatch. CLI: printed the same way `strictness_warnings` already is,
+  right after `generate_evolved_language` returns (needs the result). Web UI: appended onto the existing
+  `summary["warnings"]` list alongside `strictness_warnings(traits)` -- one shared channel, no new API
+  field. Verified end to end through the actual browser UI (not just unit tests): a bulk-pasted word with
+  no explicit IPA resolved through the fake LLM, triggered a real phonotactic-mismatch warning that
+  rendered correctly in the page, while an invalid-POS row in the same paste was silently and correctly
+  dropped rather than breaking the whole batch.
+
+  Confirmed, empirically, a real gap in `phoneme_fit.first_problem` while designing this pass's own
+  tests: a wholly vowelless IPA sequence (no nucleus at all) is **not** flagged as a problem -- the
+  function's own per-nucleus loop simply never executes when there are no nuclei, vacuously returning
+  "no problem found." Pre-existing, unrelated to this pass's own changes, out of scope to fix here; the
+  tests below use a pathological consonant-cluster seed word instead (confirmed illegal across seeds
+  1-14), not a vowelless one.
+
+  **Explicitly deferred** (both named directly by the DEFERRED text, each its own independent, open-ended
+  sub-feature with no existing mechanism to extend): structural bias derivation (syllable shapes, cluster
+  frequency, orthography conventions inferred from the seed words themselves); multi-form/inflected
+  grammatical forms on a seed word (the DEFERRED text's own wording hedges on the design -- "could be
+  passed in the prompt or as columns" -- rather than specifying one).
+
+  Tests: `tests/test_seed_examples.py` -- a given `pos` is honored, an omitted one still defaults to
+  NOUN, a seed entry carries `notes="seed word"`; `parse_bulk_seed_examples` reads all four columns, skips
+  an optional header, tolerates missing optional columns, skips a row missing `gloss`/`form` or with a bad
+  `pos` without raising, deterministic; a wildly-clustered seed word triggers exactly one warning naming
+  it and leaves its `ipa`/`romanization` unchanged, an ordinary one triggers none. `tests/test_cli.py` --
+  `_parse_seed_example`'s `gloss=form|ipa|pos`/`gloss=form||pos` forms, rejects an unknown `pos` and a
+  missing `=`. `tests/test_webui.py`'s own existing suite re-run clean (54 passed) after the
+  `SeedExampleEntry`/`GenerateRequest` changes.

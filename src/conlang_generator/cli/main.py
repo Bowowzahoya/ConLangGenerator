@@ -12,6 +12,7 @@ from conlang_generator.core.romanization import (
     ToneMarkingStrategy,
     VowelLengthStrategy,
 )
+from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
 from conlang_generator.generation.generator import generate_evolved_language, generate_language
@@ -19,7 +20,11 @@ from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.generation.real_words import strictness_warnings
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
-from conlang_generator.generation.seed_examples import resolve_seed_examples
+from conlang_generator.generation.seed_examples import (
+    parse_bulk_seed_examples,
+    phonotactic_mismatch_warnings,
+    resolve_seed_examples,
+)
 from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.factory import build_llm_client
@@ -128,13 +133,26 @@ def _parse_trait_overrides(raw_entries: list[str]) -> dict[str, float]:
     return overrides
 
 
+def _parse_pos(text: str) -> PartOfSpeech:
+    try:
+        return PartOfSpeech(text.lower())
+    except ValueError:
+        options = ", ".join(p.value for p in PartOfSpeech)
+        typer.echo(f"error: unknown part of speech {text!r} (expected one of: {options})", err=True)
+        raise typer.Exit(code=1)
+
+
 def _parse_seed_example(raw: str) -> SeedExample:
     if "=" not in raw:
-        typer.echo(f"error: --example must be 'gloss=form' or 'gloss=form|ipa', got {raw!r}", err=True)
+        typer.echo(
+            f"error: --example must be 'gloss=form', 'gloss=form|ipa' or 'gloss=form|ipa|pos', got {raw!r}", err=True
+        )
         raise typer.Exit(code=1)
     gloss, rest = raw.split("=", 1)
-    form, _, ipa = rest.partition("|")
-    return SeedExample(gloss=gloss.strip(), form=form.strip(), ipa=(ipa.strip() or None))
+    form, _, remainder = rest.partition("|")
+    ipa, _, pos_text = remainder.partition("|")
+    pos = _parse_pos(pos_text.strip()) if pos_text.strip() else None
+    return SeedExample(gloss=gloss.strip(), form=form.strip(), ipa=(ipa.strip() or None), pos=pos)
 
 
 @app.command()
@@ -165,7 +183,15 @@ def generate(
         "source_language_strictness/source_word_strictness use --strictness/--word-strictness instead.",
     ),
     example: list[str] = typer.Option(
-        [], "--example", help="Literal seed word: 'gloss=form' or 'gloss=form|ipa' (repeatable). Always appears verbatim in the lexicon."
+        [], "--example",
+        help="Literal seed word: 'gloss=form', 'gloss=form|ipa' or 'gloss=form|ipa|pos' (pos one of "
+        f"{', '.join(p.value for p in PartOfSpeech)}; omit ipa with 'gloss=form||pos') -- repeatable. "
+        "Always appears verbatim in the lexicon.",
+    ),
+    examples_file: Path = typer.Option(
+        None, "--examples-file",
+        help="CSV file of seed words, one per line: gloss,form[,ipa[,pos]] (an optional header row starting "
+        "with 'gloss' is skipped). Combined with any --example flags, which are applied after the file's rows.",
     ),
     evolve_from: str = typer.Option(
         None, "--evolve-from", help="Evolve an existing saved language via sound change instead of generating fresh (requires --years)."
@@ -310,7 +336,8 @@ def generate(
         typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
         return
 
-    raw_examples = tuple(_parse_seed_example(e) for e in example)
+    file_examples = parse_bulk_seed_examples(examples_file.read_text(encoding="utf-8")) if examples_file else ()
+    raw_examples = file_examples + tuple(_parse_seed_example(e) for e in example)
     seed_examples = resolve_seed_examples(raw_examples, client)
 
     spec = GenerationSpec(
@@ -362,8 +389,12 @@ def generate(
     if forced_orthography != OrthographyForce():
         typer.echo(f"Forced orthography: {forced_orthography.model_dump(exclude_none=True)}")
     if seed_examples:
-        rendered_examples = ", ".join(f"{e.gloss}={e.form} (/{e.ipa}/)" for e in seed_examples)
+        rendered_examples = ", ".join(
+            f"{e.gloss}={e.form} (/{e.ipa}/{f', {e.pos.value}' if e.pos else ''})" for e in seed_examples
+        )
         typer.echo(f"Seed examples: {rendered_examples}")
+    for warning in phonotactic_mismatch_warnings(language):
+        typer.echo(f"warning: {warning}", err=True)
 
     typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
 

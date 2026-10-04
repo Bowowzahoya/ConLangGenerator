@@ -4,7 +4,8 @@ testing directly, as opposed to the typer command wiring itself)."""
 import pytest
 import typer
 
-from conlang_generator.cli.main import _merge_source_languages, _parse_trait_overrides
+from conlang_generator.cli.main import _merge_source_languages, _parse_seed_example, _parse_trait_overrides
+from conlang_generator.core.lexicon import PartOfSpeech
 
 
 def test_merge_source_languages_no_existing_defaults_new_entries_to_equal_weight():
@@ -95,3 +96,33 @@ def test_parse_trait_overrides_rejects_the_dedicated_strictness_flags_own_fields
         _parse_trait_overrides(["source_language_strictness=0.5"])
     with pytest.raises(typer.Exit):
         _parse_trait_overrides(["source_word_strictness=0.5"])
+
+
+def test_parse_seed_example_gloss_form_only():
+    example = _parse_seed_example("water=aqua")
+    assert (example.gloss, example.form, example.ipa, example.pos) == ("water", "aqua", None, None)
+
+
+def test_parse_seed_example_with_ipa():
+    example = _parse_seed_example("water=aqua|akwa")
+    assert (example.gloss, example.form, example.ipa, example.pos) == ("water", "aqua", "akwa", None)
+
+
+def test_parse_seed_example_with_ipa_and_pos():
+    example = _parse_seed_example("run=zim|zim|verb")
+    assert (example.gloss, example.form, example.ipa, example.pos) == ("run", "zim", "zim", PartOfSpeech.VERB)
+
+
+def test_parse_seed_example_with_pos_and_no_ipa():
+    example = _parse_seed_example("run=zim||verb")
+    assert (example.gloss, example.form, example.ipa, example.pos) == ("run", "zim", None, PartOfSpeech.VERB)
+
+
+def test_parse_seed_example_rejects_an_unknown_pos():
+    with pytest.raises(typer.Exit):
+        _parse_seed_example("run=zim||notapos")
+
+
+def test_parse_seed_example_rejects_missing_equals_sign():
+    with pytest.raises(typer.Exit):
+        _parse_seed_example("water")

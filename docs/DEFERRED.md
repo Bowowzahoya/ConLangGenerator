@@ -94,18 +94,31 @@ multi-session feature.
 
 ## 4. Generation from the user's own words
 
-- **Seed words drive the language (M-L).** "I think it should sound like
-  this, and I already thought up some words -- fill in the rest
-  consistently." Take a set of user words (spelling, optional IPA, gloss,
-  optional part of speech and grammatical forms), derive a subset of
-  rules/sounds from them (inventory, syllable shapes, orthography,
-  frequent clusters), then generate the rest of the lexicon to fit. The
-  given words must appear verbatim in the language; a prompt can still be
-  added. Belongs under Advanced options in the web UI and a file or flag
-  in the CLI. Extends the existing seed examples, which today default to
-  NOUN, are not checked against the generated syllable structure, and
-  have no sentence-level form. Grammatical forms could be passed in the
-  prompt or as columns.
+- **Seed words drive the language (part of speech, bulk input, and
+  phonotactic-mismatch warning done, pass 47; two items still open).**
+  "I think it should sound like this, and I already thought up some words
+  -- fill in the rest consistently." Done: `SeedExample.pos` (optional;
+  `--example gloss=form|ipa|pos` on the CLI, a per-row select in the web
+  UI, defaults to NOUN exactly as before when omitted); bulk input
+  (`--examples-file` on the CLI, a paste-many textarea in the web UI, both
+  through a shared `generation.seed_examples.parse_bulk_seed_examples`);
+  and a warning (never a silent repair, since the given words must still
+  appear verbatim) when a seed word's IPA isn't a legal syllable shape
+  under the language's own generated `SyllableStructure`. Still open:
+  deriving syllable shapes/frequent clusters/orthography conventions from
+  the seed words themselves (today's mechanism only forces phoneme
+  *membership* into the inventory, nothing structural -- a natural future
+  pass would build a lightweight inferred pseudo-reference-profile from
+  the seed words' own observed shapes and feed it into the existing
+  reference-profile weighting machinery, `generation/phonology_gen.py`'s
+  `_reference_biased_rate` and friends, rather than a new mechanism) (M);
+  multi-form/inflected grammatical forms on a seed word (no existing
+  per-entry forms concept anywhere -- inflection is always derived from
+  the regular paradigm at render time, never stored per-entry; the
+  existing suppletion mechanism, `voice_np_gen.suppletive_gloss`/
+  `suppletive_split`, already used for irregular past tense and degree,
+  is the natural precedent a future pass should extend for a user-given
+  non-citation form) (M-L).
 
 ## 5. Own script and font
 

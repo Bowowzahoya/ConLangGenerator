@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.romanization import OrthographyForce
 from conlang_generator.core.traits import TraitProfile
 
@@ -37,6 +38,10 @@ class SeedExample(BaseModel, frozen=True):
     """Explicit pronunciation if the user gave one; ``None`` means
     ``generation/seed_examples.resolve_seed_examples`` should guess one
     from ``form`` before generation runs."""
+    pos: PartOfSpeech | None = None
+    """The word's part of speech, if the user gave one; ``None`` defaults
+    to ``PartOfSpeech.NOUN`` at coinage (``generator.py``) -- today's
+    pre-existing behavior, unchanged for any caller that never sets this."""
 
 
 class GenerationSpec(BaseModel, frozen=True):

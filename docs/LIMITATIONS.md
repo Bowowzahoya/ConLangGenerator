@@ -56,6 +56,21 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   specifically). One table is shared across every word regardless of which matched source language it
   came from, when more than one is weighted.
 
+## Seed words
+
+- **A seed word only biases which phonemes are in the inventory, nothing structural.** Nothing reads a
+  seed word's own syllable shape, cluster frequency, or spelling convention to bias `SyllableStructure`
+  or the romanization scheme the way a matched reference profile already does -- "fill in the rest
+  consistently" today means "the rest of the lexicon uses the same *sounds*," not "the same syllable
+  shapes or spelling habits."
+- **A phonotactically-illegal seed word is kept verbatim and only warned about, never repaired** --
+  repairing it would violate the feature's own core guarantee (the given words must appear exactly as
+  given), so a mismatch with the generated syllable structure is surfaced as a warning, not silently
+  fixed.
+- **No grammatical-forms support**: a seed word is citation form only. There is no way to give a known
+  plural, past tense, or other inflected form and have it used verbatim instead of the regular paradigm's
+  own derived affix.
+
 ## Tones
 
 - **Sandhi is not reflected in the romanized output.** Declined: the
