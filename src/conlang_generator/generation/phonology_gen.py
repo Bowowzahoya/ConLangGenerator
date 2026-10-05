@@ -50,6 +50,7 @@ from conlang_generator.core.phonology import (
     Place,
     PhonemeInventory,
     SyllableStructure,
+    TONE_DIACRITICS,
     ToneLevel,
     ToneSandhiRule,
     ToneSystem,
@@ -58,7 +59,7 @@ from conlang_generator.core.phonology import (
     VowelHeight,
     WordAccentSystem,
 )
-from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.generation import ipa_tokenizer, sonority, word_accent_gen
 from conlang_generator.generation.reference_languages import (
     ReferenceLanguageProfile,
@@ -1530,12 +1531,112 @@ def _seed_tokenizer_pool(
     return tuple(all_single_char_symbols | multi_char_candidates)
 
 
+def _consonant_run_lengths(tokens: tuple[str, ...], vowel_pool: tuple[str, ...]) -> list[int]:
+    """Every maximal run of non-vowel tokens in ``tokens``, as a list of
+    lengths, in order -- the last entry is the word-final (trailing) run,
+    the only unambiguous *coda* signal; every earlier run is a plain
+    proxy for "this language tolerates a cluster this large somewhere"
+    (onset vs. the coda of the *previous* syllable is genuinely ambiguous
+    without a real syllabifier, which this project doesn't have -- a
+    deliberately rough signal, not a claim of correct syllabification)."""
+    runs = []
+    current = 0
+    for token in tokens:
+        if token in vowel_pool:
+            runs.append(current)
+            current = 0
+        else:
+            current += 1
+    runs.append(current)
+    return runs
+
+
+def _seed_structural_profile(
+    seed_examples: tuple[SeedExample, ...],
+    consonant_pool: tuple[str, ...],
+    vowel_pool: tuple[str, ...],
+    reference_profiles: tuple[ReferenceLanguageProfile, ...],
+) -> tuple[ReferenceLanguageProfile, float] | None:
+    """A pseudo reference profile inferred from the user's own seed words'
+    syllable shapes -- ``None`` when there are no seed words with resolved
+    IPA. Folded into ``generate_phonology``'s own ``weighted_profiles`` so
+    the *existing* reference-bias machinery (``_reference_biased_rate``/
+    ``_group_reference_bias``/``_reference_clamp``, and the ``onset_
+    cluster_probability``/``coda_weights`` code below -- all of which pull
+    unconditionally the moment a profile is present, ``strictness`` only
+    adding an *extra* pull on top) nudges the rest of the language toward
+    the same *shape* the seed words have, not just the same sounds (which
+    ``must_include_consonants``/``must_include_vowels`` below already force
+    regardless of this function). A deliberately rough, per-word linear
+    scan -- not real phonological analysis -- consistent with this
+    project's own tolerance for a simple, documented heuristic over a
+    precise one (see ``docs/LIMITATIONS.md``)."""
+    # Same restricted tokenizer candidate set `generate_phonology` itself
+    # uses for the exact same seed IPA (see `_seed_tokenizer_pool`'s own
+    # docstring) -- without this, an unrelated global multi-character
+    # phoneme (e.g. "nz") can greedily swallow two adjacent single-
+    # character ones, the same mis-tokenization bug that function already
+    # guards against for `must_include_consonants`/`must_include_vowels`.
+    pool = _seed_tokenizer_pool(consonant_pool, vowel_pool, reference_profiles)
+    max_onset = 1
+    max_coda = 0
+    has_coda = False
+    tonal = False
+    consonants: set[str] = set()
+    vowels: set[str] = set()
+    resolved_count = 0
+    for example in seed_examples:
+        if example.ipa is None:
+            continue
+        resolved_count += 1
+        tokens = ipa_tokenizer.symbols_only(example.ipa, pool)
+        consonants.update(t for t in tokens if t in consonant_pool)
+        vowels.update(t for t in tokens if t in vowel_pool)
+        if any(mark in example.ipa for mark in TONE_DIACRITICS.values()):
+            tonal = True
+        runs = _consonant_run_lengths(tokens, vowel_pool)
+        if not any(t in vowel_pool for t in tokens):
+            continue  # no nucleus at all -- nothing reliable to read a shape from
+        if runs[:-1]:
+            max_onset = max(max_onset, min(2, max(runs[:-1])))
+        if runs[-1] > 0:
+            has_coda = True
+            max_coda = max(max_coda, min(2, runs[-1]))
+    if resolved_count == 0:
+        return None
+    profile = ReferenceLanguageProfile(
+        name="seed words",
+        consonants=tuple(sorted(consonants)),
+        vowels=tuple(sorted(vowels)),
+        coda_profile="unrestricted" if has_coda else "none",
+        max_onset=max_onset,
+        max_coda=max_coda if has_coda else None,
+        tonal=tonal,
+    )
+    weight = min(1.0, resolved_count / 5)
+    return profile, weight
+
+
 def generate_phonology(
     rng: random.Random, spec: GenerationSpec
 ) -> tuple[PhonemeInventory, SyllableStructure, ToneSystem, WordAccentSystem]:
     traits = spec.traits
     reference_profiles = match_profiles(traits.source_languages)
     weighted_profiles = match_profiles_weighted(traits.source_languages, traits.source_language_weights)
+    consonant_symbol_pool = tuple(c.ipa for c in ALL_CONSONANTS)
+    vowel_symbol_pool = tuple(v.ipa for v in ALL_VOWELS)
+    # A pseudo reference profile inferred from the user's own seed words'
+    # syllable shapes (see its own docstring) -- folded in alongside any
+    # *named* source-language profile(s) so the existing reference-bias
+    # machinery below nudges the rest of the language toward the same
+    # shape the seed words have, not just the same sounds (which `must_
+    # include_consonants`/`must_include_vowels` below already force
+    # regardless).
+    seed_structural = _seed_structural_profile(
+        spec.seed_examples, consonant_symbol_pool, vowel_symbol_pool, reference_profiles
+    )
+    if seed_structural is not None:
+        weighted_profiles = weighted_profiles + (seed_structural,)
     # Per-symbol combined weight across every contributing profile, summed
     # and capped at 1.0 -- the weighted stand-in for what used to be a flat
     # `reference_symbols: frozenset[str]` membership test. `_reference_
@@ -1550,8 +1651,6 @@ def generate_phonology(
     strictness = traits.source_language_strictness if reference_profiles else 0.0
 
     seed_ipa_text = "".join(example.ipa or "" for example in spec.seed_examples)
-    consonant_symbol_pool = tuple(c.ipa for c in ALL_CONSONANTS)
-    vowel_symbol_pool = tuple(v.ipa for v in ALL_VOWELS)
     seed_tokenizer_pool = _seed_tokenizer_pool(consonant_symbol_pool, vowel_symbol_pool, reference_profiles)
     seed_tokens = ipa_tokenizer.symbols_only(seed_ipa_text, seed_tokenizer_pool)
     must_include_consonants = frozenset(t for t in seed_tokens if t in consonant_symbol_pool)

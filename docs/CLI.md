@@ -188,6 +188,25 @@ conlang generate --prompt "a plain language" --name file-test --seed 5 \
 Seed examples: fish=zumba (/zumba/, verb), water=aqua (/akwa/, noun), run=korru (/korːu/, verb)
 ```
 
+Seed words also bias the *shape* of the rest of the language, not just which
+sounds it uses: whether the generated phonology allows 2-consonant onset
+clusters, codas, and a tone system each lean toward whatever the seed words'
+own syllables look like. Verified at the same seed, only the seed words
+differ:
+
+```bash
+conlang generate --prompt "a plain language" --name cluster-test --seed 3 \
+  --llm fake --example "test=stra|stra" --example "test2=blo|blo"
+conlang generate --prompt "a plain language" --name plain-test --seed 3 \
+  --llm fake --example "test=ba|ba" --example "test2=do|do"
+```
+
+The first language's saved `phonology.yaml` has `max_onset: 2`; the second's
+has `max_onset: 1` -- the only difference between the two runs is the seed
+words' own syllable shape. (The first run also prints a phonotactic-mismatch
+warning for `stra`/`blo` themselves -- "str" is a 3-consonant cluster, still
+over the 2-consonant cap this biases *toward*, not an unlimited one.)
+
 Two smaller flags round out word generation: `--word-selection` picks
 between the default `algorithmic` (a seeded, no-LLM choice among each
 word's own already-built candidate spellings) and `llm`

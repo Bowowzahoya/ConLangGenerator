@@ -6041,3 +6041,97 @@ reading code or one-off ad hoc scripts.
   `_parse_seed_example`'s `gloss=form|ipa|pos`/`gloss=form||pos` forms, rejects an unknown `pos` and a
   missing `=`. `tests/test_webui.py`'s own existing suite re-run clean (54 passed) after the
   `SeedExampleEntry`/`GenerateRequest` changes.
+
+- **Seed words: structural bias derivation (grammar pass 48).** The first of the two items deferred
+  from pass 47: today a seed word only forces its own *phonemes* into the inventory, nothing reads its
+  own syllable shape to bias the rest of the generated `SyllableStructure`. Picked over the other
+  deferred item (multi-form/inflected grammatical forms) for being better-bounded and closer to what the
+  original DEFERRED text actually asked for.
+
+  Two research findings made this a clean extension rather than a new mechanism. First, reading
+  `_reference_biased_rate`/`_group_reference_bias`/`_reference_clamp` and the `onset_cluster_
+  probability`/`coda_weights` code directly (phonology_gen.py, inside the single `generate_phonology`
+  function) showed each already computes a real "soft" pull (e.g. `soft_rate = max(base_rate, 0.85) if
+  in_reference else base_rate * 0.3`) the moment a profile is present in `weighted_profiles`/`reference_
+  weights` -- `source_language_strictness` only adds an *extra* pull on top, and defaults to `0.0`
+  whenever there's no *named* source language (the common case for someone giving only seed words). A
+  pseudo-profile folded into the existing `weighted_profiles` tuple therefore has a real, immediate
+  effect with **no new strictness-like dial needed** -- confirmed empirically, not assumed: a 100-seed
+  sweep with 2-consonant-onset seed words (`"stra"`/`"blo"`) gave `max_onset >= 2` 53% of the time vs.
+  8% for plain-CV seed words (`"ba"`/`"do"`, vs. a ~54% unbiased baseline) -- plain seed words actively
+  *suppress* clusters relative to no seed words at all, exactly the intended "fill in the rest
+  consistently with this shape" behavior. Coda presence (91% vs. 62%) and tone-system presence (100% vs.
+  7%, using a word with an acute-accent tone mark) showed the same pattern. Second, `ReferenceLanguage
+  Profile` has only six required fields (`name`, `consonants`, `vowels`, `coda_profile`, `max_onset`,
+  `tonal`) and is exactly the type `generate_phonology` already builds (`WeightedProfiles = tuple[tuple[
+  ReferenceLanguageProfile, float], ...]`) -- a pseudo-profile slots in as one more tuple entry with zero
+  changes to any of the ~300 lines of consuming code past the point where `weighted_profiles` is
+  assembled.
+
+  **`_seed_structural_profile(seed_examples, consonant_pool, vowel_pool, reference_profiles) ->
+  tuple[ReferenceLanguageProfile, float] | None`** (new, `phonology_gen.py`, placed right before
+  `generate_phonology` itself): for each seed example with resolved IPA, tokenizes against the *same*
+  restricted `_seed_tokenizer_pool` `generate_phonology` already uses for its own seed-IPA scanning (not
+  the raw global symbol pool -- see the bug this avoided, below), then scans for maximal consonant runs
+  between vowel tokens via a small new `_consonant_run_lengths` helper (a plain linear scan, deliberately
+  *not* sharing code with `phoneme_fit.first_problem`'s own internal nuclei-finding loop, since that
+  function is already tested/stable and this is independent, small duplication rather than a risky
+  shared-code change). The longest non-trailing run informs `max_onset`; the trailing run (after the
+  last vowel) informs `max_coda`/`coda_profile` (`"none"` only when every word's trailing run is 0,
+  `"unrestricted"` otherwise -- the `"sonorant"` middle category is deliberately not inferred, kept
+  binary for a first pass); both capped at 2 to match this project's own modeled range. `tonal` is a
+  direct substring check for any `TONE_DIACRITICS` mark in the raw IPA. The returned weight is `min(1.0,
+  resolved_count / 5)` -- illustrative, not rigorously calibrated (same honesty standard as every other
+  hand-set constant in this project), reflecting that a couple of seed words are real but weaker evidence
+  than a whole curated real-language profile. `name="seed words"` -- never matched by `match_profiles`/
+  the curated registry by design, a synthetic per-generation profile, not a shared one.
+
+  **Call site**: right after `weighted_profiles` is first assigned in `generate_phonology`, before the
+  `reference_weights` accumulation loop that follows it -- `consonant_symbol_pool`/`vowel_symbol_pool`
+  (previously computed a few lines later) were moved up to be available at this point, the only
+  reordering needed; nothing between the old and new positions of those two lines depended on anything
+  else. `strictness`/`reference_profiles` themselves are untouched -- `reference_profiles` stays
+  name-matched only, so a seed-words-only run keeps `strictness == 0.0` (fine, per the unconditional-pull
+  finding above); naming a real source language *too* additionally sharpens the *combined* bias via its
+  own strictness dial, a free interaction needing no special-casing.
+
+  **A real bug caught during implementation, not left in**: the first version tokenized each seed word
+  against the *raw* global symbol pool rather than the restricted `_seed_tokenizer_pool`, which
+  immediately regressed the pass-47-adjacent `test_seed_example_never_lets_an_unrelated_multichar_
+  phoneme_swallow_two_adjacent_real_ones` test -- the same "nz" mis-tokenization bug that test already
+  guards `must_include_consonants`/`must_include_vowels` against (two adjacent single-character phonemes
+  "n"+"z" in a word spelled "anza" were being greedily read as the unrelated global multi-character
+  phoneme "nz", which then leaked into the pseudo-profile's own `consonants`, and from there into
+  `reference_weights`, giving "nz" a real but spurious selection boost). Fixed by having `_seed_
+  structural_profile` take `reference_profiles` and call `_seed_tokenizer_pool` itself, the same
+  restricted pool `generate_phonology`'s own existing seed-scanning code already uses -- a concrete
+  demonstration of why the "reuse the existing mechanism" framing above wasn't just about writing less
+  code, but about not quietly reintroducing a bug that mechanism had already fixed once.
+
+  **`tonal`'s own no-abstain limitation**: unlike every other field read here, `ReferenceLanguageProfile.
+  tonal` has no "not curated" default -- it's a required boolean. A seed-word set with no tone-marked
+  word therefore mildly *suppresses* tonality (via `_reference_clamp`'s own `min(probability, 0.08)`
+  branch when every weighted profile says `tonal=False`), even though "the user didn't mark tone" isn't
+  strong evidence the language shouldn't be tonal. Documented as a limitation rather than solved with new
+  plumbing (give at least one tone-marked seed word to avoid the pull) -- the same kind of honest,
+  simple-heuristic tradeoff this project already accepts elsewhere.
+
+  **Explicitly deferred**: `vowel_harmony` (systematic vowel-feature agreement needs more data than a
+  handful of seed words reliably gives); `attested_onset_clusters`/`attested_coda_clusters` (literal
+  cluster *identity* -- gated behind `reference_profiles` specifically, i.e. named real profiles only, a
+  deeper integration point this pass doesn't touch); `onset_frequency_tiers`/`core_vocabulary_average_
+  syllables`; and orthography/romanization bias -- the DEFERRED text's third named target, but confirmed
+  via research to need materially new inference logic (diffing spelling against IPA syllable-by-syllable
+  to recover a grapheme-to-phoneme convention -- a real alignment problem, not a small addition) plus a
+  parallel `extra_weighted_profiles` seam in `romanization_gen.py` (today only takes language-name
+  strings, re-deriving profiles internally) -- kept as its own, separate future pass.
+
+  Tests (`tests/test_phonology_realism.py`, the established canonical home for reference-bias claims --
+  same `_DIRECTIONAL_SEEDS`/directional-fraction-comparison pattern `test_arabic_source_language_
+  increases_pharyngealized_consonant_presence` already uses): `_seed_structural_profile` unit tests (no
+  resolved examples -> `None`; cluster/coda/tone read correctly, capped at 2; weight scales with resolved
+  count, caps at 1.0 at 5+; the "nz" leak explicitly guarded against); directional tests confirming
+  cluster/coda/tone-marked seed words measurably increase the corresponding generated property vs. plain
+  seed words; a combined-with-named-source-language smoke test; a carve-out test mirroring `test_full_
+  strictness_still_force_includes_a_seed_example_symbol_outside_the_source_language` confirming `must_
+  include_*`'s own guarantee is unaffected.

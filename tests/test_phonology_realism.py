@@ -1656,3 +1656,132 @@ def test_source_language_weights_bias_onset_cluster_probability_toward_the_heavi
     english_heavy = _cluster_rate((0.9, 0.1))
     hawaiian_heavy = _cluster_rate((0.1, 0.9))
     assert english_heavy > hawaiian_heavy
+
+
+# --- structural bias derived from the user's own seed words ----------------
+
+
+def test_no_resolved_seed_examples_means_no_structural_profile():
+    assert phonology_gen._seed_structural_profile((), ("p",), ("a",), ()) is None
+    unresolved = (SeedExample(gloss="x", form="foo"),)  # ipa=None
+    assert phonology_gen._seed_structural_profile(unresolved, ("p",), ("a",), ()) is None
+
+
+def test_seed_structural_profile_reads_cluster_size_coda_and_tone():
+    pool_c = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS)
+    pool_v = tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    examples = (SeedExample(gloss="x", form="x", ipa="stra"), SeedExample(gloss="y", form="y", ipa="dot"))
+    profile, weight = phonology_gen._seed_structural_profile(examples, pool_c, pool_v, ())
+    assert profile.max_onset == 2  # "str" has 3, capped at 2
+    assert profile.coda_profile == "unrestricted"
+    assert profile.max_coda == 1  # "dot"'s own trailing "t"
+    assert profile.tonal is False
+    assert weight == pytest.approx(2 / 5)
+
+
+def test_seed_structural_profile_reads_a_plain_cv_set_as_no_coda_and_minimal_onset():
+    pool_c = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS)
+    pool_v = tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    examples = (SeedExample(gloss="x", form="x", ipa="ba"), SeedExample(gloss="y", form="y", ipa="do"))
+    profile, _ = phonology_gen._seed_structural_profile(examples, pool_c, pool_v, ())
+    assert profile.max_onset == 1
+    assert profile.coda_profile == "none"
+    assert profile.max_coda is None
+
+
+def test_seed_structural_profile_detects_a_tone_mark():
+    pool_c = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS)
+    pool_v = tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    examples = (SeedExample(gloss="x", form="x", ipa="bá"),)  # acute = high tone
+    profile, _ = phonology_gen._seed_structural_profile(examples, pool_c, pool_v, ())
+    assert profile.tonal is True
+
+
+def test_seed_structural_profile_weight_caps_at_one():
+    pool_c = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS)
+    pool_v = tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    examples = tuple(SeedExample(gloss=f"x{i}", form="x", ipa="ba") for i in range(8))
+    _, weight = phonology_gen._seed_structural_profile(examples, pool_c, pool_v, ())
+    assert weight == 1.0
+
+
+def test_seed_structural_profile_never_lets_an_unrelated_multichar_phoneme_leak_in():
+    # The same mis-tokenization risk `_seed_tokenizer_pool` already guards
+    # must_include_consonants/must_include_vowels against (two adjacent
+    # single-character phonemes "n"+"z" greedily swallowed as the
+    # unrelated global multi-character phoneme "nz") -- this function
+    # must use the same restricted pool, not the raw global one.
+    pool_c = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS)
+    pool_v = tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
+    reference_profiles = phonology_gen.match_profiles(("French",))  # no "nz" of its own
+    examples = (SeedExample(gloss="x", form="x", ipa="anza"),)
+    profile, _ = phonology_gen._seed_structural_profile(examples, pool_c, pool_v, reference_profiles)
+    assert "nz" not in profile.consonants
+    assert "n" in profile.consonants and "z" in profile.consonants
+
+
+def test_cluster_seed_words_increase_onset_cluster_presence():
+    def _rate(examples: tuple[SeedExample, ...]) -> float:
+        hits = 0
+        for seed in _DIRECTIONAL_SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, seed_examples=examples)
+            _, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+            hits += structure.max_onset >= 2
+        return hits / len(_DIRECTIONAL_SEEDS)
+
+    clustered = (SeedExample(gloss="x", form="x", ipa="stra"), SeedExample(gloss="y", form="y", ipa="blo"))
+    plain = (SeedExample(gloss="x", form="x", ipa="ba"), SeedExample(gloss="y", form="y", ipa="do"))
+    assert _rate(clustered) > _rate(plain)
+
+
+def test_coda_bearing_seed_words_increase_coda_presence():
+    def _rate(examples: tuple[SeedExample, ...]) -> float:
+        hits = 0
+        for seed in _DIRECTIONAL_SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, seed_examples=examples)
+            _, structure, _, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+            hits += structure.max_coda > 0
+        return hits / len(_DIRECTIONAL_SEEDS)
+
+    coda = (SeedExample(gloss="x", form="x", ipa="bak"), SeedExample(gloss="y", form="y", ipa="dot"))
+    plain = (SeedExample(gloss="x", form="x", ipa="ba"), SeedExample(gloss="y", form="y", ipa="do"))
+    assert _rate(coda) > _rate(plain)
+
+
+def test_tone_marked_seed_words_increase_tone_system_presence():
+    def _rate(examples: tuple[SeedExample, ...]) -> float:
+        hits = 0
+        for seed in _DIRECTIONAL_SEEDS:
+            spec = GenerationSpec(prompt="p", seed=seed, seed_examples=examples)
+            _, _, tone_system, _ = phonology_gen.generate_phonology(random.Random(seed), spec)
+            hits += tone_system.enabled
+        return hits / len(_DIRECTIONAL_SEEDS)
+
+    tonal = (SeedExample(gloss="x", form="x", ipa="bá"), SeedExample(gloss="y", form="y", ipa="dò"))
+    plain = (SeedExample(gloss="x", form="x", ipa="ba"), SeedExample(gloss="y", form="y", ipa="do"))
+    assert _rate(tonal) > _rate(plain)
+
+
+def test_seed_structural_bias_still_coexists_with_a_named_source_language():
+    # Both contribute to the same weighted_profiles/reference_weights --
+    # just confirms a sensible, crash-free blend, not a specific outcome.
+    spec = GenerationSpec(
+        prompt="p", seed=3,
+        traits=TraitProfile(source_languages=("Hawaiian",)),
+        seed_examples=(SeedExample(gloss="x", form="x", ipa="stra"),),
+    )
+    inventory, structure, _, _ = phonology_gen.generate_phonology(random.Random(3), spec)
+    assert inventory.consonants and structure.max_onset in (1, 2)
+
+
+def test_must_include_still_wins_regardless_of_the_new_structural_bias():
+    # Mirrors test_full_strictness_still_force_includes_a_seed_example_
+    # symbol_outside_the_source_language -- the new structural profile
+    # must not interfere with the pre-existing phoneme-forcing guarantee.
+    spec = GenerationSpec(
+        prompt="p", seed=1,
+        traits=TraitProfile(source_languages=("Hawaiian",), source_language_strictness=1.0),
+        seed_examples=(SeedExample(gloss="x", form="kadu", ipa="kadu"),),
+    )
+    inventory, _, _, _ = phonology_gen.generate_phonology(random.Random(1), spec)
+    assert "d" in inventory.consonant_symbols()

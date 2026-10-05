@@ -58,11 +58,19 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
 
 ## Seed words
 
-- **A seed word only biases which phonemes are in the inventory, nothing structural.** Nothing reads a
-  seed word's own syllable shape, cluster frequency, or spelling convention to bias `SyllableStructure`
-  or the romanization scheme the way a matched reference profile already does -- "fill in the rest
-  consistently" today means "the rest of the lexicon uses the same *sounds*," not "the same syllable
-  shapes or spelling habits."
+- **Structural bias from seed words is a simple per-word scan, not real phonological analysis.**
+  `_seed_structural_profile` reads only onset/coda cluster *size* (capped at 2) and whether a tone mark
+  is present -- not cluster *identity* (so a seed word with "str-" biases toward 2-consonant onsets in
+  general, not specifically toward "str"-shaped ones), not `vowel_harmony` (too little data in a
+  handful of seed words to detect systematic vowel-feature agreement reliably), and not word-frequency
+  tiers. A seed-word set with no tone-marked word mildly *suppresses* tonality (`ReferenceLanguageProfile.
+  tonal` has no "not curated" option, so the inference is always a hard True/False), even when that's not
+  the user's intent -- give at least one tone-marked seed word to avoid this.
+- **Spelling/orthography convention is never inferred from seed words.** Nothing reads a seed word's own
+  spelling-vs-pronunciation relationship (e.g. "aqua" spelling /akwa/) to bias the romanization scheme the
+  way a matched real reference profile already does -- "fill in the rest consistently" means "the same
+  sounds and syllable shapes," not "the same spelling habits." Would need genuinely new inference logic
+  (aligning spelling against IPA syllable-by-syllable) that doesn't exist anywhere in this project yet.
 - **A phonotactically-illegal seed word is kept verbatim and only warned about, never repaired** --
   repairing it would violate the feature's own core guarantee (the given words must appear exactly as
   given), so a mismatch with the generated syllable structure is surfaced as a warning, not silently
