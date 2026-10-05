@@ -23,14 +23,24 @@ _STANDALONE_MARKS = (STRESS_MARK, WORD_ACCENT_MARK)
 _ARTICULATION_MODIFIERS = "ʱʰʼ"
 
 
-def _strands_a_modifier(text: str, end: int) -> bool:
-    """Whether a match ending at ``end`` leaves a breathy ``ʱ``, aspirated ``ʰ`` or
-    ejective ``ʼ`` mark stranded at the front of the rest -- a sign the greedy match
-    ate the wrong sounds: in ``ŋgʱ`` the prenasalized ``ŋg`` would leave ``ʱ``
-    orphaned, whereas ``ŋ`` + ``gʱ`` reads it whole. (Length ``ː`` is deliberately
-    not covered: ``tsː`` keeps reading as ``ts`` + a stray ``ː``, which is why
-    ``sonority`` refuses the pair ``t`` + ``sː``.)"""
-    return end < len(text) and text[end] in _ARTICULATION_MODIFIERS
+def _strands_a_modifier(text: str, end: int, last_char: str, known: frozenset[str]) -> bool:
+    """Whether a match ending at ``end``, whose last character is ``last_char``,
+    leaves a breathy ``ʱ``, aspirated ``ʰ`` or ejective ``ʼ`` mark stranded at
+    the front of the rest -- a sign the greedy match ate the wrong sounds: in
+    ``ŋgʱ`` the prenasalized ``ŋg`` would leave ``ʱ`` orphaned, whereas ``ŋ`` +
+    ``gʱ`` reads it whole. Only true when shortening the match would actually
+    let the modifier combine with ``last_char`` into another known symbol
+    (``"g" + "ʱ"`` = ``"gʱ"`` above) -- otherwise the modifier is the *lead*
+    character of the next symbol instead (a pre-aspirated ``"ʰk"`` after a
+    long vowel, e.g. ``õːʰkap``), and shortening the current match would only
+    strand ``last_char`` itself, dropping it instead of the modifier. (Length
+    ``ː`` is deliberately not covered: ``tsː`` keeps reading as ``ts`` + a
+    stray ``ː``, which is why ``sonority`` refuses the pair ``t`` + ``sː``.)"""
+    return (
+        end < len(text)
+        and text[end] in _ARTICULATION_MODIFIERS
+        and last_char + text[end] in known
+    )
 
 
 @functools.lru_cache(maxsize=64)
@@ -60,7 +70,8 @@ def tokenize(text: str, known_symbols: tuple[str, ...]) -> list[tuple[str, str]]
     trailing-combining-mark slurp below the same way tone diacritics
     always have been. Every other unrecognized, non-combining character
     is silently skipped -- unrecognized input, not an error."""
-    ordered = _ordered_by_first_char(frozenset(known_symbols))
+    known = frozenset(known_symbols)
+    ordered = _ordered_by_first_char(known)
     tokens: list[tuple[str, str]] = []
     i = 0
     while i < len(text):
@@ -69,7 +80,7 @@ def tokenize(text: str, known_symbols: tuple[str, ...]) -> list[tuple[str, str]]
             i += 1
             continue
         candidates = [s for s in ordered.get(text[i], ()) if text.startswith(s, i)]
-        matched = next((s for s in candidates if not _strands_a_modifier(text, i + len(s))), None)
+        matched = next((s for s in candidates if not _strands_a_modifier(text, i + len(s), s[-1], known)), None)
         if matched is None and candidates:
             matched = candidates[0]  # every reading strands one: keep plain longest-match
         if matched is None:
