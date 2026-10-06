@@ -36,6 +36,16 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   tensification).**
 - **Serbo-Croatian pitch accent is the least reliable data in the project**
   (233 words from hand recall). Expect real per-word errors.
+- **The diacritic romanization style deliberately spells `ts`/`tɕ` (and
+  voiced `dz`/`dʑ`) with the real, historically-attested single-character
+  IPA ligatures `ʦ`/`ʨ`/`ʣ`/`ʥ`**, a genuine but visually unfamiliar
+  choice that a reader can mistake for raw IPA leaking through unromanized
+  (a real user report) -- no real-world orthography uses these letters in
+  ordinary writing, unlike this same table's other "identity" choices
+  (`ø`, `pʰ`, `bʱ`, ...), which really are letters some real orthography
+  or transliteration tradition uses as-is. Switching this to an ordinary
+  Latin-extended letter or digraph instead remains an open, undecided
+  stylistic choice, not a bug.
 
 ## Real lexicons
 
@@ -479,6 +489,15 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   reforms actually work). Two different symbols' own freshly-generated replacement graphemes can
   coincidentally collide (pick the same letter) -- an existing risk `_rules_for_symbol` already has for
   ordinary reform, not newly introduced here.
+- **Orthography drift's diacritic-stripping mechanism assumes every combining mark it finds sits on a
+  genuine Latin base letter** (`_apply_orthography_drift`, NFD-decompose + randomly drop each combining
+  mark -- the real "café" -> "cafe" mechanism). This is now true by construction for every entry in
+  `_DIACRITIC_TABLE` (fixed after a user report -- see the nasalized/long-vowel entries, which used to be
+  raw-IPA identity rules whose own "diacritic" was really a phonemic nasalization/length mark, not a
+  spelling diacritic at all, so drift could strip it down to a bare non-Latin IPA character), but it is not
+  a generically enforced invariant: a future addition to that table, or to the digraph/monoletter tables,
+  that again uses a raw IPA string with a combining mark as its own "latin" value would reopen the same
+  failure mode, and nothing currently checks for it automatically.
 - **Palatalization's own two real outcomes (affricate vs. sibilant) are a flat, un-curated 0.65/0.35
   weight**, not biased by which real lineage is matched (a Romance-lineage language is no more likely
   to reach the sibilant stage than any other) -- a natural, deferred extension of the same

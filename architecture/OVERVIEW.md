@@ -6547,3 +6547,56 @@ reading code or one-off ad hoc scripts.
   **Explicitly deferred**: root-and-pattern languages (above); any new collision-avoidance for a real-word-
   based spelling that happens to match an existing entry (generation time's own `build_real_entries` has no
   such guard either).
+
+- **Raw IPA leaking into romanization: identity-rule bug + an evolution interaction (bug fix, not a
+  numbered grammar pass).** A user reported two linked symptoms from a saved language ("French evolved
+  forward 1000 years with influence from Chinese," `conlangs/futurefrenchchinese/`): (1) romanized words
+  containing visibly non-Latin characters (`ʦ`, bare `ɔ`, `ø`, `ɛ̃`, `ʨ`); (2) specifically, a word stored
+  as IPA `bɔ̃` ("bon") romanizing as `bɔ` -- the nasalization mark gone from the *spelling* while `entry.ipa`
+  still correctly held it. Diagnosed by reproducing generation + evolution directly from the saved file's
+  own `meta.yaml` traits, rather than reasoning about the code in the abstract -- confirmed useful, since an
+  earlier pass's own first hypothesis for (2) (a lossy-tokenization coverage gap in evolution's inventory
+  rebuild, written up in `docs/DEFERRED.md` before this investigation) turned out to be wrong: direct
+  inspection of the saved `romanization.yaml` showed an *existing* rule for `ɔ̃` (`latin: ɔ`), not a missing
+  one.
+
+  **Root cause of (1)**: `generation/romanization_gen.py`'s `_DIACRITIC_TABLE` is mostly principled --
+  `ts`/`tɕ` deliberately map to the real, historically-attested IPA ligatures `ʦ`/`ʨ` (a genuine stylistic
+  choice, kept), and most "identity" entries (`pʰ`, `tˤ`, `bʱ`, `ø`, ...) are legitimate because the symbol
+  really is a letter some real orthography/transliteration tradition uses as-is. But the table already gives
+  *plain* `ɛ`/`ɔ` a real substitution (`ë`/`ö` -- reused correctly by the diphthong entries `ɛi`->`ëi`/
+  `ɔi`->`öi`), and the *nasalized* forms `ɛ̃`/`ɔ̃` inconsistently ignored that and fell back to raw-IPA
+  identity instead -- genuinely different from the real a/e/i/o/u-based `ã`/`ẽ`/`ĩ`/`õ`/`ũ` entries right
+  next to them, which *are* built on real Latin letters. The same copy-paste-style inconsistency had spread
+  to three long-vowel entries too (`ɛː`->`ɛ̄`, `ɔː`->`ɔ̄`, `ɯː`->`ɯ̄`, `ɨː`->`ɨ̄`), each wrongly reusing `ø`ː's
+  own "no precomposed letter exists" comment on a base vowel that, unlike `ø`, *does* have one. Fixed by
+  composing each derived entry onto the table's own already-chosen base-letter substitution instead of raw
+  IPA: `ɛ̃`->`ë̃`, `ɔ̃`->`ö̃`, `ɛː`->`ë̄`, `ɔː`->`ȫ`, `ɯː`->`ı̄` (reusing `ɯ`'s own real Turkish dotless-ı),
+  `ɨː`->`ï̄` (reusing `ɨ`'s own `ï`). Checked, and deliberately left alone: `ɤ`/`ɤː` (no established
+  alternate substitution anywhere in the table to reuse -- a genuinely different situation, not the same
+  bug) and `ɑː` (`ɑ`'s own Unicode name is "LATIN SMALL LETTER ALPHA" -- already a real Latin letter, unlike
+  `ɛ`/`ɔ`/`ɯ`/`ɨ`). Note that Unicode's own character *naming* is not a usable test for "is this a real
+  letter" here -- `ɛ`/`ɔ`/`ɯ`/`ɨ`/`ɤ` are *all* named "LATIN SMALL LETTER ..." by Unicode despite none of
+  them being part of any real orthography's letter repertoire (the IPA chart deliberately reuses the Latin
+  Unicode block); the actual criterion applied throughout this table, correctly, is "does a real writing
+  system use this glyph," a linguistic judgment call, not a Unicode-property check.
+
+  **Root cause of (2), and why fixing (1) fixes it for free**: `romanization_gen.py::_apply_orthography_
+  drift` -- the real mechanism behind spelling simplification over evolution time ("café" -> "cafe") --
+  NFD-decomposes a grapheme and independently drops each of its combining marks. It has no way to tell a
+  genuine diacritic on a genuine Latin letter apart from a nasalization mark baked into a raw-IPA identity
+  rule: before the fix, `ɔ̃`'s own `latin` value *was* `ɔ̃` (literally the IPA string, decomposing under NFD
+  to `ɔ` + a combining tilde U+0303), so drift could -- and, for this user's seed, did -- strip the tilde
+  and leave the bare non-Latin `ɔ` behind as the word's own "simplified" romanization. Fixing (1) means the
+  *same* drift mechanism, applied to the *same* rule, can only ever land on `ö̃`, `ö`, `õ`-shaped-on-the-same-
+  base, or `o` -- every possible outcome (all four were enumerated and confirmed in a test, not assumed) is
+  a real Latin letter. Verified end to end by regenerating and evolving the user's own prompt/traits with
+  the fix applied: the evolved `ɔ̃` rule now reads `latin: o`, and the word renders as `bo`, not `bɔ`.
+
+  **Tests**: `test_nasalized_and_long_vowel_spellings_build_on_the_already_chosen_base_letter` pins the six
+  changed entries plus the two deliberately-unchanged ones (`ɤː`, `ɑː`) directly; `test_evolution_cannot_
+  drift_a_nasalized_vowel_rule_down_to_raw_ipa` exhaustively enumerates `_apply_orthography_drift`'s own
+  possible outputs for the `ɔ̃` rule across a seed/rate sweep and asserts none is `ɔ`/`ɔ̃` (the actual
+  regression this bug caused). No other test pinned the old values (checked directly -- the one Thai RTGS
+  test touching `ɛ`/`ɛː` equality uses a *curated* real-profile override at strictness 1.0, which takes
+  precedence over this fallback table regardless of its contents).

@@ -434,8 +434,14 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # already legitimate Latin-Extended letters, same treatment aspiration/
     # pharyngealization/palatalization's own modifier letters got above).
     "ã": "ã", "ẽ": "ẽ", "ĩ": "ĩ", "õ": "õ", "ũ": "ũ",
-    # Real Yoruba's own open-mid nasal vowels -- same identity treatment.
-    "ɛ̃": "ɛ̃", "ɔ̃": "ɔ̃",
+    # Real Yoruba's own open-mid nasal vowels -- UNLIKE a/e/i/o/u above,
+    # bare ɛ/ɔ are not themselves real Latin letters (this table's own
+    # plain ɛ -> ë / ɔ -> ö above already says so), so identity here would
+    # leave raw IPA in the spelling. Composes the nasalization tilde onto
+    # this table's own already-chosen base-letter substitution instead --
+    # the same "build on the already-decided plain-vowel letter" pattern
+    # the diphthong entries (ɛi -> ëi, ɔi -> öi) above already use.
+    "ɛ̃": "ë̃", "ɔ̃": "ö̃",
     # Breathy/murmured voice keeps its own real IPA modifier letter (ʱ),
     # identity, same treatment as aspiration's ʰ -- no collision here,
     # unlike the digraph style's bh/dh/gh (see its own comment).
@@ -467,11 +473,14 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # so this stays identity (already a legitimate single Latin-Extended
     # character), same treatment æ/ø/œ get above.
     "ɤ": "ɤ",
-    # Thai's own remaining long-vowel qualities -- the bare IPA vowel
-    # letter plus a combining macron, the same "no precomposed letter
-    # exists" treatment øː gets above (real scholarly Thai transcription
-    # does write ɛ̄/ɔ̄ this way).
-    "ɛː": "ɛ̄", "ɔː": "ɔ̄", "ɯː": "ɯ̄", "ɤː": "ɤ̄",
+    # Thai's own remaining long-vowel qualities, built on each base
+    # vowel's own already-chosen letter above rather than raw IPA -- ɤ has
+    # no such substitution (see its own entry just above), so ɤː alone
+    # stays identity + macron; ɛ/ɔ/ɯ already have one (ë/ö/ı), so their
+    # long counterparts compose onto THAT letter instead (the same
+    # "build on the already-decided plain-vowel letter" fix the nasalized
+    # ɛ̃/ɔ̃ entries above also needed).
+    "ɛː": "ë̄", "ɔː": "ȫ", "ɯː": "ı̄", "ɤː": "ɤ̄",
     # Real Navajo's own ejective affricate series -- this table's own
     # combining-ejective-mark convention (pʼ -> p̓ above) on its own
     # existing plain-affricate bases (tł/ʦ/č).
@@ -485,11 +494,14 @@ _DIACRITIC_TABLE: dict[str, str] = {
     # the same real IPA breathy-voice modifier letter (ʱ) bʱ/dʱ/gʱ
     # already carry identity above.
     "dʒʱ": "ǯʱ",
-    # Real Khmer's own long vowels and diphthongs -- ɨː/ɑː follow the
-    # bare-IPA-vowel-plus-combining-macron convention ɛː/ɔː/ɯː/ɤː
-    # already use above; the diphthongs compose from each component
-    # vowel's own existing diacritic value (ə -> ě, ɨ -> ï).
-    "ɨː": "ɨ̄", "ɑː": "ɑ̄",
+    # Real Khmer's own long vowels and diphthongs -- ɨː composes onto this
+    # table's own ɨ -> ï substitution (the same fix ɛː/ɔː/ɯː's own entries
+    # above needed); ɑ (Unicode "LATIN SMALL LETTER ALPHA") is already a
+    # genuine Latin letter in its own right, unlike ɨ, so ɑː keeps its
+    # identity-plus-macron treatment unchanged. The diphthongs compose
+    # from each component vowel's own existing diacritic value (ə -> ě,
+    # ɨ -> ï).
+    "ɨː": "ï̄", "ɑː": "ɑ̄",
     "iə": "iě", "ɨə": "ïě", "uə": "uě", "eə": "eě", "oə": "oě",
     "aə": "aě", "əɨ": "ěï", "aɨ": "aï",
     # Real Navajo's own long nasal vowels -- the real IPA nasalization

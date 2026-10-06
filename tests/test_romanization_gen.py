@@ -557,6 +557,43 @@ def test_new_phoneme_group_spellings():
     assert _MONOLETTER_TABLE["ɯ"] == "i"
 
 
+def test_nasalized_and_long_vowel_spellings_build_on_the_already_chosen_base_letter():
+    # ɛ/ɔ/ɯ/ɨ already get a real Latin-Extended substitution for their
+    # plain form (ë/ö/ı/ï) elsewhere in this table -- their nasalized and
+    # long counterparts must compose onto THAT letter, not fall back to
+    # raw IPA identity (the exact bug a user reported: a French "bon"
+    # romanized with a bare "ɔ" after evolution dropped its own
+    # nasalization mark -- see docs/DEFERRED.md).
+    assert _DIACRITIC_TABLE["ɛ"] == "ë" and _DIACRITIC_TABLE["ɔ"] == "ö"
+    assert _DIACRITIC_TABLE["ɛ̃"] == "ë̃"
+    assert _DIACRITIC_TABLE["ɔ̃"] == "ö̃"
+    assert _DIACRITIC_TABLE["ɛː"] == "ë̄"
+    assert _DIACRITIC_TABLE["ɔː"] == "ȫ"
+    assert _DIACRITIC_TABLE["ɯː"] == "ı̄"
+    assert _DIACRITIC_TABLE["ɨː"] == "ï̄"
+    # ɤ has no established substitution to reuse (a different situation),
+    # and ɑ (Unicode "LATIN SMALL LETTER ALPHA") is already a genuine
+    # Latin letter in its own right -- both stay unchanged, confirming
+    # the fix didn't over-apply to entries that weren't actually buggy.
+    assert _DIACRITIC_TABLE["ɤː"] == "ɤ̄"
+    assert _DIACRITIC_TABLE["ɑː"] == "ɑ̄"
+
+
+def test_evolution_cannot_drift_a_nasalized_vowel_rule_down_to_raw_ipa():
+    # The actual bug this guards against: _apply_orthography_drift (a
+    # real mechanism -- NFD-decompose a grapheme, independently drop each
+    # of its combining marks) applied to the DIACRITIC-style ɔ̃ rule used
+    # to strip the nasalization tilde off a raw-IPA identity value
+    # (ɔ̃ -> ɔ̃) and leave the bare, non-Latin ɔ character behind as the
+    # "romanized" spelling. Now the rule's own latin value is built on a
+    # real Latin letter (ö), so every possible drift outcome -- neither
+    # mark dropped, either one alone, or both -- stays a real letter.
+    latin = _DIACRITIC_TABLE["ɔ̃"]
+    outcomes = {_apply_orthography_drift(latin, random.Random(seed), rate=rate) for seed in range(20) for rate in (0.5, 1.0)}
+    assert outcomes <= {"ö̃", "ö", "õ", "o"}
+    assert "ɔ" not in outcomes and "ɔ̃" not in outcomes
+
+
 def test_orthography_drift_drops_diacritics_and_ejective_marks():
     assert _apply_orthography_drift("ǯëṅk̓", random.Random(1), rate=1.0) == "ʒenk"
     assert _apply_orthography_drift("k'ap'", random.Random(1), rate=1.0) == "kap"

@@ -240,21 +240,35 @@ multi-session feature.
   curated real words for correct unstressed о/а → `ə` has not been done.
 - **IPA U+0261 not normalized on input (S).** IPA typed with `ɡ` (U+0261)
   by a user or an LLM is not converted to ASCII `g`.
-- **The diacritic exotic-symbol style spells some affricates/nasal vowels
-  with their own IPA ligature/combining characters, not a real Latin-
-  extended letter (S-M).** `generation/romanization_gen.py`'s `_DIACRITIC_
-  TABLE` maps `ts`/`tɕ` (and their voiced counterparts) to the historical
-  IPA ligatures `ʦ`/`ʨ`/`ʣ`/`ʥ`, and `ɛ̃`/`ɔ̃` to themselves (an identity
-  rule) -- a real `RomanizationRule` fires, by design, but a user
-  reported this reads exactly like raw IPA leaking through (reasonably:
-  none of these four characters are used in any real orthography, unlike
-  `ø`'s own identity rule, which is a genuine Danish/Norwegian letter).
-  Worth reconsidering whether `ExoticSymbolStyle.DIACRITIC` should instead
-  pick an actual Latin-extended letter for these specific symbols (the
-  digraph/monoletter tables already do -- `ts`/`tɕ` get `"c"` under
-  monoletter, a two-letter digraph otherwise; `ɛ̃`/`ɔ̃` get a vowel+`n`-
-  style digraph), or keep the ligature spelling as a deliberate, flagged
-  stylistic choice and only fix the identity-rule cases.
+- **The diacritic exotic-symbol style spelled nasalized `ɛ̃`/`ɔ̃` with raw
+  IPA, not a real Latin-extended letter (S-M). Done.** A user reported
+  this reading exactly like raw IPA leaking through (`ʦ`/`ʨ` ligatures,
+  bare `ɔ`/`ɛ̃` characters) in a language generated from "French evolved
+  forward 1000 years with influence from Chinese." Investigated directly
+  against the user's own saved `conlangs/futurefrenchchinese/` files:
+  `ts`/`tɕ` (and voiced `dz`/`dʑ`) deliberately map to the real,
+  historically-attested single-character IPA ligatures `ʦ`/`ʨ`/`ʣ`/`ʥ` --
+  kept as a deliberate stylistic choice, same as every other already-
+  Latin-Extended modifier letter this table reuses (aspiration `ʰ`,
+  pharyngealization `ˤ`, breathy voice `ʱ`, etc.). `ɛ̃`/`ɔ̃`, however, were a
+  genuine inconsistency, not a deliberate choice: this same table already
+  gives *plain* `ɛ`/`ɔ` a real Latin-Extended substitution (`ë`/`ö`,
+  used elsewhere in the table for the diphthongs `ɛi`→`ëi`/`ɔi`→`öi`), but
+  the *nasalized* forms ignored that and fell back to raw-IPA identity
+  (`ɛ̃`→`ɛ̃`, unlike the genuinely-Latin `ã`/`ẽ`/`ĩ`/`õ`/`ũ` right next to
+  them). Fixed by composing the nasalization tilde onto the table's own
+  already-chosen base letter instead: `ɛ̃`→`ë̃`, `ɔ̃`→`ö̃`. The same
+  inconsistency, and the same fix, also applied to three long-vowel
+  entries that had copied the same wrong "no precomposed letter exists"
+  reasoning from `ø`ː (which IS a real letter) onto bases that aren't:
+  `ɛː`→`ë̄` (was `ɛ̄`), `ɔː`→`ȫ` (was `ɔ̄`), `ɯː`→`ı̄` (was `ɯ̄`, reusing
+  `ɯ`'s own real Turkish dotless-ı substitution), `ɨː`→`ï̄` (was `ɨ̄`,
+  reusing `ɨ`'s own `ï`). `ɤ`/`ɤː` and `ɑː` were checked and left
+  unchanged: `ɤ` has no established alternate substitution anywhere in
+  this table to reuse (a different situation from `ɛ`/`ɔ`/`ɯ`/`ɨ`, not the
+  same bug), and `ɑ` (Unicode "LATIN SMALL LETTER ALPHA") is already a
+  genuine Latin letter in its own right. This fix also resolved the
+  evolution bug reported in the same language, below -- see that entry.
 - **Profile widening: what is still open (S-M).** (a) glide+vowel sequences
   written as onset clusters (French `bw`, Italian `pj`) are clusters, not
   diphthongs; (b) geminate affricates beyond Italian `tsː`, and geminates
@@ -707,37 +721,35 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   profile prefers; the intermediate `ts`/`dz` stage; a conditioning tag
   other than front/back vowel.
 
-- **Evolution can silently lose a multi-character phoneme's own romanization
-  rule, even though a word's stored IPA still contains it (M).** Reported
-  directly by a user: a language generated from "French evolved forward
-  1000 years with influence from Chinese" had words whose IPA contained
-  `ɔ`/`ɔ̃` (French nasalized vowels) but whose *romanization* showed the
-  raw, un-romanized `ɔ` character -- confirmed via an Explore agent as a
-  genuine `apply()`-fallback hit (`core/romanization.py`'s "no rule at all
-  for this symbol" path), not a design choice. Root cause: `evolve_
-  language`'s own inventory-rebuild step (`sound_change.py::
-  _inventory_and_structure`) re-tokenizes every surviving word's own
-  stored IPA against a deliberately *bounded* candidate pool (single-
-  character symbols are always candidates; a multi-character one --
-  exactly what a nasalized vowel is, base letter + combining tilde -- is
-  only a candidate if it was already in the pre-evolution inventory or is
-  one of the six sound-change rules' own known outputs). If a word's own
-  stored IPA contains a multi-character symbol that isn't anchored either
-  way, the combining tilde gets silently read as harmless decoration and
-  dropped at the tokenization step -- the symbol never reaches
-  `new_inventory.all_symbols()`, so `evolve_romanization`'s own coverage
-  loop (confirmed airtight *relative to that set*) never visits it, and
-  any existing rule for it silently vanishes from the scheme while the
-  literal character survives in the word's own `ipa` field, unrepaired by
-  anything downstream (`_refit_rejected_symbols`'s own repair pass only
-  catches symbols Stage 2 explicitly *rejected*, not ones that were never
-  recognized as a distinct token to begin with). Fresh (non-evolved)
-  generation does not have this gap -- its own coverage loop runs directly
-  over the already-finalized inventory, no lossy re-tokenization pass in
-  between. Not yet root-caused: why a *plain*, single-character `ɔ`
-  (always a tokenizer candidate regardless of anchoring) also ended up
-  with no rule in the same reported case -- needs a concrete repro
-  (regenerate with the reported prompt/seed, diff `base.phonology.
-  all_symbols()` against the literal characters in the affected post-
-  evolution `lexicon.entries[i].ipa` strings) before a fix can be scoped
-  precisely.
+- **Evolution could produce a non-Latin "romanization" for a nasalized
+  vowel, even though a rule for it existed (M). Done.** Reported in the
+  same user report as the identity-rule item above: a language generated
+  from "French evolved forward 1000 years with influence from Chinese"
+  had a word stored as `bɔ̃` (French "bon") whose romanization rendered
+  as the raw `bɔ` -- the nasalization tilde simply vanished from the
+  *spelling* (not the pronunciation: `entry.ipa` still correctly held
+  `bɔ̃`). Direct inspection of the user's own saved `conlangs/
+  futurefrenchchinese/romanization.yaml` disproved the original
+  hypothesis (a previous pass of this entry guessed a lossy-tokenization
+  coverage gap during evolution's inventory rebuild): the evolved scheme
+  did have an explicit rule for `ɔ̃`, mapping it to `latin: ɔ` -- a rule
+  that exists, just a bad one, not a missing one. Root-caused by
+  reproducing generation + evolution directly: before this fix, the
+  diacritic table's own `ɛ̃`/`ɔ̃` identity rule (see the item above) meant
+  the rule's `latin` value was itself raw IPA (`ɔ̃` = `ɔ` + a combining
+  tilde, U+0303). `romanization_gen.py::_apply_orthography_drift` --
+  which simplifies spelling by NFD-decomposing a grapheme and randomly
+  dropping its combining marks (the real, intended case: "café" -> "cafe"
+  dropping an accent off a genuine Latin letter) -- cannot tell a real
+  diacritic on a real letter apart from the nasalization mark baked into
+  a raw-IPA identity rule, so it happily stripped the tilde and left the
+  bare, non-Latin `ɔ` character behind as the word's own "simplified"
+  spelling. Fixing the identity-rule bug above (composing the tilde onto
+  a real Latin base letter, `ɔ̃` -> `ö̃`) fixes this for free: now the
+  *same* drift mechanism, applied to the *same* rule, can only ever land
+  on `ö̃`, `ö`, `ẽ`-shaped-on-a-different-base, or plain `ö` -- every
+  possible outcome is a real Latin letter, none is raw IPA. Verified by
+  regenerating and evolving the same prompt/traits with the fix applied:
+  the evolved `ɔ̃` rule now reads `latin: o` (nasalization dropped,
+  base vowel kept, a perfectly ordinary-looking simplified spelling) and
+  `bɔ̃` romanizes as `bo`, not `bɔ`.
