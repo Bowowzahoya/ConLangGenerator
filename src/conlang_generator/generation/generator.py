@@ -58,6 +58,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     inventory, syllable_structure, tone_system, word_accent_system = phonology_gen.generate_phonology(
         rng, phonology_spec
     )
+    seed_orthography = romanization_gen._seed_orthography_profile(phonology_spec.seed_examples, inventory)
     romanization = romanization_gen.generate_romanization(
         rng,
         inventory,
@@ -67,6 +68,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         spec.allow_all_caps,
         spec.traits.source_language_strictness,
         spec.traits.source_language_weights,
+        extra_weighted_profiles=(seed_orthography,) if seed_orthography is not None else (),
     )
     grammar = grammar_gen.generate_grammar(rng, spec)
 

@@ -207,6 +207,21 @@ words' own syllable shape. (The first run also prints a phonotactic-mismatch
 warning for `stra`/`blo` themselves -- "str" is a 3-consonant cluster, still
 over the 2-consonant cap this biases *toward*, not an unlimited one.)
 
+Seed words also bias *spelling*, but only for a word whose own letter count
+exactly matches its own sound count (no digraph guessing -- a word like "sh"
+for one sound would misread as two separate letter rules, so it's skipped
+rather than guessed wrong). Verified at the same seed:
+
+```bash
+conlang generate --prompt "a plain language" --name orth-seed --seed 1 \
+  --llm fake --example "x1=xa|ʃa" --example "x2=xo|ʃo"
+conlang generate --prompt "a plain language" --name orth-plain --seed 1 --llm fake
+```
+
+The first language's saved `romanization.yaml` spells `ʃ` as `x` (matching
+the seed words' own convention); the second spells it `sh` -- again, the only
+difference between the two runs is the seed words themselves.
+
 Two smaller flags round out word generation: `--word-selection` picks
 between the default `algorithmic` (a seeded, no-LLM choice among each
 word's own already-built candidate spellings) and `llm`

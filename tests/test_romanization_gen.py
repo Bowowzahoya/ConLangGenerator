@@ -13,6 +13,7 @@ from conlang_generator.core.romanization import (
     ToneMarkingStrategy,
     VowelLengthStrategy,
 )
+from conlang_generator.core.spec import SeedExample
 from conlang_generator.generation import reference_languages
 from conlang_generator.generation.phonology_gen import ALL_CONSONANTS, ALL_VOWELS
 from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, ReferenceLanguageProfile
@@ -29,6 +30,7 @@ from conlang_generator.generation.romanization_gen import (
     _reference_orthography,
     _roll_independent_axes,
     _scheme_context,
+    _seed_orthography_profile,
     evolve_romanization,
     generate_romanization,
 )
@@ -203,6 +205,100 @@ def test_source_language_weights_reduce_a_lightly_weighted_languages_own_rule_ad
     assert heavy > light
     assert heavy > 0.9
     assert light < 0.85  # meaningfully below the ~1.0 an unweighted/equal-weight match would give
+
+
+# --- orthography bias derived from the user's own seed words ---------------
+
+
+_SHA_INVENTORY = PhonemeInventory(
+    consonants=(
+        Consonant(ipa="ʃ", place=Place.POSTALVEOLAR, manner=Manner.FRICATIVE, voiced=False),
+        Consonant(ipa="b", place=Place.BILABIAL, manner=Manner.STOP, voiced=True),
+    ),
+    vowels=(
+        Vowel(ipa="a", height=VowelHeight.OPEN, backness=VowelBackness.CENTRAL, rounded=False),
+        Vowel(ipa="o", height=VowelHeight.MID, backness=VowelBackness.BACK, rounded=True),
+    ),
+)
+
+
+def test_no_resolved_seed_examples_means_no_orthography_profile():
+    assert _seed_orthography_profile((), _SHA_INVENTORY) is None
+    unresolved = (SeedExample(gloss="x", form="foo"),)  # ipa=None
+    assert _seed_orthography_profile(unresolved, _SHA_INVENTORY) is None
+
+
+def test_seed_orthography_profile_infers_a_length_matched_word():
+    examples = (SeedExample(gloss="x", form="xa", ipa="ʃa"),)
+    profile, weight = _seed_orthography_profile(examples, _SHA_INVENTORY)
+    rules = {r.ipa: r.latin for r in profile.orthography}
+    assert rules == {"ʃ": "x", "a": "a"}
+    assert weight == pytest.approx(1 / 5)
+
+
+def test_seed_orthography_profile_abstains_on_a_length_mismatched_word():
+    # "sh" (2 letters) for /ʃ/ (1 symbol) -- a digraph; this project
+    # deliberately doesn't guess at digraph boundaries, so this word
+    # contributes nothing, but a DIFFERENT, length-matched word still does.
+    examples = (SeedExample(gloss="x", form="sha", ipa="ʃa"), SeedExample(gloss="y", form="bo", ipa="bo"))
+    profile, weight = _seed_orthography_profile(examples, _SHA_INVENTORY)
+    rules = {r.ipa: r.latin for r in profile.orthography}
+    assert rules == {"b": "b", "o": "o"}
+    assert "ʃ" not in rules
+    assert weight == pytest.approx(1 / 5)  # only the length-matched word counts toward confidence
+
+
+def test_seed_orthography_profile_uses_majority_vote_on_disagreement():
+    examples = (
+        SeedExample(gloss="x1", form="xa", ipa="ʃa"),
+        SeedExample(gloss="x2", form="xo", ipa="ʃo"),
+        SeedExample(gloss="x3", form="ya", ipa="ʃa"),
+    )
+    profile, _ = _seed_orthography_profile(examples, _SHA_INVENTORY)
+    rules = {r.ipa: r.latin for r in profile.orthography}
+    assert rules["ʃ"] == "x"  # 2 votes for "x" vs. 1 for "y"
+
+
+def test_seed_orthography_profile_weight_caps_at_one():
+    examples = tuple(SeedExample(gloss=f"x{i}", form="ba", ipa="ba") for i in range(8))
+    _, weight = _seed_orthography_profile(examples, _SHA_INVENTORY)
+    assert weight == 1.0
+
+
+def _esh_spelling_fraction(seed_examples: tuple[SeedExample, ...], seeds) -> float:
+    hits = total = 0
+    for seed in seeds:
+        profile = _seed_orthography_profile(seed_examples, _SHA_INVENTORY)
+        scheme = generate_romanization(
+            random.Random(seed), _SHA_INVENTORY,
+            extra_weighted_profiles=(profile,) if profile is not None else (),
+        )
+        rule = next((r for r in scheme.rules if r.ipa == "ʃ"), None)
+        total += 1
+        hits += rule is not None and rule.latin == "x"
+    return hits / total
+
+
+def test_seed_words_bias_romanization_toward_their_own_spelling_convention():
+    examples = (SeedExample(gloss="x1", form="xa", ipa="ʃa"), SeedExample(gloss="x2", form="xo", ipa="ʃo"))
+    assert _esh_spelling_fraction(examples, _SEEDS) > _esh_spelling_fraction((), _SEEDS)
+
+
+def test_extra_weighted_profiles_plumbs_through_generate_romanization():
+    # Direct profile, no monkeypatch needed -- a seed-derived profile is
+    # never registered by name, so this is the natural way to test it,
+    # cleaner than the registry-monkeypatch _first_rule_fraction needs.
+    profile = ReferenceLanguageProfile(
+        name="seed words", consonants=("ʃ",), vowels=(), coda_profile="none", max_onset=1, tonal=False,
+        orthography=(RomanizationRule(ipa="ʃ", latin="X"),),
+    )
+    hits = sum(
+        any(r.ipa == "ʃ" and r.latin == "X" for r in generate_romanization(
+            random.Random(seed), _SHA_INVENTORY, extra_weighted_profiles=((profile, 1.0),),
+        ).rules)
+        for seed in _SEEDS
+    )
+    assert hits / len(_SEEDS) > 0.5  # same unconditional ~0.7 soft-pull strength as a named profile
 
 
 def test_evolve_romanization_keeps_old_rules_for_surviving_symbols():

@@ -6135,3 +6135,85 @@ reading code or one-off ad hoc scripts.
   seed words; a combined-with-named-source-language smoke test; a carve-out test mirroring `test_full_
   strictness_still_force_includes_a_seed_example_symbol_outside_the_source_language` confirming `must_
   include_*`'s own guarantee is unaffected.
+
+- **Seed words: orthography/spelling-convention bias (grammar pass 49).** The last of the two items
+  deferred from pass 48: nothing read a seed word's own *spelling* against its pronunciation to bias the
+  rest of the generated romanization scheme -- only sounds and syllable shape were being picked up.
+  Confirmed via research the existing reference-profile machinery in `romanization_gen.py` already biases
+  spelling choices from a *named* source language's own `ReferenceLanguageProfile.orthography`, through
+  the same unconditional-soft-pull shape `phonology_gen.py` already had (`_strict_weight`, romanization_
+  gen.py:816 -- a flat 70% per-axis adoption chance the moment *any* profile is present, `strictness` only
+  sharpening it further) -- the same "no new dial needed" conclusion both prior seed-word passes reached.
+
+  Two things the research also confirmed, honestly, before any code was written: the plumbing is clean but
+  genuinely two-sided -- `generate_romanization` and `_reference_orthography` each independently re-derive
+  `weighted_profiles` from `(source_languages, source_language_weights)` by name, so a pseudo-profile
+  parameter needs threading through *both* call sites, not one; and, unlike the phoneme-forcing and
+  structural-bias passes (each of which slotted an inferred value into a mechanism that already consumed
+  exactly that shape), **no reusable spelling-to-sound alignment exists anywhere in this codebase** --
+  every existing path (`real_words.py`'s exact copies, its deviated-word re-spelling) either copies a
+  real word's spelling verbatim or re-derives one from the language's own already-decided scheme, never
+  the reverse. This piece needed genuinely new code.
+
+  **Scope decision, stated plainly up front**: only words where the spelling's own letter count exactly
+  equals the IPA's own symbol count are used -- no digraph/silent-letter guessing at all in this first
+  pass. A naive greedy length-balancing alignment (distribute extra letters across symbols when counts
+  don't match) was considered and rejected, not just deferred for size: it can silently misread an
+  intentional digraph (e.g. "aqua" for /akwa/, 4 letters for 4 symbols by coincidence) as independent
+  single-letter rules -- "q"->k, "u"->w -- producing an actively *wrong* rule rather than just an
+  imprecise one. This project's own standing instinct is "abstain rather than guess wrong" (`seed_
+  examples.parse_bulk_seed_examples`'s malformed-row handling already does exactly this), so a word that
+  doesn't align 1:1 contributes nothing to orthography at all (it still contributes normally to phoneme
+  forcing and the pass-48 structural profile, which don't need spelling).
+
+  **`_seed_orthography_profile(seed_examples, inventory) -> tuple[ReferenceLanguageProfile, float] | None`**
+  (new, `romanization_gen.py` -- the consuming module, mirroring where `_seed_structural_profile` was
+  placed in `phonology_gen.py` for the same reason; this one runs strictly *after* the inventory exists,
+  so it tokenizes seed IPA against `inventory.all_symbols()` directly rather than needing `phonology_gen`'s
+  own pre-inventory `_seed_tokenizer_pool` restriction trick). For each seed example with resolved IPA,
+  tokenizes via `ipa_tokenizer.symbols_only`; if the lowercased spelling's own character count doesn't
+  exactly equal the token count, the word abstains entirely. Otherwise each `(symbol, letter)` pair at the
+  same position casts one vote; when words disagree on a symbol's spelling, majority vote wins (ties go to
+  whichever letter was seen first -- arbitrary but deterministic, since dict iteration order is insertion
+  order). One `RomanizationRule(ipa=symbol, latin=winning_letter)` per voted-on symbol, folded into a
+  pseudo profile with the same `min(1.0, n / 5)` weight formula `_seed_structural_profile` already
+  established (`n` = words that actually *voted*, not just words with resolved IPA -- an abstained word
+  contributes zero evidence and shouldn't inflate confidence). The required-but-irrelevant-here fields
+  (`consonants`/`vowels`/`coda_profile`/`max_onset`/`tonal` -- `_reference_orthography` only ever reads
+  `.orthography`) get trivial placeholder values, the mirror image of how `_seed_structural_profile`
+  already left its own *irrelevant* fields (`orthography` and friends) at their defaults.
+
+  **Plumbing**: `_reference_orthography` and `generate_romanization` both gained an additive, default-
+  empty `extra_weighted_profiles: tuple[tuple[ReferenceLanguageProfile, float], ...] = ()` parameter --
+  `generate_romanization` appends it to its own locally-computed `weighted_profiles` *and* threads it into
+  the `_reference_orthography(...)` call, covering both of the two independent re-derivations the research
+  flagged (easy to fix only one and silently leave the other blind to the pseudo-profile). `evolve_
+  romanization` deliberately untouched this pass -- confirmed it already doesn't consult `weighted_
+  profiles` for whole-scheme category, only narrower per-symbol fresh-rule generation during a reform
+  event, a smaller, separate, lower-value extension.
+
+  **Call site** (`generator.py`, right after `generate_phonology` returns, since this needs the real
+  `inventory`): built from `phonology_spec.seed_examples` -- the combined user-given *and* exact-copy-
+  real-word set `generate_phonology` already uses, so a real curated word's own real spelling (at word
+  strictness 1.0) is, if anything, *better* alignment evidence than a made-up one, a free synergy with no
+  extra code.
+
+  Verified concretely, not just reasoned about: a seed-word pair consistently spelling /ʃ/ as "x" raised
+  that spelling's adoption rate from 39% (no seed words) to 80% across a 60-seed sweep, with /ʃ/ also
+  forced into every one of those 60 generated inventories via the pre-existing phoneme-forcing mechanism
+  (vs. only 23/60 naturally, without seed words) -- the structural and orthographic mechanisms visibly
+  compounding, as intended.
+
+  **Explicitly deferred**: digraph/multi-letter grapheme inference (the scope decision above, not a size
+  cut); `syllable_boundary_marker`/`orthography_category`/`capitalized_pos`-style *coarse* convention
+  inference, distinct from per-phoneme spelling rules; wiring into `evolve_romanization`.
+
+  Tests (`tests/test_romanization_gen.py`, reusing `_first_rule_fraction`'s established synthetic-profile
+  shape but **without its monkeypatch** -- a seed-derived profile is never registered by name, so passing
+  it straight through the new `extra_weighted_profiles` parameter is both possible and cleaner, the
+  research's own explicit recommendation): `_seed_orthography_profile` unit tests (no resolved examples ->
+  `None`; a length-matched word infers the expected rules; a length-mismatched word contributes nothing
+  without blocking other words; disagreement resolved by majority vote; weight caps at 1.0 at 5+ words); a
+  directional test mirroring `test_dutch_source_language_biases_romanization_toward_dutch_spelling`'s own
+  shape; a direct `extra_weighted_profiles` plumbing test confirming a hand-built profile's rule actually
+  surfaces in the generated scheme.

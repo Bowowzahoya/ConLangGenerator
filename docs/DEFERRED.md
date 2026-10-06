@@ -95,9 +95,9 @@ multi-session feature.
 ## 4. Generation from the user's own words
 
 - **Seed words drive the language (part of speech, bulk input,
-  phonotactic-mismatch warning, and structural bias derivation done,
-  passes 47-48; two items still open).** "I think it should sound like
-  this, and I already thought up some words -- fill in the rest
+  phonotactic-mismatch warning, structural bias, and orthography bias
+  done, passes 47-49; one item still open).** "I think it should sound
+  like this, and I already thought up some words -- fill in the rest
   consistently." Done: `SeedExample.pos` (optional; `--example
   gloss=form|ipa|pos` on the CLI, a per-row select in the web UI,
   defaults to NOUN exactly as before when omitted); bulk input
@@ -105,31 +105,37 @@ multi-session feature.
   through a shared `generation.seed_examples.parse_bulk_seed_examples`);
   a warning (never a silent repair, since the given words must still
   appear verbatim) when a seed word's IPA isn't a legal syllable shape
-  under the language's own generated `SyllableStructure`; and (pass 48)
-  deriving syllable-shape bias from the seed words themselves --
-  `generation/phonology_gen.py::_seed_structural_profile` reads each seed
-  word's own onset/coda cluster sizes and whether it carries a tone mark,
-  builds a pseudo `ReferenceLanguageProfile` from them, and folds it into
-  the *existing* reference-profile weighting machinery (confirmed to pull
-  unconditionally, not gated behind `source_language_strictness`) -- no
-  new mechanism, no new CLI/web flag, automatic whenever seed words are
-  given. Still open: orthography/spelling-convention bias specifically
-  (diffing a seed word's spelling against its IPA to recover a
-  grapheme-to-phoneme convention -- a real alignment problem that doesn't
-  exist yet anywhere, plus `romanization_gen.py` would need its own
-  `extra_weighted_profiles`-style seam, since today it only takes
-  language-name strings and re-derives profiles internally) (M);
-  `attested_onset_clusters`/`attested_coda_clusters` (literal cluster
-  *identity*, not just size -- deferred from pass 48, see
-  `architecture/OVERVIEW.md`) (S); `vowel_harmony` inference (needs more
-  data than a handful of seed words reliably gives) (S); multi-form/
-  inflected grammatical forms on a seed word (no existing per-entry forms
-  concept anywhere -- inflection is always derived from the regular
-  paradigm at render time, never stored per-entry; the existing
-  suppletion mechanism, `voice_np_gen.suppletive_gloss`/`suppletive_
-  split`, already used for irregular past tense and degree, is the
-  natural precedent a future pass should extend for a user-given
-  non-citation form) (M-L).
+  under the language's own generated `SyllableStructure`; deriving
+  syllable-shape bias (pass 48) -- `generation/phonology_gen.py::_seed_
+  structural_profile` reads each seed word's own onset/coda cluster sizes
+  and whether it carries a tone mark; and deriving spelling-convention
+  bias (pass 49) -- `generation/romanization_gen.py::_seed_orthography_
+  profile` reads each seed word's own spelling against its IPA for the
+  symbols where the letter count exactly matches the sound count (no
+  digraph guessing -- a wrong split, e.g. misreading "qu" as independent
+  q->k/u->w rules, is worse than abstaining). Both passes build a pseudo
+  `ReferenceLanguageProfile` from the inferred signal and fold it into the
+  *existing* reference-profile weighting machinery in their own module
+  (confirmed in both to pull unconditionally, not gated behind `source_
+  language_strictness`) -- no new mechanism, no new CLI/web flag,
+  automatic whenever seed words are given. Still open: `attested_onset_
+  clusters`/`attested_coda_clusters` (literal cluster *identity*, not just
+  size -- deferred from pass 48) (S); `vowel_harmony` inference (needs
+  more data than a handful of seed words reliably gives) (S); digraph/
+  multi-letter grapheme inference (deferred from pass 49 -- a genuinely
+  harder alignment problem) (M); `syllable_boundary_marker`/`orthography_
+  category`-style *coarse* convention inference, distinct from per-phoneme
+  spelling rules (deferred from pass 49) (S); wiring orthography bias into
+  `evolve_romanization`, not just fresh generation (deferred from pass 49
+  -- evolution already doesn't use `weighted_profiles` for whole-scheme
+  category, only narrower per-symbol fresh-rule generation during a
+  reform event, a smaller, separate extension) (S); multi-form/inflected
+  grammatical forms on a seed word (no existing per-entry forms concept
+  anywhere -- inflection is always derived from the regular paradigm at
+  render time, never stored per-entry; the existing suppletion mechanism,
+  `voice_np_gen.suppletive_gloss`/`suppletive_split`, already used for
+  irregular past tense and degree, is the natural precedent a future pass
+  should extend for a user-given non-citation form) (M-L).
 
 ## 5. Own script and font
 

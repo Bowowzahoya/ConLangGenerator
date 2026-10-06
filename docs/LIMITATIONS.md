@@ -66,11 +66,17 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   tiers. A seed-word set with no tone-marked word mildly *suppresses* tonality (`ReferenceLanguageProfile.
   tonal` has no "not curated" option, so the inference is always a hard True/False), even when that's not
   the user's intent -- give at least one tone-marked seed word to avoid this.
-- **Spelling/orthography convention is never inferred from seed words.** Nothing reads a seed word's own
-  spelling-vs-pronunciation relationship (e.g. "aqua" spelling /akwa/) to bias the romanization scheme the
-  way a matched real reference profile already does -- "fill in the rest consistently" means "the same
-  sounds and syllable shapes," not "the same spelling habits." Would need genuinely new inference logic
-  (aligning spelling against IPA syllable-by-syllable) that doesn't exist anywhere in this project yet.
+- **Spelling-convention inference from seed words only uses exact-length-matched words, never digraphs.**
+  `_seed_orthography_profile` compares a seed word's own letter count against its IPA symbol count and
+  abstains entirely when they don't match -- so a word spelled with any digraph, doubled letter, or
+  silent letter (e.g. "sh" for /ʃ/, one symbol spelled with two letters) contributes no spelling evidence
+  at all, even though it would still force its own phonemes into the inventory and contribute to the
+  separate syllable-shape bias. This is deliberate (a greedy length-balancing alignment was considered and
+  rejected as *actively wrong* in the common case, not just imprecise -- see `architecture/OVERVIEW.md`'s
+  pass-49 entry), not an oversight, but it does mean the feature's own value is proportional to how
+  phonetically transparent the user's own spelling habit happens to be. No coarse conventions
+  (`syllable_boundary_marker`, `orthography_category`, capitalization rules) are inferred either, only
+  per-phoneme spelling rules; and the bias only applies at fresh generation, not during `evolve_language`.
 - **A phonotactically-illegal seed word is kept verbatim and only warned about, never repaired** --
   repairing it would violate the feature's own core guarantee (the given words must appear exactly as
   given), so a mismatch with the generated syllable structure is surfaced as a warning, not silently

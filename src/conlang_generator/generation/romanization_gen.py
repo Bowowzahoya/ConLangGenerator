@@ -116,7 +116,8 @@ from conlang_generator.core.romanization import (
     ToneMarkingStrategy,
     VowelLengthStrategy,
 )
-from conlang_generator.generation import phoneme_fit, sonority
+from conlang_generator.core.spec import SeedExample
+from conlang_generator.generation import ipa_tokenizer, phoneme_fit, sonority
 from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles_weighted
 from conlang_generator.generation.trait_bias import biased_probability
 
@@ -1188,7 +1189,9 @@ def _category_from_scheme(scheme: RomanizationScheme) -> OrthographyCategory:
 
 
 def _reference_orthography(
-    source_languages: tuple[str, ...], source_language_weights: tuple[float, ...] = ()
+    source_languages: tuple[str, ...],
+    source_language_weights: tuple[float, ...] = (),
+    extra_weighted_profiles: tuple[tuple[ReferenceLanguageProfile, float], ...] = (),
 ) -> tuple[dict[str, list[RomanizationRule]], dict[str, float]]:
     """``({ipa_symbol: [rule, ...]}, {ipa_symbol: weight})`` -- a symbol
     may have more than one variant rule, for two different reasons: a
@@ -1217,7 +1220,7 @@ def _reference_orthography(
     by_symbol: dict[str, list[RomanizationRule]] = {}
     weight_by_symbol: dict[str, float] = {}
     covered: dict[str, set[tuple]] = {}
-    weighted_profiles = match_profiles_weighted(source_languages, source_language_weights)
+    weighted_profiles = match_profiles_weighted(source_languages, source_language_weights) + extra_weighted_profiles
     for profile, weight in _by_descending_weight(weighted_profiles):
         newly_covered: dict[str, set[tuple]] = {}
         for rule in profile.orthography:
@@ -1641,6 +1644,52 @@ def _roll_grammatical_spelling(
     )
 
 
+def _seed_orthography_profile(
+    seed_examples: tuple[SeedExample, ...], inventory: PhonemeInventory
+) -> tuple[ReferenceLanguageProfile, float] | None:
+    """A pseudo reference profile inferred from the user's own seed words'
+    spelling, for the symbols where it's unambiguous -- a word whose own
+    letter count doesn't exactly match its own IPA symbol count abstains
+    entirely (no partial/digraph guessing: a greedy length-balancing
+    scheme could silently misread an intentional digraph, e.g. "aqua" for
+    /akwa/, as two independent single-letter rules -- q->k, u->w -- instead
+    of one two-letter one, which is worse than contributing nothing; this
+    project's own "abstain rather than guess wrong" instinct, already used
+    by ``seed_examples.parse_bulk_seed_examples``'s malformed-row handling).
+    When multiple words disagree on the same symbol's spelling, majority
+    vote wins (ties go to whichever was seen first -- arbitrary but
+    deterministic). Folded into ``generate_romanization``'s own
+    ``extra_weighted_profiles`` so the *existing* reference-bias machinery
+    (``_strict_weight``'s own unconditional 70% soft pull) nudges the rest
+    of the spelling scheme toward the same convention -- no new mechanism,
+    the same shape the seed-word structural-bias pass already used for
+    syllable shape (``phonology_gen._seed_structural_profile``)."""
+    symbols = inventory.all_symbols()
+    votes: dict[str, dict[str, int]] = {}
+    resolved_count = 0
+    for example in seed_examples:
+        if example.ipa is None:
+            continue
+        tokens = ipa_tokenizer.symbols_only(example.ipa, symbols)
+        spelling = unicodedata.normalize("NFC", example.form).lower()
+        if not tokens or len(spelling) != len(tokens):
+            continue  # not a transparent one-letter-per-sound spelling -- abstain
+        resolved_count += 1
+        for symbol, letter in zip(tokens, spelling):
+            votes.setdefault(symbol, {}).setdefault(letter, 0)
+            votes[symbol][letter] += 1
+    if resolved_count == 0:
+        return None
+    orthography = tuple(
+        RomanizationRule(ipa=symbol, latin=max(letters, key=letters.get)) for symbol, letters in votes.items()
+    )
+    profile = ReferenceLanguageProfile(
+        name="seed words", consonants=(), vowels=(), coda_profile="none", max_onset=1, tonal=False,
+        orthography=orthography,
+    )
+    return profile, min(1.0, resolved_count / 5)
+
+
 def generate_romanization(
     rng: random.Random,
     inventory: PhonemeInventory,
@@ -1650,9 +1699,12 @@ def generate_romanization(
     allow_all_caps: bool = False,
     strictness: float = 0.0,
     source_language_weights: tuple[float, ...] = (),
+    extra_weighted_profiles: tuple[tuple[ReferenceLanguageProfile, float], ...] = (),
 ) -> RomanizationScheme:
-    reference, reference_weight_by_symbol = _reference_orthography(source_languages, source_language_weights)
-    weighted_profiles = match_profiles_weighted(source_languages, source_language_weights)
+    reference, reference_weight_by_symbol = _reference_orthography(
+        source_languages, source_language_weights, extra_weighted_profiles
+    )
+    weighted_profiles = match_profiles_weighted(source_languages, source_language_weights) + extra_weighted_profiles
     effective_strictness = strictness if weighted_profiles else 0.0
     category = _resolve_category(
         rng, weighted_profiles, requested_orthography_style, forced_orthography,
