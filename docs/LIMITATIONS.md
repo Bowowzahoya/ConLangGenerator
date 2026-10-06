@@ -36,16 +36,19 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   tensification).**
 - **Serbo-Croatian pitch accent is the least reliable data in the project**
   (233 words from hand recall). Expect real per-word errors.
-- **The diacritic romanization style deliberately spells `ts`/`tɕ` (and
-  voiced `dz`/`dʑ`) with the real, historically-attested single-character
-  IPA ligatures `ʦ`/`ʨ`/`ʣ`/`ʥ`**, a genuine but visually unfamiliar
-  choice that a reader can mistake for raw IPA leaking through unromanized
-  (a real user report) -- no real-world orthography uses these letters in
-  ordinary writing, unlike this same table's other "identity" choices
-  (`ø`, `pʰ`, `bʱ`, ...), which really are letters some real orthography
-  or transliteration tradition uses as-is. Switching this to an ordinary
-  Latin-extended letter or digraph instead remains an open, undecided
-  stylistic choice, not a bug.
+- **The diacritic romanization style spells `ts`/`tɕ` (and voiced `dz`/
+  `dʑ`) with the real, historically-attested single-character IPA
+  ligatures `ʦ`/`ʨ`/`ʣ`/`ʥ`** -- genuine IPA characters, not invented,
+  but not good behavior: a real user mistook this for raw IPA leaking
+  through unromanized, and reasonably so, since no real-world
+  orthography actually uses these letters in ordinary writing, unlike
+  this same table's other "identity" choices (`ø`, `pʰ`, `bʱ`, ...),
+  which really are letters some real orthography or transliteration
+  tradition uses as-is. Tracked as an open shortcoming in
+  `docs/DEFERRED.md`, not a settled stylistic choice -- the fix (switch
+  to an ordinary Latin-extended letter or digraph, reusing one of the
+  monoletter/digraph tables' own existing choices for these same four
+  symbols) is designed but not yet implemented.
 
 ## Real lexicons
 

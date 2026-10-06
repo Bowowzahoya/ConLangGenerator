@@ -245,30 +245,46 @@ multi-session feature.
   this reading exactly like raw IPA leaking through (`ʦ`/`ʨ` ligatures,
   bare `ɔ`/`ɛ̃` characters) in a language generated from "French evolved
   forward 1000 years with influence from Chinese." Investigated directly
-  against the user's own saved `conlangs/futurefrenchchinese/` files:
-  `ts`/`tɕ` (and voiced `dz`/`dʑ`) deliberately map to the real,
-  historically-attested single-character IPA ligatures `ʦ`/`ʨ`/`ʣ`/`ʥ` --
-  kept as a deliberate stylistic choice, same as every other already-
-  Latin-Extended modifier letter this table reuses (aspiration `ʰ`,
-  pharyngealization `ˤ`, breathy voice `ʱ`, etc.). `ɛ̃`/`ɔ̃`, however, were a
-  genuine inconsistency, not a deliberate choice: this same table already
-  gives *plain* `ɛ`/`ɔ` a real Latin-Extended substitution (`ë`/`ö`,
-  used elsewhere in the table for the diphthongs `ɛi`→`ëi`/`ɔi`→`öi`), but
-  the *nasalized* forms ignored that and fell back to raw-IPA identity
-  (`ɛ̃`→`ɛ̃`, unlike the genuinely-Latin `ã`/`ẽ`/`ĩ`/`õ`/`ũ` right next to
-  them). Fixed by composing the nasalization tilde onto the table's own
-  already-chosen base letter instead: `ɛ̃`→`ë̃`, `ɔ̃`→`ö̃`. The same
-  inconsistency, and the same fix, also applied to three long-vowel
-  entries that had copied the same wrong "no precomposed letter exists"
-  reasoning from `ø`ː (which IS a real letter) onto bases that aren't:
-  `ɛː`→`ë̄` (was `ɛ̄`), `ɔː`→`ȫ` (was `ɔ̄`), `ɯː`→`ı̄` (was `ɯ̄`, reusing
-  `ɯ`'s own real Turkish dotless-ı substitution), `ɨː`→`ï̄` (was `ɨ̄`,
-  reusing `ɨ`'s own `ï`). `ɤ`/`ɤː` and `ɑː` were checked and left
-  unchanged: `ɤ` has no established alternate substitution anywhere in
-  this table to reuse (a different situation from `ɛ`/`ɔ`/`ɯ`/`ɨ`, not the
-  same bug), and `ɑ` (Unicode "LATIN SMALL LETTER ALPHA") is already a
-  genuine Latin letter in its own right. This fix also resolved the
+  against the user's own saved `conlangs/futurefrenchchinese/` files.
+  `ɛ̃`/`ɔ̃` were a genuine inconsistency, not a deliberate choice: this same
+  table already gives *plain* `ɛ`/`ɔ` a real Latin-Extended substitution
+  (`ë`/`ö`, used elsewhere in the table for the diphthongs `ɛi`→`ëi`/
+  `ɔi`→`öi`), but the *nasalized* forms ignored that and fell back to
+  raw-IPA identity (`ɛ̃`→`ɛ̃`, unlike the genuinely-Latin `ã`/`ẽ`/`ĩ`/`õ`/
+  `ũ` right next to them). Fixed by composing the nasalization tilde onto
+  the table's own already-chosen base letter instead: `ɛ̃`→`ë̃`, `ɔ̃`→`ö̃`.
+  The same inconsistency, and the same fix, also applied to three
+  long-vowel entries that had copied the same wrong "no precomposed
+  letter exists" reasoning from `ø`ː (which IS a real letter) onto bases
+  that aren't: `ɛː`→`ë̄` (was `ɛ̄`), `ɔː`→`ȫ` (was `ɔ̄`), `ɯː`→`ı̄` (was
+  `ɯ̄`, reusing `ɯ`'s own real Turkish dotless-ı substitution), `ɨː`→`ï̄`
+  (was `ɨ̄`, reusing `ɨ`'s own `ï`). `ɤ`/`ɤː` and `ɑː` were checked and
+  left unchanged: `ɤ` has no established alternate substitution anywhere
+  in this table to reuse (a different situation from `ɛ`/`ɔ`/`ɯ`/`ɨ`, not
+  the same bug), and `ɑ` (Unicode "LATIN SMALL LETTER ALPHA") is already
+  a genuine Latin letter in its own right. This fix also resolved the
   evolution bug reported in the same language, below -- see that entry.
+  **Not fixed, and not actually fine as-is (see next item): the `ʦ`/`ʨ`
+  ligature spelling this same report flagged.**
+- **Diacritic style's `ts`→`ʦ`/`tɕ`→`ʨ`/`dz`→`ʣ`/`dʑ`→`ʥ` ligature
+  spelling looks like raw IPA leaking through, and isn't good behavior
+  (S-M).** Flagged by the same user report as the item above. These are
+  real, historically-attested single-character IPA ligatures (U+02A6/
+  02A3/02A8/02A5), not invented, and the table's comment currently
+  defends them on that basis -- but on reflection that defense doesn't
+  hold up the way it does for this table's other identity choices (`ø`,
+  `pʰ`, `bʱ`, the retroflex dot-under series, ...): none of these four
+  ligature characters is actually used in any real, living orthography
+  or standard transliteration convention, so a reader has no way to
+  distinguish "deliberate exotic styling" from "the IPA transcription
+  just wasn't romanized." This is a real shortcoming to fix, not a
+  settled stylistic choice to defend. Candidate fix, not yet designed or
+  implemented: give these four symbols an ordinary Latin-extended letter
+  or digraph instead, the way the monoletter/digraph tables already do
+  for the same four symbols (monoletter: `"c"` for `ts`/`tɕ`; digraph: a
+  two-letter spelling) -- reusing one of those existing choices rather
+  than inventing a third would keep the three exotic-symbol styles from
+  needlessly diverging on exactly these four sounds.
 - **Profile widening: what is still open (S-M).** (a) glide+vowel sequences
   written as onset clusters (French `bw`, Italian `pj`) are clusters, not
   diphthongs; (b) geminate affricates beyond Italian `tsː`, and geminates

@@ -6561,8 +6561,8 @@ reading code or one-off ad hoc scripts.
   one.
 
   **Root cause of (1)**: `generation/romanization_gen.py`'s `_DIACRITIC_TABLE` is mostly principled --
-  `ts`/`tɕ` deliberately map to the real, historically-attested IPA ligatures `ʦ`/`ʨ` (a genuine stylistic
-  choice, kept), and most "identity" entries (`pʰ`, `tˤ`, `bʱ`, `ø`, ...) are legitimate because the symbol
+  `ts`/`tɕ` map to the real, historically-attested IPA ligatures `ʦ`/`ʨ` (not invented), and most
+  "identity" entries (`pʰ`, `tˤ`, `bʱ`, `ø`, ...) are legitimate because the symbol
   really is a letter some real orthography/transliteration tradition uses as-is. But the table already gives
   *plain* `ɛ`/`ɔ` a real substitution (`ë`/`ö` -- reused correctly by the diphthong entries `ɛi`->`ëi`/
   `ɔi`->`öi`), and the *nasalized* forms `ɛ̃`/`ɔ̃` inconsistently ignored that and fell back to raw-IPA
@@ -6579,7 +6579,11 @@ reading code or one-off ad hoc scripts.
   letter" here -- `ɛ`/`ɔ`/`ɯ`/`ɨ`/`ɤ` are *all* named "LATIN SMALL LETTER ..." by Unicode despite none of
   them being part of any real orthography's letter repertoire (the IPA chart deliberately reuses the Latin
   Unicode block); the actual criterion applied throughout this table, correctly, is "does a real writing
-  system use this glyph," a linguistic judgment call, not a Unicode-property check.
+  system use this glyph," a linguistic judgment call, not a Unicode-property check. **The `ts`/`tɕ` ligature
+  spelling itself was reconsidered right after this pass, on user feedback**: "real IPA ligature, not
+  invented" turned out not to be a strong enough defense, since none of these four characters is actually
+  used in any real orthography either -- re-flagged as a genuine open shortcoming in `docs/DEFERRED.md`
+  rather than a settled stylistic choice (not fixed in this pass; see that entry for the candidate fix).
 
   **Root cause of (2), and why fixing (1) fixes it for free**: `romanization_gen.py::_apply_orthography_
   drift` -- the real mechanism behind spelling simplification over evolution time ("café" -> "cafe") --
