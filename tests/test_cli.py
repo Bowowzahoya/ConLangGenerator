@@ -126,3 +126,24 @@ def test_parse_seed_example_rejects_an_unknown_pos():
 def test_parse_seed_example_rejects_missing_equals_sign():
     with pytest.raises(typer.Exit):
         _parse_seed_example("water")
+
+
+def test_parse_seed_example_with_a_single_irregular_form():
+    example = _parse_seed_example("run=zim|zim|verb|past:zanu")
+    assert len(example.forms) == 1
+    assert (example.forms[0].cell, example.forms[0].form, example.forms[0].ipa) == ("past", "zanu", None)
+
+
+def test_parse_seed_example_with_an_irregular_forms_own_ipa():
+    example = _parse_seed_example("run=zim|zim|verb|past:zanu:za.nu")
+    assert example.forms[0].ipa == "za.nu"
+
+
+def test_parse_seed_example_with_multiple_irregular_forms():
+    example = _parse_seed_example("tall=bik|bik|adjective|comparative:biko;superlative:bikomo")
+    assert [(f.cell, f.form) for f in example.forms] == [("comparative", "biko"), ("superlative", "bikomo")]
+
+
+def test_parse_seed_example_rejects_a_form_cell_that_does_not_match_the_pos():
+    with pytest.raises(typer.Exit):
+        _parse_seed_example("run=zim|zim|verb|plural:zimu")

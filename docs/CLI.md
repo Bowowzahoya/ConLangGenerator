@@ -143,17 +143,18 @@ deliberately "split" aesthetic), just one worth flagging. The reverse
 (low word strictness, high sound strictness) is normal and silent.
 
 `--example` takes `gloss=form` (IPA guessed from the spelling),
-`gloss=form|ipa` (explicit pronunciation) or `gloss=form|ipa|pos` (also sets
+`gloss=form|ipa` (explicit pronunciation), `gloss=form|ipa|pos` (also sets
 its part of speech -- one of `noun`, `verb`, `adjective`, `pronoun`,
 `particle`, `numeral`, `other`; omit `ipa` with `gloss=form||pos`; defaults
-to `noun` when not given, as before) and always inserts that literal word
-under that gloss, replacing whatever core-vocabulary generation would have
-produced -- its phonemes are also guaranteed to be in the generated
-inventory. `--examples-file PATH` reads many at once from a CSV file, one
-word per line (`gloss,form[,ipa[,pos]]`; an optional header row starting
-with `gloss` is skipped) -- combined with any `--example` flags, which are
-applied after the file's own rows. Word-level only; sentence-level examples
-aren't supported yet.
+to `noun` when not given, as before) or `gloss=form|ipa|pos|forms` (also
+gives one or more of the word's own irregular forms -- see below) and
+always inserts that literal word under that gloss, replacing whatever
+core-vocabulary generation would have produced -- its phonemes are also
+guaranteed to be in the generated inventory. `--examples-file PATH` reads
+many at once from a CSV file, one word per line (`gloss,form[,ipa[,pos[,
+forms]]]`; an optional header row starting with `gloss` is skipped) --
+combined with any `--example` flags, which are applied after the file's
+own rows. Word-level only; sentence-level examples aren't supported yet.
 
 If a seed word's own IPA isn't a legal syllable shape under this language's
 own generated phonotactics, it is still kept exactly as given -- never
@@ -221,6 +222,54 @@ conlang generate --prompt "a plain language" --name orth-plain --seed 1 --llm fa
 The first language's saved `romanization.yaml` spells `ʃ` as `x` (matching
 the seed words' own convention); the second spells it `sh` -- again, the only
 difference between the two runs is the seed words themselves.
+
+A seed word can also give one or more of its own irregular (suppletive)
+grammatical forms -- a 4th `|`-separated segment, `cell:form[:ipa]`
+(`;`-separated for more than one), `cell` one of `plural` (noun), `past`
+(verb), `comparative`/`superlative` (adjective); a cell not matching the
+word's own part of speech is a hard error, not a silent skip:
+
+```bash
+conlang generate --prompt "a plain language" --name irregular-seed --seed 5 \
+  --llm fake --example "walk=zim|zim|verb|past:zanu"
+```
+
+```
+Seed examples: walk=zim (/zim/, verb, forms: past=zanu)
+```
+
+```bash
+conlang translate "He walked." --lang irregular-seed --to conlang --llm fake
+```
+
+```
+mun zanin
+IPA: /mun ˈzanin/
+```
+
+The verb renders from the user's own given stem "zanu" (plus the regular
+subject-agreement suffix "-in" -- a seeded form replaces the regular *tense*
+affixation, not unrelated marking) rather than a regularly tense-affixed
+"zim...". Decoding it reads back the irregular past tense correctly:
+
+```bash
+conlang translate "mun zanin" --lang irregular-seed --to english --llm fake
+```
+
+```
+he walked
+```
+
+A mismatched cell is rejected immediately rather than silently ignored:
+
+```bash
+conlang generate --prompt "a plain language" --name irregular-bad --seed 5 \
+  --llm fake --example "walk=zim|zim|verb|plural:zimu"
+```
+
+```
+error: --example form cell 'plural' is not valid for part of speech 'verb' (expected one of: plural (noun), past (verb), comparative (adjective), superlative (adjective))
+```
 
 Two smaller flags round out word generation: `--word-selection` picks
 between the default `algorithmic` (a seeded, no-LLM choice among each

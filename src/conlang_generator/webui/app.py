@@ -50,7 +50,9 @@ from conlang_generator.generation.real_words import strictness_warnings
 from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, lexicon_audit, real_lexicon
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.generation.seed_examples import (
+    CELL_POS,
     parse_bulk_seed_examples,
+    parse_seed_forms,
     phonotactic_mismatch_warnings,
     resolve_seed_examples,
 )
@@ -223,6 +225,11 @@ class SeedExampleEntry(BaseModel):
     form: str
     ipa: str | None = None
     pos: str | None = None
+    forms: str | None = None
+    """One or more of this word's own irregular (suppletive) forms, in
+    ``generation.seed_examples.parse_seed_forms``'s ``;``-separated
+    ``cell:form[:ipa]`` syntax -- a form whose cell doesn't match ``pos``
+    is dropped, the same lenient handling as the bulk-paste field."""
 
 
 class GenerateRequest(BaseModel):
@@ -238,9 +245,9 @@ class GenerateRequest(BaseModel):
     strictness: float | None = None
     examples: list[SeedExampleEntry] = []
     examples_text: str | None = None
-    """Bulk-paste seed words, one per line: gloss,form[,ipa[,pos]] -- see
-    ``generation.seed_examples.parse_bulk_seed_examples``. Combined with
-    ``examples`` (that list's own rows are applied after this text's)."""
+    """Bulk-paste seed words, one per line: gloss,form[,ipa[,pos[,forms]]]
+    -- see ``generation.seed_examples.parse_bulk_seed_examples``. Combined
+    with ``examples`` (that list's own rows are applied after this text's)."""
     orthography_style: str | None = None
     exotic_symbol_style: str | None = None
     vowel_length_style: str | None = None
@@ -526,10 +533,15 @@ def generate(request: GenerateRequest) -> dict:
         traits = traits.model_copy(update=request.trait_overrides)
 
     text_examples = parse_bulk_seed_examples(request.examples_text) if request.examples_text else ()
-    row_examples = tuple(
-        SeedExample(gloss=e.gloss, form=e.form, ipa=e.ipa, pos=_parse_enum(e.pos, PartOfSpeech, "examples[].pos"))
-        for e in request.examples
-    )
+    row_examples = []
+    for e in request.examples:
+        pos = _parse_enum(e.pos, PartOfSpeech, "examples[].pos")
+        forms = (
+            tuple(f for f in parse_seed_forms(e.forms) if CELL_POS.get(f.cell) is (pos or PartOfSpeech.NOUN))
+            if e.forms else ()
+        )
+        row_examples.append(SeedExample(gloss=e.gloss, form=e.form, ipa=e.ipa, pos=pos, forms=forms))
+    row_examples = tuple(row_examples)
     raw_examples = text_examples + row_examples
     seed_examples = resolve_seed_examples(raw_examples, client)
 

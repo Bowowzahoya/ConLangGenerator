@@ -1,14 +1,18 @@
 import random
 
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.spec import GenerationSpec, SeedExample
+from conlang_generator.core.spec import GenerationSpec, SeedExample, SeedForm
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import phonology_gen
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.generation.seed_examples import (
     parse_bulk_seed_examples,
+    parse_seed_forms,
     phonotactic_mismatch_warnings,
     resolve_seed_examples,
+    seed_suppletive_entries,
+    seed_suppletive_lemmas,
+    valid_forms,
 )
 from conlang_generator.llm.fake_client import FakeLLMClient
 
@@ -25,6 +29,25 @@ def test_missing_ipa_gets_filled_in_deterministically():
     b = resolve_seed_examples(examples, FakeLLMClient())
     assert a[0].ipa is not None
     assert a == b  # deterministic for the same input
+
+
+def test_a_forms_own_missing_ipa_is_resolved_even_when_the_base_word_already_has_one():
+    # resolve_seed_examples used to return early for an already-resolved
+    # base word, which would have wrongly skipped resolving its own forms.
+    examples = (
+        SeedExample(gloss="water", form="aqua", ipa="akwa", forms=(SeedForm(cell="plural", form="aquae"),)),
+    )
+    resolved = resolve_seed_examples(examples, FakeLLMClient())
+    assert resolved[0].ipa == "akwa"  # unchanged
+    assert resolved[0].forms[0].ipa is not None
+
+
+def test_a_forms_own_explicit_ipa_is_preserved_unchanged():
+    examples = (
+        SeedExample(gloss="water", form="aqua", forms=(SeedForm(cell="plural", form="aquae", ipa="akwai"),)),
+    )
+    resolved = resolve_seed_examples(examples, FakeLLMClient())
+    assert resolved[0].forms[0].ipa == "akwai"
 
 
 def test_seed_word_appears_verbatim_in_generated_language():
@@ -176,6 +199,82 @@ def test_parse_bulk_seed_examples_skips_rows_missing_gloss_or_form_or_with_a_bad
 def test_parse_bulk_seed_examples_is_deterministic():
     text = "water,aqua,akwa,noun\nrun,zim,,verb"
     assert parse_bulk_seed_examples(text) == parse_bulk_seed_examples(text)
+
+
+def test_parse_bulk_seed_examples_reads_a_forms_column():
+    examples = parse_bulk_seed_examples("run,zim,zim,verb,past:zanu")
+    assert examples[0].forms == (SeedForm(cell="past", form="zanu"),)
+
+
+def test_parse_bulk_seed_examples_drops_a_form_whose_cell_does_not_match_the_row_pos():
+    # Lenient for batch input: the mismatched form is dropped, the base
+    # word is still kept (unlike the CLI's --example, which errors).
+    examples = parse_bulk_seed_examples("run,zim,zim,verb,plural:zimu")
+    assert examples == (SeedExample(gloss="run", form="zim", ipa="zim", pos=PartOfSpeech.VERB),)
+
+
+# --- irregular (suppletive) forms -------------------------------------------
+
+
+def test_parse_seed_forms_a_single_form():
+    assert parse_seed_forms("past:zanu") == (SeedForm(cell="past", form="zanu"),)
+
+
+def test_parse_seed_forms_with_an_explicit_ipa():
+    assert parse_seed_forms("past:zanu:za.nu") == (SeedForm(cell="past", form="zanu", ipa="za.nu"),)
+
+
+def test_parse_seed_forms_multiple_forms():
+    assert parse_seed_forms("comparative:biko;superlative:bikomo") == (
+        SeedForm(cell="comparative", form="biko"),
+        SeedForm(cell="superlative", form="bikomo"),
+    )
+
+
+def test_parse_seed_forms_skips_a_malformed_chunk():
+    assert parse_seed_forms("past:zanu;nocolon;;") == (SeedForm(cell="past", form="zanu"),)
+
+
+def test_parse_seed_forms_empty_text_is_empty():
+    assert parse_seed_forms("") == ()
+
+
+def test_valid_forms_filters_by_cell_pos_match():
+    example = SeedExample(
+        gloss="run", form="zim", pos=PartOfSpeech.VERB,
+        forms=(SeedForm(cell="past", form="zanu"), SeedForm(cell="plural", form="zimu")),
+    )
+    assert valid_forms(example) == (SeedForm(cell="past", form="zanu"),)
+
+
+def test_valid_forms_defaults_the_examples_own_pos_to_noun():
+    example = SeedExample(gloss="stone", form="tek", forms=(SeedForm(cell="plural", form="tekuli"),))
+    assert valid_forms(example) == (SeedForm(cell="plural", form="tekuli"),)
+
+
+def test_seed_suppletive_entries_builds_one_entry_per_valid_form():
+    examples = (
+        SeedExample(
+            gloss="run", form="zim", pos=PartOfSpeech.VERB,
+            forms=(SeedForm(cell="past", form="zanu", ipa="zanu"), SeedForm(cell="plural", form="zimu")),
+        ),
+    )
+    entries = seed_suppletive_entries(examples)
+    assert len(entries) == 1  # the mismatched "plural" cell is dropped
+    entry = entries[0]
+    assert entry.glosses == ("run-past",)
+    assert entry.romanization == "zanu" and entry.ipa == "zanu"
+    assert entry.pos is PartOfSpeech.VERB
+    assert entry.notes == "seed word"
+
+
+def test_seed_suppletive_lemmas_returns_the_right_base_per_cell():
+    examples = (
+        SeedExample(gloss="run", form="zim", pos=PartOfSpeech.VERB, forms=(SeedForm(cell="past", form="zanu"),)),
+        SeedExample(gloss="water", form="aqua"),
+    )
+    assert seed_suppletive_lemmas(examples, "past") == ("run",)
+    assert seed_suppletive_lemmas(examples, "plural") == ()
 
 
 # --- phonotactic-mismatch warning -------------------------------------------

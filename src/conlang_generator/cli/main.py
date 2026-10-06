@@ -13,7 +13,7 @@ from conlang_generator.core.romanization import (
     VowelLengthStrategy,
 )
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.spec import GenerationSpec, SeedExample
+from conlang_generator.core.spec import GenerationSpec, SeedExample, SeedForm
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
 from conlang_generator.generation.generator import generate_evolved_language, generate_language
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
@@ -21,7 +21,9 @@ from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.generation.real_words import strictness_warnings
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.generation.seed_examples import (
+    CELL_POS,
     parse_bulk_seed_examples,
+    parse_seed_forms,
     phonotactic_mismatch_warnings,
     resolve_seed_examples,
 )
@@ -145,14 +147,32 @@ def _parse_pos(text: str) -> PartOfSpeech:
 def _parse_seed_example(raw: str) -> SeedExample:
     if "=" not in raw:
         typer.echo(
-            f"error: --example must be 'gloss=form', 'gloss=form|ipa' or 'gloss=form|ipa|pos', got {raw!r}", err=True
+            "error: --example must be 'gloss=form', 'gloss=form|ipa', 'gloss=form|ipa|pos' or "
+            f"'gloss=form|ipa|pos|forms', got {raw!r}", err=True
         )
         raise typer.Exit(code=1)
     gloss, rest = raw.split("=", 1)
-    form, _, remainder = rest.partition("|")
-    ipa, _, pos_text = remainder.partition("|")
+    parts = rest.split("|", 3)
+    form = parts[0]
+    ipa_text = parts[1] if len(parts) > 1 else ""
+    pos_text = parts[2] if len(parts) > 2 else ""
+    forms_text = parts[3] if len(parts) > 3 else ""
     pos = _parse_pos(pos_text.strip()) if pos_text.strip() else None
-    return SeedExample(gloss=gloss.strip(), form=form.strip(), ipa=(ipa.strip() or None), pos=pos)
+    forms = _parse_seed_example_forms(forms_text, pos or PartOfSpeech.NOUN) if forms_text.strip() else ()
+    return SeedExample(gloss=gloss.strip(), form=form.strip(), ipa=(ipa_text.strip() or None), pos=pos, forms=forms)
+
+
+def _parse_seed_example_forms(text: str, pos: PartOfSpeech) -> tuple[SeedForm, ...]:
+    forms = parse_seed_forms(text)
+    for form in forms:
+        if CELL_POS.get(form.cell) is not pos:
+            options = ", ".join(f"{cell} ({value.value})" for cell, value in CELL_POS.items())
+            typer.echo(
+                f"error: --example form cell {form.cell!r} is not valid for part of speech {pos.value!r} "
+                f"(expected one of: {options})", err=True,
+            )
+            raise typer.Exit(code=1)
+    return forms
 
 
 @app.command()
@@ -184,14 +204,19 @@ def generate(
     ),
     example: list[str] = typer.Option(
         [], "--example",
-        help="Literal seed word: 'gloss=form', 'gloss=form|ipa' or 'gloss=form|ipa|pos' (pos one of "
-        f"{', '.join(p.value for p in PartOfSpeech)}; omit ipa with 'gloss=form||pos') -- repeatable. "
+        help="Literal seed word: 'gloss=form', 'gloss=form|ipa', 'gloss=form|ipa|pos' (pos one of "
+        f"{', '.join(p.value for p in PartOfSpeech)}; omit ipa with 'gloss=form||pos') or "
+        "'gloss=form|ipa|pos|forms' to also give one or more of its own irregular (suppletive) forms -- "
+        "'forms' is ';'-separated 'cell:form' or 'cell:form:ipa' entries, cell one of plural (noun), past "
+        "(verb), comparative/superlative (adjective), e.g. 'walk=zim|zim|verb|past:zanu' -- repeatable. "
         "Always appears verbatim in the lexicon.",
     ),
     examples_file: Path = typer.Option(
         None, "--examples-file",
-        help="CSV file of seed words, one per line: gloss,form[,ipa[,pos]] (an optional header row starting "
-        "with 'gloss' is skipped). Combined with any --example flags, which are applied after the file's rows.",
+        help="CSV file of seed words, one per line: gloss,form[,ipa[,pos[,forms]]] (an optional header row "
+        "starting with 'gloss' is skipped; 'forms' is the same ';'-separated 'cell:form[:ipa]' syntax as "
+        "--example, and a form whose cell doesn't match the row's own pos is dropped rather than erroring). "
+        "Combined with any --example flags, which are applied after the file's rows.",
     ),
     evolve_from: str = typer.Option(
         None, "--evolve-from", help="Evolve an existing saved language via sound change instead of generating fresh (requires --years)."
@@ -390,7 +415,9 @@ def generate(
         typer.echo(f"Forced orthography: {forced_orthography.model_dump(exclude_none=True)}")
     if seed_examples:
         rendered_examples = ", ".join(
-            f"{e.gloss}={e.form} (/{e.ipa}/{f', {e.pos.value}' if e.pos else ''})" for e in seed_examples
+            f"{e.gloss}={e.form} (/{e.ipa}/{f', {e.pos.value}' if e.pos else ''}"
+            f"{', forms: ' + '; '.join(f'{f.cell}={f.form}' for f in e.forms) if e.forms else ''})"
+            for e in seed_examples
         )
         typer.echo(f"Seed examples: {rendered_examples}")
     for warning in phonotactic_mismatch_warnings(language):

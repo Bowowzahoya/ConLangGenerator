@@ -6217,3 +6217,85 @@ reading code or one-off ad hoc scripts.
   directional test mirroring `test_dutch_source_language_biases_romanization_toward_dutch_spelling`'s own
   shape; a direct `extra_weighted_profiles` plumbing test confirming a hand-built profile's rule actually
   surfaces in the generated scheme.
+
+- **Seed words: multi-form/inflected grammatical forms (grammar pass 50).** The last remaining item from
+  the original "Generation from the user's own words" entry: letting a user give their own word's own
+  irregular (suppletive) form for one grammatical cell -- e.g. "my word for 'walk' is 'zim', but its own
+  past tense is irregularly 'zanu'" -- used verbatim, the same guarantee the base seed word already has.
+  Research confirmed this is generalizable but not a small patch -- three real, independent obstacles:
+
+  1. **Storage/render was already the right shape, just needed pre-creating instead of lazy-coining.**
+     The existing suppletion mechanism (`voice_np_gen.py`, used for hardcoded irregular English plurals/
+     past tense/comparative-superlative) stores nothing extra on `LexicalEntry` at all -- a suppletive
+     form is an ordinary `LexicalEntry` whose `glosses` tuple contains a synthetic key,
+     `voice_np_gen.suppletive_gloss(base, kind)` (`f"{base}-{kind}"`), found by `translator._lookup_or_
+     coin`'s plain `by_gloss`-style lookup (`_find_word`) with **zero new render-side code**: render-time
+     recognition that a slot needs that lookup (`_suppletive_form_kind`/`_suppletive_case`, and the inline
+     verb-past check) is already driven purely by membership in `grammar.suppletive_plurals`/
+     `suppletive_degrees`/`suppletive_past` (plain tuples). So: pre-create the right `LexicalEntry` at
+     generation time -- the user already supplies spelling and can supply IPA, unlike the hardcoded path,
+     which coins lazily at first translation -- and fold the lemma into those same three grammar tuples;
+     rendering then needs no new logic at all.
+  2. **Decode's recognition was gated on fixed hardcoded dicts.** `suppletive_split(gloss)` only
+     recognized a synthetic gloss as suppletive when its base was a *key in the module-level*
+     `IRREGULAR_PLURALS`/`IRREGULAR_PASTS`/`SUPPLETIVE_DEGREES` dicts -- deliberately, since that's exactly
+     how it avoids misparsing `"you-plural"` (a pronoun gloss) as suppletion. Fixed by giving
+     `suppletive_split` (and `translator._class_gloss`, which calls it for noun-class assignment) an
+     optional `grammar` parameter: a lemma also counts as known when it's in `grammar.suppletive_plurals`/
+     `_degrees`/`_past` -- additive, defaults to `None`, every existing direct unit test and call site
+     (3 for `_class_gloss`, 5 decode sites in `translate_to_english`) stayed byte-identical and just needed
+     threading `language.grammar`/`grammar` through.
+  3. **Cell-naming is genuinely inconsistent/overlapping across word classes** -- no single enumeration
+     exists (`cases`/`tenses`/`aspects`/`moods`/`voices` are separate per-POS `Grammar` tuples, degree is
+     hardcoded wherever it appears). Scoped down to exactly the four cells the existing suppletion
+     mechanism already models -- `voice_np_gen.SUPPLETIVE_SUFFIXES = ("plural", "comparative",
+     "superlative", "past")` -- each tied to one POS (plural/noun, past/verb, comparative+superlative/
+     adjective). No new cell vocabulary invented; a cell not matching its own word's POS is rejected, not
+     guessed (a hard CLI error for `--example`, a lenient drop for bulk/web input).
+
+  **New types and builders**: `SeedForm(cell, form, ipa=None)` (`core/spec.py`), `SeedExample.forms:
+  tuple[SeedForm, ...] = ()`. `generation/seed_examples.py` gained `CELL_POS` (the fixed cell->POS map),
+  `parse_seed_forms` (the shared `;`-separated `cell:form[:ipa]` syntax parser, no POS validation),
+  `valid_forms` (filters to cells matching the parent example's own POS), `seed_suppletive_entries` (one
+  `LexicalEntry` per valid form, `glosses=(voice_np_gen.suppletive_gloss(base, cell),)`), and
+  `seed_suppletive_lemmas(seed_examples, cell)` (the lowercased base glosses to fold into a grammar
+  tuple). `resolve_seed_examples` was refactored (extracted `_guess_ipa`) to resolve a form's own missing
+  IPA independently of whether the base word's IPA was already given -- the original early-return-when-
+  base-ipa-is-set would otherwise have silently skipped resolving any forms.
+
+  **Generation (`generator.py`)**: three small, additive insertions, no existing line changed --
+  `seed_entries` extended with `seed_examples.seed_suppletive_entries(...)`; right after `grammar.
+  suppletive_plurals`/`suppletive_degrees` are set from the existing `voice_np_gen.roll_followups` result,
+  a further `model_copy` merges in `seed_suppletive_lemmas(..., "plural")`/`"comparative"`/`"superlative"`
+  (deduped across the latter two, since `suppletive_degrees` doesn't distinguish which of the two a lemma
+  has); the same merge for `"past"` right after `grammar.suppletive_past` is set from `np_followups_gen.
+  roll_round_three`.
+
+  **CLI/bulk/web**: `--example` gained a 4th pipe segment (`gloss=form|ipa|pos|forms`), switching
+  `_parse_seed_example` from two chained `.partition("|")` calls to `rest.split("|", 3)`; a cell/POS
+  mismatch is a hard `typer.Exit` (an explicit, scriptable flag should fail loudly on a typo). Bulk CSV
+  gained a 5th column, same syntax; a mismatch there is dropped leniently (the base word kept), matching
+  this function's own existing "skip the bad bit, keep going" convention for batch input. The web UI's
+  `SeedExampleEntry` gained a `forms: str | None` field, converted the same lenient way as bulk, plus one
+  more per-row text input and an updated bulk-paste label in `index.html`.
+
+  **Known, documented quirks, not fixed this pass**: giving only one of comparative/superlative still
+  marks the lemma suppletive for *both* cells (since `suppletive_degrees` doesn't distinguish which), so
+  the ungiven cell falls through to `_lookup_or_coin`'s ordinary coining path -- a freshly invented,
+  unrelated irregular word, not the regular affixed form; fixing it would need splitting `suppletive_
+  degrees` into two tuples, a bigger change than this pass's scope. `suppletive_reading`'s comparative/
+  superlative fallback for a base outside the hardcoded dict (`"more {base}"`/`"most {base}"`) was
+  previously dead code (only "good"/"bad" ever reached `grammar.suppletive_degrees` before this pass) --
+  now live for any seeded adjective, producing grammatically crude but informative decode text ("more
+  big") rather than a properly inflected one ("bigger"). A rendered suppletive form can still take
+  regular, non-tense marking (subject agreement, etc.) on top of the user's own stem -- confirmed by
+  testing and by a manual CLI round trip (seeded past "zanu" for "walk" rendered as "zanun" with a 3rd-
+  person suffix, decoded back as "he walked") -- the same behavior the pre-existing hardcoded mechanism
+  already has, not a new limitation.
+
+  **Explicitly out of scope**: pronoun-case suppletion from seed words (users don't seed pronouns; that
+  mechanism's own gate, `person_label(base) is not None`, is structurally different and wasn't extended);
+  verb-form suppletion beyond plain past tense (no present/future/aspect-specific suppletion exists for
+  *any* lemma today, hardcoded or seeded).
+
+  This closes the "Generation from the user's own words" `docs/DEFERRED.md` entry entirely.

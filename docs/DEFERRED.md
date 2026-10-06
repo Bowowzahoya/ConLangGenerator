@@ -95,10 +95,11 @@ multi-session feature.
 ## 4. Generation from the user's own words
 
 - **Seed words drive the language (part of speech, bulk input,
-  phonotactic-mismatch warning, structural bias, and orthography bias
-  done, passes 47-49; one item still open).** "I think it should sound
-  like this, and I already thought up some words -- fill in the rest
-  consistently." Done: `SeedExample.pos` (optional; `--example
+  phonotactic-mismatch warning, structural bias, orthography bias, and
+  multi-form/inflected grammatical forms done, passes 47-50 -- this entry
+  is now closed).** "I think it should sound like this, and I already
+  thought up some words -- fill in the rest consistently." Done:
+  `SeedExample.pos` (optional; `--example
   gloss=form|ipa|pos` on the CLI, a per-row select in the web UI,
   defaults to NOUN exactly as before when omitted); bulk input
   (`--examples-file` on the CLI, a paste-many textarea in the web UI, both
@@ -118,7 +119,30 @@ multi-session feature.
   *existing* reference-profile weighting machinery in their own module
   (confirmed in both to pull unconditionally, not gated behind `source_
   language_strictness`) -- no new mechanism, no new CLI/web flag,
-  automatic whenever seed words are given. Still open: `attested_onset_
+  automatic whenever seed words are given. Also done (pass 50):
+  `SeedExample.forms` -- a user-given irregular (suppletive) form for one
+  of the four cells the existing suppletion mechanism already models
+  (`plural`/noun, `past`/verb, `comparative`+`superlative`/adjective; a
+  cell not matching its own word's POS is rejected, not guessed). A
+  pre-created `LexicalEntry` keyed by `voice_np_gen.suppletive_gloss(base,
+  cell)` is found directly by `translator._lookup_or_coin` at render time
+  with no further render-side code; `voice_np_gen.suppletive_split`/
+  `translator._class_gloss` gained an optional `grammar` parameter so
+  decode and noun-class assignment also recognize a seeded lemma (not just
+  the hardcoded English-irregular dicts). `--example gloss=form|ipa|pos|
+  forms`/a 5th bulk-CSV column/a web-UI forms field, all sharing
+  `generation.seed_examples.parse_seed_forms`'s `;`-separated
+  `cell:form[:ipa]` syntax. Known scope limits: giving only one of
+  comparative/superlative still makes the *other* cell suppletive too
+  (since `grammar.suppletive_degrees` doesn't distinguish which), falling
+  through to an unrelated freshly-coined word rather than the regular
+  affixed form; pronoun-case suppletion and verb forms beyond plain past
+  tense are not seedable (no mechanism exists for either, hardcoded or
+  seeded); a rendered suppletive form can still take regular, non-tense
+  marking (e.g. subject agreement) on top of the user's own stem, same as
+  the pre-existing hardcoded mechanism.
+
+  Still open, each its own well-bounded follow-up: `attested_onset_
   clusters`/`attested_coda_clusters` (literal cluster *identity*, not just
   size -- deferred from pass 48) (S); `vowel_harmony` inference (needs
   more data than a handful of seed words reliably gives) (S); digraph/
@@ -129,13 +153,7 @@ multi-session feature.
   `evolve_romanization`, not just fresh generation (deferred from pass 49
   -- evolution already doesn't use `weighted_profiles` for whole-scheme
   category, only narrower per-symbol fresh-rule generation during a
-  reform event, a smaller, separate extension) (S); multi-form/inflected
-  grammatical forms on a seed word (no existing per-entry forms concept
-  anywhere -- inflection is always derived from the regular paradigm at
-  render time, never stored per-entry; the existing suppletion mechanism,
-  `voice_np_gen.suppletive_gloss`/`suppletive_split`, already used for
-  irregular past tense and degree, is the natural precedent a future pass
-  should extend for a user-given non-citation form) (M-L).
+  reform event, a smaller, separate extension) (S).
 
 ## 5. Own script and font
 

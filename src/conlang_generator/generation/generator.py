@@ -32,6 +32,7 @@ from conlang_generator.generation import (
     pronoun_gen,
     romanization_gen,
     root_pattern,
+    seed_examples,
     sound_change,
     subordination_gen,
     word_builder,
@@ -452,10 +453,24 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "passive_agreement": vnp["passive_agreement"],
             "passive_agent": vnp["passive_agent"],
             "adposition_case_strategy": vnp["adposition_case_strategy"],
-            "suppletive_plurals": vnp["suppletive_plurals"],
-            "suppletive_degrees": vnp["suppletive_degrees"],
+            "suppletive_plurals": vnp["suppletive_plurals"] + tuple(
+                g for g in seed_examples.seed_suppletive_lemmas(spec.seed_examples, "plural")
+                if g not in vnp["suppletive_plurals"]
+            ),
+            "suppletive_degrees": vnp["suppletive_degrees"] + tuple(
+                g for g in (
+                    seed_examples.seed_suppletive_lemmas(spec.seed_examples, "comparative")
+                    + seed_examples.seed_suppletive_lemmas(spec.seed_examples, "superlative")
+                )
+                if g not in vnp["suppletive_degrees"]
+            ),
             "inalienable_possession": vnp["inalienable_possession"],
         }
+    )
+    # Deduplicates a lemma seeded for both degree cells, since
+    # suppletive_degrees doesn't distinguish which of the two it has.
+    grammar = grammar.model_copy(
+        update={"suppletive_degrees": tuple(dict.fromkeys(grammar.suppletive_degrees))}
     )
 
     seed_entries = tuple(
@@ -474,6 +489,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         )
         for example in spec.seed_examples
     )
+    seed_entries = seed_entries + seed_examples.seed_suppletive_entries(spec.seed_examples)
     real_entries = real_words.build_real_entries(
         real_choices, spec.traits.source_word_strictness, spec.seed, inventory, syllable_structure, romanization,
         tone_system,
@@ -689,7 +705,10 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "classifier_with_adjective": np3["classifier_with_adjective"],
             "drop_measure_of": np3["drop_measure_of"],
             "possessive_word_persons": np3["possessive_word_persons"],
-            "suppletive_past": np3["suppletive_past"],
+            "suppletive_past": np3["suppletive_past"] + tuple(
+                g for g in seed_examples.seed_suppletive_lemmas(spec.seed_examples, "past")
+                if g not in np3["suppletive_past"]
+            ),
             "deictic_articles": np3["deictic_articles"],
             "demonstrative_doubling": np3["demonstrative_doubling"],
         }

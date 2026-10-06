@@ -361,7 +361,7 @@ def _entry_paradigms(language: Language, entry: LexicalEntry) -> list:
         pos, classes = "adjective", grammar.adjective_paradigms
     else:
         return []
-    gloss = _class_gloss(entry.primary_gloss).strip().lower()
+    gloss = _class_gloss(entry.primary_gloss, grammar).strip().lower()
     if pos == "noun" and grammar.noun_classes and classes:
         noun_class = _entry_class(language, entry)
         index = grammar.noun_classes.index(noun_class) % (len(classes) + 1) if noun_class in grammar.noun_classes else 0
@@ -1275,9 +1275,9 @@ def _equative_now_case(language: Language) -> str | None:
     return grammar.equative_standard_case or grammar_now_case(language)
 
 
-def _class_gloss(gloss: str) -> str:
+def _class_gloss(gloss: str, grammar=None) -> str:
     """A suppletive plural (``child-plural``) belongs to its singular's class."""
-    split = voice_np_gen.suppletive_split(gloss)
+    split = voice_np_gen.suppletive_split(gloss, grammar)
     return split[0] if split is not None and split[1] == "plural" else gloss
 
 
@@ -1286,8 +1286,8 @@ def _class_label_of(language: Language, gloss: str | None) -> str | None:
     ``gloss`` (``None`` in a language with no noun classes)."""
     if not gloss:
         return None
-    gloss = _class_gloss(gloss)
     grammar = language.grammar
+    gloss = _class_gloss(gloss, grammar)
     entry = _find_word(language, gloss) if grammar.noun_class_assignment == "formal" else None
     noun_cls = noun_class_gen.assigned_class(
         grammar.noun_classes, language.spec.seed, gloss, grammar.noun_class_assignment, entry.ipa if entry else None
@@ -1302,8 +1302,8 @@ def _entry_class(language: Language, entry: LexicalEntry) -> str | None:
     if not grammar.noun_classes:
         return None
     return noun_class_gen.assigned_class(
-        grammar.noun_classes, language.spec.seed, _class_gloss(entry.primary_gloss), grammar.noun_class_assignment,
-        entry.ipa,
+        grammar.noun_classes, language.spec.seed, _class_gloss(entry.primary_gloss, grammar),
+        grammar.noun_class_assignment, entry.ipa,
     )
 
 
@@ -3435,7 +3435,7 @@ def translate_to_english(
                 plain.append(pronoun_gen.suppletive_reading(base, case_name))
                 annotated.append(f"{pronoun_gen.english_reading(base)} (case: {case_name})")
                 continue
-            irregular_form = voice_np_gen.suppletive_split(gloss)
+            irregular_form = voice_np_gen.suppletive_split(gloss, language.grammar)
             if irregular_form is not None:
                 reading = voice_np_gen.suppletive_reading(*irregular_form)
                 plain.append(reading)
@@ -3464,7 +3464,7 @@ def translate_to_english(
             is_possessed = "possessed" in parts
             possessor_part = next((p[5:] for p in parts if p.startswith("poss:")), None)
             noun_gloss = pronoun_gen.english_reading(noun_entry.primary_gloss)
-            irregular = voice_np_gen.suppletive_split(noun_entry.primary_gloss)
+            irregular = voice_np_gen.suppletive_split(noun_entry.primary_gloss, language.grammar)
             if irregular is not None and irregular[1] == "plural":
                 noun_gloss = voice_np_gen.suppletive_reading(*irregular)
                 number_part = number_part or "plural"
@@ -3514,7 +3514,7 @@ def translate_to_english(
             if adjective_entry.primary_gloss.startswith(classifier_gen.POSSESSIVE_CLASSIFIER_GLOSS_PREFIX):
                 continue
             gloss = pronoun_gen.english_reading(adjective_entry.primary_gloss)
-            irregular_degree = voice_np_gen.suppletive_split(adjective_entry.primary_gloss)
+            irregular_degree = voice_np_gen.suppletive_split(adjective_entry.primary_gloss, language.grammar)
             if irregular_degree is not None and irregular_degree[1] in ("comparative", "superlative"):
                 reading = voice_np_gen.suppletive_reading(*irregular_degree)
                 plain.append(reading)
@@ -3544,7 +3544,7 @@ def translate_to_english(
                 negative_label = True
                 if agreement_label is None:
                     agreement_label = negative_verb_hosts[token_index]
-            past_split = voice_np_gen.suppletive_split(verb_entry.primary_gloss)
+            past_split = voice_np_gen.suppletive_split(verb_entry.primary_gloss, language.grammar)
             if past_split is not None and past_split[1] == "past":
                 verb_entry = verb_entry.model_copy(update={"glosses": (past_split[0],)})
                 tense_label = tense_label or "past"

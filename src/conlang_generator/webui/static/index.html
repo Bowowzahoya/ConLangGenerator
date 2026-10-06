@@ -175,11 +175,11 @@
       <div id="trait-override-rows"></div>
       <button type="button" class="add-row" id="add-trait-override">+ trait override</button>
 
-      <label>Seed examples <span class="ipa">(literal words that must appear verbatim)</span></label>
+      <label>Seed examples <span class="ipa">(literal words that must appear verbatim; the last field is optional irregular forms, ";"-separated cell:form[:ipa])</span></label>
       <div id="seed-example-rows"></div>
       <button type="button" class="add-row" id="add-seed-example">+ seed example</button>
 
-      <label for="gen-examples-text">Bulk seed words <span class="ipa">(paste many at once, one per line: gloss,form[,ipa[,pos]]; an optional header row starting with "gloss" is skipped)</span></label>
+      <label for="gen-examples-text">Bulk seed words <span class="ipa">(paste many at once, one per line: gloss,form[,ipa[,pos[,forms]]]; forms is ";"-separated cell:form[:ipa] entries, e.g. past:zanu; an optional header row starting with "gloss" is skipped)</span></label>
       <textarea id="gen-examples-text" rows="3" placeholder="water,aqua&#10;mountain,yama,jama,noun"></textarea>
 
       <div class="row">
@@ -360,6 +360,7 @@ function addSeedExampleRow() {
     <input type="text" placeholder="form, e.g. aqua" class="se-form">
     <input type="text" placeholder="IPA (optional)" class="se-ipa">
     <select class="se-pos">${posOptions}</select>
+    <input type="text" placeholder="irregular forms (optional), e.g. past:zanu" class="se-forms">
     <button type="button" class="remove-row">&times;</button>`;
   row.querySelector(".remove-row").onclick = () => row.remove();
   $("seed-example-rows").appendChild(row);
@@ -382,6 +383,7 @@ function collectSeedExamples() {
       form: row.querySelector(".se-form").value.trim(),
       ipa: row.querySelector(".se-ipa").value.trim() || null,
       pos: row.querySelector(".se-pos").value || null,
+      forms: row.querySelector(".se-forms").value.trim() || null,
     }))
     .filter(e => e.gloss && e.form);
 }

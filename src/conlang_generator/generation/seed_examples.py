@@ -12,11 +12,12 @@ from __future__ import annotations
 
 import csv
 import io
+import unicodedata
 
-from conlang_generator.core.lexicon import PartOfSpeech
+from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.language import Language
-from conlang_generator.core.spec import SeedExample
-from conlang_generator.generation import ipa_tokenizer, phoneme_fit
+from conlang_generator.core.spec import SeedExample, SeedForm
+from conlang_generator.generation import ipa_tokenizer, phoneme_fit, voice_np_gen
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 
@@ -28,23 +29,40 @@ _SYSTEM_PROMPT = (
     "or prose."
 )
 
+CELL_POS: dict[str, PartOfSpeech] = {
+    "plural": PartOfSpeech.NOUN,
+    "past": PartOfSpeech.VERB,
+    "comparative": PartOfSpeech.ADJECTIVE,
+    "superlative": PartOfSpeech.ADJECTIVE,
+}
+"""Which part of speech each suppletive cell applies to -- the same fixed
+vocabulary ``generation.voice_np_gen.SUPPLETIVE_SUFFIXES`` already uses for
+its own hardcoded irregular forms. A ``SeedForm`` naming any other cell, or
+one that doesn't match its own ``SeedExample``'s own ``pos``, is invalid."""
+
+
+def _guess_ipa(form: str, llm_client: LLMClient) -> str:
+    request = LLMRequest(
+        system=_SYSTEM_PROMPT,
+        prompt=form,
+        model=DEFAULT_MODEL,
+        max_tokens=32,
+        purpose="seed_example.guess_ipa",
+        metadata={"fake_strategy": "guess_ipa"},
+    )
+    response = llm_client.complete(request)
+    return _clean_ipa(response.text)
+
 
 def resolve_seed_examples(examples: tuple[SeedExample, ...], llm_client: LLMClient) -> tuple[SeedExample, ...]:
     resolved: list[SeedExample] = []
     for example in examples:
-        if example.ipa is not None:
-            resolved.append(example)
-            continue
-        request = LLMRequest(
-            system=_SYSTEM_PROMPT,
-            prompt=example.form,
-            model=DEFAULT_MODEL,
-            max_tokens=32,
-            purpose="seed_example.guess_ipa",
-            metadata={"fake_strategy": "guess_ipa"},
+        ipa = example.ipa if example.ipa is not None else _guess_ipa(example.form, llm_client)
+        forms = tuple(
+            form if form.ipa is not None else form.model_copy(update={"ipa": _guess_ipa(form.form, llm_client)})
+            for form in example.forms
         )
-        response = llm_client.complete(request)
-        resolved.append(example.model_copy(update={"ipa": _clean_ipa(response.text)}))
+        resolved.append(example.model_copy(update={"ipa": ipa, "forms": forms}))
     return tuple(resolved)
 
 
@@ -53,22 +71,87 @@ def _clean_ipa(text: str) -> str:
     return stripped or text.strip()
 
 
+def parse_seed_forms(text: str) -> tuple[SeedForm, ...]:
+    """Parses the ``cell:form[:ipa]`` mini-syntax (``;``-separated for more
+    than one form), with no part-of-speech validation -- shared, syntax-only
+    parsing for both the CLI (which errors on a cell/POS mismatch, see
+    ``cli/main.py``) and bulk/web input (which drops it, see ``valid_forms``).
+    A chunk with no ``:`` is malformed and skipped."""
+    forms: list[SeedForm] = []
+    for chunk in text.split(";"):
+        chunk = chunk.strip()
+        if not chunk or ":" not in chunk:
+            continue
+        cell, _, remainder = chunk.partition(":")
+        form, _, ipa = remainder.partition(":")
+        if not cell.strip() or not form.strip():
+            continue
+        forms.append(SeedForm(cell=cell.strip(), form=form.strip(), ipa=(ipa.strip() or None)))
+    return tuple(forms)
+
+
+def valid_forms(example: SeedExample) -> tuple[SeedForm, ...]:
+    """``example.forms`` filtered to cells matching ``example.pos`` (default
+    ``NOUN``) via ``CELL_POS`` -- the single place both generation-time
+    entry-building and lemma-registration apply the same validity rule."""
+    pos = example.pos or PartOfSpeech.NOUN
+    return tuple(form for form in example.forms if CELL_POS.get(form.cell) is pos)
+
+
+def seed_suppletive_entries(seed_examples: tuple[SeedExample, ...]) -> tuple[LexicalEntry, ...]:
+    """One ``LexicalEntry`` per valid user-given form, keyed by the exact
+    synthetic gloss (``voice_np_gen.suppletive_gloss(base, cell)``) the
+    existing hardcoded-irregular suppletion mechanism already uses --
+    ``translator._lookup_or_coin`` then finds it directly at render time,
+    with no further code."""
+    return tuple(
+        LexicalEntry(
+            ipa=form.ipa,
+            romanization=unicodedata.normalize("NFC", form.form),
+            glosses=(voice_np_gen.suppletive_gloss(example.gloss.strip().lower(), form.cell),),
+            pos=example.pos or PartOfSpeech.NOUN,
+            notes="seed word",
+        )
+        for example in seed_examples
+        for form in valid_forms(example)
+    )
+
+
+def seed_suppletive_lemmas(seed_examples: tuple[SeedExample, ...], cell: str) -> tuple[str, ...]:
+    """The lowercased base glosses with a valid user-given form for ``cell``
+    -- folded into ``grammar.suppletive_plurals``/``_degrees``/``_past`` at
+    generation time (``generator.py``) so the existing render-time gates
+    (``translator._suppletive_form_kind``, the inline verb-past check) pick
+    the word up automatically, exactly as they already do for a rolled
+    hardcoded-irregular lemma."""
+    return tuple(
+        example.gloss.strip().lower()
+        for example in seed_examples
+        for form in valid_forms(example)
+        if form.cell == cell
+    )
+
+
 def parse_bulk_seed_examples(text: str) -> tuple[SeedExample, ...]:
-    """CSV-ish bulk seed-word input: one word per line, ``gloss,form[,ipa[,pos]]``
-    -- a header row (first cell ``"gloss"``, case-insensitive) is skipped if
-    present. Shared by the CLI's ``--examples-file`` and the web UI's
-    bulk-paste field so both get identical parsing. A row missing its
+    """CSV-ish bulk seed-word input: one word per line,
+    ``gloss,form[,ipa[,pos[,forms]]]`` -- a header row (first cell
+    ``"gloss"``, case-insensitive) is skipped if present. ``forms`` is
+    ``parse_seed_forms``'s ``cell:form[:ipa]`` syntax (``;``-separated for
+    more than one). Shared by the CLI's ``--examples-file`` and the web
+    UI's bulk-paste field so both get identical parsing. A row missing its
     required ``gloss``/``form``, or carrying an unrecognized ``pos``, is
-    skipped rather than raising -- this project's own "degrade gracefully,
-    report the gap elsewhere" convention for lenient batch input (compare
-    ``generation/real_words_llm.py``'s own batch-reply parsing)."""
+    skipped rather than raising; a form whose cell doesn't match the row's
+    own ``pos`` is dropped (the base word is kept) -- this project's own
+    "degrade gracefully, report the gap elsewhere" convention for lenient
+    batch input (compare ``generation/real_words_llm.py``'s own
+    batch-reply parsing)."""
     rows = [row for row in csv.reader(io.StringIO(text.strip())) if any(cell.strip() for cell in row)]
     if rows and rows[0][0].strip().lower() == "gloss":
         rows = rows[1:]
     examples: list[SeedExample] = []
     for row in rows:
-        cells = [cell.strip() for cell in row] + [""] * max(0, 4 - len(row))
-        gloss, form, ipa, pos_text = cells[:4]
+        cells = [cell.strip() for cell in row] + [""] * max(0, 5 - len(row))
+        gloss, form, ipa, pos_text, forms_text = cells[:5]
         if not gloss or not form:
             continue
         pos = None
@@ -77,7 +160,9 @@ def parse_bulk_seed_examples(text: str) -> tuple[SeedExample, ...]:
                 pos = PartOfSpeech(pos_text.lower())
             except ValueError:
                 continue
-        examples.append(SeedExample(gloss=gloss, form=form, ipa=(ipa or None), pos=pos))
+        resolved_pos = pos or PartOfSpeech.NOUN
+        forms = tuple(f for f in parse_seed_forms(forms_text) if CELL_POS.get(f.cell) is resolved_pos)
+        examples.append(SeedExample(gloss=gloss, form=form, ipa=(ipa or None), pos=pos, forms=forms))
     return tuple(examples)
 
 

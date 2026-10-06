@@ -3,8 +3,10 @@ agent and agreement, trial and collective number, locative/instrumental case,
 adposition placement and case government, suppletive plurals and comparatives,
 and inalienable possession."""
 
-from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.core.lexicon import PartOfSpeech
+from conlang_generator.core.spec import GenerationSpec, SeedExample, SeedForm
 from conlang_generator.generation import voice_np_gen
+from tests.factories import make_minimal_language
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.llm.fake_client import FakeLLMClient
 from tests._shared_language import cached_language
@@ -12,6 +14,7 @@ from conlang_generator.translation import sentence_planner
 from conlang_generator.translation.sentence_planner import PlannedSlot, SentencePlan
 from conlang_generator.translation.translator import (
     _arrange_adpositions,
+    _class_gloss,
     _decode_noun,
     _decode_verb_full,
     _english_verb_phrase,
@@ -104,6 +107,21 @@ def test_the_helpers_read_glosses():
     assert voice_np_gen.suppletive_reading("child", "plural") == "children"
     assert voice_np_gen.suppletive_reading("good", "comparative") == "better"
     assert voice_np_gen.suppletive_reading("good", "superlative") == "best"
+
+
+def test_suppletive_split_also_recognizes_a_seeded_lemma_via_grammar():
+    # Without a grammar, a lemma outside the hardcoded dicts is still
+    # unrecognized -- the default `grammar=None` keeps today's exact
+    # behavior (the test above already pins this down).
+    assert voice_np_gen.suppletive_split("stone-plural") is None
+    grammar = make_minimal_language().grammar.model_copy(update={"suppletive_plurals": ("stone",)})
+    assert voice_np_gen.suppletive_split("stone-plural", grammar) == ("stone", "plural")
+    # A pronoun-shaped gloss ("you-plural") must still never be misread,
+    # even with a grammar passed in -- only membership in the right tuple
+    # (here: suppletive_plurals) counts, not just the "-plural" suffix.
+    assert voice_np_gen.suppletive_split("you-plural", grammar) is None
+    assert _class_gloss("stone-plural", grammar) == "stone"
+    assert _class_gloss("stone-plural") == "stone-plural"  # no grammar -- unrecognized, unchanged
 
 
 # --- voices ---------------------------------------------------------------------------
@@ -307,6 +325,118 @@ def test_a_suppletive_comparative_is_a_separate_word():
     regular = PlannedSlot(kind="content", gloss="big", pos="adjective", degree="comparative")
     _, big_parts, _ = _render(language, regular)
     assert big_parts[0] != language.lexicon.by_gloss("big").romanization
+
+
+# --- suppletive forms from the user's own seed words -----------------------------------
+
+
+def _seeded_language(example, seed_range=range(1, 30)):
+    """A freshly generated language from a custom seed example -- cannot
+    reuse the shared `_language` cache (it doesn't know about custom
+    `seed_examples`). Searches for a seed with no noun classes/classifiers
+    so a rendered suppletive form's own agreement/classifier marking can't
+    perturb it away from the user's exact given spelling, mirroring
+    `_suppletive_plural_language`'s own `not g.uses_classifiers` guard and
+    `test_a_suppletive_comparative_is_a_separate_word`'s own
+    `not g.noun_classes` guard above."""
+    for seed in seed_range:
+        spec = GenerationSpec(prompt="p", seed=seed, seed_examples=(example,))
+        language = _plain(generate_language("Test", spec, _CLIENT))
+        if not language.grammar.noun_classes and not language.grammar.uses_classifiers:
+            return language
+    raise AssertionError("no seed found without noun classes/classifiers")
+
+
+def test_a_seed_words_own_plural_form_is_used_verbatim():
+    example = SeedExample(
+        gloss="stone", form="tek", ipa="tek", pos=PartOfSpeech.NOUN,
+        forms=(SeedForm(cell="plural", form="tekuli", ipa="tekuli"),),
+    )
+    language = _seeded_language(example)
+    assert "stone" in language.grammar.suppletive_plurals
+    entry = language.lexicon.by_gloss("stone-plural")
+    assert entry is not None and entry.romanization == "tekuli" and entry.ipa == "tekuli"
+    assert entry.notes == "seed word"  # pre-created at generation time, not coined at render
+
+    _, parts, glosses = _render(language, _noun("stone", number="plural"))
+    assert parts[0] == "tekuli"
+    assert "stone-plural" in glosses
+    assert "tekuli" in [e.romanization for e in language.lexicon.entries]  # no second word coined
+    assert "stones" in translate_to_english(parts[0], language, _CLIENT).text
+
+
+def test_a_regular_seed_noun_still_takes_the_plural_suffix():
+    example = SeedExample(
+        gloss="stone", form="tek", ipa="tek", pos=PartOfSpeech.NOUN,
+        forms=(SeedForm(cell="plural", form="tekuli", ipa="tekuli"),),
+    )
+    language = _seeded_language(example)
+    other_plural = _render(language, _noun("dog", number="plural"))[1][0]
+    assert other_plural != _render(language, _noun("dog"))[1][0]
+    assert "stone-plural" not in _render(language, _noun("dog", number="plural"))[2]
+
+
+def test_a_seed_words_own_past_tense_form_is_used_verbatim():
+    example = SeedExample(
+        gloss="jump", form="zim", ipa="zim", pos=PartOfSpeech.VERB,
+        forms=(SeedForm(cell="past", form="zanu", ipa="zanu"),),
+    )
+    language = _seeded_language(example)
+    assert "jump" in language.grammar.suppletive_past
+    entry = language.lexicon.by_gloss("jump-past")
+    assert entry is not None and entry.romanization == "zanu"
+
+    # The suppletive *stem* ("zanu") is used instead of a regularly tense-
+    # affixed "zim" -- but, same as the pre-existing hardcoded-irregular
+    # mechanism, person agreement (independent of tense) can still mark
+    # the surface word, so this checks the right lexicon entry was used
+    # (via the returned gloss) and the decoded reading, not byte-exact
+    # surface equality.
+    verb = PlannedSlot(kind="content", gloss="jump", pos="verb", agreement="I", tense="past")
+    _, parts, glosses = _render(language, verb)
+    assert "jump-past" in glosses
+    assert "jumped" in translate_to_english(parts[0], language, _CLIENT).text
+    # The present tense is unaffected -- the suppletive form only covers "past".
+    present = PlannedSlot(kind="content", gloss="jump", pos="verb", agreement="I")
+    _, present_parts, present_glosses = _render(language, present)
+    assert "jump-past" not in present_glosses
+    assert present_parts[0] != parts[0]
+
+
+def test_a_seed_words_own_comparative_and_superlative_forms_are_used_verbatim():
+    example = SeedExample(
+        gloss="tall", form="bik", ipa="bik", pos=PartOfSpeech.ADJECTIVE,
+        forms=(
+            SeedForm(cell="comparative", form="biko", ipa="biko"),
+            SeedForm(cell="superlative", form="bikomo", ipa="bikomo"),
+        ),
+    )
+    language = _seeded_language(example)
+    assert "tall" in language.grammar.suppletive_degrees
+    assert language.lexicon.by_gloss("tall-comparative").romanization == "biko"
+    assert language.lexicon.by_gloss("tall-superlative").romanization == "bikomo"
+
+    comparative = PlannedSlot(kind="content", gloss="tall", pos="adjective", degree="comparative")
+    assert _render(language, comparative)[1][0] == "biko"
+    superlative = PlannedSlot(kind="content", gloss="tall", pos="adjective", degree="superlative")
+    assert _render(language, superlative)[1][0] == "bikomo"
+
+
+def test_giving_only_one_degree_cell_still_renders_the_other_as_some_word():
+    # Documented quirk: suppletive_degrees doesn't distinguish which of the
+    # two cells a lemma has, so giving only "comparative" still makes the
+    # language treat "superlative" as suppletive too -- it falls through
+    # to ordinary coining (a fresh, unrelated irregular word), not the
+    # regular affixed form and not a crash.
+    example = SeedExample(
+        gloss="tall", form="bik", ipa="bik", pos=PartOfSpeech.ADJECTIVE,
+        forms=(SeedForm(cell="comparative", form="biko", ipa="biko"),),
+    )
+    language = _seeded_language(example)
+    superlative = PlannedSlot(kind="content", gloss="tall", pos="adjective", degree="superlative")
+    updated, parts, _ = _render(language, superlative)
+    assert parts[0] != "biko"
+    assert updated.lexicon.by_gloss("tall-superlative") is not None
 
 
 # --- inalienable possession -------------------------------------------------------------

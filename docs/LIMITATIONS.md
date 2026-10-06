@@ -81,9 +81,30 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   repairing it would violate the feature's own core guarantee (the given words must appear exactly as
   given), so a mismatch with the generated syllable structure is surfaced as a warning, not silently
   fixed.
-- **No grammatical-forms support**: a seed word is citation form only. There is no way to give a known
-  plural, past tense, or other inflected form and have it used verbatim instead of the regular paradigm's
-  own derived affix.
+- **A user-given irregular form is restricted to four fixed cells, one per lemma-half.** `SeedExample.
+  forms` lets a word carry its own irregular (suppletive) `plural` (noun), `past` (verb), or `comparative`/
+  `superlative` (adjective) form -- the same four cells the pre-existing hardcoded-irregular-English
+  mechanism already models, reused rather than a new generic cell vocabulary (cell-naming is genuinely
+  inconsistent across word classes in this grammar, e.g. "number" means something different for a noun
+  than for verb agreement). A cell not matching its own word's part of speech is rejected (a hard CLI
+  error for `--example`, a lenient silent drop for bulk/web input), not guessed. No other grammatical form
+  (any case, any tense/aspect/mood beyond plain past, pronoun forms) can be seeded -- no mechanism exists
+  for any of those, hardcoded or user-given.
+- **Giving only one of comparative/superlative still makes the *other* cell suppletive too.** `grammar.
+  suppletive_degrees` doesn't distinguish which of the two cells a lemma has (the pre-existing hardcoded
+  mechanism always supplies both together, e.g. "good"->"better"/"best"), so the cell the user didn't give
+  a form for still falls through to ordinary coining -- a freshly invented, unrelated irregular word, not
+  the regularly affixed comparative/superlative.
+- **A seeded suppletive form's own English decode reading can be crude.** `suppletive_reading`'s
+  comparative/superlative fallback for a gloss outside the hardcoded English-irregular dict produces
+  `"more {gloss}"`/`"most {gloss}"` rather than a properly inflected English word (e.g. "more big" instead
+  of "bigger") -- this fallback path existed before this feature but was previously unreachable (only
+  "good"/"bad" ever reached `suppletive_degrees`), so it's now exercised for the first time.
+- **A rendered suppletive form can still carry regular, non-cell marking.** The user's own given spelling
+  is used verbatim as the *lexicon entry*, but the *rendered sentence word* can still take other, unrelated
+  regular marking on top (e.g. subject agreement on a suppletive past-tense verb) -- the same behavior the
+  pre-existing hardcoded mechanism already has; "appears verbatim" is a guarantee about the stored entry
+  and the specific cell asked for, not about every possible rendered surface form.
 
 ## Tones
 

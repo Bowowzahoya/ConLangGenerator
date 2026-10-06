@@ -70,15 +70,25 @@ def suppletive_gloss(gloss: str, kind: str) -> str:
     return f"{gloss}-{kind}"
 
 
-def suppletive_split(gloss: str) -> tuple[str, str] | None:
-    """``(base, kind)`` for a suppletive form's gloss (``child-plural``)."""
+def suppletive_split(gloss: str, grammar=None) -> tuple[str, str] | None:
+    """``(base, kind)`` for a suppletive form's gloss (``child-plural``).
+
+    ``grammar``, when given, also recognizes a user-seeded lemma (one in
+    ``grammar.suppletive_plurals``/``_degrees``/``_past``) alongside the
+    hardcoded-irregular dicts below -- see the "seed words" generation
+    pass (``generation/seed_examples.py``) for how a lemma gets there."""
     for kind in SUPPLETIVE_SUFFIXES:
         if gloss.endswith("-" + kind) and len(gloss) > len(kind) + 1:
             base = gloss[: -(len(kind) + 1)]
             known = (
                 IRREGULAR_PLURALS if kind == "plural" else IRREGULAR_PASTS if kind == "past" else SUPPLETIVE_DEGREES
             )
-            return (base, kind) if base in known else None  # not a pronoun like "you-plural"
+            seeded = () if grammar is None else (
+                grammar.suppletive_plurals
+                if kind == "plural"
+                else grammar.suppletive_past if kind == "past" else grammar.suppletive_degrees
+            )
+            return (base, kind) if (base in known or base in seeded) else None  # not a pronoun like "you-plural"
     return None
 
 

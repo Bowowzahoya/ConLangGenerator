@@ -30,6 +30,27 @@ from conlang_generator.core.romanization import OrthographyForce
 from conlang_generator.core.traits import TraitProfile
 
 
+class SeedForm(BaseModel, frozen=True):
+    """A user-given irregular (suppletive) form of a ``SeedExample``, e.g.
+    the word's own irregular past tense -- appears verbatim, the same
+    guarantee the base word already has. See ``generation/seed_examples.
+    py``'s ``CELL_POS`` for the fixed cell vocabulary."""
+
+    cell: str
+    """``"plural"`` (noun), ``"past"`` (verb), or ``"comparative"``/
+    ``"superlative"`` (adjective) -- the same vocabulary ``generation.
+    voice_np_gen.SUPPLETIVE_SUFFIXES`` already uses for its own hardcoded
+    irregular forms. A cell that doesn't match its own ``SeedExample``'s
+    own ``pos`` is rejected rather than guessed (see ``generation/
+    seed_examples.py``'s ``valid_forms``)."""
+    form: str
+    """The user's own spelling of this form, verbatim."""
+    ipa: str | None = None
+    """Explicit pronunciation if given; ``None`` means ``resolve_seed_
+    examples`` guesses one, the same way it already does for the parent
+    ``SeedExample.ipa``."""
+
+
 class SeedExample(BaseModel, frozen=True):
     gloss: str
     form: str
@@ -42,6 +63,10 @@ class SeedExample(BaseModel, frozen=True):
     """The word's part of speech, if the user gave one; ``None`` defaults
     to ``PartOfSpeech.NOUN`` at coinage (``generator.py``) -- today's
     pre-existing behavior, unchanged for any caller that never sets this."""
+    forms: tuple[SeedForm, ...] = ()
+    """User-given irregular (suppletive) forms of this word -- empty means
+    every grammatical form is derived regularly, today's pre-existing
+    behavior. See ``SeedForm``."""
 
 
 class GenerationSpec(BaseModel, frozen=True):
