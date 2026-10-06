@@ -154,8 +154,8 @@ def test_the_dative_possessor_is_a_different_form_from_the_bare_pronoun():
     from conlang_generator.translation.translator import _render_plan
 
     slot = PlannedSlot(kind="content", gloss="I", pos="pronoun", case="dative")
-    _, dative, _, _ = _render_plan(SentencePlan(slots=(slot,)), language, _CLIENT, [])
-    _, bare, _, _ = _render_plan(
+    _, dative, _, _, _ = _render_plan(SentencePlan(slots=(slot,)), language, _CLIENT, [])
+    _, bare, _, _, _ = _render_plan(
         SentencePlan(slots=(PlannedSlot(kind="content", gloss="I", pos="pronoun"),)), language, _CLIENT, []
     )
     assert dative != bare

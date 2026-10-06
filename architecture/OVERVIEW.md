@@ -6604,3 +6604,93 @@ reading code or one-off ad hoc scripts.
   regression this bug caused). No other test pinned the old values (checked directly -- the one Thai RTGS
   test touching `ɛ`/`ɛː` equality uses a *curated* real-profile override at strictness 1.0, which takes
   precedence over this fallback table regardless of its contents).
+
+- **Hover/click gloss in the translation result (web app pass, not a numbered grammar pass).**
+  `docs/DEFERRED.md`'s "## 2. Web app" section: show what every rendered word means on hover/click, and
+  tell coined/real-word-based words apart from ordinary ones -- a user reported this was genuinely hard to
+  do otherwise.
+
+  **The mechanism was already half-built.** `translation/translator.py::_render_plan` already built a
+  `gloss_parts: list[str | None]` parallel to `romanization_parts`/`ipa_parts` -- one entry per rendered
+  surface word, via `entry.primary_gloss` at every append/extend site -- but it was only ever consumed by
+  `tone_sandhi.apply_sandhi(ipa_parts, tone_system, gloss_parts)` and then discarded; `TranslationResult`
+  never received it. Confirmed by an Explore agent tracing every one of `_render_plan`'s own append/extend
+  sites: a real `LexicalEntry` is already in scope at every one of them except four bare grammar-profile
+  particles with no lexicon entry at all (topic, quotative, possessive, question particles) -- these
+  already produced `gloss_parts=None` and simply stay `entries=None` too, no new lookups needed anywhere.
+
+  **New `TokenGloss` dataclass** (`translator.py`, right above `TranslationResult`): `surface` (this word's
+  own rendered romanization, *including* a sentence-final punctuation mark when it's the sentence's last
+  word -- deliberately baked in here rather than left for a consumer to re-derive by splitting `text`, so
+  `[t.surface for t in result.tokens] == result.text.split()` holds by construction), `ipa` (post-sandhi,
+  matching `result.ipa` exactly), `gloss`/`pos`/`real_word`/`notes` (straight off the resolved
+  `LexicalEntry`, `None`/`""` for a bare particle), `coined` (`entry in coined` -- newly coined *this
+  call*, not "new to the language in general"). `TranslationResult` gained `tokens: tuple[TokenGloss,
+  ...] = ()`, default-empty so every existing construction (including `translate_to_english`'s) stays
+  unaffected by construction, not by a special case.
+
+  **`_render_plan`'s return type grew from a 4-tuple to a 5-tuple**, adding `entries: list[LexicalEntry |
+  None]` built at the exact same sites `gloss_parts` already uses (main-word, both auxiliary-loop
+  directions, the possessive-particle append, the question-particle insert, and the nested-clause
+  recursive extend -- the latter needed `linker_words`'s own tuples widened from 3 to 4 elements to carry
+  the linker/preposition entry alongside its already-tracked gloss). `translate_to_conlang` zips
+  `(rom_parts, sandhied_ipa, entry_parts)` per sentence to build each `TokenGloss`, attaching that
+  sentence's own terminal mark to only its *last* token's `surface` -- mirroring exactly how the joined
+  string already gets the mark appended, so the two never disagree. `coined` membership is checked against
+  the whole call's accumulated `coined: list[LexicalEntry]`, so a word coined in an *earlier* sentence of
+  a multi-sentence translate still reads `coined=True` in a later sentence that reuses it.
+
+  **The large-looking but genuinely mechanical fallout**: `_render_plan` has exactly three callers in the
+  whole codebase -- itself (recursive), `translate_to_conlang`, and **26 direct call sites across 24 test
+  files**, every single one unpacking the exact same `(language, romanization_parts, ipa_parts,
+  gloss_parts)` 4-tuple (confirmed by grep before touching anything). Fixed with one in-place `sed`
+  pass (`s/ = _render_plan(/, _ = _render_plan(/g` across `tests/`) adding a 5th, ignored (`_`) unpacked
+  target to every one -- zero test assertions needed to change, since none of them inspected a 5th return
+  value that didn't exist before. This is not a design smell: plain tuple unpacking has no backward-
+  compatible way to add a field, and a `NamedTuple`/dataclass return would have the exact same arity
+  problem for any caller still unpacking positionally.
+
+  **Explicitly scoped out, not attempted**: (a) the *live* grammatical marking actually applied this
+  occurrence (case/tense/mood/degree) -- an Explore agent confirmed no single uniform "marking just
+  applied" string exists anywhere in `_render_plan`; it's scattered across ~8 different kind-specific
+  branches' own locals (`tense_in`/`mood_in`/`agreement_label`/`slot.case`/`slot.degree`/`features`/...),
+  each live only inside the branch that computed `rendered` for that slot kind -- collecting it would mean
+  threading a new string out of every one of them, a separate, materially bigger lift; (b)
+  `translate_to_english`'s own `tokens` stays always-`()` -- that direction already builds a richer
+  per-token `annotated` list, but it's keyed to the *source* conlang tokens, and the fluency LLM rewrite
+  can reorder/merge/split words arbitrarily, so there's no clean word-for-word alignment to the final
+  English output the way the conlang-render direction has.
+
+  **Web UI** (`webui/static/index.html`): when `result.tokens` is non-empty, each glossed word renders as
+  a `<span class="gloss-token">` (dotted-underline, a distinct accent color when `coined` -- visible
+  without even hovering, directly answering the user's own original complaint) carrying its data in
+  `data-*` attributes; a single shared `#gloss-tooltip` element, wired once via event delegation on
+  `document` (survives the result card's own `innerHTML` replacement on every translate call), shows on
+  hover/focus and *pins* on click/tap -- one implementation covering both "hover" and "click" from the
+  item's own title. A bare particle (no gloss) renders as plain text, not a span -- nothing useful to show
+  on hover for it. A new `escapeAttr` helper guards against a coined word's own spelling (or free-text
+  `notes`) breaking the `data-*` attribute syntax if it ever contains a quote character; applying it to the
+  *fallback* plain-text path too (`translate_to_english`, unchanged otherwise) is a small, incidental
+  correctness improvement over the previous unescaped `${result.text}` interpolation.
+
+  **CLI** (`cli/main.py`): one more unconditional line after the existing `(pattern: ...)` echo --
+  `Glosses: word1(gloss1) word2(gloss2*) ...` (a bare particle prints undecorated, no parens; `*` marks a
+  token coined this call) -- matching how `coined`/`pattern` are already always printed, no new flag.
+  Present only for the conlang direction, since `result.tokens` is empty otherwise (no explicit `--to`
+  check needed).
+
+  **Tests**: new `tests/test_token_gloss.py` -- `entries`' length always matches `romanization_parts`'
+  (direct `_render_plan` calls, including one exercising the nested-clause extend path specifically);
+  `coined`/`real_word` set correctly (reusing the earlier "coined words ignore word strictness" pass's own
+  Dutch word-strictness-1.0 fixture for the real-word case); `[t.surface for t in result.tokens] ==
+  result.text.split()` across declarative/question/imperative and a two-sentence input (confirms the
+  mark-attachment-to-last-token logic doesn't bleed a mark into the next sentence); a bare particle's token
+  has `gloss=pos=real_word=None`; `translate_to_english`'s `tokens` stays always `()`; a `CliRunner`-based
+  test confirms the new `Glosses:` line for `--to conlang` and its absence for `--to english`. One
+  interesting fixture bug caught along the way: an early draft of the coined-vs-not-coined test asserted
+  the pronoun "I" was present and not coined -- it failed, because the *raw*, un-stripped seed-278 fixture
+  (unlike `test_translator.py`'s own copy of the same seed, which explicitly strips noun classes before
+  use) happens to have `grammar.pro_drop = True`, so "I" never renders as its own word at all for that
+  exact fixture. Fixed by asserting on "see"/"the" instead -- a reminder that "same seed number" across
+  different test files doesn't guarantee the same actual generated grammar unless the fixture construction
+  is identical too.

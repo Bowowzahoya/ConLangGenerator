@@ -58,16 +58,34 @@ multi-session feature.
   classifier output.
 - **Model picker (M).** UI counterpart of the model-choice item in §1,
   with expected price per call shown.
-- **Hover/click gloss in the translation result (M).** Show what every word
-  in a translation means (English gloss, part of speech, case/tense
-  marking) by hovering or clicking, and align it with the source words.
-  `TranslationResult` would need to carry per-token gloss data (the plan
-  slots plus the resolved entry) alongside `text`. Reported directly by a
-  user: without this, it's hard to even tell *which* words in a rendered
-  sentence are newly coined vs. already-known vocabulary, or (with the
-  "coined words use word strictness" pass) real-word-based vs. invented --
-  the per-token data this item needs would also cover `notes`/`real_word`,
-  not just the gloss.
+- **Hover/click gloss in the translation result (M). Done.** Show what
+  every word in a translation means by hovering or clicking, and tell
+  which words are newly coined vs. already-known vocabulary, or real-
+  word-based vs. invented -- reported directly by a user as hard to tell
+  otherwise. `_render_plan` already built a `gloss_parts` list parallel to
+  the rendered words (just never surfaced); it now returns a matching
+  `entries: list[LexicalEntry | None]` too, and `translate_to_conlang`
+  turns that into `TranslationResult.tokens: tuple[TokenGloss, ...]` --
+  one `TokenGloss(surface, ipa, gloss, pos, real_word, notes, coined)` per
+  rendered word, `surface` including that word's own terminal punctuation
+  mark so it matches `result.text.split()` exactly. The web UI renders
+  each glossed word as a hoverable/clickable span (click pins the tooltip
+  -- covers touch too) with a distinct color for a coined word, visible
+  without even hovering; the CLI prints one extra `Glosses: word(gloss)*
+  ...` line (`*` = coined this call) for the conlang direction.
+  **Two scope boundaries, left open:** (a) only the *static*, already-
+  resolved per-entry data is surfaced -- the *live* grammatical marking
+  actually applied this occurrence (case/tense/mood/degree) is not, since
+  no uniform "marking just applied" string exists anywhere in
+  `_render_plan` today; it's scattered across ~8 different kind-specific
+  branches (verb/adjective/noun/article/...), each with its own locals --
+  collecting it would mean threading a new string out of every one of
+  them, a materially bigger, separate lift. (b) `translate_to_english`
+  never populates `tokens` (always `()`) -- that direction's own per-
+  token `annotated` list is keyed to the *source* conlang tokens, and the
+  fluency LLM rewrite can reorder/merge/split words arbitrarily, so there
+  is no clean word-for-word alignment to the final English output to
+  expose the way there is for conlang rendering.
 - **See the actual LLM prompts used for a translation (S-M).** No surfaced
   way today to see what was actually sent to/received from the LLM for a
   given `generate`/`translate` call -- `llm/cost_tracker.py`'s own ledger

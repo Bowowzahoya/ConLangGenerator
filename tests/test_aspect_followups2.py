@@ -48,7 +48,7 @@ def _with(language, **updates):
 
 
 def _render(language, *slots, mood: str = "declarative"):
-    updated, romanized, _, glosses = _render_plan(SentencePlan(slots=tuple(slots), mood=mood), language, _CLIENT, [])
+    updated, romanized, _, glosses, _ = _render_plan(SentencePlan(slots=tuple(slots), mood=mood), language, _CLIENT, [])
     return updated, romanized, glosses
 
 

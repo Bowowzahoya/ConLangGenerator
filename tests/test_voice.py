@@ -38,7 +38,7 @@ def _base(grammar) -> tuple:
 
 def _verb_form(language, voice: str | None, tense: str | None = None, aspect: str | None = None) -> str:
     slot = PlannedSlot(kind="content", gloss="see", pos="verb", agreement="default", voice=voice, tense=tense, aspect=aspect)
-    _, romanized, _, _ = _render_plan(SentencePlan(slots=(slot,)), language, _CLIENT, [])
+    _, romanized, _, _, _ = _render_plan(SentencePlan(slots=(slot,)), language, _CLIENT, [])
     return romanized[0]
 
 

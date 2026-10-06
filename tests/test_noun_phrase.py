@@ -30,7 +30,7 @@ def _find(predicate, limit: int = 200):
 
 
 def _render(language, *slots: PlannedSlot) -> list[str]:
-    _, romanized, _, _ = _render_plan(SentencePlan(slots=tuple(slots)), language, _CLIENT, [])
+    _, romanized, _, _, _ = _render_plan(SentencePlan(slots=tuple(slots)), language, _CLIENT, [])
     return romanized
 
 
@@ -228,7 +228,7 @@ def test_an_indefinite_article_is_rendered_only_where_the_language_has_one():
     article = PlannedSlot(kind="indefinite_article")
     assert len(_render(with_indefinite, article, _noun("river"))) == 2
     assert len(_render(without, article, _noun("river"))) == 1
-    updated, romanized, _, _ = _render_plan(
+    updated, romanized, _, _, _ = _render_plan(
         SentencePlan(slots=(article, _noun("river"))), with_indefinite, _CLIENT, []
     )  # rendering coins the word "a", so decode against the updated language
     english = translate_to_english(" ".join(romanized), updated, _CLIENT).text

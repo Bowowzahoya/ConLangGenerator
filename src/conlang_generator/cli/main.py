@@ -465,6 +465,12 @@ def translate(
         coined_forms = ", ".join(e.romanization for e in result.coined)
         typer.echo(f"Coined {len(result.coined)} new word(s): {coined_forms}")
     typer.echo(f"(pattern: {result.pattern})")
+    if result.tokens:
+        rendered = " ".join(
+            f"{t.surface}({t.gloss}{'*' if t.coined else ''})" if t.gloss else t.surface
+            for t in result.tokens
+        )
+        typer.echo(f"Glosses: {rendered}")
 
 
 @app.command()

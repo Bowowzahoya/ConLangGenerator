@@ -39,7 +39,7 @@ def _find(predicate, limit: int = 250):
 
 def _adjective(language, degree=None, agrees_with=None) -> str:
     slot = PlannedSlot(kind="content", gloss="high", pos="adjective", degree=degree, agrees_with=agrees_with)
-    _, romanized, _, _ = _render_plan(SentencePlan(slots=(slot,)), language, _CLIENT, [])
+    _, romanized, _, _, _ = _render_plan(SentencePlan(slots=(slot,)), language, _CLIENT, [])
     return romanized[0]
 
 

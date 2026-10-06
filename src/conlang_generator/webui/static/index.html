@@ -88,6 +88,18 @@
   .lexicon-wrap { max-height: 420px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
   .translate-output { font-size: 17px; margin: 6px 0; }
   .translate-ipa { font-family: var(--mono); color: var(--muted); }
+  .gloss-token {
+    cursor: pointer; border-bottom: 1px dotted var(--muted); padding-bottom: 1px;
+  }
+  .gloss-token.coined { border-bottom-color: var(--accent); color: var(--accent); }
+  #gloss-tooltip {
+    position: fixed; display: none; max-width: 260px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+    font-size: 13px; color: var(--text); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    z-index: 50; pointer-events: none;
+  }
+  #gloss-tooltip .gloss-tooltip-gloss { font-weight: 600; }
+  #gloss-tooltip .gloss-tooltip-row { color: var(--muted); font-size: 12px; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -279,6 +291,7 @@
   </div>
 
   <div class="result" id="translate-result"></div>
+  <div id="gloss-tooltip"></div>
 </section>
 
 <section id="panel-reference" class="panel">
@@ -300,6 +313,75 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
+
+function escapeAttr(value) {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+// --- hover/click gloss tooltip (translate tab, conlang-rendering direction only) ---
+let pinnedGlossToken = null;
+
+function renderGlossTokens(tokens) {
+  return tokens.map((t) => {
+    if (!t.gloss) return escapeAttr(t.surface);
+    const cls = t.coined ? "gloss-token coined" : "gloss-token";
+    const data = [
+      `data-gloss="${escapeAttr(t.gloss)}"`,
+      t.pos ? `data-pos="${escapeAttr(t.pos)}"` : "",
+      t.coined ? `data-coined="1"` : "",
+      t.real_word ? `data-real-word="${escapeAttr(t.real_word)}"` : "",
+      t.notes ? `data-notes="${escapeAttr(t.notes)}"` : "",
+    ].filter(Boolean).join(" ");
+    return `<span class="${cls}" tabindex="0" ${data}>${escapeAttr(t.surface)}</span>`;
+  }).join(" ");
+}
+
+function showGlossTooltip(span) {
+  const tip = $("gloss-tooltip");
+  const parts = [`<div class="gloss-tooltip-gloss">${span.dataset.gloss}</div>`];
+  if (span.dataset.pos) parts.push(`<div class="gloss-tooltip-row">${span.dataset.pos}</div>`);
+  if (span.dataset.coined) parts.push(`<div class="gloss-tooltip-row">coined this translation</div>`);
+  if (span.dataset.realWord) parts.push(`<div class="gloss-tooltip-row">real word: ${span.dataset.realWord}</div>`);
+  if (span.dataset.notes) parts.push(`<div class="gloss-tooltip-row">${span.dataset.notes}</div>`);
+  tip.innerHTML = parts.join("");
+  tip.style.display = "block";
+  const rect = span.getBoundingClientRect();
+  tip.style.top = `${rect.bottom + 6}px`;
+  tip.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - tip.offsetWidth - 12))}px`;
+}
+
+function hideGlossTooltip() {
+  $("gloss-tooltip").style.display = "none";
+}
+
+document.addEventListener("mouseover", (e) => {
+  const span = e.target.closest(".gloss-token");
+  if (span) showGlossTooltip(span);
+});
+document.addEventListener("mouseout", (e) => {
+  if (pinnedGlossToken) return;
+  if (e.target.closest(".gloss-token")) hideGlossTooltip();
+});
+document.addEventListener("focusin", (e) => {
+  const span = e.target.closest(".gloss-token");
+  if (span) showGlossTooltip(span);
+});
+document.addEventListener("focusout", (e) => {
+  if (pinnedGlossToken) return;
+  if (e.target.closest(".gloss-token")) hideGlossTooltip();
+});
+document.addEventListener("click", (e) => {
+  const span = e.target.closest(".gloss-token");
+  if (span) {
+    pinnedGlossToken = pinnedGlossToken === span ? null : span;
+    if (pinnedGlossToken) showGlossTooltip(span); else hideGlossTooltip();
+    return;
+  }
+  if (pinnedGlossToken) {
+    pinnedGlossToken = null;
+    hideGlossTooltip();
+  }
+});
 
 function fmtCost(usd, calls) {
   return `cost: $${usd.toFixed(4)} (${calls} call${calls === 1 ? "" : "s"})`;
@@ -1005,9 +1087,13 @@ $("translate-btn").onclick = async () => {
         </div>
         <div class="error" id="pronounce-warning" hidden></div>
         <div class="error" id="pronounce-error" hidden></div>` : "";
+    pinnedGlossToken = null;
+    hideGlossTooltip();
+    const outputHtml = result.tokens && result.tokens.length
+      ? renderGlossTokens(result.tokens) : escapeAttr(result.text);
     $("translate-result").innerHTML = `
       <div class="card">
-        <div class="translate-output">${result.text}</div>
+        <div class="translate-output">${outputHtml}</div>
         ${result.ipa ? `<div class="translate-ipa">/${result.ipa}/</div>` : ""}
         <div class="badges">
           <span class="badge">pattern: ${result.pattern}</span>

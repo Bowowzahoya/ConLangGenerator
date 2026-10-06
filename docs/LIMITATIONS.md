@@ -193,6 +193,15 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   clitic); there is no dual, gender or noun class, and vocatives are
   ordinary sentence-initial nouns. There is no idiom generation/matching (`Lexicon.idioms` exists
   but is unused).
+- **The hover/click gloss data on a translation result is static per-entry, not the live marking
+  actually applied this occurrence.** `TranslationResult.tokens` surfaces each rendered word's English
+  gloss, part of speech, real-word origin, notes, and whether it was coined this call -- all already
+  resolved on its `LexicalEntry` -- but not which case/tense/mood/degree was actually applied to produce
+  that specific surface form. No single uniform "marking just applied" string exists anywhere in
+  `_render_plan` to surface; it's scattered across many kind-specific branches' own local variables.
+  Separately, this data exists only for `translate_to_conlang` (`tokens` is always `()` for
+  `translate_to_english`) -- that direction's own fluency-LLM rewrite can reorder, merge, or split words
+  arbitrarily, so there is no clean word-for-word alignment to the final English output to expose.
 - **Sentence-final punctuation is mood-derived only -- no independent
   exclamation signal, no comma, no quotation mark.** `terminal_mark`
   reads only `SentencePlan.mood`, so a plain exclamatory statement ("I

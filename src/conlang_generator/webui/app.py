@@ -602,6 +602,13 @@ def translate(request: TranslateRequest) -> dict:
         "ipa": result.ipa,
         "pattern": result.pattern,
         "coined": [e.romanization for e in result.coined],
+        "tokens": [
+            {
+                "surface": t.surface, "ipa": t.ipa, "gloss": t.gloss, "pos": t.pos,
+                "real_word": t.real_word, "notes": t.notes, "coined": t.coined,
+            }
+            for t in result.tokens
+        ],
         "cost": _cost_delta(before, after),
     }
 

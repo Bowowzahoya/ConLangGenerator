@@ -113,6 +113,31 @@ _PARTICIPLE_BY_LEMMA = {
 
 
 @dataclass(frozen=True)
+class TokenGloss:
+    """One rendered surface word from a ``translate_to_conlang`` result,
+    for a hover/click gloss UI -- see ``TranslationResult.tokens``."""
+
+    surface: str
+    """This token's own rendered romanization, including a sentence-final
+    punctuation mark when it's the last word of its own sentence -- matches
+    exactly what ``result.text.split()`` would already give back, so a
+    consumer never needs to re-derive tokens by splitting ``text`` itself."""
+    ipa: str
+    """Post-sandhi, matching ``result.ipa``'s own per-word IPA exactly."""
+    gloss: str | None
+    """``entry.primary_gloss``, or ``None`` for a bare grammar particle
+    with no lexicon entry (question/possessive/topic/quotative particles)."""
+    pos: str | None
+    real_word: str | None
+    """The source language name (``entry.real_word.language``), or
+    ``None`` for an invented word."""
+    notes: str = ""
+    coined: bool = False
+    """Whether this entry was newly coined during *this* translate call
+    (not whether the word is new to the language in general)."""
+
+
+@dataclass(frozen=True)
 class TranslationResult:
     text: str
     ipa: str
@@ -120,6 +145,11 @@ class TranslationResult:
     """Possibly updated -- new words may have been coined during translation."""
     coined: tuple[LexicalEntry, ...] = ()
     pattern: str = "llm-plan"
+    tokens: tuple[TokenGloss, ...] = ()
+    """Per-rendered-word gloss data for ``translate_to_conlang`` results
+    only (always empty for ``translate_to_english`` -- its own fluency
+    rewrite breaks the clean word-for-word alignment this needs; see
+    docs/LIMITATIONS.md)."""
 
 
 def _normalize(text: str) -> str:
@@ -2420,11 +2450,12 @@ def _render_plan(
     forced_verb_mood: str | None = None,
     forced_verb_tense: str | None = None,
     forced_nominal_case: str | None = None,
-) -> tuple[Language, list[str], list[str], list[str | None]]:
+) -> tuple[Language, list[str], list[str], list[str | None], list[LexicalEntry | None]]:
     working_language = language
     romanization_parts: list[str] = []
     ipa_parts: list[str] = []
     gloss_parts: list[str | None] = []
+    entries: list[LexicalEntry | None] = []
     mood_pending = plan.mood == "imperative"
     possessed_pending = False  # a possessor was rendered; the next noun takes the "possessed" affix
     possession = language.grammar.possession
@@ -2466,7 +2497,7 @@ def _render_plan(
             nested_plan, pied_piped_prep = _extract_pied_piped_preposition(working_language, slot)
             if slot.role == "coordinate" and working_language.grammar.conjunct_reduction:
                 nested_plan = _reduce_conjunct(slots[:slot_index], nested_plan)
-            working_language, nested_rom, nested_ipa, nested_gloss = _render_plan(
+            working_language, nested_rom, nested_ipa, nested_gloss, nested_entries = _render_plan(
                 nested_plan, working_language, llm_client, coined, nested_mood, nested_tense, nested_case
             )
             if slot.role == "topic" and working_language.grammar.topic_particle:
@@ -2474,6 +2505,7 @@ def _render_plan(
                 nested_rom = nested_rom + [working_language.romanization.apply(particle_ipa)]
                 nested_ipa = nested_ipa + [particle_ipa]
                 nested_gloss = nested_gloss + [None]
+                nested_entries = nested_entries + [None]
             if (
                 slot.role == "complement" and working_language.grammar.quotative_particle
                 and subordination_gen.complement_class(governor_lemma or "") == "speech"
@@ -2482,30 +2514,34 @@ def _render_plan(
                 nested_rom = nested_rom + [working_language.romanization.apply(quotative_ipa)]
                 nested_ipa = nested_ipa + [quotative_ipa]
                 nested_gloss = nested_gloss + [None]
-            linker_words: list[tuple[str, str, str | None]] = []
+                nested_entries = nested_entries + [None]
+            linker_words: list[tuple[str, str, str | None, LexicalEntry | None]] = []
             if pied_piped_prep:
                 working_language, prep_entry = _lookup_or_coin(
                     working_language, pied_piped_prep, PartOfSpeech.PARTICLE, coined, llm_client,
                     lemma_candidates=[pied_piped_prep],
                 )
-                linker_words.append((prep_entry.romanization, prep_entry.ipa, prep_entry.primary_gloss))
+                linker_words.append((prep_entry.romanization, prep_entry.ipa, prep_entry.primary_gloss, prep_entry))
             if linker_gloss:
                 working_language, linker_entry = _lookup_or_coin(
                     working_language, linker_gloss, PartOfSpeech.PARTICLE, coined, llm_client,
                     lemma_candidates=[linker_gloss],
                 )
-                linker_words.append((linker_entry.romanization, linker_entry.ipa, linker_entry.primary_gloss))
+                linker_words.append((linker_entry.romanization, linker_entry.ipa, linker_entry.primary_gloss, linker_entry))
             if linker_words and _linker_follows_clause(working_language, slot.role):
                 nested_rom = nested_rom + [w[0] for w in linker_words]
                 nested_ipa = nested_ipa + [w[1] for w in linker_words]
                 nested_gloss = nested_gloss + [w[2] for w in linker_words]
+                nested_entries = nested_entries + [w[3] for w in linker_words]
             elif linker_words:
                 nested_rom = [w[0] for w in linker_words] + nested_rom
                 nested_ipa = [w[1] for w in linker_words] + nested_ipa
                 nested_gloss = [w[2] for w in linker_words] + nested_gloss
+                nested_entries = [w[3] for w in linker_words] + nested_entries
             romanization_parts.extend(nested_rom)
             ipa_parts.extend(nested_ipa)
             gloss_parts.extend(nested_gloss)
+            entries.extend(nested_entries)
             continue
         if slot.kind == "content" and slot.gloss:
             pos = sentence_planner.POS_BY_PLAN_STRING.get(slot.pos, PartOfSpeech.NOUN)
@@ -2730,19 +2766,23 @@ def _render_plan(
                 romanization_parts.append(aux_rom)
                 ipa_parts.append(aux_ipa)
                 gloss_parts.append(aux_entry.primary_gloss)
+                entries.append(aux_entry)
             romanization_parts.append(rendered[0])
             ipa_parts.append(rendered[1])
             gloss_parts.append(entry.primary_gloss if entry is not None else None)
+            entries.append(entry)
             for aux_entry, aux_rom, aux_ipa in () if before else aux_entries:
                 romanization_parts.append(aux_rom)
                 ipa_parts.append(aux_ipa)
                 gloss_parts.append(aux_entry.primary_gloss)
+                entries.append(aux_entry)
             if marks_possession and slot.kind in ("content", "name"):
                 if possession == "particle" and _possessive_particle(working_language) is not None:
                     particle_rom, particle_ipa = _possessive_particle(working_language)
                     romanization_parts.append(particle_rom)
                     ipa_parts.append(particle_ipa)
                     gloss_parts.append(None)
+                    entries.append(None)
                 elif possession == "affix":
                     possessed_pending = True
 
@@ -2753,7 +2793,8 @@ def _render_plan(
         romanization_parts.insert(position, particle[0])
         ipa_parts.insert(position, particle[1])
         gloss_parts.insert(position, None)
-    return working_language, romanization_parts, ipa_parts, gloss_parts
+        entries.insert(position, None)
+    return working_language, romanization_parts, ipa_parts, gloss_parts, entries
 
 
 def translate_to_conlang(
@@ -2774,14 +2815,27 @@ def translate_to_conlang(
     working_language = language
     romanization_sentences: list[str] = []
     ipa_sentences: list[str] = []
+    tokens: list[TokenGloss] = []
     for sentence in sentence_planner.split_sentences(text) or [text]:
         plan = sentence_planner.plan_sentence(sentence, working_language, llm_client)
-        working_language, rom_parts, ipa_parts, gloss_parts = _render_plan(
+        working_language, rom_parts, ipa_parts, gloss_parts, entry_parts = _render_plan(
             plan, working_language, llm_client, coined
         )
         mark = terminal_mark(plan.mood, working_language.romanization.punctuation_style)
         romanization_sentences.append(" ".join(rom_parts) + mark)
-        ipa_sentences.append(" ".join(tone_sandhi.apply_sandhi(ipa_parts, language.tone_system, gloss_parts)))
+        sandhied_ipa = tone_sandhi.apply_sandhi(ipa_parts, language.tone_system, gloss_parts)
+        ipa_sentences.append(" ".join(sandhied_ipa))
+        last_index = len(rom_parts) - 1
+        for i, (rom, ipa_word, entry) in enumerate(zip(rom_parts, sandhied_ipa, entry_parts)):
+            tokens.append(TokenGloss(
+                surface=rom + (mark if i == last_index else ""),
+                ipa=ipa_word,
+                gloss=entry.primary_gloss if entry is not None else None,
+                pos=entry.pos.value if entry is not None else None,
+                real_word=entry.real_word.language if entry is not None and entry.real_word is not None else None,
+                notes=entry.notes if entry is not None else "",
+                coined=entry is not None and entry in coined,
+            ))
 
     return TranslationResult(
         text=" ".join(part for part in romanization_sentences if part),
@@ -2789,6 +2843,7 @@ def translate_to_conlang(
         language=working_language,
         coined=tuple(coined),
         pattern="llm-plan",
+        tokens=tuple(tokens),
     )
 
 

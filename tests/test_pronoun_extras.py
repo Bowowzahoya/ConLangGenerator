@@ -31,7 +31,7 @@ def _find(predicate, limit: int = 300):
 
 
 def _render(language, *slots):
-    updated, romanized, _, glosses = _render_plan(SentencePlan(slots=tuple(slots)), language, _CLIENT, [])
+    updated, romanized, _, glosses, _ = _render_plan(SentencePlan(slots=tuple(slots)), language, _CLIENT, [])
     return updated, romanized, glosses
 
 

@@ -665,7 +665,18 @@ nimtz lizmafakay twiza lil'jhah.
 IPA: /nɪ̀mt lìmaˈfakaj twìa ˈlīlʔhâ/
 Coined 1 new word(s): lil'jhah
 (pattern: llm-plan)
+Glosses: nimtz(I) lizmafakay(see) twiza(the) lil'jhah.(boat*)
 ```
+
+The `Glosses:` line (conlang direction only -- absent from an `english`
+decode, since there's no equivalent per-word alignment there, see below)
+is the CLI's own view of `TranslationResult.tokens`: `word(gloss)` for
+every word the renderer resolved to a real lexicon entry, a trailing `*`
+marking one coined during *this* call, and a bare particle (no entry at
+all -- an article-less language's question particle, say) printed
+undecorated with no parentheses. The web UI's Translate tab shows the
+same data as a hover/click tooltip per word instead, with a coined word
+visually underlined in the accent color.
 
 On-the-fly coinage also consults word strictness (`--word-strictness`, see
 `generate` above) the same way the pregenerated core vocabulary already
