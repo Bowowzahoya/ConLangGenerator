@@ -6475,3 +6475,75 @@ reading code or one-off ad hoc scripts.
   comma placement (needs clause/list-boundary rules this project doesn't have); the `exclamatory`-independent-
   of-`mood` idea above; per-sentence decode granularity above -- each its own bigger, separate piece of work,
   not a continuation of this pass's own scope.
+
+- **Coined words ignore word strictness (grammar pass 53).** `docs/DEFERRED.md`'s "## 3. Translation"
+  section: on-the-fly coinage (`translation/expansion.py::coin_word`, invoked when translation meets an
+  English word with no existing lexicon entry) never consulted word strictness at all, always inventing.
+  An earlier pass already built word strictness entirely at *generation* time (`generation/real_words.py`):
+  each core-vocabulary gloss gets a chance of following a real word from a matched source language
+  (curated, else one LLM-filled gap batched up to 100 glosses per call), with graded deviation below
+  strictness 1.0 via a systematic per-language sound-shift table (`phoneme_fit.build_deviation_shift`/
+  `apply_shift`).
+
+  **Two things research confirmed before any code was written, not assumed**: (1) the deviation shift
+  table is a *local variable* inside `build_real_entries`, discarded once generation finishes -- but it
+  depends only on already-persisted data (`spec.seed`, `spec.traits.source_word_strictness`, `language.
+  phonology`), so translation-time code can rebuild the *exact* same table for an unevolved language, or a
+  correctly-adapted one for an evolved one -- no schema change, just a shared helper so the two call sites
+  can't drift. (2) The curated lexicon (`reference_languages/real_lexicon`) is keyed by exactly `generation.
+  lexicon_gen.ALL_MEANINGS`'s own fixed gloss list (496 entries) -- and this surfaced a sharper finding than
+  "on-the-fly coinage sometimes gets a curated hit": **every one of those 496 glosses is, by construction,
+  already in the lexicon by the time translation runs** (real or invented, decided at generation time), so
+  `coin_word` is *never* reached for any of them *unless* `--vocabulary-size` (default 400) left that gloss
+  out of the generated vocabulary in the first place. Confirmed concretely: at the default vocabulary size,
+  96 of the 496 core meanings (e.g. "king", "door", "soup") are excluded, and several of those are curated
+  for real languages -- this on-the-fly path exists specifically for that gap, not as a general safety net
+  that happens to fire "often enough."
+
+  **Two shared helpers extracted from `build_real_entries`** (same file): `deviation_shift_table(seed,
+  strictness, inventory)` (the table-building line, verbatim) and `_build_real_entry(choice, shift,
+  strictness, ..., allow_exact_copy)` (the per-choice loop body, verbatim, plus one new parameter).
+  `build_real_entries` itself becomes a two-line wrapper (`shift = deviation_shift_table(...)`; map
+  `_build_real_entry(..., allow_exact_copy=True)` over `choices`) -- byte-identical output, confirmed by
+  construction since the extracted code is unchanged. `allow_exact_copy` is the one genuinely new piece of
+  reasoning: at generation time, strictness `>=1.0` alone is enough to take the forced-verbatim-spelling
+  branch, safe only because `phonology_gen` already force-included the real word's own phonemes into the
+  inventory *before* this runs. On-the-fly coinage can't do that -- the inventory is already fixed by the
+  time translation runs, so `allow_exact_copy=False` always routes through `apply_shift` (which nearest-
+  neighbor-fits any phoneme outside the inventory regardless of the shift table's own contents) and always
+  re-romanizes, even at strictness 1.0. It can still *end up* looking exact when the word's own sounds
+  already fit and survive an empty shift table (strictness 1.0 -> shift rate 0) -- the same "exact can also
+  happen organically" branch generation time already has, just never forced. Verified directly: a
+  synthetic `RealChoice` with ipa `"sa"` against a 3-consonant (`p`/`t`/`m`) minimal inventory --
+  `allow_exact_copy=True` keeps `"sa"` byte-identical (the "s" the inventory doesn't have, untouched);
+  `allow_exact_copy=False` fits it to `"ta"`.
+
+  **New `coin_real_word(language, gloss, pos, llm_client) -> LexicalEntry | None`** (`real_words.py`): a
+  deterministic per-gloss roll (`random.Random(f"{language.spec.seed}:real-word-coinage:{gloss.lower()}")`
+  -- its own independent, derived seed, not the shared generation-time stream, so this has zero effect on
+  any existing seed's generated output; it only ever fires reactively during translation) against
+  `source_word_strictness`; tries the curated lexicon (a new `_curated_word` helper tries the gloss exactly
+  as given *and* lowercased, since the curated lexicon's own keys aren't uniformly cased -- the pronoun
+  gloss `"I"` keeps its real capitalization, found only after an initial lowercase-only lookup silently
+  missed it); else one single-gloss `real_words_llm.fetch_real_words` call (confirmed API-shape-compatible
+  with a 1-item list, no changes needed to that function); `None` (falling back to ordinary invented
+  coinage) when neither produces anything. Templatic languages/POS are excluded immediately (`language.
+  grammar.uses_root_and_pattern and pos in root_pattern.TEMPLATIC_POS`) -- adapting a borrowed word into an
+  existing template is a different problem, left open.
+
+  **Wiring** (`translation/expansion.py::coin_word`): one check at the very top -- `real_entry = real_words.
+  coin_real_word(...); if real_entry is not None: return real_entry` -- before the existing templatic/
+  ordinary branch. No change to `_lookup_or_coin`'s 11 call sites or signature; `language` already carries
+  everything the new function needs.
+
+  **Cost, confirmed bounded, not open-ended**: the real-word attempt and `word_selection="llm"`'s own
+  candidate-selection call are mutually exclusive for the same word (a successful real-word coinage returns
+  immediately, before `coin_word`'s own invented-candidate path -- the only path that call belongs to --
+  is ever reached), so the worst case stays "at most one extra LLM call for this one coined word," the same
+  order of magnitude coinage can already cost today. Verified directly: translating a sentence needing one
+  real-word-eligible coinage, with `word_selection="llm"` *also* active, costs exactly 2 calls total
+  (sentence planning + the real-word gap-fill) -- never a 3rd for candidate selection.
+
+  **Explicitly deferred**: root-and-pattern languages (above); any new collision-avoidance for a real-word-
+  based spelling that happens to match an existing entry (generation time's own `build_real_entries` has no
+  such guard either).

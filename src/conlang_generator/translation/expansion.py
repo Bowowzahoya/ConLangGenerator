@@ -17,7 +17,7 @@ import random
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.traits import coining_context
-from conlang_generator.generation import root_pattern
+from conlang_generator.generation import real_words, root_pattern
 from conlang_generator.generation.lexicon_gen import propose_word
 from conlang_generator.llm.base import LLMClient
 
@@ -30,6 +30,9 @@ def _derived_seed(language: Language, salt: str) -> int:
 def coin_word(
     language: Language, gloss: str, pos: PartOfSpeech, llm_client: LLMClient
 ) -> LexicalEntry:
+    real_entry = real_words.coin_real_word(language, gloss, pos, llm_client)
+    if real_entry is not None:
+        return real_entry
     for attempt in range(40):
         salt = gloss if attempt == 0 else f"{gloss}#{attempt}"
         rng = random.Random(_derived_seed(language, salt))

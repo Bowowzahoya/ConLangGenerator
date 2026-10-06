@@ -33,6 +33,7 @@ import random
 import unicodedata
 from dataclasses import dataclass
 
+from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech, RealWordOrigin
 from conlang_generator.core.phonology import (
     TONE_DIACRITICS, PhonemeInventory, SyllableStructure, ToneLevel, ToneSystem,
@@ -42,7 +43,7 @@ from conlang_generator.core.romanization import (
 )
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
-from conlang_generator.generation import ipa_tokenizer, phoneme_fit, phonology_gen, real_words_llm, stress_gen
+from conlang_generator.generation import ipa_tokenizer, phoneme_fit, phonology_gen, real_words_llm, root_pattern, stress_gen
 from conlang_generator.generation.lexicon_gen import CONDITIONAL_MEANINGS
 from conlang_generator.generation.reference_languages import match_profiles_weighted
 from conlang_generator.generation.reference_languages import real_stress
@@ -132,6 +133,68 @@ def exact_seed_examples(choices: list[RealChoice], strictness: float) -> tuple[S
     return tuple(SeedExample(gloss=c.gloss, form=c.form, ipa=c.ipa) for c in choices)
 
 
+def deviation_shift_table(seed: int, strictness: float, inventory: PhonemeInventory) -> dict[str, str]:
+    """The per-language systematic sound-shift table (see the module
+    docstring), extracted so translation-time on-the-fly coinage
+    (``coin_real_word``) can reconstruct the *exact* same table generation
+    built -- byte-identical for an unevolved language (same seed,
+    strictness and inventory), correctly re-derived for an evolved one
+    (whatever inventory is passed in)."""
+    rng = random.Random(f"{seed}:real-deviation")
+    rate = (1.0 - strictness) * DEVIATION_SCALE
+    return phoneme_fit.build_deviation_shift(inventory, rng, rate)
+
+
+def _build_real_entry(
+    choice: RealChoice,
+    shift: dict[str, str],
+    strictness: float,
+    inventory: PhonemeInventory,
+    structure: SyllableStructure,
+    romanization: RomanizationScheme,
+    tone_system: ToneSystem,
+    allow_exact_copy: bool,
+) -> LexicalEntry:
+    """``build_real_entries``'s own per-choice body, extracted so on-the-fly
+    coinage can reuse it. ``allow_exact_copy`` gates whether strictness
+    alone can take the forced-verbatim-spelling branch: generation time
+    passes ``True`` (phonology_gen already force-included the real word's
+    own phonemes into the inventory *before* this runs, so verbatim
+    spelling is safe); on-the-fly coinage passes ``False`` (the inventory
+    is already fixed by the time translation runs -- there is no earlier
+    stage left to force a foreign phoneme into it, so this always routes
+    through ``apply_shift``, which nearest-neighbor-fits any phoneme
+    outside the inventory regardless of the shift table's own contents,
+    and always re-romanizes the result, even at strictness 1.0). The
+    result can still *end up* looking exact (``deviated == unmarked``)
+    when the word's own sounds already fit and survive an empty shift
+    table -- that's the existing "exact can also happen organically"
+    branch below, untouched either way -- just never forced when
+    ``allow_exact_copy`` is ``False``."""
+    exact = allow_exact_copy and strictness >= 1.0
+    ipa = choice.ipa
+    real_tones = ipa_tokenizer.tone_sequence(choice.ipa, _SYMBOLS)
+    if not exact:
+        deviated = phoneme_fit.apply_shift(choice.ipa, inventory, structure, shift)
+        unmarked = ipa_tokenizer.strip_tones(choice.ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, ""))
+        # unchanged: keep the real spelling too
+        exact = deviated == unmarked and _tones_fit(real_tones, tone_system)
+        ipa = _with_tones(deviated, _fit_tones(real_tones, tone_system))
+        # the real word's own stressed syllable carries over to the looser variant
+        ipa = _with_stress(ipa, _real_stress_syllable(choice), inventory)
+    tones = ipa_tokenizer.tone_sequence(ipa, _SYMBOLS)
+    if exact:
+        spelling = unicodedata.normalize("NFC", choice.form)
+        notes = f"real word: {choice.language}"
+    else:
+        spelling = apply_grammatical_spelling(romanization, romanization.apply(ipa), choice.pos)
+        notes = f"real-based word: {choice.language}"
+    return LexicalEntry(
+        ipa=ipa, romanization=spelling, glosses=(choice.gloss,), pos=choice.pos, tones=tones, notes=notes,
+        real_word=RealWordOrigin(language=choice.language, form=choice.form, ipa=choice.ipa),
+    )
+
+
 def build_real_entries(
     choices: list[RealChoice],
     strictness: float,
@@ -141,36 +204,71 @@ def build_real_entries(
     romanization: RomanizationScheme,
     tone_system: ToneSystem = ToneSystem(),
 ) -> tuple[LexicalEntry, ...]:
-    rng = random.Random(f"{seed}:real-deviation")
-    rate = (1.0 - strictness) * DEVIATION_SCALE
-    shift = phoneme_fit.build_deviation_shift(inventory, rng, rate)
-    entries = []
-    for choice in choices:
-        exact = strictness >= 1.0
-        ipa = choice.ipa
-        real_tones = ipa_tokenizer.tone_sequence(choice.ipa, _SYMBOLS)
-        if not exact:
-            deviated = phoneme_fit.apply_shift(choice.ipa, inventory, structure, shift)
-            unmarked = ipa_tokenizer.strip_tones(choice.ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, ""))
-            # unchanged: keep the real spelling too
-            exact = deviated == unmarked and _tones_fit(real_tones, tone_system)
-            ipa = _with_tones(deviated, _fit_tones(real_tones, tone_system))
-            # the real word's own stressed syllable carries over to the looser variant
-            ipa = _with_stress(ipa, _real_stress_syllable(choice), inventory)
-        tones = ipa_tokenizer.tone_sequence(ipa, _SYMBOLS)
-        if exact:
-            spelling = unicodedata.normalize("NFC", choice.form)
-            notes = f"real word: {choice.language}"
-        else:
-            spelling = apply_grammatical_spelling(romanization, romanization.apply(ipa), choice.pos)
-            notes = f"real-based word: {choice.language}"
-        entries.append(
-            LexicalEntry(
-                ipa=ipa, romanization=spelling, glosses=(choice.gloss,), pos=choice.pos, tones=tones, notes=notes,
-                real_word=RealWordOrigin(language=choice.language, form=choice.form, ipa=choice.ipa),
-            )
-        )
-    return tuple(entries)
+    shift = deviation_shift_table(seed, strictness, inventory)
+    return tuple(
+        _build_real_entry(choice, shift, strictness, inventory, structure, romanization, tone_system, allow_exact_copy=True)
+        for choice in choices
+    )
+
+
+def _curated_word(profile_name: str, gloss: str) -> tuple[str, str] | None:
+    """``real_words(profile_name)``'s own entry for ``gloss``, tried exactly
+    as given first (the curated lexicon's own keys aren't uniformly
+    lowercased -- the pronoun gloss ``"I"`` keeps its real capitalization)
+    and lowercased otherwise."""
+    table = real_words(profile_name)
+    return table.get(gloss, table.get(gloss.lower()))
+
+
+def coin_real_word(
+    language: Language, gloss: str, pos: PartOfSpeech, llm_client: LLMClient
+) -> LexicalEntry | None:
+    """A real-word-based entry for a single gloss coined on the fly during
+    translation (``None`` falls back to this project's existing invented-
+    word coinage) -- the on-the-fly counterpart of ``plan_real_words`` +
+    ``build_real_entries``, reusing the same curated-lexicon-then-LLM-gap-
+    fill lookup and the same deviation machinery, just for one word,
+    reactively, instead of the whole core vocabulary in one batched pass.
+    Deliberately out of scope: root-and-pattern (templatic) languages --
+    adapting a borrowed word into an existing template (which root to
+    extract, whether the donor word even has a compatible skeleton) is a
+    materially different problem than ordinary deviation, left to a
+    future pass; a real-word-based spelling is never checked against the
+    rest of the lexicon for a collision, the same non-guarantee generation
+    time's own ``build_real_entries`` already has."""
+    strictness = language.spec.traits.source_word_strictness
+    if strictness <= 0.0:
+        return None
+    matched = match_profiles_weighted(language.spec.traits.source_languages, language.spec.traits.source_language_weights)
+    if not matched:
+        return None
+    if language.grammar.uses_root_and_pattern and pos in root_pattern.TEMPLATIC_POS:
+        return None
+    rng = random.Random(f"{language.spec.seed}:real-word-coinage:{gloss.lower()}")
+    if rng.random() >= strictness:
+        return None
+    # The curated lexicon's own keys aren't uniformly lowercased (e.g. the
+    # pronoun gloss "I" keeps its real capitalization) -- try the gloss
+    # exactly as given first, then lowercased, same lenient match
+    # plan_real_words gets "for free" by iterating ALL_MEANINGS's own
+    # already-correctly-cased gloss strings directly.
+    having = [(p, w) for p, w in matched if _curated_word(p.name, gloss) is not None]
+    if having:
+        profile = rng.choices([p for p, _ in having], weights=[w for _, w in having])[0]
+        form, ipa = _curated_word(profile.name, gloss)
+    else:
+        profile = rng.choices([p for p, _ in matched], weights=[w for _, w in matched])[0]
+        filled = real_words_llm.fetch_real_words([(profile.name, gloss, pos)], llm_client)
+        answer = filled.get((profile.name, gloss))
+        if answer is None:
+            return None  # no curated word, LLM gave nothing usable -- fall back to inventing
+        form, ipa = answer
+    choice = RealChoice(gloss, pos, profile.name, form, ipa)
+    shift = deviation_shift_table(language.spec.seed, strictness, language.phonology)
+    return _build_real_entry(
+        choice, shift, strictness, language.phonology, language.syllable_structure, language.romanization,
+        language.tone_system, allow_exact_copy=False,
+    )
 
 
 _SYMBOLS = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)

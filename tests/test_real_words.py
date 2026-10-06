@@ -6,9 +6,12 @@ from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import phoneme_fit, real_words
 from conlang_generator.generation.generator import generate_language
+from conlang_generator.generation.lexicon_gen import select_meanings
 from conlang_generator.generation.prompt_classifier import _parse
 from conlang_generator.llm.base import LLMResponse
 from conlang_generator.llm.fake_client import FakeLLMClient
+from conlang_generator.translation.translator import translate_to_conlang
+from tests.factories import make_minimal_language
 
 
 def _language(word, sound=0.8, source=("Dutch",), seed=3, client=None):
@@ -196,3 +199,129 @@ def test_the_classifier_parses_the_word_strictness_field():
     traits = _parse('{"source_languages": ["Dutch"], "source_word_strictness": 0.9, "time_depth_years": 200}')
     assert traits.source_word_strictness == 0.9 and traits.time_depth_years == 200
     assert _parse('{"source_word_strictness": 5}').source_word_strictness == 1.0  # clamped
+
+
+# --- on-the-fly real-word coinage (coin_real_word) --------------------------
+
+
+def test_deviation_shift_table_matches_the_old_inline_construction():
+    # Regression guard for extracting deviation_shift_table out of
+    # build_real_entries's own local variable.
+    import random
+
+    language = _language(0.5)
+    inventory = language.phonology
+    rate = (1.0 - 0.5) * real_words.DEVIATION_SCALE
+    expected = phoneme_fit.build_deviation_shift(inventory, random.Random(f"{language.spec.seed}:real-deviation"), rate)
+    assert real_words.deviation_shift_table(language.spec.seed, 0.5, inventory) == expected
+
+
+def test_build_real_entry_with_allow_exact_copy_false_never_forces_a_verbatim_copy():
+    # allow_exact_copy=True (generation time) takes the forced-verbatim
+    # branch purely from strictness>=1.0, keeping a phoneme outside this
+    # language's own inventory untouched -- only safe because phonology_
+    # gen already force-included it beforehand. allow_exact_copy=False
+    # (on-the-fly coinage, after the inventory is already fixed) must
+    # never do that: it always fits the ipa to the inventory that already
+    # exists, even at strictness 1.0.
+    language = make_minimal_language()  # consonants p/t/m, vowels a/i -- no "s"
+    choice = real_words.RealChoice("madeupgloss", PartOfSpeech.NOUN, "Dutch", "saform", "sa")
+    shift = real_words.deviation_shift_table(1, 1.0, language.phonology)
+    forced = real_words._build_real_entry(
+        choice, shift, 1.0, language.phonology, language.syllable_structure, language.romanization,
+        language.tone_system, allow_exact_copy=True,
+    )
+    fitted = real_words._build_real_entry(
+        choice, shift, 1.0, language.phonology, language.syllable_structure, language.romanization,
+        language.tone_system, allow_exact_copy=False,
+    )
+    assert forced.ipa == "sa" and forced.notes == "real word: Dutch"  # verbatim, "s" untouched
+    assert fitted.ipa != "sa" and fitted.notes == "real-based word: Dutch"  # "s" fit to the nearest available sound
+    assert "s" not in fitted.ipa
+
+
+def test_coin_real_word_is_none_below_or_at_zero_word_strictness():
+    language = _language(0.0, sound=1.0)
+    assert real_words.coin_real_word(language, "king", PartOfSpeech.NOUN, FakeLLMClient()) is None
+
+
+def test_coin_real_word_is_none_with_no_matched_source_language():
+    language = generate_language("T", GenerationSpec(
+        prompt="p", seed=3, traits=TraitProfile(source_word_strictness=1.0),
+    ), FakeLLMClient())
+    assert real_words.coin_real_word(language, "king", PartOfSpeech.NOUN, FakeLLMClient()) is None
+
+
+def test_coin_real_word_is_none_for_a_templatic_language_and_pos():
+    client = FakeLLMClient()
+    language = next(
+        (
+            l for l in (
+                generate_language("T", GenerationSpec(
+                    prompt="p", seed=seed, traits=TraitProfile(source_languages=("Hebrew",), source_word_strictness=1.0),
+                ), client)
+                for seed in range(1, 60)
+            )
+            if l.grammar.uses_root_and_pattern
+        ),
+        None,
+    )
+    assert language is not None, "no templatic seed found in range -- widen the search"
+    assert real_words.coin_real_word(language, "fire", PartOfSpeech.NOUN, client) is None
+
+
+def test_coin_real_word_finds_a_curated_word_excluded_from_the_generated_vocabulary():
+    # "king" is curated for Dutch but falls outside the default 400-word
+    # generated vocabulary (496 total core meanings) -- the exact gap
+    # on-the-fly coinage exists to fill.
+    excluded = {g for g, _ in select_meanings(496)} - {g for g, _ in select_meanings(400)}
+    assert "king" in excluded  # sanity: the premise this test relies on
+    language = _language(1.0, sound=1.0)
+    assert language.lexicon.by_gloss("king") is None
+    entry = real_words.coin_real_word(language, "king", PartOfSpeech.NOUN, FakeLLMClient())
+    assert entry is not None
+    assert entry.notes.startswith("real") and entry.real_word is not None and entry.real_word.language == "Dutch"
+
+
+def test_coin_real_word_is_deterministic():
+    language = _language(1.0, sound=1.0)
+    client = FakeLLMClient()
+    a = real_words.coin_real_word(language, "king", PartOfSpeech.NOUN, client)
+    b = real_words.coin_real_word(language, "king", PartOfSpeech.NOUN, client)
+    assert a == b
+
+
+def test_coin_real_word_falls_back_to_none_when_curated_and_llm_both_miss(monkeypatch):
+    _uncurated(monkeypatch, "Dutch")
+    language = _language(1.0, sound=1.0)
+    stub = _StubClient("I cannot help with that.")
+    assert real_words.coin_real_word(language, "king", PartOfSpeech.NOUN, stub) is None
+    assert stub.calls >= 1  # it did attempt the LLM gap-fill
+
+
+def test_on_the_fly_coinage_uses_a_real_word_at_high_strictness_and_invents_at_zero():
+    high = _language(1.0, sound=1.0)
+    low = _language(0.0, sound=1.0)
+    client = FakeLLMClient()
+    high_result = translate_to_conlang("I see the king", high, client)
+    low_result = translate_to_conlang("I see the king", low, client)
+    high_coined = [e for e in high_result.coined if e.primary_gloss == "king"]
+    low_coined = [e for e in low_result.coined if e.primary_gloss == "king"]
+    assert high_coined and high_coined[0].notes.startswith("real") and high_coined[0].real_word is not None
+    assert low_coined and low_coined[0].notes == "" and low_coined[0].real_word is None
+
+
+def test_on_the_fly_real_word_coinage_never_also_pays_for_word_selection_llm(monkeypatch):
+    # A successful real-word gap-fill must never ALSO pay for
+    # word_selection="llm"'s own candidate-selection call for the same
+    # word -- the two paths are mutually exclusive by construction (real-
+    # word coinage returns immediately, before the invented-candidate
+    # path that call belongs to is ever reached).
+    _uncurated(monkeypatch, "Zulu")
+    language = _language(1.0, sound=1.0, source=("Zulu",))
+    language = language.model_copy(update={"spec": language.spec.model_copy(update={"word_selection": "llm"})})
+    client = _StubClient("1|palabra|kata")
+    translate_to_conlang("I see the king", language, client)
+    # Exactly one call for sentence planning, one for the real-word gap-
+    # fill on "king" -- never a third for word_selection="llm".
+    assert client.calls == 2

@@ -667,6 +667,34 @@ Coined 1 new word(s): lil'jhah
 (pattern: llm-plan)
 ```
 
+On-the-fly coinage also consults word strictness (`--word-strictness`, see
+`generate` above) the same way the pregenerated core vocabulary already
+does: a word outside the *generated* vocabulary (narrower than the full
+~496-gloss core-meanings list whenever `--vocabulary-size` is below it,
+the default) gets a chance of being a real word from the matched source
+language instead of an invented one. Verified on `word-strict-demo`
+(`--source-language Dutch --strictness 1.0 --word-strictness 1.0`, "king"
+excluded from its own generated vocabulary):
+
+```bash
+conlang translate "I see the king" --lang word-strict-demo --to conlang --llm fake
+```
+
+```
+zieniekon le hakoning.
+IPA: /ˈzinikɔn lɛ ˈhakonɪŋ/
+Coined 1 new word(s): koning
+(pattern: llm-plan)
+```
+
+"koning" is the real Dutch word for "king" (inspecting the saved lexicon
+shows `notes: 'real word: Dutch'`). The same translation on a `--word-
+strictness 0.0` language coins an ordinary invented word instead (e.g.
+"gieltte"). This only ever reaches a real word for a gloss the curated
+lexicon happens to cover; anything else either costs one extra LLM call
+(not batched the way generation's own gap-filling is) or falls back to
+inventing, same as before this feature existed.
+
 `--to` is `conlang` (default) or `english`. An LLM call
 (`translation/sentence_planner.py`) drafts the sentence's own
 *structure* first -- word order, which arguments get case-marked,

@@ -55,6 +55,25 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   (e.g. nothing nudges a Dutch-sourced shift toward Dutch's own real historical sound changes
   specifically). One table is shared across every word regardless of which matched source language it
   came from, when more than one is weighted.
+- **On-the-fly real-word coinage during translation only ever fires for a
+  core-vocabulary gloss `--vocabulary-size` left out of generation** (the
+  curated lexicons are keyed by the fixed ~496-gloss core-meanings list,
+  and every one of those glosses already has a lexicon entry, real or
+  invented, the moment generation finishes -- so `coin_word` is never
+  reached for any of them unless the generated vocabulary is smaller than
+  the full list, the default case). An arbitrary English word typed
+  during translation that *isn't* one of those ~496 glosses can only ever
+  reach a real word via one single, un-batched LLM call (costing
+  noticeably more per word than generation's own batched gap-fill), and
+  often won't even then.
+- **Root-and-pattern (templatic) languages never get an on-the-fly
+  real-word coinage** -- adapting a borrowed word into an existing
+  template (which root to extract, whether the donor word even has a
+  compatible consonant skeleton) is a different problem than ordinary
+  phonological deviation, not attempted.
+- **A real-word-based on-the-fly coinage is never checked against the
+  rest of the lexicon for a spelling collision** -- the same non-
+  guarantee generation-time real words already have.
 
 ## Seed words
 

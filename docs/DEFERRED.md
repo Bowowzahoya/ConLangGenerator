@@ -107,9 +107,26 @@ multi-session feature.
   declarative); decode is not re-split per sentence, so a multi-sentence
   decode input still reports one whole-input question/imperative signal,
   not per-sentence.
-- **Coined words ignore word strictness (M).** On-the-fly coinage always
-  invents; it could use the real word (curated, else LLM) when word
-  strictness is high.
+- **Coined words ignore word strictness -- done (pass 53).** On-the-fly
+  coinage (`translation/expansion.py::coin_word`) now tries a real word
+  first, reusing generation-time word strictness's own machinery: a
+  deterministic per-gloss roll against `source_word_strictness`, a
+  curated-lexicon lookup, else one single-gloss LLM call (`real_words_
+  llm.fetch_real_words`, API-shape-compatible with a 1-item request
+  unmodified), the same systematic deviation-shift table reconstructed
+  from `(seed, strictness, inventory)` rather than persisted (it's fully
+  derivable, so no schema change was needed) -- and only *falls back* to
+  this project's existing invented-word coinage when none of that
+  produces a usable word. This actually fires in practice specifically
+  for a core-vocabulary gloss the generated `--vocabulary-size` left out
+  (curated lexicons cover ~496 glosses; the default vocabulary is 400),
+  not a coincidence -- every gloss `coin_word` could otherwise reach is,
+  by construction, already in the lexicon by the time translation runs.
+  Root-and-pattern (templatic) languages are excluded (adapting a
+  borrowed word into an existing template is a different problem, left
+  open); a real-word-based on-the-fly coinage never checks for a spelling
+  collision against the rest of the lexicon, the same non-guarantee
+  generation-time real words already have.
 
 ## 4. Generation from the user's own words
 
