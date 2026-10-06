@@ -101,10 +101,35 @@ def fit_ipa(guessed_ipa: str, inventory: PhonemeInventory, structure: SyllableSt
     return _repair(tokens, inventory, structure)
 
 
+def _resync(
+    tokens: list[tuple[str, bool]], all_symbols: tuple[str, ...], vowel_symbols: frozenset[str]
+) -> list[tuple[str, bool]]:
+    """Re-tokenizes the joined string against the inventory's own symbol
+    set and rebuilds the token list from that -- keeps ``_repair``'s own
+    notion of token boundaries from silently diverging from what the
+    string actually reads back as. An epenthetic vowel landing next to
+    another vowel can fuse into a single diphthong symbol the inventory
+    also has (e.g. a dropped consonant leaving ``a`` and ``i`` adjacent,
+    which then reads back as the diphthong ``ai``), merging what
+    ``_repair`` still thinks are two separate syllable nuclei into one --
+    the same silent-fusion risk ``sonority._reads_back_as_pair`` already
+    guards onset/coda consonant clusters against, just on the vowel side
+    and after the fact (re-tokenize and check) rather than before it
+    (only ever offer pairs already known to read back clean)."""
+    joined = "".join(symbol for symbol, _ in tokens)
+    resynced = ipa_tokenizer.symbols_only(joined, all_symbols)
+    return [(symbol, symbol in vowel_symbols) for symbol in resynced]
+
+
 def _repair(tokens: list[tuple[str, bool]], inventory: PhonemeInventory, structure: SyllableStructure) -> str:
     epenthetic = _epenthetic_vowel(inventory)
+    all_symbols = inventory.all_symbols()
+    vowel_symbols = frozenset(v.ipa for v in inventory.vowels)
+
+    tokens = _resync(tokens, all_symbols, vowel_symbols)
     if not any(is_vowel for _, is_vowel in tokens):
         tokens.append((epenthetic, True))
+        tokens = _resync(tokens, all_symbols, vowel_symbols)
 
     for _ in range(4 * len(tokens) + 8):
         problem = first_problem(tokens, structure)
@@ -117,6 +142,7 @@ def _repair(tokens: list[tuple[str, bool]], inventory: PhonemeInventory, structu
             tokens.insert(index, (epenthetic, True))
         if not any(is_vowel for _, is_vowel in tokens):
             tokens.append((epenthetic, True))
+        tokens = _resync(tokens, all_symbols, vowel_symbols)
     return "".join(symbol for symbol, _ in tokens)
 
 

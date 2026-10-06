@@ -623,16 +623,24 @@ def test_evolved_onset_clusters_stay_a_thinned_subset_of_the_sonority_legal_clos
     # Post-evolution recomputation must apply the same cluster thinning as
     # initial generation, not silently un-thin back to the full closure --
     # this is the exact consistency risk cluster-thinning could introduce
-    # if phonology_gen.py and sound_change.py ever drifted apart. Seed 3
-    # is picked because its base language actually rolls max_onset=2 (most
-    # seeds don't, and evolution never re-rolls max_onset -- only its
-    # cluster pool -- so a seed without it would make this test vacuous).
-    # (Re-found against seed=3 after the Swahili/Zulu/Yoruba batch's own
-    # new phoneme-pool content shifted downstream rng draws enough that
-    # seed=1 stopped rolling max_onset=2 -- same "seed-shift from new
-    # content" pattern documented elsewhere in this project's history.)
-    base = generate_language("Base", GenerationSpec(prompt="base", seed=3), FakeLLMClient())
-    assert base.syllable_structure.max_onset >= 2
+    # if phonology_gen.py and sound_change.py ever drifted apart. Needs a
+    # base language that actually rolls max_onset=2: absent a matched
+    # source-language profile, onset_cluster_probability is an
+    # unconditional 50/50 draw, so roughly half of all seeds don't, and
+    # evolution never re-rolls max_onset -- only its cluster pool -- so a
+    # seed without it would make this test vacuous. A single hardcoded
+    # seed has already needed manual re-picking twice as unrelated
+    # phoneme-pool content shifted the rng draw count enough to flip it
+    # (seed 1, then seed 3, both stopped rolling max_onset=2) -- searching
+    # a small range instead of hardcoding one magic seed lets the test
+    # survive the next such shift on its own.
+    base = None
+    for candidate_seed in range(10):
+        candidate = generate_language("Base", GenerationSpec(prompt="base", seed=candidate_seed), FakeLLMClient())
+        if candidate.syllable_structure.max_onset >= 2:
+            base = candidate
+            break
+    assert base is not None, "no seed in range(10) rolled max_onset>=2 -- widen the search range"
     any_max_onset_2 = False
     for seed in range(30):
         evolved = evolve_language("Evolved", base, 300, TraitProfile(), seed)
