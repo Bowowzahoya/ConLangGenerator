@@ -110,6 +110,7 @@ from conlang_generator.core.romanization import (
     MuteSuffixRule,
     OrthographyCategory,
     OrthographyForce,
+    PunctuationStyle,
     RomanizationRule,
     RomanizationScheme,
     SyllableBoundaryMarker,
@@ -956,6 +957,20 @@ def _resolve_word_accent_realization(weighted_profiles: WeightedProfiles) -> str
     return ""
 
 
+_PUNCTUATION_NONE_RATE = 0.12
+"""No curated profile distinguishes real languages by this (every real
+language with a writing system does mark sentence type somehow) -- a
+flat, illustrative roll, not reference-biased, the same honesty standard
+``word_accent_marking``'s own "not yet exercised" fields already have."""
+
+
+def _roll_punctuation_style(rng: random.Random) -> PunctuationStyle:
+    """Called from `generator.py` with its own independent rng stream, not
+    from `generate_romanization` -- see that function's own docstring note
+    on why."""
+    return PunctuationStyle.NONE if rng.random() < _PUNCTUATION_NONE_RATE else PunctuationStyle.STANDARD
+
+
 def _resolve_joint_spellings(
     rng: random.Random,
     weighted_profiles: WeightedProfiles,
@@ -1737,6 +1752,12 @@ def generate_romanization(
     )
     vowel_symbols, legal_onset_clusters, vowel_backness, vowel_length = _scheme_context(inventory)
     grammatical_spelling = _roll_grammatical_spelling(rng, weighted_profiles, allow_all_caps, effective_strictness)
+    # punctuation_style is deliberately NOT rolled from this function's own
+    # shared `rng` -- generator.py rolls it from its own independent stream
+    # and overrides it on the returned scheme afterward (the same "own
+    # independent stream" pattern every other follow-up pass in this
+    # project already uses), so adding this feature doesn't shift a single
+    # existing seed's own inventory/lexicon/grammar output downstream.
     return RomanizationScheme(
         rules=tuple(rules),
         vowel_symbols=vowel_symbols,

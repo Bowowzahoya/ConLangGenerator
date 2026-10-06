@@ -23,7 +23,7 @@ def _language(seed=2, **spec_kwargs):
 
 def test_a_name_is_kept_as_written_and_never_coined_as_an_ordinary_word():
     result = translate_to_conlang("I see Bruno", _language(foreign_names="keep"), FakeLLMClient())
-    assert "Bruno" in result.text.split()
+    assert "Bruno" in result.text.rstrip(".").split()
     assert [(e.primary_gloss, e.notes) for e in result.coined] == [("Bruno", names.NAME_NOTE)]
     back = translate_to_english(result.text, result.language, FakeLLMClient())
     assert "Bruno" in back.text

@@ -639,17 +639,17 @@ conlang translate "the mountain is high" --lang test-lang --to conlang --llm fak
 ```
 
 ```
-twiz kiggx chmixp'afe dkheht
-IPA: /twì kɪ́ɢ tʃmípʼaˈfe dχə̂/
+twiza kiggx chmixp'ii:ait dkhehat.
+IPA: /twìa kɪ́ɢ ˈtʃmípʼɯːait dχə̂a/
 (pattern: llm-plan)
 ```
 
 ```bash
-conlang translate "twiz kiggx chmixp'afe dkheht" --lang test-lang --to english --llm fake
+conlang translate "twiza kiggx chmixp'ii:ait dkhehat." --lang test-lang --to english --llm fake
 ```
 
 ```
-mountain is high
+mountain is high.
 (pattern: llm-plan)
 ```
 
@@ -661,8 +661,8 @@ conlang translate "I see the boat" --lang test-lang --to conlang --llm fake
 ```
 
 ```
-nimtz lizmafak twiz lil'jhah
-IPA: /nɪ̀mt ˈlìmafak twì ˈlīlʔhâ/
+nimtz lizmafakay twiza lil'jhah.
+IPA: /nɪ̀mt lìmaˈfakaj twìa ˈlīlʔhâ/
 Coined 1 new word(s): lil'jhah
 (pattern: llm-plan)
 ```
@@ -696,9 +696,12 @@ languages lack them and leave nouns/verbs unmarked). Subordinate clauses ("I see
 relative clauses with a real LLM) are nested in the plan and rendered in
 place, with the linking word ("that", "because", ...) coined like any
 particle and placed after its clause in verb-final languages and before it
-elsewhere. Punctuation itself is
-still not written in the output. Verified with `--llm fake` on a language
-generated with `--seed 3 --prompt "a plain language"`:
+elsewhere. Each sentence also gets a terminal punctuation mark of its
+own -- a period, question mark or exclamation mark matching its mood --
+per this language's own `RomanizationScheme.punctuation_style` (most
+languages: `standard`; a small illustrative fraction: `none`, no mark at
+all). Verified with `--llm fake` on a language generated with `--seed 3
+--prompt "a plain language"`:
 
 ```bash
 conlang translate "I see the mountains." --lang t1 --to conlang --llm fake
@@ -707,15 +710,29 @@ conlang translate "Go home!" --lang t1 --to conlang --llm fake
 ```
 
 ```
-bsaw gam gyaiwa vasauminay
-ma gam gyaa vasauminan pvi
-tnaplup'ua payuy
+bsaw uu:m bigyaiwin vasauminayaiw.
+ma uu:m bigyain vasauminanaiw pvi?
+bitnaplup'uin payuy!
 ```
 
-(Here `pvi` is the question particle, and the `-ay`-style ending on
-`vasauminay` is plural on top of the object case.) Translating back marks
-them: `conlang translate "ma gam gyaa vasauminan pvi" --lang t1 --to english`
-gives `you mountain see?`, and `"tnaplup'ua payuy"` gives `home go!`.
+(Here `pvi` is the question particle, and the `-aiw`-style ending on
+`vasauminayaiw` is plural on top of the object case.) Translating back marks
+them: `conlang translate "ma uu:m bigyain vasauminanaiw pvi?" --lang t1 --to english`
+gives `you mountain see?`, and `"bitnaplup'uin payuy!"` gives `home go!`.
+
+A language whose own `punctuation_style` rolled `none` (an illustrative
+minority -- most roll `standard`, as above) gets no terminal mark at all,
+regardless of mood. Verified with `--seed 1 --prompt "a plain language"`:
+
+```bash
+conlang translate "I see the mountain." --lang no-punct --to conlang --llm fake
+```
+
+```
+key lu tne'ai 'anmgyunee'
+IPA: /kəj lu tnəˈʔai ʔãmgjuˈnəəʔ/
+(pattern: llm-plan)
+```
 
 ```bash
 conlang translate "I see that you see the river." --lang t1 --to conlang --llm fake

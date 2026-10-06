@@ -434,7 +434,7 @@ def test_one_complementizer_where_the_language_does_not_distinguish():
 def test_a_class_complementizer_reads_back_as_that():
     language = _with(_base(), complementizer_by_verb=True, subordinator_position="before")
     updated, tokens, _ = _render(language, _pronoun("I"), _verb("want"), _clause("that", "complement", _noun("river")))
-    english = translate_to_english(" ".join(tokens), updated, _CLIENT).text.split()
+    english = translate_to_english(" ".join(tokens), updated, _CLIENT).text.rstrip(".").split()
     assert "that" in english and "river" in english
 
 

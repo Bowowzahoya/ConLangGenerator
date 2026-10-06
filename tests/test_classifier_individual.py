@@ -230,11 +230,11 @@ def test_only_the_repeater_nouns_repeat():
 def test_a_repeated_noun_is_read_back_once():
     language = _with(_plain_classifier_language(), repeater_rate=1.0)
     updated, tokens, _ = _render(language, _TWO, _noun("dog"))
-    english = translate_to_english(" ".join(tokens), updated, _CLIENT).text.split()
+    english = translate_to_english(" ".join(tokens), updated, _CLIENT).text.rstrip(".").split()
     assert english.count("dog") == 1 and "two" in english
     after = _with(language, classifier_after_noun=True)
     updated, tokens, _ = _render(after, _TWO, _noun("dog"))
-    english = translate_to_english(" ".join(tokens), updated, _CLIENT).text.split()
+    english = translate_to_english(" ".join(tokens), updated, _CLIENT).text.rstrip(".").split()
     assert english.count("dog") == 1
 
 

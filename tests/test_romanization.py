@@ -3,11 +3,13 @@ import unicodedata
 from conlang_generator.core.romanization import (
     STRESS_MARK,
     JointSpelling,
+    PunctuationStyle,
     RomanizationRule,
     RomanizationScheme,
     SyllableBoundaryMarker,
     ToneMarkingStrategy,
     VowelLengthStrategy,
+    terminal_mark,
 )
 
 COMBINING_ACUTE = "́"
@@ -535,3 +537,26 @@ def test_irregular_only_marking_uses_the_words_own_final_nucleus_not_just_its_co
     # deviation from the predicted default, so it does get marked
     # (café-shaped).
     assert scheme.apply("ka" + STRESS_MARK + "fe") == "kafé"
+
+
+# --- terminal punctuation -----------------------------------------------
+
+
+def test_terminal_mark_standard_style_by_mood():
+    assert terminal_mark("declarative", PunctuationStyle.STANDARD) == "."
+    assert terminal_mark("question", PunctuationStyle.STANDARD) == "?"
+    assert terminal_mark("wh_question", PunctuationStyle.STANDARD) == "?"
+    assert terminal_mark("imperative", PunctuationStyle.STANDARD) == "!"
+
+
+def test_terminal_mark_none_style_is_always_empty():
+    for mood in ("declarative", "question", "wh_question", "imperative"):
+        assert terminal_mark(mood, PunctuationStyle.NONE) == ""
+
+
+def test_terminal_mark_unknown_mood_falls_back_to_period():
+    assert terminal_mark("something_else", PunctuationStyle.STANDARD) == "."
+
+
+def test_romanization_scheme_defaults_to_standard_punctuation_style():
+    assert RomanizationScheme(rules=()).punctuation_style is PunctuationStyle.STANDARD

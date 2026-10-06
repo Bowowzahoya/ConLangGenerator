@@ -71,6 +71,13 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         spec.traits.source_language_weights,
         extra_weighted_profiles=(seed_orthography,) if seed_orthography is not None else (),
     )
+    # Own independent stream (same pattern as every other follow-up pass in
+    # this file) so this roll never shifts any existing seed's own grammar/
+    # lexicon output downstream.
+    punctuation_rng = random.Random(f"{spec.seed}:punctuation")
+    romanization = romanization.model_copy(
+        update={"punctuation_style": romanization_gen._roll_punctuation_style(punctuation_rng)}
+    )
     grammar = grammar_gen.generate_grammar(rng, spec)
 
     # `grammar.tenses` is already final (set entirely inside generate_grammar,

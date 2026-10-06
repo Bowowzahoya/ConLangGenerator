@@ -6375,3 +6375,103 @@ reading code or one-off ad hoc scripts.
   tense half, documented as such in `docs/CLI.md` rather than presented as a working free-text example.
 
   This closes the "Generation from the user's own words" `docs/DEFERRED.md` entry entirely.
+
+- **Punctuation (grammar pass 52).** `docs/DEFERRED.md`'s "## 3. Translation" section: punctuation
+  disappeared in translation entirely -- no mark rendered, ever, for any mood, and a declarative got no
+  terminal mark at all even on decode. A dedicated Explore agent confirmed the exact state first: `sentence_
+  planner.split_sentences` already keeps a sentence's own terminal mark (its own docstring: "the planner's
+  cue for mood"), and `SentencePlan.mood` (`declarative`/`imperative`/`question`/`wh_question`) was already
+  set correctly end to end by both the fake planner and the real-LLM JSON response -- the one missing piece
+  was *using* it to render/recognize an actual character.
+
+  **Scope decision: no new `exclamatory` plan field.** The fake planner's own existing imperative detection
+  already requires a trailing `"!"` *and* a command-shaped sentence (no subject) -- a plain exclamatory
+  statement ("I love it!") already silently fell through to declarative before this pass, and still does
+  after it. Adding a flag genuinely independent of `mood` would have meant threading it through every one
+  of `fake_client.py`'s ~14 `{"mood": ..., "slots": ...}` plan-dict construction sites (recursive sentence
+  shapes -- topic-fronting, "the more X the more Y", etc. -- that copy `main_plan["mood"]` forward) for a
+  marginal gain, since `"!"` is already fully consumed by the imperative heuristic. Piggybacking the mark
+  on `mood` alone keeps render and decode perfectly symmetric (decode seeing a bare `"!"` can only ever mean
+  `mood == "imperative"`, by construction) -- the honest, bounded scope, documented in `docs/LIMITATIONS.md`.
+
+  **New `PunctuationStyle` enum** (`core/romanization.py`, alongside `ExoticSymbolStyle`): `STANDARD`
+  (period/question mark/exclamation mark) and `NONE` (this language's own writing convention doesn't mark
+  sentence type at all -- illustrative, not a survey of every real convention). `RomanizationScheme` gains
+  `punctuation_style: PunctuationStyle = PunctuationStyle.STANDARD`. A new `terminal_mark(mood, style) ->
+  str` sits beside `apply_grammatical_spelling` -- the same "a second function with context `apply()`
+  itself doesn't have" shape (a whole sentence's mood, not one IPA string). Not tied to any named
+  `OrthographyCategory` (no curated profile distinguishes real languages by this; every real language with
+  a writing system marks sentence type *somehow*, so this stays a flat, non-profile-biased roll, the same
+  honesty standard `word_accent_marking`'s own "not yet exercised" fields already set). **Rolled from its
+  own independent rng stream in `generator.py`** (`random.Random(f"{spec.seed}:punctuation")`,
+  `romanization_gen._roll_punctuation_style`), overriding the field on the already-built `RomanizationScheme`
+  right after `generate_romanization` returns -- *not* drawn from the shared `rng` inside `generate_
+  romanization` itself, even though that function already consumes the shared stream for several other
+  fields. A first attempt did add it as the shared stream's own last draw there (reasoning it was "safe"
+  since it came after every other draw *in that one function*) -- that still shifts the position of every
+  draw `generator.py` makes *after* `generate_romanization` returns (grammar, lexicon, ...), which broke
+  dozens of tests across both translation and pure-generation files (confirmed concretely: a declension
+  test with no translation call at all broke too, proving the shift wasn't a punctuation-specific effect).
+  Switching to an independent stream is this project's own established fix for exactly this situation (every
+  other follow-up pass in `generator.py` already rolls its own new fields this way) -- it makes the whole
+  feature's own new roll invisible to every existing seed's grammar/lexicon/translation output, and needed
+  zero test-fixture seed updates once applied, unlike the first attempt.
+
+  **Render** (`translator.py::translate_to_conlang`): `terminal_mark(plan.mood, working_language.
+  romanization.punctuation_style)` appended to each sentence's own *romanization* string only, never its
+  IPA (a phonetic transcription isn't a writing-system fact) -- no change to `_render_plan` itself (a
+  per-slot concern) or to the existing bare-space multi-sentence join, since each sentence string now
+  already carries its own mark.
+
+  **Decode** (`translator.py`): two layers, no restructuring of the existing few-hundred-line per-token
+  loop. (1) **`_normalize`** (NFC-fold + lowercase, used at essentially every surface-token comparison site
+  in this file, ~28 call sites) now also strips a trailing `.`/`!`/`?` -- safe everywhere, since a freshly-
+  *generated* candidate spelling never has one (a no-op there) and only an *observed* token, exactly when
+  it happens to be the last word of its sentence, ever does. Centralizing the strip here, rather than only
+  in `translate_to_english`'s own top-level preprocessing, was the fix for a second wave of failures this
+  pass's own test-impact check didn't predict: several test files call `_decode_noun`/`_decode_verb_full`/
+  `_decode_adjective_full` *directly* on a single extracted token, bypassing `translate_to_english`
+  entirely -- those functions' own `_normalize(token)` call is their first line, so fixing it there fixes
+  every direct caller at once, including ones no single file-level patch would have reached. (2)
+  `translate_to_english` itself still separately strips `raw_tokens` up front (needed for `Lexicon.by_form`,
+  which does its own inline NFC+lower and was never routed through `_normalize`) and records whether a
+  `?`/`!` appeared *anywhere* in the raw tokens as a new, additional whole-input signal, OR'd into the
+  existing particle-based `is_question`/`is_imperative` -- meaningful even for a language with no question
+  particle, which previously had no way to decode a question at all. The final fallback text now always
+  gets a terminal mark (previously a declarative got none at all) -- **deliberately still lowercase, no
+  capitalization**: an early version of this pass capitalized it too, which broke far more tests than the
+  mark itself (every bare `"word" in english_text` substring check this codebase already had, with no
+  `.lower()` of its own, since that was always safe before); capitalization is cheaply the real fluency
+  LLM's own job already ("write a natural English sentence"), so it was dropped rather than chasing down
+  every affected assertion. Deliberately **not done**: re-splitting the decode input per sentence and
+  looping the whole per-token machinery per chunk -- confirmed a materially bigger, riskier change than
+  fixing the punctuation gap itself needed; a multi-sentence decode input still reports one whole-input
+  question/imperative signal, the exact same granularity the pre-existing particle-only detection already
+  had. The fluency system prompt gained one sentence noting the gloss sequence may represent more than one
+  original sentence with no marker between them, and to write each as its own correctly punctuated English
+  sentence.
+
+  **Test-impact check, done before committing to the design, not after -- and still an undercount in
+  practice**: `translate_to_conlang` is called from 133 sites across 32 test files. Sampling confirmed the
+  dominant pattern (`result.text.split()` then `words[0]`/`len(words)`/relative comparisons) is unaffected
+  by a mark landing on the *last* word, and zero tests assert a literal full-string match -- correctly
+  predicting the one `test_translator.py` hit that needed `.rstrip(".")`. What the sample didn't surface,
+  only running the suite did: (a) a first attempt rolled `punctuation_style` from the shared `rng` inside
+  `generate_romanization`, which shifted every downstream draw for every existing seed and broke dozens of
+  tests across both translation and pure-generation files -- resolved by moving the roll to its own
+  independent stream (see above), which needed zero fixture-seed updates once applied, confirming the
+  shared-stream version really was the cause, not some other interaction; (b) a first attempt at
+  capitalizing the fallback text broke roughly 20 more tests across half a dozen files, resolved by
+  dropping capitalization entirely rather than fixing each one (see above); (c) several test files extract
+  a single token from a full sentence's own rendering and feed it straight to a lower-level decode
+  function, which a mark landing on a sentence-*final* word broke in a way the top-level `translate_to_
+  english` fix alone didn't reach -- resolved by the `_normalize` centralization above. The lesson carried
+  into this entry on purpose: a static test-impact estimate from sampling call sites is a floor, not a
+  ceiling -- running the affected files for real is still what actually closes a pass like this one, and a
+  new roll touching a widely-shared `rng` object is worth questioning before it's added, not just after.
+
+  **Explicitly deferred**: quotation marks (direct speech isn't modeled at all -- confirmed `quotative_
+  particle`'s own docstring is reported/indirect speech only, a genuinely different, unmodeled construction);
+  comma placement (needs clause/list-boundary rules this project doesn't have); the `exclamatory`-independent-
+  of-`mood` idea above; per-sentence decode granularity above -- each its own bigger, separate piece of work,
+  not a continuation of this pass's own scope.

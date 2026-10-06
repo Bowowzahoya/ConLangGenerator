@@ -61,7 +61,12 @@ from dataclasses import dataclass
 from conlang_generator.core.grammar import GrammarProfile, InflectionAffix
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
-from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK, apply_grammatical_spelling
+from conlang_generator.core.romanization import (
+    STRESS_MARK,
+    WORD_ACCENT_MARK,
+    apply_grammatical_spelling,
+    terminal_mark,
+)
 from conlang_generator.generation import (
     classifier_gen,
     inflection_gen,
@@ -118,7 +123,16 @@ class TranslationResult:
 
 
 def _normalize(text: str) -> str:
-    return unicodedata.normalize("NFC", text).lower()
+    """NFC-fold and lowercase, and drop a trailing sentence-final mark
+    (see ``core.romanization.terminal_mark``) -- safe on every call site:
+    a freshly-*generated* candidate spelling never has one to begin with
+    (a no-op there), while an *observed* surface token might, whenever it
+    happens to be the last word of its sentence. Centralizing this here,
+    rather than only at `translate_to_english`'s own top-level token
+    preprocessing, also covers every lower-level decode function
+    (`_decode_noun`/`_decode_verb_full`/`_decode_adjective_full`/...) that
+    takes a single token directly, including every test that does."""
+    return unicodedata.normalize("NFC", text).lower().rstrip(".!?")
 
 
 def _translation_rng(language: Language, salt: str) -> random.Random:
@@ -2749,7 +2763,13 @@ def translate_to_conlang(
     split_sentences``): each gets its own plan -- and its own mood
     (declarative, imperative, yes/no or wh-question) -- and the rendered
     sentences are joined with a space. Sandhi is applied within a sentence,
-    never across a sentence boundary."""
+    never across a sentence boundary. Each sentence's own romanization
+    (never its IPA -- a phonetic transcription, not a writing-system fact)
+    gets a terminal punctuation mark per ``plan.mood`` and this language's
+    own ``romanization.punctuation_style`` (see ``core.romanization.
+    terminal_mark``); joining the per-sentence strings with a bare space
+    then reads correctly ("... high. ... river?"), with no further change
+    to the join itself."""
     coined: list[LexicalEntry] = []
     working_language = language
     romanization_sentences: list[str] = []
@@ -2759,7 +2779,8 @@ def translate_to_conlang(
         working_language, rom_parts, ipa_parts, gloss_parts = _render_plan(
             plan, working_language, llm_client, coined
         )
-        romanization_sentences.append(" ".join(rom_parts))
+        mark = terminal_mark(plan.mood, working_language.romanization.punctuation_style)
+        romanization_sentences.append(" ".join(rom_parts) + mark)
         ipa_sentences.append(" ".join(tone_sandhi.apply_sandhi(ipa_parts, language.tone_system, gloss_parts)))
 
     return TranslationResult(
@@ -3354,6 +3375,17 @@ def translate_to_english(
     text: str, language: Language, llm_client: LLMClient
 ) -> TranslationResult:
     raw_tokens = unicodedata.normalize("NFC", text).strip().split()
+    # A sentence-final mark (see translate_to_conlang/terminal_mark) rides
+    # on the last token of each sentence -- stripped before any lookup
+    # (every lexicon/particle match below would otherwise fail on it), and
+    # recorded as a whole-input signal: not sentence-aware (that would mean
+    # looping the whole per-token machinery below per sentence, a bigger
+    # change than this pass's own scope -- see docs/LIMITATIONS.md), but a
+    # real signal even for a language with no question particle at all.
+    marked_question = any(t.endswith("?") for t in raw_tokens)
+    marked_imperative = any(t.endswith("!") for t in raw_tokens)
+    raw_tokens = [t.rstrip(".!?") for t in raw_tokens]
+    raw_tokens = [t for t in raw_tokens if t]
     article_forms = _article_forms(language)
     tokens = [t for t in raw_tokens if _normalize(t) not in article_forms]
     if language.grammar.repeater_rate > 0.0:
@@ -3626,7 +3658,16 @@ def translate_to_english(
             plain.append(_AUXILIARY_ENGLISH.get(label, label))
             annotated.append(f"{_AUXILIARY_ENGLISH.get(label, label)} (auxiliary: {label})")
 
-    plain_draft = " ".join(plain) + ("?" if is_question else "!" if is_imperative else "")
+    is_question = is_question or marked_question
+    is_imperative = is_imperative or marked_imperative
+    # Deliberately no capitalization here -- every existing fallback-text
+    # convention in this project is lowercase, and capitalizing would
+    # break every "word in english.lower()"-less substring check this
+    # codebase already has; capitalization is the real fluency LLM's own
+    # job (it's asked to "write a natural English sentence"), same as
+    # today for every other aspect of fluent phrasing.
+    final_mark = "?" if is_question else "!" if is_imperative else "."
+    plain_draft = " ".join(plain) + final_mark
     annotated_draft = " ".join(annotated) + (
         " [this is a yes/no question]" if is_question else " [this is a command]" if is_imperative else ""
     )
@@ -3655,7 +3696,10 @@ def translate_to_english(
             "(reportedly, apparently, or first-hand) and '(negative)' means the verb is negated. "
             "Keep the meaning and the word order's implied roles; do not "
             "add new content; drop the annotations themselves from your "
-            "output."
+            "output. The gloss sequence may represent more than one "
+            "original sentence with no marker between them -- infer the "
+            "boundary and write each as its own correctly capitalized, "
+            "correctly punctuated English sentence."
             + _construction_note(language)
         ),
         prompt=f"Rough gloss sequence: {annotated_draft}\nWrite a natural English sentence:",

@@ -136,9 +136,9 @@ def test_a_yes_no_question_gets_the_particle_at_the_end_in_an_svo_language():
     client = FakeLLMClient()
     romanized_particle = language.romanization.apply(language.grammar.question_particle)
     question = translate_to_conlang("Do you see the mountain?", language, client)
-    assert question.text.split()[-1] == romanized_particle
+    assert question.text.split()[-1].rstrip("?") == romanized_particle  # a question also gets a trailing "?"
     statement = translate_to_conlang("You see the mountain.", language, client)
-    assert romanized_particle not in statement.text.split()
+    assert romanized_particle not in statement.text.rstrip(".").split()
     assert translate_to_english(question.text, language, client).text.endswith("?")
 
 

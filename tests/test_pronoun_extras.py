@@ -323,7 +323,7 @@ def test_a_dropped_object_is_read_back_from_the_verbs_object_agreement():
     tokens = _render(language, _verb(agreement="he", object_gloss="you"))[1]
     decoded = _decode_verb_full(language, tokens[0])
     assert decoded is not None and decoded[6] == "you"
-    assert "you" in translate_to_english(tokens[0], language, _CLIENT).text.split()
+    assert "you" in translate_to_english(tokens[0], language, _CLIENT).text.rstrip(".").split()
 
 
 def test_an_object_pronoun_stays_where_the_language_does_not_drop_it():

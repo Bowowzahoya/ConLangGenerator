@@ -441,6 +441,22 @@ class ExoticSymbolStyle(str, Enum):
     """A single Latin-Extended letter, e.g. "ʃ" -> "š"."""
 
 
+class PunctuationStyle(str, Enum):
+    """Whether this language's own writing convention marks sentence type
+    with punctuation at all. Illustrative, not a survey of real
+    conventions (e.g. no inverted leading marks, no distinct glyphs) --
+    see ``terminal_mark`` for how a style resolves into an actual
+    character."""
+
+    STANDARD = "standard"
+    """The common case: a period for a declarative, a question mark for a
+    yes/no or wh-question, an exclamation mark for an imperative."""
+    NONE = "none"
+    """This language's writing convention doesn't mark sentence type at
+    all -- a real simplification some languages/registers do make, kept
+    illustrative rather than exhaustive."""
+
+
 class MuteSuffixRule(BaseModel, frozen=True):
     pos: PartOfSpeech
     suffix: str
@@ -491,6 +507,24 @@ def apply_grammatical_spelling(scheme: "RomanizationScheme", latin: str, pos: Pa
     return latin
 
 
+_TERMINAL_MARKS = {"question": "?", "wh_question": "?", "imperative": "!"}
+"""``sentence_planner.SentencePlan.mood`` -> the mark ``terminal_mark``
+gives it under ``PunctuationStyle.STANDARD``; any other mood (just
+``"declarative"`` today) falls to the default "." below."""
+
+
+def terminal_mark(mood: str, style: "PunctuationStyle") -> str:
+    """The sentence-final punctuation mark for a plan's own ``mood``,
+    under this language's ``RomanizationScheme.punctuation_style`` --
+    ``""`` when the language's own convention doesn't mark sentence type
+    at all. A second function with context ``RomanizationScheme.apply()``
+    itself doesn't have (a whole sentence's mood, not one IPA string),
+    the same shape as ``apply_grammatical_spelling`` above."""
+    if style is PunctuationStyle.NONE:
+        return ""
+    return _TERMINAL_MARKS.get(mood, ".")
+
+
 class RomanizationScheme(BaseModel, frozen=True):
     rules: tuple[RomanizationRule, ...]
     vowel_symbols: tuple[str, ...] = ()
@@ -528,6 +562,11 @@ class RomanizationScheme(BaseModel, frozen=True):
     short_vowel_consonant_doubling: bool = False
     exotic_symbol_style: ExoticSymbolStyle = ExoticSymbolStyle.DIGRAPH
     syllable_boundary_marker: SyllableBoundaryMarker = SyllableBoundaryMarker.NONE
+    punctuation_style: PunctuationStyle = PunctuationStyle.STANDARD
+    """Rolled independently of this scheme's ``category`` (not every real
+    writing convention ties sentence punctuation to its letter-spelling
+    style) -- see ``generation.romanization_gen.generate_romanization``
+    and ``terminal_mark`` above."""
     stress_accent_marking: str = ""
     """Whether/how this scheme's real orthography writes word stress at
     all -- ``""`` (the common case: most languages never write it, so

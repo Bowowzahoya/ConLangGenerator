@@ -161,6 +161,40 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   clitic); there is no dual, gender or noun class, and vocatives are
   ordinary sentence-initial nouns. There is no idiom generation/matching (`Lexicon.idioms` exists
   but is unused).
+- **Sentence-final punctuation is mood-derived only -- no independent
+  exclamation signal, no comma, no quotation mark.** `terminal_mark`
+  reads only `SentencePlan.mood`, so a plain exclamatory statement ("I
+  love it!") still renders and decodes as an ordinary declarative -- `"!"`
+  is produced, and recognized, only for `mood == "imperative"`, exactly
+  matching the fake planner's own existing "!" detection (which already
+  requires a command-shaped sentence, not just a trailing "!"). Adding a
+  genuinely independent exclamatory flag was scoped out: it would need
+  threading through every one of the fake client's ~14 plan-dict
+  construction sites that copy a nested plan's own `mood` forward, for a
+  gain this project's own English-decode fallback doesn't otherwise need.
+  Commas and quotation marks aren't modeled at all -- no clause/list-
+  boundary rules exist for the former, and direct quotation (as opposed
+  to the already-modeled indirect/reported speech) isn't a construction
+  this project's planner produces for the latter.
+- **Decoding a multi-sentence conlang string reports one whole-input
+  question/imperative signal, not one per sentence.** `translate_to_
+  english` was deliberately not restructured to re-split its input and
+  loop the per-token decode machinery per sentence (a materially bigger
+  change than fixing punctuation itself needed) -- a `?`/`!` anywhere in
+  a multi-sentence input marks the *whole* decoded output as a question/
+  command, the same granularity the particle-based detection it extends
+  already had. A `punctuation_style: "none"` language's own rendered
+  text has no mark to re-split on at all, so this limitation is total for
+  such a language's multi-sentence output.
+- **Decode's fallback English text is never capitalized.** It gets a
+  terminal mark now, but the first letter stays lowercase -- capitalizing
+  it was tried and dropped: this project's own fallback text has always
+  been lowercase, so dozens of existing substring checks (`"word" in
+  english_text`, no `.lower()` of their own) assumed it, and capitalizing
+  broke far more of them than the mark itself did. A real fluency LLM
+  call already capitalizes naturally (it's asked to "write a natural
+  English sentence"); only the deterministic fake-client fallback stays
+  lowercase.
 - **Aspect and verbal mood are single suffixes** in a fixed order (aspect, tense,
   mood, agreement), chosen from illustrative label sets (two-way or four-way
   aspect; irrealis or subjunctive/conditional/potential). Auxiliaries ("have",

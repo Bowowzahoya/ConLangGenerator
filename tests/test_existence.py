@@ -165,7 +165,7 @@ def test_an_existential_question_gets_the_question_particle():
     language = _find(lambda g: g.word_order.value in ("SVO", "SOV"))
     particle = language.romanization.apply(language.grammar.question_particle)
     result = translate_to_conlang("Is there a dog?", language, _CLIENT)
-    assert result.text.split()[-1] == particle
+    assert result.text.split()[-1].rstrip("?") == particle  # a yes/no question also gets a trailing "?"
 
 
 # --- reading back ---------------------------------------------------------

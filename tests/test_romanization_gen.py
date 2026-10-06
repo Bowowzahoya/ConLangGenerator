@@ -7,6 +7,7 @@ from conlang_generator.core.phonology import Consonant, Manner, Place, PhonemeIn
 from conlang_generator.core.romanization import (
     ExoticSymbolStyle,
     OrthographyForce,
+    PunctuationStyle,
     RomanizationRule,
     RomanizationScheme,
     SyllableBoundaryMarker,
@@ -29,6 +30,7 @@ from conlang_generator.generation.romanization_gen import (
     _generate_length_rules,
     _reference_orthography,
     _roll_independent_axes,
+    _roll_punctuation_style,
     _scheme_context,
     _seed_orthography_profile,
     evolve_romanization,
@@ -1220,3 +1222,27 @@ def test_evolve_romanization_carries_joint_spellings_forward_when_not_reformed()
     assert base.onset_nucleus_spellings  # sanity: the base scheme actually has it
     evolved, _ = evolve_romanization(base, inventory, random.Random(2), ("French",), reform_rate=0.0, strictness=1.0)
     assert evolved.onset_nucleus_spellings == base.onset_nucleus_spellings
+
+
+# --- punctuation style ----------------------------------------------------
+
+
+def test_generate_romanization_itself_always_defaults_to_standard_punctuation():
+    # punctuation_style is deliberately NOT rolled inside generate_romanization
+    # (see _roll_punctuation_style below) -- generator.py rolls it from its
+    # own independent stream and overrides it afterward, so this function's
+    # own output always has the RomanizationScheme default regardless of rng.
+    inventory = _dutch_flavored_inventory()
+    styles = {generate_romanization(random.Random(seed), inventory).punctuation_style for seed in _SEEDS}
+    assert styles == {PunctuationStyle.STANDARD}
+
+
+def test_roll_punctuation_style_rolls_both_values_across_a_seed_range():
+    styles = {_roll_punctuation_style(random.Random(seed)) for seed in _SEEDS}
+    assert styles == {PunctuationStyle.STANDARD, PunctuationStyle.NONE}
+
+
+def test_roll_punctuation_style_none_is_a_small_minority():
+    none_count = sum(_roll_punctuation_style(random.Random(seed)) is PunctuationStyle.NONE for seed in _SEEDS)
+    # Illustrative rate (~0.12) -- a loose statistical band, not an exact count.
+    assert 0 < none_count < len(_SEEDS) * 0.3

@@ -84,10 +84,29 @@ multi-session feature.
   N new words"); allow undo; consider not persisting nonsense. Also
   decide error behaviour when the LLM returns a bad plan (today:
   word-for-word fallback with no message).
-- **Punctuation (M).** Punctuation disappears in translation. Decide punctuation
-  rules per orthography (which marks, spacing, question/exclamation
-  marks, quotes) and carry them through the plan and the romanization;
-  keep the round trip back to English working.
+- **Sentence-final punctuation done (pass 52); quotation and comma
+  punctuation still open (M-L).** Done: a per-language ``RomanizationScheme.
+  punctuation_style`` (``standard``/``none``, independently rolled, ~12%
+  ``none``) and ``core.romanization.terminal_mark(mood, style)`` give each
+  rendered sentence a period/question mark/exclamation mark derived purely
+  from the already-existing ``SentencePlan.mood`` (no new plan field --
+  `"!"` only ever means `mood == "imperative"`, by construction, same as
+  today's fake-planner detection); `translate_to_english` strips a mark
+  before any lookup, also treats a bare `?`/`!` anywhere in the input as a
+  question/imperative signal (so a language with no question particle can
+  still decode correctly), and its fallback text is now always terminated
+  (previously a declarative got no mark at all; deliberately still not
+  capitalized -- see `docs/LIMITATIONS.md`). Still open:
+  quotation marks (direct speech isn't modeled at all -- `quotative_
+  particle` is reported/indirect speech only, confirmed in its own
+  docstring) and comma placement (would need clause/list-boundary rules) --
+  both genuinely bigger, separate features, not a continuation of this
+  pass's own scope. Also still open, each a deliberate scope boundary of
+  this pass (see `docs/LIMITATIONS.md`): no `exclamatory` signal
+  independent of mood (a plain exclamatory statement still reads as
+  declarative); decode is not re-split per sentence, so a multi-sentence
+  decode input still reports one whole-input question/imperative signal,
+  not per-sentence.
 - **Coined words ignore word strictness (M).** On-the-fly coinage always
   invents; it could use the real word (curated, else LLM) when word
   strictness is high.

@@ -121,7 +121,7 @@ def test_a_suppletive_person_gets_a_word_of_its_own_in_a_marked_case():
     assert glosses == ["i-accusative"] and updated.lexicon.by_gloss("i-accusative") is not None
     assert tokens != _render(language, _pronoun("I"))[1]
     english = translate_to_english(tokens[0], updated, _CLIENT).text
-    assert english.strip() == "me"
+    assert english.strip().rstrip(".") == "me"
 
 
 def test_a_regular_person_keeps_the_case_suffix():
@@ -140,7 +140,7 @@ def test_a_genitive_possessor_pronoun_uses_the_suppletive_genitive():
     language = _find(lambda g: "I" in g.suppletive_pronoun_persons and g.possession == "genitive" and "I" not in dict(g.suppletive_pronoun_case_limits))
     updated, tokens, glosses = _render(language, _pronoun("I", possessive=True), _noun("dog"))
     assert glosses[0] == "i-genitive" and len(tokens) == 2
-    assert "my" in translate_to_english(tokens[0], updated, _CLIENT).text.split()
+    assert "my" in translate_to_english(tokens[0], updated, _CLIENT).text.rstrip(".").split()
 
 
 def test_a_language_without_suppletion_is_unchanged():

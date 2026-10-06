@@ -148,5 +148,5 @@ def test_a_class_marked_repeater_decodes_back_once():
     language = _with(_class_marked_classifier_language(), repeater_rate=1.0)
     two = PlannedSlot(kind="content", gloss="two", pos="numeral")
     updated, tokens, _ = _render(language, two, _noun("dog"))
-    english = translate_to_english(" ".join(tokens), updated, _CLIENT).text.split()
+    english = translate_to_english(" ".join(tokens), updated, _CLIENT).text.rstrip(".").split()
     assert english.count("dog") == 1 and "two" in english

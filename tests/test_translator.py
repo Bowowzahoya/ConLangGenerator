@@ -20,7 +20,10 @@ from conlang_generator.translation.translator import translate_to_conlang, trans
 # (Re-found from seed=2 -> 83 -> 278 after the "Missing symbols still" batch's own new
 # _EXOTIC_POOL/_VOWEL_EXTRAS content (ʘ/ʛ/ʜ/ʢ and ɚ/ɻ̩, among others)
 # shifted downstream rng draws -- same "seed-shift from new content, not a
-# functional regression" pattern this file's own history already has.)
+# functional regression" pattern this file's own history already has. The
+# "Punctuation" pass's own `punctuation_style` roll deliberately uses its
+# own independent rng stream specifically so it never needs this seed
+# re-found a third time.)
 _NOM_ACC_SEED = 278
 
 # seed=28 (default traits): alignment=ergative_absolutive,
@@ -124,7 +127,7 @@ def test_overt_copula_is_inserted_between_subject_and_adjective():
     words = result.text.split()
     assert len(words) == 4  # the, mountain, copula, high
     assert words[1] == mountain_entry.romanization
-    assert words[3] == high_entry.romanization
+    assert words[3].rstrip(".") == high_entry.romanization  # declarative gets a trailing "."
     copula_word = words[2]
     assert copula_word != language.lexicon.by_gloss("be").romanization  # tense/agreement-marked, not the bare form
 
@@ -211,7 +214,7 @@ def test_svo_with_accusative_object_round_trips_and_disambiguates_from_copula_pa
     to_conlang = translate_to_conlang("I see the mountain", language, FakeLLMClient())
     back = translate_to_english(to_conlang.text, to_conlang.language, FakeLLMClient())
     assert back.pattern == "llm-plan"
-    assert back.text.lower().split() == ["i", "see", "mountain"]
+    assert back.text.lower().rstrip(".").split() == ["i", "see", "mountain"]
 
 
 def test_svo_round_trips_past_tense_with_irregular_verb():
@@ -219,7 +222,7 @@ def test_svo_round_trips_past_tense_with_irregular_verb():
     to_conlang = translate_to_conlang("I saw the mountain", language, FakeLLMClient())
     back = translate_to_english(to_conlang.text, to_conlang.language, FakeLLMClient())
     assert back.pattern == "llm-plan"
-    assert back.text.lower().split() == ["i", "saw", "mountain"]
+    assert back.text.lower().rstrip(".").split() == ["i", "saw", "mountain"]
 
 
 def test_ergative_language_svo_round_trips_with_ergative_marked_subject():
@@ -235,7 +238,7 @@ def test_ergative_language_svo_round_trips_with_ergative_marked_subject():
     to_conlang = translate_to_conlang("I see the mountain", language, FakeLLMClient())
     back = translate_to_english(to_conlang.text, to_conlang.language, FakeLLMClient())
     assert back.pattern == "llm-plan"
-    assert set(back.text.lower().split()) == {"i", "see", "mountain"}
+    assert set(back.text.lower().rstrip(".").split()) == {"i", "see", "mountain"}
 
 
 def test_no_features_language_predicate_adjective_still_round_trips():
@@ -266,11 +269,11 @@ def test_predicate_adjective_with_copula_round_trips_when_adjective_precedes_nou
     present = translate_to_conlang("the mountain is high", language, FakeLLMClient())
     back_present = translate_to_english(present.text, present.language, FakeLLMClient())
     assert back_present.pattern == "llm-plan"
-    assert set(back_present.text.lower().split()) == {"mountain", "is", "high"}
+    assert set(back_present.text.lower().rstrip(".").split()) == {"mountain", "is", "high"}
     past = translate_to_conlang("the mountain was high", present.language, FakeLLMClient())
     back_past = translate_to_english(past.text, past.language, FakeLLMClient())
     assert back_past.pattern == "llm-plan"
-    assert set(back_past.text.lower().split()) == {"mountain", "was", "high"}
+    assert set(back_past.text.lower().rstrip(".").split()) == {"mountain", "was", "high"}
 
 
 def test_svo_round_trips_when_verb_affix_salt_cant_reuse_the_original_english_token():
@@ -295,12 +298,12 @@ def test_svo_round_trips_when_verb_affix_salt_cant_reuse_the_original_english_to
     assert to_conlang.coined == ()
     back = translate_to_english(to_conlang.text, to_conlang.language, FakeLLMClient())
     assert back.pattern == "llm-plan"
-    assert back.text.lower().split() == ["i", "see", "mountain"]
+    assert back.text.lower().rstrip(".").split() == ["i", "see", "mountain"]
 
     past = translate_to_conlang("I saw the mountain", to_conlang.language, FakeLLMClient())
     back_past = translate_to_english(past.text, past.language, FakeLLMClient())
     assert back_past.pattern == "llm-plan"
-    assert back_past.text.lower().split() == ["i", "saw", "mountain"]
+    assert back_past.text.lower().rstrip(".").split() == ["i", "saw", "mountain"]
 
 
 # --- negation and coordination (newly reachable via the LLM-drafted plan) ---
@@ -333,7 +336,7 @@ def test_coordinated_object_noun_phrases_both_render_and_round_trip():
     result = translate_to_conlang("I see the mountain and the river", language, FakeLLMClient())
     assert and_entry.romanization in result.text.split()
     back = translate_to_english(result.text, result.language, FakeLLMClient())
-    words = back.text.lower().split()
+    words = back.text.lower().rstrip(".").split()
     assert "mountain" in words
     assert "river" in words
     assert "and" in words
