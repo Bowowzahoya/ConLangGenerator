@@ -96,8 +96,9 @@ multi-session feature.
 
 - **Seed words drive the language (part of speech, bulk input,
   phonotactic-mismatch warning, structural bias, orthography bias, and
-  multi-form/inflected grammatical forms done, passes 47-50 -- this entry
-  is now closed).** "I think it should sound like this, and I already
+  multi-form/inflected grammatical forms -- including pronoun case and
+  verb tense beyond past -- done, passes 47-51 -- this entry is now
+  closed).** "I think it should sound like this, and I already
   thought up some words -- fill in the rest consistently." Done:
   `SeedExample.pos` (optional; `--example
   gloss=form|ipa|pos` on the CLI, a per-row select in the web UI,
@@ -136,11 +137,32 @@ multi-session feature.
   comparative/superlative still makes the *other* cell suppletive too
   (since `grammar.suppletive_degrees` doesn't distinguish which), falling
   through to an unrelated freshly-coined word rather than the regular
-  affixed form; pronoun-case suppletion and verb forms beyond plain past
-  tense are not seedable (no mechanism exists for either, hardcoded or
-  seeded); a rendered suppletive form can still take regular, non-tense
-  marking (e.g. subject agreement) on top of the user's own stem, same as
-  the pre-existing hardcoded mechanism.
+  affixed form; a rendered suppletive form can still take regular,
+  non-tense marking (e.g. subject agreement) on top of the user's own
+  stem, same as the pre-existing hardcoded mechanism.
+
+  **Also done (pass 51), closing both items the prior pass had left out of
+  scope**: pronoun-case suppletion (a seeded word's own irregular "I"->
+  "me"-style case form) and verb-tense suppletion beyond plain past
+  (irregular `non_past`/`present`/`future`, not just `past`). Both
+  generalize the pass-50 architecture rather than inventing a new one:
+  `voice_np_gen.SUPPLETIVE_SUFFIXES` grew from 4 to 7 labels via a
+  `suppletive_field(kind)` dict-dispatch (replacing an if/elif chain);
+  `translator.py`'s render/decode "past"-only checks widened to any label
+  in the new `voice_np_gen.TENSE_SUFFIXES`, byte-identical for `"past"` by
+  construction. Pronoun cells (`accusative`/`ergative`/`genitive`/
+  `dative`/`locative` -- never `nominative`/`absolutive`) reuse `pronoun_
+  gen`'s own separate, pre-existing suppletion mechanism unmodified,
+  folding a seeded person+case into `grammar.suppletive_pronoun_persons`/
+  `_case_limits` once `grammar.cases` is final. A seeded pronoun-case or
+  extra-tense cell the generated language doesn't end up having is kept
+  in the lexicon but flagged by a new `seed_examples.unused_suppletive_
+  form_warnings` (whether it's live can't be known until generation
+  completes, unlike a cell/POS mismatch). Known quirk: seeding e.g.
+  "she"'s accusative makes person "he" suppletive too (they share one
+  agreement person label), so a separate, unseeded "he" entry for that
+  same case falls through to ordinary coining -- same flavor as the
+  pass-50 comparative/superlative quirk, not fixed, documented.
 
   Still open, each its own well-bounded follow-up: `attested_onset_
   clusters`/`attested_coda_clusters` (literal cluster *identity*, not just

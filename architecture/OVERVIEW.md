@@ -6293,9 +6293,85 @@ reading code or one-off ad hoc scripts.
   person suffix, decoded back as "he walked") -- the same behavior the pre-existing hardcoded mechanism
   already has, not a new limitation.
 
-  **Explicitly out of scope**: pronoun-case suppletion from seed words (users don't seed pronouns; that
-  mechanism's own gate, `person_label(base) is not None`, is structurally different and wasn't extended);
-  verb-form suppletion beyond plain past tense (no present/future/aspect-specific suppletion exists for
-  *any* lemma today, hardcoded or seeded).
+  **Explicitly out of scope this pass** (both picked up and closed by pass 51 immediately below):
+  pronoun-case suppletion from seed words; verb-form suppletion beyond plain past tense.
+
+- **Seed words: pronoun-case and verb-tense suppletion (grammar pass 51).** Direct follow-up closing both
+  items pass 50 left out of scope. A dedicated Explore agent confirmed neither hits a structural wall --
+  both are clean, bounded generalizations of the pass-50 architecture, not a new mechanism.
+
+  **Verb-tense suppletion beyond past**: `grammar.tenses` (`core/grammar.py:306`) is set *once*, entirely
+  inside `grammar_gen.generate_grammar` (the very first grammar-building call in `generator.py`), and
+  never added to afterward -- exactly one of two fixed sets, `("past","non_past")` or
+  `("past","present","future")`. `voice_np_gen.SUPPLETIVE_SUFFIXES` grew from 4 labels to 7 (adding
+  `non_past`/`present`/`future`); the previous if/elif chain in `suppletive_split`/`suppletive_reading`
+  was replaced with two small dicts (`_GRAMMAR_FIELD_BY_KIND`, `_KNOWN_DICT_BY_KIND`) and a new
+  `suppletive_field(kind)` helper, cleaner than a growing elif chain at 7 kinds and shared by generation,
+  decode, and render. `suppletive_reading` gained crude but honest fallbacks for the 3 new labels (bare
+  gloss for `non_past`/`present`, `"will {gloss}"` for `future`) -- there's no real English-irregular
+  concept for a tense label the way there is for a plural/past/degree, so these three fields are *only*
+  ever populated by a seeded lemma, never a hardcoded dict. `translator.py`'s render check
+  (`tense_in == "past" and ... in grammar.suppletive_past`) widened to `tense_in in voice_np_gen.
+  TENSE_SUFFIXES and ... in getattr(grammar, voice_np_gen.suppletive_field(tense_in))` -- byte-identical
+  for `"past"` by construction (`suppletive_field("past") == "suppletive_past"`), free for the other 3.
+  Decode's matching `== "past"` filter widened to `in TENSE_SUFFIXES`, using the matched label instead of
+  the literal string -- the existing downstream tense-reading pipeline already renders present/future/
+  non_past correctly for an *ordinary* verb, confirmed genuinely free, no new reading logic needed there.
+  Generation-time merge for the 3 new fields sits right after `grammar = grammar_gen.generate_grammar(...)`
+  (not alongside the existing `suppletive_past` merge, which stays where it is) -- `grammar.tenses` is
+  already final there, and unlike `past` these 3 fields have no existing hardcoded-roll result to merge
+  into, so their first assignment IS the seed-derived one, filtered to `cell in grammar.tenses`.
+
+  **Pronoun-case suppletion**: `generation/pronoun_gen.py`'s own, separate, pre-existing suppletion
+  mechanism (I/me) needed **zero changes** -- `suppletive_gloss`/`suppletive_split`/`suppletive_reading`
+  already produce/recognize exactly the `f"{person}-{case}"` shape a pre-created seed entry needs, and
+  recognition doesn't depend on `grammar` (works off the fixed `CASE_NAMES` superset, same as the existing
+  hardcoded-roll path already does). Confirmed separately: seeding a pronoun's own citation word (e.g.
+  `gloss="I", pos=PRONOUN`) already worked with **zero changes needed** even before this pass -- the
+  existing `seeded_glosses` dedup in the core-meanings loop already skips coining any seeded gloss, so a
+  seeded "I"/"you"/"he"/"we" entry just replaces the algorithmically-coined one with no conflict. The real
+  gap was only the *case* form. `seed_examples.CELL_POS` gained the 5 legally-suppletible cases
+  (`CASE_NAMES` minus `nominative`/`absolutive`, which `translator._suppletive_case` never allows)
+  mapped to `PRONOUN`; `valid_forms` gained one more condition, only for `PRONOUN`: the word's own gloss
+  must itself be a recognized personal pronoun (`pronoun_gen.person_label(gloss) is not None`) -- a
+  pronoun-case form on an arbitrary noun gloss makes no sense. `seed_suppletive_entries` needed no change
+  at all for this -- `voice_np_gen.suppletive_gloss(base, cell)` already produces the byte-identical
+  `f"{base}-{cell}"` string `pronoun_gen.suppletive_gloss` would (confirmed: the latter just additionally
+  lowercases internally, and `base` is already lowercased here), so reusing it across both mechanisms is
+  safe without a dispatcher.
+
+  **The merge is the real new code** (`generator.py`, right after `grammar.cases` becomes final -- the
+  `np3` block, confirmed the *last* of only two places that ever append to `cases`): a seeded person only
+  becomes suppletive for a case that's actually live in *this* generated language (a case seeded for a
+  language without it is caught by the warning below instead, never folded in). The case-limits merge
+  has three distinct branches, each deliberately reasoned: a person already *restricted* to a case subset
+  gets that subset *widened* to include the seeded case, without disturbing the rest; a person *newly*
+  made suppletive by seeding gets *restricted* to just the seeded case(s) (so an unseeded case of that
+  same person still takes the ordinary case suffix, rather than silently becoming "suppletive" with no
+  pre-created word of its own -- the same "only one cell given" shape pass 50's own comparative/
+  superlative quirk already has); a person *already unrestricted* (suppletive in every case) is left
+  alone -- narrowing it here would take away pre-existing, unseeded suppletive behavior.
+
+  **A new warning, shared by both halves**: `seed_examples.unused_suppletive_form_warnings` -- whether a
+  pronoun case or extra tense is actually live can't be known until generation completes (unlike a cell/
+  POS mismatch, caught immediately at CLI parse time), so, mirroring `phonotactic_mismatch_warnings`'s own
+  stance, the `LexicalEntry` is still created (harmless) and the gap is only surfaced, never silently
+  dropped. Wired into the CLI's existing warning-echo and the web UI's `summary["warnings"]` alongside the
+  other two warning sources.
+
+  **Known, documented quirk**: person-label granularity is coarser than literal gloss -- seeding "she"'s
+  accusative makes person "he" suppletive too (since "she"/"he"/"it"/"they" all share agreement person
+  label "he"), so a *separate*, unseeded "he" entry for that same case falls through to ordinary coining,
+  not a crash, not silently wrong, just a fresh unrelated word -- same flavor as pass 50's own
+  comparative/superlative quirk, not fixed, documented.
+
+  Verified concretely: a seed with no periphrastic future and a live accusative case + future tense
+  (found by inspecting a handful of generated `grammar.yaml`s' own `periphrastic_labels`/`cases`/`tenses`
+  fields directly, since the fake planner has no "will"/future recognition at all, confirmed by grep --
+  `--llm fake` genuinely cannot demonstrate future-tense suppletion through a typed English sentence) --
+  "He saw me." renders with the seeded "zum" verbatim for accusative "I" and decodes back as "he me saw";
+  the seeded future-tense lexicon entry and `grammar.suppletive_future`/`suppletive_pronoun_case_limits`
+  fields were confirmed directly in the saved files rather than through a sentence round trip for the
+  tense half, documented as such in `docs/CLI.md` rather than presented as a working free-text example.
 
   This closes the "Generation from the user's own words" `docs/DEFERRED.md` entry entirely.

@@ -330,7 +330,7 @@ def test_a_suppletive_comparative_is_a_separate_word():
 # --- suppletive forms from the user's own seed words -----------------------------------
 
 
-def _seeded_language(example, seed_range=range(1, 30)):
+def _seeded_language(example, grammar_check=lambda g: True, seed_range=range(1, 30)):
     """A freshly generated language from a custom seed example -- cannot
     reuse the shared `_language` cache (it doesn't know about custom
     `seed_examples`). Searches for a seed with no noun classes/classifiers
@@ -338,13 +338,18 @@ def _seeded_language(example, seed_range=range(1, 30)):
     perturb it away from the user's exact given spelling, mirroring
     `_suppletive_plural_language`'s own `not g.uses_classifiers` guard and
     `test_a_suppletive_comparative_is_a_separate_word`'s own
-    `not g.noun_classes` guard above."""
+    `not g.noun_classes` guard above. `grammar_check` adds any further
+    per-test condition (e.g. "this language rolled the 3-way tense system"
+    or "this language has an accusative case")."""
     for seed in seed_range:
         spec = GenerationSpec(prompt="p", seed=seed, seed_examples=(example,))
         language = _plain(generate_language("Test", spec, _CLIENT))
-        if not language.grammar.noun_classes and not language.grammar.uses_classifiers:
+        if (
+            not language.grammar.noun_classes and not language.grammar.uses_classifiers
+            and grammar_check(language.grammar)
+        ):
             return language
-    raise AssertionError("no seed found without noun classes/classifiers")
+    raise AssertionError("no seed found satisfying all conditions")
 
 
 def test_a_seed_words_own_plural_form_is_used_verbatim():
@@ -437,6 +442,60 @@ def test_giving_only_one_degree_cell_still_renders_the_other_as_some_word():
     updated, parts, _ = _render(language, superlative)
     assert parts[0] != "biko"
     assert updated.lexicon.by_gloss("tall-superlative") is not None
+
+
+def test_a_seed_words_own_future_tense_form_is_used_verbatim():
+    example = SeedExample(
+        gloss="jump", form="zim", ipa="zim", pos=PartOfSpeech.VERB,
+        forms=(SeedForm(cell="future", form="zufu", ipa="zufu"),),
+    )
+    language = _seeded_language(example, grammar_check=lambda g: "future" in g.tenses)
+    assert "jump" in language.grammar.suppletive_future
+    entry = language.lexicon.by_gloss("jump-future")
+    assert entry is not None and entry.romanization == "zufu"
+
+    verb = PlannedSlot(kind="content", gloss="jump", pos="verb", agreement="I", tense="future")
+    _, parts, glosses = _render(language, verb)
+    assert "jump-future" in glosses
+    assert "will jump" in translate_to_english(parts[0], language, _CLIENT).text
+    # The past tense is unaffected -- the suppletive form only covers "future".
+    past = PlannedSlot(kind="content", gloss="jump", pos="verb", agreement="I", tense="past")
+    _, past_parts, past_glosses = _render(language, past)
+    assert "jump-future" not in past_glosses
+    assert past_parts[0] != parts[0]
+
+
+def test_a_seed_words_own_accusative_pronoun_form_is_used_verbatim():
+    example = SeedExample(
+        gloss="I", form="zu", ipa="zu", pos=PartOfSpeech.PRONOUN,
+        forms=(SeedForm(cell="accusative", form="zum", ipa="zum"),),
+    )
+    language = _seeded_language(example, grammar_check=lambda g: "accusative" in g.cases)
+    assert "I" in language.grammar.suppletive_pronoun_persons
+    entry = language.lexicon.by_gloss("i-accusative")
+    assert entry is not None and entry.romanization == "zum"
+
+    slot = PlannedSlot(kind="content", gloss="I", pos="pronoun", case="accusative")
+    _, parts, glosses = _render(language, slot)
+    assert parts[0] == "zum"
+    assert "i-accusative" in glosses
+    assert "me" in translate_to_english(parts[0], language, _CLIENT).text
+    # The nominative (citation) form is unaffected.
+    nominative = PlannedSlot(kind="content", gloss="I", pos="pronoun")
+    _, nom_parts, _ = _render(language, nominative)
+    assert nom_parts[0] == "zu"
+
+
+def test_seeding_a_case_or_tense_the_language_lacks_leaves_the_entry_unused_not_crashing():
+    example = SeedExample(
+        gloss="I", form="zu", ipa="zu", pos=PartOfSpeech.PRONOUN,
+        forms=(SeedForm(cell="locative", form="zul", ipa="zul"),),
+    )
+    language = _seeded_language(example, grammar_check=lambda g: "locative" not in g.cases)
+    # Never folded into the suppletion-gating fields for an absent case.
+    assert "I" not in language.grammar.suppletive_pronoun_persons
+    # Still created -- just unused (seed_examples.unused_suppletive_form_warnings flags it).
+    assert language.lexicon.by_gloss("i-locative") is not None
 
 
 # --- inalienable possession -------------------------------------------------------------

@@ -12,6 +12,7 @@ from conlang_generator.generation.seed_examples import (
     resolve_seed_examples,
     seed_suppletive_entries,
     seed_suppletive_lemmas,
+    unused_suppletive_form_warnings,
     valid_forms,
 )
 from conlang_generator.llm.fake_client import FakeLLMClient
@@ -275,6 +276,76 @@ def test_seed_suppletive_lemmas_returns_the_right_base_per_cell():
     )
     assert seed_suppletive_lemmas(examples, "past") == ("run",)
     assert seed_suppletive_lemmas(examples, "plural") == ()
+
+
+# --- pronoun-case and extra-tense cells --------------------------------------
+
+
+def test_valid_forms_rejects_a_pronoun_cell_on_a_non_pronoun_gloss():
+    example = SeedExample(
+        gloss="stone", form="tek", pos=PartOfSpeech.PRONOUN, forms=(SeedForm(cell="accusative", form="tok"),)
+    )
+    assert valid_forms(example) == ()
+
+
+def test_valid_forms_accepts_a_pronoun_cell_on_a_recognized_pronoun_gloss():
+    example = SeedExample(
+        gloss="I", form="zu", pos=PartOfSpeech.PRONOUN, forms=(SeedForm(cell="accusative", form="zum"),)
+    )
+    assert valid_forms(example) == (SeedForm(cell="accusative", form="zum"),)
+
+
+def test_valid_forms_accepts_a_pronoun_cell_on_a_gloss_that_maps_to_a_person():
+    # "she" isn't itself a PERSON_LABEL, but it maps to person "he" via
+    # pronoun_gen.PERSON_BY_GLOSS -- still a recognized personal pronoun.
+    example = SeedExample(
+        gloss="she", form="sa", pos=PartOfSpeech.PRONOUN, forms=(SeedForm(cell="genitive", form="sas"),)
+    )
+    assert valid_forms(example) == (SeedForm(cell="genitive", form="sas"),)
+
+
+def test_seed_suppletive_entries_builds_a_pronoun_case_entry():
+    examples = (
+        SeedExample(
+            gloss="I", form="zu", pos=PartOfSpeech.PRONOUN,
+            forms=(SeedForm(cell="accusative", form="zum", ipa="zum"),),
+        ),
+    )
+    entries = seed_suppletive_entries(examples)
+    assert len(entries) == 1
+    assert entries[0].glosses == ("i-accusative",)
+    assert entries[0].romanization == "zum"
+    assert entries[0].pos is PartOfSpeech.PRONOUN
+
+
+def test_unused_suppletive_form_warnings_is_empty_without_pronoun_or_tense_seed_forms():
+    client = FakeLLMClient()
+    examples = (SeedExample(gloss="run", form="zim", ipa="zim", pos=PartOfSpeech.VERB,
+                             forms=(SeedForm(cell="past", form="zanu", ipa="zanu"),)),)
+    spec = GenerationSpec(prompt="p", seed=5, seed_examples=examples)
+    language = generate_language("Test", spec, client)
+    assert unused_suppletive_form_warnings(language) == []  # "past" is always live
+
+
+def test_unused_suppletive_form_warnings_fires_for_a_case_the_language_lacks():
+    client = FakeLLMClient()
+    examples = (
+        SeedExample(gloss="I", form="zu", ipa="zu", pos=PartOfSpeech.PRONOUN,
+                    forms=(SeedForm(cell="locative", form="zul", ipa="zul"),)),
+    )
+    # Seed-search for a language with no "locative" case, so the seeded
+    # form is guaranteed unused regardless of this test's own seed.
+    for seed in range(1, 15):
+        spec = GenerationSpec(prompt="p", seed=seed, seed_examples=examples)
+        language = generate_language("Test", spec, client)
+        if "locative" not in language.grammar.cases:
+            warnings = unused_suppletive_form_warnings(language)
+            assert len(warnings) == 1
+            assert "I" in warnings[0] and "locative" in warnings[0]
+            # Still created, just unused -- never silently dropped.
+            assert language.lexicon.by_gloss("i-locative") is not None
+            return
+    raise AssertionError("no seed found without a locative case")
 
 
 # --- phonotactic-mismatch warning -------------------------------------------

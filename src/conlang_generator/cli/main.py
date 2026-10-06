@@ -26,6 +26,7 @@ from conlang_generator.generation.seed_examples import (
     parse_seed_forms,
     phonotactic_mismatch_warnings,
     resolve_seed_examples,
+    unused_suppletive_form_warnings,
 )
 from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.generation.tone_sandhi import apply_sandhi
@@ -207,9 +208,13 @@ def generate(
         help="Literal seed word: 'gloss=form', 'gloss=form|ipa', 'gloss=form|ipa|pos' (pos one of "
         f"{', '.join(p.value for p in PartOfSpeech)}; omit ipa with 'gloss=form||pos') or "
         "'gloss=form|ipa|pos|forms' to also give one or more of its own irregular (suppletive) forms -- "
-        "'forms' is ';'-separated 'cell:form' or 'cell:form:ipa' entries, cell one of plural (noun), past "
-        "(verb), comparative/superlative (adjective), e.g. 'walk=zim|zim|verb|past:zanu' -- repeatable. "
-        "Always appears verbatim in the lexicon.",
+        "'forms' is ';'-separated 'cell:form' or 'cell:form:ipa' entries, cell one of plural (noun), "
+        "past/non_past/present/future (verb), comparative/superlative (adjective), or accusative/"
+        "ergative/genitive/dative/locative (pronoun, gloss must itself be a personal pronoun -- "
+        "I/you/he/she/it/we/they/...); a verb-tense or pronoun-case cell the generated language doesn't "
+        "end up having is kept in the lexicon but warned about as unused (only plural/past/comparative/ "
+        "superlative are always live). E.g. 'walk=zim|zim|verb|past:zanu' -- repeatable. Always appears "
+        "verbatim in the lexicon.",
     ),
     examples_file: Path = typer.Option(
         None, "--examples-file",
@@ -420,7 +425,7 @@ def generate(
             for e in seed_examples
         )
         typer.echo(f"Seed examples: {rendered_examples}")
-    for warning in phonotactic_mismatch_warnings(language):
+    for warning in phonotactic_mismatch_warnings(language) + unused_suppletive_form_warnings(language):
         typer.echo(f"warning: {warning}", err=True)
 
     typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")

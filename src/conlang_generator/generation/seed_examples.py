@@ -17,7 +17,7 @@ import unicodedata
 from conlang_generator.core.lexicon import LexicalEntry, PartOfSpeech
 from conlang_generator.core.language import Language
 from conlang_generator.core.spec import SeedExample, SeedForm
-from conlang_generator.generation import ipa_tokenizer, phoneme_fit, voice_np_gen
+from conlang_generator.generation import ipa_tokenizer, phoneme_fit, pronoun_gen, voice_np_gen
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 
@@ -32,13 +32,23 @@ _SYSTEM_PROMPT = (
 CELL_POS: dict[str, PartOfSpeech] = {
     "plural": PartOfSpeech.NOUN,
     "past": PartOfSpeech.VERB,
+    "non_past": PartOfSpeech.VERB,
+    "present": PartOfSpeech.VERB,
+    "future": PartOfSpeech.VERB,
     "comparative": PartOfSpeech.ADJECTIVE,
     "superlative": PartOfSpeech.ADJECTIVE,
+    "accusative": PartOfSpeech.PRONOUN,
+    "ergative": PartOfSpeech.PRONOUN,
+    "genitive": PartOfSpeech.PRONOUN,
+    "dative": PartOfSpeech.PRONOUN,
+    "locative": PartOfSpeech.PRONOUN,
 }
-"""Which part of speech each suppletive cell applies to -- the same fixed
-vocabulary ``generation.voice_np_gen.SUPPLETIVE_SUFFIXES`` already uses for
-its own hardcoded irregular forms. A ``SeedForm`` naming any other cell, or
-one that doesn't match its own ``SeedExample``'s own ``pos``, is invalid."""
+"""Which part of speech each suppletive cell applies to -- the verb/noun/
+adjective cells match ``generation.voice_np_gen.SUPPLETIVE_SUFFIXES``; the
+pronoun cells are ``pronoun_gen.CASE_NAMES`` minus ``nominative``/
+``absolutive`` (never suppletive -- see ``translator._suppletive_case``).
+A ``SeedForm`` naming any other cell, or one that doesn't match its own
+``SeedExample``'s own ``pos``, is invalid."""
 
 
 def _guess_ipa(form: str, llm_client: LLMClient) -> str:
@@ -93,9 +103,17 @@ def parse_seed_forms(text: str) -> tuple[SeedForm, ...]:
 def valid_forms(example: SeedExample) -> tuple[SeedForm, ...]:
     """``example.forms`` filtered to cells matching ``example.pos`` (default
     ``NOUN``) via ``CELL_POS`` -- the single place both generation-time
-    entry-building and lemma-registration apply the same validity rule."""
+    entry-building and lemma-registration apply the same validity rule.
+    A pronoun-cell form is additionally only valid when the word's own
+    gloss is itself a recognized personal pronoun ("I"/"you"/"he"/"she"/
+    "it"/"they"/...) -- a pronoun case form on an arbitrary noun gloss
+    makes no sense."""
     pos = example.pos or PartOfSpeech.NOUN
-    return tuple(form for form in example.forms if CELL_POS.get(form.cell) is pos)
+    return tuple(
+        form for form in example.forms
+        if CELL_POS.get(form.cell) is pos
+        and (pos is not PartOfSpeech.PRONOUN or pronoun_gen.person_label(example.gloss) is not None)
+    )
 
 
 def seed_suppletive_entries(seed_examples: tuple[SeedExample, ...]) -> tuple[LexicalEntry, ...]:
@@ -103,7 +121,11 @@ def seed_suppletive_entries(seed_examples: tuple[SeedExample, ...]) -> tuple[Lex
     synthetic gloss (``voice_np_gen.suppletive_gloss(base, cell)``) the
     existing hardcoded-irregular suppletion mechanism already uses --
     ``translator._lookup_or_coin`` then finds it directly at render time,
-    with no further code."""
+    with no further code. For a pronoun cell this produces the identical
+    ``f"{base}-{cell}"`` shape ``pronoun_gen.suppletive_gloss`` itself
+    builds (that function just additionally lowercases internally, and
+    ``base`` here is already lowercased) -- safe to reuse without a
+    dispatcher."""
     return tuple(
         LexicalEntry(
             ipa=form.ipa,
@@ -184,4 +206,31 @@ def phonotactic_mismatch_warnings(language: Language) -> list[str]:
                 f"seed word '{example.gloss}' ({example.ipa}) is not a legal syllable shape in this "
                 "language's own generated phonology -- kept verbatim anyway."
             )
+    return warnings
+
+
+def unused_suppletive_form_warnings(language: Language) -> list[str]:
+    """One warning per seed-given irregular form whose own cell never
+    became live in this specific generated grammar -- a pronoun case the
+    language doesn't have, or a ``non_past``/``present``/``future`` tense
+    from the tense system this language didn't roll. Whether a case/tense
+    is live can't be known until generation completes (unlike a cell/POS
+    mismatch, caught immediately at parse time), so -- mirroring
+    ``phonotactic_mismatch_warnings``'s own stance -- the ``LexicalEntry``
+    is still created (harmless), just never used at render time, and this
+    is only surfaced, never silently dropped."""
+    warnings = []
+    for example in language.spec.seed_examples:
+        pos = example.pos or PartOfSpeech.NOUN
+        for form in valid_forms(example):
+            if pos is PartOfSpeech.PRONOUN and form.cell not in language.grammar.cases:
+                warnings.append(
+                    f"seed word '{example.gloss}' gave an irregular {form.cell} form, but this language "
+                    f"has no {form.cell} case -- kept in the lexicon but never used."
+                )
+            elif form.cell in ("non_past", "present", "future") and form.cell not in language.grammar.tenses:
+                warnings.append(
+                    f"seed word '{example.gloss}' gave an irregular {form.cell} form, but this language's "
+                    f"tense system has no {form.cell} -- kept in the lexicon but never used."
+                )
     return warnings

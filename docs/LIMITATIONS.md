@@ -81,15 +81,32 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   repairing it would violate the feature's own core guarantee (the given words must appear exactly as
   given), so a mismatch with the generated syllable structure is surfaced as a warning, not silently
   fixed.
-- **A user-given irregular form is restricted to four fixed cells, one per lemma-half.** `SeedExample.
-  forms` lets a word carry its own irregular (suppletive) `plural` (noun), `past` (verb), or `comparative`/
-  `superlative` (adjective) form -- the same four cells the pre-existing hardcoded-irregular-English
-  mechanism already models, reused rather than a new generic cell vocabulary (cell-naming is genuinely
-  inconsistent across word classes in this grammar, e.g. "number" means something different for a noun
-  than for verb agreement). A cell not matching its own word's part of speech is rejected (a hard CLI
-  error for `--example`, a lenient silent drop for bulk/web input), not guessed. No other grammatical form
-  (any case, any tense/aspect/mood beyond plain past, pronoun forms) can be seeded -- no mechanism exists
-  for any of those, hardcoded or user-given.
+- **A user-given irregular form is restricted to a fixed set of cells.** `SeedExample.forms` lets a word
+  carry its own irregular (suppletive) `plural` (noun), `past`/`non_past`/`present`/`future` (verb),
+  `comparative`/`superlative` (adjective), or `accusative`/`ergative`/`genitive`/`dative`/`locative`
+  (pronoun -- the word's own gloss must itself be a recognized personal pronoun, "I"/"you"/"he"/"she"/
+  "it"/"we"/"they"/...; `nominative`/`absolutive` are never suppletive, by this grammar's own design) --
+  reused cell vocabulary rather than a new generic one, since cell-naming is genuinely inconsistent across
+  word classes in this grammar (e.g. "number" means something different for a noun than for verb
+  agreement). A cell not matching its own word's part of speech is rejected (a hard CLI error for
+  `--example`, a lenient silent drop for bulk/web input), not guessed. Still unseedable: aspect/mood
+  suppletion, and anything beyond these specific cells -- no mechanism exists for those, hardcoded or
+  user-given.
+- **A seeded pronoun-case or extra-tense cell the generated language doesn't end up having is kept in the
+  lexicon but never used.** Unlike a cell/POS mismatch (caught immediately at parse time), whether a
+  language actually rolls a given case or tense system can't be known until generation completes --
+  `seed_examples.unused_suppletive_form_warnings` surfaces it (never silently drops it), the same stance
+  `phonotactic_mismatch_warnings` already takes.
+- **Seeding one pronoun's case form can make a *different* pronoun's same case suppletive too, unseeded.**
+  Suppletion is gated by *agreement person label* ("I"/"you"/"he"/"we"), not by literal gloss -- "she"/
+  "it"/"they" all share person label "he" with literal "he" itself. Seeding "she"'s own accusative form
+  makes person "he" suppletive for accusative, so if the language also has a separate "he" pronoun
+  (`third_person_gender`), its own accusative falls through to ordinary coining (a fresh, unrelated
+  irregular word), not the regular case suffix and not a crash.
+- **A seeded `non_past`/`present`/`future` verb form has no hardcoded-English-irregular fallback and no
+  agreement-aware reading.** `suppletive_reading` reads it as the bare gloss (`non_past`/`present`) or
+  `"will {gloss}"` (`future`) -- crude, but there's no real English-irregular concept for a tense label to
+  begin with, so this mirrors the existing `"more {base}"` degree fallback's own honesty level.
 - **Giving only one of comparative/superlative still makes the *other* cell suppletive too.** `grammar.
   suppletive_degrees` doesn't distinguish which of the two cells a lemma has (the pre-existing hardcoded
   mechanism always supplies both together, e.g. "good"->"better"/"best"), so the cell the user didn't give

@@ -55,6 +55,7 @@ from conlang_generator.generation.seed_examples import (
     parse_seed_forms,
     phonotactic_mismatch_warnings,
     resolve_seed_examples,
+    unused_suppletive_form_warnings,
 )
 from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.cost_tracker import CostTracker
@@ -567,7 +568,10 @@ def generate(request: GenerateRequest) -> dict:
     after = _cost_snapshot()
     summary = _language_summary(language)
     summary["cost"] = _cost_delta(before, after)
-    summary["warnings"] = strictness_warnings(traits) + phonotactic_mismatch_warnings(language)
+    summary["warnings"] = (
+        strictness_warnings(traits) + phonotactic_mismatch_warnings(language)
+        + unused_suppletive_form_warnings(language)
+    )
     return summary
 
 

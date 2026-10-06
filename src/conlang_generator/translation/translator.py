@@ -2526,16 +2526,18 @@ def _render_plan(
                             working_language, coined, llm_client, agreement_label, slot.subject_number, slot.polite,
                         )
                         aux_entries = [*aux_entries, neg_entry]
-                past_base = (slot.gloss or "").strip().lower()
+                verb_base = (slot.gloss or "").strip().lower()
                 if (
-                    tense_in == "past" and not mood_pending and past_base in working_language.grammar.suppletive_past
+                    tense_in in voice_np_gen.TENSE_SUFFIXES and not mood_pending
+                    and verb_base in getattr(working_language.grammar, voice_np_gen.suppletive_field(tense_in))
                     and slot.verb_form not in working_language.grammar.verb_forms
                 ):
-                    past_gloss = voice_np_gen.suppletive_gloss(past_base, "past")
+                    tense_gloss = voice_np_gen.suppletive_gloss(verb_base, tense_in)
                     working_language, entry = _lookup_or_coin(
-                        working_language, past_gloss, PartOfSpeech.VERB, coined, llm_client, lemma_candidates=[past_gloss]
+                        working_language, tense_gloss, PartOfSpeech.VERB, coined, llm_client,
+                        lemma_candidates=[tense_gloss],
                     )
-                    tense_in = None  # the past word carries the tense itself
+                    tense_in = None  # the tense word carries the tense itself
                 rendered = _apply_verb_inflection(
                     working_language, entry, tense_in, agreement_label,
                     "imperative" if mood_pending else "declarative",
@@ -3544,10 +3546,10 @@ def translate_to_english(
                 negative_label = True
                 if agreement_label is None:
                     agreement_label = negative_verb_hosts[token_index]
-            past_split = voice_np_gen.suppletive_split(verb_entry.primary_gloss, language.grammar)
-            if past_split is not None and past_split[1] == "past":
-                verb_entry = verb_entry.model_copy(update={"glosses": (past_split[0],)})
-                tense_label = tense_label or "past"
+            tense_split = voice_np_gen.suppletive_split(verb_entry.primary_gloss, language.grammar)
+            if tense_split is not None and tense_split[1] in voice_np_gen.TENSE_SUFFIXES:
+                verb_entry = verb_entry.model_copy(update={"glosses": (tense_split[0],)})
+                tense_label = tense_label or tense_split[1]
             if tense_label in subordination_gen.VERB_FORM_LABELS:
                 gloss = verb_entry.primary_gloss
                 readings = {

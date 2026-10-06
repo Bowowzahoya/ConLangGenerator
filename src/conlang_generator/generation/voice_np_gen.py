@@ -52,7 +52,38 @@ IRREGULAR_PLURALS = {
     "person": "people", "goose": "geese", "ox": "oxen",
 }
 SUPPLETIVE_DEGREES = {"good": ("better", "best"), "bad": ("worse", "worst")}
-SUPPLETIVE_SUFFIXES = ("plural", "comparative", "superlative", "past")
+SUPPLETIVE_SUFFIXES = ("plural", "comparative", "superlative", "past", "non_past", "present", "future")
+TENSE_SUFFIXES = ("past", "non_past", "present", "future")
+"""The subset of ``SUPPLETIVE_SUFFIXES`` that are verb tenses, not a noun's
+plural or an adjective's degree -- used by ``translator.py``'s tense-
+suppletion render/decode checks."""
+
+_GRAMMAR_FIELD_BY_KIND = {
+    "plural": "suppletive_plurals",
+    "comparative": "suppletive_degrees",
+    "superlative": "suppletive_degrees",
+    "past": "suppletive_past",
+    "non_past": "suppletive_non_past",
+    "present": "suppletive_present",
+    "future": "suppletive_future",
+}
+_KNOWN_DICT_BY_KIND = {
+    "plural": IRREGULAR_PLURALS,
+    "past": IRREGULAR_PASTS,
+    "comparative": SUPPLETIVE_DEGREES,
+    "superlative": SUPPLETIVE_DEGREES,
+}
+"""No hardcoded-English-irregular dict exists for ``non_past``/``present``/
+``future`` -- there's no real-English-irregular concept for them, only a
+user-seeded lemma ever populates those three grammar fields."""
+
+
+def suppletive_field(kind: str) -> str:
+    """The ``GrammarProfile`` tuple field tracking which lemmas are
+    suppletive for ``kind`` -- shared by generation (folding a seeded
+    lemma in), decode (``suppletive_split``), and verb rendering (the
+    tense-suppletion check in ``translator.py``)."""
+    return _GRAMMAR_FIELD_BY_KIND[kind]
 
 _KIN = frozenset(
     "mother father brother sister son daughter wife husband child parent uncle aunt grandmother grandfather".split()
@@ -80,24 +111,26 @@ def suppletive_split(gloss: str, grammar=None) -> tuple[str, str] | None:
     for kind in SUPPLETIVE_SUFFIXES:
         if gloss.endswith("-" + kind) and len(gloss) > len(kind) + 1:
             base = gloss[: -(len(kind) + 1)]
-            known = (
-                IRREGULAR_PLURALS if kind == "plural" else IRREGULAR_PASTS if kind == "past" else SUPPLETIVE_DEGREES
-            )
-            seeded = () if grammar is None else (
-                grammar.suppletive_plurals
-                if kind == "plural"
-                else grammar.suppletive_past if kind == "past" else grammar.suppletive_degrees
-            )
+            known = _KNOWN_DICT_BY_KIND.get(kind, {})
+            seeded = () if grammar is None else getattr(grammar, suppletive_field(kind))
             return (base, kind) if (base in known or base in seeded) else None  # not a pronoun like "you-plural"
     return None
 
 
 def suppletive_reading(base: str, kind: str) -> str:
-    """The English word for a suppletive form: children, better, best..."""
+    """The English word for a suppletive form: children, better, best...
+    ``non_past``/``present`` read as the bare gloss, ``future`` as "will
+    {gloss}" -- crude (no agreement, no real English-irregular concept
+    for a tense label), but consistent with the "+ed"/"more X" fallbacks
+    below for a lemma outside the hardcoded dicts."""
     if kind == "plural":
         return IRREGULAR_PLURALS.get(base, base + "s")
     if kind == "past":
         return IRREGULAR_PASTS.get(base, base + "ed")
+    if kind in ("non_past", "present"):
+        return base
+    if kind == "future":
+        return f"will {base}"
     pair = SUPPLETIVE_DEGREES.get(base)
     if pair is None:
         return f"more {base}" if kind == "comparative" else f"most {base}"

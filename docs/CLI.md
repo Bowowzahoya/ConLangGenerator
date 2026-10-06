@@ -268,7 +268,57 @@ conlang generate --prompt "a plain language" --name irregular-bad --seed 5 \
 ```
 
 ```
-error: --example form cell 'plural' is not valid for part of speech 'verb' (expected one of: plural (noun), past (verb), comparative (adjective), superlative (adjective))
+error: --example form cell 'plural' is not valid for part of speech 'verb' (expected one of: plural (noun), past (verb), non_past (verb), present (verb), future (verb), comparative (adjective), superlative (adjective), accusative (pronoun), ergative (pronoun), genitive (pronoun), dative (pronoun), locative (pronoun))
+```
+
+A pronoun can also carry its own irregular case form -- the word's own
+gloss must itself be a recognized personal pronoun ("I"/"you"/"he"/"she"/
+"it"/"we"/"they"/...). Seeding "I"'s own irregular accusative renders
+verbatim wherever "I" is the object, and decodes back correctly:
+
+```bash
+conlang generate --prompt "a plain language" --name irregular-future --seed 50 \
+  --llm fake --example "walk=zim|zim|verb|future:zufu" --example "I=zu|zu|pronoun|accusative:zum"
+```
+
+```
+Seed examples: walk=zim (/zim/, verb, forms: future=zufu), I=zu (/zu/, pronoun, forms: accusative=zum)
+```
+
+```bash
+conlang translate "He saw me." --lang irregular-future --to conlang --llm fake
+```
+
+```
+kimta zum kikeez
+IPA: /ˈkimta zum kikeˈez/
+```
+
+```bash
+conlang translate "kimta zum kikeez" --lang irregular-future --to english --llm fake
+```
+
+```
+he me saw
+```
+
+The same seed's `--example "walk=zim|zim|verb|future:zufu"` seeds an
+irregular *future* tense the same way the earlier example seeded an
+irregular past -- but `--llm fake` has no "will"/future recognition at
+all in free text, so there's no sentence to type for it; inspecting the
+saved language directly confirms the mechanism instead: `grammar.yaml`'s
+`suppletive_future` lists `walk`, and `lexicon.yaml` has a `walk-future`
+entry spelled `zufu`, exactly as given. Seeding a case or tense the
+generated language doesn't end up having is never an error -- it's kept
+in the lexicon but flagged as unused:
+
+```bash
+conlang generate --prompt "a plain language" --name irregular-unused --seed 2 \
+  --llm fake --example "walk=zim|zim|verb|future:zufu" --example "I=zu|zu|pronoun|accusative:zum"
+```
+
+```
+warning: seed word 'walk' gave an irregular future form, but this language's tense system has no future -- kept in the lexicon but never used.
 ```
 
 Two smaller flags round out word generation: `--word-selection` picks

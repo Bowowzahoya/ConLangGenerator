@@ -73,6 +73,23 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     )
     grammar = grammar_gen.generate_grammar(rng, spec)
 
+    # `grammar.tenses` is already final (set entirely inside generate_grammar,
+    # never added to afterward) -- fold any seeded non_past/present/future
+    # suppletive form in now, filtered to the tense labels this language
+    # actually has (these 3 fields have no hardcoded-roll counterpart, unlike
+    # suppletive_past, so this is the whole of their own first assignment).
+    grammar = grammar.model_copy(
+        update={
+            field: tuple(seed_examples.seed_suppletive_lemmas(spec.seed_examples, cell))
+            for cell, field in (
+                ("non_past", "suppletive_non_past"),
+                ("present", "suppletive_present"),
+                ("future", "suppletive_future"),
+            )
+            if cell in grammar.tenses
+        }
+    )
+
     if grammar.morphological_type is not MorphologicalType.ISOLATING:
         affix = word_builder.build_syllable(rng, inventory, syllable_structure)
         grammar = grammar.model_copy(update={"plural_suffix": affix})
@@ -713,6 +730,43 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "demonstrative_doubling": np3["demonstrative_doubling"],
         }
     )
+
+    # `grammar.cases` is now final -- fold any seeded pronoun-case
+    # suppletive form in, but only for a case this language actually has
+    # (a case seeded for a language without it is caught by seed_examples.
+    # unused_suppletive_form_warnings instead, never folded in here).
+    seeded_persons_by_cell: dict[str, set[str]] = {}
+    for cell in ("accusative", "ergative", "genitive", "dative", "locative"):
+        if cell not in grammar.cases:
+            continue
+        for lemma in seed_examples.seed_suppletive_lemmas(spec.seed_examples, cell):
+            person = pronoun_gen.person_label(lemma)
+            if person is not None:
+                seeded_persons_by_cell.setdefault(person, set()).add(cell)
+    if seeded_persons_by_cell:
+        existing_limits = dict(grammar.suppletive_pronoun_case_limits)
+        updated_limits = dict(existing_limits)
+        for person, cells in seeded_persons_by_cell.items():
+            if person in existing_limits:
+                # Already restricted to a subset of cases -- widen it so the
+                # seeded case is included too, without disturbing the rest.
+                updated_limits[person] = tuple(sorted(set(existing_limits[person]) | cells))
+            elif person not in grammar.suppletive_pronoun_persons:
+                # Newly suppletive because of seeding -- restrict to just the
+                # seeded case(s), so an unseeded case of this person still
+                # takes the ordinary case suffix instead of silently becoming
+                # "suppletive" with no pre-created word of its own.
+                updated_limits[person] = tuple(sorted(cells))
+            # else: already unrestricted-suppletive for every case -- leave
+            # it that way, widening nothing (narrowing it here would take
+            # away pre-existing, unseeded suppletive behavior).
+        new_persons = tuple(p for p in seeded_persons_by_cell if p not in grammar.suppletive_pronoun_persons)
+        grammar = grammar.model_copy(
+            update={
+                "suppletive_pronoun_persons": grammar.suppletive_pronoun_persons + new_persons,
+                "suppletive_pronoun_case_limits": tuple(sorted(updated_limits.items())),
+            }
+        )
 
     # Comparison follow-ups (own stream), once the cases are final.
     cmp_rng = random.Random(f"{spec.seed}:comparison-followups")

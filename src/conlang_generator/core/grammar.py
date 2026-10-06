@@ -676,6 +676,18 @@ class GrammarProfile(BaseModel, frozen=True):
     word of their own (empty: all); the rest use the personal pronoun as possessor."""
     suppletive_past: tuple[str, ...] = ()
     """Verbs whose past tense is a word of its own (``go-past`` = went)."""
+    suppletive_non_past: tuple[str, ...] = ()
+    """Verbs whose non-past tense is a word of its own -- only meaningful
+    when ``"non_past"`` is in ``tenses``; only ever populated by a seeded
+    form (no hardcoded-English-irregular equivalent for this cell)."""
+    suppletive_present: tuple[str, ...] = ()
+    """Verbs whose present tense is a word of its own -- only meaningful
+    when ``"present"`` is in ``tenses``; only ever populated by a seeded
+    form."""
+    suppletive_future: tuple[str, ...] = ()
+    """Verbs whose future tense is a word of its own -- only meaningful
+    when ``"future"`` is in ``tenses``; only ever populated by a seeded
+    form."""
     deictic_articles: bool = False
     """An attributive demonstrative is a reduced clitic form (``this-article``)."""
     demonstrative_doubling: bool = False
