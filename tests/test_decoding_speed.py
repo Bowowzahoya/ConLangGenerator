@@ -37,7 +37,10 @@ def _reference_tokenize(text: str, known_symbols):
             i += 1
             continue
         candidates = [s for s in ordered if text.startswith(s, i)]
-        matched = next((s for s in candidates if not ipa_tokenizer._strands_a_modifier(text, i + len(s))), None)
+        matched = next(
+            (s for s in candidates if not ipa_tokenizer._strands_a_modifier(text, i + len(s), s[-1], known_symbols)),
+            None,
+        )
         if matched is None and candidates:
             matched = candidates[0]
         if matched is None:
