@@ -4,14 +4,18 @@ its file doesn't cover) -- see ``real_words``.
 
 One request per language per ``CHUNK_SIZE`` meanings; the reply is
 ``NUMBER|spelling|IPA`` lines, parsed leniently (anything that doesn't match,
-is out of range, or whose IPA doesn't fully tokenize against the modeled
-symbol pool is simply dropped -- that word stays invented). With no usable
-LLM (the fake backend's reply never matches) nothing is filled.
+is out of range, whose spelling isn't Latin-script (a real LLM can
+disregard the system prompt's own "romanize it" instruction, e.g. answering
+with an actual Chinese character for a gloss in a Chinese-influenced
+language), or whose IPA doesn't fully tokenize against the modeled symbol
+pool is simply dropped -- that word stays invented). With no usable LLM
+(the fake backend's reply never matches) nothing is filled.
 """
 
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
@@ -38,6 +42,17 @@ _KNOWN = phoneme_fit.ALL_SYMBOLS + (STRESS_MARK, WORD_ACCENT_MARK)
 def _tokenizes_fully(ipa: str) -> bool:
     tokens = ipa_tokenizer.tokenize(ipa, _KNOWN)
     return bool(tokens) and "".join(symbol + decoration for symbol, decoration in tokens) == ipa
+
+
+def _is_romanized(spelling: str) -> bool:
+    """Every letter in ``spelling`` is Latin-script (by Unicode name, e.g.
+    "LATIN SMALL LETTER O WITH STROKE" for the real Latin letter "ø",
+    still accepted). The system prompt already asks for a Latin/romanized
+    spelling; this catches a real LLM disregarding that instruction (e.g.
+    answering with an actual Chinese character for a gloss in a language
+    it knows has Chinese influence) before it reaches the lexicon as a
+    word's own spelling."""
+    return all("LATIN" in unicodedata.name(ch, "") for ch in spelling if ch.isalpha())
 
 
 def fetch_real_words(
@@ -67,6 +82,6 @@ def fetch_real_words(
                 if match is None:
                     continue
                 number, spelling, ipa = int(match.group(1)), match.group(2).strip(), match.group(3).strip()
-                if 1 <= number <= len(chunk) and spelling and _tokenizes_fully(ipa):
+                if 1 <= number <= len(chunk) and spelling and _is_romanized(spelling) and _tokenizes_fully(ipa):
                     found[(language, chunk[number - 1][0])] = (spelling, ipa)
     return found

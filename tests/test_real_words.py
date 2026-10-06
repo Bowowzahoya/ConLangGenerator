@@ -195,6 +195,29 @@ def test_a_malformed_or_invalid_llm_reply_leaves_the_words_invented(monkeypatch)
         assert _real(language) == []
 
 
+def test_a_non_latin_spelling_from_the_llm_is_rejected_not_accepted_verbatim(monkeypatch):
+    # The real bug this guards against: a real LLM disregarding the
+    # system prompt's own "romanize it" instruction and answering with an
+    # actual word in another script (e.g. a Chinese character, reportedly
+    # seen for "now" on a Chinese-influenced language) must never end up
+    # as a word's own spelling.
+    _uncurated(monkeypatch)
+    reply = "\n".join(f"{i}|呢|kɑtɑ" for i in range(1, 101))
+    language = _language(1.0, sound=1.0, source=("Zulu",), client=_StubClient(reply))
+    assert _real(language) == []
+
+
+def test_real_words_llm_is_romanized_accepts_latin_extended_rejects_other_scripts():
+    from conlang_generator.generation.real_words_llm import _is_romanized
+
+    assert _is_romanized("koning")
+    assert _is_romanized("øre")  # a real Latin-extended letter
+    assert _is_romanized("n'a")  # punctuation/apostrophe, not a script issue
+    assert not _is_romanized("呢")  # Chinese
+    assert not _is_romanized("я")  # Cyrillic
+    assert not _is_romanized("α")  # Greek
+
+
 def test_the_classifier_parses_the_word_strictness_field():
     traits = _parse('{"source_languages": ["Dutch"], "source_word_strictness": 0.9, "time_depth_years": 200}')
     assert traits.source_word_strictness == 0.9 and traits.time_depth_years == 200

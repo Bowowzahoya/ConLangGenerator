@@ -62,7 +62,21 @@ multi-session feature.
   in a translation means (English gloss, part of speech, case/tense
   marking) by hovering or clicking, and align it with the source words.
   `TranslationResult` would need to carry per-token gloss data (the plan
-  slots plus the resolved entry) alongside `text`.
+  slots plus the resolved entry) alongside `text`. Reported directly by a
+  user: without this, it's hard to even tell *which* words in a rendered
+  sentence are newly coined vs. already-known vocabulary, or (with the
+  "coined words use word strictness" pass) real-word-based vs. invented --
+  the per-token data this item needs would also cover `notes`/`real_word`,
+  not just the gloss.
+- **See the actual LLM prompts used for a translation (S-M).** No surfaced
+  way today to see what was actually sent to/received from the LLM for a
+  given `generate`/`translate` call -- `llm/cost_tracker.py`'s own ledger
+  (`cost_ledger.jsonl`) only ever records `(timestamp, model, purpose,
+  input_tokens, output_tokens, cost_usd)`, never the prompt/response text
+  itself, so there's nothing to extend there without deciding whether to
+  persist raw prompt text at all (size/privacy implications for a
+  long-lived ledger vs. a lighter, ephemeral "show the prompts from the
+  translation I just ran" surface scoped to one request/response).
 - **Voice picker within an engine (S).** No choice of SAPI or eSpeak voice.
 
 ## 3. Translation
@@ -226,6 +240,21 @@ multi-session feature.
   curated real words for correct unstressed о/а → `ə` has not been done.
 - **IPA U+0261 not normalized on input (S).** IPA typed with `ɡ` (U+0261)
   by a user or an LLM is not converted to ASCII `g`.
+- **The diacritic exotic-symbol style spells some affricates/nasal vowels
+  with their own IPA ligature/combining characters, not a real Latin-
+  extended letter (S-M).** `generation/romanization_gen.py`'s `_DIACRITIC_
+  TABLE` maps `ts`/`tɕ` (and their voiced counterparts) to the historical
+  IPA ligatures `ʦ`/`ʨ`/`ʣ`/`ʥ`, and `ɛ̃`/`ɔ̃` to themselves (an identity
+  rule) -- a real `RomanizationRule` fires, by design, but a user
+  reported this reads exactly like raw IPA leaking through (reasonably:
+  none of these four characters are used in any real orthography, unlike
+  `ø`'s own identity rule, which is a genuine Danish/Norwegian letter).
+  Worth reconsidering whether `ExoticSymbolStyle.DIACRITIC` should instead
+  pick an actual Latin-extended letter for these specific symbols (the
+  digraph/monoletter tables already do -- `ts`/`tɕ` get `"c"` under
+  monoletter, a two-letter digraph otherwise; `ɛ̃`/`ɔ̃` get a vowel+`n`-
+  style digraph), or keep the ligature spelling as a deliberate, flagged
+  stylistic choice and only fix the identity-rule cases.
 - **Profile widening: what is still open (S-M).** (a) glide+vowel sequences
   written as onset clusters (French `bw`, Italian `pj`) are clusters, not
   diphthongs; (b) geminate affricates beyond Italian `tsː`, and geminates
@@ -677,3 +706,38 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   Deferred: lineage-biasing *which* palatalization variant a matched real
   profile prefers; the intermediate `ts`/`dz` stage; a conditioning tag
   other than front/back vowel.
+
+- **Evolution can silently lose a multi-character phoneme's own romanization
+  rule, even though a word's stored IPA still contains it (M).** Reported
+  directly by a user: a language generated from "French evolved forward
+  1000 years with influence from Chinese" had words whose IPA contained
+  `ɔ`/`ɔ̃` (French nasalized vowels) but whose *romanization* showed the
+  raw, un-romanized `ɔ` character -- confirmed via an Explore agent as a
+  genuine `apply()`-fallback hit (`core/romanization.py`'s "no rule at all
+  for this symbol" path), not a design choice. Root cause: `evolve_
+  language`'s own inventory-rebuild step (`sound_change.py::
+  _inventory_and_structure`) re-tokenizes every surviving word's own
+  stored IPA against a deliberately *bounded* candidate pool (single-
+  character symbols are always candidates; a multi-character one --
+  exactly what a nasalized vowel is, base letter + combining tilde -- is
+  only a candidate if it was already in the pre-evolution inventory or is
+  one of the six sound-change rules' own known outputs). If a word's own
+  stored IPA contains a multi-character symbol that isn't anchored either
+  way, the combining tilde gets silently read as harmless decoration and
+  dropped at the tokenization step -- the symbol never reaches
+  `new_inventory.all_symbols()`, so `evolve_romanization`'s own coverage
+  loop (confirmed airtight *relative to that set*) never visits it, and
+  any existing rule for it silently vanishes from the scheme while the
+  literal character survives in the word's own `ipa` field, unrepaired by
+  anything downstream (`_refit_rejected_symbols`'s own repair pass only
+  catches symbols Stage 2 explicitly *rejected*, not ones that were never
+  recognized as a distinct token to begin with). Fresh (non-evolved)
+  generation does not have this gap -- its own coverage loop runs directly
+  over the already-finalized inventory, no lossy re-tokenization pass in
+  between. Not yet root-caused: why a *plain*, single-character `ɔ`
+  (always a tokenizer candidate regardless of anchoring) also ended up
+  with no rule in the same reported case -- needs a concrete repro
+  (regenerate with the reported prompt/seed, diff `base.phonology.
+  all_symbols()` against the literal characters in the affected post-
+  evolution `lexicon.entries[i].ipa` strings) before a fix can be scoped
+  precisely.
