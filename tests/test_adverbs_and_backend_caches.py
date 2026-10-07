@@ -1,9 +1,16 @@
 """Regression tests: degree adverbs must survive translation (they used to be
-dropped by the real planner and misread as verbs by the fake one), and each
+dropped by the real planner and misread as verbs by the fake one), each real
 LLM backend must get its own response cache (a shared, content-keyed file
-served a fake answer to a later real request)."""
+served a fake answer to a later real request), and the fake backend must
+never be cached at all (a fix to the fake planner's own logic must take
+effect immediately, not be masked by a stale cached response for text
+already seen once -- the real cause of a reported bug: `_fake_single_clause_
+plan`'s generic fallback leaked an internal placeholder as a word's gloss,
+and the fix was invisible on an already-used saved language purely because
+its own translate request had been cached before the fix landed)."""
 
 from conlang_generator.llm.base import LLMRequest
+from conlang_generator.llm.cache import CachingLLMClient
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.translation import sentence_planner
@@ -50,9 +57,26 @@ def test_intensifiers_change_the_translation_and_round_trip():
     assert again.coined == () and again.text == extremely.text  # reused
 
 
-def test_each_backend_gets_its_own_cache_file(tmp_path):
-    (tmp_path / "llm_cache.json").write_text("{}", encoding="utf-8")  # legacy shared file is ignored
+def test_the_fake_backend_is_never_cached(tmp_path):
     client = build_llm_client(kind="fake", cache_dir=tmp_path)
-    client.complete(LLMRequest(system="s", prompt="p", model="m"))
-    assert (tmp_path / "llm_cache_fake.json").exists()
-    assert not (tmp_path / "llm_cache_anthropic.json").exists()
+    assert not isinstance(client, CachingLLMClient)
+    response = client.complete(LLMRequest(system="s", prompt="p", model="m"))
+    assert response.cached is False
+    assert not (tmp_path / "llm_cache_fake.json").exists()
+    # A second, identical call doesn't short-circuit through a cache either
+    # (still runs the real strategy dispatch, still reports uncached).
+    again = client.complete(LLMRequest(system="s", prompt="p", model="m"))
+    assert again.cached is False and again.text == response.text
+
+
+def test_caching_llm_client_itself_still_caches_by_request_content(tmp_path):
+    # The caching mechanism itself (used for the real "anthropic" backend)
+    # is unchanged -- only `build_llm_client`'s own choice of whether to
+    # wrap a given backend kind in it changed.
+    (tmp_path / "llm_cache.json").write_text("{}", encoding="utf-8")  # legacy shared file is ignored
+    client = CachingLLMClient(FakeLLMClient(), tmp_path / "llm_cache_anthropic.json")
+    first = client.complete(LLMRequest(system="s", prompt="p", model="m"))
+    assert first.cached is False
+    second = client.complete(LLMRequest(system="s", prompt="p", model="m"))
+    assert second.cached is True and second.text == first.text
+    assert (tmp_path / "llm_cache_anthropic.json").exists()

@@ -692,12 +692,26 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         role_slots = {"S": subject_np, "V": verb_group, "O": object_np}
         slots = [s for role in _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O")) for s in role_slots[role]]
     else:
-        slots = [
-            {"kind": "negation"} if t == "not"
-            else {"kind": "name", "gloss": name_by_placeholder[t]} if t in name_by_placeholder
-            else content_slot(t, "adverb" if _fake_is_adverb(t) else "noun")
-            for t in tokens_no_copula
-        ]
+        slots = []
+        for t in tokens_no_copula:
+            if t == "not":
+                slots.append({"kind": "negation"})
+            elif t in name_by_placeholder:
+                slots.append({"kind": "name", "gloss": name_by_placeholder[t]})
+            elif t in np_info:
+                # A grouped noun phrase (adjective/possessor/article/demonstrative
+                # + its noun, collapsed to one opaque placeholder by
+                # `_fake_group_noun_phrases`) -- resolved back into its real
+                # modifier/noun slots via `noun_phrase`, the same helper every
+                # other clause shape already uses. Without this check, the raw
+                # placeholder string (e.g. "zznpaazz") leaked through as the
+                # slot's own gloss -- a real user-reported bug, since this is
+                # the only branch of `_fake_single_clause_plan` that forgot it
+                # (the 2/3-content-word branches above all go through
+                # `noun_phrase`/`object_np` already).
+                slots.extend(noun_phrase(t, None))
+            else:
+                slots.append(content_slot(t, "adverb" if _fake_is_adverb(t) else "noun"))
 
     if wh_token:
         slots = [{"kind": "content", "gloss": wh_token, "pos": "adverb" if wh_token != "which" else "pronoun"}] + slots

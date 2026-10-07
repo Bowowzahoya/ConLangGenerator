@@ -11,8 +11,8 @@ from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation.generator import generate_language
 from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.llm.base import LLMRequest
-from conlang_generator.llm.cost_tracker import CostTracker
-from conlang_generator.llm.factory import build_llm_client
+from conlang_generator.llm.cache import CachingLLMClient
+from conlang_generator.llm.cost_tracker import CostTracker, CostTrackingLLMClient
 from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
@@ -122,7 +122,16 @@ def test_a_coined_word_is_reused_not_recoined_on_later_requests(tmp_path: Path):
 
 
 def test_cache_hit_is_not_billed_again(tmp_path: Path):
-    client = build_llm_client(kind="fake", cache_dir=tmp_path)
+    # `build_llm_client(kind="fake", ...)` no longer caches at all (the fake
+    # backend is already free and deterministic -- caching it would only
+    # risk masking a fix to the fake planner's own logic, as a real bug
+    # report confirmed). This test is about `CachingLLMClient`/
+    # `CostTracker`'s own general "never bill a cache hit" behavior, so it
+    # builds that stack directly, with `FakeLLMClient` standing in for a
+    # real backend purely to avoid a network call -- the exact stack
+    # `build_llm_client(kind="anthropic", ...)` itself builds.
+    tracker = CostTracker(tmp_path / "cost_ledger.jsonl")
+    client = CachingLLMClient(CostTrackingLLMClient(FakeLLMClient(), tracker), tmp_path / "llm_cache_test.json")
     request = LLMRequest(
         system="system prompt",
         prompt="same prompt every time",

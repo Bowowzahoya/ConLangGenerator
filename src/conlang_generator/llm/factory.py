@@ -41,6 +41,17 @@ def build_llm_client(
 
     tracker = CostTracker(cache_dir / "cost_ledger.jsonl")
     tracked = CostTrackingLLMClient(real, tracker)
+    if kind == "fake":
+        # The fake backend is already free and deterministic -- caching it
+        # has no cost or latency benefit, and caching it by request content
+        # (model/system/prompt only, not the fake planner's own code) means
+        # a fix to fake_client.py's own logic silently fails to take effect
+        # for any sentence already answered once, since the stale cached
+        # JSON plan is replayed verbatim on every later call with the same
+        # text. Confirmed as the real cause of a reported bug: a genuine
+        # `_fake_single_clause_plan` fix was invisible on an already-used
+        # language purely because its own translate request was cached.
+        return tracked
     # One cache file per backend: the key is request content only, so a
     # shared file would serve a fake backend's placeholder answer to a later
     # real request (and vice versa).

@@ -6694,3 +6694,56 @@ reading code or one-off ad hoc scripts.
   exact fixture. Fixed by asserting on "see"/"the" instead -- a reminder that "same seed number" across
   different test files doesn't guarantee the same actual generated grammar unless the fixture construction
   is identical too.
+
+- **Fake planner: a grouped noun phrase's own placeholder leaked as a word's gloss, and the fake
+  backend's response cache made the fix invisible on an already-translated sentence (two bug fixes, not
+  a numbered grammar pass).** A user reported two coined words glossed as literal garbage
+  (`"zznpaazz"`/`"zznpbazz"`) translating "I am Willy Wonka of the sea people, I bring good tidings to
+  you, my friend." on their own saved "Moorian" language -- directly surfaced by the hover/click gloss
+  feature above, which made an existing bug visible for the first time rather than introducing one.
+
+  **Root cause 1**: `llm/fake_client.py::_fake_group_noun_phrases` collapses a noun phrase with a real
+  modifier (adjective, possessor, demonstrative, numeral, quantifier -- *not* a bare "the", which has no
+  `real_mods` of its own) into one opaque placeholder token (`f"zznp{...}zz"`), recorded in an `info`
+  dict the real noun/modifiers can be recovered from. `_fake_single_clause_plan`'s two *dedicated* clause
+  shapes (2 and 3 content words) always resolve a placeholder correctly via the shared `noun_phrase()`
+  helper -- but its generic ≥4-content-word fallback ("anything else becomes one bare content slot per
+  word") checked `name_by_placeholder` for a proper-name placeholder and completely forgot the parallel
+  `np_info` check for a *noun-phrase* placeholder, using the raw opaque string itself as the slot's gloss.
+  "I bring good tidings to you." has exactly 5 content tokens after grouping (`i bring [good+tidings] to
+  you`) -- too many for either dedicated shape, landing in the broken fallback; a shorter variant missing
+  either the adjective or the trailing "to you" phrase hits a shape that already worked, which is why the
+  bug looked narrower than it was until traced systematically. Fixed with one more `elif t in np_info:
+  slots.extend(noun_phrase(t, None))` branch, reusing the exact same resolution dedicated shapes already
+  rely on -- no new mechanism.
+
+  **Root cause 2, and the more interesting one**: fixing root cause 1 alone did not change the CLI's own
+  output for the user's exact saved language, even after confirming by direct Python call that `_fake_
+  plan_dict`/`plan_sentence`/`translate_to_conlang` all now produced the correct glosses in isolation.
+  Traced to `llm/factory.py::build_llm_client`: every backend, including `"fake"`, was wrapped in
+  `CachingLLMClient`, a disk-backed cache keyed only on `(model, system, prompt, max_tokens)` -- not on
+  `fake_client.py`'s own code. The user's original, pre-fix translate call had already cached that exact
+  prompt's buggy JSON plan; every later call with the same text replayed it verbatim regardless of any
+  source fix, confirmed directly by inspecting `.cache/llm_cache_fake.json` and finding the stale
+  `"zznpaazz"`-glossed entry already persisted in the saved language's own `lexicon.yaml` from the
+  original report. Caching the fake backend was never buying anything -- it's already free and
+  deterministic, so there's no cost or latency to save, only the risk that a future fake-planner fix
+  silently fails to take effect for any sentence already seen once. Fixed by having `build_llm_client`
+  skip the `CachingLLMClient` wrap for `kind == "fake"` entirely (still wrapped in `CostTrackingLLMClient`
+  for ledger-shape parity) -- `"anthropic"` keeps its cache unchanged, since that's the backend caching
+  actually protects (money, not correctness).
+
+  **Tests**: `test_the_generic_fallback_resolves_a_grouped_noun_phrase_not_its_raw_placeholder`
+  (`tests/test_noun_phrase.py`) exercises both an adjective-modified and a possessor-modified noun phrase
+  in the broken fallback shape directly via `_fake_plan_dict`, asserting no gloss starts with `"zznp"`.
+  `tests/test_adverbs_and_backend_caches.py`'s old `test_each_backend_gets_its_own_cache_file` (which
+  asserted the fake backend *did* get a cache file -- exactly the behavior just reversed) is replaced by
+  `test_the_fake_backend_is_never_cached` (two identical calls, both report `cached=False`, no cache file
+  written) and `test_caching_llm_client_itself_still_caches_by_request_content` (the caching mechanism
+  itself, used directly rather than through `build_llm_client`, still caches -- confirms only the
+  *wiring* choice changed, not `CachingLLMClient`'s own behavior). `tests/test_generation_and_translation.
+  py::test_cache_hit_is_not_billed_again` used `build_llm_client(kind="fake", ...)` purely as a free way
+  to test the general "a cache hit is never billed" contract -- rewritten to build the same `Caching
+  LLMClient(CostTrackingLLMClient(FakeLLMClient(), tracker), path)` stack directly (`FakeLLMClient`
+  standing in for a real backend only to avoid a network call), since that contract is about `Caching
+  LLMClient`/`CostTracker` together, not about the fake backend's own wiring.

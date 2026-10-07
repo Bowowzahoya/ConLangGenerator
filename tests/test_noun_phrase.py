@@ -152,6 +152,30 @@ def test_a_bare_this_stays_a_pronoun():
     assert all(s["kind"] != "demonstrative" for s in _slots("I see this."))
 
 
+def test_the_generic_fallback_resolves_a_grouped_noun_phrase_not_its_raw_placeholder():
+    # Real user-reported bug: "I bring good tidings to you." has 5 content
+    # tokens (i/bring/[good+tidings]/to/you) after "good tidings" collapses
+    # into one opaque `np_info` placeholder -- too many for the dedicated
+    # 2/3-content-word clause shapes above, so it falls through to
+    # `_fake_single_clause_plan`'s generic "one bare content slot per word"
+    # fallback. That fallback used to forget to check `np_info` at all
+    # (unlike the dedicated clause shapes, which always go through
+    # `noun_phrase`), leaking the raw placeholder string itself (e.g.
+    # "zznpaazz") as the slot's own gloss instead of resolving it back to
+    # the real adjective + noun.
+    slots = _slots("I bring good tidings to you.")
+    glosses = [s.get("gloss") for s in slots]
+    assert "good" in glosses and "tiding" in glosses  # singularized, like every other noun_phrase() resolution
+    assert not any(g and g.startswith("zznp") for g in glosses)
+    # A possessor-modified noun phrase in the same fallback shape resolves
+    # too ("I give my dog to you." -- 5 content tokens: i/give/[my+dog]/to/you).
+    possessor_slots = _slots("I give my dog to you.")
+    possessor = next(s for s in possessor_slots if s.get("possessive"))
+    assert possessor["gloss"] == "I"
+    assert {"gloss": "dog", "kind": "content", "pos": "noun"} in possessor_slots
+    assert not any(g and g.startswith("zznp") for g in (s.get("gloss") for s in possessor_slots))
+
+
 # --- rendering ------------------------------------------------------------
 
 
