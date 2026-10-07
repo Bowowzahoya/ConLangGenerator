@@ -100,6 +100,22 @@
   }
   #gloss-tooltip .gloss-tooltip-gloss { font-weight: 600; }
   #gloss-tooltip .gloss-tooltip-row { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .log-entry {
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;
+  }
+  .log-entry summary {
+    cursor: pointer; font-size: 13.5px; color: var(--text); list-style: none;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  }
+  .log-entry summary::-webkit-details-marker { display: none; }
+  .log-entry .log-time { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+  .log-entry .log-purpose { font-weight: 600; }
+  .log-body { margin-top: 12px; }
+  .log-body h4 { font-size: 12px; color: var(--muted); margin: 10px 0 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .log-body pre {
+    background: var(--accent-bg); border-radius: 6px; padding: 10px 12px; font-family: var(--mono);
+    font-size: 12.5px; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; margin: 0;
+  }
 </style>
 </head>
 <body>
@@ -113,6 +129,7 @@
   <button id="tab-generate-btn" class="active">Generate</button>
   <button id="tab-translate-btn">Translate</button>
   <button id="tab-reference-btn">Reference</button>
+  <button id="tab-log-btn">Log</button>
 </nav>
 
 <main>
@@ -324,6 +341,25 @@
   <div class="result" id="reference-result"></div>
 </section>
 
+<section id="panel-log" class="panel">
+  <div class="card">
+    <div class="row">
+      <div>
+        <label for="log-limit">Show up to</label>
+        <input type="number" id="log-limit" value="100" min="1" max="300" step="25">
+      </div>
+    </div>
+    <div class="submit-row">
+      <button type="button" class="add-row" id="refresh-log">refresh</button>
+    </div>
+    <p class="ipa" style="margin: 10px 0 0; font-size: 13px;">
+      Every real LLM call made from this server, newest first -- the free "fake" backend's own calls are
+      logged too, always at $0. Click a row to see its own full system prompt, user prompt, and response.
+    </p>
+  </div>
+  <div class="result" id="log-result"></div>
+</section>
+
 </main>
 
 <script>
@@ -420,13 +456,70 @@ function showTab(which) {
   $("panel-generate").classList.toggle("active", which === "generate");
   $("panel-translate").classList.toggle("active", which === "translate");
   $("panel-reference").classList.toggle("active", which === "reference");
+  $("panel-log").classList.toggle("active", which === "log");
   $("tab-generate-btn").classList.toggle("active", which === "generate");
   $("tab-translate-btn").classList.toggle("active", which === "translate");
   $("tab-reference-btn").classList.toggle("active", which === "reference");
+  $("tab-log-btn").classList.toggle("active", which === "log");
 }
 $("tab-generate-btn").onclick = () => showTab("generate");
 $("tab-translate-btn").onclick = () => showTab("translate");
 $("tab-reference-btn").onclick = () => showTab("reference");
+$("tab-log-btn").onclick = () => { showTab("log"); loadLog(); };
+
+// --- LLM call log ---
+const LLM_PURPOSE_LABELS = {
+  "prompt.classify_traits": "Trait classification",
+  "lexicon.propose_word": "Word selection",
+  "lexicon.propose_words_batch": "Word selection (batch)",
+  "lexicon.real_words": "Real-word seeding",
+  "seed_example.guess_ipa": "IPA guess for seed example",
+  "translate.plan_sentence": "Sentence planning",
+  "translate.fluency": "Fluency rewrite",
+};
+
+function fmtTokens(n) {
+  return (n ?? 0).toLocaleString();
+}
+
+function renderLogEntry(e) {
+  const label = LLM_PURPOSE_LABELS[e.purpose] || e.purpose || "(unknown)";
+  const when = e.timestamp ? e.timestamp.replace("T", " ").replace(/\.\d+\+.*$/, "") : "";
+  const summary = `
+    <summary>
+      <span class="log-time">${escapeAttr(when)}</span>
+      <span class="log-purpose">${escapeAttr(label)}</span>
+      <span class="badge">${escapeAttr(e.model || "?")}</span>
+      <span class="badge">${fmtTokens(e.input_tokens)} in / ${fmtTokens(e.output_tokens)} out</span>
+      <span class="badge">$${(e.cost_usd ?? 0).toFixed(4)}</span>
+    </summary>`;
+  const sections = [
+    ["System prompt", e.system],
+    ["Prompt", e.prompt],
+    ["Response", e.response_text],
+  ]
+    .filter(([, text]) => text)
+    .map(([heading, text]) => `<h4>${escapeAttr(heading)}</h4><pre>${escapeAttr(text)}</pre>`)
+    .join("");
+  return `<details class="log-entry">${summary}<div class="log-body">${sections || "<p class=\"ipa\">(no text recorded for this call)</p>"}</div></details>`;
+}
+
+async function loadLog() {
+  const el = $("log-result");
+  el.innerHTML = "<p class=\"ipa\">Loading...</p>";
+  try {
+    const limit = parseInt($("log-limit").value, 10) || 100;
+    const data = await api(`/api/llm-log?limit=${limit}`);
+    if (!data.entries.length) {
+      el.innerHTML = "<p class=\"ipa\">No LLM calls recorded yet.</p>";
+      return;
+    }
+    el.innerHTML = data.entries.map(renderLogEntry).join("");
+  } catch (e) {
+    el.innerHTML = `<p class="error">${escapeAttr(e.message)}</p>`;
+  }
+}
+$("refresh-log").onclick = loadLog;
 
 // --- cost badge ---
 async function refreshCost() {

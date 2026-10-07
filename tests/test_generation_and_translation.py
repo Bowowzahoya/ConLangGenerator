@@ -2,6 +2,7 @@
 translation round-tripping, on-the-fly word coinage and persistence, and the
 cache/cost-tracking contract (a cache hit must not be billed twice)."""
 
+import json
 from pathlib import Path
 
 from conlang_generator.core.lexicon import PartOfSpeech
@@ -148,6 +149,64 @@ def test_cache_hit_is_not_billed_again(tmp_path: Path):
 
     summary = CostTracker(tmp_path / "cost_ledger.jsonl").summarize()
     assert summary["num_calls"] == 1
+
+
+def test_list_entries_records_full_prompt_and_response_text_newest_first(tmp_path: Path):
+    # docs/DEFERRED.md's "See the actual LLM prompts used for a translation"
+    # item -- the web UI's Log tab reads this back via `list_entries`.
+    tracker = CostTracker(tmp_path / "cost_ledger.jsonl")
+    tracker.record(
+        LLMRequest(system="sys one", prompt="prompt one", model=DEFAULT_MODEL, purpose="first.call"),
+        FakeLLMClient().complete(LLMRequest(system="sys one", prompt="prompt one", model=DEFAULT_MODEL, purpose="first.call")),
+    )
+    tracker.record(
+        LLMRequest(system="sys two", prompt="prompt two", model=DEFAULT_MODEL, purpose="second.call"),
+        FakeLLMClient().complete(LLMRequest(system="sys two", prompt="prompt two", model=DEFAULT_MODEL, purpose="second.call")),
+    )
+
+    entries = tracker.list_entries()
+    assert len(entries) == 2
+    assert entries[0]["purpose"] == "second.call"  # newest first
+    assert entries[0]["system"] == "sys two"
+    assert entries[0]["prompt"] == "prompt two"
+    assert entries[0]["response_text"]
+    assert entries[1]["purpose"] == "first.call"
+
+
+def test_list_entries_is_backward_compatible_with_a_pre_text_ledger_line(tmp_path: Path):
+    # A ledger line written before `system`/`prompt`/`response_text` existed
+    # on `UsageRecord` has none of those keys at all -- `list_entries` must
+    # still parse it rather than raising a KeyError.
+    ledger_path = tmp_path / "cost_ledger.jsonl"
+    old_line = {
+        "timestamp": "2026-01-01T00:00:00+00:00",
+        "model": DEFAULT_MODEL,
+        "purpose": "old.call",
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "cost_usd": 0.001,
+    }
+    ledger_path.write_text(json.dumps(old_line) + "\n", encoding="utf-8")
+
+    entries = CostTracker(ledger_path).list_entries()
+    assert len(entries) == 1
+    assert entries[0]["purpose"] == "old.call"
+    assert entries[0]["system"] == ""
+    assert entries[0]["prompt"] == ""
+    assert entries[0]["response_text"] == ""
+
+
+def test_list_entries_respects_limit(tmp_path: Path):
+    tracker = CostTracker(tmp_path / "cost_ledger.jsonl")
+    client = FakeLLMClient()
+    for i in range(5):
+        request = LLMRequest(system="s", prompt=f"p{i}", model=DEFAULT_MODEL, purpose="p")
+        tracker.record(request, client.complete(request))
+
+    entries = tracker.list_entries(limit=2)
+    assert len(entries) == 2
+    assert entries[0]["prompt"] == "p4"
+    assert entries[1]["prompt"] == "p3"
 
 
 def test_german_biased_language_capitalizes_its_noun_entries():

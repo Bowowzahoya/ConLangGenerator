@@ -430,6 +430,38 @@ def test_cost_endpoint_reflects_generation_spend(client):
     assert after["total_cost_usd"] == before["total_cost_usd"] == 0.0  # fake backend, always free
 
 
+def test_llm_log_endpoint_is_empty_before_any_call(client):
+    response = client.get("/api/llm-log")
+    assert response.status_code == 200
+    assert response.json() == {"entries": []}
+
+
+def test_llm_log_endpoint_records_fake_backend_calls_with_full_text(client):
+    # docs/DEFERRED.md's "See the actual LLM prompts used for a translation"
+    # item -- the fake backend's own calls are logged too, just at $0 (it is
+    # still wrapped in `CostTrackingLLMClient`, only `CachingLLMClient` is
+    # skipped for it).
+    client.post("/api/generate", json={"prompt": "p", "name": "Log Test", "seed": 2, "llm": "fake"})
+
+    response = client.get("/api/llm-log")
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    assert len(entries) > 0
+    first = entries[0]
+    assert first["model"]
+    assert first["purpose"]
+    assert first["cost_usd"] == 0.0
+    assert first["system"] or first["prompt"]  # real text was recorded, not just metadata
+    assert first["response_text"]
+
+
+def test_llm_log_endpoint_respects_limit_query_param(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Log Limit Test", "seed": 2, "llm": "fake"})
+    response = client.get("/api/llm-log?limit=1")
+    assert response.status_code == 200
+    assert len(response.json()["entries"]) == 1
+
+
 def test_options_endpoint_lists_orthography_choices(client):
     response = client.get("/api/options")
     assert response.status_code == 200

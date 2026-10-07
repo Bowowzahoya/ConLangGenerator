@@ -6927,3 +6927,32 @@ reading code or one-off ad hoc scripts.
   some other main request" (the pre-existing Wade-Giles example), so the new example doesn't read as
   contradicting the old one. Not verifiable against the real Anthropic backend without a paid call --
   verified instead via `_reference_clamp`'s own new direct unit tests and hand-computed probabilities.
+
+- **LLM call log tab (DEFERRED.md's "See the actual LLM prompts used for a translation").** The item's own
+  text had flagged an open design question -- whether to persist raw prompt/response text in the cost
+  ledger at all, given size/privacy implications, versus a lighter ephemeral per-request view. The user's
+  own explicit direction resolved it: persist it, as a browsable log tab, not an ephemeral view (a
+  reasonable call for this project -- `cost_ledger.jsonl` is a local, gitignored, single-user file with no
+  sharing exposure). `llm/cost_tracker.py::UsageRecord` gained three new fields (`system`, `prompt`,
+  `response_text`, all defaulted to `""` -- the same backward-compatible shape every other new field added
+  to a persisted model in this project gets), written on every `CostTracker.record` call, real or fake (the
+  fake backend is still wrapped in `CostTrackingLLMClient`, only skips the outer `CachingLLMClient`, so its
+  calls are logged too, always at `cost_usd=0.0`). `summarize()` was refactored to share a new `_records()`
+  helper with the new `list_entries(limit=300)` method, which returns the most recent `limit` entries
+  newest-first, `setdefault`-ing the three new fields for any pre-existing ledger line that predates them.
+  `webui/app.py` gained one new endpoint, `GET /api/llm-log?limit=N`, built directly on `list_entries`
+  (mirroring the existing `/api/cost`/`_cost_snapshot` pattern). The web UI gained a 4th top-level tab
+  ("Log", alongside Generate/Translate/Reference) rendering each entry as a collapsible `<details
+  class="log-entry">` row -- a one-line summary (timestamp, a `purpose` -> human-label mapping
+  (`LLM_PURPOSE_LABELS`, e.g. `"lexicon.propose_word"` -> "Word selection"), model, token counts, cost as
+  badges) that expands to the full system prompt / prompt / response text in `<pre>` blocks. No new
+  "capability" taxonomy was needed -- `LLMRequest.purpose` already was exactly that; only the frontend
+  display-label mapping is new. Verified live with the fake backend (via the browser pane): generating a
+  language populates the log, each row's metadata renders correctly, and clicking a row expands it to show
+  the real recorded system prompt/prompt/response text; confirmed `GET /api/llm-log` returns `200` (not
+  `404`) only after restarting the dev server process, since a plain `conlang serve` (no `--reload`) does
+  not pick up source changes -- the earlier stale process from an older pass in this same session was still
+  bound to port 8000. **Scope boundaries, documented in LIMITATIONS.md:** `list_entries` returns only the
+  most recent `limit` (UI default 100, capped at 300) entries, not full pagination -- older calls remain in
+  the ledger file but scroll out of what the Log tab can show. Web UI only, per the user's own framing ("a
+  tab") -- no CLI surface was requested or added.

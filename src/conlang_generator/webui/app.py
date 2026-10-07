@@ -466,6 +466,16 @@ def get_cost() -> dict:
     return _cost_snapshot()
 
 
+@app.get("/api/llm-log")
+def get_llm_log(limit: int = 300) -> dict:
+    """The actual request/response text for the most recent LLM calls
+    (fake backend included -- it's still wrapped in `CostTrackingLLMClient`,
+    just at `cost_usd=0.0`), newest first -- see docs/DEFERRED.md's "See
+    the actual LLM prompts used for a translation" item. Empty (not an
+    error) for a fresh session with no calls recorded yet."""
+    return {"entries": CostTracker(CACHE_DIR / "cost_ledger.jsonl").list_entries(limit)}
+
+
 _MODEL_LABELS = {
     "claude-haiku-4-5-20251001": "Haiku 4.5",
     "claude-sonnet-5": "Sonnet 5",

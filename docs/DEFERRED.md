@@ -113,15 +113,29 @@ multi-session feature.
   fluency LLM rewrite can reorder/merge/split words arbitrarily, so there
   is no clean word-for-word alignment to the final English output to
   expose the way there is for conlang rendering.
-- **See the actual LLM prompts used for a translation (S-M).** No surfaced
-  way today to see what was actually sent to/received from the LLM for a
-  given `generate`/`translate` call -- `llm/cost_tracker.py`'s own ledger
-  (`cost_ledger.jsonl`) only ever records `(timestamp, model, purpose,
-  input_tokens, output_tokens, cost_usd)`, never the prompt/response text
-  itself, so there's nothing to extend there without deciding whether to
-  persist raw prompt text at all (size/privacy implications for a
-  long-lived ledger vs. a lighter, ephemeral "show the prompts from the
-  translation I just ran" surface scoped to one request/response).
+- **See the actual LLM prompts used for a translation (S-M). Done.** The
+  user's own explicit direction settled the design tension this item used
+  to flag: persist the full text, as a browsable log, not an ephemeral
+  single-request view. `llm/cost_tracker.py`'s `UsageRecord` gained three
+  new fields (`system`, `prompt`, `response_text`, all defaulted to `""`
+  so an old ledger line without them still parses via the new
+  `list_entries()` method); `CostTracker.record` now writes them on every
+  real *and* fake call (the fake backend is still wrapped in
+  `CostTrackingLLMClient`, just never `CachingLLMClient`, so its calls are
+  logged too, always at `cost_usd=0.0`). A new `GET /api/llm-log` endpoint
+  and a 4th web UI tab ("Log") render the ledger newest-first as
+  collapsible `<details>` rows -- one line of metadata (timestamp,
+  `purpose` mapped to a human label, model, token counts, cost) per call,
+  expanding to the full system prompt / prompt / response text. No new
+  "capability" taxonomy was needed -- `LLMRequest.purpose` (e.g.
+  `"lexicon.propose_word"`, `"translate.plan_sentence"`) already was
+  exactly that; the frontend just maps it to a display label.
+  **Scope boundary, left open:** `list_entries()` returns at most
+  `limit` (default 100, capped at 300 in the UI) most-recent entries, not
+  full pagination -- a long-lived ledger's older calls become
+  unreachable from the Log tab (still present in `cost_ledger.jsonl`
+  itself). Web UI only, by the user's own framing ("a tab") -- no CLI
+  surface was requested or added.
 - **Voice picker within an engine (S).** No choice of SAPI or eSpeak voice.
 
 ## 3. Translation

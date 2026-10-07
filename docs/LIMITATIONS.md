@@ -545,3 +545,8 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   already records it) but has thin-to-zero local coverage for any paid model, since almost all testing
   runs the free `fake-llm` backend. Word-selection cost especially varies with vocabulary/candidate-list
   size -- one flat number can't capture that. Treat the shown price as a ballpark, not a quote.
+- **The web UI's Log tab shows only the most recent entries, not the full ledger.** `CostTracker.
+  list_entries()` returns at most `limit` (default 100 in the UI, capped at 300) newest-first records;
+  a long-lived `cost_ledger.jsonl` keeps every call ever made, but older ones scroll out of what the Log
+  tab can show -- there's no pagination, search, or date filter. The full history is always still in the
+  ledger file itself if needed.

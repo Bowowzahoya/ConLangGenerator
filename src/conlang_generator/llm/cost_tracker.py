@@ -24,6 +24,13 @@ class UsageRecord:
     input_tokens: int
     output_tokens: int
     cost_usd: float
+    system: str = ""
+    prompt: str = ""
+    response_text: str = ""
+    """The actual request/response text for this call -- defaulted (not
+    required) so a ledger line recorded before these three fields existed
+    still parses fine via ``list_entries`` (see docs/DEFERRED.md's "See
+    the actual LLM prompts" item)."""
 
 
 class CostTracker:
@@ -40,20 +47,28 @@ class CostTracker:
             cost_usd=estimate_cost(
                 response.model, response.input_tokens, response.output_tokens
             ),
+            system=request.system,
+            prompt=request.prompt,
+            response_text=response.text,
         )
         self._ledger_path.parent.mkdir(parents=True, exist_ok=True)
         with self._ledger_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(asdict(entry)) + "\n")
         return entry
 
-    def summarize(self) -> dict:
+    def _records(self) -> list[dict]:
         if not self._ledger_path.exists():
-            return {"total_cost_usd": 0.0, "num_calls": 0, "by_model": {}}
-        records = [
+            return []
+        return [
             json.loads(line)
             for line in self._ledger_path.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
+
+    def summarize(self) -> dict:
+        records = self._records()
+        if not records:
+            return {"total_cost_usd": 0.0, "num_calls": 0, "by_model": {}}
         by_model: dict[str, float] = {}
         for r in records:
             by_model[r["model"]] = by_model.get(r["model"], 0.0) + r["cost_usd"]
@@ -62,6 +77,20 @@ class CostTracker:
             "num_calls": len(records),
             "by_model": by_model,
         }
+
+    def list_entries(self, limit: int = 300) -> list[dict]:
+        """The most recent ``limit`` ledger entries, newest first -- for a
+        human-browsable call log (the web UI's own "Log" tab). Every dict
+        always has every ``UsageRecord`` field, even for a line recorded
+        before ``system``/``prompt``/``response_text`` existed (defaulted
+        to ``""`` for those, the same backward-compatible shape every
+        other new field added to a persisted model in this project gets)."""
+        records = self._records()
+        for r in records:
+            for field_name in ("system", "prompt", "response_text"):
+                r.setdefault(field_name, "")
+        records.reverse()
+        return records[:limit]
 
 
 class CostTrackingLLMClient:
