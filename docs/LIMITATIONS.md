@@ -193,6 +193,20 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   clitic); there is no dual, gender or noun class, and vocatives are
   ordinary sentence-initial nouns. There is no idiom generation/matching (`Lexicon.idioms` exists
   but is unused).
+- **A multi-word proper name only splits for the "generic descriptor + specific name" pattern**
+  ("Lake Baikal", "Mount Everest" -- the descriptor becomes an ordinary word, the rest becomes the
+  name). A true multi-word name with no generic part ("New York", "Los Angeles") still has no
+  handling anywhere: it passes through as one literal unit under the "keep" foreign-name policy, or
+  gets silently fused into one native-looking word under "adapt" (the embedded space is dropped by
+  the IPA tokenizer with no trace of the original word boundary).
+- **A word recovered by falling back from a misclassified "name" slot to an existing ordinary
+  lexicon entry never gets case-marked under the "keep" foreign-name policy**, even if the
+  sentence's own grammar would otherwise mark it -- the word's spelling is always correct either
+  way, only its case/agreement marking is skipped in this one fallback path.
+- **A very high, explicit `source_language_strictness` can still meaningfully suppress even a
+  strong, explicit opposing trait signal** (e.g. tonal_friendliness) during generation --
+  deliberate: strictness is itself a real, competing signal when the prompt asks to closely
+  resemble named reference languages, not something the trait-vs-profile blend fully overrides.
 - **The hover/click gloss data on a translation result is static per-entry, not the live marking
   actually applied this occurrence.** `TranslationResult.tokens` surfaces each rendered word's English
   gloss, part of speech, real-word origin, notes, and whether it was coined this call -- all already

@@ -14,7 +14,8 @@ from conlang_generator.generation.seed_examples import resolve_seed_examples
 from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation import names
-from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
+from conlang_generator.translation.sentence_planner import PlannedSlot, SentencePlan
+from conlang_generator.translation.translator import _render_plan, translate_to_conlang, translate_to_english
 
 
 def _language(seed=2, **spec_kwargs):
@@ -116,3 +117,53 @@ def test_a_name_and_a_same_spelled_ordinary_word_stay_distinct():
     assert [e.primary_gloss for e in result.coined] == ["canoe"]
     word = translate_to_conlang("the boat is red", language, FakeLLMClient())
     assert "boat" in [e.primary_gloss for e in word.coined]  # the ordinary word, not the name entry
+
+
+def test_a_name_slot_reuses_an_existing_ordinary_word_instead_of_coining_a_duplicate():
+    # Real user-reported bug: a sentence that's just one standalone,
+    # capitalized word ("Water.") gets planned by a real LLM as a "name"
+    # slot (no context to tell it otherwise) -- the renderer used to
+    # never check whether an ordinary word with that exact gloss already
+    # existed, and coined a brand-new, completely unrelated word instead
+    # of reusing it, discarding e.g. a user's own manually-edited spelling.
+    language = _language()
+    water = language.lexicon.by_gloss("water")
+    assert water is not None
+    edited = water.model_copy(update={"romanization": "Oogadamaritifrancini", "notes": "(manually edited)"})
+    language = language.with_edited_entry("water", edited, reason="test manual edit")
+
+    name_slot = PlannedSlot(kind="name", gloss="Water")
+    _, rom_parts, _, gloss_parts, _ = _render_plan(SentencePlan(slots=(name_slot,)), language, FakeLLMClient(), [])
+    assert rom_parts == ["Oogadamaritifrancini"]
+    assert gloss_parts == ["water"]
+
+
+def test_is_name_entry_survives_a_manual_edit_appending_to_notes():
+    # webui/app.py's lexicon-edit endpoint appends " (manually edited)"
+    # onto whatever notes an entry already had -- a genuine name's own
+    # notes becomes "proper name (manually edited)", which must still
+    # count as a name (the old exact-equality check broke this).
+    name_entry = LexicalEntry(
+        ipa="bruno", romanization="Bruno", glosses=("Bruno",), pos=PartOfSpeech.NOUN,
+        notes=f"{names.NAME_NOTE} (manually edited)",
+    )
+    assert names.is_name_entry(name_entry)
+    ordinary_entry = LexicalEntry(
+        ipa="watr", romanization="watr", glosses=("water",), pos=PartOfSpeech.NOUN, notes="(manually edited)",
+    )
+    assert not names.is_name_entry(ordinary_entry)
+
+
+def test_a_descriptive_word_plus_name_splits_into_an_ordinary_word_and_a_name():
+    # Real user-reported bug: "Lake Baikal" passed through as one literal,
+    # untranslated unit. The fake planner now splits a recognized
+    # geographic descriptor ("Lake") from the specific name after it
+    # ("Baikal") the same way a real LLM is now instructed to.
+    language = _language()
+    result = translate_to_conlang("I see Lake Baikal", language, FakeLLMClient())
+    by_gloss = {t.gloss: t for t in result.tokens if t.gloss}
+    assert by_gloss["lake"].coined is False or by_gloss["lake"].pos == "noun"  # the ordinary word "lake"
+    assert "Baikal" in [e.primary_gloss for e in result.coined]
+    # A plain single-word name is completely unaffected by the new check.
+    plain = translate_to_conlang("I see Bruno", language, FakeLLMClient())
+    assert "Bruno" in [e.primary_gloss for e in plain.coined]

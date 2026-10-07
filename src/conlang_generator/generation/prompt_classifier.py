@@ -202,7 +202,25 @@ number after each syllable, Wade-Giles style"
 0.6, contact_intensity: 0.5, every other dimension: 0.0. (An explicit, \
 unambiguous request for a specific spelling convention -- by name here, \
 but a clear enough description alone, like "numbers after each \
-syllable for tone," would extract the same value.)
+syllable for tone," would extract the same value. "A tonal language" \
+here is a brief lead-in to the real point of the sentence -- the \
+spelling convention -- so tonal_friendliness itself stays moderate, not \
+the maximum a sentence entirely and solely about tone would earn; \
+compare the next example.)
+
+Prompt: "a mix between Mongolian and Italian, evolved forward 2000 \
+years. I want tones in the language"
+-> source_languages: ["Mongolian", "Italian"], source_language_strictness: \
+0.8, time_depth_years: 2000, tonal_friendliness: 0.85, every other \
+dimension: 0.0. ("I want tones in the language" is a complete, \
+standalone sentence entirely and solely about tone -- nothing else \
+competes for attention the way the Wade-Giles example's spelling \
+request does, so this earns a noticeably higher value for comparable \
+explicitness. Naming two source languages that happen to both be real \
+non-tonal languages does not lower this score -- tonal_friendliness is \
+about what the text itself asks for, independent of whether the named \
+languages happen to agree; resolving that tension is a separate step \
+downstream, not the classifier's own job.)
 
 Prompt: "a language that's basically a mix of English and German, should \
 sound like a close cousin of both"

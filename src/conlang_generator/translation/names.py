@@ -61,7 +61,13 @@ def find_name_entry(language: Language, name: str) -> LexicalEntry | None:
 
 
 def is_name_entry(entry: LexicalEntry) -> bool:
-    return entry.notes == NAME_NOTE
+    """Substring, not exact-equality: a manual lexicon edit (``webui/
+    app.py``'s edit endpoint) appends `` (manually edited)`` onto whatever
+    `notes` an entry already had, so a genuine name surviving an edit
+    reads as ``"proper name (manually edited)"`` -- still a name. ``NAME_
+    NOTE`` is a private constant used nowhere else in this codebase, so
+    this can't collide with an unrelated note."""
+    return NAME_NOTE in entry.notes
 
 
 def make_name_entry(language: Language, name: str, llm_client: LLMClient) -> LexicalEntry:

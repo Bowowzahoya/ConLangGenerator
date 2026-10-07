@@ -1579,6 +1579,31 @@ def test_reference_clamp_weighted_fraction_interpolates_continuously():
     assert partial < full
 
 
+def test_reference_clamp_lets_a_strong_opposed_trait_signal_partially_resist():
+    # Real user-reported bug: "I want tones in the language" (a strong,
+    # explicit trait signal) combined with two matched, confidently
+    # non-tonal source languages always clamped to ~8% or less regardless
+    # of how high the trait-driven probability was. A probability already
+    # above the 0.75 "explicit and central" threshold now partially
+    # escapes the clamp instead of being discarded outright.
+    non_tonal = ReferenceLanguageProfile(
+        name="NonTonal", consonants=("p",), vowels=("a",), coda_profile="unrestricted", max_onset=1, tonal=False
+    )
+    profiles = ((non_tonal, 1.0),)
+    # At or below the threshold: byte-identical to the original, unescaped behavior.
+    assert phonology_gen._reference_clamp(0.5, profiles, "tonal", 0.0) == pytest.approx(0.08)
+    assert phonology_gen._reference_clamp(0.75, profiles, "tonal", 0.0) == pytest.approx(0.08)
+    # Above it: a smooth escape from 0.08 (at 0.75) up to 0.5 (at 1.0).
+    escaped = phonology_gen._reference_clamp(0.935, profiles, "tonal", 0.0)
+    assert 0.08 < escaped < 0.5
+    assert phonology_gen._reference_clamp(1.0, profiles, "tonal", 0.0) == pytest.approx(0.5)
+    # Strictness still reduces the escaped value (a real, competing
+    # signal), but a strong signal still ends up well above the
+    # unescaped 0.08 floor even at high strictness.
+    reduced = phonology_gen._reference_clamp(0.935, profiles, "tonal", 0.8)
+    assert reduced > phonology_gen._reference_clamp(0.5, profiles, "tonal", 0.8)
+
+
 def test_choose_tone_levels_a_heavier_weighted_profiles_tone_count_wins_out():
     heavy = _synthetic_profile("Heavy", tone_level_count=6)
     light = _synthetic_profile("Light", tone_level_count=5)

@@ -275,11 +275,28 @@ def _fake_tense_label(detected: str, tenses: list[str]) -> str | None:
     return None
 
 
+_FAKE_PLACE_DESCRIPTORS = {
+    "lake", "mount", "mt", "mountain", "river", "sea", "ocean", "cape", "fort", "saint", "st",
+}
+"""A capitalized word immediately followed by another capitalized word
+(e.g. "Lake Baikal", "Mount Everest") is, this often enough in practice,
+a generic geographic descriptor plus a specific name -- split the two
+rather than treating the whole span as one opaque name (a real user-
+reported bug: "Lake Baikal" passed through as literal, English-
+pronounced text, since nothing anywhere in this codebase ever handled a
+multi-word name). Deliberately narrow: a true multi-word name with no
+generic part ("New York") has no mechanical way to split and still isn't
+handled -- see docs/LIMITATIONS.md."""
+
+
 def _fake_extract_names(prompt: str) -> tuple[str, dict[str, str]]:
     """Swaps each capitalized word that is neither sentence-initial nor "I"
     (a plausible proper name; a possessive 's is dropped) for a lowercase
     placeholder token, so the rest of the heuristic sees an ordinary
-    noun-like token; returns the rewritten prompt and placeholder -> name."""
+    noun-like token; returns the rewritten prompt and placeholder -> name.
+    A recognized place descriptor immediately followed by another
+    capitalized word (see ``_FAKE_PLACE_DESCRIPTORS``) is treated as an
+    ordinary word instead -- only the word(s) after it become the name."""
     names: dict[str, str] = {}
     first_word = re.search(r"[A-Za-z']+", prompt)
     start_of_first = first_word.start() if first_word else 0
@@ -287,8 +304,11 @@ def _fake_extract_names(prompt: str) -> tuple[str, dict[str, str]]:
     def swap(match: re.Match) -> str:
         if match.start() == start_of_first or match.group(1) == "I":
             return match.group(0)
+        word = match.group(1)
+        if word.lower() in _FAKE_PLACE_DESCRIPTORS and re.match(r"\s+[A-Z][a-z]+", prompt[match.end():]):
+            return word.lower()
         placeholder = f"zzname{chr(97 + len(names) % 26)}zz"  # letters only: the tokenizer splits on digits
-        names[placeholder] = match.group(1)
+        names[placeholder] = word
         return placeholder
 
     return re.sub(r"\b([A-Z][a-z]+)(?:'s)?\b", swap, prompt), names

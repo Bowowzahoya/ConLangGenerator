@@ -6859,3 +6859,71 @@ reading code or one-off ad hoc scripts.
   block contains it plus every moved checkbox, and a full generate submission with `fantasy` checked and
   `foreign_names` set to `adapt` from inside the now-collapsed section still reaches the saved `spec`
   correctly.
+
+- **Three bugs from one real-backend test report (bug fixes, not a numbered pass).** A user generated
+  "FutureMongotalian" against the real Anthropic backend (model Fable 5), manually edited a word, and
+  reported four findings. One (raw IPA ligatures in romanization) was the same already-tracked,
+  not-yet-fixed `docs/DEFERRED.md` shortcoming from an earlier report -- folded into that existing entry
+  (now also naming `lʲ`/`ǯ`, confirming the complaint is about the diacritic style's general tendency,
+  not only the original four ligatures), not re-investigated. The other three were genuinely new,
+  independently root-caused by three parallel Explore agents reading the actual code.
+
+  **Bug 1 -- a manually-edited word was silently ignored.** A sentence that's just one standalone,
+  capitalized word ("...Water.") let the real LLM plan it as a `"name"` slot instead of ordinary content
+  -- plausible, since each sentence is planned independently with zero cross-sentence context
+  (`translator.py::translate_to_conlang`'s own per-sentence loop). That alone would just be an LLM-
+  prompting imperfection; the real bug was architectural: `names.find_name_entry` is gated on
+  `entry.notes == NAME_NOTE` ("proper name") *exactly*, and the web UI's lexicon-edit endpoint
+  (`webui/app.py`) appends `" (manually edited)"` onto whatever `notes` a word already had -- so the
+  user's own edited "water" entry (`notes="(manually edited)"`) was invisible to that lookup, and with no
+  fallback to the *ordinary*-word lookup, the render branch coined a brand-new, unrelated word instead
+  (the "eedemerediirenchene" the user saw). Fixed with one new fallback line (`names.find_name_entry(...)
+  or _find_word(...)`, reusing the already-existing, already-case-insensitive, name-excluding `_find_word`
+  helper verbatim) plus one hardening (`is_name_entry`: exact-equality -> substring containment on
+  `notes`, fixing a related latent bug where a *genuine* name surviving a manual edit lost its own name
+  status the same way). Verified directly: constructing a `"name"`-kind slot for a gloss that already has
+  an edited ordinary entry now reuses that entry's exact spelling instead of coining.
+
+  **Bug 2 -- "Lake Baikal" passed through as literal English.** Multi-word proper names were never
+  designed for anywhere in this codebase, fake or real (the fake backend's own name-extraction regex
+  matched exactly one capitalized word at a time; the real-LLM system prompt's "name" instructions only
+  ever showed single-token examples). Fixed in both backends with the same targeted pattern -- a
+  recognized geographic descriptor ("lake", "mount"/"mt", "river", "sea", "ocean", "cape", "fort",
+  "saint"/"st", "mountain") immediately followed by another capitalized word splits off as an ordinary
+  word, leaving only the specific part as the name: `llm/fake_client.py::_fake_extract_names` gained one
+  lookahead check in its own `swap` closure (`re.match(r"\s+[A-Z][a-z]+", prompt[match.end():])`, peeking
+  at the original string past the current match); `sentence_planner.py`'s real-LLM system prompt gained a
+  matching instruction sentence plus a worked example ("I see Lake Baikal" -> a `lake` content slot + a
+  `Baikal` name slot). Verified directly via `_fake_extract_names` and a full `translate_to_conlang` round
+  trip: "lake" now translates as an ordinary word, "Baikal" is coined as a name, and a plain single-word
+  name ("Bruno") is completely unaffected. Explicitly not attempted: a true multi-word name with no
+  generic descriptor part ("New York") -- no mechanical way to know where to split it, a separate,
+  bigger problem.
+
+  **Bug 3 -- an explicit "I want tones" request still produced a non-tonal language.** The deepest of
+  the three. `trait_bias.biased_probability(0.35, tonal_friendliness)` can legitimately reach 93.5% at a
+  high trait value, but `phonology_gen._reference_clamp` unconditionally discarded that down to
+  `min(probability, 0.08)` whenever every *matched* reference-language profile disagreed (Mongolian and
+  Italian are both curated `tonal: false`) -- regardless of how strong the trait signal was, contradicting
+  `core/spec.py`'s own documented "a confident reading behaves close to a guarantee." This was asymmetric
+  with the function's own *agreeing* branch, which already lets an even-higher trait value escape
+  *upward* past its own `0.75` anchor via `max(probability, 0.75)` -- the disagreeing branch had no
+  analogous resistance at all. Fixed with a mirrored escape, gated on the *same* `0.75` "explicit and
+  central" threshold the classifier's own calibration prose already uses: `0.08 + (probability - 0.75) /
+  0.25 * (0.5 - 0.08)` when `probability > 0.75`, continuous with the unchanged branch at the boundary
+  (both give exactly `0.08` at `probability=0.75`). The existing final `strictness`-based reduction line
+  is deliberately left untouched -- hand-computed across a range of strictness values (0.0 through 0.8)
+  confirmed a meaningful improvement throughout (e.g. ~5x better even at a high strictness of 0.8) while
+  still letting a separately very-high, explicit strictness meaningfully suppress the escaped value
+  further, which is treated as a legitimate competing signal, not a bug. Confirmed low regression risk by
+  grepping every test touching `_reference_clamp`: the one direct unit test only exercises the untouched
+  `any_true` branch; two of the function's four call sites (`coda_devoicing`, `word_accent_realization`)
+  pass a flat `0.0` base probability that can never exceed `0.75` and are structurally unaffected;
+  `vowel_harmony`'s call site gets the same fix for the same reason, not specially excluded. Also fixed a
+  smaller, secondary contributor: the classifier's own few-shot calibration was asymmetric (an explicit
+  tonal *request* anchored at only `0.6`; an explicit *negation* of comparable directness anchored at
+  `-0.85`) -- added a new worked example, the user's own exact prompt, anchored at `0.85`, with an
+  explanation distinguishing "a sentence entirely and solely about tone" from "tone as a brief lead-in to
+  some other main request" (the pre-existing Wade-Giles example), so the new example doesn't read as
+  contradicting the old one. Not verifiable against the real Anthropic backend without a paid call --
+  verified instead via `_reference_clamp`'s own new direct unit tests and hand-computed probabilities.

@@ -822,12 +822,35 @@ def _reference_clamp(
     ``_reference_biased_rate``'s own docstring -- becoming fully
     deterministic at ``strictness=1.0`` when every matched profile agrees
     (weight sums to ``1.0``), the original single-language behavior
-    exactly preserved."""
+    exactly preserved.
+
+    When every matched profile *disagrees* (``probability`` already above
+    ``0.75`` -- the same "explicit and central" threshold ``prompt_
+    classifier.py``'s own calibration bands use), a sufficiently strong,
+    explicit trait signal partially resists the clamp instead of being
+    discarded outright -- mirroring this function's own ``max(probability,
+    0.75)`` escape on the agreeing side, just for the opposite direction.
+    Without this, e.g. an explicit "I want tones in the language" request
+    combined with two named, confidently non-tonal source languages
+    (both matched, both disagreeing) always ended up clamped to ~8% or
+    less regardless of how strongly ``tonal_friendliness`` itself was
+    scored -- a real user-reported bug, and a contradiction of
+    ``GenerationSpec``'s own documented claim that "a confident reading
+    behaves close to a guarantee." A separately high, explicit
+    ``strictness`` can still meaningfully reduce the escaped value further
+    (unchanged below) -- strictness is itself a real, competing signal
+    when the prompt asks to closely resemble the named languages, not
+    purely a bug to engineer away."""
     if not weighted_profiles:
         return probability
     weighted_true = min(1.0, sum(weight for profile, weight in weighted_profiles if getattr(profile, attr)))
     any_true = weighted_true > 0.0
-    soft_probability = (0.75 + weighted_true * (max(probability, 0.75) - 0.75)) if any_true else min(probability, 0.08)
+    if any_true:
+        soft_probability = 0.75 + weighted_true * (max(probability, 0.75) - 0.75)
+    elif probability <= 0.75:
+        soft_probability = min(probability, 0.08)
+    else:
+        soft_probability = 0.08 + (probability - 0.75) / 0.25 * (0.5 - 0.08)
     if strictness <= 0.0:
         return soft_probability
     return biased_probability(soft_probability, strictness * weighted_true if any_true else -strictness)

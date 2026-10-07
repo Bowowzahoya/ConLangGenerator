@@ -740,7 +740,12 @@ respell, or turn a name into a content word. A capitalized word at the \
 very start of the sentence is a name only if it is not an ordinary English \
 word ("Just", "You", "Come" are not names). A "name" slot may also set \
 "case" like a noun. A possessor name ("Bruno's leg") is a name slot with \
-"possessive":true directly before the possessed noun's own slot.
+"possessive":true directly before the possessed noun's own slot. A multi-\
+word geographic name built from an ordinary descriptive word plus a \
+specific name (e.g. "Lake Baikal", "Mount Everest") is split in two: the \
+descriptive word ("lake", "mount") becomes its own ordinary content noun \
+slot, and the specific part ("Baikal", "Everest") becomes its own "name" \
+slot right after it -- never one "name" slot spanning both words.
 
 Worked examples (illustrative field values only -- always use *this* \
 language's own real case/tense labels listed above, never these \
@@ -776,6 +781,15 @@ object) -> [{{"kind":"content","gloss":"I","pos":"pronoun"}}, \
 {{"kind":"content","gloss":"see","pos":"verb","tense":"<a real tense \
 label>","agreement":"I"}}, {{"kind":"name","gloss":"Bruno","case":"<a real \
 case label, if this alignment marks the object>"}}]
+
+"I see Lake Baikal" (a descriptive word plus a specific name splits into \
+two slots, never one "name" slot spanning both words -- no article here, \
+since a proper name like this never takes one) -> \
+[{{"kind":"content","gloss":"I","pos":"pronoun"}}, {{"kind":"content",\
+"gloss":"see","pos":"verb","tense":"<a real tense label>",\
+"agreement":"I"}}, {{"kind":"content","gloss":"lake",\
+"pos":"noun"}}, {{"kind":"name","gloss":"Baikal","case":"<a real case \
+label, if this alignment marks the object>"}}]
 
 "I am very tired" (a degree adverb keeps its own slot right before the adjective it modifies -- never omit it) -> [{{"kind":"content","gloss":"I","pos":"pronoun"}}, {{"kind":"copula","tense":"<a real tense label>","agreement":"I"}}, {{"kind":"content","gloss":"very","pos":"adverb"}}, {{"kind":"content","gloss":"tired","pos":"adjective"}}]
 

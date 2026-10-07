@@ -2631,7 +2631,15 @@ def _render_plan(
                     possessed_pending = False
                     possessor_person_pending = None
         elif slot.kind == "name" and slot.gloss:
-            entry = names.find_name_entry(working_language, slot.gloss)
+            # The planner misclassifying an ordinary word as a name (e.g. a
+            # standalone, capitalized one-word sentence with no context to
+            # tell otherwise) used to silently coin a brand-new, unrelated
+            # word even when an ordinary entry with that exact gloss
+            # already existed -- a real user-reported bug. No genuine
+            # proper name realistically collides with an existing
+            # vocabulary gloss by coincidence, so this fallback only ever
+            # fires for exactly that misclassification.
+            entry = names.find_name_entry(working_language, slot.gloss) or _find_word(working_language, slot.gloss)
             if entry is None:
                 entry = names.make_name_entry(working_language, slot.gloss, llm_client)
                 coined.append(entry)

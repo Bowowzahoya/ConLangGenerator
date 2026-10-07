@@ -131,7 +131,61 @@ multi-session feature.
   if it is not an ordinary English word, and the fake planner already
   ignores sentence-initial position; since text is now planned one sentence
   at a time, "Just"/"You" in a later sentence are no longer mistaken for
-  names by the fake. Still open: check with a real LLM.
+  names by the fake. Still open: check with a real LLM -- confirmed to
+  still happen there (next item), though its worst consequence is now
+  fixed.
+- **A misclassified "name" slot silently ignored an existing ordinary
+  word with the same gloss, including a user's own manual edit (M).
+  Done.** Real user report: a sentence that's just one standalone,
+  capitalized word ("...Water.") got planned by the real LLM as a
+  `"name"` slot (no cross-sentence context to tell it's just an ordinary
+  word -- each sentence is planned independently). `names.find_name_
+  entry` (`translation/names.py`) is gated on `entry.notes == NAME_NOTE`
+  ("proper name") *exactly* -- the web UI's lexicon-edit endpoint
+  (`webui/app.py`) appends `" (manually edited)"` onto whatever `notes`
+  a word already had, so the user's own manually-edited "water" entry
+  was invisible to that lookup. With no fallback, `translator.py`'s
+  `"name"`-slot branch fell straight through to `names.make_name_entry`,
+  coining a brand-new, completely unrelated word -- discarding the
+  user's own edit. Fixed two ways: (1) the render branch now also tries
+  the ordinary-word lookup (`_find_word`) before coining, reusing an
+  already-existing entry with that exact gloss whenever one exists, so
+  this fallback only ever fires for exactly this misclassification
+  scenario; (2) `is_name_entry` changed from exact-equality to substring
+  containment on `notes`, fixing a related latent bug where a *genuine*
+  name surviving a manual edit (`notes` becomes `"proper name (manually
+  edited)"`) used to silently lose its own name status too. Known, minor,
+  accepted gap: under the `"keep"` foreign-name policy specifically, a
+  word recovered via this fallback doesn't get case-marked even if the
+  sentence's grammar would otherwise mark it (the spelling itself is
+  always correct either way).
+- **A multi-word proper name (e.g. "Lake Baikal") passed through as
+  literal, untranslated English (M). Done, for the common "descriptor +
+  specific name" pattern.** Multi-word names were never designed for
+  anywhere in this codebase, fake or real -- the fake backend's own
+  name-extraction regex matched exactly one capitalized word at a time,
+  and the real-LLM system prompt's "name" instructions only ever showed
+  single-token examples ("Bruno", "Maria", "Amsterdam"). A real LLM,
+  given no other pattern, plausibly emitted one `{"kind":"name","gloss":
+  "Lake Baikal"}` slot for the whole span; nothing anywhere split or
+  validated a name's gloss on whitespace, so under the default `"keep"`
+  policy it rendered verbatim with an LLM-guessed, English-sounding IPA
+  for the literal string -- exactly the reported symptom. (Under
+  `"adapt"` instead, the embedded space would have been silently dropped
+  by the IPA tokenizer and the two words fused into one native-looking
+  word -- a related, separate failure mode.) Fixed in both backends: the
+  fake extractor (`llm/fake_client.py::_fake_extract_names`) now
+  recognizes a small set of common geographic descriptors ("lake",
+  "mount"/"mt", "mountain", "river", "sea", "ocean", "cape", "fort",
+  "saint"/"st") immediately followed by another capitalized word, and
+  splits the descriptor off as an ordinary word, leaving only the
+  specific part as the name; the real-LLM system prompt
+  (`sentence_planner.py`) gained the same instruction plus a worked
+  example ("I see Lake Baikal" -> a `lake` content slot + a `Baikal`
+  name slot). **Explicitly still open**: a true multi-word name with no
+  generic descriptor part ("New York", "Los Angeles") has no mechanical
+  way to split and still isn't handled at all -- a materially bigger,
+  separate problem, left for a future pass.
 - **Unknown words are coined silently (M).** A word like "lkjejhrj" is
   looked up, not found, and `translation/expansion.coin_word` invents a
   word. The part of speech comes from the LLM plan (unknown or missing
@@ -280,6 +334,41 @@ multi-session feature.
 
 ## 6. Sounds and phonology
 
+- **An explicit, strong trait signal was discarded, not just damped, when
+  matched reference-language profiles unanimously disagreed (M). Done.**
+  Real user report: prompt "a mix between Mongolian and Italian, evolved
+  forward 2000 years. I want tones in the language" produced a non-tonal
+  language despite the explicit, direct request. `trait_bias.biased_
+  probability(0.35, tonal_friendliness)` can legitimately reach 93.5% at
+  a high trait value, but `phonology_gen._reference_clamp` unconditionally
+  overrode that down to `min(probability, 0.08)` whenever every matched
+  profile disagreed (Mongolian and Italian are both curated `tonal:
+  false`) -- discarding the trait-driven value entirely, regardless of
+  how strong it was, and contradicting `GenerationSpec`'s own documented
+  claim that "a confident reading behaves close to a guarantee." This was
+  asymmetric with the function's own *agreeing* branch, which already
+  lets an even-higher trait value escape *upward* past its own 0.75
+  anchor (`max(probability, 0.75)`) -- the disagreeing branch had no
+  analogous escape downward-resistance at all. Fixed by adding a mirrored
+  escape, active only when the pre-clamp probability already exceeds the
+  same 0.75 "explicit and central" threshold the classifier's own
+  calibration bands use: it now smoothly resists the clamp up to 0.5
+  (at probability=1.0) instead of being flattened to 0.08 outright. A
+  separately high, explicit `source_language_strictness` can still
+  reduce the escaped value further afterward (left unchanged) -- a real,
+  competing signal when the prompt asks to closely resemble the named
+  languages, not purely a bug. Also fixed a smaller, secondary
+  contributor: the classifier's own few-shot calibration was asymmetric
+  (the only worked example for an explicit tonal *request* anchored at
+  only `0.6`, versus `-0.85` for an explicit *negation* of comparable
+  directness) -- added a new worked example, using the user's own exact
+  prompt, anchored at `0.85` with an explanation of why a sentence
+  entirely and solely about tone deserves a higher score than a sentence
+  where tone is a brief lead-in to some other main request (the existing
+  Wade-Giles example). Not verifiable against the real Anthropic backend
+  without a paid call; verified instead via `_reference_clamp`'s own
+  direct unit tests and hand-computed probabilities across a range of
+  `strictness` values.
 - **Russian vowel reduction in real words (M).** The profile's
   `stress_driven_vowel_reduction` governs generated words; auditing all 494
   curated real words for correct unstressed о/а → `ə` has not been done.
@@ -329,7 +418,18 @@ multi-session feature.
   for the same four symbols (monoletter: `"c"` for `ts`/`tɕ`; digraph: a
   two-letter spelling) -- reusing one of those existing choices rather
   than inventing a third would keep the three exotic-symbol styles from
-  needlessly diverging on exactly these four sounds.
+  needlessly diverging on exactly these four sounds. **Confirmed
+  recurring in a second, independent user report** (a different language,
+  "FutureMongotalian"): the same `ʣ`/`ʦʦ` ligatures, plus two
+  previously-untracked entries of the exact same class -- `lʲ` (the
+  palatalization-modifier identity choice) and `ǯ` (the `dʒ`-ligature
+  identity choice) -- both read the same way to a user unfamiliar with
+  either convention. This confirms the complaint is really about the
+  diacritic style's general tendency to produce unfamiliar, IPA-looking
+  letters, not only these specific four -- worth keeping in mind when
+  this item is eventually picked up: a fix scoped to only `ts`/`tɕ`/`dz`/
+  `dʑ` would leave the same class of complaint about `lʲ`/`ǯ`/etc.
+  unaddressed.
 - **Profile widening: what is still open (S-M).** (a) glide+vowel sequences
   written as onset clusters (French `bw`, Italian `pj`) are clusters, not
   diphthongs; (b) geminate affricates beyond Italian `tsː`, and geminates
