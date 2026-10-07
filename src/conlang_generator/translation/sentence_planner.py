@@ -805,12 +805,12 @@ JSON object {{"mood": "<mood>", "slots": [<slot objects>]}}, no prose, no \
 markdown fences."""
 
 
-def plan_sentence(text: str, language: Language, llm_client: LLMClient) -> SentencePlan:
+def plan_sentence(text: str, language: Language, llm_client: LLMClient, model: str = DEFAULT_MODEL) -> SentencePlan:
     grammar = language.grammar
     request = LLMRequest(
         system=_build_system_prompt(language),
         prompt=text,
-        model=DEFAULT_MODEL,
+        model=model,
         max_tokens=500,
         purpose="translate.plan_sentence",
         metadata={

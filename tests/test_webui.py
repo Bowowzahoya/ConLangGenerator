@@ -223,6 +223,43 @@ def test_options_endpoint_lists_the_graded_trait_fields(client):
     assert len(opts["graded_trait_fields"]) == 15
 
 
+def test_options_endpoint_lists_models_with_a_price_per_task(client):
+    models = client.get("/api/options").json()["models"]
+    assert len(models) == 4  # the real, paid models -- "fake-llm" is excluded, it has no real price
+    for entry in models:
+        assert entry["id"] and entry["label"]
+        assert entry["price_per_million"]["input"] > 0 and entry["price_per_million"]["output"] > 0
+        for task in ("classifier", "word_selection", "translation"):
+            assert entry["estimated_price"][task] > 0
+
+
+def test_generate_reports_the_chosen_models_in_the_saved_spec(client):
+    client.post(
+        "/api/generate",
+        json={
+            "prompt": "p", "name": "Model Web", "seed": 1, "llm": "fake",
+            "model": "claude-sonnet-5", "word_model": "claude-opus-5",
+        },
+    )
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    language = YamlLanguageRepository(webui_app.LANGUAGES_DIR).load("model-web")
+    assert language.spec.classifier_model == "claude-sonnet-5"
+    assert language.spec.word_selection_model == "claude-opus-5"
+
+
+def test_translate_accepts_a_translate_model_field(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Translate Model Web", "seed": 1, "llm": "fake"})
+    response = client.post(
+        "/api/translate",
+        json={
+            "lang": "translate-model-web", "text": "I see the mountain", "to": "conlang", "llm": "fake",
+            "translate_model": "claude-sonnet-5",
+        },
+    )
+    assert response.status_code == 200
+
+
 def test_generate_reports_no_tone_data_for_a_non_tonal_language(client):
     body = client.post("/api/generate", json={"prompt": "p", "name": "Silent Lang", "seed": 6, "llm": "fake"}).json()
     assert not body["grammar"]["tonal"]

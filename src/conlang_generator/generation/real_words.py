@@ -116,7 +116,7 @@ def plan_real_words(
             profile = rng.choices([p for p, _ in matched], weights=[w for _, w in matched])[0]
             gaps.append((profile.name, gloss, pos))
 
-    filled = real_words_llm.fetch_real_words(gaps, llm_client) if gaps else {}
+    filled = real_words_llm.fetch_real_words(gaps, llm_client, spec.word_selection_model) if gaps else {}
     choices = dict(curated)
     for language, gloss, pos in gaps:
         answer = filled.get((language, gloss))
@@ -258,7 +258,9 @@ def coin_real_word(
         form, ipa = _curated_word(profile.name, gloss)
     else:
         profile = rng.choices([p for p, _ in matched], weights=[w for _, w in matched])[0]
-        filled = real_words_llm.fetch_real_words([(profile.name, gloss, pos)], llm_client)
+        filled = real_words_llm.fetch_real_words(
+            [(profile.name, gloss, pos)], llm_client, language.spec.word_selection_model
+        )
         answer = filled.get((profile.name, gloss))
         if answer is None:
             return None  # no curated word, LLM gave nothing usable -- fall back to inventing

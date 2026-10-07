@@ -56,7 +56,7 @@ def _is_romanized(spelling: str) -> bool:
 
 
 def fetch_real_words(
-    requests: list[tuple[str, str, PartOfSpeech]], llm_client: LLMClient
+    requests: list[tuple[str, str, PartOfSpeech]], llm_client: LLMClient, model: str = DEFAULT_MODEL,
 ) -> dict[tuple[str, str], tuple[str, str]]:
     """``{(language, gloss): (spelling, ipa)}`` for whatever the LLM
     answered validly, from ``requests`` of ``(language, gloss, pos)``."""
@@ -72,7 +72,7 @@ def fetch_real_words(
             request = LLMRequest(
                 system=_SYSTEM_PROMPT,
                 prompt=f"Language: {language}. Give the real {language} word for each meaning:\n{listing}",
-                model=DEFAULT_MODEL,
+                model=model,
                 max_tokens=max(512, 40 * len(chunk)),
                 purpose="lexicon.real_words",
                 metadata={"fake_strategy": "none"},

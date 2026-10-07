@@ -29,6 +29,7 @@ from conlang_generator.generation import sonority, stress_gen, word_accent_gen, 
 from conlang_generator.generation.lexicon_gen import PendingWord, resolve_candidate
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient
+from conlang_generator.llm.pricing import DEFAULT_MODEL
 
 TEMPLATIC_POS: frozenset[PartOfSpeech] = frozenset({PartOfSpeech.NOUN, PartOfSpeech.VERB, PartOfSpeech.ADJECTIVE})
 """Which parts of speech get root-and-pattern treatment. Pronouns/
@@ -344,6 +345,7 @@ def propose_templatic_word(
     word_classes: tuple[WordClass, ...] = (),
     word_class_deviation_rate: float | None = None,
     word_selection: str = "algorithmic",
+    model: str = DEFAULT_MODEL,
 ) -> LexicalEntry:
     """``build_pending_templatic_word`` then one pick -- see
     ``lexicon_gen.resolve_candidate`` for ``word_selection``."""
@@ -354,7 +356,7 @@ def propose_templatic_word(
         word_class_deviation_rate=word_class_deviation_rate,
     )
     chosen = resolve_candidate(
-        rng, pending.candidates, gloss, pos, llm_client, language_name, context, word_selection
+        rng, pending.candidates, gloss, pos, llm_client, language_name, context, word_selection, model
     )
     return pending.finish(chosen)
 

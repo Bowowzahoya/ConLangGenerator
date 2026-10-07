@@ -332,6 +332,54 @@ in translation -- `keep` (as written, Dutch-style) or `adapt` (re-fitted
 to its own sounds, Chinese-style); defaults to whatever the matched
 `--source-language` implies, else `keep`.
 
+### Model choice
+
+`--model` picks the model for prompt classification; `--word-model` picks
+the model for every "pick or fill in a word's form" task (candidate
+selection under `--word-selection llm`, real-word gap-filling, a seed
+word's or borrowed name's guessed IPA) -- both recorded on the saved
+language and the latter reused for any word coined later during
+translation. `translate` has its own `--translate-model`, for sentence
+planning and (decode direction) fluency -- never persisted, since a later
+translation call may reasonably want a different model than the one that
+generated the language. All three default to Haiku 4.5 (the cheapest
+current model) and are ignored by `--llm fake`, which never reads
+`request.model` at all:
+
+```bash
+conlang generate --prompt "a plain language" --name model-doc-demo --seed 2 \
+  --llm fake --model claude-sonnet-5 --word-model claude-opus-5
+```
+
+```
+Generated 'model-doc-demo' (model-doc-demo) -- 400 core words.
+Word order: VSO, morphology: agglutinative, alignment: nominative_accusative, tonal: False
+Orthography: monoletter
+Models: classifier=claude-sonnet-5, word selection=claude-opus-5
+...
+```
+
+```bash
+conlang translate "I see the mountain" --lang model-doc-demo --to conlang \
+  --llm fake --translate-model claude-sonnet-5
+```
+
+```
+noniyiyeo ga kuaye yiyu.
+IPA: /nøˈnijijɛːø gə ˈkuəjæ ˈjiju/
+(pattern: llm-plan)
+Glosses: noniyiyeo(see) ga(I) kuaye(the) yiyu.(mountain)
+```
+
+With `--llm fake` the chosen model never changes the *output* (the fake
+backend ignores `request.model` entirely) -- only the saved `spec.
+classifier_model`/`spec.word_selection_model` fields and the printed
+"Models: ..." summary line show it took effect; the web UI's own model
+picker (Generate tab's Advanced options, Translate tab) shows each
+choice's own estimated price per call, from `llm/pricing.py`'s fixed,
+honestly-labeled `TYPICAL_TOKENS` estimate -- not a measurement, see
+`docs/LIMITATIONS.md`.
+
 ### Orthography style
 
 A generated language's spelling conventions come from six independent

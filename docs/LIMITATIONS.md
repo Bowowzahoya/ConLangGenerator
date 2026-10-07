@@ -522,3 +522,12 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
 - **Atmospheric prompts can make the classifier volunteer a source
   language** (e.g. "guttural desert language" → Arabic, strictness 0.15).
   Known, harmless quirk.
+
+## LLM usage and cost
+
+- **The per-model, per-task price shown in the CLI/web model picker is a fixed estimate, not measured
+  per call.** `llm/pricing.py`'s `TYPICAL_TOKENS` hardcodes one (input, output) token-count guess per
+  task (classifier/word_selection/translation); real per-purpose cost-ledger data exists (`CostTracker`
+  already records it) but has thin-to-zero local coverage for any paid model, since almost all testing
+  runs the free `fake-llm` backend. Word-selection cost especially varies with vocabulary/candidate-list
+  size -- one flat number can't capture that. Treat the shown price as a ballpark, not a quote.

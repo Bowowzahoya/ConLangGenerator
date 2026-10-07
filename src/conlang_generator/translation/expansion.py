@@ -52,6 +52,7 @@ def coin_word(
                 strictness=language.spec.traits.source_language_strictness,
                 word_accent_system=language.word_accent,
                 word_selection=language.spec.word_selection,
+                model=language.spec.word_selection_model,
             )
         else:
             entry = propose_word(
@@ -70,6 +71,7 @@ def coin_word(
                 source_languages=language.spec.traits.source_languages,
                 strictness=language.spec.traits.source_language_strictness,
                 word_selection=language.spec.word_selection,
+                model=language.spec.word_selection_model,
             )
         if language.lexicon.by_form(entry.romanization) is None:
             return entry

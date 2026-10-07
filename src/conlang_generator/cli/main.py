@@ -31,6 +31,7 @@ from conlang_generator.generation.seed_examples import (
 from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.factory import build_llm_client
+from conlang_generator.llm.pricing import DEFAULT_MODEL
 from conlang_generator.speech import reader
 from conlang_generator.speech.tts import build_tts_client, pronunciation_warnings
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
@@ -281,6 +282,14 @@ def generate(
         "no LLM call) or 'llm' (sound-symbolism-informed, one batched request for the whole core vocabulary). "
         "Prompt classification always uses --llm regardless.",
     ),
+    model: str = typer.Option(
+        DEFAULT_MODEL, "--model", help="Model for prompt classification.",
+    ),
+    word_model: str = typer.Option(
+        DEFAULT_MODEL, "--word-model",
+        help="Model for word selection/coinage (candidate picking, real-word gap-filling, seed/name IPA guessing) -- "
+        "used at generation time and reused for any word coined later during translation.",
+    ),
 ) -> None:
     """Generate a new language and save it."""
     if not 1 <= vocabulary_size <= len(ALL_MEANINGS):
@@ -312,7 +321,7 @@ def generate(
         consonant_gemination_marked=consonant_gemination_marked,
     )
     client = _client(llm)
-    traits = classify_prompt(prompt, fantasy, client)
+    traits = classify_prompt(prompt, fantasy, client, model=model)
     if source_language:
         merged_names, merged_weights = _merge_source_languages(
             traits.source_languages, traits.source_language_weights, source_language
@@ -368,7 +377,7 @@ def generate(
 
     file_examples = parse_bulk_seed_examples(examples_file.read_text(encoding="utf-8")) if examples_file else ()
     raw_examples = file_examples + tuple(_parse_seed_example(e) for e in example)
-    seed_examples = resolve_seed_examples(raw_examples, client)
+    seed_examples = resolve_seed_examples(raw_examples, client, model=word_model)
 
     spec = GenerationSpec(
         prompt=prompt,
@@ -382,6 +391,8 @@ def generate(
         seed_examples=seed_examples,
         allow_all_caps=allow_all_caps,
         word_selection=word_selection,
+        classifier_model=model,
+        word_selection_model=word_model,
         vocabulary_size=vocabulary_size,
         evolve_years=years,
         foreign_names=foreign_names,
@@ -399,6 +410,7 @@ def generate(
         f"tonal: {language.tone_system.enabled}"
     )
     typer.echo(f"Orthography: {language.romanization.category_name}")
+    typer.echo(f"Models: classifier={model}, word selection={word_model}")
 
     nonzero_traits = {
         trait_name: value
@@ -437,6 +449,9 @@ def translate(
     lang: str = typer.Option(..., "--lang", help="Language name."),
     to: str = typer.Option("conlang", "--to", help="Direction: 'conlang' or 'english'."),
     llm: str = typer.Option("fake", "--llm", help="LLM backend: fake or anthropic."),
+    translate_model: str = typer.Option(
+        DEFAULT_MODEL, "--translate-model", help="Model for sentence planning and (decode direction) fluency.",
+    ),
 ) -> None:
     """Translate text to or from a generated language."""
     if to not in ("conlang", "english"):
@@ -453,11 +468,11 @@ def translate(
     client = _client(llm)
 
     if to == "conlang":
-        result = translate_to_conlang(text, language, client)
+        result = translate_to_conlang(text, language, client, model=translate_model)
         typer.echo(result.text)
         typer.echo(f"IPA: /{result.ipa}/")
     else:
-        result = translate_to_english(text, language, client)
+        result = translate_to_english(text, language, client, model=translate_model)
         typer.echo(result.text)
 
     if result.coined:

@@ -28,6 +28,7 @@ from pydantic import BaseModel
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.romanization import OrthographyForce
 from conlang_generator.core.traits import TraitProfile
+from conlang_generator.llm.pricing import DEFAULT_MODEL
 
 
 class SeedForm(BaseModel, frozen=True):
@@ -122,3 +123,17 @@ class GenerationSpec(BaseModel, frozen=True):
     (default) falls back to the prompt-inferred ``traits.time_depth_years``;
     ``0`` forces no evolution. Real source-language words
     (``traits.source_word_strictness``) evolve like any other word."""
+    classifier_model: str = DEFAULT_MODEL
+    """Which LLM model ``prompt_classifier.classify_prompt`` used to read
+    traits from the prompt -- recorded for inspectability only (``Language.
+    spec`` is frozen after generation and the classifier never runs again
+    for this language)."""
+    word_selection_model: str = DEFAULT_MODEL
+    """Which LLM model backs every "pick or fill in a word's form" task
+    this language's generation, and later translation-time coinage, use:
+    ``lexicon_gen``'s candidate-selection pick (``word_selection="llm"``),
+    ``real_words_llm``'s real-word gap-filling, and ``seed_examples``'/
+    ``names``' IPA-guessing for a seed word or a borrowed name. Reused at
+    translation time (``translation/expansion.py``'s ``coin_word``,
+    ``translation/names.py``'s ``make_name_entry``) the same way
+    ``word_selection`` itself already is."""

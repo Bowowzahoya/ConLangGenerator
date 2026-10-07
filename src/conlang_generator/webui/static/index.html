@@ -170,6 +170,17 @@
     <details>
       <summary>Advanced options</summary>
 
+      <div class="row">
+        <div>
+          <label for="gen-model">Classifier model</label>
+          <select id="gen-model"></select>
+        </div>
+        <div>
+          <label for="gen-word-model">Word-selection model</label>
+          <select id="gen-word-model"></select>
+        </div>
+      </div>
+
       <label>Source languages <span class="ipa">(bias generation toward a real language's palette)</span></label>
       <div id="source-lang-rows"></div>
       <button type="button" class="add-row" id="add-source-lang">+ source language</button>
@@ -259,6 +270,10 @@
           <option value="fake">fake (free)</option>
           <option value="anthropic">anthropic</option>
         </select>
+      </div>
+      <div id="tr-model-row" hidden>
+        <label for="tr-model">Translation model</label>
+        <select id="tr-model"></select>
       </div>
       <div>
         <label for="tr-tts">Pronunciation</label>
@@ -518,6 +533,20 @@ async function loadOptions() {
   fill("gen-syllable-boundary-marker", opts.syllable_boundary_markers);
   gradedTraitFields = opts.graded_trait_fields || [];
 
+  const fillModels = (id, task) => {
+    const select = $(id);
+    select.innerHTML = "";
+    for (const m of opts.models || []) {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = `${m.label} (~$${m.estimated_price[task].toFixed(4)}/call)`;
+      select.appendChild(opt);
+    }
+  };
+  fillModels("gen-model", "classifier");
+  fillModels("gen-word-model", "word_selection");
+  fillModels("tr-model", "translation");
+
   for (const opt of $("tr-tts").options) {
     if (opt.value !== "none" && !opts.tts_backends[opt.value]) {
       opt.disabled = true;
@@ -558,6 +587,9 @@ async function refreshPronunciationWarning() {
   } catch (e) { /* the check is advisory */ }
 }
 $("tr-tts").addEventListener("change", () => { showEngineInfo(); refreshPronunciationWarning(); });
+
+// A model choice is meaningless for the free, deterministic fake backend.
+$("tr-llm").addEventListener("change", () => { $("tr-model-row").hidden = $("tr-llm").value === "fake"; });
 
 // --- language dropdown (translate tab) ---
 async function refreshLanguages() {
@@ -988,6 +1020,8 @@ $("generate-btn").onclick = async () => {
     tonal: $("gen-tonal").checked,
     allow_all_caps: $("gen-allow-all-caps").checked,
     word_selection: $("gen-word-selection").value,
+    model: $("gen-model").value,
+    word_model: $("gen-word-model").value,
     vocabulary_size: parseInt($("gen-vocab-size").value || "400", 10),
     foreign_names: $("gen-foreign-names").value || null,
     source_languages: collectSourceLanguages(),
@@ -1072,7 +1106,10 @@ $("translate-btn").onclick = async () => {
     return;
   }
   const direction = document.querySelector('input[name="tr-direction"]:checked').value;
-  const body = { lang, text, to: direction, llm: $("tr-llm").value };
+  const body = {
+    lang, text, to: direction, llm: $("tr-llm").value,
+    translate_model: $("tr-model").value || undefined,
+  };
   btn.disabled = true; btn.textContent = "Translating…";
   try {
     const result = await api("/api/translate", {

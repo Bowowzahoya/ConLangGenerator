@@ -60,6 +60,8 @@ from conlang_generator.generation.seed_examples import (
 from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.cost_tracker import CostTracker
 from conlang_generator.llm.factory import build_llm_client
+from conlang_generator.llm import pricing
+from conlang_generator.llm.pricing import DEFAULT_MODEL
 from conlang_generator.speech import tts
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation import names
@@ -258,6 +260,11 @@ class GenerateRequest(BaseModel):
     consonant_gemination_marked: bool | None = None
     allow_all_caps: bool = False
     word_selection: str = "algorithmic"
+    model: str = DEFAULT_MODEL
+    """Model for prompt classification."""
+    word_model: str = DEFAULT_MODEL
+    """Model for word selection/coinage -- used at generation time and
+    reused for any word coined later during translation."""
     vocabulary_size: int = 400
     foreign_names: str | None = None
     word_strictness: float | None = None
@@ -278,6 +285,8 @@ class TranslateRequest(BaseModel):
     text: str
     to: str = "conlang"
     llm: str = "fake"
+    translate_model: str = DEFAULT_MODEL
+    """Model for sentence planning and (decode direction) fluency."""
 
 
 @app.get("/api/languages")
@@ -457,6 +466,16 @@ def get_cost() -> dict:
     return _cost_snapshot()
 
 
+_MODEL_LABELS = {
+    "claude-haiku-4-5-20251001": "Haiku 4.5",
+    "claude-sonnet-5": "Sonnet 5",
+    "claude-opus-5": "Opus 5.5",
+    "claude-fable-5": "Fable 5",
+}
+"""Real, paid models a user can pick -- excludes ``"fake-llm"`` (no price,
+not a real choice) from ``pricing.PRICE_PER_MILLION_TOKENS``."""
+
+
 @app.get("/api/options")
 def get_options() -> dict:
     """The valid values for every orthography-force select the frontend
@@ -474,6 +493,22 @@ def get_options() -> dict:
         "tts_capabilities": tts.backend_capabilities(),
         "max_vocabulary_size": len(ALL_MEANINGS),
         "graded_trait_fields": list(GRADED_TRAIT_FIELDS),
+        "models": [
+            {
+                "id": model_id,
+                "label": label,
+                "price_per_million": {
+                    "input": pricing.PRICE_PER_MILLION_TOKENS[model_id][0],
+                    "output": pricing.PRICE_PER_MILLION_TOKENS[model_id][1],
+                },
+                "estimated_price": {
+                    "classifier": pricing.estimated_price(model_id, "classifier"),
+                    "word_selection": pricing.estimated_price(model_id, "word_selection"),
+                    "translation": pricing.estimated_price(model_id, "translation"),
+                },
+            }
+            for model_id, label in _MODEL_LABELS.items()
+        ],
     }
 
 
@@ -521,7 +556,7 @@ def generate(request: GenerateRequest) -> dict:
     client = _client(request.llm)
     before = _cost_snapshot()
 
-    traits = classify_prompt(request.prompt, request.fantasy, client)
+    traits = classify_prompt(request.prompt, request.fantasy, client, model=request.model)
     if request.source_languages:
         names = tuple(e.name for e in request.source_languages)
         weights = tuple(e.weight if e.weight is not None else 1.0 for e in request.source_languages)
@@ -544,7 +579,7 @@ def generate(request: GenerateRequest) -> dict:
         row_examples.append(SeedExample(gloss=e.gloss, form=e.form, ipa=e.ipa, pos=pos, forms=forms))
     row_examples = tuple(row_examples)
     raw_examples = text_examples + row_examples
-    seed_examples = resolve_seed_examples(raw_examples, client)
+    seed_examples = resolve_seed_examples(raw_examples, client, model=request.word_model)
 
     spec = GenerationSpec(
         prompt=request.prompt,
@@ -558,6 +593,8 @@ def generate(request: GenerateRequest) -> dict:
         seed_examples=seed_examples,
         allow_all_caps=request.allow_all_caps,
         word_selection=request.word_selection,
+        classifier_model=request.model,
+        word_selection_model=request.word_model,
         vocabulary_size=request.vocabulary_size,
         foreign_names=request.foreign_names,
         evolve_years=request.evolve_years,
@@ -589,9 +626,9 @@ def translate(request: TranslateRequest) -> dict:
     client = _client(request.llm)
     before = _cost_snapshot()
     if request.to == "conlang":
-        result = translate_to_conlang(request.text, language, client)
+        result = translate_to_conlang(request.text, language, client, model=request.translate_model)
     else:
-        result = translate_to_english(request.text, language, client)
+        result = translate_to_english(request.text, language, client, model=request.translate_model)
     after = _cost_snapshot()
 
     if result.coined:

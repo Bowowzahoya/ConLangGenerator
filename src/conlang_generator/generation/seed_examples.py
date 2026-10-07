@@ -51,11 +51,11 @@ A ``SeedForm`` naming any other cell, or one that doesn't match its own
 ``SeedExample``'s own ``pos``, is invalid."""
 
 
-def _guess_ipa(form: str, llm_client: LLMClient) -> str:
+def _guess_ipa(form: str, llm_client: LLMClient, model: str = DEFAULT_MODEL) -> str:
     request = LLMRequest(
         system=_SYSTEM_PROMPT,
         prompt=form,
-        model=DEFAULT_MODEL,
+        model=model,
         max_tokens=32,
         purpose="seed_example.guess_ipa",
         metadata={"fake_strategy": "guess_ipa"},
@@ -64,12 +64,14 @@ def _guess_ipa(form: str, llm_client: LLMClient) -> str:
     return _clean_ipa(response.text)
 
 
-def resolve_seed_examples(examples: tuple[SeedExample, ...], llm_client: LLMClient) -> tuple[SeedExample, ...]:
+def resolve_seed_examples(
+    examples: tuple[SeedExample, ...], llm_client: LLMClient, model: str = DEFAULT_MODEL,
+) -> tuple[SeedExample, ...]:
     resolved: list[SeedExample] = []
     for example in examples:
-        ipa = example.ipa if example.ipa is not None else _guess_ipa(example.form, llm_client)
+        ipa = example.ipa if example.ipa is not None else _guess_ipa(example.form, llm_client, model)
         forms = tuple(
-            form if form.ipa is not None else form.model_copy(update={"ipa": _guess_ipa(form.form, llm_client)})
+            form if form.ipa is not None else form.model_copy(update={"ipa": _guess_ipa(form.form, llm_client, model)})
             for form in example.forms
         )
         resolved.append(example.model_copy(update={"ipa": ipa, "forms": forms}))

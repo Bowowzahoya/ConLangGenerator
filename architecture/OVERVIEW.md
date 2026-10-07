@@ -6747,3 +6747,79 @@ reading code or one-off ad hoc scripts.
   LLMClient(CostTrackingLLMClient(FakeLLMClient(), tracker), path)` stack directly (`FakeLLMClient`
   standing in for a real backend only to avoid a network call), since that contract is about `Caching
   LLMClient`/`CostTracker` together, not about the fake backend's own wiring.
+
+- **Model choice per task, and its web-UI picker (two linked DEFERRED.md items, done together).**
+  `DEFAULT_MODEL` (Haiku 4.5) was hard-wired into every one of this project's 7 `LLMRequest` call sites,
+  confirmed by grepping every one before writing a line of code: `prompt_classifier.classify_prompt`;
+  `lexicon_gen.choose_best_candidate`/`_choose_chunk` (candidate picking); `real_words_llm.fetch_real_
+  words` (real-word gap-filling); `seed_examples._guess_ipa` (seed-word/borrowed-name IPA guessing);
+  `sentence_planner.plan_sentence`; and the fluency request inside `translator.translate_to_english`
+  itself. Picking the UI up properly meant building the underlying choice mechanism first, since the
+  picker has nothing to attach to otherwise -- the two DEFERRED.md items were tackled as one pass.
+
+  **The three-bucket split, and why each bucket landed where it did**: tracing every one of the 7 call
+  sites' own callers (not guessed -- read end to end) showed they split cleanly into exactly three groups
+  by *reuse pattern*, not by subject matter alone:
+  - **Classifier** (`classify_prompt` only) -- called once, directly from the CLI/web layer, *before*
+    `GenerationSpec` even exists, and never reused after generation. A new `GenerationSpec.classifier_
+    model` field still records the choice (write-only after generation, kept purely for inspectability --
+    `Language.spec` is frozen, the classifier never runs again for this language).
+  - **Word-selection-and-coinage** (`lexicon_gen`'s picking, `real_words_llm`'s gap-filling,
+    `seed_examples`'/`names`' IPA-guessing) -- every one of these is reused identically at *both*
+    generation time and later translation-time coinage, via the exact same `word_selection: str =
+    "algorithmic"` parameter that already threads through every one of them as a plain function
+    parameter (confirmed by reading every signature -- never read from a `language`/`spec` object deep
+    inside any of them). A new sibling parameter, `model: str = DEFAULT_MODEL`, rides the *exact* same
+    path: `propose_word`/`propose_templatic_word`/`resolve_candidate`/`choose_best_candidate`/
+    `choose_best_candidates_batch`/`_choose_chunk`/`fetch_real_words`/`_guess_ipa`/`resolve_seed_examples`
+    all gained it right next to `word_selection`. A new `GenerationSpec.word_selection_model` field is
+    genuinely read twice: at generation time (`generator.py`'s `build_and_pick` closure, `real_words.
+    plan_real_words`, reading `spec.word_selection_model` directly) and at translation time
+    (`translation/expansion.py`'s `coin_word`, `real_words.coin_real_word`, `translation/names.py`'s
+    `make_name_entry`, all reading `language.spec.word_selection_model`) -- the identical two-tier reuse
+    `word_selection` itself already has, not a new pattern.
+  - **Translation-proper** (`plan_sentence`, the fluency request) -- deliberately *never* persisted on
+    `GenerationSpec`/`Language` at all. `model` is passed fresh into `translate_to_conlang`/`translate_to_
+    english` on every call, exactly the way `llm_client` itself already is -- a user translating an
+    existing language may reasonably want a cheaper or pricier model than the one that generated it, call
+    by call, the same flexibility `--llm` itself already has.
+
+  **Every one of the ~15 function-signature changes is purely additive** (`model: str = DEFAULT_MODEL`,
+  a new parameter with a default, never changing an existing one's position or removing anything) --
+  unlike the hover/click-gloss pass's `_render_plan` arity break, *zero* existing call sites (library code
+  or tests) needed to change at all; only the handful of call sites that now set `model=` for real
+  (6 production sites, found by grepping for the existing `word_selection=` pattern) touched anything.
+
+  **`llm/pricing.py` gained `TYPICAL_TOKENS`/`estimated_price`** for the picker's own "expected price per
+  call" display -- a hardcoded (input, output) token estimate per task (classifier/word_selection/
+  translation), taken straight from this DEFERRED item's own ledger-sourced figures, not a live
+  `CostTracker` rollup: nearly all local testing runs the free `fake-llm` backend, so the real ledger has
+  thin-to-zero coverage for any paid model today, and a hardcoded, clearly-labeled estimate reads more
+  honestly than a rollup that would silently read "0 samples" for every real model. `webui/app.py`'s
+  `/api/options` gained a `models` list (the 4 real, priced models, `_MODEL_LABELS` giving each a short
+  display name -- `"fake-llm"` excluded, no real price) with `price_per_million` and a 3-way `estimated_
+  price`; `static/index.html`'s Generate tab gained two selects under Advanced options (classifier/word-
+  selection model) and the Translate tab gained one (translation model, hidden via a `tr-llm` change
+  listener when the free backend is selected -- a model choice is meaningless there), all three populated
+  from that same `models` list with the price baked into each option's own label.
+
+  **CLI**: `generate` gained `--model`/`--word-model` (printed back as one more summary line, "Models:
+  classifier=..., word selection=...", mirroring the existing trait-summary style) plus the two
+  `GenerationSpec` fields; `translate` gained `--translate-model`. No new top-level command, per `AGENTS.
+  md`'s own CLI discipline -- both are ordinary options on existing commands, the same shape `--word-
+  selection` already is.
+
+  **Tests**: `tests/test_llm_model_choice.py` (new) -- a shared `_Spy(FakeLLMClient)` (the same spy
+  pattern `test_pronoun_extras.py`'s own `_annotation` helper already uses) confirms the chosen model
+  string actually reaches the `LLMRequest` for every one of the 7 call sites, plus a regression guard that
+  omitting `model` still uses `DEFAULT_MODEL` exactly as before this feature, plus CLI-level `CliRunner`
+  checks (summary line + saved-spec fields) for both commands. `tests/test_webui.py` gained the `/api/
+  options` `models`-list shape check and `/api/generate`/`/api/translate` field-threading checks, in the
+  same file and fixture (`client`, an isolated-`tmp_path` `TestClient`) every other web-backend test here
+  already uses. One fixture bug caught while writing these: an `/api/options`-reading test's own real last
+  assertion line (`assert len(opts["graded_trait_fields"]) == 15`) sat just past a `Read` call's own
+  line-count window, so it looked like the function ended one line earlier than it really did -- the
+  first edit attempt matched only the visible part and orphaned that trailing assertion into the next
+  function down; caught immediately by the resulting `NameError` on the undefined `opts` and fixed by
+  moving the line back to its own function. A reminder that a truncated `Read` window can silently mislead
+  an `Edit`'s own exact-match boundary, not just a human skimming it.

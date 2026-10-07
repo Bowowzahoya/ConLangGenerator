@@ -310,6 +310,7 @@ def choose_best_candidate(
     llm_client: LLMClient,
     language_name: str,
     context: str = "",
+    model: str = DEFAULT_MODEL,
 ) -> str:
     """Ask the LLM which of several deterministically-built candidate
     forms sounds best for ``gloss`` -- the one creative step in an
@@ -334,7 +335,7 @@ def choose_best_candidate(
             "and part of speech, considering sound symbolism."
         ),
         prompt=prompt,
-        model=DEFAULT_MODEL,
+        model=model,
         max_tokens=8,
         purpose="lexicon.propose_word",
         metadata={
@@ -359,6 +360,7 @@ def resolve_candidate(
     language_name: str,
     context: str = "",
     word_selection: str = "algorithmic",
+    model: str = DEFAULT_MODEL,
 ) -> str:
     """Picks one of an already-built, already-valid candidate pool.
     ``word_selection="algorithmic"`` (the default) never touches the LLM --
@@ -371,7 +373,7 @@ def resolve_candidate(
         return candidates[0]
     if word_selection == "algorithmic":
         return rng.choice(candidates)
-    return choose_best_candidate(rng, candidates, gloss, pos, llm_client, language_name, context)
+    return choose_best_candidate(rng, candidates, gloss, pos, llm_client, language_name, context, model)
 
 
 @dataclass
@@ -396,18 +398,22 @@ one very long one."""
 
 
 def choose_best_candidates_batch(
-    pending: list[PendingWord], llm_client: LLMClient, language_name: str, context: str = ""
+    pending: list[PendingWord], llm_client: LLMClient, language_name: str, context: str = "",
+    model: str = DEFAULT_MODEL,
 ) -> list[str]:
     """Chooses for every pending word, ``BATCH_CHUNK_SIZE`` words per LLM
     request (see ``_choose_chunk``)."""
     chosen: list[str] = []
     for start in range(0, len(pending), BATCH_CHUNK_SIZE):
-        chosen.extend(_choose_chunk(pending[start : start + BATCH_CHUNK_SIZE], llm_client, language_name, context))
+        chosen.extend(
+            _choose_chunk(pending[start : start + BATCH_CHUNK_SIZE], llm_client, language_name, context, model)
+        )
     return chosen
 
 
 def _choose_chunk(
-    pending: list[PendingWord], llm_client: LLMClient, language_name: str, context: str = ""
+    pending: list[PendingWord], llm_client: LLMClient, language_name: str, context: str = "",
+    model: str = DEFAULT_MODEL,
 ) -> list[str]:
     """One LLM request choosing among every pending word's candidates at
     once, instead of ``choose_best_candidate``'s one request per word.
@@ -433,7 +439,7 @@ def _choose_chunk(
             "candidate that best fits the requested meaning and part of speech, considering sound symbolism."
         ),
         prompt=prompt,
-        model=DEFAULT_MODEL,
+        model=model,
         max_tokens=max(256, 8 * len(pending)),
         purpose="lexicon.propose_words_batch",
         metadata={
@@ -631,6 +637,7 @@ def propose_word(
     word_classes: tuple[WordClass, ...] = (),
     word_class_deviation_rate: float | None = None,
     word_selection: str = "algorithmic",
+    model: str = DEFAULT_MODEL,
 ) -> LexicalEntry:
     """Build candidate forms deterministically (``build_pending_word``),
     then pick one -- via a uniform seeded-rng pick by default
@@ -647,6 +654,6 @@ def propose_word(
     if isinstance(pending, LexicalEntry):
         return pending
     chosen = resolve_candidate(
-        rng, pending.candidates, gloss, pos, llm_client, language_name, context, word_selection
+        rng, pending.candidates, gloss, pos, llm_client, language_name, context, word_selection, model
     )
     return pending.finish(chosen)

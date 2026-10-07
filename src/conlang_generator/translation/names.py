@@ -63,7 +63,9 @@ def is_name_entry(entry: LexicalEntry) -> bool:
 
 def make_name_entry(language: Language, name: str, llm_client: LLMClient) -> LexicalEntry:
     name = unicodedata.normalize("NFC", name.strip())
-    guessed_ipa = resolve_seed_examples((SeedExample(gloss=name, form=name),), llm_client)[0].ipa or ""
+    guessed_ipa = resolve_seed_examples(
+        (SeedExample(gloss=name, form=name),), llm_client, language.spec.word_selection_model
+    )[0].ipa or ""
     if resolve_foreign_names(language) == "keep":
         return LexicalEntry(
             ipa=guessed_ipa or name.lower(), romanization=name, glosses=(name,),

@@ -2798,7 +2798,7 @@ def _render_plan(
 
 
 def translate_to_conlang(
-    text: str, language: Language, llm_client: LLMClient
+    text: str, language: Language, llm_client: LLMClient, model: str = DEFAULT_MODEL,
 ) -> TranslationResult:
     """Translates ``text`` one sentence at a time (``sentence_planner.
     split_sentences``): each gets its own plan -- and its own mood
@@ -2817,7 +2817,7 @@ def translate_to_conlang(
     ipa_sentences: list[str] = []
     tokens: list[TokenGloss] = []
     for sentence in sentence_planner.split_sentences(text) or [text]:
-        plan = sentence_planner.plan_sentence(sentence, working_language, llm_client)
+        plan = sentence_planner.plan_sentence(sentence, working_language, llm_client, model)
         working_language, rom_parts, ipa_parts, gloss_parts, entry_parts = _render_plan(
             plan, working_language, llm_client, coined
         )
@@ -3427,7 +3427,7 @@ def _drop_repeaters(language: Language, tokens: list[str]) -> list[str]:
 
 
 def translate_to_english(
-    text: str, language: Language, llm_client: LLMClient
+    text: str, language: Language, llm_client: LLMClient, model: str = DEFAULT_MODEL,
 ) -> TranslationResult:
     raw_tokens = unicodedata.normalize("NFC", text).strip().split()
     # A sentence-final mark (see translate_to_conlang/terminal_mark) rides
@@ -3758,7 +3758,7 @@ def translate_to_english(
             + _construction_note(language)
         ),
         prompt=f"Rough gloss sequence: {annotated_draft}\nWrite a natural English sentence:",
-        model=DEFAULT_MODEL,
+        model=model,
         max_tokens=64,
         purpose="translate.fluency",
         metadata={"fake_strategy": "passthrough", "fallback_text": plain_draft},

@@ -27,15 +27,24 @@ multi-session feature.
   re-checked with a fixed prompt set against the saved classifier outputs
   before adopting. The end result is ~$0.002-0.003; do not expect
   much lower.
-- **Model choice per task (M).** `DEFAULT_MODEL` (Haiku 4.5) is hard-wired
-  into every request. Add a selectable model for language generation
-  (classifier), for word selection, and for translation, in the CLI
-  (`--model`, `--word-model`, `--translate-model`) and the web UI, with the
-  expected price shown next to each choice. `llm/pricing.py` already holds
-  $/1M-token prices for Haiku 4.5, Sonnet 5, Opus 5.5 and Fable 5 and
-  `estimate_cost`; an estimate needs typical token counts per purpose
-  (taken from the cost ledger: classify ~3.3k in / 0.3k out, translate plan
-  ~1.5k in / 0.05-0.3k out; word selection scales with lexicon size).
+- **Model choice per task (M). Done.** `DEFAULT_MODEL` (Haiku 4.5) used to
+  be hard-wired into every one of this project's 7 `LLMRequest` call
+  sites. Three model-choice knobs now exist, each threaded as a plain
+  `model: str = DEFAULT_MODEL` parameter right next to the function it
+  governs (the exact shape `word_selection` itself already used, reused
+  directly, not reinvented): `GenerationSpec.classifier_model` (`prompt_
+  classifier.classify_prompt`, CLI `--model`/web `model`); `GenerationSpec.
+  word_selection_model` (every "pick or fill in a word's form" task --
+  `lexicon_gen`'s candidate-selection, `real_words_llm`'s real-word
+  gap-filling, `seed_examples`'/`names`' IPA-guessing -- CLI `--word-
+  model`/web `word_model`, reused at translation time via `language.spec`
+  the same way `word_selection` already is); and a translation-proper
+  model, passed fresh on every call rather than persisted (CLI
+  `--translate-model`/web `translate_model`, covering `sentence_planner.
+  plan_sentence` and the fluency `LLMRequest` inside `translate_to_
+  english`). `llm/pricing.py` gained `TYPICAL_TOKENS`/`estimated_price` for
+  a ballpark per-model, per-task price estimate -- see the "Model picker"
+  item below for its own honest scope limit.
 - **Translation output is sometimes far too short (S-M, partly done).**
   Reported: "My friend, I think you are really dumb. Just piss off. You are
   a lkdjhr" into a Dutch-like language gave "sko kiszomongo holt stoehol".
@@ -56,8 +65,21 @@ multi-session feature.
   `foreign_name_handling` (`translation/names.py:resolve_foreign_names`);
   the classifier is never asked, so it cannot pick it. Add it to the
   classifier output.
-- **Model picker (M).** UI counterpart of the model-choice item in §1,
-  with expected price per call shown.
+- **Model picker (M). Done.** UI counterpart of the model-choice item in
+  §1. `/api/options` gained a `models` list (the 4 real, paid models --
+  `"fake-llm"` excluded, it has no real price) each with `price_per_
+  million` and a per-task `estimated_price`; the Generate tab's Advanced
+  options gained "Classifier model"/"Word-selection model" selects, and
+  the Translate tab gained a "Translation model" select (hidden when the
+  free `fake` backend is chosen, since a model string is meaningless
+  there) -- each option labeled with its own estimated price. **Honest
+  scope limit**: the shown price is a fixed estimate from typical token
+  counts (`llm/pricing.py`'s `TYPICAL_TOKENS`), not measured per call --
+  real per-purpose cost-ledger coverage is thin-to-zero locally (most
+  testing uses the free backend), so a hardcoded, clearly-labeled
+  estimate was judged more honest than a ledger rollup that would
+  silently read as "0 samples." Word-selection cost especially varies
+  with vocabulary/candidate-list size, not captured by one flat number.
 - **Hover/click gloss in the translation result (M). Done.** Show what
   every word in a translation means by hovering or clicking, and tell
   which words are newly coined vs. already-known vocabulary, or real-

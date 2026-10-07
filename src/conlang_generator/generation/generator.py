@@ -577,12 +577,13 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         pending_words = [item for item in built if isinstance(item, lexicon_gen.PendingWord)]
         if use_llm and spec.word_selection == "llm":
             chosen_candidates = lexicon_gen.choose_best_candidates_batch(
-                pending_words, llm_client, name, coining_context(spec.traits)
+                pending_words, llm_client, name, coining_context(spec.traits), spec.word_selection_model
             )
         else:
             chosen_candidates = [
                 lexicon_gen.resolve_candidate(
-                    rng, pw.candidates, pw.gloss, pw.pos, llm_client, name, coining_context(spec.traits), "algorithmic"
+                    rng, pw.candidates, pw.gloss, pw.pos, llm_client, name, coining_context(spec.traits),
+                    "algorithmic", spec.word_selection_model,
                 )
                 for pw in pending_words
             ]
@@ -893,6 +894,8 @@ def generate_evolved_language(name: str, spec: GenerationSpec, llm_client: LLMCl
             "prompt": spec.prompt,
             "fantasy": spec.fantasy,
             "word_selection": spec.word_selection,
+            "classifier_model": spec.classifier_model,
+            "word_selection_model": spec.word_selection_model,
             "vocabulary_size": spec.vocabulary_size,
             "foreign_names": spec.foreign_names,
             "evolve_years": years,

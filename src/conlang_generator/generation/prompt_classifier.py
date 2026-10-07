@@ -239,12 +239,12 @@ become time_depth_years.)
 Respond with ONLY a single JSON object, no prose, no markdown fences."""
 
 
-def classify_prompt(prompt: str, fantasy: bool, llm_client: LLMClient) -> TraitProfile:
+def classify_prompt(prompt: str, fantasy: bool, llm_client: LLMClient, model: str = DEFAULT_MODEL) -> TraitProfile:
     context_note = " (Note: this is for a fantasy setting.)" if fantasy else ""
     request = LLMRequest(
         system=_SYSTEM_PROMPT,
         prompt=f"{prompt}{context_note}",
-        model=DEFAULT_MODEL,
+        model=model,
         max_tokens=600,
         purpose="prompt.classify_traits",
         metadata={
