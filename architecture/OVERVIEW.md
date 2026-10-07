@@ -6823,3 +6823,39 @@ reading code or one-off ad hoc scripts.
   function down; caught immediately by the resulting `NameError` on the undefined `opts` and fixed by
   moving the line back to its own function. A reminder that a truncated `Read` window can silently mislead
   an `Edit`'s own exact-match boundary, not just a human skimming it.
+
+- **Advanced options (web app, DEFERRED.md item, done).** Two independent pieces, same item: a pure UI
+  reorganization, and a genuine new classifier capability.
+
+  **The move** (`webui/static/index.html`): the Generate tab's always-visible checkboxes (fantasy, force
+  isolated, force high altitude, force tonal, allow all-caps POS) and its "Foreign names" select all moved
+  into the collapsed "Advanced options" `<details>` block, alongside the model-choice selects the previous
+  pass already put there. Confirmed this needed zero JavaScript changes: every control is looked up by
+  `id` (`$("gen-foreign-names")`, `$("gen-fantasy")`, ...) at submit time, and an `id`-based `getElementById`
+  lookup doesn't care where in the DOM tree the element actually lives -- only the HTML markup moved.
+
+  **The classifier capability**: `translation/names.py::resolve_foreign_names` used to have only two
+  tiers -- an explicit `GenerationSpec.foreign_names` override, else a weighted vote of matched `source_
+  languages` profiles' own curated `foreign_name_handling` (uncurated profiles abstain, default `"keep"`).
+  The prompt's own free text was never asked, even when it explicitly addressed this (e.g. "foreign names
+  are always adapted to the language's own sounds"). Fixed the same way every other inferable-but-
+  overridable concept in this project already is: a new `TraitProfile.requested_foreign_names: str = ""`
+  field, extracted by `prompt_classifier.classify_prompt` (one more "Also extract:" bullet in the system
+  prompt, one more worked example, parsed via the existing lenient `_coerce_str` -- the exact same
+  treatment `requested_orthography_style` already gets, right down to reusing the same coercion function),
+  consulted as a new *middle* tier in `resolve_foreign_names`: explicit override wins outright, then the
+  classifier's own reading when the prompt explicitly addressed it, then the existing source-language
+  vote, then `"keep"`. No fake-client changes needed -- confirmed `FakeLLMClient`'s own `"trait_profile"`
+  strategy only ever populates the graded float fields it's told about via `request.metadata["trait_
+  fields"]` (`GRADED_TRAIT_FIELDS` only), never any of the string/list fields (`source_languages`,
+  `requested_orthography_style`, and now `requested_foreign_names` alike) -- those all already, correctly,
+  come back empty under the fake backend, the same way `requested_orthography_style` always has.
+
+  **Tests**: `tests/test_prompt_classifier.py` gained the same two-test pair (parses when given, defaults
+  to empty when missing) every other lenient string field there already has; `tests/test_names.py` gained
+  a three-way precedence test (classifier reading overrides the vote; an explicit `spec.foreign_names`
+  still overrides the classifier reading) directly exercising `resolve_foreign_names`. Verified the UI
+  move live in the browser: the top-level `.row` no longer contains `gen-foreign-names`, the `<details>`
+  block contains it plus every moved checkbox, and a full generate submission with `fantasy` checked and
+  `foreign_names` set to `adapt` from inside the now-collapsed section still reaches the saved `spec`
+  correctly.

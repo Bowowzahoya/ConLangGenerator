@@ -57,14 +57,19 @@ multi-session feature.
 
 ## 2. Web app
 
-- **Advanced options (S).** Move the checkboxes for fantasy, force isolated,
-  force high altitude, force tonal, allow all-caps POS and foreign names
-  into the collapsed "Advanced options" block. Also let the LLM choose
-  foreign-name handling: today `foreign_names` is `"keep"`/`"adapt"` when
-  explicit, else a vote of the source-language profiles' curated
-  `foreign_name_handling` (`translation/names.py:resolve_foreign_names`);
-  the classifier is never asked, so it cannot pick it. Add it to the
-  classifier output.
+- **Advanced options (S). Done.** The checkboxes for fantasy, force
+  isolated, force high altitude, force tonal, allow all-caps POS, and the
+  foreign-names select all moved into the Generate tab's collapsed
+  "Advanced options" `<details>` block (no JS change needed for the move
+  itself -- each control's own `id`-based lookup doesn't care where in the
+  DOM it lives). The classifier can now also pick foreign-name handling
+  from the prompt: a new `TraitProfile.requested_foreign_names` field
+  (`"keep"`/`"adapt"`/`""`, parsed the same lenient way as `requested_
+  orthography_style`) is consulted by `translation/names.py::resolve_
+  foreign_names` as a new middle tier -- an explicit `GenerationSpec.
+  foreign_names` still wins outright, then the classifier's own reading
+  when the prompt explicitly addressed it, then the existing weighted
+  vote of matched `source_languages` profiles, then `"keep"`.
 - **Model picker (M). Done.** UI counterpart of the model-choice item in
   §1. `/api/options` gained a `models` list (the 4 real, paid models --
   `"fake-llm"` excluded, it has no real price) each with `price_per_

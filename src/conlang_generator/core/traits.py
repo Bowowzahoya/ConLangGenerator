@@ -164,6 +164,17 @@ class TraitProfile(BaseModel, frozen=True):
     who wants a guaranteed style should use ``GenerationSpec``'s
     ``forced_orthography`` instead, same rule as every other field here."""
 
+    requested_foreign_names: str = ""
+    """``"keep"`` or ``"adapt"`` when the text explicitly asks how foreign/
+    borrowed proper names should be handled (kept as written, Dutch-style,
+    vs. re-fitted to the language's own sounds, Chinese-style); ``""``
+    (the common case) otherwise. Consulted by ``translation.names.
+    resolve_foreign_names`` as a middle tier, between an explicit
+    ``GenerationSpec.foreign_names`` override (which always wins outright)
+    and the fallback weighted vote of matched ``source_languages``
+    profiles -- the same "explicit flag beats inferred reading" precedence
+    every other field here already follows."""
+
     salient_context: str = ""
     """Free-text catch-all for anything notable that doesn't map to a field
     above -- the "unknown unknowns" channel. Consumed as extra flavor

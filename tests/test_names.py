@@ -73,6 +73,28 @@ def test_the_trait_derives_from_source_languages_unless_set_explicitly():
     assert names.resolve_foreign_names(override) == "keep"
 
 
+def test_the_classifiers_own_reading_sits_between_the_explicit_override_and_the_vote():
+    # Mandarin's own curated foreign_name_handling votes "adapt" -- the
+    # classifier's requested_foreign_names overrides that vote when the
+    # prompt explicitly addressed it, but an explicit spec.foreign_names
+    # still wins over even that.
+    mandarin = _language(traits=TraitProfile(source_languages=("Mandarin",), source_language_strictness=0.5))
+    classifier_says_keep = _language(
+        traits=TraitProfile(
+            source_languages=("Mandarin",), source_language_strictness=0.5, requested_foreign_names="keep",
+        )
+    )
+    assert names.resolve_foreign_names(mandarin) == "adapt"
+    assert names.resolve_foreign_names(classifier_says_keep) == "keep"
+    explicit_wins = _language(
+        traits=TraitProfile(
+            source_languages=("Mandarin",), source_language_strictness=0.5, requested_foreign_names="keep",
+        ),
+        foreign_names="adapt",
+    )
+    assert names.resolve_foreign_names(explicit_wins) == "adapt"
+
+
 def test_a_name_is_reused_not_regenerated_including_after_save_and_reload(tmp_path):
     language = _language(foreign_names="adapt")
     first = translate_to_conlang("I see Bruno", language, FakeLLMClient())

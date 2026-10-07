@@ -35,13 +35,16 @@ NAME_NOTE = "proper name"
 
 def resolve_foreign_names(language: Language) -> str:
     """``"keep"`` or ``"adapt"``: an explicit ``spec.foreign_names`` wins;
-    otherwise the weighted vote of the matched ``source_languages``
-    profiles' curated ``foreign_name_handling`` (uncurated profiles
-    abstain); otherwise ``"keep"``."""
+    otherwise the classifier's own ``traits.requested_foreign_names``, when
+    the prompt explicitly addressed it; otherwise the weighted vote of the
+    matched ``source_languages`` profiles' curated ``foreign_name_
+    handling`` (uncurated profiles abstain); otherwise ``"keep"``."""
     explicit = language.spec.foreign_names
     if explicit in ("keep", "adapt"):
         return explicit
     traits = language.spec.traits
+    if traits.requested_foreign_names in ("keep", "adapt"):
+        return traits.requested_foreign_names
     votes = {"keep": 0.0, "adapt": 0.0}
     for profile, weight in match_profiles_weighted(traits.source_languages, traits.source_language_weights):
         if profile.foreign_name_handling in votes:

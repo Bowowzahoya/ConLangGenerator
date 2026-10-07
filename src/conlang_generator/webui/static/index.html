@@ -143,14 +143,6 @@
         <input type="number" id="gen-vocab-size" value="400" min="1" max="496" step="10">
       </div>
       <div>
-        <label for="gen-foreign-names">Foreign names</label>
-        <select id="gen-foreign-names">
-          <option value="">auto (from source language)</option>
-          <option value="keep">keep as written</option>
-          <option value="adapt">adapt to the language</option>
-        </select>
-      </div>
-      <div>
         <label for="gen-word-selection">Word selection</label>
         <select id="gen-word-selection">
           <option value="algorithmic">algorithmic (no LLM)</option>
@@ -159,18 +151,26 @@
       </div>
     </div>
 
-    <div class="checks">
-      <label><input type="checkbox" id="gen-fantasy"> fantasy</label>
-      <label><input type="checkbox" id="gen-isolated"> force isolated</label>
-      <label><input type="checkbox" id="gen-high-altitude"> force high altitude</label>
-      <label><input type="checkbox" id="gen-tonal"> force tonal</label>
-      <label><input type="checkbox" id="gen-allow-all-caps"> allow all-caps POS</label>
-    </div>
-
     <details>
       <summary>Advanced options</summary>
 
+      <div class="checks">
+        <label><input type="checkbox" id="gen-fantasy"> fantasy</label>
+        <label><input type="checkbox" id="gen-isolated"> force isolated</label>
+        <label><input type="checkbox" id="gen-high-altitude"> force high altitude</label>
+        <label><input type="checkbox" id="gen-tonal"> force tonal</label>
+        <label><input type="checkbox" id="gen-allow-all-caps"> allow all-caps POS</label>
+      </div>
+
       <div class="row">
+        <div>
+          <label for="gen-foreign-names">Foreign names</label>
+          <select id="gen-foreign-names">
+            <option value="">auto (from prompt/source language)</option>
+            <option value="keep">keep as written</option>
+            <option value="adapt">adapt to the language</option>
+          </select>
+        </div>
         <div>
           <label for="gen-model">Classifier model</label>
           <select id="gen-model"></select>

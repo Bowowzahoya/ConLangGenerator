@@ -141,6 +141,13 @@ sound after some number of years, otherwise null.
 specific spelling/tone-marking convention (by name, or by describing it \
 unambiguously, e.g. "write tone as a number after each syllable" means \
 "wade-giles-style"), otherwise "" -- most prompts should get "".
+- "requested_foreign_names": "keep" if the text explicitly asks for a \
+foreign/borrowed proper name to stay as written (e.g. "keep foreign names \
+unchanged", "names from other languages are kept as-is, Dutch-style"), \
+"adapt" if it explicitly asks for one to be re-fitted to the language's \
+own sounds (e.g. "foreign names get adapted to the language's own \
+phonology, Chinese-style"), otherwise "" -- almost every prompt should \
+get "", since this is rarely addressed directly.
 - "salient_context": one short sentence noting anything else distinctive \
 about the request not captured above, or "" if nothing is.
 
@@ -236,6 +243,13 @@ dimension: 0.0. (The text asks for real Dutch changed by sound change, so \
 both the allowed sounds and the words follow Dutch closely; the years \
 become time_depth_years.)
 
+Prompt: "a trading language where any foreign merchant's name is adapted \
+to fit the local sounds, never kept as foreign-sounding"
+-> requested_foreign_names: "adapt", contact_intensity: 0.5, every other \
+dimension: 0.0. (An explicit, direct statement about how foreign proper \
+names are handled -- rare; most prompts never address this at all and \
+should get "".)
+
 Respond with ONLY a single JSON object, no prose, no markdown fences."""
 
 
@@ -275,6 +289,7 @@ def _parse(text: str) -> TraitProfile:
     values["source_word_strictness"] = _coerce_unit_float(raw.get("source_word_strictness"))
     values["time_depth_years"] = _coerce_optional_int(raw.get("time_depth_years"))
     values["requested_orthography_style"] = _coerce_str(raw.get("requested_orthography_style"))
+    values["requested_foreign_names"] = _coerce_str(raw.get("requested_foreign_names"))
     values["salient_context"] = _coerce_str(raw.get("salient_context"))
 
     return TraitProfile(**values)

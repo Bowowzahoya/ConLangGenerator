@@ -425,6 +425,8 @@ def generate(
         typer.echo(f"Source languages: {', '.join(traits.source_languages)}{strictness_note}")
     if traits.requested_orthography_style:
         typer.echo(f"Requested orthography style: {traits.requested_orthography_style}")
+    if traits.requested_foreign_names:
+        typer.echo(f"Requested foreign-name handling: {traits.requested_foreign_names}")
     forced = [f for f, on in (("isolated", isolated), ("high_altitude", high_altitude), ("tonal", tonal)) if on]
     if forced:
         typer.echo(f"Forced (guaranteed): {', '.join(forced)}")

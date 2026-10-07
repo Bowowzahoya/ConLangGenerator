@@ -71,6 +71,18 @@ def test_missing_requested_orthography_style_defaults_to_empty():
     assert profile.requested_orthography_style == ""
 
 
+def test_requested_foreign_names_parses_like_salient_context():
+    client = _FixedJsonLLMClient('{"requested_foreign_names": "adapt"}')
+    profile = classify_prompt("foreign names are always adapted to the language's own sounds", False, client)
+    assert profile.requested_foreign_names == "adapt"
+
+
+def test_missing_requested_foreign_names_defaults_to_empty():
+    client = _FixedJsonLLMClient("{}")
+    profile = classify_prompt("anything", False, client)
+    assert profile.requested_foreign_names == ""
+
+
 def test_source_language_strictness_parses_within_unit_interval():
     client = _FixedJsonLLMClient('{"source_languages": ["English", "German"], "source_language_strictness": 0.85}')
     profile = classify_prompt("basically a mix of English and German", False, client)
