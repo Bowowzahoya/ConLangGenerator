@@ -316,30 +316,65 @@ multi-session feature.
   assembly otherwise stays as today's per-word concatenation. The one
   small, still-worthwhile fix in scope immediately: the fixed silence
   between words is noticeably too long and should just be shortened.
-- **Pick the best available engine per word; rate engines on naturalness;
-  report per-engine sound coverage honestly (L).** Only eSpeak-ng and SAPI
-  exist today, chosen manually (the old §2 "voice picker" item, folded in
-  here) rather than by what a word actually needs. Maintain a roster of
-  engines instead -- eSpeak-ng/SAPI today; Piper and/or Coqui as free,
-  local, more natural-sounding neural candidates; Azure/Google SSML as
-  paid, more-capable cloud options (a neural engine's own training-
-  distribution limits for a genuinely invented phonology were explored in
-  chat and should inform how this is scoped) -- each with a declared
-  naturalness rating and a real per-phoneme coverage map, not just "does
-  it voice tones" (today's only capability dimension): clicks, ejectives,
-  pharyngeals, breathy voice, vowel/consonant length, and the
-  already-known-approximate Kirshenbaum mappings for `ɸ β ɕ ʑ ɦ ɭ ɽ ʈʂ` all
-  need their own per-engine coverage entries. Engine choice is per *word*,
-  not per sound within a word, by explicit decision -- splicing different
+- **Multi-engine per-word selection, split into right-sized pieces (was one
+  L item; split further after planning surfaced just how much it
+  bundled).** Engine choice is per *word*, never per sound within a word,
+  by explicit decision across every piece below -- splicing different
   engines' audio together inside one word would need to solve matching
   pitch/timbre/volume at the seam, a separate, harder problem not being
-  taken on. For a given word, pick the single engine that covers every one
-  of its sounds "correctly" and, among those, the most natural; a word no
-  engine covers correctly falls back to the best approximate match (same
-  philosophy as today), but reported, not silent. **Must be toggleable**:
-  any engine that costs money needs its own on/off switch, off by default
-  -- the same precedent this project already has for `llm=fake|anthropic`.
-  `translate` currently has no `--tts` path to warn about any of this.
+  taken on anywhere in this split.
+  1. **A real per-phoneme coverage model for the two engines that already
+     exist, eSpeak-ng and SAPI (M).** Today's only capability dimension is
+     "does it voice tones" (`TTSCapabilities.tones`); widen it to a real
+     map over this project's own ~200-symbol phoneme pool
+     (`phonology_gen.ALL_CONSONANTS`/`ALL_VOWELS`), each phoneme rated
+     exact/approximate/poor per engine. For eSpeak this is mostly
+     *derivable*, not hand-curated: `ipa_to_kirshenbaum._BASE_BY_IPA` is
+     already the exact-match table, `_MODIFIER_STRIP`'s fallback path is
+     already the approximate case, and the last-resort fallbacks in
+     `convert_symbol` (click-letter/`"n"`/first-character) are already the
+     poor case -- the rating can read off which path `convert_symbol`
+     actually took rather than inventing a second, parallel table. SAPI has
+     no analogous conversion table to introspect (it passes IPA straight
+     through to an opaque real OS voice), so its coverage is necessarily
+     either hand-curated for a specific known voice or honestly marked
+     unknown/unverified for the rest -- do not pretend precision SAPI
+     can't actually back up. Independently useful even before any
+     selection logic uses it: could immediately widen today's tone-only
+     `pronunciation_warnings` to warn about more than tones.
+  2. **Per-word engine selection using that model, replacing today's single
+     fixed-for-the-whole-request engine (M, depends on 1).** `webui/
+     app.py::_synthesize_sentence` and `cli/main.py`'s `pronounce` command
+     both take one `TTSClient` chosen up front for the whole call; change
+     the per-word loop in `_synthesize_sentence` (and the single-word case
+     in `pronounce`) to pick, for each word's own IPA, whichever available
+     engine covers every one of its sounds "correctly" and, among those,
+     the most natural (a small static per-engine naturalness rating, e.g.
+     SAPI's real neural-ish OS voice over eSpeak's formant synthesis for
+     sounds both can voice correctly) -- falling back to the best
+     approximate match when no engine covers a word correctly (same
+     philosophy `convert_symbol` already has for individual symbols, now
+     applied at the word/engine level), but *reported*, not silent.
+  3. **Surface engine choice and coverage in the CLI/web UI (S-M, depends
+     on 2).** `translate` has no `--tts` path at all today; `pronounce`'s
+     single `--tts` flag picking one engine for the whole call becomes
+     meaningless once selection is automatic per word -- decide what, if
+     anything, a user-facing override should look like (e.g. "prefer engine
+     X when it covers the word") versus just reporting which engine ended
+     up voicing which word and why.
+  4. **Add Piper as a new free, local, more natural-sounding neural engine
+     (L, independent of 1-3 but slots into the roster once they exist).**
+     The engine-vs-phoneme-set mismatch for a genuinely invented phonology
+     (explored in chat) needs a concrete decision here: approximate-only
+     (map invented phonemes to the nearest sound Piper's pretrained voice
+     already knows, no training) versus actually extending/fine-tuning a
+     model (a much bigger, separate research effort) -- approximate-only
+     is the realistic scope for this item.
+  5. **Add a paid cloud engine, e.g. Azure or Google SSML, with its own
+     cost on/off toggle (L, independent of 1-4).** Lowest priority of the
+     five -- needs the same per-task on/off-switch treatment this project
+     already gives `llm=fake|anthropic`, off by default, before it's safe
+     to even offer in the roster.
 - **A per-sound pronunciation guide for people who aren't linguists (L).**
   Two tiers: (a) a full sound inventory for a given generated language --
   every phoneme it actually uses, each with a plain-language articulation
