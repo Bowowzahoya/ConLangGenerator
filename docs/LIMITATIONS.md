@@ -205,22 +205,26 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   -- there's no size cap, no eviction, and no way to force a re-synthesis short of deleting the
   directory by hand (e.g. after fixing a real bug in an engine's own synthesis path, a stale cached
   file would silently keep serving the old, buggy audio for already-pronounced words).
-- **Pre-generation is only offered for `"espeak"` through the web UI/API, not `"sapi"`/`"auto"`.**
-  Measured directly: SAPI pays a fresh PowerShell+.NET startup cost on *every* synthesis call
-  (~3.7s/word) versus eSpeak's ~60ms/word -- pre-generating a several-hundred-word vocabulary through
-  SAPI (or `"auto"`, which ties onto SAPI for any word both engines voice exactly) can take tens of
-  minutes, a poor fit for a synchronous HTTP request. The CLI's own `generate --pregenerate-audio`
-  offers all four values (with a loud warning and live progress for the slow ones) since a CLI user is
-  watching the terminal and can interrupt; the web endpoint rejects `"sapi"`/`"auto"` outright (400).
 - **Pre-generation has no partial-failure detail.** `PregenerateSummary` reports only aggregate
   synthesized/failed counts, not which specific words failed or why -- a real failure (e.g. a symbol
   neither engine can render at all) is indistinguishable from "engine unavailable" in the summary alone.
-- **`"auto"`'s own per-word naturalness ranking doesn't account for latency, only subjective sound
-  quality.** `engine_selection.NATURALNESS` ranks SAPI above eSpeak for any word both cover equally well
-  -- meaning a *plain* word with no exotic sounds at all still ties onto SAPI's ~3.7s-per-word path under
-  `"auto"`, not just an exotic one. This makes `"auto"` systematically slower than it needs to be for
-  ordinary pronunciation, not only for pre-generation. Flagged directly, not fixed here -- weighing
-  measured latency into the ranking is its own design question, not a drive-by fix.
+- **A single, standalone CLI `pronounce --tts sapi`/`auto` call still pays SAPI's own one-time ~3.7s
+  startup cost, every time.** `speech.sapi_worker.SapiWorker` fixes this everywhere a process can
+  amortize that cost across *multiple* words -- pre-generation, a multi-word sentence, and (via the
+  web server's own long-lived singleton, `webui/app.py`'s `_get_sapi_worker`) every `/api/pronounce`
+  request after the very first one on that server. A CLI `pronounce` invocation is always exactly one
+  word, and each CLI invocation is a fresh OS process that exits right after -- there's no second word
+  for a worker to amortize against, and no process survives between separate CLI calls. Fixing this
+  would need a persistent cross-invocation background daemon, a materially bigger, separate feature,
+  not attempted here.
+- **The persistent SAPI worker adds real protocol-level surface the one-shot path didn't have.** A
+  line-based JSON request/response protocol over the worker process's own stdin/stdout (with a 15s
+  timeout and one restart-on-failure retry) is new machinery `speech/tts.py`'s original design
+  specifically avoided by staying one-shot. Confirmed byte-identical output to the original one-shot
+  path for the same input, and confirmed UTF-8 round-trips correctly for exotic IPA -- but this is a
+  more complex mechanism than a single `subprocess.run` call, with its own failure modes (a wedged pipe,
+  a worker that dies mid-batch) the retry-once logic is designed to recover from, not guaranteed to
+  survive every possible failure shape.
 
 ## Grammar and translation
 

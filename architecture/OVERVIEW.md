@@ -7115,3 +7115,91 @@ reading code or one-off ad hoc scripts.
   selected for pre-generated audio, rendered a new "pre-generated audio: 12/12" badge after a real
   browser round-trip, no console errors, and `/api/generate` with `pregenerate_audio: "sapi"` or
   `"auto"` correctly returned 400.
+
+- **A persistent SAPI worker, fixing the ~3.7s/word latency the previous pass measured and flagged but
+  didn't fix.** The user asked directly whether SAPI's latency could be improved; it could, since the
+  cost is almost entirely `SapiTTSClient`'s own fresh PowerShell-process-startup + .NET-assembly-load on
+  *every one-shot call*, not the actual synthesis. Before committing to a mechanism, three were weighed:
+  raw SAPI COM via `pywin32` (rejected -- a genuinely different object model than `System.Speech`, with
+  unverified `<phoneme alphabet="ipa">` SSML behavior, real risk to the one feature that makes SAPI
+  worth having over eSpeak); `pythonnet`/`clr` calling `System.Speech` in-process (rejected -- keeps the
+  exact proven API, but a heavy, never-used-here native-interop dependency this project's own `tts.py`
+  docstring already chose to avoid once for a smaller reason); a persistent PowerShell process fed over
+  its own stdin/stdout (chosen -- zero new dependencies, and the *exact same* `Add-Type`/
+  `SpeechSynthesizer`/`SpeakSsml()` call already proven, only spawned once instead of once per word).
+
+  **Scoping was the other real design question, and it split by call site rather than being one global
+  choice.** A worker only pays off when >=2 words share one process. CLI `pronounce` is always exactly
+  one word in a fresh, short-lived OS process -- no scoping fixes that, left explicitly unchanged and
+  documented as a limitation. `pregenerate_audio` and the web UI's `_synthesize_sentence` already loop
+  over many words in one call -- an explicit, caller-owned worker (opened at the top of the call, closed
+  at the end) captures the whole win with zero new persistent state. The web server's own ad-hoc
+  single-word case (one `/api/pronounce` request) can *only* be fixed by a worker that survives
+  *between* separate HTTP requests, since `uvicorn`'s process is long-lived unlike a CLI invocation --
+  the one place a module-level singleton (`webui/app.py`'s `_get_sapi_worker`, mirroring that file's own
+  existing `CACHE_DIR`/`LANGUAGES_DIR` module-constant precedent) earns its keep rather than being
+  premature global state. A dedicated Plan-agent pass, given this exact investigation brief, arrived at
+  and justified this same split independently.
+
+  **New `speech/sapi_worker.py::SapiWorker`**: writes the same worker script (`Add-Type`/
+  `SpeechSynthesizer` setup once, then a `[Console]::In.ReadLine()` loop reading one JSON request line
+  and replying `"OK"`/`"ERROR: ..."`) to a real temp file -- not read from `-Command -`'s own stdin,
+  which would consume the one stream this protocol needs for ongoing requests -- launched via `-File`.
+  Two real Windows-specific risks were verified empirically, not just reasoned about: (1)
+  `tempfile.NamedTemporaryFile` needs `delete=False` with its own Python handle closed *before* handing
+  the path to `powershell.exe`, since Windows' file-locking semantics (unlike POSIX) can block a second
+  process from opening a file a still-open Python handle holds; (2) PowerShell 5.1's console encoding
+  under a *redirected* pipe doesn't reliably default to UTF-8, so the script sets `[Console]::
+  InputEncoding`/`OutputEncoding` explicitly, matching `encoding="utf-8"` on the Python `Popen` side --
+  confirmed directly with a real ejective+nasalized-vowel IPA string (`kʼã`) producing **byte-identical**
+  output to the original one-shot path. A background daemon thread drains the subprocess's own stdout
+  into a `queue.Queue` (Windows pipes have no native blocking-read timeout), so `synthesize()` can
+  `queue.get(timeout=15)` instead of hanging forever; a dead/timed-out process triggers one restart-and-
+  retry, never raising, matching every `TTSClient.synthesize`'s own "unavailable is normal" contract.
+  One correctness gap caught *during test-writing*, not before: the worker's own "OK" reply only means
+  `SpeakSsml` raised no exception, not that real audio was produced -- added the same `output_path.
+  stat().st_size > 44` sanity check the one-shot path already had, which a first draft of the new code
+  had dropped.
+
+  **Wiring**: `SapiTTSClient.__init__` takes an optional `worker` (delegates to it when given, unchanged
+  one-shot behavior otherwise -- `cache_identity()` stays the constant `"sapi"` either way, since the
+  audio is identical, so zero existing cache entries invalidate); `build_tts_client` gained a keyword-
+  only `sapi_worker` parameter, a no-op for every kind but `"sapi"`; `engine_selection.
+  auto_client_for_word` and `pregenerate.pregenerate_audio` thread it through to their own existing
+  `build_tts_client` calls (the latter constructing exactly one worker per call -- never per word -- and
+  closing it in a `finally`, cheap to construct and never even spawning a process for an `"auto"` run
+  that happens to never pick SAPI for any word, since `SapiWorker.__init__` is fully lazy).
+
+  **Net effect, confirmed live**: `pregenerate_audio(lang, "sapi", ...)` on 23 words dropped from a
+  theoretical ~85s to 0.46s measured; on the real default 400-word vocabulary, ~2.7s. Two separate real
+  `/api/pronounce` HTTP requests for different never-before-synthesized words both returned in under
+  0.65s total (curl + FastAPI + synthesis), confirming genuine worker reuse across requests, not a cache
+  hit (checked directly: the second word had no pre-existing cache entry). This also resolves the
+  previous pass's own flagged-but-unfixed concern that `"auto"`'s `NATURALNESS` ranking (SAPI over
+  eSpeak on subjective quality alone, no latency term) made ordinary ad-hoc pronunciation slow -- it no
+  longer is, for every case except the one structurally unfixable one (CLI `pronounce`, documented, not
+  silently dropped). Since `pregenerate_audio` no longer needs the web endpoint's old `"sapi"`/`"auto"`
+  restriction to protect against (that restriction existed purely because of the latency this pass just
+  fixed), `GenerateRequest.pregenerate_audio` was widened to accept all four values too, not just
+  `"none"`/`"espeak"` -- confirmed directly rather than assumed safe.
+
+  **A real full-suite-only test failure, root-caused properly instead of patched over.** The new test
+  file passed cleanly standalone, and neither a 16-way concurrent-`SapiWorker` stress script nor 10
+  separate real worker processes synthesizing simultaneously ever failed -- but the *actual* full suite
+  (`~2000` other tests running in parallel via `pytest-xdist`) reliably reproduced one failure, three
+  times in a row, in the same real-SAPI test. First hypothesis (genuine resource contention needing a
+  wider retry budget) was wrong: widening `_send`'s retry loop to 3 attempts changed nothing, still
+  failing the same way -- a sign to keep digging rather than ship a fix that only *felt* plausible.
+  Diagnostic instrumentation (temporary, removed once done) traced the actual failure to `_REQUEST_
+  TIMEOUT_SECONDS` reading `1.0` instead of the real `15.0` *inside the real-SAPI test itself* -- the
+  test file's own `_fast_timeout` fixture (meant only to keep the fake-protocol tests fast) was marked
+  `autouse=True`, so it silently patched the module-level timeout for every test in the file, including
+  the 3 real-SAPI ones. Under light load a 1-second budget is usually fine for a real `SpeechSynthesizer`
+  call; under the full suite's own genuine CPU contention, it occasionally legitimately took a bit
+  longer, and the test's own artificially tight timeout -- not production code -- is what fired. Fixed
+  by making `_fast_timeout` an explicit (non-autouse) fixture, requested only by the 9 fake-protocol
+  tests that actually need it; the retry-budget widening was reverted (never real -- `SapiWorker.
+  synthesize` is back to its original one-retry design) along with all the diagnostic instrumentation.
+  Re-ran the full suite clean after the real fix landed, rather than assuming success. A reminder that
+  "re-ran and it passed" isn't root-causing, and that the first plausible-sounding hypothesis can still
+  be wrong -- verify a fix actually fires before trusting it, not just that the symptom goes away.

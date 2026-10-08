@@ -20,6 +20,40 @@ def test_pregenerate_audio_synthesizes_and_caches_every_entry(tmp_path: Path):
     assert len(cache_files) == summary.total
 
 
+def test_pregenerate_audio_builds_exactly_one_sapi_worker_not_one_per_word(tmp_path: Path, monkeypatch):
+    # The whole point of the persistent-worker fix: one process shared
+    # across the entire lexicon, never one per word.
+    constructed = []
+    closed = []
+
+    class _FakeWorker:
+        def __init__(self):
+            constructed.append(self)
+
+        def synthesize(self, escaped_ipa, output_path):
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(b"\x00" * 100)
+            return True
+
+        def close(self):
+            closed.append(self)
+
+    monkeypatch.setattr(pregenerate, "SapiWorker", _FakeWorker)
+    summary = pregenerate.pregenerate_audio(_language, "sapi", tmp_path)
+    assert summary.synthesized == summary.total
+    assert len(constructed) == 1
+    assert closed == constructed  # the one worker built was also closed
+
+
+def test_pregenerate_audio_builds_no_sapi_worker_for_a_pure_espeak_run(tmp_path: Path, monkeypatch):
+    def _fail(*args, **kwargs):
+        raise AssertionError("an espeak-only run must never construct a SapiWorker")
+
+    monkeypatch.setattr(pregenerate, "SapiWorker", _fail)
+    summary = pregenerate.pregenerate_audio(_language, "espeak", tmp_path)
+    assert summary.synthesized == summary.total
+
+
 def test_pregenerate_audio_reuses_the_cache_a_pronounce_call_would_hit(tmp_path: Path, monkeypatch):
     pregenerate.pregenerate_audio(_language, "espeak", tmp_path)
     entry = _language.lexicon.entries[0]

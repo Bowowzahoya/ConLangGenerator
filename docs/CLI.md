@@ -700,15 +700,25 @@ Pre-generated audio for 400/400 words via espeak.
 Saved to .../conlangs/test-lang
 ```
 
-`espeak` is fast (measured ~60ms/word); `sapi` and `auto` (which can
+`espeak` is fast (measured ~60ms/word). `sapi` and `auto` (which can
 tie-break onto SAPI for any word both engines voice equally well -- see
-`speech/engine_selection.py`'s own `NATURALNESS` ranking) pay a fresh
-PowerShell+.NET startup cost on *every single word* (measured
-~3.7s/word) -- tens of minutes for a full vocabulary. A progress line
-prints every 25 words either way so a long run doesn't look hung;
+`speech/engine_selection.py`'s own `NATURALNESS` ranking) used to pay a
+fresh PowerShell+.NET startup cost on *every single word* (~3.7s/word,
+tens of minutes for a full vocabulary) -- fixed by `speech/sapi_worker.
+py::SapiWorker`, one persistent process shared across the whole lexicon
+instead of one per word (confirmed: the same 400-word vocabulary now
+takes ~2.7s total via `sapi`, not tens of minutes), so the web UI's own
+`/api/generate` accepts all four values too now, not just `none`/
+`espeak`. A progress line still prints every 25 words so a run doesn't
+look hung if the backend genuinely is slow for some other reason;
 Ctrl+C is safe, the language itself is already saved by the time
-pre-generation starts. The web UI/`/api/generate` only accepts
-`none`/`espeak` for this same reason -- `sapi`/`auto` are CLI-only.
+pre-generation starts.
+
+The one place this fix *doesn't* reach is a single CLI `pronounce
+--tts sapi`/`auto` call on its own -- each CLI invocation is a fresh OS
+process that exits right after, so there's no second word for a
+persistent worker to amortize its own startup cost against. That one
+case stays at the original ~3.7s, documented in `docs/LIMITATIONS.md`.
 
 ## `conlang translate`
 

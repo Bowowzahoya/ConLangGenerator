@@ -36,6 +36,7 @@ from typing import Protocol
 from conlang_generator.core.phonology import TONE_CONTOURS, TONE_DIACRITICS, ToneLevel
 from conlang_generator.generation import ipa_tokenizer, phonology_gen
 from conlang_generator.speech import ipa_to_kirshenbaum
+from conlang_generator.speech.sapi_worker import SapiWorker
 
 _ESPEAK_FALLBACK_PATHS = (
     r"C:\Program Files\eSpeak NG\espeak-ng.exe",
@@ -233,7 +234,17 @@ class SapiTTSClient:
     Kirshenbaum conversion, no separate install. Only available on
     Windows; ``synthesize`` returns ``False`` cleanly everywhere else,
     the same "unavailable is a normal state" contract every ``TTSClient``
-    has."""
+    has.
+
+    Each one-shot call pays a real, measured ~3.7s PowerShell-process-
+    startup + .NET-assembly-load cost (see ``docs/DEFERRED.md``) -- pass
+    a shared ``speech.sapi_worker.SapiWorker`` (a persistent process
+    reused across many calls) to avoid paying it more than once per
+    worker lifetime. Produces byte-identical audio either way (confirmed
+    directly), so ``cache_identity()`` stays ``"sapi"`` regardless."""
+
+    def __init__(self, worker: SapiWorker | None = None) -> None:
+        self._worker = worker
 
     def capabilities(self) -> TTSCapabilities:
         return TTSCapabilities(
@@ -263,6 +274,8 @@ class SapiTTSClient:
         # tilde) is accepted.
         ipa_text = unicodedata.normalize("NFD", ipa_text)
         escaped_ipa = xml.sax.saxutils.escape(ipa_text, {'"': "&quot;"})
+        if self._worker is not None:
+            return self._worker.synthesize(escaped_ipa, output_path)
         script = _SAPI_SCRIPT_TEMPLATE.format(
             output_path=str(output_path).replace('"', '`"'), ipa=escaped_ipa
         )
@@ -274,13 +287,16 @@ class SapiTTSClient:
         return result.returncode == 0 and output_path.is_file() and output_path.stat().st_size > 44
 
 
-def build_tts_client(kind: str = "none") -> TTSClient:
+def build_tts_client(kind: str = "none", *, sapi_worker: SapiWorker | None = None) -> TTSClient:
+    """``sapi_worker``, when given, is reused by a ``"sapi"`` client
+    instead of paying a fresh process-startup cost on every call (see
+    ``SapiWorker``'s own docstring) -- ignored by every other kind."""
     if kind == "none":
         return NoneTTSClient()
     if kind == "espeak":
         return EspeakTTSClient()
     if kind == "sapi":
-        return SapiTTSClient()
+        return SapiTTSClient(worker=sapi_worker)
     raise ValueError(f"unknown TTS client kind: {kind!r}")
 
 

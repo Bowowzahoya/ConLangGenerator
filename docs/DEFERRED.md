@@ -358,8 +358,9 @@ multi-session feature.
   result to go look each sound up separately. Soundclips are synthesized
   (via the engine-selection item above -- whichever engine voices that one
   isolated sound most naturally), not sourced from real recordings.
-- **Pronunciation is slow every time, not just the first time -- done.**
-  Repeated pronunciation used to re-synthesize every word from scratch.
+- **Pronunciation is slow every time, not just the first time -- done,
+  including the SAPI-specific latency this surfaced.** Repeated
+  pronunciation used to re-synthesize every word from scratch.
   `speech/tts_cache.py::CachingTTSClient` wraps any real `TTSClient`,
   keyed on `(client.cache_identity(), ipa_text)` -- `cache_identity()`
   (new on the `TTSClient` protocol) fully captures what the engine/
@@ -369,30 +370,37 @@ multi-session feature.
   (unlike the LLM cache -- audio is binary, a flat file store is the
   natural fit). Wired into both `cli/main.py`'s `pronounce` command and
   `webui/app.py`'s `/api/pronounce`, for every `--tts` value including
-  `"auto"` (each per-word-selected client gets its own cache entry).
-  Pre-generation (eagerly warming the cache for a freshly generated
-  language's whole lexicon, instead of waiting for the first real
-  request) is also done: `speech/pregenerate.py::pregenerate_audio`,
-  wired as a new explicit, not-automatic `--pregenerate-audio {none,
-  espeak,sapi,auto}` CLI flag on `generate` (default `none`) and a
-  matching `pregenerate_audio` field on `POST /api/generate` -- but the
-  web endpoint only accepts `"none"`/`"espeak"`: measured directly,
-  eSpeak costs ~60ms/word, while SAPI (and `"auto"`, which ties onto
-  SAPI by `engine_selection.NATURALNESS` for any word both engines voice
-  exactly) pays a fresh PowerShell+.NET startup cost on *every single
-  word*, ~3.7s/word -- tens of minutes for a several-hundred-word
-  vocabulary, a genuinely bad fit for a synchronous HTTP request. The
-  CLI offers all four values (with a loud heads-up and live progress for
-  the slow ones; Ctrl+C is safe, the language is already saved by then).
-  **This also means `"auto"`'s own existing latency, not just pre-
-  generation's, is worse than it looks for ad-hoc pronunciation** --
-  `NATURALNESS` ranks SAPI above eSpeak purely on subjective sound
-  quality, so a plain word *both* engines voice exactly still ties onto
-  the ~3.7s-per-word SAPI path today. Not fixed here (out of this item's
-  own scope; flagged directly to the user) -- a real fix would need
-  `NATURALNESS`/`choose_engine` to weigh *measured latency* alongside
-  subjective quality, which deserves its own look, not a drive-by change
-  buried in a caching pass.
+  `"auto"`. Pre-generation (eagerly warming the cache for a freshly
+  generated language's whole lexicon) is also done: `speech/pregenerate.
+  py::pregenerate_audio`, wired as a new explicit, not-automatic
+  `--pregenerate-audio {none,espeak,sapi,auto}` CLI flag on `generate`
+  (default `none`) and a matching `pregenerate_audio` field on `POST
+  /api/generate`.
+
+  **Follow-up, same item: the SAPI-specific ~3.7s/word cost itself,
+  not just repeated-word caching, is now fixed too.** The user asked
+  directly whether SAPI's latency could be improved, and it could: the
+  cost was almost entirely a fresh PowerShell-process-startup + .NET-
+  assembly-load on *every one-shot call*, not the actual synthesis.
+  `speech/sapi_worker.py::SapiWorker` keeps one persistent process alive
+  and reused across many words instead -- confirmed directly: a full
+  400-word vocabulary via `--pregenerate-audio sapi` now takes ~2.7s
+  total, not tens of minutes, so the web endpoint's `pregenerate_audio`
+  now accepts `"sapi"`/`"auto"` too, not just `"none"`/`"espeak"`.
+  `webui/app.py` also gained a module-level, lazily-started singleton
+  worker (`_get_sapi_worker`) shared across *every* `/api/pronounce`
+  request for that server's whole lifetime -- fixing the broader "auto
+  is slow even for ordinary pronunciation" concern this same item had
+  flagged, for every case except one: a single, standalone CLI
+  `pronounce --tts sapi`/`auto` call still pays the full ~3.7s every
+  time, since each CLI invocation is a fresh OS process with no second
+  word for a worker to amortize against and no way to survive between
+  invocations -- fixing that would need a cross-invocation background
+  daemon, a materially bigger, separate feature, explicitly not
+  attempted here. Confirmed byte-identical audio output to the original
+  one-shot path for the same (including exotic, non-ASCII) IPA input --
+  zero regression risk on SAPI's own direct-IPA-passthrough behavior,
+  the reason it's worth having over eSpeak at all.
 - **Untested by ear (S).** eSpeak tone numbers for mid/low/neutral
   (33/21/11) were only length-checked.
 

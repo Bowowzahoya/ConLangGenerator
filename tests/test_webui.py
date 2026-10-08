@@ -70,15 +70,29 @@ def test_generate_defaults_to_no_pregeneration(client):
     assert "pregenerated_audio" not in response.json()
 
 
-def test_generate_rejects_sapi_and_auto_for_pregenerate_audio(client):
-    # Both measured at ~3.7s/word (SAPI's own per-call startup cost) --
-    # too long for a synchronous HTTP request; only the CLI offers them.
-    for value in ("sapi", "auto"):
+def test_generate_accepts_sapi_and_auto_for_pregenerate_audio(client):
+    # Used to be rejected here (measured ~3.7s/word, tens of minutes for
+    # a full vocabulary, too long for a synchronous request) -- now that
+    # speech.pregenerate shares one persistent speech.sapi_worker.
+    # SapiWorker across the whole lexicon (confirmed: ~2.7s for a full
+    # 400-word vocabulary), both are accepted here too. Doesn't assume
+    # SAPI is actually available on the machine running this test --
+    # just that the endpoint accepts the value and reports a real
+    # summary either way (0 synthesized is still a clean 200, same
+    # "unavailable is normal" contract every TTSClient already has).
+    for value, name in (("sapi", "pregen-webtest-sapi"), ("auto", "pregen-webtest-auto")):
         response = client.post(
             "/api/generate",
-            json={"prompt": "p", "name": "pregen-webtest-bad", "seed": 1, "llm": "fake", "pregenerate_audio": value},
+            json={
+                "prompt": "p", "name": name, "seed": 1, "llm": "fake",
+                "vocabulary_size": 5, "pregenerate_audio": value,
+            },
         )
-        assert response.status_code == 400
+        assert response.status_code == 200
+        full_body = response.json()
+        audio_summary = full_body["pregenerated_audio"]
+        assert audio_summary["total"] == len(full_body["lexicon"])
+        assert audio_summary["synthesized"] + audio_summary["failed"] == audio_summary["total"]
 
 
 def test_generated_language_is_saved_and_listed(client):
@@ -570,7 +584,7 @@ def test_pronounce_reports_503_when_the_backend_is_unavailable(client, monkeypat
         def cache_identity(self):
             return "always-fails"
 
-    monkeypatch.setattr(webui_app.tts, "build_tts_client", lambda kind: _AlwaysFailsClient())
+    monkeypatch.setattr(webui_app.tts, "build_tts_client", lambda kind, sapi_worker=None: _AlwaysFailsClient())
     response = client.post("/api/pronounce", json={"ipa": "kat", "tts": "espeak"})
     assert response.status_code == 503
 

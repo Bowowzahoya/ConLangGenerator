@@ -66,6 +66,36 @@ def test_sapi_client_reports_unavailable_off_windows(tmp_path: Path):
     assert not output.exists()
 
 
+def test_sapi_client_delegates_to_an_injected_worker_instead_of_a_one_shot_call(tmp_path: Path):
+    class _FakeWorker:
+        def __init__(self):
+            self.calls = []
+
+        def synthesize(self, escaped_ipa, output_path):
+            self.calls.append((escaped_ipa, output_path))
+            return True
+
+    worker = _FakeWorker()
+    client = tts.build_tts_client("sapi", sapi_worker=worker)
+    assert isinstance(client, tts.SapiTTSClient)
+    if _IS_WINDOWS:
+        output = tmp_path / "out.wav"
+        assert client.synthesize("kat", output) is True
+        assert len(worker.calls) == 1
+        assert worker.calls[0][1] == output
+
+
+def test_sapi_worker_kwarg_is_ignored_by_every_other_kind():
+    # build_tts_client's new keyword-only parameter must be a no-op for
+    # anything but "sapi" -- passing it to "espeak"/"none" must not raise.
+    class _FakeWorker:
+        def synthesize(self, escaped_ipa, output_path):
+            raise AssertionError("espeak/none must never touch a sapi_worker")
+
+    assert isinstance(tts.build_tts_client("none", sapi_worker=_FakeWorker()), tts.NoneTTSClient)
+    assert isinstance(tts.build_tts_client("espeak", sapi_worker=_FakeWorker()), tts.EspeakTTSClient)
+
+
 def test_find_espeak_ng_prefers_path_over_fallback_locations(monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda name: r"C:\some\other\espeak-ng.exe")
     assert tts._find_espeak_ng() == r"C:\some\other\espeak-ng.exe"

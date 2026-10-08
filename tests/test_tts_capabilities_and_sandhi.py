@@ -3,6 +3,7 @@ can't; eSpeak voices tones through its Mandarin voice; tone sandhi is
 probabilistic and a graded trait."""
 
 import subprocess
+import wave
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -215,6 +216,51 @@ def test_auto_pronounce_endpoint_synthesizes_with_a_monkeypatched_backend(monkey
     assert response.status_code == 200
     assert response.headers["content-type"] == "audio/wav"
     assert len(response.content) > 0
+
+
+def test_the_webui_reuses_one_sapi_worker_across_separate_pronounce_requests(tmp_path, monkeypatch):
+    # The whole point of the webui's own module-level singleton: a
+    # uvicorn server process is long-lived across many requests, unlike
+    # a CLI invocation, so only the very first "sapi"/"auto" request
+    # should ever pay a worker's own startup cost.
+    import conlang_generator.webui.app as webui_app
+
+    monkeypatch.setattr(webui_app, "CACHE_DIR", tmp_path / ".cache")  # never touch the real project cache
+    monkeypatch.setattr(webui_app, "_sapi_worker", None)  # isolate from any other test's leftover singleton
+
+    constructed = []
+
+    class _FakeWorker:
+        def __init__(self):
+            constructed.append(self)
+
+        def synthesize(self, escaped_ipa, output_path):
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with wave.open(str(output_path), "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(16000)
+                wf.writeframes(b"\x00\x00" * 100)
+            return True
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(webui_app, "SapiWorker", _FakeWorker)
+    monkeypatch.setattr(webui_app.atexit, "register", lambda *_a, **_kw: None)
+
+    def fake_sapi_synthesize(self, ipa_text, output_path):
+        return self._worker.synthesize(ipa_text, output_path) if self._worker is not None else False
+
+    monkeypatch.setattr(webui_app.tts.SapiTTSClient, "synthesize", fake_sapi_synthesize)
+
+    client = TestClient(app)
+    first = client.post("/api/pronounce", json={"ipa": "kat", "tts": "sapi"})
+    second = client.post("/api/pronounce", json={"ipa": "mat", "tts": "sapi"})
+    assert first.status_code == 200 and second.status_code == 200
+    assert len(constructed) == 1  # the same worker served both requests
+
+    monkeypatch.setattr(webui_app, "_sapi_worker", None)  # don't leak into other tests
 
 
 # --- the eSpeak tone path ---------------------------------------------------

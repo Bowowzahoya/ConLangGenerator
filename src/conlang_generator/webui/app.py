@@ -20,6 +20,7 @@ Not installed by default (see the ``web`` dependency group in
 
 from __future__ import annotations
 
+import atexit
 import io
 import json
 import uuid
@@ -65,6 +66,7 @@ from conlang_generator.llm import pricing
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 from conlang_generator.speech import engine_selection, tts, tts_cache
 from conlang_generator.speech.pregenerate import pregenerate_audio as run_pregenerate_audio
+from conlang_generator.speech.sapi_worker import SapiWorker
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation import names
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
@@ -74,6 +76,25 @@ LANGUAGES_DIR = Path("conlangs")
 STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(title="ConLangGenerator")
+
+_sapi_worker: SapiWorker | None = None
+"""Lazily started on this server's first `"sapi"`/`"auto"` request, then
+reused for every request after -- a one-shot `SapiTTSClient` call pays a
+real, measured ~3.7s PowerShell-process-startup cost every time; a
+`uvicorn` server process is long-lived across many requests, unlike a
+single CLI invocation, so this is the one place that cost is worth
+paying only once per server run rather than once per request. No
+existing FastAPI lifespan hook in this app to extend instead --
+`atexit` is simpler for one resource than introducing one just for
+this."""
+
+
+def _get_sapi_worker() -> SapiWorker:
+    global _sapi_worker
+    if _sapi_worker is None:
+        _sapi_worker = SapiWorker()
+        atexit.register(_sapi_worker.close)
+    return _sapi_worker
 
 _SYMBOLS = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
 """The full global phoneme pool, not any one language's own narrower
@@ -273,11 +294,13 @@ class GenerateRequest(BaseModel):
     evolve_years: int | None = None
     pregenerate_audio: str = "none"
     """Eagerly synthesize+cache every lexicon word's own pronunciation
-    right after generating. Only "none"/"espeak" are accepted here --
-    "sapi"/"auto" measured ~3.7s/word (a fresh PowerShell+.NET startup
-    cost on every call), tens of minutes for a full vocabulary, a poor
-    fit for a synchronous HTTP request; use the CLI's own `generate
-    --pregenerate-audio sapi|auto` for those instead."""
+    right after generating -- none/espeak/sapi/auto. "sapi"/"auto" used
+    to measure ~3.7s/word (a fresh PowerShell+.NET startup cost on every
+    one-shot call), too slow for a synchronous request; `speech.
+    pregenerate.pregenerate_audio` now shares one persistent `speech.
+    sapi_worker.SapiWorker` across the whole lexicon instead (confirmed:
+    a full 400-word vocabulary takes ~2.7s total, not tens of minutes),
+    so all four values are accepted here now."""
     trait_overrides: dict[str, float] = {}
     """Directly set one or more graded worldbuilding traits (the web
     equivalent of the CLI's own repeatable ``--trait NAME=VALUE``) --
@@ -550,13 +573,8 @@ def generate(request: GenerateRequest) -> dict:
         raise HTTPException(status_code=400, detail="foreign_names must be 'keep' or 'adapt' (or omitted)")
     if request.word_selection not in ("algorithmic", "llm"):
         raise HTTPException(status_code=400, detail="word_selection must be 'algorithmic' or 'llm'")
-    if request.pregenerate_audio not in ("none", "espeak"):
-        raise HTTPException(
-            status_code=400,
-            detail="pregenerate_audio must be 'none' or 'espeak' here -- 'sapi'/'auto' can take tens of minutes "
-            "for a full vocabulary (measured), too long for a synchronous request; use the CLI's own "
-            "`generate --pregenerate-audio sapi|auto` for those.",
-        )
+    if request.pregenerate_audio not in ("none", "espeak", "sapi", "auto"):
+        raise HTTPException(status_code=400, detail="pregenerate_audio must be 'none', 'espeak', 'sapi' or 'auto'")
     unknown_traits = set(request.trait_overrides) - set(GRADED_TRAIT_FIELDS)
     if unknown_traits:
         raise HTTPException(
@@ -760,10 +778,12 @@ def pronounce(request: PronounceRequest) -> Response:
         raise HTTPException(status_code=400, detail="ipa must not be empty")
     if request.tts == "auto":
         client_for_word = engine_selection.auto_client_for_word(
-            request.ipa, tts.available_engine_kinds(), cache_dir=CACHE_DIR / "tts_cache"
+            request.ipa, tts.available_engine_kinds(), cache_dir=CACHE_DIR / "tts_cache",
+            sapi_worker=_get_sapi_worker(),
         )
     else:
-        client = tts.build_tts_client(request.tts)
+        sapi_worker = _get_sapi_worker() if request.tts == "sapi" else None
+        client = tts.build_tts_client(request.tts, sapi_worker=sapi_worker)
         if hasattr(client, "for_utterance"):  # engines that pick a voice per sentence (eSpeak's tonal one)
             client = client.for_utterance(request.ipa)
         client = tts_cache.CachingTTSClient(client, CACHE_DIR / "tts_cache")

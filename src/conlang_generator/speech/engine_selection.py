@@ -20,6 +20,7 @@ from pathlib import Path
 from conlang_generator.speech import phoneme_coverage, tts, tts_cache
 from conlang_generator.speech.ipa_to_kirshenbaum import Fidelity
 from conlang_generator.speech.phoneme_coverage import FIDELITY_RANK
+from conlang_generator.speech.sapi_worker import SapiWorker
 from conlang_generator.speech.tts import TTSClient
 
 NATURALNESS: dict[str, int] = {"sapi": 2, "espeak": 1}
@@ -54,7 +55,10 @@ def choose_engine(ipa_word: str, candidates: Sequence[str]) -> EngineChoice | No
 
 
 def auto_client_for_word(
-    ipa_sentence: str, candidate_kinds: Sequence[str], cache_dir: Path | None = None
+    ipa_sentence: str,
+    candidate_kinds: Sequence[str],
+    cache_dir: Path | None = None,
+    sapi_worker: SapiWorker | None = None,
 ) -> Callable[[str], TTSClient]:
     """A ``word -> TTSClient`` function for voicing a whole sentence with
     automatic per-word engine choice. Resolves ``for_utterance`` once per
@@ -66,7 +70,10 @@ def auto_client_for_word(
     switch voices mid-sentence; grouping by assigned engine first
     preserves that guarantee within eSpeak's own share of a mixed-engine
     sentence instead of silently breaking it. ``cache_dir``, when given,
-    wraps each resolved client in ``tts_cache.CachingTTSClient``."""
+    wraps each resolved client in ``tts_cache.CachingTTSClient``.
+    ``sapi_worker``, when given, lets a `"sapi"`-assigned group reuse a
+    persistent process instead of paying a fresh startup cost (see
+    ``speech.sapi_worker.SapiWorker``) -- ignored by every other kind."""
     words = ipa_sentence.split()
     choice_by_word = {word: choose_engine(word, candidate_kinds) for word in set(words)}
     words_by_kind: dict[str, list[str]] = {}
@@ -76,7 +83,7 @@ def auto_client_for_word(
             words_by_kind.setdefault(choice.kind, []).append(word)
     resolved: dict[str, TTSClient] = {}
     for kind, assigned in words_by_kind.items():
-        client = tts.build_tts_client(kind).for_utterance(" ".join(assigned))
+        client = tts.build_tts_client(kind, sapi_worker=sapi_worker).for_utterance(" ".join(assigned))
         resolved[kind] = tts_cache.CachingTTSClient(client, cache_dir) if cache_dir is not None else client
     none_client = tts.NoneTTSClient()
 
