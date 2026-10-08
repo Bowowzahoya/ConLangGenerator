@@ -133,6 +133,40 @@ def test_the_cli_pronounce_command_auto_tts_warns_when_even_the_best_engine_only
     assert "Audio saved to" in result.output
 
 
+def test_the_cli_pronounce_command_caches_audio_across_separate_invocations(tmp_path, monkeypatch):
+    # DEFERRED.md's "audio cache" item -- a repeated `pronounce` call for
+    # the same word must not re-synthesize, even across separate CLI
+    # invocations (the cache lives on disk under CACHE_DIR, not in memory).
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.speech import tts
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language("cli-cache-test", GenerationSpec(prompt="p", seed=1), FakeLLMClient())
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+    gloss = language.lexicon.entries[0].glosses[0]
+
+    calls = {"count": 0}
+    real_synthesize = tts.EspeakTTSClient.synthesize
+
+    def counting_synthesize(self, ipa_text, output_path):
+        calls["count"] += 1
+        return real_synthesize(self, ipa_text, output_path)
+
+    monkeypatch.setattr(tts.EspeakTTSClient, "synthesize", counting_synthesize)
+
+    first = CliRunner().invoke(cli_main.app, ["pronounce", gloss, "--lang", "cli-cache-test", "--tts", "espeak"])
+    second = CliRunner().invoke(cli_main.app, ["pronounce", gloss, "--lang", "cli-cache-test", "--tts", "espeak"])
+    assert first.exit_code == 0 and second.exit_code == 0
+    assert calls["count"] == 1  # the second invocation was served from the on-disk cache
+
+
 def test_the_web_api_lists_capabilities_and_checks_a_translation():
     client = TestClient(app)
     options = client.get("/api/options").json()

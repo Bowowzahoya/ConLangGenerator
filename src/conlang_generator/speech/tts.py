@@ -114,6 +114,16 @@ class TTSClient(Protocol):
         the sentence keeps one voice)."""
         ...
 
+    def cache_identity(self) -> str:
+        """A string that fully determines this client's own synthesis
+        output for a given ``ipa_text`` -- two clients with the same
+        identity produce byte-identical audio for the same input, so
+        ``speech.tts_cache.CachingTTSClient`` can key a cache entry on
+        ``(identity, ipa_text)`` alone. Must reflect every constructor
+        argument that changes output (e.g. eSpeak's own voice/tones), not
+        just the engine kind."""
+        ...
+
 
 class NoneTTSClient:
     """The default -- no audio synthesis, matching this project's
@@ -127,6 +137,9 @@ class NoneTTSClient:
 
     def for_utterance(self, ipa_text: str) -> "TTSClient":
         return self
+
+    def cache_identity(self) -> str:
+        return "none"
 
 
 def _find_espeak_ng() -> str | None:
@@ -182,6 +195,9 @@ class EspeakTTSClient:
             return self
         return EspeakTTSClient(voice=_ESPEAK_TONE_VOICE, tones=True)
 
+    def cache_identity(self) -> str:
+        return f"espeak:{self.voice}:{self.tones}"
+
     def synthesize(self, ipa_text: str, output_path: Path) -> bool:
         exe = _find_espeak_ng()
         if exe is None:
@@ -233,6 +249,9 @@ class SapiTTSClient:
 
     def for_utterance(self, ipa_text: str) -> "TTSClient":
         return self
+
+    def cache_identity(self) -> str:
+        return "sapi"
 
     def synthesize(self, ipa_text: str, output_path: Path) -> bool:
         if not sys.platform.startswith("win"):

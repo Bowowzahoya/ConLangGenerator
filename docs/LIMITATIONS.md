@@ -200,6 +200,14 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
 - **`"auto"` only ever considers the two engines that exist today (eSpeak, SAPI).** No ranking/coverage
   data exists yet for a future engine (Piper, a paid cloud engine) -- adding one needs its own coverage
   curation, not just adding its name to a candidate list.
+- **The audio cache never expires and is never invalidated.** `speech.tts_cache.CachingTTSClient` stores
+  one `.wav` file per `(engine identity, IPA text)` combination under `CACHE_DIR / "tts_cache"` forever
+  -- there's no size cap, no eviction, and no way to force a re-synthesis short of deleting the
+  directory by hand (e.g. after fixing a real bug in an engine's own synthesis path, a stale cached
+  file would silently keep serving the old, buggy audio for already-pronounced words).
+- **Pre-generation is still deferred.** Only repeat-request caching was addressed -- a freshly generated
+  language's own lexicon is never proactively pre-synthesized, so the *first* pronunciation of any given
+  word still pays the full synthesis cost (see `docs/DEFERRED.md`).
 
 ## Grammar and translation
 

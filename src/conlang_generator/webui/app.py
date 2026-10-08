@@ -63,7 +63,7 @@ from conlang_generator.llm.cost_tracker import CostTracker
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm import pricing
 from conlang_generator.llm.pricing import DEFAULT_MODEL
-from conlang_generator.speech import engine_selection, tts
+from conlang_generator.speech import engine_selection, tts, tts_cache
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation import names
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
@@ -666,6 +666,12 @@ class PronounceRequest(BaseModel):
     tts: str = "espeak"
 
 
+_INTER_WORD_SILENCE_SECONDS = 0.05
+"""Was 0.15 -- reported as noticeably too long for a translated sentence
+to sound natural at all; real sentence-level prosody stays out of scope
+(see docs/DEFERRED.md), this just shortens the gap between words."""
+
+
 def _synthesize_sentence(client_for_word: Callable[[str], tts.TTSClient], ipa_sentence: str) -> bytes | None:
     """Every real ``TTSClient.synthesize`` is documented as a *word's*
     own IPA -> one ``.wav`` file -- a translated sentence is several
@@ -703,7 +709,7 @@ def _synthesize_sentence(client_for_word: Callable[[str], tts.TTSClient], ipa_se
                 with wave.open(str(path), "rb") as wf:
                     if params is None:
                         params = wf.getparams()
-                        silence = b"\x00" * int(0.15 * params.framerate) * params.sampwidth * params.nchannels
+                        silence = b"\x00" * int(_INTER_WORD_SILENCE_SECONDS * params.framerate) * params.sampwidth * params.nchannels
                     elif (wf.getframerate(), wf.getnchannels(), wf.getsampwidth()) != (
                         params.framerate, params.nchannels, params.sampwidth,
                     ):
@@ -733,11 +739,14 @@ def pronounce(request: PronounceRequest) -> Response:
     if not request.ipa.strip():
         raise HTTPException(status_code=400, detail="ipa must not be empty")
     if request.tts == "auto":
-        client_for_word = engine_selection.auto_client_for_word(request.ipa, tts.available_engine_kinds())
+        client_for_word = engine_selection.auto_client_for_word(
+            request.ipa, tts.available_engine_kinds(), cache_dir=CACHE_DIR / "tts_cache"
+        )
     else:
         client = tts.build_tts_client(request.tts)
         if hasattr(client, "for_utterance"):  # engines that pick a voice per sentence (eSpeak's tonal one)
             client = client.for_utterance(request.ipa)
+        client = tts_cache.CachingTTSClient(client, CACHE_DIR / "tts_cache")
         client_for_word = lambda _word: client  # noqa: E731
     audio = _synthesize_sentence(client_for_word, request.ipa)
     if audio is None:

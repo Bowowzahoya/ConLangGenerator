@@ -77,6 +77,17 @@ def test_find_espeak_ng_returns_none_when_nothing_is_found(monkeypatch):
     assert tts._find_espeak_ng() is None
 
 
+def test_cache_identity_reflects_every_constructor_argument_that_changes_output():
+    # Two EspeakTTSClient instances differing only in voice/tones must have
+    # different identities -- speech.tts_cache.CachingTTSClient relies on
+    # this to never conflate two clients that would actually synthesize
+    # different audio for the same text.
+    assert tts.EspeakTTSClient().cache_identity() != tts.EspeakTTSClient(voice="cmn", tones=True).cache_identity()
+    assert tts.EspeakTTSClient().cache_identity() == tts.EspeakTTSClient().cache_identity()
+    assert tts.SapiTTSClient().cache_identity() == "sapi"
+    assert tts.NoneTTSClient().cache_identity() == "none"
+
+
 def test_available_backends_none_is_always_true():
     assert tts.available_backends()["none"] is True
 

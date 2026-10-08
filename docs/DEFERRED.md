@@ -309,14 +309,13 @@ multi-session feature.
   Not addressed by the per-word engine selection below -- that picks
   *between* eSpeak and SAPI per word, it doesn't change how eSpeak itself
   voices a tone once chosen.
-- **Long, fixed pauses between words when a sentence is voiced (S); real
-  sentence-level intonation/stress/coarticulation stays explicitly out of
-  scope (M+, deliberately not pursued now).** By explicit decision, this
-  project is prioritizing word-level correctness and naturalness over
-  sentence-level prosody for now -- sentence assembly otherwise stays as
-  today's per-word concatenation. The one small, still-worthwhile fix in
-  scope immediately: the fixed silence between words is noticeably too
-  long and should just be shortened.
+- **Long, fixed pauses between words when a sentence is voiced -- done.**
+  `webui/app.py::_synthesize_sentence`'s own inter-word silence shortened
+  from 0.15s to 0.05s (`_INTER_WORD_SILENCE_SECONDS`). Real sentence-level
+  intonation/stress/coarticulation stays explicitly out of scope by the
+  same decision as before (word-level correctness and naturalness is the
+  priority) -- sentence assembly otherwise stays as today's per-word
+  concatenation; this was only ever the one small pacing fix in scope.
 - **Multi-engine per-word selection (was one L item, split into
   right-sized pieces after planning surfaced just how much it bundled).
   Pieces 1-2 done.** Engine choice is per *word*, never per sound within
@@ -359,17 +358,26 @@ multi-session feature.
   result to go look each sound up separately. Soundclips are synthesized
   (via the engine-selection item above -- whichever engine voices that one
   isolated sound most naturally), not sourced from real recordings.
-- **Pronunciation is slow every time, not just the first time (S-M).**
-  Repeated pronunciation re-synthesizes every word from scratch (the old
-  "audio cache" item, widened here): at minimum, cache a synthesized
-  word's audio keyed by (engine, voice, IPA) so a repeat request is
-  instant. Consider also pre-generating a freshly generated language's own
-  words up front instead of waiting for the first pronunciation request to
-  pay that cost -- weigh against a paid engine's per-call cost if one is
-  enabled (see the cost-toggle note above): eagerly pre-synthesizing an
-  entire several-hundred-word lexicon through a paid engine could get
-  expensive fast, so this likely wants its own explicit opt-in, not an
-  automatic default.
+- **Pronunciation is slow every time, not just the first time -- caching
+  done, pre-generation still open (M).** Repeated pronunciation used to
+  re-synthesize every word from scratch. Done: `speech/tts_cache.py::
+  CachingTTSClient` wraps any real `TTSClient`, keyed on `(client.
+  cache_identity(), ipa_text)` -- `cache_identity()` (new on the
+  `TTSClient` protocol) fully captures what the engine/voice/tones state
+  is, so eSpeak's own Mandarin-voice switch never collides with its
+  default voice in the cache; stored as one `.wav` file per entry under
+  `CACHE_DIR / "tts_cache"`, not a JSON blob (unlike the LLM cache --
+  audio is binary, a flat file store is the natural fit). Wired into
+  both `cli/main.py`'s `pronounce` command and `webui/app.py`'s
+  `/api/pronounce`, for every `--tts` value including `"auto"` (each
+  per-word-selected client gets its own cache entry). Still open:
+  pre-generating a freshly generated language's own words up front
+  instead of waiting for the first pronunciation request to pay that
+  cost -- weigh against a paid engine's per-call cost if one is enabled
+  (see the cost-toggle note above): eagerly pre-synthesizing an entire
+  several-hundred-word lexicon through a paid engine could get expensive
+  fast, so this likely wants its own explicit opt-in, not an automatic
+  default.
 - **Untested by ear (S).** eSpeak tone numbers for mid/low/neutral
   (33/21/11) were only length-checked.
 

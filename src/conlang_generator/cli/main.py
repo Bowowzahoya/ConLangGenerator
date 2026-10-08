@@ -32,7 +32,7 @@ from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm.pricing import DEFAULT_MODEL
-from conlang_generator.speech import engine_selection, reader
+from conlang_generator.speech import engine_selection, reader, tts_cache
 from conlang_generator.speech.tts import available_engine_kinds, build_tts_client, pronunciation_warnings
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
@@ -539,7 +539,7 @@ def pronounce(
         if choice is None:
             typer.echo("error: no TTS backend available on this machine.", err=True)
             raise typer.Exit(code=1)
-        client = build_tts_client(choice.kind)
+        client = tts_cache.CachingTTSClient(build_tts_client(choice.kind), CACHE_DIR / "tts_cache")
         if choice.notes:
             engine_label = client.capabilities().label
             typer.echo(
@@ -555,7 +555,7 @@ def pronounce(
             raise typer.Exit(code=1)
     elif tts != "none":
         try:
-            client = build_tts_client(tts)
+            client = tts_cache.CachingTTSClient(build_tts_client(tts), CACHE_DIR / "tts_cache")
         except ValueError as exc:
             typer.echo(f"error: {exc}", err=True)
             raise typer.Exit(code=1) from exc

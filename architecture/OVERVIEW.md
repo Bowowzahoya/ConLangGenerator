@@ -7035,3 +7035,42 @@ reading code or one-off ad hoc scripts.
   override design, is left to DEFERRED's own next TTS sub-item. Adding a new engine (Piper, a paid cloud
   engine) remains separate, larger, later work -- this pass only ever chooses between the two engines
   that already existed.
+
+- **Shorter inter-word pause, and an on-disk audio cache (two of the remaining small TTS backlog
+  items).** Picked up together as the next, deliberately small pass after per-word engine selection,
+  per the user's own explicit prioritization.
+
+  **Pause.** `webui/app.py::_synthesize_sentence`'s inter-word silence was reported as noticeably too
+  long; shortened from a bare `0.15` literal to a named `_INTER_WORD_SILENCE_SECONDS = 0.05` constant.
+  Real sentence-level prosody stays out of scope by the same earlier decision -- this is purely a
+  pacing tweak to the existing per-word concatenation.
+
+  **Cache (`speech/tts_cache.py`, new).** `CachingTTSClient` wraps any real `TTSClient`, mirroring
+  `llm/cache.py::CachingLLMClient`'s own shape -- but unlike the LLM cache (one flat JSON index of
+  request/response pairs), the cached content here is binary audio, so each entry is stored as its own
+  `.wav` file under `CACHE_DIR / "tts_cache"`, keyed by a hash of `(engine identity, IPA text)`. The
+  real design question was what "engine identity" means: a word's rendered audio depends on more than
+  its own IPA text -- which concrete engine, and for eSpeak which voice/tones state (its own Mandarin-
+  voice switch), also determines the output -- so a new `cache_identity()` method was added to the
+  `TTSClient` protocol itself (`"none"` for `NoneTTSClient`, `"sapi"` for `SapiTTSClient`, `f"espeak:
+  {voice}:{tones}"` for `EspeakTTSClient`), rather than trying to derive identity externally by
+  reflection. `for_utterance` on the caching wrapper re-wraps whatever the inner client's own
+  `for_utterance` returns, so a sentence that switches eSpeak to its Mandarin voice still gets a
+  correctly-identified (and thus correctly cached, never conflated with the default voice) client.
+  Wired into every synthesis call site that existed before this pass: `cli/main.py`'s `pronounce`
+  command (both its fixed-engine and `"auto"` branches) and `webui/app.py`'s `/api/pronounce` (same two
+  branches, including `engine_selection.auto_client_for_word`, which now takes an optional `cache_dir`
+  parameter). Verified directly: a second `synthesize` call for the same `(identity, text)` pair is
+  served from disk (confirmed via a counting fake client -- the real client's own `synthesize` is never
+  invoked a second time) and produces byte-identical output; two different engine identities for the
+  *same* text never share a cache entry; a failed synthesis is never cached; `for_utterance`'s result
+  stays wrapped in caching. Verified live: the CLI's `pronounce` command reused the exact same cache
+  file across two *separate* process invocations (the cache lives on disk, not in memory), and the web
+  UI's `/api/pronounce` round-tripped correctly through the browser with no console errors.
+
+  **Explicitly not done, by design**: no cache eviction, expiry, or size cap (a hobby-scale, by-hand-
+  inspectable store, same philosophy as the LLM cache) -- a stale entry from a later engine bug-fix
+  would need manual deletion of `CACHE_DIR / "tts_cache"`; no pre-generation (eagerly synthesizing a
+  freshly generated language's entire lexicon up front) -- only repeat-request caching was in scope
+  this pass, pre-generation stays its own open DEFERRED item given the real cost risk of eagerly
+  running a several-hundred-word lexicon through a future paid engine.

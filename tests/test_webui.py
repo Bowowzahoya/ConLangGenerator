@@ -7,6 +7,7 @@ exception is ``/api/pronounce``'s real-backend tests, gated behind actual
 backend availability the same way ``tests/test_tts.py`` already gates
 its own -- no LLM involved either way."""
 
+import io
 import sys
 
 import pytest
@@ -492,6 +493,35 @@ def test_pronounce_rejects_the_none_backend(client):
     assert response.status_code == 400
 
 
+def test_synthesize_sentence_inserts_exactly_one_inter_word_silence_gap(tmp_path):
+    # Direct unit test for _synthesize_sentence's own silence-insertion
+    # math (DEFERRED.md: the old 0.15s gap was reported as too long and
+    # shortened to _INTER_WORD_SILENCE_SECONDS) -- a controllable fake
+    # client with known frame counts makes the exact byte math checkable
+    # without depending on a real backend's own word-length variance.
+    import wave
+
+    framerate, sampwidth, nchannels = 16000, 2, 1
+    word_frames = 100
+
+    class _FixedLengthClient:
+        def synthesize(self, ipa_text, output_path):
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with wave.open(str(output_path), "wb") as wf:
+                wf.setnchannels(nchannels)
+                wf.setsampwidth(sampwidth)
+                wf.setframerate(framerate)
+                wf.writeframes(b"\x01\x00" * word_frames)
+            return True
+
+    audio = webui_app._synthesize_sentence(lambda _w: _FixedLengthClient(), "kat mat")
+    assert audio is not None
+    with wave.open(io.BytesIO(audio), "rb") as wf:
+        total_frames = wf.getnframes()
+    silence_frames = int(webui_app._INTER_WORD_SILENCE_SECONDS * framerate)
+    assert total_frames == 2 * word_frames + silence_frames
+
+
 def test_pronounce_rejects_empty_ipa(client):
     response = client.post("/api/pronounce", json={"ipa": "   ", "tts": "espeak"})
     assert response.status_code == 400
@@ -501,6 +531,9 @@ def test_pronounce_reports_503_when_the_backend_is_unavailable(client, monkeypat
     class _AlwaysFailsClient:
         def synthesize(self, ipa_text, output_path):
             return False
+
+        def cache_identity(self):
+            return "always-fails"
 
     monkeypatch.setattr(webui_app.tts, "build_tts_client", lambda kind: _AlwaysFailsClient())
     response = client.post("/api/pronounce", json={"ipa": "kat", "tts": "espeak"})

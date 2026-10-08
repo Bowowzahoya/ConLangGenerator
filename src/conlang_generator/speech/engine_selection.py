@@ -15,8 +15,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
-from conlang_generator.speech import phoneme_coverage, tts
+from conlang_generator.speech import phoneme_coverage, tts, tts_cache
 from conlang_generator.speech.ipa_to_kirshenbaum import Fidelity
 from conlang_generator.speech.phoneme_coverage import FIDELITY_RANK
 from conlang_generator.speech.tts import TTSClient
@@ -52,7 +53,9 @@ def choose_engine(ipa_word: str, candidates: Sequence[str]) -> EngineChoice | No
     return EngineChoice(best, fidelity, notes)
 
 
-def auto_client_for_word(ipa_sentence: str, candidate_kinds: Sequence[str]) -> Callable[[str], TTSClient]:
+def auto_client_for_word(
+    ipa_sentence: str, candidate_kinds: Sequence[str], cache_dir: Path | None = None
+) -> Callable[[str], TTSClient]:
     """A ``word -> TTSClient`` function for voicing a whole sentence with
     automatic per-word engine choice. Resolves ``for_utterance`` once per
     *engine kind actually used in this sentence*, against only the words
@@ -62,7 +65,8 @@ def auto_client_for_word(ipa_sentence: str, candidate_kinds: Sequence[str]) -> C
     in the Mandarin voice" so a toneless word next to a tonal one doesn't
     switch voices mid-sentence; grouping by assigned engine first
     preserves that guarantee within eSpeak's own share of a mixed-engine
-    sentence instead of silently breaking it."""
+    sentence instead of silently breaking it. ``cache_dir``, when given,
+    wraps each resolved client in ``tts_cache.CachingTTSClient``."""
     words = ipa_sentence.split()
     choice_by_word = {word: choose_engine(word, candidate_kinds) for word in set(words)}
     words_by_kind: dict[str, list[str]] = {}
@@ -70,10 +74,10 @@ def auto_client_for_word(ipa_sentence: str, candidate_kinds: Sequence[str]) -> C
         choice = choice_by_word[word]
         if choice is not None:
             words_by_kind.setdefault(choice.kind, []).append(word)
-    resolved = {
-        kind: tts.build_tts_client(kind).for_utterance(" ".join(assigned))
-        for kind, assigned in words_by_kind.items()
-    }
+    resolved: dict[str, TTSClient] = {}
+    for kind, assigned in words_by_kind.items():
+        client = tts.build_tts_client(kind).for_utterance(" ".join(assigned))
+        resolved[kind] = tts_cache.CachingTTSClient(client, cache_dir) if cache_dir is not None else client
     none_client = tts.NoneTTSClient()
 
     def client_for_word(word: str) -> TTSClient:
