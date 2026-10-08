@@ -179,6 +179,28 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   word and only applies to rules that rewrite the earlier syllable.
   Tonogenesis is only modeled through coda-`ʔ` loss.
 
+## Pronunciation (TTS)
+
+- **The per-engine phoneme coverage rating is an approximation, not a measured fact, especially for
+  SAPI.** `speech.phoneme_coverage.symbol_fidelity` rates eSpeak directly from `ipa_to_kirshenbaum.
+  convert_symbol`'s own fallback path (a real signal: whether a clean 1:1 mapping exists, or one was
+  reached only by dropping a real distinction). SAPI has no equivalent conversion step to introspect
+  (it passes IPA straight through to an opaque real OS voice), so its rating rests on a small curated
+  table of plain English phonemes (`SAPI_EXACT_SYMBOLS`, ~39 symbols) plus a feature-flag heuristic
+  (ejective/breathy/pharyngealized/pharyngeal/click -> "poor", everything else outside the curated
+  table -> "approximate") -- never verified by ear against a real installed voice.
+- **Fidelity is about the IPA-to-engine-input mapping, not the acoustic output.** A bare click (e.g.
+  `ǀ`) rates "exact" for eSpeak because Kirshenbaum has a real, dedicated click letter for it -- whether
+  espeak-ng's own synthesizer actually produces an audible click is a separate question this project
+  has never verified for any symbol, by any engine (see "Untested by ear" in `docs/DEFERRED.md`).
+- **Per-word engine selection never mixes engines within one word.** A word is voiced entirely by
+  whichever single engine wins for it; there's no attempt to splice different engines' audio together
+  for an individual word's own mixed-fidelity sounds (matching pitch/timbre/volume at a mid-word seam
+  would be its own separate, harder problem).
+- **`"auto"` only ever considers the two engines that exist today (eSpeak, SAPI).** No ranking/coverage
+  data exists yet for a future engine (Piper, a paid cloud engine) -- adding one needs its own coverage
+  curation, not just adding its name to a candidate list.
+
 ## Grammar and translation
 
 - **Translation is LLM-planned.** A sentence is turned

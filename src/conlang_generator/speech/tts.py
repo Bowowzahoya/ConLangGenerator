@@ -269,20 +269,48 @@ def available_backends() -> dict[str, bool]:
     """Which backends are actually usable right now on this machine --
     for a caller (``webui/app.py``'s own ``/api/options``) that wants to
     only offer a real choice, not silently fail after the fact.
-    ``"none"`` is always ``True`` (it just does nothing)."""
-    return {
-        "none": True,
+    ``"none"`` is always ``True`` (it just does nothing). ``"auto"``
+    (``speech.engine_selection``'s per-word selection) is usable whenever
+    at least one *real* backend is."""
+    real = {
         "espeak": _find_espeak_ng() is not None,
         "sapi": sys.platform.startswith("win"),
     }
+    return {"none": True, **real, "auto": any(real.values())}
+
+
+def available_engine_kinds() -> tuple[str, ...]:
+    """Just the real backend kinds (never ``"none"``/``"auto"``) that are
+    actually usable right now -- the candidate list ``engine_selection``'s
+    per-word choice picks from."""
+    return tuple(kind for kind, usable in available_backends().items() if kind not in ("none", "auto") and usable)
 
 
 def backend_capabilities() -> dict[str, dict]:
-    """``{backend: capabilities}`` for every backend, for the UI's info line."""
-    return {kind: build_tts_client(kind).capabilities().as_dict() for kind in ("none", "espeak", "sapi")}
+    """``{backend: capabilities}`` for every backend, for the UI's info
+    line. ``"auto"`` has no single client of its own (a per-word choice
+    needs a different client per word -- see ``speech.engine_
+    selection``), so its capabilities are assembled here directly: it can
+    voice whichever tones *any* currently-available real backend can,
+    since it may end up picking any of them for a given tonal word."""
+    caps = {kind: build_tts_client(kind).capabilities() for kind in ("none", "espeak", "sapi")}
+    available_tones: frozenset[ToneLevel] = frozenset()
+    for kind in available_engine_kinds():
+        available_tones |= caps[kind].tones
+    caps["auto"] = TTSCapabilities(
+        "Auto (best engine per word)",
+        available_tones,
+        (
+            "Picks whichever available engine covers each word's own sounds best, falling back to "
+            "the closest approximate match when none covers it exactly.",
+            "A word's own pronunciation-check result reports which engine was picked and why.",
+        ),
+    )
+    return {kind: cap.as_dict() for kind, cap in caps.items()}
 
 
 __all__ = [
     "TTSClient", "TTSCapabilities", "NoneTTSClient", "EspeakTTSClient", "SapiTTSClient",
-    "build_tts_client", "available_backends", "backend_capabilities", "pronunciation_warnings", "tones_in",
+    "build_tts_client", "available_backends", "available_engine_kinds", "backend_capabilities",
+    "pronunciation_warnings", "tones_in",
 ]

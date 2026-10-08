@@ -24,6 +24,7 @@ import io
 import json
 import uuid
 import wave
+from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
@@ -62,7 +63,7 @@ from conlang_generator.llm.cost_tracker import CostTracker
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm import pricing
 from conlang_generator.llm.pricing import DEFAULT_MODEL
-from conlang_generator.speech import tts
+from conlang_generator.speech import engine_selection, tts
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation import names
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
@@ -665,7 +666,7 @@ class PronounceRequest(BaseModel):
     tts: str = "espeak"
 
 
-def _synthesize_sentence(client: tts.TTSClient, ipa_sentence: str) -> bytes | None:
+def _synthesize_sentence(client_for_word: Callable[[str], tts.TTSClient], ipa_sentence: str) -> bytes | None:
     """Every real ``TTSClient.synthesize`` is documented as a *word's*
     own IPA -> one ``.wav`` file -- a translated sentence is several
     words separated by plain spaces, which neither backend's own
@@ -679,7 +680,12 @@ def _synthesize_sentence(client: tts.TTSClient, ipa_sentence: str) -> bytes | No
     short silence between words for intelligibility) into one combined
     in-memory ``.wav`` -- ``None`` if any single word's own synthesis
     fails, matching every ``TTSClient``'s own "unavailable/failed is a
-    normal, non-exceptional state" contract."""
+    normal, non-exceptional state" contract. ``client_for_word`` is a
+    plain ``lambda w: client`` for a fixed-engine request, or
+    ``engine_selection.auto_client_for_word``'s own per-word choice for
+    ``"auto"`` -- letting each word pick its own client independently is
+    exactly what ``"auto"`` needs, and costs the fixed-engine path
+    nothing since it's still just one client called repeatedly."""
     words = ipa_sentence.split()
     if not words:
         return None
@@ -692,7 +698,7 @@ def _synthesize_sentence(client: tts.TTSClient, ipa_sentence: str) -> bytes | No
             # A word the backend can't render (or renders as an unreadable
             # file) is skipped rather than failing the whole sentence.
             try:
-                if not client.synthesize(word_ipa, path):
+                if not client_for_word(word_ipa).synthesize(word_ipa, path):
                     continue
                 with wave.open(str(path), "rb") as wf:
                     if params is None:
@@ -722,14 +728,18 @@ def _synthesize_sentence(client: tts.TTSClient, ipa_sentence: str) -> bytes | No
 
 @app.post("/api/pronounce")
 def pronounce(request: PronounceRequest) -> Response:
-    if request.tts not in ("espeak", "sapi"):
-        raise HTTPException(status_code=400, detail="tts must be 'espeak' or 'sapi'")
+    if request.tts not in ("espeak", "sapi", "auto"):
+        raise HTTPException(status_code=400, detail="tts must be 'espeak', 'sapi' or 'auto'")
     if not request.ipa.strip():
         raise HTTPException(status_code=400, detail="ipa must not be empty")
-    client = tts.build_tts_client(request.tts)
-    if hasattr(client, "for_utterance"):  # engines that pick a voice per sentence (eSpeak's tonal one)
-        client = client.for_utterance(request.ipa)
-    audio = _synthesize_sentence(client, request.ipa)
+    if request.tts == "auto":
+        client_for_word = engine_selection.auto_client_for_word(request.ipa, tts.available_engine_kinds())
+    else:
+        client = tts.build_tts_client(request.tts)
+        if hasattr(client, "for_utterance"):  # engines that pick a voice per sentence (eSpeak's tonal one)
+            client = client.for_utterance(request.ipa)
+        client_for_word = lambda _word: client  # noqa: E731
+    audio = _synthesize_sentence(client_for_word, request.ipa)
     if audio is None:
         raise HTTPException(status_code=503, detail=f"'{request.tts}' TTS backend unavailable or synthesis failed.")
     return Response(content=audio, media_type="audio/wav")
@@ -739,9 +749,17 @@ def pronounce(request: PronounceRequest) -> Response:
 def pronunciation_check(request: PronounceRequest) -> dict:
     """What the chosen pronunciation engine can't voice in this IPA (today:
     tones), plus its own capability summary -- the UI shows the alerts before
-    (and again with) any playback."""
-    if request.tts not in ("none", "espeak", "sapi"):
-        raise HTTPException(status_code=400, detail="tts must be 'none', 'espeak' or 'sapi'")
+    (and again with) any playback. ``"auto"`` has no single engine's own
+    capabilities to check against -- its warnings instead come from each
+    word's own per-engine selection (``engine_selection.auto_pronunciation_
+    warnings``), reporting which word fell short and why."""
+    if request.tts not in ("none", "espeak", "sapi", "auto"):
+        raise HTTPException(status_code=400, detail="tts must be 'none', 'espeak', 'sapi' or 'auto'")
+    if request.tts == "auto":
+        return {
+            "capabilities": tts.backend_capabilities()["auto"],
+            "warnings": engine_selection.auto_pronunciation_warnings(request.ipa, tts.available_engine_kinds()),
+        }
     capabilities = tts.build_tts_client(request.tts).capabilities()
     return {
         "capabilities": capabilities.as_dict(),

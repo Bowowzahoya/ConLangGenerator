@@ -32,8 +32,8 @@ from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm.pricing import DEFAULT_MODEL
-from conlang_generator.speech import reader
-from conlang_generator.speech.tts import build_tts_client, pronunciation_warnings
+from conlang_generator.speech import engine_selection, reader
+from conlang_generator.speech.tts import available_engine_kinds, build_tts_client, pronunciation_warnings
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
 
@@ -495,7 +495,10 @@ def pronounce(
     word: str = typer.Argument(..., help="An English gloss or a conlang word (romanized or IPA form)."),
     lang: str = typer.Option(..., "--lang", help="Language name."),
     tts: str = typer.Option(
-        "none", "--tts", help="Audio synthesis backend: none, espeak (espeak-ng, once installed), or sapi (Windows only)."
+        "none",
+        "--tts",
+        help="Audio synthesis backend: none, espeak (espeak-ng, once installed), sapi (Windows only), "
+        "or auto (best engine per word).",
     ),
 ) -> None:
     """Show IPA and romanization for a known word, optionally synthesizing real audio."""
@@ -527,7 +530,30 @@ def pronounce(
     if spoken_ipa != entry.ipa:
         typer.echo(f"Pronounced (tone sandhi): /{spoken_ipa}/")
 
-    if tts != "none":
+    if tts == "auto":
+        # Single word, so engine_selection.auto_client_for_word's own
+        # sentence-grouping (needed for a multi-word for_utterance
+        # guarantee) isn't needed here -- a direct choose_engine call is
+        # simpler and correct for N=1.
+        choice = engine_selection.choose_engine(spoken_ipa, available_engine_kinds())
+        if choice is None:
+            typer.echo("error: no TTS backend available on this machine.", err=True)
+            raise typer.Exit(code=1)
+        client = build_tts_client(choice.kind)
+        if choice.notes:
+            engine_label = client.capabilities().label
+            typer.echo(
+                f"warning: '{spoken_ipa}' is only {choice.fidelity}ly covered by {engine_label}: "
+                f"{'; '.join(choice.notes)}.",
+                err=True,
+            )
+        output_path = CACHE_DIR / "audio" / f"{lang}-{entry.primary_gloss}.wav"
+        if client.synthesize(spoken_ipa, output_path):
+            typer.echo(f"Audio saved to {output_path} (voiced with {choice.kind})")
+        else:
+            typer.echo(f"error: '{choice.kind}' TTS backend unavailable or synthesis failed.", err=True)
+            raise typer.Exit(code=1)
+    elif tts != "none":
         try:
             client = build_tts_client(tts)
         except ValueError as exc:

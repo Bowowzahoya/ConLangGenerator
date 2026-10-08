@@ -1385,12 +1385,13 @@ IPA: /njáˈsí/  Romanized: nyásí  Tone contour: ˥˥ (55) ˥˥ (55)
 Pronounced (tone sandhi): /njáˈsì/
 ```
 
-`--tts {none,espeak,sapi}` (default `none`) synthesizes the word's own
-*spoken* pronunciation (the post-sandhi form above, when sandhi applies)
-to a `.wav` file under `./.cache/audio/`. Before attempting synthesis, it
-also prints a warning (to stderr) for any tone in the word the chosen
-engine genuinely can't voice -- the same check the web UI's own
-`/api/pronunciation-check` makes, so a CLI user gets the same heads-up:
+`--tts {none,espeak,sapi,auto}` (default `none`) synthesizes the word's
+own *spoken* pronunciation (the post-sandhi form above, when sandhi
+applies) to a `.wav` file under `./.cache/audio/`. Before attempting
+synthesis, it also prints a warning (to stderr) for any tone in the word
+the chosen engine genuinely can't voice -- the same check the web UI's
+own `/api/pronunciation-check` makes, so a CLI user gets the same
+heads-up:
 
 ```bash
 conlang pronounce "on" --lang zulu-doc --tts sapi
@@ -1410,6 +1411,42 @@ Mandarin voice instead, so the same word under `--tts espeak` prints no
 warning. The warning only fires when a synthesis backend is actually
 selected -- `--tts none` (the default) never checks or prints it, since
 nothing gets synthesized to warn about.
+
+`--tts auto` picks whichever of `espeak`/`sapi` actually covers the
+word's own sounds best (`speech.phoneme_coverage`'s per-phoneme
+exact/approximate/poor rating, not just the tones-only check the two
+fixed engines get), breaking a tie between equally-covering engines by
+a small naturalness rank (SAPI's real OS voice over eSpeak's formant
+synthesis). When even the best available engine only approximates
+something, it says so -- naming the actual reason, not just "approximate":
+
+```bash
+conlang pronounce "we" --lang doc-auto-test --tts auto
+```
+
+```
+IPA: /ʁã/  Romanized: řã
+warning: 'ʁã' is only approximately covered by Windows SAPI: some sounds in this word are only approximated.
+Audio saved to .cache\audio\doc-auto-test-we.wav (voiced with sapi)
+```
+
+A word eSpeak covers exactly (even one with an ejective -- Kirshenbaum
+has a real ejective marker for affricates, just not for plain stops)
+gets no warning at all, and the output names which engine was actually
+picked:
+
+```bash
+conlang pronounce "weak" --lang doc-auto-test --tts auto
+```
+
+```
+IPA: /tʃʼa/  Romanized: č̓a
+Audio saved to .cache\audio\doc-auto-test-weak.wav (voiced with espeak)
+```
+
+`--tts auto` is not the default for either `pronounce` or the web UI's
+own Translate tab -- see `docs/DEFERRED.md`'s next TTS sub-item for
+whether it should become one.
 
 ## `conlang audit-lexicons`
 

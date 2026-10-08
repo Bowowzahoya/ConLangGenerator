@@ -10,6 +10,14 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+CLICK_CHARACTERS: frozenset[str] = frozenset("ǀǃǂǁʘ")
+"""Clicks are not a first-class ``Manner`` -- a click consonant's own
+``manner`` is whatever its accompaniment is (e.g. ``STOP``/``NASAL``),
+with the click itself identified only by one of these literal characters
+inside ``ipa``. Consulted wherever a caller needs to know "is this a
+click" without its own dedicated field (e.g. ``speech.phoneme_
+coverage``'s SAPI fidelity rating)."""
+
 
 class Place(str, Enum):
     BILABIAL = "bilabial"

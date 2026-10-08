@@ -29,9 +29,16 @@ def _tone(base: str, level: ToneLevel) -> str:
 
 def test_each_engine_lists_what_it_can_and_cannot_voice():
     caps = tts.backend_capabilities()
-    assert set(caps) == {"none", "espeak", "sapi"}
+    assert set(caps) == {"none", "espeak", "sapi", "auto"}
     assert set(caps["espeak"]["tones"]) == {level.value for level in ToneLevel}
     assert caps["sapi"]["tones"] == [] and caps["none"]["tones"] == []
+    # "auto" can voice whatever tones any currently-available real engine
+    # can -- the union across whichever of eSpeak/SAPI are actually usable
+    # right now, not a fixed set.
+    expected_auto_tones = set()
+    for kind in tts.available_engine_kinds():
+        expected_auto_tones |= set(caps[kind]["tones"])
+    assert set(caps["auto"]["tones"]) == expected_auto_tones
     assert all(entry["notes"] for entry in caps.values())
 
 
@@ -80,17 +87,100 @@ def test_the_cli_pronounce_command_warns_about_an_unvoiceable_tone(tmp_path, mon
     assert plain.exit_code == 0
     assert "cannot voice" not in plain.output
 
+    # --tts auto should pick eSpeak for this tonal word instead (it voices
+    # every tone via its Mandarin voice; SAPI strips them) -- no warning
+    # at all, unlike the forced --tts sapi case above, and the audio
+    # still saves, naming which engine actually voiced it.
+    auto_result = CliRunner().invoke(
+        cli_main.app, ["pronounce", tonal_entry.glosses[0], "--lang", "cli-tone-test", "--tts", "auto"]
+    )
+    assert auto_result.exit_code == 0
+    assert "warning:" not in auto_result.output
+    assert "Audio saved to" in auto_result.output and "espeak" in auto_result.output
+
+
+def test_the_cli_pronounce_command_auto_tts_warns_when_even_the_best_engine_only_approximates(tmp_path, monkeypatch):
+    # An ejective word: eSpeak only approximates it, SAPI poorly -- auto
+    # still picks eSpeak (the better of the two) but should name the
+    # actual shortfall, not stay silent about it.
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language("cli-auto-test", GenerationSpec(prompt="p", seed=1), FakeLLMClient())
+    # Force one lexicon entry's IPA to carry an ejective, regardless of
+    # whether this seed's own generation happens to roll one -- the point
+    # here is the CLI's own reporting, not phonology generation odds.
+    entry = language.lexicon.entries[0]
+    forced = entry.model_copy(update={"ipa": "kʼa"})
+    language = language.model_copy(update={"lexicon": language.lexicon.model_copy(update={
+        "entries": (forced,) + language.lexicon.entries[1:]
+    })})
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+
+    result = CliRunner().invoke(
+        cli_main.app, ["pronounce", forced.glosses[0], "--lang", "cli-auto-test", "--tts", "auto"]
+    )
+    assert result.exit_code == 0
+    assert "warning:" in result.output
+    assert "espeak" in result.output or "eSpeak" in result.output
+    assert "Audio saved to" in result.output
+
 
 def test_the_web_api_lists_capabilities_and_checks_a_translation():
     client = TestClient(app)
     options = client.get("/api/options").json()
-    assert set(options["tts_capabilities"]) == {"none", "espeak", "sapi"}
+    assert set(options["tts_capabilities"]) == {"none", "espeak", "sapi", "auto"}
     ipa = _tone("ma", ToneLevel.FALLING)
     sapi = client.post("/api/pronunciation-check", json={"ipa": ipa, "tts": "sapi"}).json()
     assert sapi["warnings"] and sapi["capabilities"]["label"] == "Windows SAPI"
     assert client.post("/api/pronunciation-check", json={"ipa": ipa, "tts": "espeak"}).json()["warnings"] == []
     assert client.post("/api/pronunciation-check", json={"ipa": ipa, "tts": "none"}).json()["warnings"] == []
     assert client.post("/api/pronunciation-check", json={"ipa": ipa, "tts": "bogus"}).status_code == 400
+
+
+def test_the_web_api_auto_pronunciation_check_reports_per_word_engine_gaps():
+    client = TestClient(app)
+    # A plain word plus an ejective one -- only the ejective word should
+    # produce a warning, since eSpeak covers it merely approximately and
+    # SAPI poorly, while the plain word is exact under at least one engine.
+    ipa = "mata kʼa"
+    result = client.post("/api/pronunciation-check", json={"ipa": ipa, "tts": "auto"}).json()
+    assert result["capabilities"]["label"] == "Auto (best engine per word)"
+    assert len(result["warnings"]) == 1
+    assert "kʼa" in result["warnings"][0]
+
+
+def test_auto_pronounce_endpoint_synthesizes_with_a_monkeypatched_backend(monkeypatch):
+    from conlang_generator.speech import tts as tts_module
+
+    monkeypatch.setattr(tts_module, "available_backends", lambda: {"none": True, "espeak": True, "sapi": False, "auto": True})
+    monkeypatch.setattr(tts_module, "available_engine_kinds", lambda: ("espeak",))
+
+    def fake_synthesize(self, ipa_text, output_path):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        import wave
+
+        with wave.open(str(output_path), "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(16000)
+            wf.writeframes(b"\x00\x00" * 100)
+        return True
+
+    monkeypatch.setattr(tts_module.EspeakTTSClient, "synthesize", fake_synthesize)
+
+    client = TestClient(app)
+    response = client.post("/api/pronounce", json={"ipa": "mata", "tts": "auto"})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "audio/wav"
+    assert len(response.content) > 0
 
 
 # --- the eSpeak tone path ---------------------------------------------------

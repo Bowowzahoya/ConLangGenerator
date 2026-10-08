@@ -24,15 +24,33 @@ nearest manner-of-articulation letter.
 Tone and word-accent marks have no real espeak-ng equivalent at all (it
 has no lexical-tone input mechanism) and are dropped entirely -- a known,
 permanent limitation, not something this module pretends to solve.
+
+``convert_symbol`` reports which of the above actually happened for a
+given symbol (``SymbolConversion.fidelity`` -- exact/approximate/poor),
+not just the resulting mnemonic -- ``speech.phoneme_coverage`` builds
+eSpeak's own per-word coverage rating directly from it, rather than
+duplicating this module's own fallback logic in a second table.
 """
 
 from __future__ import annotations
 
 import unicodedata
+from dataclasses import dataclass
+from typing import Literal
 
 from conlang_generator.core.phonology import TONE_DIACRITICS, ToneLevel
 from conlang_generator.core.romanization import STRESS_MARK, WORD_ACCENT_MARK
 from conlang_generator.generation import ipa_tokenizer, phonology_gen
+
+Fidelity = Literal["exact", "approximate", "poor"]
+"""How faithfully a symbol's own Kirshenbaum mnemonic represents it --
+consumed by ``speech.phoneme_coverage`` to build eSpeak's own per-word
+coverage rating (see that module's docstring). ``"exact"``: a clean 1:1
+mapping, or one that only appended a lossless marker (length/
+nasalization); ``"approximate"``: a real distinction (ejective/
+aspirated/palatalized/pharyngealized/breathy/...) was dropped to reach a
+mapping; ``"poor"``: a last-resort fallback with no principled mapping
+at all."""
 
 _ALL_SYMBOLS: tuple[str, ...] = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(
     v.ipa for v in phonology_gen.ALL_VOWELS
@@ -114,10 +132,35 @@ Matched against the **NFD-decomposed** form of the symbol (see
 (one real Unicode codepoint, U+00E3) in this project's own phoneme pool,
 unlike every other modifier here, which is already its own standalone
 character -- normalizing first means both cases fall through the same
-single code path instead of needing a separate one for nasalization."""
+single code path instead of needing a separate one for nasalization.
+
+A modifier's own ``replacement`` tells fidelity apart too: length/
+nasalization *append* a real Kirshenbaum marker (non-empty
+``replacement``) -- nothing about the symbol is lost, so stripping only
+these keeps ``"exact"`` fidelity; every other modifier here is stripped
+to nothing (empty ``replacement``) -- a genuine loss of distinctiveness,
+downgrading fidelity to ``"approximate"``."""
+
+_APPROXIMATE_DIRECT_HITS: frozenset[str] = frozenset(
+    {"ɟ", "ʜ", "ʢ", "ɰ", "ɱ", "ʁ", "ʋ", "ɥ", "mb", "nd", "ŋg", "nz"}
+)
+"""Direct ``_BASE_BY_IPA`` entries that are themselves already-documented
+approximations, not real 1:1 mappings -- each traceable to that table's
+own comments ("no clean single letter"/"no real Kirshenbaum letter
+exists"/"the nasal onset is lost"). Without this, ``convert_symbol``
+would report these as ``"exact"`` just because they hit the table
+directly, silently defeating the whole point of a fidelity rating.
+Deliberately excludes ``"ɚ"``/``"ɻ̩"`` sharing one letter -- the table
+frames that convergence as intentional, not a loss."""
 
 
-def convert_symbol(ipa_symbol: str) -> str:
+@dataclass(frozen=True)
+class SymbolConversion:
+    mnemonic: str
+    fidelity: Fidelity
+
+
+def convert_symbol(ipa_symbol: str) -> SymbolConversion:
     """Converts one IPA symbol (already tokenized -- see ``convert_word``)
     to its own Kirshenbaum mnemonic, falling back through
     ``_MODIFIER_STRIP`` when there's no direct entry, then (for a
@@ -127,29 +170,38 @@ def convert_symbol(ipa_symbol: str) -> str:
     combinations, e.g. ``"ŋǀʼ"``) falls back to its own nearest manner-
     of-articulation letter -- a click letter for a click cluster, ``"n"``
     for an unmapped nasal, or the symbol's own first character as a last
-    resort, never a crash."""
+    resort, never a crash. Each result also carries a ``Fidelity`` rating
+    of how faithful that mnemonic actually is -- see this module's own
+    docstring and ``_APPROXIMATE_DIRECT_HITS``/``_MODIFIER_STRIP``'s own
+    docstrings for the exact rule, consumed by ``speech.phoneme_
+    coverage`` to build eSpeak's per-word coverage rating."""
     if ipa_symbol in _BASE_BY_IPA:
-        return _BASE_BY_IPA[ipa_symbol]
+        fidelity: Fidelity = "approximate" if ipa_symbol in _APPROXIMATE_DIRECT_HITS else "exact"
+        return SymbolConversion(_BASE_BY_IPA[ipa_symbol], fidelity)
     remaining = unicodedata.normalize("NFD", ipa_symbol)
     suffix = ""
+    lossy = False
     for modifier, replacement in _MODIFIER_STRIP:
         if modifier in remaining:
             remaining = remaining.replace(modifier, "")
             suffix += replacement
+            lossy = lossy or not replacement
             if remaining in _BASE_BY_IPA:
-                return _BASE_BY_IPA[remaining] + suffix
+                return SymbolConversion(_BASE_BY_IPA[remaining] + suffix, "approximate" if lossy else "exact")
     for first_vowel, first_kirshenbaum in _BASE_BY_IPA.items():
         if ipa_symbol.startswith(first_vowel) and ipa_symbol[len(first_vowel):] in _BASE_BY_IPA:
-            return first_kirshenbaum + _BASE_BY_IPA[ipa_symbol[len(first_vowel):]]
+            return SymbolConversion(first_kirshenbaum + _BASE_BY_IPA[ipa_symbol[len(first_vowel):]], "exact")
     # A click cluster (e.g. "ŋǀʼ") or other genuinely unmapped combination
     # -- fall back to whichever click letter it contains, else "n" for an
     # unmapped nasal cluster, else the first character as a last resort.
+    # Every one of these is a "poor" fidelity fallback, not an approximation
+    # of a specific sound.
     for click, mnemonic in (("ǀ", "l!"), ("ǃ", "!"), ("ǂ", "c!"), ("ǁ", "lZ!"), ("ʘ", "O!")):
         if click in ipa_symbol:
-            return mnemonic
+            return SymbolConversion(mnemonic, "poor")
     if ipa_symbol.startswith("ŋ"):
-        return "N"
-    return remaining[:1] if remaining else "@"
+        return SymbolConversion("N", "poor")
+    return SymbolConversion(remaining[:1] if remaining else "@", "poor")
 
 
 def convert_word(ipa_text: str, tone_numbers: dict[ToneLevel, str] | None = None) -> str:
@@ -174,7 +226,7 @@ def convert_word(ipa_text: str, tone_numbers: dict[ToneLevel, str] | None = None
             continue
         if symbol == WORD_ACCENT_MARK:
             continue
-        piece = convert_symbol(symbol)
+        piece = convert_symbol(symbol).mnemonic
         if tone_numbers:
             tone = next((level for level, mark in TONE_DIACRITICS.items() if mark in deco), None)
             if tone is not None and tone in tone_numbers:

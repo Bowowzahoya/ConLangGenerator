@@ -305,76 +305,51 @@ multi-session feature.
   `cmn` voice, so other sounds are approximated by Mandarin's inventory.
   The better fix is likely native per-engine pitch control (eSpeak's own
   SSML `<prosody>` contour, applied to whichever voice a word is actually
-  using, not a voice switch) rather than a cross-engine PSOLA overlay --
-  see the multi-engine item below, which this becomes a sub-case of once
-  an engine/voice is chosen per word rather than per tone.
+  using, not a voice switch) rather than a cross-engine PSOLA overlay.
+  Not addressed by the per-word engine selection below -- that picks
+  *between* eSpeak and SAPI per word, it doesn't change how eSpeak itself
+  voices a tone once chosen.
 - **Long, fixed pauses between words when a sentence is voiced (S); real
   sentence-level intonation/stress/coarticulation stays explicitly out of
   scope (M+, deliberately not pursued now).** By explicit decision, this
-  project is prioritizing word-level correctness and naturalness (see the
-  multi-engine item below) over sentence-level prosody for now -- sentence
-  assembly otherwise stays as today's per-word concatenation. The one
-  small, still-worthwhile fix in scope immediately: the fixed silence
-  between words is noticeably too long and should just be shortened.
-- **Multi-engine per-word selection, split into right-sized pieces (was one
-  L item; split further after planning surfaced just how much it
-  bundled).** Engine choice is per *word*, never per sound within a word,
-  by explicit decision across every piece below -- splicing different
+  project is prioritizing word-level correctness and naturalness over
+  sentence-level prosody for now -- sentence assembly otherwise stays as
+  today's per-word concatenation. The one small, still-worthwhile fix in
+  scope immediately: the fixed silence between words is noticeably too
+  long and should just be shortened.
+- **Multi-engine per-word selection (was one L item, split into
+  right-sized pieces after planning surfaced just how much it bundled).
+  Pieces 1-2 done.** Engine choice is per *word*, never per sound within
+  a word, by explicit decision across every piece -- splicing different
   engines' audio together inside one word would need to solve matching
-  pitch/timbre/volume at the seam, a separate, harder problem not being
-  taken on anywhere in this split.
-  1. **A real per-phoneme coverage model for the two engines that already
-     exist, eSpeak-ng and SAPI (M).** Today's only capability dimension is
-     "does it voice tones" (`TTSCapabilities.tones`); widen it to a real
-     map over this project's own ~200-symbol phoneme pool
-     (`phonology_gen.ALL_CONSONANTS`/`ALL_VOWELS`), each phoneme rated
-     exact/approximate/poor per engine. For eSpeak this is mostly
-     *derivable*, not hand-curated: `ipa_to_kirshenbaum._BASE_BY_IPA` is
-     already the exact-match table, `_MODIFIER_STRIP`'s fallback path is
-     already the approximate case, and the last-resort fallbacks in
-     `convert_symbol` (click-letter/`"n"`/first-character) are already the
-     poor case -- the rating can read off which path `convert_symbol`
-     actually took rather than inventing a second, parallel table. SAPI has
-     no analogous conversion table to introspect (it passes IPA straight
-     through to an opaque real OS voice), so its coverage is necessarily
-     either hand-curated for a specific known voice or honestly marked
-     unknown/unverified for the rest -- do not pretend precision SAPI
-     can't actually back up. Independently useful even before any
-     selection logic uses it: could immediately widen today's tone-only
-     `pronunciation_warnings` to warn about more than tones.
-  2. **Per-word engine selection using that model, replacing today's single
-     fixed-for-the-whole-request engine (M, depends on 1).** `webui/
-     app.py::_synthesize_sentence` and `cli/main.py`'s `pronounce` command
-     both take one `TTSClient` chosen up front for the whole call; change
-     the per-word loop in `_synthesize_sentence` (and the single-word case
-     in `pronounce`) to pick, for each word's own IPA, whichever available
-     engine covers every one of its sounds "correctly" and, among those,
-     the most natural (a small static per-engine naturalness rating, e.g.
-     SAPI's real neural-ish OS voice over eSpeak's formant synthesis for
-     sounds both can voice correctly) -- falling back to the best
-     approximate match when no engine covers a word correctly (same
-     philosophy `convert_symbol` already has for individual symbols, now
-     applied at the word/engine level), but *reported*, not silent.
-  3. **Surface engine choice and coverage in the CLI/web UI (S-M, depends
-     on 2).** `translate` has no `--tts` path at all today; `pronounce`'s
-     single `--tts` flag picking one engine for the whole call becomes
-     meaningless once selection is automatic per word -- decide what, if
-     anything, a user-facing override should look like (e.g. "prefer engine
-     X when it covers the word") versus just reporting which engine ended
-     up voicing which word and why.
-  4. **Add Piper as a new free, local, more natural-sounding neural engine
-     (L, independent of 1-3 but slots into the roster once they exist).**
-     The engine-vs-phoneme-set mismatch for a genuinely invented phonology
-     (explored in chat) needs a concrete decision here: approximate-only
-     (map invented phonemes to the nearest sound Piper's pretrained voice
-     already knows, no training) versus actually extending/fine-tuning a
-     model (a much bigger, separate research effort) -- approximate-only
-     is the realistic scope for this item.
-  5. **Add a paid cloud engine, e.g. Azure or Google SSML, with its own
-     cost on/off toggle (L, independent of 1-4).** Lowest priority of the
-     five -- needs the same per-task on/off-switch treatment this project
-     already gives `llm=fake|anthropic`, off by default, before it's safe
-     to even offer in the roster.
+  pitch/timbre/volume at the seam, a separate, harder problem not taken
+  on anywhere in this split. Done: a real per-phoneme coverage model
+  (`speech.phoneme_coverage`, exact/approximate/poor per symbol, derived
+  from `ipa_to_kirshenbaum.convert_symbol`'s own fidelity for eSpeak, a
+  small curated table for SAPI) and the per-word selection built on it
+  (`speech.engine_selection`), reachable as a new `"auto"` engine value
+  on `pronounce --tts`/the web UI's Translate tab (not the default for
+  either -- see the next sub-item).
+  - **Surface engine choice and coverage more fully in the CLI/web UI
+    (S-M).** `translate` still has no `--tts` path at all; `"auto"` is
+    available but not the default anywhere, and there's no user-facing
+    override (e.g. "prefer engine X when it covers the word") beyond
+    picking a fixed single engine or `"auto"` -- decide whether `"auto"`
+    should become the default, and what an override would even mean once
+    selection is automatic per word.
+  - **Add Piper as a new free, local, more natural-sounding neural engine
+    (L, independent, slots into the roster once added).** The
+    engine-vs-phoneme-set mismatch for a genuinely invented phonology
+    (explored in chat) needs a concrete decision: approximate-only (map
+    invented phonemes to the nearest sound Piper's pretrained voice
+    already knows, no training) versus actually extending/fine-tuning a
+    model (a much bigger, separate research effort) -- approximate-only
+    is the realistic scope for this item.
+  - **Add a paid cloud engine, e.g. Azure or Google SSML, with its own
+    cost on/off toggle (L, independent).** Lowest priority -- needs the
+    same per-task on/off-switch treatment this project already gives
+    `llm=fake|anthropic`, off by default, before it's safe to even offer
+    in the roster.
 - **A per-sound pronunciation guide for people who aren't linguists (L).**
   Two tiers: (a) a full sound inventory for a given generated language --
   every phoneme it actually uses, each with a plain-language articulation

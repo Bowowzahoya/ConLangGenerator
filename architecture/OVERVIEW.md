@@ -6956,3 +6956,82 @@ reading code or one-off ad hoc scripts.
   most recent `limit` (UI default 100, capped at 300) entries, not full pagination -- older calls remain in
   the ledger file but scroll out of what the Log tab can show. Web UI only, per the user's own framing ("a
   tab") -- no CLI surface was requested or added.
+
+- **Per-word TTS engine selection (DEFERRED.md's "Multi-engine per-word selection," pieces 1-2).** The
+  user wanted every word pronounced as correctly and naturally as possible, picking whichever engine
+  covers its sounds best rather than forcing one engine for a whole call -- but review during planning
+  found the original backlog item bundled five separable efforts (a coverage model, the selection logic,
+  CLI/web surfacing, a new free engine, a new paid engine). Per the user's own instruction, the item was
+  split in `docs/DEFERRED.md` first (commit `00e4983`); this pass implements only the first two pieces,
+  scoped to the two engines that already exist (eSpeak-ng, Windows SAPI).
+
+  **Coverage model (`speech/phoneme_coverage.py`, new).** `speech/ipa_to_kirshenbaum.py::convert_symbol`
+  already carried the only signal that matters for eSpeak -- whether a symbol hit a clean 1:1 Kirshenbaum
+  mapping, fell back through a lossy modifier-strip, or hit a last-resort fallback -- it just never
+  surfaced it. Refactored its return from a bare string to `SymbolConversion(mnemonic, fidelity)`
+  (`Fidelity = Literal["exact", "approximate", "poor"]`), with `convert_word` unpacking `.mnemonic` only
+  (confirmed its only other caller is test code, a safe, contained change). A direct `_BASE_BY_IPA` hit
+  isn't automatically "exact": a review pass across the table's own comments surfaced a dozen entries
+  (`ɟ`, `ʜ`, `ʢ`, `ɰ`, `ɱ`, `ʁ`, `ʋ`, `ɥ`, `mb`, `nd`, `ŋg`, `nz`) already documented as approximations
+  despite having a direct entry ("no clean single letter"/"the nasal onset is lost") -- a new
+  `_APPROXIMATE_DIRECT_HITS` constant, built only from symbols the table already flagged this way, rates
+  these "approximate" instead of silently defeating the whole point of the rating. A modifier-strip retry
+  is "exact" only when the stripped modifier was one of the two lossless, *appended* ones (length,
+  nasalization) -- every other stripped modifier (ejective/aspirated/palatalized/pharyngealized/breathy/
+  voiceless/apical/laminal) is a real loss, rating "approximate"; a last-resort fallback (click-letter/
+  `"n"`/first-character) rates "poor". SAPI has no conversion table to introspect at all (it passes IPA
+  straight through to an opaque real OS voice), so its rating rests on a small curated `SAPI_EXACT_
+  SYMBOLS` table (~39 plain English phonemes, cross-checked against this project's own pool -- `"r"`
+  stands in for English's real `ɹ`, which isn't in the pool, commented as a stand-in, not pretended
+  exact) plus a feature-flag heuristic reusing the *same* `Consonant`/`Vowel` fields eSpeak's own
+  explanations use (`ejective`/`breathy`/`pharyngealized`/`place is PHARYNGEAL`/a click character ->
+  "poor"; everything else outside the curated table -> "approximate"). `core/phonology.py` gained one
+  small additive constant, `CLICK_CHARACTERS`, since a click is identified only by a literal character
+  (`ǀǃǂǁʘ`), never a first-class `Manner`. `word_fidelity` takes the worst symbol across a word (plus,
+  for SAPI only, forcing "poor" whenever a tone is present -- a known, already-tested fact; eSpeak needs
+  no such override since it already voices every tone via its Mandarin voice and nothing here changes
+  that). `describe_gap` turns the same feature checks into short human-readable reasons, reused verbatim
+  by the selection layer rather than re-derived.
+
+  **Selection (`speech/engine_selection.py`, new).** `choose_engine(word, candidates)` picks the
+  candidate with the best `word_fidelity`, ties broken by a small, explicitly-subjective `NATURALNESS`
+  rank (SAPI's real OS voice over eSpeak's formant synthesis); `None` for an empty candidate list.
+  `auto_client_for_word(sentence, candidates)` resolves a whole sentence's own per-word choice into a
+  `word -> TTSClient` function for `_synthesize_sentence` to call per word. One real interaction a
+  first-pass design missed and a review step caught: `for_utterance` (how eSpeak decides "any tonal word
+  anywhere in this sentence -> speak the *entire* sentence in its Mandarin voice," so a toneless word
+  next to a tonal one doesn't switch voices mid-sentence) has to be resolved *once per engine kind
+  actually used in this sentence, against only the words assigned to it* -- not per bare word, and not
+  over the raw whole sentence -- or that existing voice-consistency guarantee silently breaks within
+  eSpeak's own share of a mixed-engine sentence. Verified directly: two eSpeak-assigned words (one tonal,
+  one not) resolve to the exact same client object, Mandarin voice, both tones True; a word assigned to a
+  different engine gets its own independent client, unaffected.
+
+  **Wiring.** `"auto"` is handled entirely by the *caller* (`webui/app.py`, `cli/main.py`), never inside
+  `tts.build_tts_client` -- a per-word choice needs a different client per word, not one client for a
+  whole call. `_synthesize_sentence`'s signature changed from a single `client: TTSClient` to
+  `client_for_word: Callable[[str], TTSClient]`, a one-line body change; the fixed-engine path becomes
+  `lambda _word: client`, behavior-preserving. Both `/api/pronounce` and `/api/pronunciation-check`
+  accept `"auto"` now; the latter's `"auto"` path reports per-word gaps via `auto_pronunciation_
+  warnings` instead of one engine's static capabilities. `tts.available_backends()`/`backend_
+  capabilities()` gained an `"auto"` entry (available whenever >=1 real backend is; its tones are the
+  *union* of whichever real backends are currently available, not a hardcoded empty set, so the web UI's
+  existing "Tones: ..." display stays honest). The web UI's `<select id="tr-tts">` turned out to be a
+  hardcoded, hand-written list of `<option>` tags, not something the JS builds from the capabilities
+  dict (confirmed by reading `index.html` directly, correcting an initial assumption) -- so making
+  `"auto"` selectable needed exactly one new `<option>` line, deliberately left out of the JS `preferred`
+  default list so today's existing default is unchanged. CLI `pronounce --tts auto` dispatches through a
+  direct `choose_engine` call (the single-word degenerate case of the same mechanism, not needing
+  `auto_client_for_word`'s sentence-grouping). Verified live in the browser: generating a language,
+  switching the Translate tab to "auto", and translating a sentence correctly reported `''ˈkʼənə' is only
+  approximately covered by eSpeak NG: ejective sounds are only approximated.'` and played real audio;
+  verified via the CLI against a real generated lexicon too -- an ejective affricate (`tʃʼa`, "weak")
+  picked eSpeak silently (Kirshenbaum has a real ejective marker for affricates, unlike plain stops, so
+  this is genuinely "exact," not a gap), while `ʁã` ("we") tied on fidelity and broke to SAPI by
+  naturalness, printing the expected warning.
+
+  **Explicitly not changed**: neither existing default (`PronounceRequest.tts = "espeak"`,
+  CLI `--tts` default `"none"`) moved to `"auto"` -- that product decision, along with any user-facing
+  override design, is left to DEFERRED's own next TTS sub-item. Adding a new engine (Piper, a paid cloud
+  engine) remains separate, larger, later work -- this pass only ever chooses between the two engines
+  that already existed.
