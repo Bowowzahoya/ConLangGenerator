@@ -7074,3 +7074,44 @@ reading code or one-off ad hoc scripts.
   freshly generated language's entire lexicon up front) -- only repeat-request caching was in scope
   this pass, pre-generation stays its own open DEFERRED item given the real cost risk of eagerly
   running a several-hundred-word lexicon through a future paid engine.
+
+- **Audio pre-generation (`speech/pregenerate.py`, new) -- and a real-latency finding that changed the
+  web/CLI split.** The user's own next pick from the TTS backlog. Before writing any code, measured
+  actual per-word synthesis time for both engines directly (10 words each): eSpeak-ng ~63ms/word, SAPI
+  ~3,742ms/word -- nearly 60x slower, because `SapiTTSClient.synthesize` shells out to a fresh
+  PowerShell process with a `System.Speech` .NET assembly load on *every single call*, not a one-time
+  cost. For a several-hundred-word vocabulary that's tens of minutes through SAPI, or through `"auto"`
+  (which -- a second finding this same measurement pass surfaced -- ties onto SAPI for *any* word both
+  engines voice exactly, since `engine_selection.NATURALNESS` ranks SAPI's real OS voice above eSpeak's
+  formant synthesis purely on subjective quality, with no latency term at all; this makes `"auto"`
+  systematically slow for ordinary, not just exotic, pronunciation too -- flagged directly to the user
+  rather than quietly patched, since fixing it properly means weighing measured latency into the
+  ranking itself, a separate design decision, not a drive-by change buried in this pass).
+
+  This measurement directly decided the CLI/web split, not just the UI's own wording: `speech/
+  pregenerate.py::pregenerate_audio(language, kind, cache_dir, on_progress=None) -> PregenerateSummary`
+  is engine-agnostic (reuses the exact tone-sandhi-adjusted spoken form `cli.main.pronounce` already
+  derives per word, `"auto"` reuses `engine_selection.choose_engine` directly rather than `auto_client_
+  for_word`'s sentence-grouping machinery, since each lexicon entry here is its own isolated word, not
+  part of a sentence -- the same reasoning that already applied to `pronounce`'s own single-word auto
+  branch) -- but its two callers diverge deliberately. CLI `generate` gained `--pregenerate-audio {none,
+  espeak,sapi,auto}` (default `none`) offering all four, since a CLI user is watching the terminal, gets
+  a loud heads-up for the slow ones plus a progress line every 25 words (`_pregenerate_with_progress`,
+  shared by both the fresh-generation and `--evolve-from` branches), and can Ctrl+C safely (the language
+  is already saved by the time pre-generation starts). `POST /api/generate` gained a matching
+  `pregenerate_audio` field but validates it down to `("none", "espeak")` only -- a synchronous HTTP
+  request blocking for potentially tens of minutes is a genuinely broken experience, not a style
+  choice, and this project has no background-job infrastructure to fix that properly (nor should it,
+  for one feature, per `AGENTS.md`). The web UI's Generate tab gained one new Advanced-options select
+  (`none`/`espeak` only) with an inline note pointing at the CLI for `sapi`/`auto`; the existing
+  "Generating…" button-disable state already covers the longer wait with zero extra JS.
+
+  Verified directly: `pregenerate_audio` on a small fake-backend lexicon populates exactly one cache
+  file per word and a later `pronounce`/`CachingTTSClient.synthesize` call for the same word hits that
+  cache (a counting monkeypatch on `EspeakTTSClient.synthesize` confirms zero real calls); verified live
+  through both surfaces -- the CLI's own default-vocabulary (400-word) run against real eSpeak-ng
+  printed progress every 25 words and finished with "Pre-generated audio for 400/400 words via espeak",
+  matching `docs/CLI.md`'s own documented transcript exactly; the web UI's Generate tab, with "espeak-ng"
+  selected for pre-generated audio, rendered a new "pre-generated audio: 12/12" badge after a real
+  browser round-trip, no console errors, and `/api/generate` with `pregenerate_audio: "sapi"` or
+  `"auto"` correctly returned 400.

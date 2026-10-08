@@ -12,6 +12,7 @@ from conlang_generator.core.romanization import (
     ToneMarkingStrategy,
     VowelLengthStrategy,
 )
+from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.spec import GenerationSpec, SeedExample, SeedForm
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
@@ -33,6 +34,7 @@ from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 from conlang_generator.speech import engine_selection, reader, tts_cache
+from conlang_generator.speech.pregenerate import pregenerate_audio
 from conlang_generator.speech.tts import available_engine_kinds, build_tts_client, pronunciation_warnings
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
@@ -177,6 +179,32 @@ def _parse_seed_example_forms(text: str, pos: PartOfSpeech) -> tuple[SeedForm, .
     return forms
 
 
+def _pregenerate_with_progress(language: Language, kind: str) -> None:
+    """`--pregenerate-audio`'s own CLI reporting: a heads-up for the
+    genuinely slow engines before starting (see `speech.pregenerate`'s
+    own docstring for the measured per-word costs behind this warning),
+    then a progress line every 25 words so a long run doesn't look
+    hung, then a one-line summary."""
+    if kind == "none":
+        return
+    total = len(language.lexicon.entries)
+    if kind in ("sapi", "auto"):
+        typer.echo(
+            f"Pre-generating audio for {total} words via {kind} -- 'sapi'/'auto' can take several seconds "
+            "per word (SAPI's own per-call startup cost), this may take a while."
+        )
+    else:
+        typer.echo(f"Pre-generating audio for {total} words via {kind}...")
+
+    def on_progress(done: int, done_total: int) -> None:
+        if done % 25 == 0 or done == done_total:
+            typer.echo(f"  ...{done}/{done_total}")
+
+    summary = pregenerate_audio(language, kind, CACHE_DIR, on_progress=on_progress)
+    failed_note = f" ({summary.failed} failed)" if summary.failed else ""
+    typer.echo(f"Pre-generated audio for {summary.synthesized}/{summary.total} words via {kind}{failed_note}.")
+
+
 @app.command()
 def generate(
     prompt: str = typer.Option(..., "--prompt", help="Free-text description of the language."),
@@ -290,8 +318,19 @@ def generate(
         help="Model for word selection/coinage (candidate picking, real-word gap-filling, seed/name IPA guessing) -- "
         "used at generation time and reused for any word coined later during translation.",
     ),
+    pregenerate_audio: str = typer.Option(
+        "none", "--pregenerate-audio",
+        help="Eagerly synthesize and cache every lexicon word's own pronunciation right after generating/evolving "
+        "(none/espeak/sapi/auto, default none -- an explicit opt-in, not automatic). 'espeak' is fast (~60ms/word, "
+        "measured); 'sapi' and 'auto' (which can tie-break onto SAPI for any word both engines voice exactly) pay "
+        "a fresh PowerShell+.NET startup cost on every single word (~3.7s/word, measured) -- tens of minutes for "
+        "a full vocabulary. Progress prints as it goes; Ctrl+C is safe, the language is already saved by then.",
+    ),
 ) -> None:
     """Generate a new language and save it."""
+    if pregenerate_audio not in ("none", "espeak", "sapi", "auto"):
+        typer.echo(f"error: --pregenerate-audio must be 'none', 'espeak', 'sapi' or 'auto', got {pregenerate_audio!r}", err=True)
+        raise typer.Exit(code=1)
     if not 1 <= vocabulary_size <= len(ALL_MEANINGS):
         typer.echo(f"error: --vocabulary-size must be between 1 and {len(ALL_MEANINGS)}, got {vocabulary_size}", err=True)
         raise typer.Exit(code=1)
@@ -372,6 +411,7 @@ def generate(
                 origin = new_entry.real_word
                 line += f"  (real {origin.language} {origin.form} [{origin.ipa}])"
             typer.echo(line)
+        _pregenerate_with_progress(language, pregenerate_audio)
         typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
         return
 
@@ -442,6 +482,7 @@ def generate(
     for warning in phonotactic_mismatch_warnings(language) + unused_suppletive_form_warnings(language):
         typer.echo(f"warning: {warning}", err=True)
 
+    _pregenerate_with_progress(language, pregenerate_audio)
     typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
 
 

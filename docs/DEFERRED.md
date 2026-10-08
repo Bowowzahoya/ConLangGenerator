@@ -358,26 +358,41 @@ multi-session feature.
   result to go look each sound up separately. Soundclips are synthesized
   (via the engine-selection item above -- whichever engine voices that one
   isolated sound most naturally), not sourced from real recordings.
-- **Pronunciation is slow every time, not just the first time -- caching
-  done, pre-generation still open (M).** Repeated pronunciation used to
-  re-synthesize every word from scratch. Done: `speech/tts_cache.py::
-  CachingTTSClient` wraps any real `TTSClient`, keyed on `(client.
-  cache_identity(), ipa_text)` -- `cache_identity()` (new on the
-  `TTSClient` protocol) fully captures what the engine/voice/tones state
-  is, so eSpeak's own Mandarin-voice switch never collides with its
-  default voice in the cache; stored as one `.wav` file per entry under
-  `CACHE_DIR / "tts_cache"`, not a JSON blob (unlike the LLM cache --
-  audio is binary, a flat file store is the natural fit). Wired into
-  both `cli/main.py`'s `pronounce` command and `webui/app.py`'s
-  `/api/pronounce`, for every `--tts` value including `"auto"` (each
-  per-word-selected client gets its own cache entry). Still open:
-  pre-generating a freshly generated language's own words up front
-  instead of waiting for the first pronunciation request to pay that
-  cost -- weigh against a paid engine's per-call cost if one is enabled
-  (see the cost-toggle note above): eagerly pre-synthesizing an entire
-  several-hundred-word lexicon through a paid engine could get expensive
-  fast, so this likely wants its own explicit opt-in, not an automatic
-  default.
+- **Pronunciation is slow every time, not just the first time -- done.**
+  Repeated pronunciation used to re-synthesize every word from scratch.
+  `speech/tts_cache.py::CachingTTSClient` wraps any real `TTSClient`,
+  keyed on `(client.cache_identity(), ipa_text)` -- `cache_identity()`
+  (new on the `TTSClient` protocol) fully captures what the engine/
+  voice/tones state is, so eSpeak's own Mandarin-voice switch never
+  collides with its default voice in the cache; stored as one `.wav`
+  file per entry under `CACHE_DIR / "tts_cache"`, not a JSON blob
+  (unlike the LLM cache -- audio is binary, a flat file store is the
+  natural fit). Wired into both `cli/main.py`'s `pronounce` command and
+  `webui/app.py`'s `/api/pronounce`, for every `--tts` value including
+  `"auto"` (each per-word-selected client gets its own cache entry).
+  Pre-generation (eagerly warming the cache for a freshly generated
+  language's whole lexicon, instead of waiting for the first real
+  request) is also done: `speech/pregenerate.py::pregenerate_audio`,
+  wired as a new explicit, not-automatic `--pregenerate-audio {none,
+  espeak,sapi,auto}` CLI flag on `generate` (default `none`) and a
+  matching `pregenerate_audio` field on `POST /api/generate` -- but the
+  web endpoint only accepts `"none"`/`"espeak"`: measured directly,
+  eSpeak costs ~60ms/word, while SAPI (and `"auto"`, which ties onto
+  SAPI by `engine_selection.NATURALNESS` for any word both engines voice
+  exactly) pays a fresh PowerShell+.NET startup cost on *every single
+  word*, ~3.7s/word -- tens of minutes for a several-hundred-word
+  vocabulary, a genuinely bad fit for a synchronous HTTP request. The
+  CLI offers all four values (with a loud heads-up and live progress for
+  the slow ones; Ctrl+C is safe, the language is already saved by then).
+  **This also means `"auto"`'s own existing latency, not just pre-
+  generation's, is worse than it looks for ad-hoc pronunciation** --
+  `NATURALNESS` ranks SAPI above eSpeak purely on subjective sound
+  quality, so a plain word *both* engines voice exactly still ties onto
+  the ~3.7s-per-word SAPI path today. Not fixed here (out of this item's
+  own scope; flagged directly to the user) -- a real fix would need
+  `NATURALNESS`/`choose_engine` to weigh *measured latency* alongside
+  subjective quality, which deserves its own look, not a drive-by change
+  buried in a caching pass.
 - **Untested by ear (S).** eSpeak tone numbers for mid/low/neutral
   (33/21/11) were only length-checked.
 

@@ -678,6 +678,38 @@ See `core/romanization.py`, `generation/sound_change.py`, and
 `generation/romanization_gen.py`'s module docstrings for the full rule
 list, rate model, and rationale.
 
+`--pregenerate-audio {none,espeak,sapi,auto}` (default `none`) eagerly
+synthesizes and caches every word's own pronunciation right after
+generating, instead of waiting for the first real `pronounce`/`translate`
+request to pay that cost -- an explicit opt-in, never automatic:
+
+```bash
+conlang generate --prompt "isolated mountain language, tonal" --name test-lang \
+  --seed 42 --isolated --high-altitude --tonal --llm fake --pregenerate-audio espeak
+```
+
+```
+Generated 'test-lang' (test-lang) -- 400 core words.
+...
+Pre-generating audio for 400 words via espeak...
+  ...25/400
+  ...50/400
+  ...
+  ...400/400
+Pre-generated audio for 400/400 words via espeak.
+Saved to .../conlangs/test-lang
+```
+
+`espeak` is fast (measured ~60ms/word); `sapi` and `auto` (which can
+tie-break onto SAPI for any word both engines voice equally well -- see
+`speech/engine_selection.py`'s own `NATURALNESS` ranking) pay a fresh
+PowerShell+.NET startup cost on *every single word* (measured
+~3.7s/word) -- tens of minutes for a full vocabulary. A progress line
+prints every 25 words either way so a long run doesn't look hung;
+Ctrl+C is safe, the language itself is already saved by the time
+pre-generation starts. The web UI/`/api/generate` only accepts
+`none`/`espeak` for this same reason -- `sapi`/`auto` are CLI-only.
+
 ## `conlang translate`
 
 Translate text to or from a generated language.

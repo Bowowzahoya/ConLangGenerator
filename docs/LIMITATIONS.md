@@ -205,9 +205,22 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   -- there's no size cap, no eviction, and no way to force a re-synthesis short of deleting the
   directory by hand (e.g. after fixing a real bug in an engine's own synthesis path, a stale cached
   file would silently keep serving the old, buggy audio for already-pronounced words).
-- **Pre-generation is still deferred.** Only repeat-request caching was addressed -- a freshly generated
-  language's own lexicon is never proactively pre-synthesized, so the *first* pronunciation of any given
-  word still pays the full synthesis cost (see `docs/DEFERRED.md`).
+- **Pre-generation is only offered for `"espeak"` through the web UI/API, not `"sapi"`/`"auto"`.**
+  Measured directly: SAPI pays a fresh PowerShell+.NET startup cost on *every* synthesis call
+  (~3.7s/word) versus eSpeak's ~60ms/word -- pre-generating a several-hundred-word vocabulary through
+  SAPI (or `"auto"`, which ties onto SAPI for any word both engines voice exactly) can take tens of
+  minutes, a poor fit for a synchronous HTTP request. The CLI's own `generate --pregenerate-audio`
+  offers all four values (with a loud warning and live progress for the slow ones) since a CLI user is
+  watching the terminal and can interrupt; the web endpoint rejects `"sapi"`/`"auto"` outright (400).
+- **Pre-generation has no partial-failure detail.** `PregenerateSummary` reports only aggregate
+  synthesized/failed counts, not which specific words failed or why -- a real failure (e.g. a symbol
+  neither engine can render at all) is indistinguishable from "engine unavailable" in the summary alone.
+- **`"auto"`'s own per-word naturalness ranking doesn't account for latency, only subjective sound
+  quality.** `engine_selection.NATURALNESS` ranks SAPI above eSpeak for any word both cover equally well
+  -- meaning a *plain* word with no exotic sounds at all still ties onto SAPI's ~3.7s-per-word path under
+  `"auto"`, not just an exotic one. This makes `"auto"` systematically slower than it needs to be for
+  ordinary pronunciation, not only for pre-generation. Flagged directly, not fixed here -- weighing
+  measured latency into the ranking is its own design question, not a drive-by fix.
 
 ## Grammar and translation
 

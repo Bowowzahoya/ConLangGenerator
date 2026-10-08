@@ -64,6 +64,7 @@ from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm import pricing
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 from conlang_generator.speech import engine_selection, tts, tts_cache
+from conlang_generator.speech.pregenerate import pregenerate_audio as run_pregenerate_audio
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation import names
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
@@ -270,6 +271,13 @@ class GenerateRequest(BaseModel):
     foreign_names: str | None = None
     word_strictness: float | None = None
     evolve_years: int | None = None
+    pregenerate_audio: str = "none"
+    """Eagerly synthesize+cache every lexicon word's own pronunciation
+    right after generating. Only "none"/"espeak" are accepted here --
+    "sapi"/"auto" measured ~3.7s/word (a fresh PowerShell+.NET startup
+    cost on every call), tens of minutes for a full vocabulary, a poor
+    fit for a synchronous HTTP request; use the CLI's own `generate
+    --pregenerate-audio sapi|auto` for those instead."""
     trait_overrides: dict[str, float] = {}
     """Directly set one or more graded worldbuilding traits (the web
     equivalent of the CLI's own repeatable ``--trait NAME=VALUE``) --
@@ -542,6 +550,13 @@ def generate(request: GenerateRequest) -> dict:
         raise HTTPException(status_code=400, detail="foreign_names must be 'keep' or 'adapt' (or omitted)")
     if request.word_selection not in ("algorithmic", "llm"):
         raise HTTPException(status_code=400, detail="word_selection must be 'algorithmic' or 'llm'")
+    if request.pregenerate_audio not in ("none", "espeak"):
+        raise HTTPException(
+            status_code=400,
+            detail="pregenerate_audio must be 'none' or 'espeak' here -- 'sapi'/'auto' can take tens of minutes "
+            "for a full vocabulary (measured), too long for a synchronous request; use the CLI's own "
+            "`generate --pregenerate-audio sapi|auto` for those.",
+        )
     unknown_traits = set(request.trait_overrides) - set(GRADED_TRAIT_FIELDS)
     if unknown_traits:
         raise HTTPException(
@@ -620,6 +635,11 @@ def generate(request: GenerateRequest) -> dict:
         strictness_warnings(traits) + phonotactic_mismatch_warnings(language)
         + unused_suppletive_form_warnings(language)
     )
+    if request.pregenerate_audio != "none":
+        pregenerated = run_pregenerate_audio(language, request.pregenerate_audio, CACHE_DIR)
+        summary["pregenerated_audio"] = {
+            "total": pregenerated.total, "synthesized": pregenerated.synthesized, "failed": pregenerated.failed,
+        }
     return summary
 
 

@@ -46,6 +46,41 @@ def test_generate_returns_a_language_summary_with_words_grammar_and_cost(client)
     assert body["cost"]["delta_usd"] == 0.0  # fake backend never spends
 
 
+def test_generate_pregenerates_audio_when_requested(client):
+    response = client.post(
+        "/api/generate",
+        json={
+            "prompt": "p", "name": "pregen-webtest", "seed": 1, "llm": "fake",
+            "vocabulary_size": 8, "pregenerate_audio": "espeak",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["pregenerated_audio"]["total"] == len(body["lexicon"])
+    assert body["pregenerated_audio"]["synthesized"] == body["pregenerated_audio"]["total"]
+    assert body["pregenerated_audio"]["failed"] == 0
+
+
+def test_generate_defaults_to_no_pregeneration(client):
+    response = client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": "pregen-webtest-default", "seed": 1, "llm": "fake"},
+    )
+    assert response.status_code == 200
+    assert "pregenerated_audio" not in response.json()
+
+
+def test_generate_rejects_sapi_and_auto_for_pregenerate_audio(client):
+    # Both measured at ~3.7s/word (SAPI's own per-call startup cost) --
+    # too long for a synchronous HTTP request; only the CLI offers them.
+    for value in ("sapi", "auto"):
+        response = client.post(
+            "/api/generate",
+            json={"prompt": "p", "name": "pregen-webtest-bad", "seed": 1, "llm": "fake", "pregenerate_audio": value},
+        )
+        assert response.status_code == 400
+
+
 def test_generated_language_is_saved_and_listed(client):
     client.post("/api/generate", json={"prompt": "p", "name": "Listed Lang", "seed": 1, "llm": "fake"})
     response = client.get("/api/languages")

@@ -196,6 +196,17 @@
           <label for="gen-word-model">Word-selection model</label>
           <select id="gen-word-model"></select>
         </div>
+        <div>
+          <label for="gen-pregenerate-audio">Pre-generate audio</label>
+          <select id="gen-pregenerate-audio">
+            <option value="none">none (default -- audio made on first pronounce/translate)</option>
+            <option value="espeak">espeak-ng (synthesizes the whole lexicon up front, ~60ms/word)</option>
+          </select>
+          <div class="ipa" style="margin-top: 4px;">
+            SAPI/auto pre-generation can take tens of minutes for a full vocabulary (SAPI's own per-call
+            startup cost) -- use <code>conlang generate --pregenerate-audio sapi|auto</code> on the CLI instead.
+          </div>
+        </div>
       </div>
 
       <label>Source languages <span class="ipa">(bias generation toward a real language's palette)</span></label>
@@ -833,6 +844,7 @@ function renderLanguageSummary(container, summary) {
       ${traitBadges || sourceLangBadge ? `<div class="badges">${traitBadges}${sourceLangBadge}</div>` : ""}
       ${(summary.warnings || []).map(w => `<div class="error">⚠ ${w}</div>`).join("")}
       ${summary.cost ? `<div class="badges"><span class="badge">this call: $${summary.cost.delta_usd.toFixed(4)} (${summary.cost.delta_calls} calls)</span></div>` : ""}
+      ${summary.pregenerated_audio ? `<div class="badges"><span class="badge">pre-generated audio: ${summary.pregenerated_audio.synthesized}/${summary.pregenerated_audio.total}${summary.pregenerated_audio.failed ? ` (${summary.pregenerated_audio.failed} failed)` : ""}</span></div>` : ""}
       ${renderToneSection(summary)}
       <h2>Lexicon (${summary.lexicon.length} words)
         <span class="ipa" style="font-weight:normal;">-- &#128266; plays, &#9998; edits, the Translate tab's own chosen backend</span>
@@ -1116,6 +1128,7 @@ $("generate-btn").onclick = async () => {
     word_selection: $("gen-word-selection").value,
     model: $("gen-model").value,
     word_model: $("gen-word-model").value,
+    pregenerate_audio: $("gen-pregenerate-audio").value,
     vocabulary_size: parseInt($("gen-vocab-size").value || "400", 10),
     foreign_names: $("gen-foreign-names").value || null,
     source_languages: collectSourceLanguages(),
