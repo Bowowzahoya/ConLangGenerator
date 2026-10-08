@@ -27,24 +27,6 @@ multi-session feature.
   re-checked with a fixed prompt set against the saved classifier outputs
   before adopting. The end result is ~$0.002-0.003; do not expect
   much lower.
-- **Model choice per task (M). Done.** `DEFAULT_MODEL` (Haiku 4.5) used to
-  be hard-wired into every one of this project's 7 `LLMRequest` call
-  sites. Three model-choice knobs now exist, each threaded as a plain
-  `model: str = DEFAULT_MODEL` parameter right next to the function it
-  governs (the exact shape `word_selection` itself already used, reused
-  directly, not reinvented): `GenerationSpec.classifier_model` (`prompt_
-  classifier.classify_prompt`, CLI `--model`/web `model`); `GenerationSpec.
-  word_selection_model` (every "pick or fill in a word's form" task --
-  `lexicon_gen`'s candidate-selection, `real_words_llm`'s real-word
-  gap-filling, `seed_examples`'/`names`' IPA-guessing -- CLI `--word-
-  model`/web `word_model`, reused at translation time via `language.spec`
-  the same way `word_selection` already is); and a translation-proper
-  model, passed fresh on every call rather than persisted (CLI
-  `--translate-model`/web `translate_model`, covering `sentence_planner.
-  plan_sentence` and the fluency `LLMRequest` inside `translate_to_
-  english`). `llm/pricing.py` gained `TYPICAL_TOKENS`/`estimated_price` for
-  a ballpark per-model, per-task price estimate -- see the "Model picker"
-  item below for its own honest scope limit.
 - **Translation output is sometimes far too short (S-M, partly done).**
   Reported: "My friend, I think you are really dumb. Just piss off. You are
   a lkdjhr" into a Dutch-like language gave "sko kiszomongo holt stoehol".
@@ -57,86 +39,8 @@ multi-session feature.
 
 ## 2. Web app
 
-- **Advanced options (S). Done.** The checkboxes for fantasy, force
-  isolated, force high altitude, force tonal, allow all-caps POS, and the
-  foreign-names select all moved into the Generate tab's collapsed
-  "Advanced options" `<details>` block (no JS change needed for the move
-  itself -- each control's own `id`-based lookup doesn't care where in the
-  DOM it lives). The classifier can now also pick foreign-name handling
-  from the prompt: a new `TraitProfile.requested_foreign_names` field
-  (`"keep"`/`"adapt"`/`""`, parsed the same lenient way as `requested_
-  orthography_style`) is consulted by `translation/names.py::resolve_
-  foreign_names` as a new middle tier -- an explicit `GenerationSpec.
-  foreign_names` still wins outright, then the classifier's own reading
-  when the prompt explicitly addressed it, then the existing weighted
-  vote of matched `source_languages` profiles, then `"keep"`.
-- **Model picker (M). Done.** UI counterpart of the model-choice item in
-  §1. `/api/options` gained a `models` list (the 4 real, paid models --
-  `"fake-llm"` excluded, it has no real price) each with `price_per_
-  million` and a per-task `estimated_price`; the Generate tab's Advanced
-  options gained "Classifier model"/"Word-selection model" selects, and
-  the Translate tab gained a "Translation model" select (hidden when the
-  free `fake` backend is chosen, since a model string is meaningless
-  there) -- each option labeled with its own estimated price. **Honest
-  scope limit**: the shown price is a fixed estimate from typical token
-  counts (`llm/pricing.py`'s `TYPICAL_TOKENS`), not measured per call --
-  real per-purpose cost-ledger coverage is thin-to-zero locally (most
-  testing uses the free backend), so a hardcoded, clearly-labeled
-  estimate was judged more honest than a ledger rollup that would
-  silently read as "0 samples." Word-selection cost especially varies
-  with vocabulary/candidate-list size, not captured by one flat number.
-- **Hover/click gloss in the translation result (M). Done.** Show what
-  every word in a translation means by hovering or clicking, and tell
-  which words are newly coined vs. already-known vocabulary, or real-
-  word-based vs. invented -- reported directly by a user as hard to tell
-  otherwise. `_render_plan` already built a `gloss_parts` list parallel to
-  the rendered words (just never surfaced); it now returns a matching
-  `entries: list[LexicalEntry | None]` too, and `translate_to_conlang`
-  turns that into `TranslationResult.tokens: tuple[TokenGloss, ...]` --
-  one `TokenGloss(surface, ipa, gloss, pos, real_word, notes, coined)` per
-  rendered word, `surface` including that word's own terminal punctuation
-  mark so it matches `result.text.split()` exactly. The web UI renders
-  each glossed word as a hoverable/clickable span (click pins the tooltip
-  -- covers touch too) with a distinct color for a coined word, visible
-  without even hovering; the CLI prints one extra `Glosses: word(gloss)*
-  ...` line (`*` = coined this call) for the conlang direction.
-  **Two scope boundaries, left open:** (a) only the *static*, already-
-  resolved per-entry data is surfaced -- the *live* grammatical marking
-  actually applied this occurrence (case/tense/mood/degree) is not, since
-  no uniform "marking just applied" string exists anywhere in
-  `_render_plan` today; it's scattered across ~8 different kind-specific
-  branches (verb/adjective/noun/article/...), each with its own locals --
-  collecting it would mean threading a new string out of every one of
-  them, a materially bigger, separate lift. (b) `translate_to_english`
-  never populates `tokens` (always `()`) -- that direction's own per-
-  token `annotated` list is keyed to the *source* conlang tokens, and the
-  fluency LLM rewrite can reorder/merge/split words arbitrarily, so there
-  is no clean word-for-word alignment to the final English output to
-  expose the way there is for conlang rendering.
-- **See the actual LLM prompts used for a translation (S-M). Done.** The
-  user's own explicit direction settled the design tension this item used
-  to flag: persist the full text, as a browsable log, not an ephemeral
-  single-request view. `llm/cost_tracker.py`'s `UsageRecord` gained three
-  new fields (`system`, `prompt`, `response_text`, all defaulted to `""`
-  so an old ledger line without them still parses via the new
-  `list_entries()` method); `CostTracker.record` now writes them on every
-  real *and* fake call (the fake backend is still wrapped in
-  `CostTrackingLLMClient`, just never `CachingLLMClient`, so its calls are
-  logged too, always at `cost_usd=0.0`). A new `GET /api/llm-log` endpoint
-  and a 4th web UI tab ("Log") render the ledger newest-first as
-  collapsible `<details>` rows -- one line of metadata (timestamp,
-  `purpose` mapped to a human label, model, token counts, cost) per call,
-  expanding to the full system prompt / prompt / response text. No new
-  "capability" taxonomy was needed -- `LLMRequest.purpose` (e.g.
-  `"lexicon.propose_word"`, `"translate.plan_sentence"`) already was
-  exactly that; the frontend just maps it to a display label.
-  **Scope boundary, left open:** `list_entries()` returns at most
-  `limit` (default 100, capped at 300 in the UI) most-recent entries, not
-  full pagination -- a long-lived ledger's older calls become
-  unreachable from the Log tab (still present in `cost_ledger.jsonl`
-  itself). Web UI only, by the user's own framing ("a tab") -- no CLI
-  surface was requested or added.
-- **Voice picker within an engine (S).** No choice of SAPI or eSpeak voice.
+- **Voice picker within an engine (S).** No choice of SAPI or eSpeak voice
+  -- see §9's multi-engine item, which subsumes this.
 
 ## 3. Translation
 
@@ -146,60 +50,18 @@ multi-session feature.
   ignores sentence-initial position; since text is now planned one sentence
   at a time, "Just"/"You" in a later sentence are no longer mistaken for
   names by the fake. Still open: check with a real LLM -- confirmed to
-  still happen there (next item), though its worst consequence is now
-  fixed.
-- **A misclassified "name" slot silently ignored an existing ordinary
-  word with the same gloss, including a user's own manual edit (M).
-  Done.** Real user report: a sentence that's just one standalone,
-  capitalized word ("...Water.") got planned by the real LLM as a
-  `"name"` slot (no cross-sentence context to tell it's just an ordinary
-  word -- each sentence is planned independently). `names.find_name_
-  entry` (`translation/names.py`) is gated on `entry.notes == NAME_NOTE`
-  ("proper name") *exactly* -- the web UI's lexicon-edit endpoint
-  (`webui/app.py`) appends `" (manually edited)"` onto whatever `notes`
-  a word already had, so the user's own manually-edited "water" entry
-  was invisible to that lookup. With no fallback, `translator.py`'s
-  `"name"`-slot branch fell straight through to `names.make_name_entry`,
-  coining a brand-new, completely unrelated word -- discarding the
-  user's own edit. Fixed two ways: (1) the render branch now also tries
-  the ordinary-word lookup (`_find_word`) before coining, reusing an
-  already-existing entry with that exact gloss whenever one exists, so
-  this fallback only ever fires for exactly this misclassification
-  scenario; (2) `is_name_entry` changed from exact-equality to substring
-  containment on `notes`, fixing a related latent bug where a *genuine*
-  name surviving a manual edit (`notes` becomes `"proper name (manually
-  edited)"`) used to silently lose its own name status too. Known, minor,
-  accepted gap: under the `"keep"` foreign-name policy specifically, a
-  word recovered via this fallback doesn't get case-marked even if the
-  sentence's grammar would otherwise mark it (the spelling itself is
-  always correct either way).
-- **A multi-word proper name (e.g. "Lake Baikal") passed through as
-  literal, untranslated English (M). Done, for the common "descriptor +
-  specific name" pattern.** Multi-word names were never designed for
-  anywhere in this codebase, fake or real -- the fake backend's own
-  name-extraction regex matched exactly one capitalized word at a time,
-  and the real-LLM system prompt's "name" instructions only ever showed
-  single-token examples ("Bruno", "Maria", "Amsterdam"). A real LLM,
-  given no other pattern, plausibly emitted one `{"kind":"name","gloss":
-  "Lake Baikal"}` slot for the whole span; nothing anywhere split or
-  validated a name's gloss on whitespace, so under the default `"keep"`
-  policy it rendered verbatim with an LLM-guessed, English-sounding IPA
-  for the literal string -- exactly the reported symptom. (Under
-  `"adapt"` instead, the embedded space would have been silently dropped
-  by the IPA tokenizer and the two words fused into one native-looking
-  word -- a related, separate failure mode.) Fixed in both backends: the
-  fake extractor (`llm/fake_client.py::_fake_extract_names`) now
-  recognizes a small set of common geographic descriptors ("lake",
-  "mount"/"mt", "mountain", "river", "sea", "ocean", "cape", "fort",
-  "saint"/"st") immediately followed by another capitalized word, and
-  splits the descriptor off as an ordinary word, leaving only the
-  specific part as the name; the real-LLM system prompt
-  (`sentence_planner.py`) gained the same instruction plus a worked
-  example ("I see Lake Baikal" -> a `lake` content slot + a `Baikal`
-  name slot). **Explicitly still open**: a true multi-word name with no
-  generic descriptor part ("New York", "Los Angeles") has no mechanical
-  way to split and still isn't handled at all -- a materially bigger,
-  separate problem, left for a future pass.
+  still happen there, though its worst consequence (silently discarding
+  a misclassified word, including a user's own manual edit, instead of
+  reusing the existing ordinary entry) is now fixed; see
+  `architecture/OVERVIEW.md`.
+- **A true multi-word proper name with no generic descriptor part (M).**
+  "Lake Baikal"/"Mount Everest"-style names now split correctly (the
+  descriptor becomes an ordinary word, the rest becomes the name), but a
+  name like "New York" or "Los Angeles" has no generic part to split on
+  and still isn't handled anywhere -- no mechanical way exists to know
+  where such a name should split. Passes through as one literal unit
+  under `"keep"`, or gets silently fused into one native-looking word
+  under `"adapt"` (see `docs/LIMITATIONS.md`).
 - **Unknown words are coined silently (M).** A word like "lkjejhrj" is
   looked up, not found, and `translation/expansion.coin_word` invents a
   word. The part of speech comes from the LLM plan (unknown or missing
@@ -348,75 +210,15 @@ multi-session feature.
 
 ## 6. Sounds and phonology
 
-- **An explicit, strong trait signal was discarded, not just damped, when
-  matched reference-language profiles unanimously disagreed (M). Done.**
-  Real user report: prompt "a mix between Mongolian and Italian, evolved
-  forward 2000 years. I want tones in the language" produced a non-tonal
-  language despite the explicit, direct request. `trait_bias.biased_
-  probability(0.35, tonal_friendliness)` can legitimately reach 93.5% at
-  a high trait value, but `phonology_gen._reference_clamp` unconditionally
-  overrode that down to `min(probability, 0.08)` whenever every matched
-  profile disagreed (Mongolian and Italian are both curated `tonal:
-  false`) -- discarding the trait-driven value entirely, regardless of
-  how strong it was, and contradicting `GenerationSpec`'s own documented
-  claim that "a confident reading behaves close to a guarantee." This was
-  asymmetric with the function's own *agreeing* branch, which already
-  lets an even-higher trait value escape *upward* past its own 0.75
-  anchor (`max(probability, 0.75)`) -- the disagreeing branch had no
-  analogous escape downward-resistance at all. Fixed by adding a mirrored
-  escape, active only when the pre-clamp probability already exceeds the
-  same 0.75 "explicit and central" threshold the classifier's own
-  calibration bands use: it now smoothly resists the clamp up to 0.5
-  (at probability=1.0) instead of being flattened to 0.08 outright. A
-  separately high, explicit `source_language_strictness` can still
-  reduce the escaped value further afterward (left unchanged) -- a real,
-  competing signal when the prompt asks to closely resemble the named
-  languages, not purely a bug. Also fixed a smaller, secondary
-  contributor: the classifier's own few-shot calibration was asymmetric
-  (the only worked example for an explicit tonal *request* anchored at
-  only `0.6`, versus `-0.85` for an explicit *negation* of comparable
-  directness) -- added a new worked example, using the user's own exact
-  prompt, anchored at `0.85` with an explanation of why a sentence
-  entirely and solely about tone deserves a higher score than a sentence
-  where tone is a brief lead-in to some other main request (the existing
-  Wade-Giles example). Not verifiable against the real Anthropic backend
-  without a paid call; verified instead via `_reference_clamp`'s own
-  direct unit tests and hand-computed probabilities across a range of
-  `strictness` values.
 - **Russian vowel reduction in real words (M).** The profile's
   `stress_driven_vowel_reduction` governs generated words; auditing all 494
   curated real words for correct unstressed о/а → `ə` has not been done.
 - **IPA U+0261 not normalized on input (S).** IPA typed with `ɡ` (U+0261)
   by a user or an LLM is not converted to ASCII `g`.
-- **The diacritic exotic-symbol style spelled nasalized `ɛ̃`/`ɔ̃` with raw
-  IPA, not a real Latin-extended letter (S-M). Done.** A user reported
-  this reading exactly like raw IPA leaking through (`ʦ`/`ʨ` ligatures,
-  bare `ɔ`/`ɛ̃` characters) in a language generated from "French evolved
-  forward 1000 years with influence from Chinese." Investigated directly
-  against the user's own saved `conlangs/futurefrenchchinese/` files.
-  `ɛ̃`/`ɔ̃` were a genuine inconsistency, not a deliberate choice: this same
-  table already gives *plain* `ɛ`/`ɔ` a real Latin-Extended substitution
-  (`ë`/`ö`, used elsewhere in the table for the diphthongs `ɛi`→`ëi`/
-  `ɔi`→`öi`), but the *nasalized* forms ignored that and fell back to
-  raw-IPA identity (`ɛ̃`→`ɛ̃`, unlike the genuinely-Latin `ã`/`ẽ`/`ĩ`/`õ`/
-  `ũ` right next to them). Fixed by composing the nasalization tilde onto
-  the table's own already-chosen base letter instead: `ɛ̃`→`ë̃`, `ɔ̃`→`ö̃`.
-  The same inconsistency, and the same fix, also applied to three
-  long-vowel entries that had copied the same wrong "no precomposed
-  letter exists" reasoning from `ø`ː (which IS a real letter) onto bases
-  that aren't: `ɛː`→`ë̄` (was `ɛ̄`), `ɔː`→`ȫ` (was `ɔ̄`), `ɯː`→`ı̄` (was
-  `ɯ̄`, reusing `ɯ`'s own real Turkish dotless-ı substitution), `ɨː`→`ï̄`
-  (was `ɨ̄`, reusing `ɨ`'s own `ï`). `ɤ`/`ɤː` and `ɑː` were checked and
-  left unchanged: `ɤ` has no established alternate substitution anywhere
-  in this table to reuse (a different situation from `ɛ`/`ɔ`/`ɯ`/`ɨ`, not
-  the same bug), and `ɑ` (Unicode "LATIN SMALL LETTER ALPHA") is already
-  a genuine Latin letter in its own right. This fix also resolved the
-  evolution bug reported in the same language, below -- see that entry.
-  **Not fixed, and not actually fine as-is (see next item): the `ʦ`/`ʨ`
-  ligature spelling this same report flagged.**
 - **Diacritic style's `ts`→`ʦ`/`tɕ`→`ʨ`/`dz`→`ʣ`/`dʑ`→`ʥ` ligature
   spelling looks like raw IPA leaking through, and isn't good behavior
-  (S-M).** Flagged by the same user report as the item above. These are
+  (S-M).** Flagged by a user report on a language generated from "French
+  evolved forward 1000 years with influence from Chinese." These are
   real, historically-attested single-character IPA ligatures (U+02A6/
   02A3/02A8/02A5), not invented, and the table's comment currently
   defends them on that basis -- but on reflection that defense doesn't
@@ -501,18 +303,63 @@ multi-session feature.
 
 - **eSpeak tonal voice is Mandarin-only (M).** Tones work by switching to the
   `cmn` voice, so other sounds are approximated by Mandarin's inventory.
-  Alternatives: eSpeak SSML `<prosody>` pitch contours, or PSOLA-style F0
-  post-processing.
-- **Per-word synthesis (M).** Sentences are voiced word by word with fixed
-  silences: no sentence intonation, stress or coarticulation.
-- **Voice selection (S).** See §2.
-- **Capability model is tones-only (M).** Engines report which tones they
-  voice, not which sounds (clicks, ejectives, pharyngeals, breathy voice,
-  length) are dropped; warnings cover tones only. `translate` has no
-  `--tts` path to warn about.
-- **Other engines (L).** Piper/Coqui, Azure/Google SSML. Kirshenbaum
-  conversion for `ɸ β ɕ ʑ ɦ ɭ ɽ ʈʂ` is approximate and unlistened.
-- **Audio cache (S).** Repeated pronunciation re-synthesizes every word.
+  The better fix is likely native per-engine pitch control (eSpeak's own
+  SSML `<prosody>` contour, applied to whichever voice a word is actually
+  using, not a voice switch) rather than a cross-engine PSOLA overlay --
+  see the multi-engine item below, which this becomes a sub-case of once
+  an engine/voice is chosen per word rather than per tone.
+- **Long, fixed pauses between words when a sentence is voiced (S); real
+  sentence-level intonation/stress/coarticulation stays explicitly out of
+  scope (M+, deliberately not pursued now).** By explicit decision, this
+  project is prioritizing word-level correctness and naturalness (see the
+  multi-engine item below) over sentence-level prosody for now -- sentence
+  assembly otherwise stays as today's per-word concatenation. The one
+  small, still-worthwhile fix in scope immediately: the fixed silence
+  between words is noticeably too long and should just be shortened.
+- **Pick the best available engine per word; rate engines on naturalness;
+  report per-engine sound coverage honestly (L).** Only eSpeak-ng and SAPI
+  exist today, chosen manually (the old §2 "voice picker" item, folded in
+  here) rather than by what a word actually needs. Maintain a roster of
+  engines instead -- eSpeak-ng/SAPI today; Piper and/or Coqui as free,
+  local, more natural-sounding neural candidates; Azure/Google SSML as
+  paid, more-capable cloud options (a neural engine's own training-
+  distribution limits for a genuinely invented phonology were explored in
+  chat and should inform how this is scoped) -- each with a declared
+  naturalness rating and a real per-phoneme coverage map, not just "does
+  it voice tones" (today's only capability dimension): clicks, ejectives,
+  pharyngeals, breathy voice, vowel/consonant length, and the
+  already-known-approximate Kirshenbaum mappings for `ɸ β ɕ ʑ ɦ ɭ ɽ ʈʂ` all
+  need their own per-engine coverage entries. Engine choice is per *word*,
+  not per sound within a word, by explicit decision -- splicing different
+  engines' audio together inside one word would need to solve matching
+  pitch/timbre/volume at the seam, a separate, harder problem not being
+  taken on. For a given word, pick the single engine that covers every one
+  of its sounds "correctly" and, among those, the most natural; a word no
+  engine covers correctly falls back to the best approximate match (same
+  philosophy as today), but reported, not silent. **Must be toggleable**:
+  any engine that costs money needs its own on/off switch, off by default
+  -- the same precedent this project already has for `llm=fake|anthropic`.
+  `translate` currently has no `--tts` path to warn about any of this.
+- **A per-sound pronunciation guide for people who aren't linguists (L).**
+  Two tiers: (a) a full sound inventory for a given generated language --
+  every phoneme it actually uses, each with a plain-language articulation
+  description (tongue/lips position, not IPA jargon) and a soundclip; (b) a
+  summarized version scoped to one specific word, showing only the sounds
+  in that word, so pronouncing/translating doesn't require leaving the
+  result to go look each sound up separately. Soundclips are synthesized
+  (via the engine-selection item above -- whichever engine voices that one
+  isolated sound most naturally), not sourced from real recordings.
+- **Pronunciation is slow every time, not just the first time (S-M).**
+  Repeated pronunciation re-synthesizes every word from scratch (the old
+  "audio cache" item, widened here): at minimum, cache a synthesized
+  word's audio keyed by (engine, voice, IPA) so a repeat request is
+  instant. Consider also pre-generating a freshly generated language's own
+  words up front instead of waiting for the first pronunciation request to
+  pay that cost -- weigh against a paid engine's per-call cost if one is
+  enabled (see the cost-toggle note above): eagerly pre-synthesizing an
+  entire several-hundred-word lexicon through a paid engine could get
+  expensive fast, so this likely wants its own explicit opt-in, not an
+  automatic default.
 - **Untested by ear (S).** eSpeak tone numbers for mid/low/neutral
   (33/21/11) were only length-checked.
 
@@ -895,36 +742,3 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   Deferred: lineage-biasing *which* palatalization variant a matched real
   profile prefers; the intermediate `ts`/`dz` stage; a conditioning tag
   other than front/back vowel.
-
-- **Evolution could produce a non-Latin "romanization" for a nasalized
-  vowel, even though a rule for it existed (M). Done.** Reported in the
-  same user report as the identity-rule item above: a language generated
-  from "French evolved forward 1000 years with influence from Chinese"
-  had a word stored as `bɔ̃` (French "bon") whose romanization rendered
-  as the raw `bɔ` -- the nasalization tilde simply vanished from the
-  *spelling* (not the pronunciation: `entry.ipa` still correctly held
-  `bɔ̃`). Direct inspection of the user's own saved `conlangs/
-  futurefrenchchinese/romanization.yaml` disproved the original
-  hypothesis (a previous pass of this entry guessed a lossy-tokenization
-  coverage gap during evolution's inventory rebuild): the evolved scheme
-  did have an explicit rule for `ɔ̃`, mapping it to `latin: ɔ` -- a rule
-  that exists, just a bad one, not a missing one. Root-caused by
-  reproducing generation + evolution directly: before this fix, the
-  diacritic table's own `ɛ̃`/`ɔ̃` identity rule (see the item above) meant
-  the rule's `latin` value was itself raw IPA (`ɔ̃` = `ɔ` + a combining
-  tilde, U+0303). `romanization_gen.py::_apply_orthography_drift` --
-  which simplifies spelling by NFD-decomposing a grapheme and randomly
-  dropping its combining marks (the real, intended case: "café" -> "cafe"
-  dropping an accent off a genuine Latin letter) -- cannot tell a real
-  diacritic on a real letter apart from the nasalization mark baked into
-  a raw-IPA identity rule, so it happily stripped the tilde and left the
-  bare, non-Latin `ɔ` character behind as the word's own "simplified"
-  spelling. Fixing the identity-rule bug above (composing the tilde onto
-  a real Latin base letter, `ɔ̃` -> `ö̃`) fixes this for free: now the
-  *same* drift mechanism, applied to the *same* rule, can only ever land
-  on `ö̃`, `ö`, `ẽ`-shaped-on-a-different-base, or plain `ö` -- every
-  possible outcome is a real Latin letter, none is raw IPA. Verified by
-  regenerating and evolving the same prompt/traits with the fix applied:
-  the evolved `ɔ̃` rule now reads `latin: o` (nasalization dropped,
-  base vowel kept, a perfectly ordinary-looking simplified spelling) and
-  `bɔ̃` romanizes as `bo`, not `bɔ`.
