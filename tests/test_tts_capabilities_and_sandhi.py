@@ -263,6 +263,88 @@ def test_the_webui_reuses_one_sapi_worker_across_separate_pronounce_requests(tmp
     monkeypatch.setattr(webui_app, "_sapi_worker", None)  # don't leak into other tests
 
 
+# --- the pronunciation guide (--sounds) -------------------------------------
+
+
+def test_cli_pronounce_sounds_requires_word_unless_sounds_given(tmp_path, monkeypatch):
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language("cli-sounds-test", GenerationSpec(prompt="p", seed=1), FakeLLMClient())
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+
+    missing_word = CliRunner().invoke(cli_main.app, ["pronounce", "--lang", "cli-sounds-test"])
+    assert missing_word.exit_code == 1
+    assert "WORD is required unless --sounds is given" in missing_word.output
+
+    whole_language = CliRunner().invoke(cli_main.app, ["pronounce", "--lang", "cli-sounds-test", "--sounds"])
+    assert whole_language.exit_code == 0
+    expected_symbols = language.phonology.all_symbols()
+    for symbol in expected_symbols:
+        assert f"/{symbol}/" in whole_language.output
+
+    gloss = language.lexicon.entries[0].glosses[0]
+    one_word = CliRunner().invoke(cli_main.app, ["pronounce", gloss, "--lang", "cli-sounds-test", "--sounds"])
+    assert one_word.exit_code == 0
+    word_symbols = {s for s in language.lexicon.entries[0].ipa if s in expected_symbols}
+    assert any(f"/{symbol}/" in one_word.output for symbol in word_symbols)
+    # a whole-language guide for even a small phonology prints more lines
+    # than a single word's own filtered subset does
+    assert len(whole_language.output) >= len(one_word.output)
+
+
+def test_cli_pronounce_sounds_synthesizes_each_phoneme_when_tts_is_given(tmp_path, monkeypatch):
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language("cli-sounds-tts-test", GenerationSpec(prompt="p", seed=1), FakeLLMClient())
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+
+    result = CliRunner().invoke(
+        cli_main.app, ["pronounce", "--lang", "cli-sounds-tts-test", "--sounds", "--tts", "espeak"]
+    )
+    assert result.exit_code == 0
+    assert "audio:" in result.output
+    sounds_dir = tmp_path / "cache" / "audio" / "cli-sounds-tts-test-sounds"
+    assert sounds_dir.is_dir() and any(sounds_dir.iterdir())
+
+
+def test_cli_pronounce_without_sounds_is_unaffected_by_the_new_flag(tmp_path, monkeypatch):
+    # The existing single-word pronunciation path must behave exactly as
+    # before -- the new --sounds branch returns early and never touches it.
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language("cli-sounds-regression-test", GenerationSpec(prompt="p", seed=1), FakeLLMClient())
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+    gloss = language.lexicon.entries[0].glosses[0]
+
+    result = CliRunner().invoke(cli_main.app, ["pronounce", gloss, "--lang", "cli-sounds-regression-test"])
+    assert result.exit_code == 0
+    assert "/{" not in result.output  # not accidentally routed through the sounds branch
+
+
 # --- the eSpeak tone path ---------------------------------------------------
 
 

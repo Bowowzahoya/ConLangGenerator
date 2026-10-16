@@ -1490,6 +1490,69 @@ Audio saved to .cache\audio\doc-auto-test-weak.wav (voiced with espeak)
 own Translate tab -- see `docs/DEFERRED.md`'s next TTS sub-item for
 whether it should become one.
 
+### `--sounds`: a plain-language pronunciation guide
+
+`--sounds` prints a plain-language articulation description (tongue/
+lips position, not IPA jargon) for each phoneme instead of synthesizing
+the word itself -- the whole language's own inventory when `word` is
+omitted, or just the sounds used in `word` (its real spoken form, after
+tone sandhi) when it's given:
+
+```bash
+conlang pronounce --lang doc-sounds-test --sounds
+```
+
+```
+/p/ -- voiceless bilabial stop
+    Press your lips together, then fully block the airflow for a moment, then release it suddenly, without your vocal cords buzzing (voiceless).
+/t/ -- voiceless alveolar stop
+    Touch your tongue tip to the ridge just behind your upper front teeth, then fully block the airflow for a moment, then release it suddenly, without your vocal cords buzzing (voiceless).
+...
+```
+
+```bash
+conlang pronounce I --lang doc-sounds-test --sounds
+```
+
+```
+/l/ -- voiced alveolar lateral approximant
+    Touch your tongue tip to the ridge just behind your upper front teeth, then let the air flow around the sides of your tongue, with your vocal cords buzzing (voiced).
+/u/ -- close back rounded vowel
+    Raise your tongue high, close to the roof of your mouth, and pull it back toward your throat, with rounded lips.
+/s/ -- voiceless alveolar fricative
+    Touch your tongue tip to the ridge just behind your upper front teeth, then leave a narrow gap there so the air hisses or buzzes through, without your vocal cords buzzing (voiceless).
+/ŋ/ -- voiced velar nasal
+    Raise the back of your tongue to the soft palate, further back on the roof of your mouth, then let the air flow out through your nose instead of your mouth, with your vocal cords buzzing (voiced).
+/ə/ -- mid central unrounded vowel
+    Hold your tongue roughly in the middle, neither high nor low, and keep it resting in the middle of your mouth, with your lips relaxed, not rounded.
+/j/ -- voiced palatal approximant
+    Raise the body of your tongue to the hard palate, the roof of your mouth, then narrow the gap there without quite causing friction, with your vocal cords buzzing (voiced).
+```
+
+Only the sounds in `I`'s own spoken form (`ˈlūsŋə̄j`) appear, in the
+order they occur in the word -- not the whole language's inventory.
+Combined with `--tts`, each phoneme is also synthesized on its own
+(same engine-selection rules as a normal word), one `.wav` per sound
+under `./.cache/audio/<lang>-sounds/`:
+
+```bash
+conlang pronounce I --lang doc-sounds-test --sounds --tts espeak
+```
+
+```
+/l/ -- voiced alveolar lateral approximant
+    Touch your tongue tip to the ridge just behind your upper front teeth, then let the air flow around the sides of your tongue, with your vocal cords buzzing (voiced).
+    audio: .cache\audio\doc-sounds-test-sounds\00.wav
+...
+```
+
+The web UI shows the same two tiers: a "Sound inventory" section under
+each generated language's summary, and a small button next to any
+word's own play button that pops up just that word's own sounds.
+SAPI's own isolated-sound clips run a fixed ~1 second regardless of the
+sound's real length (see `docs/LIMITATIONS.md`); eSpeak's are shorter
+and cleaner.
+
 ## `conlang audit-lexicons`
 
 Check the curated real lexicons (`generation/reference_languages/lexicons/`)

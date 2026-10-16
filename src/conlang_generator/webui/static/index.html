@@ -100,6 +100,14 @@
   }
   #gloss-tooltip .gloss-tooltip-gloss { font-weight: 600; }
   #gloss-tooltip .gloss-tooltip-row { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  #sound-guide-popover {
+    position: fixed; display: none; max-width: 340px; max-height: 360px; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+    font-size: 13px; color: var(--text); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    z-index: 50; pointer-events: auto;
+  }
+  #sound-guide-popover .log-entry { margin-bottom: 6px; }
+  .sound-guide-btn { margin-left: 2px; }
   .log-entry {
     border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;
   }
@@ -373,6 +381,8 @@
 </section>
 
 </main>
+
+<div id="sound-guide-popover"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -779,6 +789,71 @@ let currentSummary = null;
 let currentResultContainer = null;
 
 // --- tone system (levels + sandhi rules), when the language is tonal ---
+// --- pronunciation guide: tier 1 (full per-language inventory, spliced
+// into renderLanguageSummary below) and tier 2 (one word's own sounds,
+// shown in a shared popover -- see toggleSoundGuide further down).
+// Both tiers render the same row markup, reusing the Log tab's own
+// collapsible-row CSS (.log-entry/.log-body) and the lexicon table's
+// own .word-play-btn class, so the existing delegated click handler
+// plays a sound with zero new wiring. ---
+function renderSoundGuideList(sounds) {
+  if (!sounds.length) return `<p class="ipa">(no sounds to show)</p>`;
+  return sounds.map(s => `
+    <details class="log-entry sound-entry">
+      <summary>
+        <button type="button" class="word-play-btn" data-ipa="${escapeAttr(s.ipa)}" title="Play this sound">&#128266;</button>
+        <span class="ipa">/${escapeAttr(s.ipa)}/</span>
+        <span class="log-purpose">${escapeAttr(s.label)}</span>
+      </summary>
+      <div class="log-body"><p>${escapeAttr(s.description)}</p></div>
+    </details>`).join("");
+}
+
+function renderSoundInventorySection(summary) {
+  const sounds = summary.phoneme_inventory || [];
+  if (!sounds.length) return "";
+  return `<h2>Sound inventory (${sounds.length} phonemes)</h2>${renderSoundGuideList(sounds)}`;
+}
+
+// --- tier 2: a button next to a word's own play button fetches and
+// shows just that word's own sounds, in one shared popover positioned
+// under whichever button was clicked. Cached per slug+word so reopening
+// the same word doesn't refetch. ---
+const soundGuideCache = new Map();
+let openSoundGuideButton = null;
+
+function hideSoundGuidePopover() {
+  $("sound-guide-popover").style.display = "none";
+  openSoundGuideButton = null;
+}
+
+function showSoundGuidePopover(anchor, sounds) {
+  const pop = $("sound-guide-popover");
+  pop.innerHTML = renderSoundGuideList(sounds);
+  pop.style.display = "block";
+  const rect = anchor.getBoundingClientRect();
+  pop.style.top = `${rect.bottom + 6}px`;
+  pop.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 340 - 12))}px`;
+  openSoundGuideButton = anchor;
+}
+
+async function toggleSoundGuide(button) {
+  if (openSoundGuideButton === button) { hideSoundGuidePopover(); return; }
+  const { slug, ipa } = button.dataset;
+  const key = `${slug}|${ipa}`;
+  let sounds = soundGuideCache.get(key);
+  if (!sounds) {
+    try {
+      const body = await api(`/api/languages/${encodeURIComponent(slug)}/sounds?word=${encodeURIComponent(ipa)}`);
+      sounds = body.sounds;
+      soundGuideCache.set(key, sounds);
+    } catch (e) {
+      sounds = [];
+    }
+  }
+  showSoundGuidePopover(button, sounds);
+}
+
 function renderToneSection(summary) {
   const ts = summary.tone_system;
   if (!summary.grammar.tonal || !ts) return "";
@@ -846,6 +921,7 @@ function renderLanguageSummary(container, summary) {
       ${summary.cost ? `<div class="badges"><span class="badge">this call: $${summary.cost.delta_usd.toFixed(4)} (${summary.cost.delta_calls} calls)</span></div>` : ""}
       ${summary.pregenerated_audio ? `<div class="badges"><span class="badge">pre-generated audio: ${summary.pregenerated_audio.synthesized}/${summary.pregenerated_audio.total}${summary.pregenerated_audio.failed ? ` (${summary.pregenerated_audio.failed} failed)` : ""}</span></div>` : ""}
       ${renderToneSection(summary)}
+      ${renderSoundInventorySection(summary)}
       <h2>Lexicon (${summary.lexicon.length} words)
         <span class="ipa" style="font-weight:normal;">-- &#128266; plays, &#9998; edits, the Translate tab's own chosen backend</span>
       </h2>
@@ -863,7 +939,7 @@ function renderLanguageSummary(container, summary) {
         <table>
           <thead><tr><th></th><th>gloss</th><th>pos</th><th>word</th><th>IPA</th><th></th></tr></thead>
           <tbody id="lexicon-tbody">
-            ${summary.lexicon.map(renderLexiconRow).join("")}
+            ${summary.lexicon.map(e => renderLexiconRow(e, summary.slug)).join("")}
           </tbody>
         </table>
       </div>
@@ -879,10 +955,11 @@ function renderLanguageSummary(container, summary) {
 // normal display and (via startEditingRow below) restoring a row after
 // an edit is cancelled. `data-search`/`data-gloss` carry what the filter
 // and the edit/save handlers need without a second lookup structure. ---
-function renderLexiconRow(e) {
+function renderLexiconRow(e, slug) {
+  const langSlug = slug !== undefined ? slug : (currentSummary ? currentSummary.slug : "");
   const search = `${e.gloss} ${e.pos} ${e.romanization} ${e.ipa} ${e.provenance || ""}`.toLowerCase();
   return `<tr data-gloss="${e.gloss}" data-search="${search}">
-    <td><button type="button" class="word-play-btn" data-ipa="${e.spoken_ipa}" title="Play pronunciation">&#128266;</button></td>
+    <td><button type="button" class="word-play-btn" data-ipa="${e.spoken_ipa}" title="Play pronunciation">&#128266;</button><button type="button" class="sound-guide-btn" data-slug="${escapeAttr(langSlug)}" data-ipa="${escapeAttr(e.spoken_ipa)}" title="How to pronounce each sound">&#128270;</button></td>
     <td>${e.gloss}</td>
     <td>${e.pos}</td>
     <td class="lex-romanization">${e.romanization}${e.provenance ? ` <span class="badge" title="${e.provenance}">real</span>` : ""}</td>
@@ -997,6 +1074,9 @@ document.addEventListener("click", (e) => {
   if (playBtn) { playWordPronunciation(playBtn, playBtn.dataset.ipa); return; }
   const refPlayBtn = e.target.closest(".ref-play-btn");
   if (refPlayBtn) { playWordPronunciation(refPlayBtn, refPlayBtn.dataset.ipa, "reference-audio-error"); return; }
+  const sgBtn = e.target.closest(".sound-guide-btn");
+  if (sgBtn) { toggleSoundGuide(sgBtn); return; }
+  if (openSoundGuideButton && !e.target.closest("#sound-guide-popover")) hideSoundGuidePopover();
 
   const tr = e.target.closest("#lexicon-tbody tr");
   if (!tr || !currentSummary) return;
@@ -1227,6 +1307,7 @@ $("translate-btn").onclick = async () => {
     const pronounceBlock = result.ipa ? `
         <div class="submit-row">
           <button type="button" class="add-row" id="pronounce-btn">&#128266; Play pronunciation</button>
+          <button type="button" class="sound-guide-btn" data-slug="${escapeAttr(lang)}" data-ipa="${escapeAttr(result.ipa)}" title="How to pronounce each sound">&#128270;</button>
           <audio id="pronounce-audio" controls style="display:none; margin-left:10px; vertical-align:middle;"></audio>
         </div>
         <div class="error" id="pronounce-warning" hidden></div>

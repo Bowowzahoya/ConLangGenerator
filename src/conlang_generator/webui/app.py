@@ -64,7 +64,7 @@ from conlang_generator.llm.cost_tracker import CostTracker
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm import pricing
 from conlang_generator.llm.pricing import DEFAULT_MODEL
-from conlang_generator.speech import engine_selection, tts, tts_cache
+from conlang_generator.speech import articulation, engine_selection, tts, tts_cache
 from conlang_generator.speech.pregenerate import pregenerate_audio as run_pregenerate_audio
 from conlang_generator.speech.sapi_worker import SapiWorker
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
@@ -193,6 +193,7 @@ def _language_summary(language: Language) -> dict:
                 for r in language.tone_system.lexical_sandhi
             ],
         },
+        "phoneme_inventory": [e.as_dict() for e in articulation.full_inventory(language)],
         # `entry.real_word` (not `entry.notes`, which an evolution step
         # overwrites to an "orthography: ..." tag regardless of a word's
         # own real origin) survives any number of evolution steps --
@@ -333,6 +334,21 @@ def get_language(slug: str) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _language_summary(language)
+
+
+@app.get("/api/languages/{slug}/sounds")
+def get_word_sounds(slug: str, word: str) -> dict:
+    """The word-scoped tier of the pronunciation guide -- the full,
+    per-language tier already rides along on ``_language_summary``'s
+    own ``phoneme_inventory`` field, so this endpoint only ever needs to
+    filter/order by one specific word's own IPA."""
+    try:
+        language = _repository().load(slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if not word.strip():
+        raise HTTPException(status_code=400, detail="word must not be empty")
+    return {"slug": slug, "word": word, "sounds": [e.as_dict() for e in articulation.word_inventory(language, word)]}
 
 
 @app.get("/api/languages/{slug}/export")

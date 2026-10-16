@@ -225,6 +225,22 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   more complex mechanism than a single `subprocess.run` call, with its own failure modes (a wedged pipe,
   a worker that dies mid-batch) the retry-once logic is designed to recover from, not guaranteed to
   survive every possible failure shape.
+- **An isolated single-sound clip from the pronunciation guide runs a fixed ~1s under SAPI, regardless
+  of the sound's real length.** `SapiTTSClient`'s SSML template always speaks the literal placeholder
+  text `"word"`, with only the `ph=` attribute overridden to the real phoneme -- confirmed (byte
+  comparison) that different symbols really do produce different audio content, but the engine's own
+  timing/envelope tracks the placeholder text's natural length, not the actual (short) sound. eSpeak's
+  own isolated-sound clips are shorter and cleaner, with no such mismatch. Not fixed with a dedicated
+  second SSML template for this one case -- `speech.articulation`/the pronunciation guide reuses
+  `engine_selection`/`"auto"` unchanged, same engine choice a normal word gets.
+- **The pronunciation guide has no entries for the Reference tab's real-language lexicons.**
+  `generation/reference_languages/real_lexicon.py`'s entries store only `gloss`/`spelling`/`ipa` strings,
+  with no backing `PhonemeInventory`/`Place`/`Manner` data to describe from -- tier 1/2 of
+  `speech.articulation` only ever operate on a generated `Language`'s own inventory.
+- **The pronunciation guide gives no real-word anchors ("like the p in 'spin'").** Deliberately out of
+  scope: there's no good English equivalent for many sounds (clicks, ejectives, pharyngeals), and
+  anchoring a generated language's own sound guide in English examples would drift its voice away from
+  the language it's describing.
 
 ## Grammar and translation
 

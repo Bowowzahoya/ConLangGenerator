@@ -255,6 +255,10 @@ class SapiTTSClient:
                 "Cannot voice tones: SAPI rejects IPA tone marks (its Mandarin voices only accept grave/acute, "
                 "as stress), so they are removed before speaking -- the words are still spoken, toneless.",
                 "Sounds the voice lacks are approximated by it.",
+                "An isolated single-sound clip (e.g. from the pronunciation guide) runs about 1 second "
+                "regardless of the sound's real length -- the SSML template's placeholder text sets the "
+                "overall timing even though the phoneme override changes the actual sound; eSpeak's "
+                "isolated-sound clips are shorter and cleaner.",
             ),
         )
 

@@ -349,15 +349,27 @@ multi-session feature.
     same per-task on/off-switch treatment this project already gives
     `llm=fake|anthropic`, off by default, before it's safe to even offer
     in the roster.
-- **A per-sound pronunciation guide for people who aren't linguists (L).**
-  Two tiers: (a) a full sound inventory for a given generated language --
-  every phoneme it actually uses, each with a plain-language articulation
-  description (tongue/lips position, not IPA jargon) and a soundclip; (b) a
-  summarized version scoped to one specific word, showing only the sounds
-  in that word, so pronouncing/translating doesn't require leaving the
-  result to go look each sound up separately. Soundclips are synthesized
-  (via the engine-selection item above -- whichever engine voices that one
-  isolated sound most naturally), not sourced from real recordings.
+- **A per-sound pronunciation guide for people who aren't linguists --
+  done.** Two tiers: (a) `_language_summary`'s own `phoneme_inventory`
+  field -- every phoneme a generated language actually uses, each with a
+  plain-language articulation description (`speech/articulation.py`,
+  composed from `core.phonology`'s own place/manner/height/backness/
+  modifier fields, not a hand-curated table) and a play button (reusing
+  `/api/pronounce` unchanged -- a bare isolated symbol is already just
+  one "word" to `_synthesize_sentence`); (b) `GET /api/languages/{slug}/
+  sounds?word=...`, the same descriptions filtered/ordered to one word's
+  own sounds, shown in a popover next to that word in the lexicon table
+  and translation results. CLI: `conlang pronounce --lang X --sounds`
+  (whole language) / `conlang pronounce WORD --lang X --sounds` (one
+  word). SAPI's own isolated-sound clips run a fixed ~1s regardless of
+  the sound's real length (its SSML template's placeholder text sets the
+  timing, not the overridden phoneme) -- documented as a limitation
+  rather than given a dedicated second SSML template; the Reference
+  tab's real-language entries are excluded (no backing `PhonemeInventory`
+  to describe from). Real-word pronunciation anchors ("like the p in
+  'spin'") were deliberately left out -- no good answer for clicks/
+  ejectives/pharyngeals, and English anchors would drift the guide's own
+  voice away from the language it's describing.
 - **Pronunciation is slow every time, not just the first time -- done,
   including the SAPI-specific latency this surfaced.** Repeated
   pronunciation used to re-synthesize every word from scratch.

@@ -110,6 +110,38 @@ def test_get_language_by_slug_matches_generate_response_shape(client):
     assert [w["gloss"] for w in fetched["lexicon"]] == [w["gloss"] for w in generated["lexicon"]]
 
 
+def test_generate_response_includes_a_phoneme_inventory_for_every_sound_in_the_language(client):
+    body = client.post("/api/generate", json={"prompt": "p", "name": "Sound Guide Test", "seed": 1, "llm": "fake"}).json()
+    inventory = body["phoneme_inventory"]
+    assert inventory  # a generated language always has at least one consonant and vowel
+    assert all({"ipa", "kind", "label", "description"} <= entry.keys() for entry in inventory)
+    assert all(entry["description"].endswith(".") for entry in inventory)
+    assert len(inventory) == len({entry["ipa"] for entry in inventory})  # no duplicates
+
+
+def test_word_sounds_endpoint_returns_only_that_words_own_sounds_in_order(client):
+    body = client.post("/api/generate", json={"prompt": "p", "name": "Word Sounds Test", "seed": 1, "llm": "fake"}).json()
+    word = body["lexicon"][0]
+    response = client.get(f"/api/languages/{body['slug']}/sounds", params={"word": word["ipa"]})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["slug"] == body["slug"] and payload["word"] == word["ipa"]
+    inventory_ipas = {entry["ipa"] for entry in body["phoneme_inventory"]}
+    sound_ipas = [entry["ipa"] for entry in payload["sounds"]]
+    assert sound_ipas  # a real word has at least one sound
+    assert all(ipa in inventory_ipas for ipa in sound_ipas)
+    assert len(sound_ipas) == len(set(sound_ipas))  # deduplicated
+
+
+def test_word_sounds_endpoint_404s_for_an_unknown_language(client):
+    assert client.get("/api/languages/does-not-exist/sounds", params={"word": "pata"}).status_code == 404
+
+
+def test_word_sounds_endpoint_400s_for_an_empty_word(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Empty Word Test", "seed": 1, "llm": "fake"})
+    assert client.get("/api/languages/empty-word-test/sounds", params={"word": "  "}).status_code == 400
+
+
 def test_export_language_returns_the_full_model_with_a_download_header(client):
     client.post("/api/generate", json={"prompt": "p", "name": "Export Test", "seed": 1, "llm": "fake"})
     response = client.get("/api/languages/export-test/export")

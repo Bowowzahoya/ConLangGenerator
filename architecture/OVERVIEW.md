@@ -7203,3 +7203,50 @@ reading code or one-off ad hoc scripts.
   Re-ran the full suite clean after the real fix landed, rather than assuming success. A reminder that
   "re-ran and it passed" isn't root-causing, and that the first plausible-sounding hypothesis can still
   be wrong -- verify a fix actually fires before trusting it, not just that the symptom goes away.
+
+- **The pronunciation guide (`speech/articulation.py`, new) -- the first user-facing feature on top of
+  the TTS infrastructure above, not more infrastructure itself.** Two tiers: a full per-language sound
+  inventory (every phoneme a generated `Language` actually uses, each with a plain-language articulation
+  description) and a word-scoped filter of the same descriptions. `PhonemeGuideEntry(ipa, kind, label,
+  description)`; `full_inventory(language)` and `word_inventory(language, ipa_word)` (the latter via
+  `ipa_tokenizer.symbols_only`, deduplicated and ordered by first appearance in the word, not place/
+  manner order, so a reader scans left-to-right through the word).
+
+  **Composed, not curated.** Mirrors `speech/phoneme_coverage.py::describe_gap`'s own lookup/branch
+  shape (a precomputed `{ipa: Consonant}`/`{ipa: Vowel}` dict, branched on `Place`/`Manner`/
+  `VowelHeight`/`VowelBackness`/boolean modifier flags) but composes a full sentence for *every* symbol
+  instead of a short reason for non-exact ones -- `_PLACE_PHRASES`/`_MANNER_PHRASES`/`_HEIGHT_PHRASES`/
+  `_BACKNESS_PHRASES` tables (11/10/7/3 entries) plus one extra clause per true modifier
+  (ejective/aspirated/breathy/pharyngealized/palatalized/long/nasalized/diphthong), not a ~200-symbol
+  hand-written table. A click character (`CLICK_CHARACTERS`) overrides the manner clause entirely --
+  clicks use a different (velaric, not pulmonic) airstream mechanism, not a `Manner` value.
+
+  **No new synthesis code.** `/api/pronounce` already treats a bare single IPA symbol as one "word" (its
+  own `.split()`-based segmentation never fires inter-word silence logic for a no-space string), so both
+  tiers' play buttons reuse it unchanged, passing a bare phoneme symbol as `ipa`. Confirmed empirically
+  that this produces real, distinct, non-silent audio under both engines -- but SAPI's own SSML template
+  always speaks the literal placeholder text `"word"` (only its `ph=` attribute changes), so an isolated
+  SAPI clip runs a fixed ~1s regardless of the real sound's length; documented as a limitation
+  (`docs/LIMITATIONS.md`) rather than given its own second SSML template for this one case.
+
+  **Webui**: `_language_summary()` gained `"phoneme_inventory"` (tier 1, riding along on the existing
+  `/api/generate`/`/api/languages/{slug}` response -- cheap, no new round trip); a new `GET
+  /api/languages/{slug}/sounds?word=<ipa>` (tier 2, the only genuinely new endpoint, since tier 1 needs
+  no per-word filtering). Frontend: a "Sound inventory" section next to `renderToneSection`'s own tone
+  section, and a `.sound-guide-btn` next to any word's own play button (lexicon table, translate result)
+  opening a shared `#sound-guide-popover` -- both reuse the Log tab's `.log-entry`/`.log-body` CSS and
+  the lexicon table's own `.word-play-btn` class verbatim, so the existing delegated click handler plays
+  a sound with no new wiring.
+
+  **CLI**: `pronounce`'s `word` argument became optional (`str | None`), required unless `--sounds` is
+  given; `--sounds` prints the guide (whole-language if `word` omitted, else that word's own spoken-form
+  sounds) and, combined with `--tts`, synthesizes each phoneme to its own numbered `.wav` under
+  `<lang>-sounds/` (index-based filenames, not the raw IPA symbol, to sidestep Windows' Unicode-filename
+  handling). The original single-word pronunciation body is untouched, gated behind an early `return`.
+
+  **Explicitly excluded**: the Reference tab's real-language entries (no backing `PhonemeInventory` to
+  describe from); real-word pronunciation anchors like "the p in 'spin'" (no answer for clicks/
+  ejectives/pharyngeals, and an English anchor would drift a generated language's own guide toward
+  English); persisting the inventory on the `Language` model (computed per-request, like `tone_system`'s
+  own derived display fields already are).
+

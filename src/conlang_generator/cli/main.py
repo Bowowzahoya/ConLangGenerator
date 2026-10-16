@@ -33,7 +33,7 @@ from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm.pricing import DEFAULT_MODEL
-from conlang_generator.speech import engine_selection, reader, tts_cache
+from conlang_generator.speech import articulation, engine_selection, reader, tts_cache
 from conlang_generator.speech.pregenerate import pregenerate_audio
 from conlang_generator.speech.tts import available_engine_kinds, build_tts_client, pronunciation_warnings
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
@@ -533,7 +533,11 @@ def translate(
 
 @app.command()
 def pronounce(
-    word: str = typer.Argument(..., help="An English gloss or a conlang word (romanized or IPA form)."),
+    word: str | None = typer.Argument(
+        None,
+        help="An English gloss or a conlang word (romanized or IPA form). May be omitted together with "
+        "--sounds to print the whole language's sound inventory instead of one word's.",
+    ),
     lang: str = typer.Option(..., "--lang", help="Language name."),
     tts: str = typer.Option(
         "none",
@@ -541,13 +545,61 @@ def pronounce(
         help="Audio synthesis backend: none, espeak (espeak-ng, once installed), sapi (Windows only), "
         "or auto (best engine per word).",
     ),
+    sounds: bool = typer.Option(
+        False,
+        "--sounds",
+        help="Print a plain-language articulation guide instead of (or alongside, with --tts) the word's "
+        "own pronunciation: every phoneme in the language if WORD is omitted, or just the phonemes used "
+        "in WORD if given.",
+    ),
 ) -> None:
-    """Show IPA and romanization for a known word, optionally synthesizing real audio."""
+    """Show IPA and romanization for a known word, optionally synthesizing real audio -- or, with
+    --sounds, a plain-language articulation guide to the language's own phonemes."""
     try:
         language = _repository().load(lang)
     except FileNotFoundError as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
+
+    if word is None and not sounds:
+        typer.echo("error: WORD is required unless --sounds is given.", err=True)
+        raise typer.Exit(code=1)
+
+    if sounds:
+        if word is None:
+            guide_entries = articulation.full_inventory(language)
+        else:
+            entry = reader.lookup_pronunciation(language, word)
+            if entry is None:
+                typer.echo(f"'{word}' is not in {lang}'s lexicon yet.")
+                raise typer.Exit(code=1)
+            spoken_ipa = apply_sandhi([entry.ipa], language.tone_system, [entry.primary_gloss])[0]
+            guide_entries = articulation.word_inventory(language, spoken_ipa)
+        for i, guide_entry in enumerate(guide_entries):
+            typer.echo(f"/{guide_entry.ipa}/ -- {guide_entry.label}")
+            typer.echo(f"    {guide_entry.description}")
+            if tts == "none":
+                continue
+            if tts == "auto":
+                choice = engine_selection.choose_engine(guide_entry.ipa, available_engine_kinds())
+                if choice is None:
+                    typer.echo("error: no TTS backend available on this machine.", err=True)
+                    raise typer.Exit(code=1)
+                client = tts_cache.CachingTTSClient(build_tts_client(choice.kind), CACHE_DIR / "tts_cache")
+            else:
+                try:
+                    client = tts_cache.CachingTTSClient(build_tts_client(tts), CACHE_DIR / "tts_cache")
+                except ValueError as exc:
+                    typer.echo(f"error: {exc}", err=True)
+                    raise typer.Exit(code=1) from exc
+            # Index-based filename, not the raw IPA symbol -- sidesteps any
+            # Unicode-in-filename issue on Windows.
+            output_path = CACHE_DIR / "audio" / f"{lang}-sounds" / f"{i:02d}.wav"
+            if client.synthesize(guide_entry.ipa, output_path):
+                typer.echo(f"    audio: {output_path}")
+            else:
+                typer.echo("    audio: synthesis failed", err=True)
+        return
 
     entry = reader.lookup_pronunciation(language, word)
     if entry is None:
