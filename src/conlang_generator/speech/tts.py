@@ -308,11 +308,35 @@ eSpeak-ng/SAPI already have."""
 
 def _find_piper_voice() -> Path | None:
     """The voice's own ``.onnx`` path if both it and its ``.onnx.json``
-    config already exist on disk -- never downloads, never imports the
-    optional ``piper`` package just to check this."""
+    config already exist on disk -- never downloads. Does NOT check
+    whether the optional ``piper`` package itself is importable -- see
+    ``_piper_usable()`` below for the real availability check; this
+    function alone is not a safe proxy for "piper will actually work"
+    (the voice files can outlive an `uv sync` that dropped the `piper`
+    dependency-group again, a real failure mode hit in practice)."""
     onnx = _PIPER_VOICE_DIR / f"{_PIPER_VOICE_NAME}.onnx"
     config = _PIPER_VOICE_DIR / f"{_PIPER_VOICE_NAME}.onnx.json"
     return onnx if onnx.is_file() and config.is_file() else None
+
+
+def _piper_usable() -> bool:
+    """Both the voice files exist on disk *and* the optional ``piper``
+    package is actually importable right now -- the real "will `--tts
+    piper`/`"auto"` routing to piper actually work" check. A cheap,
+    side-effect-free `import` (Python caches it after the first call, so
+    repeated checks -- e.g. every `/api/options` request -- cost nothing
+    extra); checking file presence alone was a real false positive:
+    `uv sync` without `--group piper` silently drops the package while
+    leaving the already-downloaded voice files in place, which used to
+    make `available_backends()` report `"piper": True` right up until
+    synthesis itself failed."""
+    if _find_piper_voice() is None:
+        return False
+    try:
+        import piper  # noqa: F401
+    except ImportError:
+        return False
+    return True
 
 
 class PiperTTSClient:
@@ -419,7 +443,7 @@ def available_backends() -> dict[str, bool]:
     real = {
         "espeak": _find_espeak_ng() is not None,
         "sapi": sys.platform.startswith("win"),
-        "piper": _find_piper_voice() is not None,
+        "piper": _piper_usable(),
     }
     return {"none": True, **real, "auto": any(real.values())}
 

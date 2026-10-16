@@ -109,6 +109,27 @@ def test_piper_client_reports_unavailable_when_not_set_up(tmp_path: Path):
     assert not output.exists()
 
 
+def test_piper_reported_unavailable_when_voice_files_exist_but_the_package_is_not_installed(tmp_path, monkeypatch):
+    # Regression guard for a real bug hit in practice: `uv sync` without
+    # `--group piper` silently drops the `piper` package while leaving
+    # already-downloaded voice files in place. available_backends() used
+    # to report "piper": True purely from file presence, so "auto"
+    # confidently routed words to Piper and every one of them then
+    # failed silently at synthesize() time (ImportError swallowed),
+    # surfacing only as a confusing "TTS backend unavailable or
+    # synthesis failed" error with no indication of the real cause.
+    voice_dir = tmp_path / "piper_voices"
+    voice_dir.mkdir()
+    (voice_dir / f"{tts._PIPER_VOICE_NAME}.onnx").write_bytes(b"not a real model")
+    (voice_dir / f"{tts._PIPER_VOICE_NAME}.onnx.json").write_text("{}")
+    monkeypatch.setattr(tts, "_PIPER_VOICE_DIR", voice_dir)
+    assert tts._find_piper_voice() is not None  # files alone look present
+
+    monkeypatch.setitem(sys.modules, "piper", None)  # forces `import piper` to raise ImportError
+    assert tts._piper_usable() is False
+    assert tts.available_backends()["piper"] is False
+
+
 @pytest.mark.skipif(not _PIPER_AVAILABLE, reason="piper not installed or voice not downloaded on this machine")
 def test_piper_client_reuses_an_injected_client_instance_instead_of_a_fresh_one():
     shared = tts.build_tts_client("piper")
@@ -175,4 +196,4 @@ def test_available_backends_reflects_actual_espeak_and_platform_state():
     backends = tts.available_backends()
     assert backends["espeak"] == _ESPEAK_AVAILABLE
     assert backends["sapi"] == _IS_WINDOWS
-    assert backends["piper"] == (tts._find_piper_voice() is not None)
+    assert backends["piper"] == _PIPER_AVAILABLE

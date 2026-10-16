@@ -104,8 +104,12 @@ def test_the_cli_pronounce_command_auto_tts_warns_when_even_the_best_engine_only
     # An ejective word: eSpeak and Piper both only approximate it (the
     # ejective marker is dropped either way), SAPI poorly -- auto picks
     # whichever of the approximating engines is ranked most natural
-    # (Piper, per engine_selection.NATURALNESS) but should still name
-    # the actual shortfall, not stay silent about it.
+    # (Piper if it's actually installed/set up on this machine, else
+    # eSpeak -- see engine_selection.NATURALNESS) but should still name
+    # the actual shortfall, not stay silent about it. Doesn't assert a
+    # fixed engine name: which one wins depends on whether the optional
+    # `piper` dependency-group is actually installed right now, not just
+    # on the ranking table.
     import conlang_generator.cli.main as cli_main
     from typer.testing import CliRunner
 
@@ -132,7 +136,8 @@ def test_the_cli_pronounce_command_auto_tts_warns_when_even_the_best_engine_only
     )
     assert result.exit_code == 0
     assert "warning:" in result.output
-    assert "piper" in result.output or "Piper" in result.output
+    expected_engine_label = "Piper" if tts.available_backends()["piper"] else "eSpeak"
+    assert expected_engine_label in result.output
     assert "Audio saved to" in result.output
 
 

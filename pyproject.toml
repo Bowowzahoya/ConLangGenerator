@@ -19,6 +19,21 @@ conlang = "conlang_generator.cli.main:main"
 requires = ["uv_build>=0.12.6,<0.13.0"]
 build-backend = "uv_build"
 
+[tool.uv]
+# A plain `uv sync`/`uv run` with no --group flags otherwise resets the
+# installed set to just "dev" -- silently dropping "web"/"piper" again
+# even after an earlier explicit `uv sync --group web --group piper`
+# (a real bug hit in practice: the already-downloaded piper voice files
+# outlived the package itself getting dropped this way, and
+# speech.tts.available_backends() used to trust file presence alone,
+# so "auto" kept confidently routing to a piper that could no longer
+# synthesize anything). Both stay genuinely optional in spirit --
+# nothing elsewhere in this project requires fastapi/piper-tts at
+# import time unless the corresponding feature is actually used -- this
+# just keeps a normal `uv run conlang ...` from silently uninstalling
+# them once they've been added once.
+default-groups = ["dev", "web", "piper"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3",
