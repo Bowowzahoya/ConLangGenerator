@@ -7407,3 +7407,39 @@ reading code or one-off ad hoc scripts.
   `playWordPronunciation` with the lexicon table, so they already use whatever engine the Translate
   tab's own `#tr-tts` dropdown is set to -- including `"auto"` (best engine per word), its own default
   since the multi-engine selection work above -- with no separate wiring needed.
+
+- **A real example word for each sound in the pronunciation guide -- done.** Revisits a choice the
+  original pronunciation-guide item deliberately made the other way ("real-word pronunciation anchors
+  were deliberately left out -- no good answer for clicks/ejectives/pharyngeals, and English anchors
+  would drift the guide's own voice away from the language it's describing") after a direct user
+  request asked for exactly that; the earlier reasoning was weighed again rather than silently
+  overridden, and resolved toward showing an example with an honest gap left for sounds that genuinely
+  have none, rather than continuing to omit the feature entirely. `speech/articulation.py` gained a
+  curated table keyed on the *same structured identity* `describe_consonant`/`describe_vowel` already
+  use -- `(place, manner, voiced)` for consonants, `(height, backness, rounded)` for vowels -- rather
+  than on raw IPA strings or a fresh per-symbol table: a modified symbol (`"pʰ"`, `"tʼ"`, `"aː"`, ...)
+  therefore reuses its own base's example unchanged, since the modifier itself is already explained
+  separately in `describe_consonant`/`describe_vowel`'s own "extras" prose ("like the p in English
+  'pin', ... followed by a puff of extra breath (aspirated)" reads naturally without a second,
+  aspirated-specific citation). This cut the curation work from the global pool's own ~255 symbols down
+  to the ~90 underlying base identities (68 consonant place/manner/voicing combinations, 5 click types
+  keyed on their own click character since `describe_consonant` already treats them specially, 19 vowel
+  height/backness/rounding combinations, plus 3 direct per-symbol overrides for `r̩`/`ɻ̩`/`ɚ`, which share
+  a vowel bucket with plain `ɨ`/`ə` in the data model despite being distinctive enough to deserve their
+  own citation). English preferred wherever a recognizable English word has the exact sound (`"p"` ->
+  "pin", `"tʃ"` -> "chip"), a cited other language otherwise (`"x"` -> Scottish English "loch", `"ç"` ->
+  German "ich", the lateral click `"ǁ"` -> the word "Xhosa" itself, the language's own name) -- "ordered
+  by how famous" was read as choosing the single most recognizable option rather than listing several
+  ranked candidates, which would have cluttered a view already showing one play button, one label and
+  one description per sound. Deliberately incomplete rather than forced: ~11 consonants (the bilabial
+  and palatal clicks and their nasalized/voiced variants, the voiced uvular stop and its ejective) and 2
+  vowels (`ɤ`/`ɤː`, close-mid back unrounded) have no citation at all, left that way on purpose -- a
+  shaky "famous" example would undermine the whole feature's trustworthiness more than an honest gap;
+  confirmed by a loose coverage test (>90%, not 100%, so the test doesn't silently start demanding a
+  forced citation for these) that 181/192 consonants and 61/63 vowels in the global pool resolve to a
+  real example. Wired through `PhonemeGuideEntry`'s own `as_dict()` (new `example_word`/
+  `example_language` fields, both `None` together when omitted) with no backend endpoint changes needed
+  -- `_language_summary`'s `phoneme_inventory` field and `GET /api/languages/{slug}/sounds` both already
+  serialize via `as_dict()`. Surfaced in the web UI's sound-guide popover (a new line under the
+  description, hidden entirely when there's no example) and in `conlang pronounce --sounds`'s own CLI
+  output.

@@ -624,6 +624,8 @@ def pronounce(
             for i, guide_entry in enumerate(guide_entries):
                 typer.echo(f"/{guide_entry.ipa}/ -- {guide_entry.label}")
                 typer.echo(f"    {guide_entry.description}")
+                if guide_entry.example_word:
+                    typer.echo(f"    like the sound in {guide_entry.example_language} \"{guide_entry.example_word}\"")
                 if tts == "none":
                     continue
                 if tts == "auto":

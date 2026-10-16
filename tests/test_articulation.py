@@ -88,3 +88,57 @@ def test_word_inventory_deduplicates_a_repeated_symbol():
     entries = articulation.word_inventory(language, repeated_word)
     ipas = [e.ipa for e in entries]
     assert len(ipas) == len(set(ipas))
+
+
+def test_example_word_and_language_are_both_set_or_both_none():
+    for consonant in phonology_gen.ALL_CONSONANTS:
+        entry = articulation._consonant_entry(consonant)
+        assert (entry.example_word is None) == (entry.example_language is None)
+    for vowel in phonology_gen.ALL_VOWELS:
+        entry = articulation._vowel_entry(vowel)
+        assert (entry.example_word is None) == (entry.example_language is None)
+
+
+def test_most_symbols_in_the_global_pool_have_a_real_example():
+    # A loose threshold, not an exact count -- a handful of genuinely
+    # rare sounds (bilabial/palatal clicks, voiced uvular stop, ɤ) are
+    # deliberately left without a forced, shaky citation (see
+    # _CONSONANT_EXAMPLES's own docstring), so 100% coverage is not the
+    # goal; this just guards against the table silently regressing.
+    consonants_with_example = sum(
+        1 for c in phonology_gen.ALL_CONSONANTS if articulation._consonant_example(c) is not None
+    )
+    vowels_with_example = sum(1 for v in phonology_gen.ALL_VOWELS if articulation._vowel_example(v) is not None)
+    assert consonants_with_example / len(phonology_gen.ALL_CONSONANTS) > 0.9
+    assert vowels_with_example / len(phonology_gen.ALL_VOWELS) > 0.9
+
+
+def test_a_modified_symbol_reuses_its_base_symbols_example():
+    # "kʰ" (aspirated k) isn't its own entry in the curated table -- it
+    # shares "k"'s (place, manner, voiced) identity, since the modifier
+    # itself is already explained separately in the prose description.
+    plain = articulation._consonant_example(_consonant("k"))
+    aspirated = articulation._consonant_example(_consonant("kʰ"))
+    assert plain is not None
+    assert aspirated == plain
+
+
+def test_well_known_consonants_have_their_expected_example():
+    assert articulation._consonant_example(_consonant("p")) == ("pin", "English")
+    assert articulation._consonant_example(_consonant("tʃ")) == ("chip", "English")
+
+
+def test_syllabic_r_gets_its_own_override_not_its_vowel_buckets_example():
+    # r̩/ɻ̩ share a (height, backness, rounded) bucket with plain "ɨ" in
+    # the data model (no separate "syllabic" dimension), but are
+    # distinctive enough to deserve their own citation.
+    assert articulation._vowel_example(_vowel("r̩")) != articulation._vowel_example(_vowel("ɨ"))
+
+
+def test_full_inventory_entries_carry_the_example_fields_through_as_dict():
+    language = cached_language(0)
+    entries = articulation.full_inventory(language)
+    for entry in entries:
+        d = entry.as_dict()
+        assert "example_word" in d and "example_language" in d
+        assert (d["example_word"] is None) == (d["example_language"] is None)

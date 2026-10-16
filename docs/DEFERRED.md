@@ -260,23 +260,6 @@ multi-session feature.
     same per-task on/off-switch treatment this project already gives
     `llm=fake|anthropic`, off by default, before it's safe to even offer
     in the roster.
-- **A real example word per sound in the pronunciation guide (M-L).**
-  Requested: alongside each phoneme's articulation description, show a
-  real word (English preferred, another language's if English lacks the
-  sound) that contains it, ordered by how well-known that word/language
-  is. The pronunciation-guide item deliberately left real-word anchors
-  out when first built ("no good answer for clicks/ejectives/
-  pharyngeals, and English anchors would drift the guide's own voice
-  away from the language it's describing" -- see `architecture/
-  OVERVIEW.md`) -- this item is the same idea revisited as an explicit
-  ask rather than a declined option, so that earlier reasoning needs
-  weighing again, not silently overridden. Needs real curation: a source
-  word per symbol (English where it exists, a cited other language
-  otherwise, e.g. Scottish "loch" for /x/, Zulu "hlobo" for /ɬ/), a
-  notion of "fame" to order candidates (dictionary frequency? just one
-  hand-picked best example per symbol, no ordering needed?), and a
-  decision on clicks/ejectives/pharyngeals that have no natural-
-  language-everyone-knows example at all.
 - **eSpeak's `en-us` voice approximates sounds outside English's own
   inventory more roughly than the Kirshenbaum-mapping fidelity rating
   implies (M).** Reported: `/ç/` (mapped to Kirshenbaum `"C"`, a direct

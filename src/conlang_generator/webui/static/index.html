@@ -851,7 +851,10 @@ function renderSoundGuideList(sounds) {
         <span class="ipa">/${escapeAttr(s.ipa)}/</span>
         <span class="log-purpose">${escapeAttr(s.label)}</span>
       </summary>
-      <div class="log-body"><p>${escapeAttr(s.description)}</p></div>
+      <div class="log-body">
+        <p>${escapeAttr(s.description)}</p>
+        ${s.example_word ? `<p class="ipa">Like the sound in ${escapeAttr(s.example_language)} "${escapeAttr(s.example_word)}"</p>` : ""}
+      </div>
     </details>`).join("");
 }
 
