@@ -7348,3 +7348,28 @@ reading code or one-off ad hoc scripts.
   the same sentence correctly falls back to eSpeak instead (tone coverage beats Piper's higher naturalness
   rank in `choose_engine`'s own fidelity-first ordering) -- verified directly, not assumed from the
   ranking table alone.
+
+- **A "view details" button lets the Translate tab show a previously-generated language's own full
+  summary -- no new backend endpoint needed.** `GET /api/languages/{slug}` already returned exactly the
+  same `_language_summary(language)` shape `/api/generate` does (the function's own docstring already
+  said so: "so the frontend renders a freshly generated language and one reloaded from the list
+  identically"), but nothing on the frontend had ever called it. Added one button next to the Translate
+  tab's existing refresh/export pair (`webui/static/index.html`) that fetches that endpoint and renders
+  the result through the *same* `renderLanguageSummary` the Generate tab already uses -- grammar badges,
+  tone system, sound inventory, and the full editable/searchable/exportable lexicon table, identical to
+  what a fresh generation shows.
+
+  **The one real wrinkle: two live copies of the same fixed-id markup.** `renderLanguageSummary`'s output
+  hard-codes element ids (`lexicon-search`, `export-generated-btn`, `lexicon-tbody`, ...) because it was
+  written assuming exactly one instance exists in the DOM at a time -- true as long as it only ever
+  rendered into the Generate tab's own result div. Both tab panels stay mounted (`display: none`, not
+  removed) when switching tabs, so generating a language and then viewing a saved one would otherwise
+  leave two elements sharing each id live at once, and `$()` (a thin `document.getElementById` wrapper)
+  would silently resolve to whichever came first in document order -- search/export/edit acting on the
+  wrong copy. Fixed by having `renderLanguageSummary` itself clear every *other* known summary-result
+  container (`generate-result`, `language-view-result`) before rendering into its own target, preserving
+  the function's existing "exactly one live summary at a time" invariant instead of refactoring every
+  internal id to be container-scoped. Verified directly: generated a language, switched tabs, viewed a
+  different saved language, and confirmed exactly one `lexicon-search`/`export-generated-btn` existed in
+  the DOM afterward, the stale Generate-tab markup was cleared, and the lexicon search/sound-guide popover
+  both still worked against the newly-viewed language.

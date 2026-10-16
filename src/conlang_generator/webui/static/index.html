@@ -298,6 +298,7 @@
       <div>
         <label for="tr-lang">Language
           <button type="button" class="add-row" id="refresh-langs" style="margin-left:8px;">refresh</button>
+          <button type="button" class="add-row" id="view-lang-btn">view details</button>
           <button type="button" class="add-row" id="export-lang-btn">&#8681; export</button>
         </label>
         <select id="tr-lang"></select>
@@ -345,6 +346,7 @@
     <div class="error" id="translate-error" hidden></div>
   </div>
 
+  <div class="result" id="language-view-result"></div>
   <div class="result" id="translate-result"></div>
   <div id="gloss-tooltip"></div>
 </section>
@@ -755,6 +757,23 @@ async function downloadLanguageExport(slug) {
 }
 $("export-lang-btn").onclick = () => downloadLanguageExport($("tr-lang").value);
 
+// --- viewing a previously-generated language's own full summary, the
+// same rich view (grammar badges, tone system, sound inventory, lexicon
+// table) the Generate tab shows right after generating -- renders via
+// the same renderLanguageSummary used there, since GET /api/languages/
+// {slug} returns the exact same _language_summary shape as /api/generate. ---
+async function viewSavedLanguage(slug) {
+  if ($("language-io-error")) $("language-io-error").hidden = true;
+  if (!slug) { showLanguageIoError("Pick a language to view first."); return; }
+  try {
+    const summary = await api(`/api/languages/${encodeURIComponent(slug)}`);
+    renderLanguageSummary($("language-view-result"), summary);
+  } catch (e) {
+    showLanguageIoError(e.message);
+  }
+}
+$("view-lang-btn").onclick = () => viewSavedLanguage($("tr-lang").value);
+
 async function importLanguageFile(file, overwrite) {
   if ($("language-io-error")) $("language-io-error").hidden = true;
   let data;
@@ -890,8 +909,19 @@ function renderToneSection(summary) {
     ${lexicalRows ? `<div class="engine-info"><strong>Lexical sandhi (word-specific)</strong><ul>${lexicalRows}</ul></div>` : ""}`;
 }
 
-// --- rendering a language summary (shared by generate result + could be reused) ---
+// --- rendering a language summary (shared by the Generate tab's own
+// result and the Translate tab's "view details" button). Only one
+// instance of this markup is ever live at once -- both call sites
+// render the same fixed ids (lexicon-search, export-generated-btn, ...),
+// so any *other* known summary container is cleared first to avoid two
+// copies of the same id coexisting in the DOM at once (panels stay
+// mounted, just hidden via CSS, when the user switches tabs). ---
+const SUMMARY_RESULT_CONTAINER_IDS = ["generate-result", "language-view-result"];
 function renderLanguageSummary(container, summary) {
+  for (const id of SUMMARY_RESULT_CONTAINER_IDS) {
+    const other = $(id);
+    if (other && other !== container) other.innerHTML = "";
+  }
   const g = summary.grammar, t = summary.traits;
   const traitBadges = Object.entries(t)
     .filter(([k, v]) => typeof v === "number" && v !== 0)
