@@ -22,6 +22,11 @@ uv run pytest -m slow    # only the slow ones
 uv run pytest -m ""      # everything
 ```
 
+If `uv run conlang ...` fails to spawn (e.g. a Windows Application Control
+policy blocking the generated `conlang.exe` shim), run the module directly
+instead: `uv run python -m conlang_generator.cli.main ...` -- same commands
+and flags, just invoked through `python.exe` rather than the shim.
+
 `--llm fake` (the default) uses a deterministic, zero-cost stand-in for a
 real model -- no API key needed. Pass `--llm anthropic` to use a real model
 (requires `ANTHROPIC_API_KEY`); usage is cached and cost-tracked under
