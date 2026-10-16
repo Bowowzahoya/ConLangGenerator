@@ -7373,3 +7373,37 @@ reading code or one-off ad hoc scripts.
   different saved language, and confirmed exactly one `lexicon-search`/`export-generated-btn` existed in
   the DOM afterward, the stale Generate-tab markup was cleared, and the lexicon search/sound-guide popover
   both still worked against the newly-viewed language.
+
+- **A batch of small frontend fixes from user-reported findings.** Isolated consonants in the
+  pronunciation guide are now synthesized with a trailing schwa for playback only (`t` -> `tə`, the
+  standard "t as in 'tuh'" teaching convention) -- a bare stop/click has little audible signal on its
+  own, since most of what's heard in real speech is the transition into/out of a neighboring vowel;
+  the displayed `/ipa/` text is untouched, only `data-ipa` on the play button changes, gated on the
+  sound's own `kind === "consonant"` (vowels are already audible alone). The sound-inventory section
+  (`renderSoundInventorySection`) switched from one full-detail `<details>` row per phoneme -- which
+  pushed a 30+-phoneme language's own lexicon table far down the page -- to compact clickable badges
+  (same visual language as the grammar/trait badges above it), reusing the per-word popover's own
+  `showSoundGuidePopover`/`renderSoundGuideList` machinery with no network round trip (the whole
+  inventory already rides along on `currentSummary.phoneme_inventory` client-side); a popover showing
+  exactly one sound now auto-expands its `<details>` (`sounds.length === 1`) rather than needing a
+  second click, while a multi-sound word popover stays collapsed-by-default as before. Fixed a real
+  positioning bug in that same popover: `showSoundGuidePopover` only ever clamped its *horizontal*
+  position to the viewport, never vertical -- since the popover is `position: fixed` (doesn't move
+  with page scroll), clicking a button near the bottom of a tall lexicon table could push most of the
+  popover's own content below the visible viewport with no way to reach it (scrolling the page does
+  nothing for a fixed element). Now clamps `top` against `window.innerHeight - pop.offsetHeight - 8`
+  the same way `left` already was. The web UI's `LLM backend` selects were relabeled "Fake LLM (free)"/
+  "Real LLM (Anthropic)" (values unchanged, `fake`/`anthropic`, so nothing reading `.value` broke), and
+  `/api/options`'s own model list gained a `"provider"` field ("Anthropic" for every model today, but a
+  real field rather than baked into `label`, so a future non-Anthropic model doesn't need a frontend
+  change) shown in every classifier/word-selection/translation model dropdown. Investigated two
+  "possible bug" reports that turned out not to be bugs: a romanized word beginning with `'` is `ʔ`
+  (glottal stop) spelled as an apostrophe, a real convention several of this project's own
+  romanization tables already use (mirroring Hawaiian's ʻokina) for a language whose phonology happens
+  to allow a word-initial glottal stop onset -- and separately, IPA's own primary-stress mark `ˈ`
+  (U+02C8) can legitimately open a transcription when the first syllable is stressed (e.g. English
+  "paper" /ˈpeɪpər/) and is easy to mistake for an apostrophe in a monospace font, but is a different
+  character entirely. Confirmed the Reference tab's own play buttons (`.ref-play-btn`) already share
+  `playWordPronunciation` with the lexicon table, so they already use whatever engine the Translate
+  tab's own `#tr-tts` dropdown is set to -- including `"auto"` (best engine per word), its own default
+  since the multi-engine selection work above -- with no separate wiring needed.

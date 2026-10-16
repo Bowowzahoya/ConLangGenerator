@@ -80,6 +80,11 @@
     font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--accent-bg);
     color: var(--accent); font-family: var(--mono);
   }
+  .sound-badge {
+    font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--accent-bg);
+    color: var(--accent); font-family: var(--mono); border: none; cursor: pointer;
+  }
+  .sound-badge:hover, .sound-badge.open { background: var(--accent); color: var(--panel); }
   h2 { font-size: 15px; margin: 18px 0 8px; }
   table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); }
@@ -159,8 +164,8 @@
       <div>
         <label for="gen-llm">LLM backend</label>
         <select id="gen-llm">
-          <option value="fake">fake (free)</option>
-          <option value="anthropic">anthropic</option>
+          <option value="fake">Fake LLM (free)</option>
+          <option value="anthropic">Real LLM (Anthropic)</option>
         </select>
       </div>
       <div>
@@ -306,8 +311,8 @@
       <div>
         <label for="tr-llm">LLM backend</label>
         <select id="tr-llm">
-          <option value="fake">fake (free)</option>
-          <option value="anthropic">anthropic</option>
+          <option value="fake">Fake LLM (free)</option>
+          <option value="anthropic">Real LLM (Anthropic)</option>
         </select>
       </div>
       <div id="tr-model-row" hidden>
@@ -659,7 +664,7 @@ async function loadOptions() {
     for (const m of opts.models || []) {
       const opt = document.createElement("option");
       opt.value = m.id;
-      opt.textContent = `${m.label} (~$${m.estimated_price[task].toFixed(4)}/call)`;
+      opt.textContent = `${m.label} (${m.provider}, ~$${m.estimated_price[task].toFixed(4)}/call)`;
       select.appendChild(opt);
     }
   };
@@ -820,12 +825,29 @@ let currentResultContainer = null;
 // collapsible-row CSS (.log-entry/.log-body) and the lexicon table's
 // own .word-play-btn class, so the existing delegated click handler
 // plays a sound with zero new wiring. ---
+// A bare isolated consonant (stop, click, ...) has little or no audible
+// signal on its own -- most of what's heard in real speech is the
+// transition into/out of a neighboring vowel. Appending a schwa for
+// playback only (never shown in the displayed /ipa/ text) is the
+// standard "t as in 'tuh'" teaching convention, and keeps every engine's
+// synthesis audible without needing a per-sound carrier word. Vowels are
+// already audible alone and are left untouched.
+function soundPlaybackIpa(s) {
+  return s.kind === "consonant" ? `${s.ipa}ə` : s.ipa;
+}
+
 function renderSoundGuideList(sounds) {
   if (!sounds.length) return `<p class="ipa">(no sounds to show)</p>`;
+  // Auto-expanded when it's the only sound shown (a sound-inventory
+  // badge click) -- a reader who clicked one specific sound shouldn't
+  // need a second click just to see its description. Stays collapsed
+  // for a multi-sound word popover, where showing every description at
+  // once would be a wall of text.
+  const openAttr = sounds.length === 1 ? " open" : "";
   return sounds.map(s => `
-    <details class="log-entry sound-entry">
+    <details class="log-entry sound-entry"${openAttr}>
       <summary>
-        <button type="button" class="word-play-btn" data-ipa="${escapeAttr(s.ipa)}" title="Play this sound">&#128266;</button>
+        <button type="button" class="word-play-btn" data-ipa="${escapeAttr(soundPlaybackIpa(s))}" title="Play this sound">&#128266;</button>
         <span class="ipa">/${escapeAttr(s.ipa)}/</span>
         <span class="log-purpose">${escapeAttr(s.label)}</span>
       </summary>
@@ -833,10 +855,20 @@ function renderSoundGuideList(sounds) {
     </details>`).join("");
 }
 
+// Compact badges (same visual language as the grammar/trait badges
+// above) instead of one full-detail row per phoneme -- a 30+ phoneme
+// inventory used to push the lexicon table far down the page. Clicking
+// a badge opens the same shared popover a lexicon row's own magnifying-
+// glass button does, scoped to that one sound; the whole inventory is
+// already loaded client-side in `summary.phoneme_inventory`, so this
+// never needs a network round trip the way the per-word popover does.
 function renderSoundInventorySection(summary) {
   const sounds = summary.phoneme_inventory || [];
   if (!sounds.length) return "";
-  return `<h2>Sound inventory (${sounds.length} phonemes)</h2>${renderSoundGuideList(sounds)}`;
+  const badges = sounds.map((s, i) => `
+    <button type="button" class="sound-badge" data-sound-index="${i}" title="${escapeAttr(s.label)}">/${escapeAttr(s.ipa)}/</button>
+  `).join("");
+  return `<h2>Sound inventory (${sounds.length} phonemes)</h2><div class="badges" id="sound-inventory-badges">${badges}</div>`;
 }
 
 // --- tier 2: a button next to a word's own play button fetches and
@@ -856,7 +888,16 @@ function showSoundGuidePopover(anchor, sounds) {
   pop.innerHTML = renderSoundGuideList(sounds);
   pop.style.display = "block";
   const rect = anchor.getBoundingClientRect();
-  pop.style.top = `${rect.bottom + 6}px`;
+  // Clamp vertically too (not just horizontally, below): "position: fixed"
+  // means the popover never moves with page scroll, so if its natural
+  // position (just under the clicked button) would run its bottom edge
+  // past the viewport, the overflow was simply unreachable -- scrolling
+  // the page doesn't move a fixed element, and the popover's own internal
+  // scrollbar only covers whatever fraction already fits on screen. Here,
+  // pop.offsetHeight is its real rendered height (already capped by its
+  // own max-height), so clamping the top keeps the whole box on screen.
+  const top = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - pop.offsetHeight - 8));
+  pop.style.top = `${top}px`;
   pop.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 340 - 12))}px`;
   openSoundGuideButton = anchor;
 }
@@ -876,6 +917,16 @@ async function toggleSoundGuide(button) {
     }
   }
   showSoundGuidePopover(button, sounds);
+}
+
+// --- the sound inventory's own badges (one per phoneme the whole
+// language uses, not one word) -- no fetch needed, since the full
+// inventory already rode along on `currentSummary.phoneme_inventory`. ---
+function toggleSoundBadge(button) {
+  if (openSoundGuideButton === button) { hideSoundGuidePopover(); return; }
+  const sound = currentSummary && currentSummary.phoneme_inventory[Number(button.dataset.soundIndex)];
+  if (!sound) return;
+  showSoundGuidePopover(button, [sound]);
 }
 
 function renderToneSection(summary) {
@@ -1111,6 +1162,8 @@ document.addEventListener("click", (e) => {
   if (refPlayBtn) { playWordPronunciation(refPlayBtn, refPlayBtn.dataset.ipa, "reference-audio-error"); return; }
   const sgBtn = e.target.closest(".sound-guide-btn");
   if (sgBtn) { toggleSoundGuide(sgBtn); return; }
+  const soundBadge = e.target.closest(".sound-badge");
+  if (soundBadge) { toggleSoundBadge(soundBadge); return; }
   if (openSoundGuideButton && !e.target.closest("#sound-guide-popover")) hideSoundGuidePopover();
 
   const tr = e.target.closest("#lexicon-tbody tr");

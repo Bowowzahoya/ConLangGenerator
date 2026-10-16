@@ -567,6 +567,7 @@ def get_options() -> dict:
             {
                 "id": model_id,
                 "label": label,
+                "provider": "Anthropic",
                 "price_per_million": {
                     "input": pricing.PRICE_PER_MILLION_TOKENS[model_id][0],
                     "output": pricing.PRICE_PER_MILLION_TOKENS[model_id][1],

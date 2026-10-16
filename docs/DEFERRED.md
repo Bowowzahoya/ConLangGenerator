@@ -36,23 +36,56 @@ multi-session feature.
   input's content words and warns or falls back per word; `max_tokens=500`
   on long sentences; "I think you are dumb" needs subordinate clauses (§10).
   Not yet re-tested against a real LLM.
+- **Reset button for the cumulative cost display (S-M).** The top-right
+  badge (`webui/app.py::_cost_snapshot`) shows the *all-time* total from
+  `cost_ledger.jsonl`, an append-only real-spend record -- a destructive
+  "clear" button would erase that history, which cuts against this
+  project's own cost-awareness stance (`AGENTS.md`: "implement enough
+  accounting to attribute token use"). Needs a design decision before
+  implementing: archive-then-clear (rename the ledger to a timestamped
+  backup, e.g. `cost_ledger.2026-10-16.jsonl`, and start a fresh one)
+  preserves the real record while giving the user a fresh-looking total,
+  vs. a lighter-weight "reset point" marker (store a timestamp or ledger
+  line count that `summarize()` filters from, leaving the ledger itself
+  untouched) that needs no file rotation. Either needs a new endpoint (e.g.
+  `POST /api/cost/reset`); no existing mechanism does this today.
 
 ## 2. Web app
 
 - **Voice picker within an engine (S).** No choice of SAPI or eSpeak voice
   -- see §9's multi-engine item, which subsumes this.
+- **Hover tooltips on grammar/trait badges (M).** The Generate result's
+  badges (`word order`, `alignment`, `has_overt_copula`,
+  `altitude: -0.40`, ...) show a raw key and value with no explanation of
+  what the key means or, for a numeric trait, what a given value implies
+  (e.g. "altitude: -0.40" -- low altitude, and what that biases). Needs: a
+  short description per grammar/trait field (`core.traits`' own ~15
+  dimensions plus the ~9 grammar fields `_language_summary` surfaces), and
+  for numeric traits, bucketing the value into a qualitative band (low/
+  mid/high) with what that band biases -- `generation.prompt_classifier`'s
+  own system prompt already documents each dimension for the classifier
+  LLM and is the natural source to adapt from, not a fresh write.
+- **Info (ⓘ) buttons on the Generate tab's Advanced options (S-M).** Most
+  advanced fields already carry inline explanation in their own `<label>`
+  text (word/sound strictness, trait overrides, seed examples, years of
+  evolution); genuinely unexplained: the five checkboxes (fantasy, force
+  isolated, force high altitude, force tonal, allow all-caps POS),
+  "Foreign names", and the seven "(unforced)" style selects (orthography/
+  exotic-symbol/vowel-length/tone/syllable-boundary-marker/short-vowel-
+  doubling/consonant-gemination) -- about a dozen items, not the whole
+  panel. Each style select's own options need their *values* explained
+  too (e.g. what "diacritic" vs. "monoletter" orthography actually looks
+  like), not just the field.
 
 ## 3. Translation
 
-- **Sentence-initial capitals treated as names (S, mostly done).** The
-  planner prompt now says a capitalized sentence-initial word is a name only
-  if it is not an ordinary English word, and the fake planner already
-  ignores sentence-initial position; since text is now planned one sentence
-  at a time, "Just"/"You" in a later sentence are no longer mistaken for
-  names by the fake. Still open: check with a real LLM -- confirmed to
-  still happen there, though its worst consequence (silently discarding
-  a misclassified word, including a user's own manual edit, instead of
-  reusing the existing ordinary entry) is now fixed; see
+- **Sentence-initial capitals treated as names (S, mostly done).** A
+  capitalized sentence-initial word is now only treated as a name if it
+  isn't an ordinary English word, and per-sentence (not whole-text)
+  planning stops the fake planner from mistaking a later-sentence "Just"/
+  "You" for a name. Still open: a real LLM still makes this mistake
+  sometimes; only its worst consequence (silently discarding a
+  misclassified word instead of reusing an existing entry) is fixed. See
   `architecture/OVERVIEW.md`.
 - **A true multi-word proper name with no generic descriptor part (M).**
   "Lake Baikal"/"Mount Everest"-style names now split correctly (the
@@ -74,120 +107,24 @@ multi-session feature.
   decide error behaviour when the LLM returns a bad plan (today:
   word-for-word fallback with no message).
 - **Sentence-final punctuation done (pass 52); quotation and comma
-  punctuation still open (M-L).** Done: a per-language ``RomanizationScheme.
-  punctuation_style`` (``standard``/``none``, independently rolled, ~12%
-  ``none``) and ``core.romanization.terminal_mark(mood, style)`` give each
-  rendered sentence a period/question mark/exclamation mark derived purely
-  from the already-existing ``SentencePlan.mood`` (no new plan field --
-  `"!"` only ever means `mood == "imperative"`, by construction, same as
-  today's fake-planner detection); `translate_to_english` strips a mark
-  before any lookup, also treats a bare `?`/`!` anywhere in the input as a
-  question/imperative signal (so a language with no question particle can
-  still decode correctly), and its fallback text is now always terminated
-  (previously a declarative got no mark at all; deliberately still not
-  capitalized -- see `docs/LIMITATIONS.md`). Still open:
-  quotation marks (direct speech isn't modeled at all -- `quotative_
-  particle` is reported/indirect speech only, confirmed in its own
-  docstring) and comma placement (would need clause/list-boundary rules) --
-  both genuinely bigger, separate features, not a continuation of this
-  pass's own scope. Also still open, each a deliberate scope boundary of
-  this pass (see `docs/LIMITATIONS.md`): no `exclamatory` signal
-  independent of mood (a plain exclamatory statement still reads as
-  declarative); decode is not re-split per sentence, so a multi-sentence
-  decode input still reports one whole-input question/imperative signal,
-  not per-sentence.
-- **Coined words ignore word strictness -- done (pass 53).** On-the-fly
-  coinage (`translation/expansion.py::coin_word`) now tries a real word
-  first, reusing generation-time word strictness's own machinery: a
-  deterministic per-gloss roll against `source_word_strictness`, a
-  curated-lexicon lookup, else one single-gloss LLM call (`real_words_
-  llm.fetch_real_words`, API-shape-compatible with a 1-item request
-  unmodified), the same systematic deviation-shift table reconstructed
-  from `(seed, strictness, inventory)` rather than persisted (it's fully
-  derivable, so no schema change was needed) -- and only *falls back* to
-  this project's existing invented-word coinage when none of that
-  produces a usable word. This actually fires in practice specifically
-  for a core-vocabulary gloss the generated `--vocabulary-size` left out
-  (curated lexicons cover ~496 glosses; the default vocabulary is 400),
-  not a coincidence -- every gloss `coin_word` could otherwise reach is,
-  by construction, already in the lexicon by the time translation runs.
-  Root-and-pattern (templatic) languages are excluded (adapting a
-  borrowed word into an existing template is a different problem, left
-  open); a real-word-based on-the-fly coinage never checks for a spelling
-  collision against the rest of the lexicon, the same non-guarantee
-  generation-time real words already have.
+  punctuation still open (M-L).** Each rendered sentence now gets a
+  period/question/exclamation mark derived from the plan's own mood (a
+  per-language `punctuation_style` of `standard`/`none`), and decoding
+  strips/recognizes it. Still open: quotation marks (direct speech isn't
+  modeled at all) and comma placement (needs clause/list-boundary rules)
+  -- both genuinely bigger, separate features. Also still open, each a
+  deliberate scope boundary of this pass (see `docs/LIMITATIONS.md`): no
+  `exclamatory` signal independent of mood; decode isn't re-split per
+  sentence, so a multi-sentence decode still reports one whole-input
+  question/imperative signal, not per-sentence.
 
 ## 4. Generation from the user's own words
 
-- **Seed words drive the language (part of speech, bulk input,
-  phonotactic-mismatch warning, structural bias, orthography bias, and
-  multi-form/inflected grammatical forms -- including pronoun case and
-  verb tense beyond past -- done, passes 47-51 -- this entry is now
-  closed).** "I think it should sound like this, and I already
-  thought up some words -- fill in the rest consistently." Done:
-  `SeedExample.pos` (optional; `--example
-  gloss=form|ipa|pos` on the CLI, a per-row select in the web UI,
-  defaults to NOUN exactly as before when omitted); bulk input
-  (`--examples-file` on the CLI, a paste-many textarea in the web UI, both
-  through a shared `generation.seed_examples.parse_bulk_seed_examples`);
-  a warning (never a silent repair, since the given words must still
-  appear verbatim) when a seed word's IPA isn't a legal syllable shape
-  under the language's own generated `SyllableStructure`; deriving
-  syllable-shape bias (pass 48) -- `generation/phonology_gen.py::_seed_
-  structural_profile` reads each seed word's own onset/coda cluster sizes
-  and whether it carries a tone mark; and deriving spelling-convention
-  bias (pass 49) -- `generation/romanization_gen.py::_seed_orthography_
-  profile` reads each seed word's own spelling against its IPA for the
-  symbols where the letter count exactly matches the sound count (no
-  digraph guessing -- a wrong split, e.g. misreading "qu" as independent
-  q->k/u->w rules, is worse than abstaining). Both passes build a pseudo
-  `ReferenceLanguageProfile` from the inferred signal and fold it into the
-  *existing* reference-profile weighting machinery in their own module
-  (confirmed in both to pull unconditionally, not gated behind `source_
-  language_strictness`) -- no new mechanism, no new CLI/web flag,
-  automatic whenever seed words are given. Also done (pass 50):
-  `SeedExample.forms` -- a user-given irregular (suppletive) form for one
-  of the four cells the existing suppletion mechanism already models
-  (`plural`/noun, `past`/verb, `comparative`+`superlative`/adjective; a
-  cell not matching its own word's POS is rejected, not guessed). A
-  pre-created `LexicalEntry` keyed by `voice_np_gen.suppletive_gloss(base,
-  cell)` is found directly by `translator._lookup_or_coin` at render time
-  with no further render-side code; `voice_np_gen.suppletive_split`/
-  `translator._class_gloss` gained an optional `grammar` parameter so
-  decode and noun-class assignment also recognize a seeded lemma (not just
-  the hardcoded English-irregular dicts). `--example gloss=form|ipa|pos|
-  forms`/a 5th bulk-CSV column/a web-UI forms field, all sharing
-  `generation.seed_examples.parse_seed_forms`'s `;`-separated
-  `cell:form[:ipa]` syntax. Known scope limits: giving only one of
-  comparative/superlative still makes the *other* cell suppletive too
-  (since `grammar.suppletive_degrees` doesn't distinguish which), falling
-  through to an unrelated freshly-coined word rather than the regular
-  affixed form; a rendered suppletive form can still take regular,
-  non-tense marking (e.g. subject agreement) on top of the user's own
-  stem, same as the pre-existing hardcoded mechanism.
-
-  **Also done (pass 51), closing both items the prior pass had left out of
-  scope**: pronoun-case suppletion (a seeded word's own irregular "I"->
-  "me"-style case form) and verb-tense suppletion beyond plain past
-  (irregular `non_past`/`present`/`future`, not just `past`). Both
-  generalize the pass-50 architecture rather than inventing a new one:
-  `voice_np_gen.SUPPLETIVE_SUFFIXES` grew from 4 to 7 labels via a
-  `suppletive_field(kind)` dict-dispatch (replacing an if/elif chain);
-  `translator.py`'s render/decode "past"-only checks widened to any label
-  in the new `voice_np_gen.TENSE_SUFFIXES`, byte-identical for `"past"` by
-  construction. Pronoun cells (`accusative`/`ergative`/`genitive`/
-  `dative`/`locative` -- never `nominative`/`absolutive`) reuse `pronoun_
-  gen`'s own separate, pre-existing suppletion mechanism unmodified,
-  folding a seeded person+case into `grammar.suppletive_pronoun_persons`/
-  `_case_limits` once `grammar.cases` is final. A seeded pronoun-case or
-  extra-tense cell the generated language doesn't end up having is kept
-  in the lexicon but flagged by a new `seed_examples.unused_suppletive_
-  form_warnings` (whether it's live can't be known until generation
-  completes, unlike a cell/POS mismatch). Known quirk: seeding e.g.
-  "she"'s accusative makes person "he" suppletive too (they share one
-  agreement person label), so a separate, unseeded "he" entry for that
-  same case falls through to ordinary coining -- same flavor as the
-  pass-50 comparative/superlative quirk, not fixed, documented.
+- **Seed words drive the language (done, passes 47-51) -- part of
+  speech, bulk input, phonotactic-mismatch warnings, syllable/
+  orthography bias inference, and suppletive forms including pronoun
+  case and verb tense.** See `architecture/OVERVIEW.md` for the full
+  history.
 
   Still open, each its own well-bounded follow-up: `attested_onset_
   clusters`/`attested_coda_clusters` (literal cluster *identity*, not just
@@ -274,15 +211,13 @@ multi-session feature.
 - **Vocabulary ceiling (M).** `ALL_MEANINGS` is ~496 meanings. Larger lists
   (Swadesh-207, Leipzig-Jakarta, a 1000-word core) and the unused
   `salient_vocabulary_domains` trait could drive domain vocabulary.
-- **Deviation is random, not systematic (done, pass 46).** Below word
-  strictness 1.0, a real word's sounds now shift through a fixed,
-  per-language `symbol -> symbol` table (`phoneme_fit.build_deviation_
-  shift`/`apply_shift`) -- the same source phoneme always becomes the same
-  target everywhere in a language, like a real daughter language's own
-  sound laws, rather than an independent per-occurrence coin flip (the
-  old `deviate_ipa`). Still a flat, unconditioned table (not context-
-  sensitive) and feature-distance-nearest-neighbor, not lineage-aware --
-  see docs/LIMITATIONS.md.
+- **Deviation is now systematic, not random (done, pass 46) -- still a
+  flat, unconditioned table (S-M).** A real word's sounds below word
+  strictness 1.0 shift through a fixed, per-language `symbol -> symbol`
+  table (`phoneme_fit.build_deviation_shift`), the same source phoneme
+  always becoming the same target, like a real daughter language's own
+  sound laws. Still not context-sensitive, and feature-distance-nearest-
+  neighbor rather than lineage-aware -- see `docs/LIMITATIONS.md`.
 - **Blending several sources (M).** Each word comes from one source
   language by weight; no cognate blending.
 - **Proper-name lexicon (S).** Names are kept/adapted, but there is no
@@ -301,178 +236,68 @@ multi-session feature.
 
 ## 9. Pronunciation (TTS)
 
-- **eSpeak tonal voice is Mandarin-only -- investigated, not achievable
-  with eSpeak-ng as it stands.** Tones work by switching to the `cmn`
-  voice, so other sounds are approximated by Mandarin's inventory. This
-  item used to speculate that native per-engine pitch control (eSpeak's
-  own SSML `<prosody>` contour, applied to whichever voice a word is
-  actually using, not a voice switch) would be the better fix -- tested
-  directly against the installed eSpeak-ng 1.52.0 rather than left as an
-  unverified guess, and it doesn't hold up: `<prosody contour="...">`
-  (the one mechanism that could represent a real tone *shape* --
-  rising/falling/dipping) produces **byte-identical** audio to no
-  prosody tag at all, i.e. it's silently ignored by this build. A flat
-  `<prosody pitch="...">` shift does work (confirmed non-identical
-  output for `+50%`/`-50%`/plain), but can only convey a crude high/low
-  register, never a real Chao contour -- the whole point of this
-  project's own tone model. Even that weaker version would need a
-  pipeline change: this project's actual eSpeak input is
-  `ipa_to_kirshenbaum.py`'s own `[[...]]` Kirshenbaum bracket syntax,
-  confirmed to break entirely under SSML mode (`-m`) -- a phoneme trace
-  showed the bracketed text read as literal words instead of parsed as
-  phonemes, with even the closing `</speak>` tag spoken aloud. The
-  standard SSML `<phoneme alphabet="ipa" ph="...">` tag parses correctly
-  for simple ASCII-ish IPA, but was never verified against this
-  project's own exotic symbols (ejectives, breathy consonants, clicks,
-  nasalized vowels). Given all this, the Mandarin-voice-switch stays as
-  the real, working mechanism -- not a placeholder waiting on a better
-  fix, but the actual best available option with what eSpeak-ng supports
-  today. A genuine fix would need a different mechanism entirely
-  (MBROLA's own per-phoneme pitch-envelope data via eSpeak's `--pho`
-  output, or a different engine like Piper) -- a materially bigger,
-  separate investigation, not folded into this item or the already-
-  separate "Add Piper" one below. Not addressed by the per-word engine
-  selection below either -- that picks *between* eSpeak and SAPI per
-  word, it doesn't change how eSpeak itself voices a tone once chosen.
-- **Long, fixed pauses between words when a sentence is voiced -- done.**
-  `webui/app.py::_synthesize_sentence`'s own inter-word silence shortened
-  from 0.15s to 0.05s (`_INTER_WORD_SILENCE_SECONDS`). Real sentence-level
-  intonation/stress/coarticulation stays explicitly out of scope by the
-  same decision as before (word-level correctness and naturalness is the
-  priority) -- sentence assembly otherwise stays as today's per-word
-  concatenation; this was only ever the one small pacing fix in scope.
-- **Multi-engine per-word selection (was one L item, split into
-  right-sized pieces after planning surfaced just how much it bundled).
-  Pieces 1-4 done.** Engine choice is per *word*, never per sound within
-  a word, by explicit decision across every piece -- splicing different
-  engines' audio together inside one word would need to solve matching
-  pitch/timbre/volume at the seam, a separate, harder problem not taken
-  on anywhere in this split. Done: a real per-phoneme coverage model
-  (`speech.phoneme_coverage`, exact/approximate/poor per symbol, derived
-  from `ipa_to_kirshenbaum.convert_symbol`'s own fidelity for eSpeak, a
-  small curated table for SAPI, `ipa_to_piper.convert_symbol`'s own
-  fidelity for Piper) and the per-word selection built on it
-  (`speech.engine_selection`), reachable as a new `"auto"` engine value
-  on `pronounce --tts`/the web UI's Translate tab.
-  - **Surface engine choice and coverage more fully in the CLI/web UI
-    (S-M) -- done.** `translate` gained its own `--tts
-    {none,espeak,sapi,piper,auto}` (default `"none"`, prints a no-op note
-    instead of synthesizing for `--to english`; reuses the new shared
-    `speech.sentence_synthesis.synthesize_sentence` -- extracted from
-    `webui/app.py`'s own private `_synthesize_sentence`, now shared with
-    `/api/pronounce` instead of duplicated). Decided: `"auto"` stays
-    non-default on every CLI command (`pronounce`/`translate`), matching
-    this project's "nothing happens unless asked" CLI precedent; the web
-    UI's own Translate tab is the one place `"auto"` is now the new
-    *runtime* default preference (replacing a static sapi-then-espeak
-    guess), since it already auto-selects an engine today and `"auto"`
-    is a strict quality improvement there with zero new UI surface. No
-    new override UI was added -- the existing fixed-engine dropdown/flag
-    already is the override, and nothing in this item asked for more
-    than that. Also fixed in passing: the web UI's own Generate-tab
-    "Pre-generate audio" dropdown was still hiding `sapi`/`auto` behind a
-    stale "tens of minutes" warning left over from before the SAPI
-    worker fix -- now lists all four values with real, current timing.
-  - **Add Piper as a new free, local, more natural-sounding neural engine
-    (L, independent, slots into the roster once added) -- done.**
-    Approximate-only, exactly the scope this item's own note called
-    realistic: one voice (`en_US-lessac-medium`, MIT-licensed; `piper-tts`
-    itself is GPL-3.0, an optional dependency-group, `uv sync --group
-    piper`, never installed by default), no training/fine-tuning.
-    Synthesizes by converting this project's own IPA directly into the
-    voice's own phoneme IDs (`speech/ipa_to_piper.py`), bypassing Piper's
-    own text/espeak-ng frontend entirely -- a real, working mechanism
-    confirmed by installing the package and exercising it directly (not
-    assumed from docs): `PiperVoice.phonemes_to_ids`/`phoneme_ids_to_audio`
-    take bare phoneme strings and raw IDs respectively, with no text step
-    in between. The "engine-vs-phoneme-set mismatch" turned out smaller
-    than expected: Piper's own vocabulary (154 symbols, derived from
-    espeak-ng's universal phoneme repertoire, not just English) already
-    covers every one of this project's ~255 global pool symbols after
-    NFD-decomposition into atomic letters/diacritics, one notation fix
-    (this project's own ASCII `"g"` -> the real IPA script `"g"` Piper's
-    vocabulary uses), and dropping exactly 3 diacritics genuinely absent
-    from it (ejective, breathy, voiceless-ring) -- no hand-curated
-    per-symbol fallback table was needed at all, unlike SAPI's own
-    `SAPI_EXACT_SYMBOLS`. Ranked most natural of the three
-    (`engine_selection.NATURALNESS`), no tone support (dropped, same
-    honest treatment SAPI already has). One real perf fix threaded
-    through every multi-word call site (`pregenerate_audio`,
-    `auto_client_for_word`, `pronounce --sounds`, the webui's own
-    `_get_piper_client` singleton): a fresh `PiperTTSClient` per word
-    would repay its real ~2.2-2.4s voice-load cost every time, so every
-    one of these now explicitly reuses one loaded instance across many
-    words/requests, the same problem (and the same fix shape)
-    `SapiWorker` already solved for SAPI's own process-startup cost.
+- **eSpeak's tonal voice is Mandarin-only, and no better mechanism exists
+  in eSpeak-ng 1.52.0 (investigated, closed as far as eSpeak itself
+  goes).** Tones work by switching to the `cmn` voice, so other sounds
+  are approximated by Mandarin's own inventory. Verified directly against
+  the installed engine that there's no better option: SSML `<prosody
+  contour="...">` is silently ignored (byte-identical audio with or
+  without it); a flat `<prosody pitch="...">` shift does work but can
+  only convey a crude high/low register, never a real Chao contour; and
+  this project's own Kirshenbaum `[[...]]` bracket syntax breaks entirely
+  under SSML mode anyway (even the closing `</speak>` tag gets spoken
+  aloud). A genuine fix would need a different mechanism entirely --
+  MBROLA's own per-phoneme pitch-envelope data via eSpeak's `--pho`
+  output, or a different engine -- a materially bigger, separate
+  investigation (L), not attempted here.
+- **Multi-engine per-word selection (done, pieces 1-4) -- picks the
+  best-fitting engine per word via a real per-phoneme coverage model
+  (`speech.phoneme_coverage`), reachable as `--tts auto`.** See
+  `architecture/OVERVIEW.md` for the full history (the coverage model
+  itself, CLI/web UI surfacing, and adding Piper as a third engine).
   - **Add a paid cloud engine, e.g. Azure or Google SSML, with its own
     cost on/off toggle (L, independent).** Lowest priority -- needs the
     same per-task on/off-switch treatment this project already gives
     `llm=fake|anthropic`, off by default, before it's safe to even offer
     in the roster.
-- **A per-sound pronunciation guide for people who aren't linguists --
-  done.** Two tiers: (a) `_language_summary`'s own `phoneme_inventory`
-  field -- every phoneme a generated language actually uses, each with a
-  plain-language articulation description (`speech/articulation.py`,
-  composed from `core.phonology`'s own place/manner/height/backness/
-  modifier fields, not a hand-curated table) and a play button (reusing
-  `/api/pronounce` unchanged -- a bare isolated symbol is already just
-  one "word" to `_synthesize_sentence`); (b) `GET /api/languages/{slug}/
-  sounds?word=...`, the same descriptions filtered/ordered to one word's
-  own sounds, shown in a popover next to that word in the lexicon table
-  and translation results. CLI: `conlang pronounce --lang X --sounds`
-  (whole language) / `conlang pronounce WORD --lang X --sounds` (one
-  word). SAPI's own isolated-sound clips run a fixed ~1s regardless of
-  the sound's real length (its SSML template's placeholder text sets the
-  timing, not the overridden phoneme) -- documented as a limitation
-  rather than given a dedicated second SSML template; the Reference
-  tab's real-language entries are excluded (no backing `PhonemeInventory`
-  to describe from). Real-word pronunciation anchors ("like the p in
-  'spin'") were deliberately left out -- no good answer for clicks/
-  ejectives/pharyngeals, and English anchors would drift the guide's own
-  voice away from the language it's describing.
-- **Pronunciation is slow every time, not just the first time -- done,
-  including the SAPI-specific latency this surfaced.** Repeated
-  pronunciation used to re-synthesize every word from scratch.
-  `speech/tts_cache.py::CachingTTSClient` wraps any real `TTSClient`,
-  keyed on `(client.cache_identity(), ipa_text)` -- `cache_identity()`
-  (new on the `TTSClient` protocol) fully captures what the engine/
-  voice/tones state is, so eSpeak's own Mandarin-voice switch never
-  collides with its default voice in the cache; stored as one `.wav`
-  file per entry under `CACHE_DIR / "tts_cache"`, not a JSON blob
-  (unlike the LLM cache -- audio is binary, a flat file store is the
-  natural fit). Wired into both `cli/main.py`'s `pronounce` command and
-  `webui/app.py`'s `/api/pronounce`, for every `--tts` value including
-  `"auto"`. Pre-generation (eagerly warming the cache for a freshly
-  generated language's whole lexicon) is also done: `speech/pregenerate.
-  py::pregenerate_audio`, wired as a new explicit, not-automatic
-  `--pregenerate-audio {none,espeak,sapi,auto}` CLI flag on `generate`
-  (default `none`) and a matching `pregenerate_audio` field on `POST
-  /api/generate`.
-
-  **Follow-up, same item: the SAPI-specific ~3.7s/word cost itself,
-  not just repeated-word caching, is now fixed too.** The user asked
-  directly whether SAPI's latency could be improved, and it could: the
-  cost was almost entirely a fresh PowerShell-process-startup + .NET-
-  assembly-load on *every one-shot call*, not the actual synthesis.
-  `speech/sapi_worker.py::SapiWorker` keeps one persistent process alive
-  and reused across many words instead -- confirmed directly: a full
-  400-word vocabulary via `--pregenerate-audio sapi` now takes ~2.7s
-  total, not tens of minutes, so the web endpoint's `pregenerate_audio`
-  now accepts `"sapi"`/`"auto"` too, not just `"none"`/`"espeak"`.
-  `webui/app.py` also gained a module-level, lazily-started singleton
-  worker (`_get_sapi_worker`) shared across *every* `/api/pronounce`
-  request for that server's whole lifetime -- fixing the broader "auto
-  is slow even for ordinary pronunciation" concern this same item had
-  flagged, for every case except one: a single, standalone CLI
-  `pronounce --tts sapi`/`auto` call still pays the full ~3.7s every
-  time, since each CLI invocation is a fresh OS process with no second
-  word for a worker to amortize against and no way to survive between
-  invocations -- fixing that would need a cross-invocation background
-  daemon, a materially bigger, separate feature, explicitly not
-  attempted here. Confirmed byte-identical audio output to the original
-  one-shot path for the same (including exotic, non-ASCII) IPA input --
-  zero regression risk on SAPI's own direct-IPA-passthrough behavior,
-  the reason it's worth having over eSpeak at all.
+- **A real example word per sound in the pronunciation guide (M-L).**
+  Requested: alongside each phoneme's articulation description, show a
+  real word (English preferred, another language's if English lacks the
+  sound) that contains it, ordered by how well-known that word/language
+  is. The pronunciation-guide item deliberately left real-word anchors
+  out when first built ("no good answer for clicks/ejectives/
+  pharyngeals, and English anchors would drift the guide's own voice
+  away from the language it's describing" -- see `architecture/
+  OVERVIEW.md`) -- this item is the same idea revisited as an explicit
+  ask rather than a declined option, so that earlier reasoning needs
+  weighing again, not silently overridden. Needs real curation: a source
+  word per symbol (English where it exists, a cited other language
+  otherwise, e.g. Scottish "loch" for /x/, Zulu "hlobo" for /ɬ/), a
+  notion of "fame" to order candidates (dictionary frequency? just one
+  hand-picked best example per symbol, no ordering needed?), and a
+  decision on clicks/ejectives/pharyngeals that have no natural-
+  language-everyone-knows example at all.
+- **eSpeak's `en-us` voice approximates sounds outside English's own
+  inventory more roughly than the Kirshenbaum-mapping fidelity rating
+  implies (M).** Reported: `/ç/` (mapped to Kirshenbaum `"C"`, a direct
+  unmodified `_BASE_BY_IPA` entry, rated `"exact"` fidelity) sounds like
+  "f" rather than a recognizable "ch" as in "loch". Verified directly:
+  synthesizing `[[C]]` and `[[f]]` through espeak-ng 1.52.0's `en-us`
+  voice produces genuinely different audio (not a literal mapping
+  collision), so the Kirshenbaum *letter* is correctly distinct -- but
+  `speech.phoneme_coverage`'s fidelity rating only measures whether the
+  IPA-to-Kirshenbaum translation step is a clean 1:1 mapping, not
+  whether the chosen *voice* can actually realize that sound well;
+  `en-us` has no native `/ç/`, so it falls back to whatever its own
+  synthesis model approximates `"C"` as, and that approximation isn't
+  rated anywhere. A real fix needs voice-specific fidelity data (which
+  Kirshenbaum letters `en-us` actually renders recognizably, vs. only a
+  native-phone voice like `de`/`is` would) across more than just this
+  one symbol -- likely affects every sound English itself lacks (clicks,
+  ejectives, pharyngeals, uvulars already flagged as "approximated" by
+  the engine's own capabilities notes, but the `"exact"` tier may be
+  over-promising more broadly than previously known). Not yet
+  investigated beyond this one reported case.
 - **Untested by ear (S).** eSpeak tone numbers for mid/low/neutral
   (33/21/11) were only length-checked.
 
@@ -484,41 +309,14 @@ grammar generator invents the option (`grammar_gen.py`/`inflection_gen.py`),
 (3) the English decoder reads it back (`translate_to_english`). Sizes:
 S/M/L as above.
 
-**Done:** plural number, imperative, yes/no and wh-questions, vocatives (as
-plain sentence-initial nouns), per-sentence planning (pass 1); nested plan
-structure with complement, relative and adverbial clauses (pass 2); aspect and
-verbal mood as systems separate from tense (pass 3); noun classes with article,
-adjective and verb (subject and object) agreement (pass 4); dual number,
-demonstratives, numerals, an indefinite article and possession marking (pass 5); voice -- passive, antipassive, causative (pass 6); existentials and possession clauses (pass 7); comparatives and superlatives (pass 8); classifiers and the pronoun system (pass 9); reflexives, reciprocals, possessive pronoun paradigms, verb number and politeness, object pro-drop and richer classifiers (pass 10); suppletive pronoun case forms, reflexive possessives and possessive classifiers (pass 11); classifiers with quantifiers and per-noun classifiers (lexical pool, repeaters) (pass 12); subordination -- linker position, relativization strategies and position, non-finite verb forms, subordinate mood (pass 13); subordination follow-ups -- relativization reach, declining relative pronouns, agreeing infinitives, case-marked nominalizations, conditional sequencing, correlative adverbials, clause coordination, complementizers by verb class (pass 14); agreement follow-ups -- class assignment by semantic field or final sound, class marked on the noun (prefix/suffix), number and case agreement, numeral agreement, agreement inferred from position (pass 15); aspect/mood follow-ups -- auxiliary tenses, aspects and moods, evidentials, negation strategies and a prohibitive, distinct inflectional suffixes, affixes that evolve (pass 16); voice and noun-phrase follow-ups -- middle, applicative and impersonal voices, passive agent and agreement, trial and collective number, locative/instrumental case, adposition placement and case government, irregular plurals and comparatives, inalienable possession (pass 17); partial pronoun suppletion, adjective placement and stacking order, a specific article and a demonstrative-derived definite article (pass 18); the rest of the noun-phrase list -- suppletive pasts, partial possessive words, more classifier constructions, ablative/allative/comitative cases and a wider adposition table, adjectives across "and", agreeing specific article, deictic and doubled articles, tonal derived articles (pass 19); decoding speed-ups (pass 20); comparison follow-ups -- equatives, excessives, elatives, degrees on adverbs, "more" of a noun, ablative/locative standards, "the more..., the more..." in the fake planner (pass 21); real inflection paradigms -- declensions, conjugations and irregular lexemes (pass 22); paradigm follow-ups -- more cells, patterned syncretism, stem changes, adjective classes (pass 23); prefix, circumfix and infix inflection (pass 24); morphophonology -- vowel harmony, hiatus resolution and initial-consonant mutation (pass 25); derivation and compounding (pass 26); reduplication as grammar and root-and-pattern inflection and derivation (pass 27);
-subordination follow-ups -- prepositional (pied-piped/stranded) relative clauses, stacked
-relatives, raising and passivized-control infinitives, a nominalized clause as the subject,
-reported-speech tense backshift, chained clause coordination, gapping, right-node raising and
-two more complementizer classes (pass 28); agreement follow-ups, second round -- a plain
-subject-plus-intransitive-verb sentence now gets verb agreement (the fake planner's plainest
-sentence shape had never carried one before), a classifier repeater carries its noun's own class
-marker and decodes back once, and semantic-field class assignment now covers animals, people and
-materials (pass 29); aspect/mood follow-ups, second round -- a periphrastic auxiliary word can now
-agree with the subject like a real auxiliary "have"/"has" instead of being an invariant particle;
-the ordinary negative suffix can now mark a non-finite verb form, not only a finite one; "there is
-no X" (and "A has no B") can use one dedicated negative-existential word instead of the ordinary
-negation particle; a second collision-resolution pass now also catches a suffix *concatenation*
-spelling like some other single affix, not just single affixes one by one; and evolving a language
-can now grammaticalize a periphrastic auxiliary into a bound suffix, and grow its suppletive-past
-list, the longer the time depth (pass 30); voice follow-ups, second round -- an impersonal verb now
-plans (and, defensively, renders) with no subject at all, not just no subject agreement; an
-applicative verb's promoted beneficiary now triggers the verb's own object agreement, a real
-valency-changing effect (and a matching decode-search gap -- a voice and object agreement
-combination together, never tried before -- fixed along the way); and the fake planner's closed
-middle/antipassive verb lists are a bit wider (pass 31); comparison follow-ups, second round -- a
-negative degree ("less big [than Y]", "least big") and a sufficiency degree ("big enough", the one
-degree word that follows the adjective rather than precedes it); an equative's own standard case,
-rolled independently of the comparative's; and a wider fake-planner adjective list (pass 32); a
-topicalized sentence ("as for the cat, it sleeps") fronts the topic and marks it with a dedicated
-particle where the language has one, dropping the main clause's resumptive subject (pass 33); a
-subject-referent honorific ("the professor sleeps") reuses the addressee-politeness verb affix for a
-closed list of titled subjects (pass 34); a quotative particle marks a speech-verb's complement
-clause as reported speech, and tense backshift is now gated to speech verbs specifically (pass 35).
-See `architecture/OVERVIEW.md`.
+**Done (passes 1-35):** the full grammar feature list -- plural/dual/trial
+number, questions, classifiers, voice (passive/antipassive/causative/
+middle/applicative/impersonal), tense/aspect/mood/evidentiality,
+subordination (relative/complement/adverbial clauses), noun classes and
+agreement, comparison, real inflection paradigms, derivation/compounding/
+reduplication/root-and-pattern morphology, and discourse (topic/focus,
+honorifics, reported speech). See `architecture/OVERVIEW.md` for the full
+pass-by-pass history.
 
 **Subordination follow-ups (done, pass 28); still missing (S-M):** an "oblique_pp" relative
 clause has no resumptive-pronoun fallback (real-world "beyond reach" reach limiting only
@@ -685,173 +483,32 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
 
 ## 11. Language evolution
 
-- **Strictness does not reach evolution -- done (pass 38/39).**
-  `sound_change`'s inventory recompute could drift a strict language back
-  toward the generic -- not because evolution gaining new sounds is wrong
-  (real languages do that constantly), but because the mechanism used to
-  be completely lineage-blind, so a strictness promise silently stopped
-  applying the moment evolution ran, by any degree. Fixed in three stages:
-  Stage 1 (pass 38) stopped `_recompute_syllable_structure` from silently
-  *dropping* (not just freezing) most of a language's own phonological
-  richness on every evolution regardless of strictness -- quads, both
-  onset-exclusion fields, every onset/nucleus/coda boundary pair field,
-  and the three per-position frequency-multiplier fields now survive
-  (filtered to the evolved inventory, not blindly copied). Stage 2 (pass
-  39) evolves the phonology *specification* itself as its own object,
-  mirroring how fresh generation already builds one, instead of deriving
-  it backward from whatever survived in already-mutated words:
-  `_evolve_phonology_membership` gives every phoneme a small,
-  time-scaled, strictness-independent chance of merging away (ordinary
-  lineage-internal drift), and gives every sound-change-introduced
-  phoneme an acceptance roll biased by `source_language_strictness`
-  against the matched lineage's own palette -- heavily suppressed at high
-  strictness when foreign to the lineage, but floored at 10% so it is
-  never literally impossible (a dial, not a wall; empirically verified:
-  Dutch-lineage ejective-drift acceptance dropped from 40/40 seeds at
-  strictness 0 to 9/40 at strictness 1.0, damped rather than blocked). Its
-  own per-position frequency multipliers also take a small bounded random
-  walk each evolution call instead of staying frozen forever. Stage 3
-  (pass 39) repairs any word whose own evolved IPA still contains a
-  symbol Stage 2 rejected, refitting it to the final inventory via the
-  same nearest-neighbour machinery (`phoneme_fit.fit_ipa`) `translation/
-  names.py`/`generation/real_words.py` already share -- functions as a
-  real merger, consistently wherever that symbol occurs, closing the
-  inventory/wordlist mismatch class of bug Stage 1's own testing twice
-  surfaced. Gated on `strictness > 0.0` (and on a matched lineage): at the
-  default strictness 0, Stage 2/3 are a byte-identical no-op, confirmed by
-  construction, not just by testing.
-- **Rules are generic, not language-specific -- done (pass 40, stages 1-3).**
-  "Dutch evolved forward 200 years" used to apply the general rule set
-  only -- now each of the six rules' own *rate* (not its mechanics: the
-  sound laws themselves are still generic) is additively biased by up to
-  three independent sources, any or all absent (no-op) on a given run:
-  - **Stage 1 -- real-lineage curated tendencies.** Six new
-    `historical_*_affinity` fields on `ReferenceLanguageProfile`
-    (`lenition`/`cluster_simplification`/`final_devoicing`/
-    `palatalization`/`vowel_reduction`/`ejective_drift`), curated for a
-    first batch of 14 of 51 profiles anchored directly to real, citable
-    cases (several already this module's own docstring anchors): Dutch/
-    German/Russian/Turkish/Polish (final devoicing -- Auslautverhärtung);
-    Dutch/German (ejective drift, negative -- never developed ejectives);
-    English (cluster simplification, vowel reduction); Latin/Spanish/
-    French/Portuguese (lenition -- Western Romance intervocalic p/t/k >
-    b/d/g; Italian deliberately excluded, see below); Russian/Polish/
-    Serbo-Croatian (palatalization -- Slavic); Quechua/Georgian (ejective
-    drift -- real ejective-bearing languages); Mandarin (vowel reduction,
-    negative -- tonal, resists it). Unweighted mean across multiple
-    matched lineages; combined additively with the evolution's own
-    generic traits via a shared `_biased_strength` clamp, never
-    overriding them.
-  - **Stage 2 -- structural self-derived tendencies.** Applies to *any*
-    evolving language, fictional included, with no curation and no
-    lineage match needed: `_derive_structural_bias` reads the language's
-    own *current* phonology/syllable structure (existing cluster
-    richness -> cluster simplification; voicing-readiness -> lenition;
-    voiced-obstruent coda material -> final devoicing; an existing
-    palatal output + front vowels -> palatalization; vowel inventory size
-    -> vowel reduction; an existing ejective -> ejective drift).
-  - **Stage 3 -- richer use of already-extracted traits.** `orality_literacy`
-    (already consumed for orthography-reform rate) extended to all six
-    rules uniformly (a written norm anchors pronunciation against drift
-    the same way it anchors spelling); `tonal_friendliness`/
-    `terrain_communication_distance` both resist vowel reduction (tone
-    carries contrastive load; loud/long-distance speech needs distinct
-    vowel quality -- `terrain_communication_distance`'s own real
-    mechanism, previously missing per the "Wiring existing traits" item
-    above); `aesthetic_harshness` biases ejective drift (mirrors the
-    existing fresh-generation fricative-harshness precedent).
-  Reshaped from a one-stage into this three-stage plan by direct user
-  feedback: stay flexible to what the *prompt* says about the evolution
-  period's own circumstances (never overridden -- everything above is
-  additive), and cover *fictional* languages too, not just real-sourced
-  ones (Stage 2's whole reason to exist). Deferred: curating the
-  remaining 36 profiles (Stage 1); extracting genuinely *new* free-text
-  evolution-period concepts in the prompt classifier, rather than reusing
-  today's fixed trait set (a bigger, riskier follow-up, not attempted
-  here); `isolation`/`community_scale`/`social_hierarchy`/
-  `spatial_reference`/`evidentiality_culture`/`ritual_register`/
-  `taboo_register` for Stage 3 (no individually crisp, sound-change-rate-
-  specific motivation found).
-- **Evolved real words -- done (pass 41).** A new `RealWordOrigin` (`core/lexicon.py`:
-  `language`/`form`/`ipa`) on `LexicalEntry.real_word`, set once at coinage by
-  `generation/real_words.py` (both exact and deviated real-based words -- the deviated
-  case keeps the *true* original, not its own already-looser starting form) and never
-  touched again by anything downstream: `evolve_language`'s entry-rebuild loop only
-  updates `ipa`/`romanization`/`notes`/`root`/`word_class` via `model_copy`, which leaves
-  every other field (`real_word` included) exactly as it was -- so it survives any number
-  of evolution steps unchanged, reaching all the way back to the real source word even
-  after a *second* evolution run, which the CLI's own existing "old -> new" print couldn't
-  do on its own (it only ever compares to the *immediately preceding* saved language).
-  Cleared to `None` when a word is borrowed or natively replaced (a genuinely different
-  word filling the same meaning's slot, not the same word sound-changing). `cli/main.py`'s
-  evolve print now appends `(real Dutch water [ˈvatər])` alongside the old -> new
-  comparison when set; the web UI's lexicon table and its `real_words` count switched from
-  the old `notes`-prefix check (which evolution already overwrote, silently undercounting
-  after one evolution step) to this new, evolution-proof field.
-- **Orthography reform is partial -- done (pass 42, +follow-up).** `evolve_romanization`
-  already modeled reform (drop + regenerate a symbol's own spelling rule) and
-  freeze (keep it verbatim, why real orthographies get silent letters); now adds
-  the third real force, *reading drift*: a letter's own written form stays
-  exactly the same while its conventional reading quietly reassigns to a nearby
-  symbol, with no formal reform event (real Latin "c" originally /k/, later read
-  /s/ before front vowels; English "gh" drifting from a real consonant to
-  silence). New `reading_drift_rate` (own `_ORTHOGRAPHY_HALF_LIVES["reading_drift"]`
-  half-life, same `-orality_literacy` link `reform` already uses): a symbol that
-  would otherwise freeze gets one further roll; if it fires, its own rule(s)
-  keep their spelling but move to a same-class nearest neighbor
-  (`phoneme_fit.neighbours`, promoted public, the same nearby-sound machinery
-  `deviate_ipa` already used); the vacated original symbol gets a freshly
-  generated rule of its own (same helper reform already calls), so the scheme
-  stays total -- confirmed never dropping a symbol across 200+ seeds, including
-  chained reassignments. Honestly scoped: this is a flat symbol reassignment,
-  not phonetically context-conditioned (real Latin c/s is conditioned on a
-  following front vowel).
-
-  **Follow-up, same pass**: the original version re-spelled every *existing*
-  word still pronouncing a drift-affected symbol this same run -- fine for a
-  genuine reform (real deliberate reforms really do apply retroactively), wrong
-  for mere reading drift (nobody is actively enforcing anything, so an
-  already-written word has no reason to suddenly look different). Fixed:
-  `evolve_romanization` now returns `(scheme, reading_drifted)` -- every symbol
-  touched by drift this call, from either side of a reassignment (the symbol
-  that lost its own grapheme, *and* the symbol that received a donated one).
-  `evolve_language`'s entry-rebuild loop checks this first: a word whose own
-  sound didn't change this run *and* uses a drift-touched symbol keeps its
-  exact old spelling (`notes: "orthography: pre-drift"`) rather than being
-  re-rendered through the new scheme -- only a newly-coined/replaced word, or
-  one whose own sound genuinely moved, follows the new convention. This project
-  still tracks no word's own spelling independent of its current `ipa` + the
-  current scheme for any *other* kind of change (true of ordinary reform
-  today, unchanged) -- reading drift specifically is now the one exception
-  that respects an existing, unaffected word's own history.
-
-  **Second follow-up -- phonetic-context conditioning, done.** Direct user
-  follow-up to the "not phonetically context-conditioned" limit above.
-  Working through a concrete design surfaced a correction: real Latin "c" ->
-  /s/ before front vowels wasn't pure orthography drift (no underlying sound
-  change) -- it was a genuine *conditioned sound change* (/k/ phonetically
-  shifted, specifically before front vowels) combined with ordinary spelling
-  *freeze* (the letter was never updated to reflect it). Landed as two
-  separate, independently useful mechanisms:
-  - `_apply_palatalization` (`sound_change.py`, already conditioned on a
-    following front vowel) gained a second real outcome per source
-    consonant -- `_PALATALIZATION_VARIANTS = {"k": ("tʃ", "s"), "g": ("dʒ",
-    "z")}`, weighted 0.65 toward the affricate (most lineages stop there;
-    French/Latin-American-Spanish-like lineages go one step further, to the
-    plain sibilant) -- a new `rng.choices`-style draw strictly after the
-    existing trigger roll, same RNG-stream convention as every other
-    extension this session.
-  - `evolve_romanization`'s own `reading_drift_rate` (`romanization_gen.py`)
-    can now produce a *conditioned split* instead of always a flat
-    reassignment, for a drifting *consonant* only (a vowel can't condition
-    on its own frontness -- its identity already fixes that): the old
-    grapheme keeps meaning the original symbol everywhere, but *also* means
-    the drift target specifically before a front vowel, via the
-    already-existing `RomanizationRule.following=("front_vowel",)` class tag
-    -- zero new conditioning infrastructure needed, `apply()`'s own
-    specificity ordering already does the rest. Both sides still feed the
-    prior follow-up's own `reading_drifted` set, so an unaffected existing
-    word keeps its own old spelling either way.
-  Deferred: lineage-biasing *which* palatalization variant a matched real
-  profile prefers; the intermediate `ts`/`dz` stage; a conditioning tag
-  other than front/back vowel.
+- **Rules are generic, not language-specific -- done (pass 40, stages
+  1-3).** Each of the six sound-change rules' own *rate* (not the sound
+  laws themselves) is now biased by: curated real-lineage tendencies for
+  14 of 51 reference profiles (`historical_*_affinity` fields, e.g.
+  Dutch/German/Russian/Turkish/Polish final devoicing); a structural
+  self-derived bias from the language's own current phonology, applying
+  to any evolving language including fictional ones; and three already-
+  extracted traits (`orality_literacy`, `tonal_friendliness`/
+  `terrain_communication_distance`, `aesthetic_harshness`) now feeding
+  all six rules. See `architecture/OVERVIEW.md` for the full mechanism.
+  Deferred: curating the remaining 36 profiles (Stage 1); extracting
+  genuinely *new* free-text evolution-period concepts in the prompt
+  classifier rather than reusing today's fixed trait set; `isolation`/
+  `community_scale`/`social_hierarchy`/`spatial_reference`/
+  `evidentiality_culture`/`ritual_register`/`taboo_register` for Stage 3
+  (no individually crisp, sound-change-rate-specific motivation found).
+- **Orthography reform is partial -- done (pass 42 + two follow-ups).**
+  `evolve_romanization` now models reform (drop + regenerate a spelling
+  rule), freeze (keep it verbatim), and reading drift (the written form
+  stays the same while its conventional reading quietly reassigns to a
+  nearby symbol, confirmed never dropping a symbol across 200+ seeds); a
+  drift-touched symbol no longer wrongly re-spells an *existing* word
+  that didn't itself change sound this run; and reading drift can now
+  condition on a following front vowel specifically for a drifting
+  consonant (not just a flat reassignment), paired with a matching
+  conditioned-palatalization sound change. See `architecture/
+  OVERVIEW.md`. Deferred: lineage-biasing *which* palatalization variant
+  a matched real profile prefers; the intermediate `ts`/`dz` stage; a
+  conditioning tag other than front/back vowel.
