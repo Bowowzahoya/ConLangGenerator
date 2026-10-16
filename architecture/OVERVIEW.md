@@ -7293,3 +7293,58 @@ reading code or one-off ad hoc scripts.
   that cost ~2.7s/400 words instead. Fixed alongside this item since it's the same "surface what the
   backend already supports" gap, even though it wasn't the item's own primary target.
 
+- **Piper, a third TTS engine -- a free, local neural voice, closing out the multi-engine selection
+  split's last piece.** Added `speech/ipa_to_piper.py` (new) and `PiperTTSClient` (`speech/tts.py`),
+  slotting into the exact same `TTSClient` Protocol/`build_tts_client` seam eSpeak/SAPI already use --
+  `symbol_fidelity` (`speech/phoneme_coverage.py`) gained a 3rd `if engine == "piper"` branch, and
+  `NATURALNESS` (`speech/engine_selection.py`) gained a `"piper": 3` entry (ranked above SAPI's `2`/
+  eSpeak's `1`, "more natural-sounding" per the backlog item's own framing). `piper-tts` is a new,
+  optional Python dependency (`pyproject.toml`'s `piper` dependency-group, mirroring the existing `web`
+  group) -- GPL-3.0-licensed code, a real, deliberate design departure from eSpeak/SAPI's own
+  subprocess-only arm's-length shape, decided with the user directly given that departure. The
+  `en_US-lessac-medium` voice model itself (MIT-licensed) is a manual one-time download
+  (`python -m piper.download_voices`), never auto-installed or auto-downloaded -- `_find_piper_voice()`
+  just checks whether the `.onnx`/`.onnx.json` pair already exists on disk, the same "unavailable is
+  normal, tell the user how to fix it" contract `_find_espeak_ng()` already has.
+
+  **The real mechanism was verified empirically before design, not assumed from docs** -- installed
+  `piper-tts` into a disposable scratch venv, downloaded a real voice, and exercised its actual Python
+  API directly. Two findings materially shaped the design: (1) `PiperVoice.phonemes_to_ids(list[str]) ->
+  list[int]` / `phoneme_ids_to_audio(ids) -> audio` bypass Piper's own text/espeak-ng frontend entirely
+  -- bare phoneme strings in, raw audio out, no text step -- confirming the "approximate-only" scope the
+  backlog item's own note anticipated is genuinely achievable; (2) the target voice's own phoneme
+  vocabulary (154 symbols, read directly from its real `.onnx.json`'s `phoneme_id_map`) turned out to be
+  derived from espeak-ng's *universal* phoneme repertoire (every espeak-trained voice shares it,
+  regardless of language) rather than anything English-specific -- so it already contains real click,
+  pharyngeal, and uvular letters most voices would never need. Compared against this project's own full
+  ~255-symbol global pool: with NFD-decomposition (splitting a stored symbol like `"tʃ"` into its own
+  atomic `"t"`/`"ʃ"`, rather than remapping the whole symbol onto a new notation the way Kirshenbaum's
+  ASCII mnemonics need to), one notation fix (this project's own ASCII `"g"` -> the real IPA script `"ɡ"`
+  the voice's vocabulary actually uses), and dropping exactly 3 diacritics confirmed genuinely absent
+  from it (ejective `ʼ`, breathy `ʱ`, voiceless-ring `̥`), **every single symbol in the pool resolves** --
+  no hand-curated "poor"-fidelity fallback table was needed at all, a smaller and higher-fidelity result
+  than `SAPI_EXACT_SYMBOLS`'s own curated-table approach achieves for SAPI.
+
+  **One real performance problem, found and fixed before it shipped, not after.** `PiperVoice.load()`
+  measured a real ~2.2-2.4s cost -- but per *Python object*, not per process or per word (unlike SAPI's
+  own per-*process*-spawn cost, Piper needs no subprocess/IPC layer at all: keeping the same loaded
+  `PiperTTSClient` instance alive across many `synthesize()` calls is the whole fix). This mattered at
+  every multi-word call site, each already having its own established "build the expensive resource once,
+  thread it through" pattern from the `SapiWorker` pass to mirror: `build_tts_client` gained a second
+  optional `piper_client` keyword (parallel to `sapi_worker`, returning the given client directly rather
+  than constructing a fresh one); `engine_selection.auto_client_for_word` already only built one client
+  per distinct engine kind *used in a sentence* (not per word), so it needed the same keyword threaded
+  through but no structural change; `speech/pregenerate.py`'s own per-word "auto" loop and `cli/main.py`'s
+  `pronounce --sounds` loop (looping over a whole language's phoneme inventory) both *did* rebuild a
+  fresh client per word/phoneme before this fix -- caught and fixed by building one shared
+  `PiperTTSClient()` outside each loop, the same fix shape `pregenerate.py` already had for `SapiWorker`.
+  `webui/app.py` gained a `_get_piper_client()` singleton, mirroring `_get_sapi_worker()` exactly (no
+  `atexit` cleanup needed -- `PiperTTSClient` holds no subprocess/file handle to close).
+
+  **No tone support at all** (no pitch/prosody mechanism was found in Piper's API; tone marks are dropped
+  before synthesis, `word_fidelity`/`describe_gap` force `"poor"`/a tone-note the same way they already do
+  for SAPI) -- confirmed live: translating a tonal sentence under `--tts piper` prints `"Piper (neural)
+  cannot voice tones: ... will be spoken without them"` and still saves real audio, and `--tts auto` on
+  the same sentence correctly falls back to eSpeak instead (tone coverage beats Piper's higher naturalness
+  rank in `choose_engine`'s own fidelity-first ordering) -- verified directly, not assumed from the
+  ranking table alone.

@@ -301,14 +301,39 @@ multi-session feature.
 
 ## 9. Pronunciation (TTS)
 
-- **eSpeak tonal voice is Mandarin-only (M).** Tones work by switching to the
-  `cmn` voice, so other sounds are approximated by Mandarin's inventory.
-  The better fix is likely native per-engine pitch control (eSpeak's own
-  SSML `<prosody>` contour, applied to whichever voice a word is actually
-  using, not a voice switch) rather than a cross-engine PSOLA overlay.
-  Not addressed by the per-word engine selection below -- that picks
-  *between* eSpeak and SAPI per word, it doesn't change how eSpeak itself
-  voices a tone once chosen.
+- **eSpeak tonal voice is Mandarin-only -- investigated, not achievable
+  with eSpeak-ng as it stands.** Tones work by switching to the `cmn`
+  voice, so other sounds are approximated by Mandarin's inventory. This
+  item used to speculate that native per-engine pitch control (eSpeak's
+  own SSML `<prosody>` contour, applied to whichever voice a word is
+  actually using, not a voice switch) would be the better fix -- tested
+  directly against the installed eSpeak-ng 1.52.0 rather than left as an
+  unverified guess, and it doesn't hold up: `<prosody contour="...">`
+  (the one mechanism that could represent a real tone *shape* --
+  rising/falling/dipping) produces **byte-identical** audio to no
+  prosody tag at all, i.e. it's silently ignored by this build. A flat
+  `<prosody pitch="...">` shift does work (confirmed non-identical
+  output for `+50%`/`-50%`/plain), but can only convey a crude high/low
+  register, never a real Chao contour -- the whole point of this
+  project's own tone model. Even that weaker version would need a
+  pipeline change: this project's actual eSpeak input is
+  `ipa_to_kirshenbaum.py`'s own `[[...]]` Kirshenbaum bracket syntax,
+  confirmed to break entirely under SSML mode (`-m`) -- a phoneme trace
+  showed the bracketed text read as literal words instead of parsed as
+  phonemes, with even the closing `</speak>` tag spoken aloud. The
+  standard SSML `<phoneme alphabet="ipa" ph="...">` tag parses correctly
+  for simple ASCII-ish IPA, but was never verified against this
+  project's own exotic symbols (ejectives, breathy consonants, clicks,
+  nasalized vowels). Given all this, the Mandarin-voice-switch stays as
+  the real, working mechanism -- not a placeholder waiting on a better
+  fix, but the actual best available option with what eSpeak-ng supports
+  today. A genuine fix would need a different mechanism entirely
+  (MBROLA's own per-phoneme pitch-envelope data via eSpeak's `--pho`
+  output, or a different engine like Piper) -- a materially bigger,
+  separate investigation, not folded into this item or the already-
+  separate "Add Piper" one below. Not addressed by the per-word engine
+  selection below either -- that picks *between* eSpeak and SAPI per
+  word, it doesn't change how eSpeak itself voices a tone once chosen.
 - **Long, fixed pauses between words when a sentence is voiced -- done.**
   `webui/app.py::_synthesize_sentence`'s own inter-word silence shortened
   from 0.15s to 0.05s (`_INTER_WORD_SILENCE_SECONDS`). Real sentence-level

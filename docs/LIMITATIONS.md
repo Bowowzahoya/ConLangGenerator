@@ -193,6 +193,15 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   `ǀ`) rates "exact" for eSpeak because Kirshenbaum has a real, dedicated click letter for it -- whether
   espeak-ng's own synthesizer actually produces an audible click is a separate question this project
   has never verified for any symbol, by any engine (see "Untested by ear" in `docs/DEFERRED.md`).
+- **A tonal word's segmental fidelity rating doesn't reflect eSpeak's own tone-triggered voice switch.**
+  `speech.phoneme_coverage.word_fidelity` rates each symbol's own Kirshenbaum mapping the same way
+  whether or not the word ends up tonal -- but a tonal word is actually voiced entirely by eSpeak's
+  Mandarin (`cmn`) voice (see `docs/DEFERRED.md`'s "eSpeak tonal voice is Mandarin-only" item), whose
+  own phoneme inventory may approximate that word's real consonants/vowels differently than the rating
+  assumes. Only tone *coverage* is rated for this (and rated as fully covered, correctly) -- the
+  segmental side of the same voice switch isn't folded in. Investigated (see the DEFERRED.md item above)
+  and confirmed there's no available fix via eSpeak-ng's own SSML prosody mechanism, so this stays a
+  standing, known gap rather than a pending one.
 - **Per-word engine selection never mixes engines within one word.** A word is voiced entirely by
   whichever single engine wins for it; there's no attempt to splice different engines' audio together
   for an individual word's own mixed-fidelity sounds (matching pitch/timbre/volume at a mid-word seam
