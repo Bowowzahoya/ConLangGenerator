@@ -3,7 +3,7 @@ factory.py``'s own shape exactly (``TTSClient`` `Protocol`, a ``build_tts_
 client()`` factory keyed by a string ``kind``), so ``cli/main.py`` never
 imports a specific synthesis backend directly.
 
-Two real backends, since the two sound genuinely different and there's no
+Three real backends, since each sounds genuinely different and there's no
 clear universal winner:
 
 - ``"espeak"``: espeak-ng, a real cross-platform synthesizer, once
@@ -15,6 +15,12 @@ clear universal winner:
   a short PowerShell script rather than a Python binding -- no install at
   all, and it accepts literal IPA directly through SSML's ``<phoneme
   alphabet="ipa">``, so no approximation step is needed. Windows-only.
+- ``"piper"``: Piper, a free, local neural voice -- an optional Python
+  dependency (the ``piper`` dependency-group) plus a one-time manual
+  voice download (see ``docs/CLI.md``), never auto-installed or
+  auto-downloaded. Synthesizes directly from phoneme IDs via ``speech.
+  ipa_to_piper``, bypassing Piper's own text/espeak-ng frontend
+  entirely.
 
 ``"none"`` (the default, matching ``build_llm_client(kind="fake")``'s own
 "cheap and dependency-free by default" precedent) reproduces today's
@@ -28,6 +34,7 @@ import shutil
 import subprocess
 import sys
 import unicodedata
+import wave
 import xml.sax.saxutils
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,7 +42,7 @@ from typing import Protocol
 
 from conlang_generator.core.phonology import TONE_CONTOURS, TONE_DIACRITICS, ToneLevel
 from conlang_generator.generation import ipa_tokenizer, phonology_gen
-from conlang_generator.speech import ipa_to_kirshenbaum
+from conlang_generator.speech import ipa_to_kirshenbaum, ipa_to_piper
 from conlang_generator.speech.sapi_worker import SapiWorker
 
 _ESPEAK_FALLBACK_PATHS = (
@@ -291,16 +298,114 @@ class SapiTTSClient:
         return result.returncode == 0 and output_path.is_file() and output_path.stat().st_size > 44
 
 
-def build_tts_client(kind: str = "none", *, sapi_worker: SapiWorker | None = None) -> TTSClient:
+_PIPER_VOICE_NAME = "en_US-lessac-medium"
+_PIPER_VOICE_DIR = Path(".cache/piper_voices")
+"""Not auto-downloaded -- a one-time manual setup step (see docs/CLI.md)
+run via Piper's own `python -m piper.download_voices` CLI, the same
+"external tool, assume present, degrade gracefully if not" contract
+eSpeak-ng/SAPI already have."""
+
+
+def _find_piper_voice() -> Path | None:
+    """The voice's own ``.onnx`` path if both it and its ``.onnx.json``
+    config already exist on disk -- never downloads, never imports the
+    optional ``piper`` package just to check this."""
+    onnx = _PIPER_VOICE_DIR / f"{_PIPER_VOICE_NAME}.onnx"
+    config = _PIPER_VOICE_DIR / f"{_PIPER_VOICE_NAME}.onnx.json"
+    return onnx if onnx.is_file() and config.is_file() else None
+
+
+class PiperTTSClient:
+    """A free, local neural voice (``piper-tts``, an optional dependency
+    -- see the ``piper`` dependency-group in ``pyproject.toml``).
+    Synthesizes directly from this project's own IPA via ``speech.
+    ipa_to_piper``'s phoneme-string conversion and ``PiperVoice``'s own
+    ``phonemes_to_ids``/``phoneme_ids_to_audio``, never through Piper's
+    own text/espeak-ng frontend. Holds one lazily-loaded ``PiperVoice``
+    instance per client instance -- its real ~2.2-2.4s load cost
+    (confirmed empirically) is per Python object, not per word or per
+    process, so no subprocess/IPC layer is needed the way ``SapiWorker``
+    needed one; the existing architecture already reuses one client
+    instance across every word in a CLI call or a webui server's whole
+    lifetime, which is all the persistence this needs."""
+
+    def __init__(self) -> None:
+        self._voice = None  # piper.PiperVoice | None, lazy
+
+    def _loaded_voice(self):
+        if self._voice is None:
+            path = _find_piper_voice()
+            if path is None:
+                return None
+            try:
+                from piper import PiperVoice
+            except ImportError:
+                return None
+            self._voice = PiperVoice.load(str(path))
+        return self._voice
+
+    def capabilities(self) -> TTSCapabilities:
+        return TTSCapabilities(
+            "Piper (neural)",
+            frozenset(),
+            (
+                "A free, local neural voice -- needs the optional 'piper' dependency group "
+                f"(`uv sync --group piper`) and the {_PIPER_VOICE_NAME} voice downloaded once "
+                "(see docs/CLI.md).",
+                "Synthesizes from phoneme IDs directly, bypassing Piper's own text/espeak frontend -- "
+                "sounds outside this English voice's own inventory are approximated.",
+                "Cannot voice tones: Piper has no pitch/tone mechanism at all, so tone marks are dropped "
+                "before speaking -- the words are still spoken, toneless.",
+            ),
+        )
+
+    def for_utterance(self, ipa_text: str) -> "TTSClient":
+        return self
+
+    def cache_identity(self) -> str:
+        return f"piper:{_PIPER_VOICE_NAME}"
+
+    def synthesize(self, ipa_text: str, output_path: Path) -> bool:
+        voice = self._loaded_voice()
+        if voice is None:
+            return False
+        phonemes = ipa_to_piper.convert_word(ipa_text)
+        if not phonemes:
+            return False
+        ids = voice.phonemes_to_ids(phonemes)
+        import numpy as np
+
+        audio = np.array(list(voice.phoneme_ids_to_audio(ids)), dtype=np.float32)
+        pcm16 = (audio * 32767).clip(-32768, 32767).astype("int16")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with wave.open(str(output_path), "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(voice.config.sample_rate)
+            wf.writeframes(pcm16.tobytes())
+        return output_path.is_file() and output_path.stat().st_size > 44
+
+
+def build_tts_client(
+    kind: str = "none", *, sapi_worker: SapiWorker | None = None, piper_client: "PiperTTSClient | None" = None,
+) -> TTSClient:
     """``sapi_worker``, when given, is reused by a ``"sapi"`` client
     instead of paying a fresh process-startup cost on every call (see
-    ``SapiWorker``'s own docstring) -- ignored by every other kind."""
+    ``SapiWorker``'s own docstring) -- ignored by every other kind.
+    ``piper_client``, when given, is returned directly for a ``"piper"``
+    request instead of constructing a fresh one -- `PiperTTSClient`
+    holds its own lazily-loaded voice directly (no separate worker
+    object the way SAPI needs), so reusing the *client itself* across
+    many calls is what avoids repaying its real ~2.2-2.4s load cost;
+    ignored by every other kind."""
     if kind == "none":
         return NoneTTSClient()
     if kind == "espeak":
         return EspeakTTSClient()
     if kind == "sapi":
         return SapiTTSClient(worker=sapi_worker)
+    if kind == "piper":
+        return piper_client if piper_client is not None else PiperTTSClient()
     raise ValueError(f"unknown TTS client kind: {kind!r}")
 
 
@@ -314,6 +419,7 @@ def available_backends() -> dict[str, bool]:
     real = {
         "espeak": _find_espeak_ng() is not None,
         "sapi": sys.platform.startswith("win"),
+        "piper": _find_piper_voice() is not None,
     }
     return {"none": True, **real, "auto": any(real.values())}
 
@@ -332,7 +438,7 @@ def backend_capabilities() -> dict[str, dict]:
     selection``), so its capabilities are assembled here directly: it can
     voice whichever tones *any* currently-available real backend can,
     since it may end up picking any of them for a given tonal word."""
-    caps = {kind: build_tts_client(kind).capabilities() for kind in ("none", "espeak", "sapi")}
+    caps = {kind: build_tts_client(kind).capabilities() for kind in ("none", "espeak", "sapi", "piper")}
     available_tones: frozenset[ToneLevel] = frozenset()
     for kind in available_engine_kinds():
         available_tones |= caps[kind].tones
@@ -349,7 +455,7 @@ def backend_capabilities() -> dict[str, dict]:
 
 
 __all__ = [
-    "TTSClient", "TTSCapabilities", "NoneTTSClient", "EspeakTTSClient", "SapiTTSClient",
+    "TTSClient", "TTSCapabilities", "NoneTTSClient", "EspeakTTSClient", "SapiTTSClient", "PiperTTSClient",
     "build_tts_client", "available_backends", "available_engine_kinds", "backend_capabilities",
     "pronunciation_warnings", "tones_in",
 ]

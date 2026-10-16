@@ -678,8 +678,8 @@ See `core/romanization.py`, `generation/sound_change.py`, and
 `generation/romanization_gen.py`'s module docstrings for the full rule
 list, rate model, and rationale.
 
-`--pregenerate-audio {none,espeak,sapi,auto}` (default `none`) eagerly
-synthesizes and caches every word's own pronunciation right after
+`--pregenerate-audio {none,espeak,sapi,piper,auto}` (default `none`)
+eagerly synthesizes and caches every word's own pronunciation right after
 generating, instead of waiting for the first real `pronounce`/`translate`
 request to pay that cost -- an explicit opt-in, never automatic:
 
@@ -700,27 +700,50 @@ Pre-generated audio for 400/400 words via espeak.
 Saved to .../conlangs/test-lang
 ```
 
-`espeak` is fast (measured ~60ms/word). `sapi` and `auto` (which can
-tie-break onto SAPI for any word both engines voice equally well -- see
-`speech/engine_selection.py`'s own `NATURALNESS` ranking) used to pay a
-fresh PowerShell+.NET startup cost on *every single word* (~3.7s/word,
-tens of minutes for a full vocabulary) -- fixed by `speech/sapi_worker.
+`espeak` is fast (measured ~60ms/word). `sapi` used to pay a fresh
+PowerShell+.NET startup cost on *every single word* (~3.7s/word, tens of
+minutes for a full vocabulary) -- fixed by `speech/sapi_worker.
 py::SapiWorker`, one persistent process shared across the whole lexicon
 instead of one per word (confirmed: the same 400-word vocabulary now
-takes ~2.7s total via `sapi`, not tens of minutes), so the web UI's own
-`/api/generate` accepts all four values too now, not just `none`/
-`espeak` -- and the Generate tab's own "Pre-generate audio" dropdown now
-offers `sapi`/`auto` directly too, not just through the CLI. A progress
-line still prints every 25 words so a run doesn't
-look hung if the backend genuinely is slow for some other reason;
-Ctrl+C is safe, the language itself is already saved by the time
-pre-generation starts.
+takes ~2.7s total via `sapi`, not tens of minutes). `piper` (a free,
+local neural voice -- see "Setting up Piper" below) similarly pays one
+real ~2.2-2.4s voice-load cost, shared once across the whole lexicon the
+same way, not per word. `auto` shares whichever of these costs its own
+per-word choices actually touch. The web UI's own `/api/generate`
+accepts all these values too, not just `none`/`espeak` -- and the
+Generate tab's own "Pre-generate audio" dropdown offers `sapi`/`piper`/
+`auto` directly too, not just through the CLI. A progress line still
+prints every 25 words so a run doesn't look hung if the backend
+genuinely is slow for some other reason; Ctrl+C is safe, the language
+itself is already saved by the time pre-generation starts.
 
 The one place this fix *doesn't* reach is a single CLI `pronounce
---tts sapi`/`auto` call on its own -- each CLI invocation is a fresh OS
-process that exits right after, so there's no second word for a
-persistent worker to amortize its own startup cost against. That one
-case stays at the original ~3.7s, documented in `docs/LIMITATIONS.md`.
+--tts sapi`/`piper`/`auto` call on its own -- each CLI invocation is a
+fresh OS process that exits right after, so there's no second word for
+a persistent worker/loaded voice to amortize its own startup cost
+against. That one case stays at the original per-engine cost,
+documented in `docs/LIMITATIONS.md`.
+
+### Setting up Piper
+
+`piper` needs two one-time steps before it reports itself available
+(the same "external tool, not installed by default" contract
+eSpeak-ng/SAPI already have -- no auto-install, no auto-download):
+
+```bash
+uv sync --group piper
+uv run python -m piper.download_voices en_US-lessac-medium --download-dir .cache/piper_voices
+```
+
+`piper-tts` (the Python package) is GPL-3.0 licensed; the
+`en_US-lessac-medium` voice model itself is MIT licensed. Both are
+optional -- nothing elsewhere in this project depends on `piper` being
+installed. Only this one voice is supported; synthesis bypasses Piper's
+own text/espeak-ng frontend entirely, converting this project's own IPA
+directly into the voice's own phoneme IDs instead (see
+`speech/ipa_to_piper.py`). Piper has no tone/pitch mechanism at all, so
+a tonal word is still spoken, just toneless -- the same honest
+limitation SAPI already has.
 
 ## `conlang translate`
 
@@ -1404,9 +1427,9 @@ verb (`…datip`) is in the conditional mood. In `t26` there is no "and": the fi
 
 ### `--tts`: synthesizing the translated sentence
 
-`--tts {none,espeak,sapi,auto}` (default `none`) synthesizes the whole
-translated sentence -- not just one word, see `conlang pronounce`'s own
-`--tts` below -- to one `.wav` file, stitching each word's own audio
+`--tts {none,espeak,sapi,piper,auto}` (default `none`) synthesizes the
+whole translated sentence -- not just one word, see `conlang pronounce`'s
+own `--tts` below -- to one `.wav` file, stitching each word's own audio
 together with a short gap between them (`speech/sentence_synthesis.py`,
 shared with the web UI's own `/api/pronounce`). Only has an effect with
 `--to conlang` (the default); `--tts` with `--to english` prints a note
@@ -1475,9 +1498,9 @@ IPA: /njáˈsí/  Romanized: nyásí  Tone contour: ˥˥ (55) ˥˥ (55)
 Pronounced (tone sandhi): /njáˈsì/
 ```
 
-`--tts {none,espeak,sapi,auto}` (default `none`) synthesizes the word's
-own *spoken* pronunciation (the post-sandhi form above, when sandhi
-applies) to a `.wav` file under `./.cache/audio/`. Before attempting
+`--tts {none,espeak,sapi,piper,auto}` (default `none`) synthesizes the
+word's own *spoken* pronunciation (the post-sandhi form above, when
+sandhi applies) to a `.wav` file under `./.cache/audio/`. Before attempting
 synthesis, it also prints a warning (to stderr) for any tone in the word
 the chosen engine genuinely can't voice -- the same check the web UI's
 own `/api/pronunciation-check` makes, so a CLI user gets the same
@@ -1496,18 +1519,21 @@ Audio saved to .cache\audio\zulu-doc-on.wav
 
 `espeak` needs `espeak-ng` installed separately; `sapi` is Windows-only
 (the built-in Speech API) and can't voice any tone at all (SAPI itself
-rejects IPA tone marks); eSpeak voices every tone through its own
+rejects IPA tone marks); `piper` needs its own one-time setup (see
+"Setting up Piper" above) and also can't voice any tone at all (no
+pitch mechanism exists). eSpeak voices every tone through its own
 Mandarin voice instead, so the same word under `--tts espeak` prints no
 warning. The warning only fires when a synthesis backend is actually
 selected -- `--tts none` (the default) never checks or prints it, since
 nothing gets synthesized to warn about.
 
-`--tts auto` picks whichever of `espeak`/`sapi` actually covers the
-word's own sounds best (`speech.phoneme_coverage`'s per-phoneme
-exact/approximate/poor rating, not just the tones-only check the two
-fixed engines get), breaking a tie between equally-covering engines by
-a small naturalness rank (SAPI's real OS voice over eSpeak's formant
-synthesis). When even the best available engine only approximates
+`--tts auto` picks whichever of `espeak`/`sapi`/`piper` actually covers
+the word's own sounds best (`speech.phoneme_coverage`'s per-phoneme
+exact/approximate/poor rating, not just the tones-only check the fixed
+engines get), breaking a tie between equally-covering engines by a small
+naturalness rank (Piper's own neural voice over SAPI's real OS voice
+over eSpeak's formant synthesis -- `speech/engine_selection.py`'s own
+`NATURALNESS`). When even the best available engine only approximates
 something, it says so -- naming the actual reason, not just "approximate":
 
 ```bash

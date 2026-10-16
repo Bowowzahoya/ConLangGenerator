@@ -17,6 +17,14 @@ def test_choose_engine_breaks_a_coverage_tie_with_naturalness():
     assert choice.notes == ()
 
 
+def test_choose_engine_ranks_piper_above_sapi_and_espeak_on_a_coverage_tie():
+    # "pata" is exact under all three -- Piper is ranked most natural.
+    choice = engine_selection.choose_engine("pata", ["espeak", "sapi", "piper"])
+    assert choice is not None
+    assert choice.kind == "piper"
+    assert choice.fidelity == "exact"
+
+
 def test_choose_engine_prefers_better_coverage_over_naturalness():
     # "kʼa" (ejective) is approximate under eSpeak, poor under SAPI --
     # eSpeak wins despite SAPI's higher naturalness rank.
@@ -72,6 +80,20 @@ def test_auto_client_for_word_keeps_engines_independent_across_groups():
     espeak_client = client_for_word("kʼa")
     assert type(sapi_client).__name__ == "SapiTTSClient"
     assert type(espeak_client).__name__ == "EspeakTTSClient"
+
+
+def test_auto_client_for_word_reuses_an_injected_piper_client():
+    # Mirrors the sapi_worker-reuse contract -- a piper_client passed in
+    # is the exact instance resolved for every word "auto" assigns to
+    # Piper, not a freshly constructed one (avoiding repaying its real
+    # ~2.2-2.4s voice-load cost per word).
+    from conlang_generator.speech.tts import PiperTTSClient
+
+    shared = PiperTTSClient()
+    sentence = "pata mata"
+    client_for_word = engine_selection.auto_client_for_word(sentence, ["piper"], piper_client=shared)
+    assert client_for_word("pata") is shared
+    assert client_for_word("mata") is shared
 
 
 def test_auto_pronunciation_warnings_reports_no_engine_available():

@@ -23,10 +23,12 @@ from conlang_generator.speech.phoneme_coverage import FIDELITY_RANK
 from conlang_generator.speech.sapi_worker import SapiWorker
 from conlang_generator.speech.tts import TTSClient
 
-NATURALNESS: dict[str, int] = {"sapi": 2, "espeak": 1}
-"""Explicitly subjective, revisit when a new engine (Piper, ...) joins
-the roster -- SAPI's real, recorded-voice-based OS synthesizer is rated
-above eSpeak's formant synthesis for any sound both render correctly."""
+NATURALNESS: dict[str, int] = {"piper": 3, "sapi": 2, "espeak": 1}
+"""Explicitly subjective -- SAPI's real, recorded-voice-based OS
+synthesizer is rated above eSpeak's formant synthesis for any sound
+both render correctly; Piper's own free, local neural voice is rated
+above both, the "more natural-sounding" framing its own
+`docs/DEFERRED.md` backlog item already gave it."""
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,7 @@ def auto_client_for_word(
     candidate_kinds: Sequence[str],
     cache_dir: Path | None = None,
     sapi_worker: SapiWorker | None = None,
+    piper_client: "tts.PiperTTSClient | None" = None,
 ) -> Callable[[str], TTSClient]:
     """A ``word -> TTSClient`` function for voicing a whole sentence with
     automatic per-word engine choice. Resolves ``for_utterance`` once per
@@ -73,7 +76,10 @@ def auto_client_for_word(
     wraps each resolved client in ``tts_cache.CachingTTSClient``.
     ``sapi_worker``, when given, lets a `"sapi"`-assigned group reuse a
     persistent process instead of paying a fresh startup cost (see
-    ``speech.sapi_worker.SapiWorker``) -- ignored by every other kind."""
+    ``speech.sapi_worker.SapiWorker``); ``piper_client``, when given,
+    lets a `"piper"`-assigned group reuse an already-loaded voice instead
+    of paying its own real ~2.2-2.4s load cost again -- each ignored by
+    every other kind."""
     words = ipa_sentence.split()
     choice_by_word = {word: choose_engine(word, candidate_kinds) for word in set(words)}
     words_by_kind: dict[str, list[str]] = {}
@@ -83,7 +89,9 @@ def auto_client_for_word(
             words_by_kind.setdefault(choice.kind, []).append(word)
     resolved: dict[str, TTSClient] = {}
     for kind, assigned in words_by_kind.items():
-        client = tts.build_tts_client(kind, sapi_worker=sapi_worker).for_utterance(" ".join(assigned))
+        client = tts.build_tts_client(
+            kind, sapi_worker=sapi_worker, piper_client=piper_client
+        ).for_utterance(" ".join(assigned))
         resolved[kind] = tts_cache.CachingTTSClient(client, cache_dir) if cache_dir is not None else client
     none_client = tts.NoneTTSClient()
 

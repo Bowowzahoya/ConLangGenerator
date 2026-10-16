@@ -92,6 +92,22 @@ def _get_sapi_worker() -> SapiWorker:
         atexit.register(_sapi_worker.close)
     return _sapi_worker
 
+
+_piper_client: tts.PiperTTSClient | None = None
+"""Same reasoning as `_sapi_worker` above, for Piper's own real
+~2.2-2.4s voice-load cost: lazily built on this server's first
+`"piper"`/`"auto"` request, then reused for every request after. No
+`atexit` cleanup needed -- `PiperTTSClient` holds no subprocess/file
+handle of its own to close, just an in-memory loaded voice."""
+
+
+def _get_piper_client() -> tts.PiperTTSClient:
+    global _piper_client
+    if _piper_client is None:
+        _piper_client = tts.PiperTTSClient()
+    return _piper_client
+
+
 _SYMBOLS = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(v.ipa for v in phonology_gen.ALL_VOWELS)
 """The full global phoneme pool, not any one language's own narrower
 inventory -- the same "tokenize against everything this project ever
@@ -291,13 +307,13 @@ class GenerateRequest(BaseModel):
     evolve_years: int | None = None
     pregenerate_audio: str = "none"
     """Eagerly synthesize+cache every lexicon word's own pronunciation
-    right after generating -- none/espeak/sapi/auto. "sapi"/"auto" used
-    to measure ~3.7s/word (a fresh PowerShell+.NET startup cost on every
-    one-shot call), too slow for a synchronous request; `speech.
+    right after generating -- none/espeak/sapi/piper/auto. "sapi"/"auto"
+    used to measure ~3.7s/word (a fresh PowerShell+.NET startup cost on
+    every one-shot call), too slow for a synchronous request; `speech.
     pregenerate.pregenerate_audio` now shares one persistent `speech.
     sapi_worker.SapiWorker` across the whole lexicon instead (confirmed:
     a full 400-word vocabulary takes ~2.7s total, not tens of minutes),
-    so all four values are accepted here now."""
+    so all these values are accepted here now."""
     trait_overrides: dict[str, float] = {}
     """Directly set one or more graded worldbuilding traits (the web
     equivalent of the CLI's own repeatable ``--trait NAME=VALUE``) --
@@ -585,8 +601,10 @@ def generate(request: GenerateRequest) -> dict:
         raise HTTPException(status_code=400, detail="foreign_names must be 'keep' or 'adapt' (or omitted)")
     if request.word_selection not in ("algorithmic", "llm"):
         raise HTTPException(status_code=400, detail="word_selection must be 'algorithmic' or 'llm'")
-    if request.pregenerate_audio not in ("none", "espeak", "sapi", "auto"):
-        raise HTTPException(status_code=400, detail="pregenerate_audio must be 'none', 'espeak', 'sapi' or 'auto'")
+    if request.pregenerate_audio not in ("none", "espeak", "sapi", "piper", "auto"):
+        raise HTTPException(
+            status_code=400, detail="pregenerate_audio must be 'none', 'espeak', 'sapi', 'piper' or 'auto'"
+        )
     unknown_traits = set(request.trait_overrides) - set(GRADED_TRAIT_FIELDS)
     if unknown_traits:
         raise HTTPException(
@@ -718,18 +736,19 @@ class PronounceRequest(BaseModel):
 
 @app.post("/api/pronounce")
 def pronounce(request: PronounceRequest) -> Response:
-    if request.tts not in ("espeak", "sapi", "auto"):
-        raise HTTPException(status_code=400, detail="tts must be 'espeak', 'sapi' or 'auto'")
+    if request.tts not in ("espeak", "sapi", "piper", "auto"):
+        raise HTTPException(status_code=400, detail="tts must be 'espeak', 'sapi', 'piper' or 'auto'")
     if not request.ipa.strip():
         raise HTTPException(status_code=400, detail="ipa must not be empty")
     if request.tts == "auto":
         client_for_word = engine_selection.auto_client_for_word(
             request.ipa, tts.available_engine_kinds(), cache_dir=CACHE_DIR / "tts_cache",
-            sapi_worker=_get_sapi_worker(),
+            sapi_worker=_get_sapi_worker(), piper_client=_get_piper_client(),
         )
     else:
         sapi_worker = _get_sapi_worker() if request.tts == "sapi" else None
-        client = tts.build_tts_client(request.tts, sapi_worker=sapi_worker)
+        piper_client = _get_piper_client() if request.tts == "piper" else None
+        client = tts.build_tts_client(request.tts, sapi_worker=sapi_worker, piper_client=piper_client)
         if hasattr(client, "for_utterance"):  # engines that pick a voice per sentence (eSpeak's tonal one)
             client = client.for_utterance(request.ipa)
         client = tts_cache.CachingTTSClient(client, CACHE_DIR / "tts_cache")
@@ -748,8 +767,8 @@ def pronunciation_check(request: PronounceRequest) -> dict:
     capabilities to check against -- its warnings instead come from each
     word's own per-engine selection (``engine_selection.auto_pronunciation_
     warnings``), reporting which word fell short and why."""
-    if request.tts not in ("none", "espeak", "sapi", "auto"):
-        raise HTTPException(status_code=400, detail="tts must be 'none', 'espeak', 'sapi' or 'auto'")
+    if request.tts not in ("none", "espeak", "sapi", "piper", "auto"):
+        raise HTTPException(status_code=400, detail="tts must be 'none', 'espeak', 'sapi', 'piper' or 'auto'")
     if request.tts == "auto":
         return {
             "capabilities": tts.backend_capabilities()["auto"],

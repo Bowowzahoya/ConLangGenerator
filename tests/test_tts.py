@@ -1,7 +1,8 @@
 """Tests for speech.tts -- the provider-agnostic TTS seam. NoneTTSClient
-(the default everywhere else in this project) is always tested; the two
-real backends are gated behind the actual dependency being present, so
-the suite stays green on a machine without espeak-ng or off Windows."""
+(the default everywhere else in this project) is always tested; the
+three real backends are each gated behind their own actual dependency
+being present, so the suite stays green on a machine without
+espeak-ng/off Windows/without the optional piper group + voice set up."""
 
 import shutil
 import sys
@@ -13,6 +14,12 @@ from conlang_generator.speech import tts
 
 _ESPEAK_AVAILABLE = tts._find_espeak_ng() is not None
 _IS_WINDOWS = sys.platform.startswith("win")
+try:
+    import piper  # noqa: F401
+
+    _PIPER_AVAILABLE = tts._find_piper_voice() is not None
+except ImportError:
+    _PIPER_AVAILABLE = False
 
 
 def test_build_tts_client_defaults_to_none():
@@ -85,6 +92,41 @@ def test_sapi_client_delegates_to_an_injected_worker_instead_of_a_one_shot_call(
         assert worker.calls[0][1] == output
 
 
+@pytest.mark.skipif(not _PIPER_AVAILABLE, reason="piper not installed or voice not downloaded on this machine")
+def test_piper_client_synthesizes_a_real_wav_file(tmp_path: Path):
+    client = tts.build_tts_client("piper")
+    output = tmp_path / "out.wav"
+    assert client.synthesize("ˈkat", output) is True
+    assert output.is_file()
+    assert output.stat().st_size > 44
+
+
+@pytest.mark.skipif(_PIPER_AVAILABLE, reason="this test only makes sense when piper is unavailable")
+def test_piper_client_reports_unavailable_when_not_set_up(tmp_path: Path):
+    client = tts.build_tts_client("piper")
+    output = tmp_path / "out.wav"
+    assert client.synthesize("kat", output) is False
+    assert not output.exists()
+
+
+@pytest.mark.skipif(not _PIPER_AVAILABLE, reason="piper not installed or voice not downloaded on this machine")
+def test_piper_client_reuses_an_injected_client_instance_instead_of_a_fresh_one():
+    shared = tts.build_tts_client("piper")
+    assert tts.build_tts_client("piper", piper_client=shared) is shared
+
+
+def test_piper_client_capabilities_report_no_tones():
+    # Needs no real piper install -- capabilities() never touches the
+    # lazily-loaded voice.
+    caps = tts.build_tts_client("piper").capabilities()
+    assert caps.tones == frozenset()
+    assert caps.notes
+
+
+def test_piper_client_cache_identity_is_a_fixed_engine_specific_string():
+    assert tts.PiperTTSClient().cache_identity() == "piper:en_US-lessac-medium"
+
+
 def test_sapi_worker_kwarg_is_ignored_by_every_other_kind():
     # build_tts_client's new keyword-only parameter must be a no-op for
     # anything but "sapi" -- passing it to "espeak"/"none" must not raise.
@@ -94,6 +136,12 @@ def test_sapi_worker_kwarg_is_ignored_by_every_other_kind():
 
     assert isinstance(tts.build_tts_client("none", sapi_worker=_FakeWorker()), tts.NoneTTSClient)
     assert isinstance(tts.build_tts_client("espeak", sapi_worker=_FakeWorker()), tts.EspeakTTSClient)
+
+
+def test_piper_client_kwarg_is_ignored_by_every_other_kind():
+    other_client = tts.PiperTTSClient()
+    assert tts.build_tts_client("none", piper_client=other_client) is not other_client
+    assert isinstance(tts.build_tts_client("espeak", piper_client=other_client), tts.EspeakTTSClient)
 
 
 def test_find_espeak_ng_prefers_path_over_fallback_locations(monkeypatch):
@@ -116,6 +164,7 @@ def test_cache_identity_reflects_every_constructor_argument_that_changes_output(
     assert tts.EspeakTTSClient().cache_identity() == tts.EspeakTTSClient().cache_identity()
     assert tts.SapiTTSClient().cache_identity() == "sapi"
     assert tts.NoneTTSClient().cache_identity() == "none"
+    assert tts.PiperTTSClient().cache_identity() == "piper:en_US-lessac-medium"
 
 
 def test_available_backends_none_is_always_true():
@@ -126,3 +175,4 @@ def test_available_backends_reflects_actual_espeak_and_platform_state():
     backends = tts.available_backends()
     assert backends["espeak"] == _ESPEAK_AVAILABLE
     assert backends["sapi"] == _IS_WINDOWS
+    assert backends["piper"] == (tts._find_piper_voice() is not None)

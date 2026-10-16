@@ -206,9 +206,27 @@ not done yet. Broader architecture notes live in `architecture/OVERVIEW.md`.
   whichever single engine wins for it; there's no attempt to splice different engines' audio together
   for an individual word's own mixed-fidelity sounds (matching pitch/timbre/volume at a mid-word seam
   would be its own separate, harder problem).
-- **`"auto"` only ever considers the two engines that exist today (eSpeak, SAPI).** No ranking/coverage
-  data exists yet for a future engine (Piper, a paid cloud engine) -- adding one needs its own coverage
-  curation, not just adding its name to a candidate list.
+- **`"auto"` only ever considers the three engines that exist today (eSpeak, SAPI, Piper).** No
+  ranking/coverage data exists yet for a future engine (a paid cloud engine) -- adding one needs its own
+  coverage curation, not just adding its name to a candidate list.
+- **Piper ships exactly one voice (`en_US-lessac-medium`), with no selection mechanism.** No accent/
+  language/speaker choice -- every language this project generates is voiced by the same single English
+  voice, approximated through `speech/ipa_to_piper.py`'s own phoneme-ID mapping regardless of how
+  phonologically distant the generated language actually is from English.
+- **Piper's phoneme-mapping quality has never been verified by ear**, the same "Untested by ear" caveat
+  `docs/DEFERRED.md` already carries for eSpeak/SAPI -- the mapping is principled (derived from the real
+  voice's own vocabulary, not guessed) but whether an approximated symbol (ejective/breathy/voiceless
+  dropped, or a sound decomposed into separate base letters that would normally co-articulate) actually
+  sounds reasonable has not been checked by listening.
+- **Piper cannot voice tones at all**, not even approximately -- no pitch/prosody mechanism was found in
+  its own API (see `docs/DEFERRED.md`'s own eSpeak-Mandarin-voice investigation for the closest this
+  project came to a per-engine pitch-control mechanism, and why it didn't pan out for eSpeak either).
+  Tone marks are silently dropped before synthesis, the same honest "spoken, just toneless" treatment
+  SAPI already has.
+- **`piper-tts` is a GPL-3.0-licensed direct Python import**, unlike eSpeak-ng/SAPI, which this project
+  only ever shells out to as a subprocess. It lives in its own optional, not-installed-by-default `uv`
+  dependency-group and is never bundled or distributed by this project, but it's a materially tighter
+  coupling than the other two engines' own arm's-length shape.
 - **The audio cache never expires and is never invalidated.** `speech.tts_cache.CachingTTSClient` stores
   one `.wav` file per `(engine identity, IPA text)` combination under `CACHE_DIR / "tts_cache"` forever
   -- there's no size cap, no eviction, and no way to force a re-synthesis short of deleting the

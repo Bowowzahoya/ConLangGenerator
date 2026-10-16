@@ -113,7 +113,7 @@ def test_cli_generate_rejects_an_invalid_pregenerate_audio_value(tmp_path, monke
     result = CliRunner().invoke(
         cli_main.app,
         ["generate", "--prompt", "p", "--name", "cli-pregen-bad", "--seed", "1", "--llm", "fake",
-         "--pregenerate-audio", "piper"],
+         "--pregenerate-audio", "festival"],
     )
     assert result.exit_code == 1
     assert "pregenerate-audio" in result.output

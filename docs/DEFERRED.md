@@ -343,19 +343,20 @@ multi-session feature.
   concatenation; this was only ever the one small pacing fix in scope.
 - **Multi-engine per-word selection (was one L item, split into
   right-sized pieces after planning surfaced just how much it bundled).
-  Pieces 1-3 done.** Engine choice is per *word*, never per sound within
+  Pieces 1-4 done.** Engine choice is per *word*, never per sound within
   a word, by explicit decision across every piece -- splicing different
   engines' audio together inside one word would need to solve matching
   pitch/timbre/volume at the seam, a separate, harder problem not taken
   on anywhere in this split. Done: a real per-phoneme coverage model
   (`speech.phoneme_coverage`, exact/approximate/poor per symbol, derived
   from `ipa_to_kirshenbaum.convert_symbol`'s own fidelity for eSpeak, a
-  small curated table for SAPI) and the per-word selection built on it
+  small curated table for SAPI, `ipa_to_piper.convert_symbol`'s own
+  fidelity for Piper) and the per-word selection built on it
   (`speech.engine_selection`), reachable as a new `"auto"` engine value
   on `pronounce --tts`/the web UI's Translate tab.
   - **Surface engine choice and coverage more fully in the CLI/web UI
     (S-M) -- done.** `translate` gained its own `--tts
-    {none,espeak,sapi,auto}` (default `"none"`, prints a no-op note
+    {none,espeak,sapi,piper,auto}` (default `"none"`, prints a no-op note
     instead of synthesizing for `--to english`; reuses the new shared
     `speech.sentence_synthesis.synthesize_sentence` -- extracted from
     `webui/app.py`'s own private `_synthesize_sentence`, now shared with
@@ -373,13 +374,36 @@ multi-session feature.
     stale "tens of minutes" warning left over from before the SAPI
     worker fix -- now lists all four values with real, current timing.
   - **Add Piper as a new free, local, more natural-sounding neural engine
-    (L, independent, slots into the roster once added).** The
-    engine-vs-phoneme-set mismatch for a genuinely invented phonology
-    (explored in chat) needs a concrete decision: approximate-only (map
-    invented phonemes to the nearest sound Piper's pretrained voice
-    already knows, no training) versus actually extending/fine-tuning a
-    model (a much bigger, separate research effort) -- approximate-only
-    is the realistic scope for this item.
+    (L, independent, slots into the roster once added) -- done.**
+    Approximate-only, exactly the scope this item's own note called
+    realistic: one voice (`en_US-lessac-medium`, MIT-licensed; `piper-tts`
+    itself is GPL-3.0, an optional dependency-group, `uv sync --group
+    piper`, never installed by default), no training/fine-tuning.
+    Synthesizes by converting this project's own IPA directly into the
+    voice's own phoneme IDs (`speech/ipa_to_piper.py`), bypassing Piper's
+    own text/espeak-ng frontend entirely -- a real, working mechanism
+    confirmed by installing the package and exercising it directly (not
+    assumed from docs): `PiperVoice.phonemes_to_ids`/`phoneme_ids_to_audio`
+    take bare phoneme strings and raw IDs respectively, with no text step
+    in between. The "engine-vs-phoneme-set mismatch" turned out smaller
+    than expected: Piper's own vocabulary (154 symbols, derived from
+    espeak-ng's universal phoneme repertoire, not just English) already
+    covers every one of this project's ~255 global pool symbols after
+    NFD-decomposition into atomic letters/diacritics, one notation fix
+    (this project's own ASCII `"g"` -> the real IPA script `"g"` Piper's
+    vocabulary uses), and dropping exactly 3 diacritics genuinely absent
+    from it (ejective, breathy, voiceless-ring) -- no hand-curated
+    per-symbol fallback table was needed at all, unlike SAPI's own
+    `SAPI_EXACT_SYMBOLS`. Ranked most natural of the three
+    (`engine_selection.NATURALNESS`), no tone support (dropped, same
+    honest treatment SAPI already has). One real perf fix threaded
+    through every multi-word call site (`pregenerate_audio`,
+    `auto_client_for_word`, `pronounce --sounds`, the webui's own
+    `_get_piper_client` singleton): a fresh `PiperTTSClient` per word
+    would repay its real ~2.2-2.4s voice-load cost every time, so every
+    one of these now explicitly reuses one loaded instance across many
+    words/requests, the same problem (and the same fix shape)
+    `SapiWorker` already solved for SAPI's own process-startup cost.
   - **Add a paid cloud engine, e.g. Azure or Google SSML, with its own
     cost on/off toggle (L, independent).** Lowest priority -- needs the
     same per-task on/off-switch treatment this project already gives

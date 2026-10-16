@@ -1,7 +1,7 @@
-"""Per-engine, per-phoneme coverage: how faithfully eSpeak-ng and Windows
-SAPI can actually voice this project's own ~200-symbol phoneme pool, not
-just whether they voice tones (``speech.tts.TTSCapabilities``'s only
-dimension today).
+"""Per-engine, per-phoneme coverage: how faithfully eSpeak-ng, Windows
+SAPI, and Piper can actually voice this project's own ~200-symbol
+phoneme pool, not just whether they voice tones (``speech.tts.
+TTSCapabilities``'s only dimension today).
 
 - ``"espeak"``: fidelity comes straight from ``speech.ipa_to_kirshenbaum.
   convert_symbol``'s own ``Fidelity`` rating -- that module already knows
@@ -15,18 +15,22 @@ dimension today).
   English phoneme inventory (``SAPI_EXACT_SYMBOLS``). Everything else is
   rated by the same ``Consonant``/``Vowel`` feature flags eSpeak's own
   approximations are explained with, not a separate judgment call.
+- ``"piper"``: fidelity comes straight from ``speech.ipa_to_piper.
+  convert_symbol``'s own ``Fidelity`` rating, the same single-source-of-
+  truth relationship eSpeak's branch has with its own conversion module.
 
-Both engines' tone handling is already known from direct testing
+All three engines' tone handling is already known from direct testing
 (``speech.tts``): eSpeak voices every ``ToneLevel`` via its Mandarin
-voice; SAPI strips tone marks entirely. ``word_fidelity`` folds that in
-for SAPI; eSpeak needs no such override since nothing here degrades it.
+voice; SAPI and Piper both strip tone marks entirely (Piper has no
+pitch/tone mechanism at all). ``word_fidelity`` folds that in for SAPI
+and Piper; eSpeak needs no such override since nothing here degrades it.
 """
 
 from __future__ import annotations
 
 from conlang_generator.core.phonology import CLICK_CHARACTERS, Place
 from conlang_generator.generation import ipa_tokenizer, phonology_gen
-from conlang_generator.speech import ipa_to_kirshenbaum
+from conlang_generator.speech import ipa_to_kirshenbaum, ipa_to_piper
 from conlang_generator.speech.ipa_to_kirshenbaum import Fidelity
 
 _ALL_SYMBOLS: tuple[str, ...] = tuple(c.ipa for c in phonology_gen.ALL_CONSONANTS) + tuple(
@@ -79,19 +83,22 @@ def symbol_fidelity(symbol: str, engine: str) -> Fidelity:
         if symbol in SAPI_EXACT_SYMBOLS:
             return "exact"
         return "poor" if _is_sapi_poor(symbol) else "approximate"
+    if engine == "piper":
+        return ipa_to_piper.convert_symbol(symbol).fidelity
     raise ValueError(f"unknown engine: {engine!r}")
 
 
 def word_fidelity(ipa_word: str, engine: str) -> Fidelity:
     """The worst fidelity among ``ipa_word``'s own symbols (and, for
-    ``"sapi"``, its tones -- SAPI strips every tone mark outright, a
-    known, already-tested fact; eSpeak needs no such override since it
-    already voices every ``ToneLevel`` via its Mandarin voice)."""
+    ``"sapi"``/``"piper"``, its tones -- both strip every tone mark
+    outright, a known, already-tested fact; eSpeak needs no such
+    override since it already voices every ``ToneLevel`` via its
+    Mandarin voice)."""
     symbols = ipa_tokenizer.symbols_only(ipa_word, _ALL_SYMBOLS)
     worst: Fidelity = min(
         (symbol_fidelity(s, engine) for s in symbols), key=FIDELITY_RANK.__getitem__, default="exact"
     )
-    if engine == "sapi" and ipa_tokenizer.tone_sequence(ipa_word, _ALL_SYMBOLS):
+    if engine in ("sapi", "piper") and ipa_tokenizer.tone_sequence(ipa_word, _ALL_SYMBOLS):
         worst = min(worst, "poor", key=FIDELITY_RANK.__getitem__)
     return worst
 
@@ -103,7 +110,7 @@ def describe_gap(ipa_word: str, engine: str) -> tuple[str, ...]:
     re-derived there."""
     symbols = ipa_tokenizer.symbols_only(ipa_word, _ALL_SYMBOLS)
     reasons: list[str] = []
-    if engine == "sapi" and ipa_tokenizer.tone_sequence(ipa_word, _ALL_SYMBOLS):
+    if engine in ("sapi", "piper") and ipa_tokenizer.tone_sequence(ipa_word, _ALL_SYMBOLS):
         reasons.append("tones are not voiced")
     seen: set[str] = set()
     for symbol in symbols:

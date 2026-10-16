@@ -30,9 +30,9 @@ def _tone(base: str, level: ToneLevel) -> str:
 
 def test_each_engine_lists_what_it_can_and_cannot_voice():
     caps = tts.backend_capabilities()
-    assert set(caps) == {"none", "espeak", "sapi", "auto"}
+    assert set(caps) == {"none", "espeak", "sapi", "piper", "auto"}
     assert set(caps["espeak"]["tones"]) == {level.value for level in ToneLevel}
-    assert caps["sapi"]["tones"] == [] and caps["none"]["tones"] == []
+    assert caps["sapi"]["tones"] == [] and caps["none"]["tones"] == [] and caps["piper"]["tones"] == []
     # "auto" can voice whatever tones any currently-available real engine
     # can -- the union across whichever of eSpeak/SAPI are actually usable
     # right now, not a fixed set.
@@ -101,9 +101,11 @@ def test_the_cli_pronounce_command_warns_about_an_unvoiceable_tone(tmp_path, mon
 
 
 def test_the_cli_pronounce_command_auto_tts_warns_when_even_the_best_engine_only_approximates(tmp_path, monkeypatch):
-    # An ejective word: eSpeak only approximates it, SAPI poorly -- auto
-    # still picks eSpeak (the better of the two) but should name the
-    # actual shortfall, not stay silent about it.
+    # An ejective word: eSpeak and Piper both only approximate it (the
+    # ejective marker is dropped either way), SAPI poorly -- auto picks
+    # whichever of the approximating engines is ranked most natural
+    # (Piper, per engine_selection.NATURALNESS) but should still name
+    # the actual shortfall, not stay silent about it.
     import conlang_generator.cli.main as cli_main
     from typer.testing import CliRunner
 
@@ -130,7 +132,7 @@ def test_the_cli_pronounce_command_auto_tts_warns_when_even_the_best_engine_only
     )
     assert result.exit_code == 0
     assert "warning:" in result.output
-    assert "espeak" in result.output or "eSpeak" in result.output
+    assert "piper" in result.output or "Piper" in result.output
     assert "Audio saved to" in result.output
 
 
@@ -171,7 +173,7 @@ def test_the_cli_pronounce_command_caches_audio_across_separate_invocations(tmp_
 def test_the_web_api_lists_capabilities_and_checks_a_translation():
     client = TestClient(app)
     options = client.get("/api/options").json()
-    assert set(options["tts_capabilities"]) == {"none", "espeak", "sapi", "auto"}
+    assert set(options["tts_capabilities"]) == {"none", "espeak", "sapi", "piper", "auto"}
     ipa = _tone("ma", ToneLevel.FALLING)
     sapi = client.post("/api/pronunciation-check", json={"ipa": ipa, "tts": "sapi"}).json()
     assert sapi["warnings"] and sapi["capabilities"]["label"] == "Windows SAPI"
@@ -315,6 +317,75 @@ def test_cli_translate_tts_espeak_synthesizes_the_whole_sentence_to_one_file(tmp
     output_path = tmp_path / "cache" / "audio" / "cli-translate-espeak-test-translate.wav"
     assert "Audio saved to" in result.output
     assert output_path.is_file() and output_path.stat().st_size > 44
+
+
+def test_cli_translate_tts_piper_synthesizes_the_whole_sentence_to_one_file(tmp_path, monkeypatch):
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    if not tts.available_backends()["piper"]:
+        import pytest
+
+        pytest.skip("piper not installed or voice not downloaded on this machine")
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language("cli-translate-piper-test", GenerationSpec(prompt="p", seed=1), FakeLLMClient())
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+
+    result = CliRunner().invoke(
+        cli_main.app,
+        ["translate", "I see the mountain", "--lang", "cli-translate-piper-test", "--tts", "piper"],
+    )
+    assert result.exit_code == 0
+    output_path = tmp_path / "cache" / "audio" / "cli-translate-piper-test-translate.wav"
+    assert "Audio saved to" in result.output
+    assert output_path.is_file() and output_path.stat().st_size > 44
+
+
+def test_cli_pronounce_sounds_tts_piper_reuses_one_voice_across_every_phoneme(tmp_path, monkeypatch):
+    # Regression guard for the real perf fix: a fresh PiperTTSClient per
+    # phoneme would repay its own ~2.2-2.4s voice-load cost on every one
+    # of the language's own phonemes -- confirmed instead that exactly
+    # one PiperTTSClient.__init__ happens for the whole --sounds run.
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    if not tts.available_backends()["piper"]:
+        import pytest
+
+        pytest.skip("piper not installed or voice not downloaded on this machine")
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language("cli-sounds-piper-reuse-test", GenerationSpec(prompt="p", seed=1), FakeLLMClient())
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+    assert len(language.phonology.consonants) + len(language.phonology.vowels) > 1  # a real multi-phoneme run
+
+    constructed = []
+    real_init = tts.PiperTTSClient.__init__
+
+    def counting_init(self):
+        constructed.append(self)
+        real_init(self)
+
+    monkeypatch.setattr(tts.PiperTTSClient, "__init__", counting_init)
+
+    result = CliRunner().invoke(
+        cli_main.app, ["pronounce", "--lang", "cli-sounds-piper-reuse-test", "--sounds", "--tts", "piper"]
+    )
+    assert result.exit_code == 0
+    assert len(constructed) == 1
 
 
 def test_cli_translate_tts_sapi_warns_about_tones_for_a_tonal_language(tmp_path, monkeypatch):

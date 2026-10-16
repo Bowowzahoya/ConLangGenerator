@@ -35,7 +35,8 @@ from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 from conlang_generator.speech import articulation, engine_selection, reader, sentence_synthesis, tts_cache
 from conlang_generator.speech.pregenerate import pregenerate_audio
-from conlang_generator.speech.tts import available_engine_kinds, build_tts_client, pronunciation_warnings
+from conlang_generator.speech.sapi_worker import SapiWorker
+from conlang_generator.speech.tts import PiperTTSClient, available_engine_kinds, build_tts_client, pronunciation_warnings
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
 
@@ -181,17 +182,17 @@ def _parse_seed_example_forms(text: str, pos: PartOfSpeech) -> tuple[SeedForm, .
 
 def _pregenerate_with_progress(language: Language, kind: str) -> None:
     """`--pregenerate-audio`'s own CLI reporting: a heads-up for the
-    genuinely slow engines before starting (see `speech.pregenerate`'s
-    own docstring for the measured per-word costs behind this warning),
-    then a progress line every 25 words so a long run doesn't look
-    hung, then a one-line summary."""
+    engines with a real one-time startup cost before starting (see
+    `speech.pregenerate`'s own docstring for the measured costs behind
+    this warning), then a progress line every 25 words so a long run
+    doesn't look hung, then a one-line summary."""
     if kind == "none":
         return
     total = len(language.lexicon.entries)
-    if kind in ("sapi", "auto"):
+    if kind in ("sapi", "piper", "auto"):
         typer.echo(
-            f"Pre-generating audio for {total} words via {kind} -- 'sapi'/'auto' can take several seconds "
-            "per word (SAPI's own per-call startup cost), this may take a while."
+            f"Pre-generating audio for {total} words via {kind} -- 'sapi'/'piper'/'auto' pay a one-time "
+            "few-second startup cost (SAPI's own process startup, Piper's own voice load), not a per-word one."
         )
     else:
         typer.echo(f"Pre-generating audio for {total} words via {kind}...")
@@ -321,15 +322,18 @@ def generate(
     pregenerate_audio: str = typer.Option(
         "none", "--pregenerate-audio",
         help="Eagerly synthesize and cache every lexicon word's own pronunciation right after generating/evolving "
-        "(none/espeak/sapi/auto, default none -- an explicit opt-in, not automatic). 'espeak' is fast (~60ms/word, "
-        "measured); 'sapi' and 'auto' (which can tie-break onto SAPI for any word both engines voice exactly) pay "
-        "a fresh PowerShell+.NET startup cost on every single word (~3.7s/word, measured) -- tens of minutes for "
-        "a full vocabulary. Progress prints as it goes; Ctrl+C is safe, the language is already saved by then.",
+        "(none/espeak/sapi/piper/auto, default none -- an explicit opt-in, not automatic). 'espeak' is fast "
+        "(~60ms/word, measured); 'sapi' and 'piper' each pay one real startup cost (SAPI's own process startup, "
+        "Piper's own voice load) shared once across the whole run (~2.7s total for 400 words via sapi, measured), "
+        "not per word. Progress prints as it goes; Ctrl+C is safe, the language is already saved by then.",
     ),
 ) -> None:
     """Generate a new language and save it."""
-    if pregenerate_audio not in ("none", "espeak", "sapi", "auto"):
-        typer.echo(f"error: --pregenerate-audio must be 'none', 'espeak', 'sapi' or 'auto', got {pregenerate_audio!r}", err=True)
+    if pregenerate_audio not in ("none", "espeak", "sapi", "piper", "auto"):
+        typer.echo(
+            f"error: --pregenerate-audio must be 'none', 'espeak', 'sapi', 'piper' or 'auto', got {pregenerate_audio!r}",
+            err=True,
+        )
         raise typer.Exit(code=1)
     if not 1 <= vocabulary_size <= len(ALL_MEANINGS):
         typer.echo(f"error: --vocabulary-size must be between 1 and {len(ALL_MEANINGS)}, got {vocabulary_size}", err=True)
@@ -498,7 +502,7 @@ def translate(
     tts: str = typer.Option(
         "none",
         "--tts",
-        help="Audio synthesis backend for the conlang result: none, espeak, sapi, or auto "
+        help="Audio synthesis backend for the conlang result: none, espeak, sapi, piper, or auto "
         "(best engine per word). Only has an effect with --to conlang.",
     ),
 ) -> None:
@@ -579,7 +583,7 @@ def pronounce(
         "none",
         "--tts",
         help="Audio synthesis backend: none, espeak (espeak-ng, once installed), sapi (Windows only), "
-        "or auto (best engine per word).",
+        "piper (free local neural voice, once set up), or auto (best engine per word).",
     ),
     sounds: bool = typer.Option(
         False,
@@ -611,30 +615,47 @@ def pronounce(
                 raise typer.Exit(code=1)
             spoken_ipa = apply_sandhi([entry.ipa], language.tone_system, [entry.primary_gloss])[0]
             guide_entries = articulation.word_inventory(language, spoken_ipa)
-        for i, guide_entry in enumerate(guide_entries):
-            typer.echo(f"/{guide_entry.ipa}/ -- {guide_entry.label}")
-            typer.echo(f"    {guide_entry.description}")
-            if tts == "none":
-                continue
-            if tts == "auto":
-                choice = engine_selection.choose_engine(guide_entry.ipa, available_engine_kinds())
-                if choice is None:
-                    typer.echo("error: no TTS backend available on this machine.", err=True)
-                    raise typer.Exit(code=1)
-                client = tts_cache.CachingTTSClient(build_tts_client(choice.kind), CACHE_DIR / "tts_cache")
-            else:
-                try:
-                    client = tts_cache.CachingTTSClient(build_tts_client(tts), CACHE_DIR / "tts_cache")
-                except ValueError as exc:
-                    typer.echo(f"error: {exc}", err=True)
-                    raise typer.Exit(code=1) from exc
-            # Index-based filename, not the raw IPA symbol -- sidesteps any
-            # Unicode-in-filename issue on Windows.
-            output_path = CACHE_DIR / "audio" / f"{lang}-sounds" / f"{i:02d}.wav"
-            if client.synthesize(guide_entry.ipa, output_path):
-                typer.echo(f"    audio: {output_path}")
-            else:
-                typer.echo("    audio: synthesis failed", err=True)
+        # Built once, outside the loop -- a fresh SapiTTSClient/PiperTTSClient
+        # per phoneme would repay SAPI's real process-startup cost or Piper's
+        # real ~2.2-2.4s voice-load cost on every single phoneme in the guide.
+        sounds_sapi_worker = SapiWorker() if tts in ("sapi", "auto") else None
+        sounds_piper_client = PiperTTSClient() if tts in ("piper", "auto") else None
+        try:
+            for i, guide_entry in enumerate(guide_entries):
+                typer.echo(f"/{guide_entry.ipa}/ -- {guide_entry.label}")
+                typer.echo(f"    {guide_entry.description}")
+                if tts == "none":
+                    continue
+                if tts == "auto":
+                    choice = engine_selection.choose_engine(guide_entry.ipa, available_engine_kinds())
+                    if choice is None:
+                        typer.echo("error: no TTS backend available on this machine.", err=True)
+                        raise typer.Exit(code=1)
+                    client = tts_cache.CachingTTSClient(
+                        build_tts_client(
+                            choice.kind, sapi_worker=sounds_sapi_worker, piper_client=sounds_piper_client
+                        ),
+                        CACHE_DIR / "tts_cache",
+                    )
+                else:
+                    try:
+                        client = tts_cache.CachingTTSClient(
+                            build_tts_client(tts, sapi_worker=sounds_sapi_worker, piper_client=sounds_piper_client),
+                            CACHE_DIR / "tts_cache",
+                        )
+                    except ValueError as exc:
+                        typer.echo(f"error: {exc}", err=True)
+                        raise typer.Exit(code=1) from exc
+                # Index-based filename, not the raw IPA symbol -- sidesteps any
+                # Unicode-in-filename issue on Windows.
+                output_path = CACHE_DIR / "audio" / f"{lang}-sounds" / f"{i:02d}.wav"
+                if client.synthesize(guide_entry.ipa, output_path):
+                    typer.echo(f"    audio: {output_path}")
+                else:
+                    typer.echo("    audio: synthesis failed", err=True)
+        finally:
+            if sounds_sapi_worker is not None:
+                sounds_sapi_worker.close()
         return
 
     entry = reader.lookup_pronunciation(language, word)

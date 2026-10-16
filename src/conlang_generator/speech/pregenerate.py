@@ -15,7 +15,10 @@ several-hundred-word vocabulary. Fixed here: a shared ``speech.sapi_
 worker.SapiWorker`` (one persistent process, reused across every word
 that needs it) is built once per call -- never per word -- whenever
 ``kind`` can possibly touch SAPI, so only the very first SAPI word in a
-run pays that startup cost."""
+run pays that startup cost. ``"piper"`` has an analogous, smaller
+one-time cost (~2.2-2.4s to load its own neural voice, confirmed
+directly) -- fixed the same way, a shared ``speech.tts.PiperTTSClient``
+built once per call whenever ``kind`` can possibly touch Piper."""
 
 from __future__ import annotations
 
@@ -46,8 +49,8 @@ def pregenerate_audio(
     """Synthesizes (and caches) every lexicon entry's own spoken
     pronunciation -- the same tone-sandhi-adjusted form ``cli.main.
     pronounce`` already derives for a single word, applied here across
-    the whole lexicon. ``kind`` is ``"espeak"``/``"sapi"``/``"auto"`` --
-    never call this with ``"none"`` (nothing to pre-generate).
+    the whole lexicon. ``kind`` is ``"espeak"``/``"sapi"``/``"piper"``/
+    ``"auto"`` -- never call this with ``"none"`` (nothing to pre-generate).
     ``on_progress(done, total)``, when given, is called after every word
     (whether its own synthesis succeeded or not) -- the only way a
     caller can show real progress, since this function has no notion of
@@ -62,11 +65,19 @@ def pregenerate_audio(
     # Built once per call, never per word -- SapiWorker() itself is cheap
     # (no process spawned until the first real synthesize call), so an
     # "auto" run that never actually picks SAPI for any word never pays
-    # the PowerShell startup cost at all.
+    # the PowerShell startup cost at all. PiperTTSClient() is similarly
+    # cheap to construct (its own voice load is lazy, on first
+    # synthesize) but -- unlike eSpeak's client, which has no state worth
+    # keeping -- reusing the *same* instance across every word "auto"
+    # assigns to Piper is what avoids repaying its real ~2.2-2.4s load
+    # cost on each one.
     worker = SapiWorker() if kind in ("sapi", "auto") else None
+    piper_client = tts.PiperTTSClient() if kind in ("piper", "auto") else None
     try:
         fixed_client = (
-            tts_cache.CachingTTSClient(tts.build_tts_client(kind, sapi_worker=worker), tts_cache_dir)
+            tts_cache.CachingTTSClient(
+                tts.build_tts_client(kind, sapi_worker=worker, piper_client=piper_client), tts_cache_dir
+            )
             if kind != "auto" else None
         )
         engine_kinds = tts.available_engine_kinds()
@@ -79,7 +90,10 @@ def pregenerate_audio(
             else:
                 choice = engine_selection.choose_engine(spoken_ipa, engine_kinds)
                 client = (
-                    tts_cache.CachingTTSClient(tts.build_tts_client(choice.kind, sapi_worker=worker), tts_cache_dir)
+                    tts_cache.CachingTTSClient(
+                        tts.build_tts_client(choice.kind, sapi_worker=worker, piper_client=piper_client),
+                        tts_cache_dir,
+                    )
                     if choice is not None else tts.NoneTTSClient()
                 )
             temp_path = audio_dir / f"pregenerate-{uuid.uuid4().hex}.wav"

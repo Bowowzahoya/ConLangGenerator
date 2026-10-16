@@ -1,6 +1,6 @@
 """Tests for speech.phoneme_coverage -- per-engine, per-phoneme fidelity
-for eSpeak-ng and Windows SAPI, the per-word selection mechanism's own
-coverage model."""
+for eSpeak-ng, Windows SAPI, and Piper, the per-word selection
+mechanism's own coverage model."""
 
 from conlang_generator.generation import phonology_gen
 from conlang_generator.speech import phoneme_coverage
@@ -9,7 +9,7 @@ from conlang_generator.speech import phoneme_coverage
 def test_symbol_fidelity_covers_every_symbol_in_the_global_phoneme_pool_without_crashing():
     all_symbols = [c.ipa for c in phonology_gen.ALL_CONSONANTS] + [v.ipa for v in phonology_gen.ALL_VOWELS]
     for symbol in all_symbols:
-        for engine in ("espeak", "sapi"):
+        for engine in ("espeak", "sapi", "piper"):
             assert phoneme_coverage.symbol_fidelity(symbol, engine) in ("exact", "approximate", "poor")
 
 
@@ -17,7 +17,7 @@ def test_symbol_fidelity_rejects_an_unknown_engine():
     import pytest
 
     with pytest.raises(ValueError):
-        phoneme_coverage.symbol_fidelity("p", "piper")
+        phoneme_coverage.symbol_fidelity("p", "festival")
 
 
 def test_plain_symbols_are_exact_under_both_engines():
@@ -108,3 +108,36 @@ def test_describe_gap_names_tones_under_sapi():
 def test_describe_gap_does_not_repeat_the_same_reason_twice():
     reasons = phoneme_coverage.describe_gap("kʼakʼa", "sapi")
     assert reasons.count("ejective sounds are only approximated") == 1
+
+
+def test_plain_symbols_are_exact_under_piper():
+    assert phoneme_coverage.symbol_fidelity("p", "piper") == "exact"
+    assert phoneme_coverage.symbol_fidelity("a", "piper") == "exact"
+
+
+def test_ejective_and_breathy_are_approximate_under_piper():
+    # Piper's own vocabulary (derived from espeak-ng's universal phoneme
+    # repertoire) covers far more of this project's pool directly than
+    # SAPI's curated English-only table does -- ejectives/breathy voice
+    # are approximated (the marker is dropped), never "poor".
+    assert phoneme_coverage.symbol_fidelity("kʼ", "piper") == "approximate"
+    assert phoneme_coverage.symbol_fidelity("bʱ", "piper") == "approximate"
+
+
+def test_clicks_and_pharyngeals_are_exact_under_piper():
+    # Unlike SAPI, Piper's own vocabulary has real click/pharyngeal
+    # letters (confirmed against the real downloaded voice) -- no
+    # fallback needed for these.
+    assert phoneme_coverage.symbol_fidelity("ǀ", "piper") == "exact"
+    assert phoneme_coverage.symbol_fidelity("ħ", "piper") == "exact"
+
+
+def test_word_fidelity_forces_poor_under_piper_when_a_tone_is_present():
+    tonal = "pa" + "́"  # high tone (combining acute)
+    assert phoneme_coverage.word_fidelity(tonal, "piper") == "poor"
+    assert phoneme_coverage.word_fidelity(tonal, "espeak") == "exact"
+
+
+def test_describe_gap_names_tones_under_piper():
+    tonal = "pa" + "́"
+    assert "tones" in " ".join(phoneme_coverage.describe_gap(tonal, "piper"))

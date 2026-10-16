@@ -20,6 +20,7 @@ from conlang_generator.webui import app as webui_app  # noqa: E402
 
 _ESPEAK_AVAILABLE = tts.available_backends()["espeak"]
 _IS_WINDOWS = sys.platform.startswith("win")
+_PIPER_AVAILABLE = tts.available_backends()["piper"]
 
 
 @pytest.fixture()
@@ -79,7 +80,9 @@ def test_generate_accepts_sapi_and_auto_for_pregenerate_audio(client):
     # just that the endpoint accepts the value and reports a real
     # summary either way (0 synthesized is still a clean 200, same
     # "unavailable is normal" contract every TTSClient already has).
-    for value, name in (("sapi", "pregen-webtest-sapi"), ("auto", "pregen-webtest-auto")):
+    for value, name in (
+        ("sapi", "pregen-webtest-sapi"), ("piper", "pregen-webtest-piper"), ("auto", "pregen-webtest-auto"),
+    ):
         response = client.post(
             "/api/generate",
             json={
@@ -566,6 +569,7 @@ def test_options_endpoint_reports_tts_backend_availability(client):
     assert backends["none"] is True
     assert backends["espeak"] == _ESPEAK_AVAILABLE
     assert backends["sapi"] == _IS_WINDOWS
+    assert backends["piper"] == (tts.available_backends()["piper"])
 
 
 def test_pronounce_rejects_the_none_backend(client):
@@ -586,7 +590,9 @@ def test_pronounce_reports_503_when_the_backend_is_unavailable(client, monkeypat
         def cache_identity(self):
             return "always-fails"
 
-    monkeypatch.setattr(webui_app.tts, "build_tts_client", lambda kind, sapi_worker=None: _AlwaysFailsClient())
+    monkeypatch.setattr(
+        webui_app.tts, "build_tts_client", lambda kind, sapi_worker=None, piper_client=None: _AlwaysFailsClient()
+    )
     response = client.post("/api/pronounce", json={"ipa": "kat", "tts": "espeak"})
     assert response.status_code == 503
 
@@ -612,6 +618,37 @@ def test_pronounce_synthesizes_with_espeak(client):
     response = client.post("/api/pronounce", json={"ipa": "kat", "tts": "espeak"})
     assert response.status_code == 200
     assert len(response.content) > 0
+
+
+@pytest.mark.skipif(not _PIPER_AVAILABLE, reason="piper not installed or voice not downloaded on this machine")
+def test_pronounce_synthesizes_with_piper(client):
+    response = client.post("/api/pronounce", json={"ipa": "kat", "tts": "piper"})
+    assert response.status_code == 200
+    assert len(response.content) > 0
+
+
+@pytest.mark.skipif(not _PIPER_AVAILABLE, reason="piper not installed or voice not downloaded on this machine")
+def test_the_webui_reuses_one_piper_client_across_separate_pronounce_requests(client, monkeypatch):
+    # Same reasoning as the SAPI-worker reuse test -- a uvicorn server
+    # process is long-lived across many requests, so only the very first
+    # "piper"/"auto" request on that server should pay Piper's own real
+    # ~2.2-2.4s voice-load cost.
+    monkeypatch.setattr(webui_app, "_piper_client", None)  # isolate from any other test's leftover singleton
+    constructed = []
+    real_init = tts.PiperTTSClient.__init__
+
+    def counting_init(self):
+        constructed.append(self)
+        real_init(self)
+
+    monkeypatch.setattr(tts.PiperTTSClient, "__init__", counting_init)
+
+    first = client.post("/api/pronounce", json={"ipa": "kat", "tts": "piper"})
+    second = client.post("/api/pronounce", json={"ipa": "mat", "tts": "piper"})
+    assert first.status_code == 200 and second.status_code == 200
+    assert len(constructed) == 1  # the same client served both requests
+
+    monkeypatch.setattr(webui_app, "_piper_client", None)  # don't leak into other tests
 
 
 def test_generate_word_selection_defaults_to_algorithmic_and_round_trips(client):
