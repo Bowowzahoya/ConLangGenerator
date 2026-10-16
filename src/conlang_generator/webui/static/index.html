@@ -208,11 +208,12 @@
           <label for="gen-pregenerate-audio">Pre-generate audio</label>
           <select id="gen-pregenerate-audio">
             <option value="none">none (default -- audio made on first pronounce/translate)</option>
-            <option value="espeak">espeak-ng (synthesizes the whole lexicon up front, ~60ms/word)</option>
+            <option value="espeak">espeak-ng (~60ms/word)</option>
+            <option value="sapi">Windows SAPI (~2.7s for a full 400-word vocabulary)</option>
+            <option value="auto">auto (best engine per word)</option>
           </select>
           <div class="ipa" style="margin-top: 4px;">
-            SAPI/auto pre-generation can take tens of minutes for a full vocabulary (SAPI's own per-call
-            startup cost) -- use <code>conlang generate --pregenerate-audio sapi|auto</code> on the CLI instead.
+            Synthesizes every lexicon word's pronunciation up front instead of on first use.
           </div>
         </div>
       </div>
@@ -668,9 +669,11 @@ async function loadOptions() {
       opt.textContent += " (unavailable on this machine)";
     }
   }
-  // Default to the best available backend: Windows SAPI, then espeak-ng.
-  const preferred = ["sapi", "espeak"].find(name => opts.tts_backends[name]);
-  if (preferred) $("tr-tts").value = preferred;
+  // Default to "auto" (best engine per word) whenever any real backend
+  // is available -- strictly at least as good as a static engine guess
+  // (it resolves to the one real engine when only one exists, and picks
+  // the genuinely better engine per word when both do).
+  if (opts.tts_backends.auto) $("tr-tts").value = "auto";
   ttsCapabilities = opts.tts_capabilities || {};
   showEngineInfo();
 }

@@ -263,6 +263,138 @@ def test_the_webui_reuses_one_sapi_worker_across_separate_pronounce_requests(tmp
     monkeypatch.setattr(webui_app, "_sapi_worker", None)  # don't leak into other tests
 
 
+# --- translate --tts ---------------------------------------------------------
+
+
+def test_cli_translate_default_tts_synthesizes_nothing(tmp_path, monkeypatch):
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language("cli-translate-default-test", GenerationSpec(prompt="p", seed=1), FakeLLMClient())
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+
+    result = CliRunner().invoke(
+        cli_main.app, ["translate", "I see the mountain", "--lang", "cli-translate-default-test"]
+    )
+    assert result.exit_code == 0
+    assert "Audio saved to" not in result.output
+    assert not (tmp_path / "cache" / "audio").exists()
+
+
+def test_cli_translate_tts_espeak_synthesizes_the_whole_sentence_to_one_file(tmp_path, monkeypatch):
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    if not tts.available_backends()["espeak"]:
+        import pytest
+
+        pytest.skip("espeak-ng not installed on this machine")
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language("cli-translate-espeak-test", GenerationSpec(prompt="p", seed=1), FakeLLMClient())
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+
+    result = CliRunner().invoke(
+        cli_main.app,
+        ["translate", "I see the mountain", "--lang", "cli-translate-espeak-test", "--tts", "espeak"],
+    )
+    assert result.exit_code == 0
+    output_path = tmp_path / "cache" / "audio" / "cli-translate-espeak-test-translate.wav"
+    assert "Audio saved to" in result.output
+    assert output_path.is_file() and output_path.stat().st_size > 44
+
+
+def test_cli_translate_tts_sapi_warns_about_tones_for_a_tonal_language(tmp_path, monkeypatch):
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language(
+        "cli-translate-tonal-test", GenerationSpec(prompt="p", seed=1, force_tonal=True), FakeLLMClient()
+    )
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+
+    result = CliRunner().invoke(
+        cli_main.app,
+        ["translate", "I see the mountain", "--lang", "cli-translate-tonal-test", "--tts", "sapi"],
+    )
+    assert result.exit_code == 0
+    assert "warning:" in result.output and "cannot voice" in result.output
+    assert "Audio saved to" in result.output  # synthesis still ran, tones just dropped
+
+
+def test_cli_translate_tts_auto_synthesizes_without_crashing(tmp_path, monkeypatch):
+    # Doesn't assert on warnings (whether "auto" happens to warn depends on
+    # which engines are actually installed on this machine) -- just that
+    # the "auto" path is correctly wired through engine_selection and
+    # sentence_synthesis end to end, like the fixed-engine tests above.
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language("cli-translate-auto-test", GenerationSpec(prompt="p", seed=1), FakeLLMClient())
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+
+    result = CliRunner().invoke(
+        cli_main.app, ["translate", "I see the mountain", "--lang", "cli-translate-auto-test", "--tts", "auto"]
+    )
+    assert result.exit_code == 0
+    assert "Audio saved to" in result.output
+
+
+def test_cli_translate_tts_has_no_effect_for_english_direction(tmp_path, monkeypatch):
+    import conlang_generator.cli.main as cli_main
+    from typer.testing import CliRunner
+
+    from conlang_generator.core.spec import GenerationSpec
+    from conlang_generator.generation.generator import generate_language
+    from conlang_generator.llm.fake_client import FakeLLMClient
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
+    monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
+    language = generate_language("cli-translate-english-test", GenerationSpec(prompt="p", seed=1), FakeLLMClient())
+    YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
+
+    conlang_text = CliRunner().invoke(
+        cli_main.app, ["translate", "I see the mountain", "--lang", "cli-translate-english-test", "--to", "conlang"]
+    ).output.splitlines()[0]
+
+    result = CliRunner().invoke(
+        cli_main.app,
+        ["translate", conlang_text, "--lang", "cli-translate-english-test", "--to", "english", "--tts", "espeak"],
+    )
+    assert result.exit_code == 0
+    assert "note: --tts has no effect for --to english" in result.output
+    assert "Audio saved to" not in result.output
+    assert not (tmp_path / "cache" / "audio").exists()
+
+
 # --- the pronunciation guide (--sounds) -------------------------------------
 
 

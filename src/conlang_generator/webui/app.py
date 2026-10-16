@@ -21,11 +21,7 @@ Not installed by default (see the ``web`` dependency group in
 from __future__ import annotations
 
 import atexit
-import io
 import json
-import uuid
-import wave
-from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
@@ -64,7 +60,7 @@ from conlang_generator.llm.cost_tracker import CostTracker
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm import pricing
 from conlang_generator.llm.pricing import DEFAULT_MODEL
-from conlang_generator.speech import articulation, engine_selection, tts, tts_cache
+from conlang_generator.speech import articulation, engine_selection, sentence_synthesis, tts, tts_cache
 from conlang_generator.speech.pregenerate import pregenerate_audio as run_pregenerate_audio
 from conlang_generator.speech.sapi_worker import SapiWorker
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
@@ -720,72 +716,6 @@ class PronounceRequest(BaseModel):
     tts: str = "espeak"
 
 
-_INTER_WORD_SILENCE_SECONDS = 0.05
-"""Was 0.15 -- reported as noticeably too long for a translated sentence
-to sound natural at all; real sentence-level prosody stays out of scope
-(see docs/DEFERRED.md), this just shortens the gap between words."""
-
-
-def _synthesize_sentence(client_for_word: Callable[[str], tts.TTSClient], ipa_sentence: str) -> bytes | None:
-    """Every real ``TTSClient.synthesize`` is documented as a *word's*
-    own IPA -> one ``.wav`` file -- a translated sentence is several
-    words separated by plain spaces, which neither backend's own
-    single-``[[...]]``/single-``<phoneme>`` call is built to span (and
-    ``ipa_tokenizer.tokenize`` -- see its own docstring -- silently drops
-    any character it doesn't recognize, spaces included, so simply
-    handing the whole sentence to ``synthesize`` would just run every
-    word's phonemes together with no word boundary at all). Synthesizes
-    each word separately instead, into its own temp file under
-    ``CACHE_DIR / "audio"``, then concatenates the raw PCM frames (with a
-    short silence between words for intelligibility) into one combined
-    in-memory ``.wav`` -- ``None`` if any single word's own synthesis
-    fails, matching every ``TTSClient``'s own "unavailable/failed is a
-    normal, non-exceptional state" contract. ``client_for_word`` is a
-    plain ``lambda w: client`` for a fixed-engine request, or
-    ``engine_selection.auto_client_for_word``'s own per-word choice for
-    ``"auto"`` -- letting each word pick its own client independently is
-    exactly what ``"auto"`` needs, and costs the fixed-engine path
-    nothing since it's still just one client called repeatedly."""
-    words = ipa_sentence.split()
-    if not words:
-        return None
-    temp_paths = [CACHE_DIR / "audio" / f"webui-{uuid.uuid4().hex}.wav" for _ in words]
-    try:
-        params = None
-        silence = b""
-        frames: list[bytes] = []
-        for word_ipa, path in zip(words, temp_paths):
-            # A word the backend can't render (or renders as an unreadable
-            # file) is skipped rather than failing the whole sentence.
-            try:
-                if not client_for_word(word_ipa).synthesize(word_ipa, path):
-                    continue
-                with wave.open(str(path), "rb") as wf:
-                    if params is None:
-                        params = wf.getparams()
-                        silence = b"\x00" * int(_INTER_WORD_SILENCE_SECONDS * params.framerate) * params.sampwidth * params.nchannels
-                    elif (wf.getframerate(), wf.getnchannels(), wf.getsampwidth()) != (
-                        params.framerate, params.nchannels, params.sampwidth,
-                    ):
-                        continue
-                    frames.append(wf.readframes(wf.getnframes()))
-            except (wave.Error, EOFError):
-                continue
-        if not frames:
-            return None
-        buffer = io.BytesIO()
-        with wave.open(buffer, "wb") as out:
-            out.setparams(params)
-            for i, frame in enumerate(frames):
-                if i > 0:
-                    out.writeframesraw(silence)
-                out.writeframesraw(frame)
-        return buffer.getvalue()
-    finally:
-        for path in temp_paths:
-            path.unlink(missing_ok=True)
-
-
 @app.post("/api/pronounce")
 def pronounce(request: PronounceRequest) -> Response:
     if request.tts not in ("espeak", "sapi", "auto"):
@@ -804,7 +734,7 @@ def pronounce(request: PronounceRequest) -> Response:
             client = client.for_utterance(request.ipa)
         client = tts_cache.CachingTTSClient(client, CACHE_DIR / "tts_cache")
         client_for_word = lambda _word: client  # noqa: E731
-    audio = _synthesize_sentence(client_for_word, request.ipa)
+    audio = sentence_synthesis.synthesize_sentence(client_for_word, request.ipa, CACHE_DIR / "audio")
     if audio is None:
         raise HTTPException(status_code=503, detail=f"'{request.tts}' TTS backend unavailable or synthesis failed.")
     return Response(content=audio, media_type="audio/wav")

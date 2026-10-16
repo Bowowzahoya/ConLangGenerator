@@ -318,7 +318,7 @@ multi-session feature.
   concatenation; this was only ever the one small pacing fix in scope.
 - **Multi-engine per-word selection (was one L item, split into
   right-sized pieces after planning surfaced just how much it bundled).
-  Pieces 1-2 done.** Engine choice is per *word*, never per sound within
+  Pieces 1-3 done.** Engine choice is per *word*, never per sound within
   a word, by explicit decision across every piece -- splicing different
   engines' audio together inside one word would need to solve matching
   pitch/timbre/volume at the seam, a separate, harder problem not taken
@@ -327,15 +327,26 @@ multi-session feature.
   from `ipa_to_kirshenbaum.convert_symbol`'s own fidelity for eSpeak, a
   small curated table for SAPI) and the per-word selection built on it
   (`speech.engine_selection`), reachable as a new `"auto"` engine value
-  on `pronounce --tts`/the web UI's Translate tab (not the default for
-  either -- see the next sub-item).
+  on `pronounce --tts`/the web UI's Translate tab.
   - **Surface engine choice and coverage more fully in the CLI/web UI
-    (S-M).** `translate` still has no `--tts` path at all; `"auto"` is
-    available but not the default anywhere, and there's no user-facing
-    override (e.g. "prefer engine X when it covers the word") beyond
-    picking a fixed single engine or `"auto"` -- decide whether `"auto"`
-    should become the default, and what an override would even mean once
-    selection is automatic per word.
+    (S-M) -- done.** `translate` gained its own `--tts
+    {none,espeak,sapi,auto}` (default `"none"`, prints a no-op note
+    instead of synthesizing for `--to english`; reuses the new shared
+    `speech.sentence_synthesis.synthesize_sentence` -- extracted from
+    `webui/app.py`'s own private `_synthesize_sentence`, now shared with
+    `/api/pronounce` instead of duplicated). Decided: `"auto"` stays
+    non-default on every CLI command (`pronounce`/`translate`), matching
+    this project's "nothing happens unless asked" CLI precedent; the web
+    UI's own Translate tab is the one place `"auto"` is now the new
+    *runtime* default preference (replacing a static sapi-then-espeak
+    guess), since it already auto-selects an engine today and `"auto"`
+    is a strict quality improvement there with zero new UI surface. No
+    new override UI was added -- the existing fixed-engine dropdown/flag
+    already is the override, and nothing in this item asked for more
+    than that. Also fixed in passing: the web UI's own Generate-tab
+    "Pre-generate audio" dropdown was still hiding `sapi`/`auto` behind a
+    stale "tens of minutes" warning left over from before the SAPI
+    worker fix -- now lists all four values with real, current timing.
   - **Add Piper as a new free, local, more natural-sounding neural engine
     (L, independent, slots into the roster once added).** The
     engine-vs-phoneme-set mismatch for a genuinely invented phonology

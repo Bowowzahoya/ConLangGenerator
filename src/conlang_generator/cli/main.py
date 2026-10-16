@@ -33,7 +33,7 @@ from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm.pricing import DEFAULT_MODEL
-from conlang_generator.speech import articulation, engine_selection, reader, tts_cache
+from conlang_generator.speech import articulation, engine_selection, reader, sentence_synthesis, tts_cache
 from conlang_generator.speech.pregenerate import pregenerate_audio
 from conlang_generator.speech.tts import available_engine_kinds, build_tts_client, pronunciation_warnings
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
@@ -495,6 +495,12 @@ def translate(
     translate_model: str = typer.Option(
         DEFAULT_MODEL, "--translate-model", help="Model for sentence planning and (decode direction) fluency.",
     ),
+    tts: str = typer.Option(
+        "none",
+        "--tts",
+        help="Audio synthesis backend for the conlang result: none, espeak, sapi, or auto "
+        "(best engine per word). Only has an effect with --to conlang.",
+    ),
 ) -> None:
     """Translate text to or from a generated language."""
     if to not in ("conlang", "english"):
@@ -517,6 +523,36 @@ def translate(
     else:
         result = translate_to_english(text, language, client, model=translate_model)
         typer.echo(result.text)
+        if tts != "none":
+            typer.echo("note: --tts has no effect for --to english (no conlang audio to synthesize).")
+
+    if to == "conlang" and tts != "none":
+        if tts == "auto":
+            client_for_word = engine_selection.auto_client_for_word(
+                result.ipa, available_engine_kinds(), cache_dir=CACHE_DIR / "tts_cache",
+            )
+            for warning in engine_selection.auto_pronunciation_warnings(result.ipa, available_engine_kinds()):
+                typer.echo(f"warning: {warning}", err=True)
+        else:
+            try:
+                raw_client = build_tts_client(tts)
+            except ValueError as exc:
+                typer.echo(f"error: {exc}", err=True)
+                raise typer.Exit(code=1) from exc
+            if hasattr(raw_client, "for_utterance"):
+                raw_client = raw_client.for_utterance(result.ipa)
+            fixed_client = tts_cache.CachingTTSClient(raw_client, CACHE_DIR / "tts_cache")
+            for warning in pronunciation_warnings(fixed_client.capabilities(), result.ipa):
+                typer.echo(f"warning: {warning}", err=True)
+            client_for_word = lambda _word: fixed_client  # noqa: E731
+        audio = sentence_synthesis.synthesize_sentence(client_for_word, result.ipa, CACHE_DIR / "audio")
+        if audio is None:
+            typer.echo(f"error: '{tts}' TTS backend unavailable or synthesis failed.", err=True)
+            raise typer.Exit(code=1)
+        output_path = CACHE_DIR / "audio" / f"{lang}-translate.wav"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(audio)
+        typer.echo(f"Audio saved to {output_path}")
 
     if result.coined:
         repository.save(result.language)

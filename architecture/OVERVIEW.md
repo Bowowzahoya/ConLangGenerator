@@ -7250,3 +7250,46 @@ reading code or one-off ad hoc scripts.
   English); persisting the inventory on the `Language` model (computed per-request, like `tone_system`'s
   own derived display fields already are).
 
+- **`translate --tts` and a shared `speech/sentence_synthesis.py` (new) -- closing out the multi-engine
+  selection split's own last piece.** `cli/main.py`'s `translate` command gained a `--tts
+  {none,espeak,sapi,auto}` flag (default `"none"`), synthesizing the whole translated sentence (not one
+  word) to `CACHE_DIR / "audio" / f"{lang}-translate.wav"` -- one stable filename per language,
+  overwritten each call, mirroring `pronounce`'s own `{lang}-{gloss}.wav` per-key convention rather than
+  an ever-growing pile of per-sentence files with no cleanup path. Only takes effect with `--to conlang`
+  (the default); `--tts` combined with `--to english` prints an explicit no-op note instead of silently
+  doing nothing, since there's no conlang IPA to voice.
+
+  **The actual sentence-stitching logic moved, rather than being reimplemented.** `webui/app.py`'s own
+  `/api/pronounce` already had this exact need (turn several words' own separately-synthesized `.wav`
+  files into one combined recording with inter-word silence) via a private `_synthesize_sentence`
+  function + `_INTER_WORD_SILENCE_SECONDS` constant -- extracted verbatim into `speech/
+  sentence_synthesis.py::synthesize_sentence(client_for_word, ipa_sentence, audio_dir) ->
+  bytes | None` / `INTER_WORD_SILENCE_SECONDS`, with exactly one real signature change: `audio_dir`
+  became an explicit parameter instead of a hardcoded `CACHE_DIR / "audio"`, since `cli/main.py` has its
+  own separate `CACHE_DIR` constant from `webui/app.py`'s. `webui/app.py`'s `/api/pronounce` now imports
+  and calls this shared function instead of its own private copy -- zero behavior change there, confirmed
+  by the one existing test that exercised the private function directly (migrated, not rewritten, into
+  `tests/test_sentence_synthesis.py`, with `audio_dir` as `tmp_path`). `translate`'s own `--tts` branches
+  reuse the same per-word-choice machinery `pronounce --tts auto`/`/api/pronounce` already built:
+  `engine_selection.auto_client_for_word`/`auto_pronunciation_warnings` for `"auto"` (already built for a
+  full sentence, not one word, with no changes needed), `tts.build_tts_client(kind).for_utterance(...)` +
+  `tts_cache.CachingTTSClient` + `tts.pronunciation_warnings` for a fixed engine (the `for_utterance` call
+  is new to a CLI code path here specifically -- `pronounce` never needed it, since it's always exactly
+  one word, but a real multi-word `translate` sentence needs eSpeak's own whole-sentence Mandarin-voice-
+  switch guarantee to apply correctly, the same reason `/api/pronounce`'s own fixed-engine branch already
+  calls it).
+
+  **Two web UI defaults changed, deliberately asymmetrically with the CLI.** The Translate tab's `#tr-tts`
+  select already silently picked a real backend by default (previously a static `["sapi", "espeak"]`
+  preference, never `"auto"` despite it being a selectable option) -- since it already takes that
+  liberty, switching the runtime preference to `"auto"` whenever any real backend exists is a strict
+  quality improvement (resolves to the one real engine when only one exists; picks the genuinely better
+  engine per word when both do) with zero new UI surface, since the dropdown itself already lets a user
+  force a fixed engine as the override. Neither CLI command's own `--tts` default changed away from
+  `"none"` -- the CLI never silently picks a real engine today, and this stays true; only the web UI,
+  which already did, got smarter about *which* one. Separately, the Generate tab's own "Pre-generate
+  audio" dropdown was found to be stale -- missing `sapi`/`auto` entirely, with a caption still warning
+  of "tens of minutes," left over from before the `SapiWorker` persistent-process fix (a prior pass) made
+  that cost ~2.7s/400 words instead. Fixed alongside this item since it's the same "surface what the
+  backend already supports" gap, even though it wasn't the item's own primary target.
+

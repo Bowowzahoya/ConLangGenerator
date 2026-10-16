@@ -709,7 +709,9 @@ py::SapiWorker`, one persistent process shared across the whole lexicon
 instead of one per word (confirmed: the same 400-word vocabulary now
 takes ~2.7s total via `sapi`, not tens of minutes), so the web UI's own
 `/api/generate` accepts all four values too now, not just `none`/
-`espeak`. A progress line still prints every 25 words so a run doesn't
+`espeak` -- and the Generate tab's own "Pre-generate audio" dropdown now
+offers `sapi`/`auto` directly too, not just through the CLI. A progress
+line still prints every 25 words so a run doesn't
 look hung if the backend genuinely is slow for some other reason;
 Ctrl+C is safe, the language itself is already saved by the time
 pre-generation starts.
@@ -1400,6 +1402,52 @@ clause `me hi` ("you sleep") leads, "then" (`sna`) opens the main clause, and th
 verb (`…datip`) is in the conditional mood. In `t26` there is no "and": the first verb
 "see" takes the converb suffix (`fa2aimt`); translating back gives `I see and dog I hear cat`.
 
+### `--tts`: synthesizing the translated sentence
+
+`--tts {none,espeak,sapi,auto}` (default `none`) synthesizes the whole
+translated sentence -- not just one word, see `conlang pronounce`'s own
+`--tts` below -- to one `.wav` file, stitching each word's own audio
+together with a short gap between them (`speech/sentence_synthesis.py`,
+shared with the web UI's own `/api/pronounce`). Only has an effect with
+`--to conlang` (the default); `--tts` with `--to english` prints a note
+and synthesizes nothing, since there's no conlang IPA to voice:
+
+```bash
+conlang translate "I see the mountain" --lang doc-translate-tts-test --tts auto
+```
+
+```
+sajdsifj niz yoz'atxpajmak kozkuyon
+IPA: /ˈsādsīf ŋì jòʔátpāmak kœ̀kuˈjoŋ/
+Audio saved to .cache\audio\doc-translate-tts-test-translate.wav
+(pattern: llm-plan)
+Glosses: sajdsifj(I) niz(the) yoz'atxpajmak(mountain) kozkuyon(see)
+```
+
+Before synthesis, any word the chosen engine can't voice exactly prints
+a warning the same way `pronounce --tts` does (`engine_selection.
+auto_pronunciation_warnings` for `"auto"`, `tts.pronunciation_warnings`
+for a fixed engine) -- synthesis still happens regardless, the warning
+is informational. The audio is saved to one stable filename per
+language (`<lang>-translate.wav`, overwritten each call), not a new file
+per sentence, mirroring `pronounce`'s own one-file-per-word convention:
+
+```bash
+conlang translate "sajdsifj niz yoz'atxpajmak kozkuyon" --lang doc-translate-tts-test --to english --tts espeak
+```
+
+```
+I mountain see.
+note: --tts has no effect for --to english (no conlang audio to synthesize).
+(pattern: llm-plan)
+```
+
+CLI `--tts` always defaults to `"none"` here too, same as `pronounce`'s
+own -- nothing is synthesized unless explicitly asked. (The web UI's own
+Translate tab is different: it already silently picks a real backend by
+default, and now prefers `"auto"` there -- see `conlang pronounce`'s own
+`--tts` section below for the full defaults discussion.)
+
 ## `conlang pronounce`
 
 Show IPA and romanization for a known word (English gloss or conlang
@@ -1486,9 +1534,14 @@ IPA: /tʃʼa/  Romanized: č̓a
 Audio saved to .cache\audio\doc-auto-test-weak.wav (voiced with espeak)
 ```
 
-`--tts auto` is not the default for either `pronounce` or the web UI's
-own Translate tab -- see `docs/DEFERRED.md`'s next TTS sub-item for
-whether it should become one.
+`--tts auto` is not the default for any CLI command (`pronounce` or
+`translate`) -- both always default to `"none"`, matching this
+project's "nothing happens unless asked" CLI precedent; only the web
+UI's own Translate tab, which already silently picks a real backend by
+default today, now prefers `"auto"` there instead of a static
+sapi-then-espeak guess (a strict quality improvement, since it already
+takes that liberty). The fixed-engine dropdown/flag is the override in
+both places -- no separate override mechanism was added.
 
 ### `--sounds`: a plain-language pronunciation guide
 
