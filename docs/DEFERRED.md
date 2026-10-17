@@ -72,9 +72,8 @@ multi-session feature.
      wrapper as everything else instead of sitting at the same visual level as the sound-inventory
      `<h2>` with no further grouping.
   5. **Roman Orthography** -- the existing `orthography_category` badge.
-  6. **Own-script orthography** -- the existing script toggle/font-download/glyph-count badge. Name
-     still a placeholder (the user flagged this themselves) -- "Writing system" and "Invented script"
-     are the two better candidates to pick between when this is implemented.
+  6. **Writing system** -- the existing script toggle/font-download/glyph-count badge (name decided;
+     "Own-script orthography" was only ever a placeholder).
   7. **Generation Details** -- the cost badge, `pregenerated_audio` badge, `word_selection`, and two
      fields `_language_summary` doesn't expose to the web UI at all yet:
      `language.spec.classifier_model`/`word_selection_model` (recorded at generation time, never
@@ -99,6 +98,35 @@ multi-session feature.
     moves or is removed, only grouped differently in the rendered HTML); the HTML reorganization itself
     gets verified by hand in a real browser, the same standard the preceding `advanced-group` fieldset
     split already followed.
+- **More intuitive script typing: key assignment by sound identity, not just position (M-L).** Direct
+  user request/discussion. Today `script.script_render.keyboard_key_for_symbol_index` assigns each of
+  `KEYBOARD_KEYS`' 46 keys purely by a glyph's position in `InventedScript.glyphs` -- the key "a" could
+  end up typing a consonant if one happens to come first in the inventory, with no regard for what
+  sound a key's own letter suggests. Discussed several real-world precedents (phonetic key matching,
+  IPA-keyboard-style modifier combos, Telex/Pinyin-style multi-key sequences, a real OS keyboard
+  layout/IME) and recommended, not yet decided or built:
+  1. **Identity-first key assignment (small).** Assign key `X` to the glyph whose own IPA symbol is
+     literally `X` when the language's inventory actually has that sound (key "p" -> /p/, key "a" ->
+     /a/, ...), falling back to today's positional assignment only for symbols with no single-ASCII-
+     letter identity (affricates, fricatives like ʃ/ʒ/θ/ð, uvulars, diphthongs, long/nasalized vowels,
+     clicks, ...). Strictly better than pure positional assignment for every plain sound a language
+     has, no added typing complexity, no OS-level anything -- worth doing regardless of what else gets
+     picked below.
+  2. **Reuse this language's own romanization digraphs as typing sequences (medium), for the
+     "leftover" symbols (1) can't place directly.** `generation/romanization_gen.py`'s `_DIGRAPH_TABLE`
+     already spells exactly these hard sounds with real, recognizable two-letter sequences (ʃ->"sh",
+     ʒ->"zh", tʃ->"ch", ŋ->"ng", x/χ->"kh", ...) -- reusing that existing data as the Script tab's own
+     typing-sequence trigger (type "s" then "h" -> the /ʃ/ glyph) means a user who already knows this
+     language's own romanization can type its invented script directly, Telex/Pinyin-style, with zero
+     new data to generate and no OS keyboard layout. Needs a small client-side input-buffering state
+     machine (hold the last 1-2 typed characters, check against the digraph table before falling back
+     to a single-key lookup) in `webui/static/index.html`'s `transliterateToScript`, not a backend
+     change.
+  3. **Not recommended: a real OS keyboard layout/IME per language.** Technically possible (e.g.
+     Windows' Keyboard Layout Creator) but needs an install step outside the browser, breaks the
+     "zero-install web demo" experience this project's own web UI otherwise has throughout, and isn't
+     buildable/testable cross-platform from this project's own tooling -- raised during the discussion
+     and set aside for these reasons, not pursued further.
 
 ## 3. Translation
 
