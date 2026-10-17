@@ -7731,3 +7731,33 @@ reading code or one-off ad hoc scripts.
   way, not just this one. New regression test simulates exactly this (`unlink()`s a freshly saved
   language's own `script.yaml` to stand in for a genuinely pre-existing save, confirms it still loads
   with `script: None`) rather than only testing the no-longer-reachable-by-construction happy path.
+
+- **Post-inspection refinements to the Inspect/Script tabs -- done.** Four direct findings from
+  actually using the two new tabs. (1) The Inspect tab gained its own language picker (`#inspect-lang`,
+  filled the same way the Translate tab's own picker already is) so a user can view any saved language
+  directly, without first generating one or going through Translate's own "view details" -- a new
+  `loadInspectLanguage` entry point renders into the existing `#inspect-result` without switching tabs
+  (already there); `showInspectResult` (the Generate/Translate entry points) now also keeps this
+  picker's own value in sync. (2) The Script tab's own language picker greys out and italicizes an
+  option for a language with no invented script, so a user doesn't waste a click finding out --
+  `GET /api/languages` gained a `scripted_languages` field alongside the existing plain `languages`
+  list, built from a new, cheap `YamlLanguageRepository.has_script(slug)` (reads just the one small
+  `script.yaml` file, not the whole language, the same restraint `font_builder`'s own codepoint lookup
+  already has). (4) The Generate tab's own Advanced Options panel -- which had grown to ~25 fields
+  across unrelated concerns (grammar, sound/orthography, script, audio, models, ...) with no structure
+  beyond one flat `<details>` -- is now split into five labeled `<fieldset>` groups (General, Grammar &
+  traits, Sound & orthography, Script, Audio (TTS)), a pure markup reorganization (every field keeps its
+  own existing id, so none of the JS that reads/writes them needed to change) plus a small new
+  `.advanced-group`/`legend` CSS treatment. (5) Investigated and confirmed already correct, not a gap:
+  a lexicon row's own sound-guide popover (`word_inventory`) and the Sound Inventory's own badges
+  (`full_inventory`) already share the exact same `PhonemeGuideEntry` data -- including the example-word
+  text -- since `word_inventory` is built directly from `full_inventory`'s own entries, not a separate
+  lookup; verified live rather than assumed from reading the code alone.
+
+  (3) All 15 `ScriptTraits` dials being individually forceable in Advanced Options (mirroring how the
+  existing 15 `TraitProfile` dials already are, via the "+ trait override" row UI) was judged a real,
+  separate piece of work rather than "easy" -- needs a new `ScriptTraitsForce`-style override model
+  (paralleling `OrthographyForce`), threading it through `GenerationSpec`/`script_gen.generate_script`,
+  a mirrored `--script-trait name=value` CLI flag, and a mirrored dynamic-row UI reading from
+  `ScriptTraits.model_fields` instead of `GRADED_TRAIT_FIELDS` -- deferred with a concrete design
+  rather than attempted ad hoc; see `docs/DEFERRED.md`'s own "Own script and font" section.

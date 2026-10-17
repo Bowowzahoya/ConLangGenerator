@@ -128,6 +128,28 @@ multi-session feature.
   against the real library before committing to the approach (built a
   toy font, round-tripped it, rendered it in a real browser via
   `@font-face`) rather than assumed from documentation.
+- **Force individual `ScriptTraits` dials explicitly, from the CLI/web UI (M).** Direct user request,
+  mirroring how the 15 `TraitProfile` dials are already individually forceable via `--trait
+  name=value`/the web UI's own "+ trait override" rows -- today's 15 `ScriptTraits` dials
+  (angularity, weight, complexity, ...) are rolled from the language's own seed only, with no override
+  channel at all. Concrete plan, not yet started:
+  - `core/script.py`: a new `ScriptTraitsForce(BaseModel, frozen=True)` -- the same shape
+    `OrthographyForce` already has, one `float | None` field per `ScriptTraits` dial, `None` meaning
+    "not forced, let the roll decide."
+  - `core/spec.py`: `GenerationSpec.forced_script_traits: ScriptTraitsForce = ScriptTraitsForce()`.
+  - `generation/script_gen.py`: `generate_script`/`roll_script_traits` take the force object, apply
+    each non-`None` override *after* rolling (composing the same way `OrthographyForce`'s own fields
+    layer on top of the romanization roll).
+  - `cli/main.py`: a repeatable `--script-trait name=value` flag, parsed the same way the existing
+    `--trait` flag already is (`_parse_trait_overrides` works unchanged against a second field-name
+    allowlist).
+  - Web UI: a second set of dynamic override rows (mirroring `trait-override-rows`/
+    `addTraitOverrideRow`/`collectTraitOverrides` exactly, reading from `ScriptTraits.model_fields`
+    instead of `GRADED_TRAIT_FIELDS`), living in the Advanced Options "Script" `<fieldset>` group
+    alongside the existing "Own script" select.
+  - Tests mirroring the existing trait-override tests throughout (CLI parsing, web validation,
+    `generate_script` composing a forced value correctly, an out-of-range value rejected the same way
+    `-1.0..1.0` trait overrides already are).
 - **Phase 2: harder writing-system types (L each).** Not implemented,
   but not precluded by Phase 1's own shape -- see `core/script.py`'s own
   module docstring for exactly how each would extend it:

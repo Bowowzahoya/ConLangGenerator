@@ -122,3 +122,20 @@ def test_script_keyboard_endpoint_404s_for_a_language_with_no_script(client):
 def test_script_keyboard_endpoint_404s_for_an_unknown_language(client):
     response = client.get("/api/languages/does-not-exist/script/keyboard")
     assert response.status_code == 404
+
+
+def test_languages_list_reports_which_ones_have_a_script(client):
+    client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": "webscript-list-yes", "seed": 1, "llm": "fake", "vocabulary_size": 8,
+              "own_script": "yes"},
+    )
+    client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": "webscript-list-no", "seed": 1, "llm": "fake", "vocabulary_size": 8},
+    )
+    body = client.get("/api/languages").json()
+    assert "webscript-list-yes" in body["languages"]
+    assert "webscript-list-no" in body["languages"]
+    assert "webscript-list-yes" in body["scripted_languages"]
+    assert "webscript-list-no" not in body["scripted_languages"]

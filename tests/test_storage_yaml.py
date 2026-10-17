@@ -80,3 +80,38 @@ def test_load_missing_language_raises(tmp_path: Path):
         assert False, "expected FileNotFoundError"
     except FileNotFoundError:
         pass
+
+
+def test_has_script_false_for_a_language_with_none(tmp_path: Path):
+    repo = YamlLanguageRepository(tmp_path)
+    language = make_minimal_language()
+    repo.save(language)
+    assert repo.has_script(language.slug) is False
+
+
+def test_has_script_true_for_a_language_with_one(tmp_path: Path):
+    import random
+
+    from conlang_generator.generation.script_gen import generate_script
+
+    repo = YamlLanguageRepository(tmp_path)
+    language = make_minimal_language()
+    script = generate_script(random.Random(1), language.phonology)
+    language = language.model_copy(update={"script": script})
+    repo.save(language)
+
+    assert repo.has_script(language.slug) is True
+
+
+def test_has_script_false_for_a_pre_script_feature_save(tmp_path: Path):
+    repo = YamlLanguageRepository(tmp_path)
+    language = make_minimal_language()
+    repo.save(language)
+    (tmp_path / language.slug / "script.yaml").unlink()  # simulate a pre-script-feature save
+
+    assert repo.has_script(language.slug) is False
+
+
+def test_has_script_false_for_an_unknown_language(tmp_path: Path):
+    repo = YamlLanguageRepository(tmp_path)
+    assert repo.has_script("does-not-exist") is False

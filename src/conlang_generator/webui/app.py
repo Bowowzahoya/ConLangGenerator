@@ -354,7 +354,13 @@ class TranslateRequest(BaseModel):
 
 @app.get("/api/languages")
 def list_languages() -> dict:
-    return {"languages": _repository().list()}
+    repo = _repository()
+    slugs = repo.list()
+    # A cheap per-language check (one small script.yaml read, not a full
+    # language load) -- the Script tab's own language picker uses this to
+    # grey out/italicize a language with none, without a round trip per
+    # option.
+    return {"languages": slugs, "scripted_languages": [slug for slug in slugs if repo.has_script(slug)]}
 
 
 @app.get("/api/languages/{slug}")

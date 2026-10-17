@@ -87,3 +87,16 @@ class YamlLanguageRepository:
 
     def exists(self, name: str) -> bool:
         return self._dir(slugify(name)).exists()
+
+    def has_script(self, slug: str) -> bool:
+        """Whether this language has an invented script, without loading
+        (and fully validating) the whole language -- just the one small
+        ``script.yaml`` file, for the web UI's own language pickers to
+        cheaply list every saved language's own script status at once.
+        ``False`` for a pre-script-feature save with no ``script.yaml``
+        at all, the same backward-compatible reading ``load`` gives it."""
+        path = self._dir(slug) / "script.yaml"
+        if not path.is_file():
+            return False
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        return data.get("script") is not None

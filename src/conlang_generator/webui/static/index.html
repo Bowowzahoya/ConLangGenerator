@@ -45,6 +45,14 @@
     padding: 18px 20px; margin-bottom: 16px;
   }
   label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  .advanced-group {
+    border: 1px solid var(--border); border-radius: 8px; padding: 4px 14px 14px; margin: 16px 0 0;
+  }
+  .advanced-group legend {
+    font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--accent); padding: 0 6px;
+  }
+  .advanced-group > *:first-child { margin-top: 10px; }
   input[type=text], input[type=number], textarea, select {
     width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
     background: var(--bg); color: var(--text); font: inherit;
@@ -203,116 +211,130 @@
     <details>
       <summary>Advanced options</summary>
 
-      <div class="checks">
+      <fieldset class="advanced-group">
+        <legend>General</legend>
         <label><input type="checkbox" id="gen-fantasy"> fantasy</label><button type="button" class="info-btn" data-info-key="fantasy" title="What does this do?">&#9432;</button>
-        <label><input type="checkbox" id="gen-isolated"> force isolated</label><button type="button" class="info-btn" data-info-key="force_isolated" title="What does this do?">&#9432;</button>
-        <label><input type="checkbox" id="gen-high-altitude"> force high altitude</label><button type="button" class="info-btn" data-info-key="force_high_altitude" title="What does this do?">&#9432;</button>
-        <label><input type="checkbox" id="gen-tonal"> force tonal</label><button type="button" class="info-btn" data-info-key="force_tonal" title="What does this do?">&#9432;</button>
-        <label><input type="checkbox" id="gen-allow-all-caps"> allow all-caps POS</label><button type="button" class="info-btn" data-info-key="allow_all_caps" title="What does this do?">&#9432;</button>
-      </div>
 
-      <div class="row">
-        <div>
-          <label for="gen-foreign-names">Foreign names</label><button type="button" class="info-btn" data-info-key="foreign_names" title="What do these options mean?">&#9432;</button>
-          <select id="gen-foreign-names">
-            <option value="">auto (from prompt/source language)</option>
-            <option value="keep">keep as written</option>
-            <option value="adapt">adapt to the language</option>
-          </select>
-        </div>
-        <div>
-          <label for="gen-model">Classifier model</label>
-          <select id="gen-model"></select>
-        </div>
-        <div>
-          <label for="gen-word-model">Word-selection model</label>
-          <select id="gen-word-model"></select>
-        </div>
-        <div>
-          <label for="gen-pregenerate-audio">Pre-generate audio</label>
-          <select id="gen-pregenerate-audio">
-            <option value="none">none (default -- audio made on first pronounce/translate)</option>
-            <option value="espeak">espeak-ng (~60ms/word)</option>
-            <option value="sapi">Windows SAPI (~2.7s for a full 400-word vocabulary)</option>
-            <option value="piper">Piper (free neural voice, once set up -- see docs/CLI.md)</option>
-            <option value="auto">auto (best engine per word)</option>
-          </select>
-          <div class="ipa" style="margin-top: 4px;">
-            Synthesizes every lexicon word's pronunciation up front instead of on first use.
+        <div class="row">
+          <div>
+            <label for="gen-foreign-names">Foreign names</label><button type="button" class="info-btn" data-info-key="foreign_names" title="What do these options mean?">&#9432;</button>
+            <select id="gen-foreign-names">
+              <option value="">auto (from prompt/source language)</option>
+              <option value="keep">keep as written</option>
+              <option value="adapt">adapt to the language</option>
+            </select>
+          </div>
+          <div>
+            <label for="gen-model">Classifier model</label>
+            <select id="gen-model"></select>
+          </div>
+          <div>
+            <label for="gen-word-model">Word-selection model</label>
+            <select id="gen-word-model"></select>
           </div>
         </div>
-        <div>
-          <label for="gen-own-script">Own script</label><button type="button" class="info-btn" data-info-key="own_script" title="What do these options mean?">&#9432;</button>
-          <select id="gen-own-script">
-            <option value="auto">auto (from prompt, default: no)</option>
-            <option value="yes">yes</option>
-            <option value="no">no</option>
-          </select>
+
+        <label>Source languages <span class="ipa">(bias generation toward a real language's palette)</span></label>
+        <div id="source-lang-rows"></div>
+        <button type="button" class="add-row" id="add-source-lang">+ source language</button>
+
+        <label for="gen-evolve-years">Years of evolution (sound change applied after generating; 0 = none; blank = whatever the prompt implies, e.g. "evolved forward 200 years")</label>
+        <input type="number" id="gen-evolve-years" min="0" max="100000" step="50" placeholder="(from prompt)">
+
+        <label for="gen-word-strictness">Word strictness (0.0-1.0: how many words follow the source language's actual words, and how closely; 1.0 = exact copies; blank = inferred from prompt)</label>
+        <input type="number" id="gen-word-strictness" min="0" max="1" step="0.05" placeholder="(inferred)">
+
+        <label for="gen-strictness">Sound strictness (0.0-1.0: how tightly the allowed sounds follow the source language; blank = inferred from prompt)</label>
+        <input type="number" id="gen-strictness" min="0" max="1" step="0.05" placeholder="(inferred)">
+
+        <label>Seed examples <span class="ipa">(literal words that must appear verbatim; the last field is optional irregular forms, ";"-separated cell:form[:ipa] -- plural/past/comparative/superlative/non_past/present/future, or a pronoun case like accusative)</span></label>
+        <div id="seed-example-rows"></div>
+        <button type="button" class="add-row" id="add-seed-example">+ seed example</button>
+
+        <label for="gen-examples-text">Bulk seed words <span class="ipa">(paste many at once, one per line: gloss,form[,ipa[,pos[,forms]]]; forms is ";"-separated cell:form[:ipa] entries, e.g. past:zanu; an optional header row starting with "gloss" is skipped)</span></label>
+        <textarea id="gen-examples-text" rows="3" placeholder="water,aqua&#10;mountain,yama,jama,noun"></textarea>
+      </fieldset>
+
+      <fieldset class="advanced-group">
+        <legend>Grammar &amp; traits</legend>
+        <div class="checks">
+          <label><input type="checkbox" id="gen-isolated"> force isolated</label><button type="button" class="info-btn" data-info-key="force_isolated" title="What does this do?">&#9432;</button>
+          <label><input type="checkbox" id="gen-high-altitude"> force high altitude</label><button type="button" class="info-btn" data-info-key="force_high_altitude" title="What does this do?">&#9432;</button>
+          <label><input type="checkbox" id="gen-tonal"> force tonal</label><button type="button" class="info-btn" data-info-key="force_tonal" title="What does this do?">&#9432;</button>
         </div>
-      </div>
+        <label>Trait overrides <span class="ipa">(directly set a graded worldbuilding trait, -1.0 to +1.0, overriding the prompt's own inferred value)</span></label>
+        <div id="trait-override-rows"></div>
+        <button type="button" class="add-row" id="add-trait-override">+ trait override</button>
+      </fieldset>
 
-      <label>Source languages <span class="ipa">(bias generation toward a real language's palette)</span></label>
-      <div id="source-lang-rows"></div>
-      <button type="button" class="add-row" id="add-source-lang">+ source language</button>
+      <fieldset class="advanced-group">
+        <legend>Sound &amp; orthography</legend>
+        <label><input type="checkbox" id="gen-allow-all-caps"> allow all-caps POS</label><button type="button" class="info-btn" data-info-key="allow_all_caps" title="What does this do?">&#9432;</button>
 
-      <label for="gen-evolve-years">Years of evolution (sound change applied after generating; 0 = none; blank = whatever the prompt implies, e.g. "evolved forward 200 years")</label>
-      <input type="number" id="gen-evolve-years" min="0" max="100000" step="50" placeholder="(from prompt)">
-
-      <label for="gen-word-strictness">Word strictness (0.0-1.0: how many words follow the source language's actual words, and how closely; 1.0 = exact copies; blank = inferred from prompt)</label>
-      <input type="number" id="gen-word-strictness" min="0" max="1" step="0.05" placeholder="(inferred)">
-
-      <label for="gen-strictness">Sound strictness (0.0-1.0: how tightly the allowed sounds follow the source language; blank = inferred from prompt)</label>
-      <input type="number" id="gen-strictness" min="0" max="1" step="0.05" placeholder="(inferred)">
-
-      <label>Trait overrides <span class="ipa">(directly set a graded worldbuilding trait, -1.0 to +1.0, overriding the prompt's own inferred value)</span></label>
-      <div id="trait-override-rows"></div>
-      <button type="button" class="add-row" id="add-trait-override">+ trait override</button>
-
-      <label>Seed examples <span class="ipa">(literal words that must appear verbatim; the last field is optional irregular forms, ";"-separated cell:form[:ipa] -- plural/past/comparative/superlative/non_past/present/future, or a pronoun case like accusative)</span></label>
-      <div id="seed-example-rows"></div>
-      <button type="button" class="add-row" id="add-seed-example">+ seed example</button>
-
-      <label for="gen-examples-text">Bulk seed words <span class="ipa">(paste many at once, one per line: gloss,form[,ipa[,pos[,forms]]]; forms is ";"-separated cell:form[:ipa] entries, e.g. past:zanu; an optional header row starting with "gloss" is skipped)</span></label>
-      <textarea id="gen-examples-text" rows="3" placeholder="water,aqua&#10;mountain,yama,jama,noun"></textarea>
-
-      <div class="row">
-        <div>
-          <label for="gen-orthography-style">Orthography style</label><button type="button" class="info-btn" data-info-key="orthography_style" title="What do these options mean?">&#9432;</button>
-          <select id="gen-orthography-style"><option value="">(unforced)</option></select>
+        <div class="row">
+          <div>
+            <label for="gen-orthography-style">Orthography style</label><button type="button" class="info-btn" data-info-key="orthography_style" title="What do these options mean?">&#9432;</button>
+            <select id="gen-orthography-style"><option value="">(unforced)</option></select>
+          </div>
+          <div>
+            <label for="gen-exotic-symbol-style">Exotic symbol style</label><button type="button" class="info-btn" data-info-key="exotic_symbol_style" title="What do these options mean?">&#9432;</button>
+            <select id="gen-exotic-symbol-style"><option value="">(unforced)</option></select>
+          </div>
+          <div>
+            <label for="gen-vowel-length-style">Vowel length style</label><button type="button" class="info-btn" data-info-key="vowel_length_style" title="What do these options mean?">&#9432;</button>
+            <select id="gen-vowel-length-style"><option value="">(unforced)</option></select>
+          </div>
         </div>
-        <div>
-          <label for="gen-exotic-symbol-style">Exotic symbol style</label><button type="button" class="info-btn" data-info-key="exotic_symbol_style" title="What do these options mean?">&#9432;</button>
-          <select id="gen-exotic-symbol-style"><option value="">(unforced)</option></select>
+        <div class="row">
+          <div>
+            <label for="gen-tone-style">Tone style</label><button type="button" class="info-btn" data-info-key="tone_style" title="What do these options mean?">&#9432;</button>
+            <select id="gen-tone-style"><option value="">(unforced)</option></select>
+          </div>
+          <div>
+            <label for="gen-syllable-boundary-marker">Syllable boundary marker</label><button type="button" class="info-btn" data-info-key="syllable_boundary_marker" title="What do these options mean?">&#9432;</button>
+            <select id="gen-syllable-boundary-marker"><option value="">(unforced)</option></select>
+          </div>
+          <div>
+            <label for="gen-short-vowel-doubling">Short-vowel consonant doubling</label><button type="button" class="info-btn" data-info-key="short_vowel_doubling" title="What does this do?">&#9432;</button>
+            <select id="gen-short-vowel-doubling">
+              <option value="">(unforced)</option>
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label for="gen-vowel-length-style">Vowel length style</label><button type="button" class="info-btn" data-info-key="vowel_length_style" title="What do these options mean?">&#9432;</button>
-          <select id="gen-vowel-length-style"><option value="">(unforced)</option></select>
+        <label for="gen-consonant-gemination">Consonant gemination marked</label><button type="button" class="info-btn" data-info-key="consonant_gemination" title="What does this do?">&#9432;</button>
+        <select id="gen-consonant-gemination">
+          <option value="">(unforced)</option>
+          <option value="true">true</option>
+          <option value="false">false</option>
+        </select>
+      </fieldset>
+
+      <fieldset class="advanced-group">
+        <legend>Script</legend>
+        <label for="gen-own-script">Own script</label><button type="button" class="info-btn" data-info-key="own_script" title="What do these options mean?">&#9432;</button>
+        <select id="gen-own-script">
+          <option value="auto">auto (from prompt, default: no)</option>
+          <option value="yes">yes</option>
+          <option value="no">no</option>
+        </select>
+      </fieldset>
+
+      <fieldset class="advanced-group">
+        <legend>Audio (TTS)</legend>
+        <label for="gen-pregenerate-audio">Pre-generate audio</label>
+        <select id="gen-pregenerate-audio">
+          <option value="none">none (default -- audio made on first pronounce/translate)</option>
+          <option value="espeak">espeak-ng (~60ms/word)</option>
+          <option value="sapi">Windows SAPI (~2.7s for a full 400-word vocabulary)</option>
+          <option value="piper">Piper (free neural voice, once set up -- see docs/CLI.md)</option>
+          <option value="auto">auto (best engine per word)</option>
+        </select>
+        <div class="ipa" style="margin-top: 4px;">
+          Synthesizes every lexicon word's pronunciation up front instead of on first use.
         </div>
-      </div>
-      <div class="row">
-        <div>
-          <label for="gen-tone-style">Tone style</label><button type="button" class="info-btn" data-info-key="tone_style" title="What do these options mean?">&#9432;</button>
-          <select id="gen-tone-style"><option value="">(unforced)</option></select>
-        </div>
-        <div>
-          <label for="gen-syllable-boundary-marker">Syllable boundary marker</label><button type="button" class="info-btn" data-info-key="syllable_boundary_marker" title="What do these options mean?">&#9432;</button>
-          <select id="gen-syllable-boundary-marker"><option value="">(unforced)</option></select>
-        </div>
-        <div>
-          <label for="gen-short-vowel-doubling">Short-vowel consonant doubling</label><button type="button" class="info-btn" data-info-key="short_vowel_doubling" title="What does this do?">&#9432;</button>
-          <select id="gen-short-vowel-doubling">
-            <option value="">(unforced)</option>
-            <option value="true">true</option>
-            <option value="false">false</option>
-          </select>
-        </div>
-      </div>
-      <label for="gen-consonant-gemination">Consonant gemination marked</label><button type="button" class="info-btn" data-info-key="consonant_gemination" title="What does this do?">&#9432;</button>
-      <select id="gen-consonant-gemination">
-        <option value="">(unforced)</option>
-        <option value="true">true</option>
-        <option value="false">false</option>
-      </select>
+      </fieldset>
     </details>
 
     <div class="submit-row">
@@ -381,10 +403,21 @@
 </section>
 
 <section id="panel-inspect" class="panel">
+  <div class="card">
+    <div class="row">
+      <div>
+        <label for="inspect-lang">Language
+          <button type="button" class="add-row" id="inspect-refresh-langs" style="margin-left:8px;">refresh</button>
+        </label>
+        <select id="inspect-lang"><option value="">(choose one)</option></select>
+      </div>
+    </div>
+    <div class="error" id="inspect-error" hidden></div>
+  </div>
   <div class="result" id="inspect-result">
     <p class="ipa" style="padding: 20px;">
-      Nothing to inspect yet -- generate a language, or pick one on the Translate tab and click
-      "view details".
+      Nothing to inspect yet -- pick a language above, generate one, or pick one on the Translate
+      tab and click "view details".
     </p>
   </div>
 </section>
@@ -829,16 +862,24 @@ $("tr-tts").addEventListener("change", () => { showEngineInfo(); refreshPronunci
 // A model choice is meaningless for the free, deterministic fake backend.
 $("tr-llm").addEventListener("change", () => { $("tr-model-row").hidden = $("tr-llm").value === "fake"; });
 
-// --- language dropdown (translate tab) ---
+// --- language dropdown (translate/inspect/script tabs) ---
 // Fills any <select> with the current language list, preserving its
-// previous selection when still valid -- shared by the Translate tab's
-// own picker and the Script tab's, rather than two near-duplicate copies.
-function fillLanguageSelect(select, slugs) {
+// previous selection when still valid -- shared by every tab's own
+// picker, rather than a near-duplicate copy per tab. `noScriptSlugs`
+// (the Script tab's own use) greys out and italicizes an option for a
+// language with no invented script, so a user doesn't waste a click
+// finding out -- <option> styling is limited cross-browser, but color/
+// font-style are both well supported.
+function fillLanguageSelect(select, slugs, noScriptSlugs) {
   const previous = select.value;
   select.innerHTML = "";
   for (const slug of slugs) {
     const opt = document.createElement("option");
     opt.value = slug; opt.textContent = slug;
+    if (noScriptSlugs && noScriptSlugs.has(slug)) {
+      opt.style.color = "var(--muted)";
+      opt.style.fontStyle = "italic";
+    }
     select.appendChild(opt);
   }
   if (slugs.includes(previous)) select.value = previous;
@@ -846,10 +887,14 @@ function fillLanguageSelect(select, slugs) {
 
 async function refreshLanguages() {
   const data = await api("/api/languages");
+  const scripted = new Set(data.scripted_languages || []);
+  const noScript = new Set(data.languages.filter(slug => !scripted.has(slug)));
   fillLanguageSelect($("tr-lang"), data.languages);
-  fillLanguageSelect($("script-lang"), data.languages);
+  fillLanguageSelect($("inspect-lang"), data.languages);
+  fillLanguageSelect($("script-lang"), data.languages, noScript);
 }
 $("refresh-langs").onclick = refreshLanguages;
+$("inspect-refresh-langs").onclick = refreshLanguages;
 
 // --- whole-language export/import (translate tab) -- the full
 // language.model_dump(), not the trimmed summary view, as one
@@ -1127,7 +1172,26 @@ function renderToneSection(summary) {
 function showInspectResult(summary) {
   renderLanguageSummary($("inspect-result"), summary);
   showTab("inspect");
+  // Keep the Inspect tab's own picker in sync when it's already got
+  // this language listed; a freshly generated one isn't yet (the
+  // generate handler's own refreshLanguages() hasn't resolved at this
+  // point) -- harmless no-op then, since setting a <select>'s value to
+  // an option that doesn't exist yet is simply ignored.
+  if ($("inspect-lang")) $("inspect-lang").value = summary.slug;
 }
+
+async function loadInspectLanguage(slug) {
+  if ($("inspect-error")) $("inspect-error").hidden = true;
+  if (!slug) return;
+  try {
+    const summary = await api(`/api/languages/${encodeURIComponent(slug)}`);
+    renderLanguageSummary($("inspect-result"), summary);
+  } catch (e) {
+    $("inspect-error").textContent = e.message;
+    $("inspect-error").hidden = false;
+  }
+}
+$("inspect-lang").addEventListener("change", () => loadInspectLanguage($("inspect-lang").value));
 
 // --- rendering a language summary -- both the Generate tab's own
 // result and the Translate tab's "view details" button render into
@@ -1509,6 +1573,7 @@ $("generate-btn").onclick = async () => {
     });
     showInspectResult(summary);
     await Promise.all([refreshCost(), refreshLanguages()]);
+    $("inspect-lang").value = summary.slug;
   } catch (e) {
     err.textContent = e.message;
     err.hidden = false;
