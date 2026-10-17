@@ -7443,3 +7443,19 @@ reading code or one-off ad hoc scripts.
   serialize via `as_dict()`. Surfaced in the web UI's sound-guide popover (a new line under the
   description, hidden entirely when there's no example) and in `conlang pronounce --sounds`'s own CLI
   output.
+
+  **Follow-up, same item: names which letter(s) in the example word spell the sound, direct user
+  request.** Every one of the 87 curated `(word, language)` entries gained a third element, `letters`
+  -- a literal, case-sensitive substring of `word` (`"jump"` -> `"j"`, `"ich"` -> `"ch"`, `"Llanelli"` ->
+  `"Ll"`), verified by a dedicated test rather than trusted by eye. `PhonemeGuideEntry` gained a matching
+  `example_letters` field, all three example fields `None` together. Two prior entries turned out to
+  have no literal letter to point at once this was required to hold: the glottal stop's `"uh-oh"`
+  (English) was replaced with Hawaiian `"Hawaiʻi"` (the ʻokina character itself is the letter), and the
+  voiced pharyngeal fricative's `"Iraq"` (Arabic, the ʿayn is conventionally dropped from that specific
+  English spelling) was replaced with `"Sana'a"` (Yemen's capital, where the ʿayn is conventionally kept
+  as an apostrophe). The web UI's own popover now reads "Like the j in English 'jump'" with the matching
+  span bolded within the displayed word (a new `highlightExampleWord` helper, `word.indexOf(letters)`
+  then split-and-wrap -- safe to rely on a plain substring search specifically because the backend
+  guarantees the match always exists, falling back to the plain escaped word if that guarantee were
+  ever violated rather than throwing); `cli/main.py`'s own `--sounds` output gained the matching
+  `"like the X in Y \"Z\""` line.

@@ -95,11 +95,17 @@ def _is_click(ipa: str) -> bool:
     return any(ch in CLICK_CHARACTERS for ch in ipa)
 
 
-# --- a real word that contains each sound, for the pronunciation guide's
-# "like the X in <word>" line -- English preferred, a well-known other
-# language otherwise (requested directly by a user: "add a word in
-# English that has it, if available, otherwise from another language").
-# Keyed on the same structured (place, manner, voiced) / (height,
+# --- a real word that contains each sound, and which letter(s) in that
+# word spell it, for the pronunciation guide's "like the X in <word>"
+# line -- English preferred, a well-known other language otherwise
+# (requested directly by a user: "add a word in English that has it, if
+# available, otherwise from another language"; the letters themselves
+# were a direct follow-up request). Each value is ``(word, language,
+# letters)``, where ``letters`` is always a literal, case-sensitive
+# substring of ``word`` (verified by ``test_example_letters_are_always_a
+# _literal_substring_of_the_example_word``) -- not a phonetic respelling,
+# so the frontend can highlight exactly that span within the displayed
+# word. Keyed on the same structured (place, manner, voiced) / (height,
 # backness, rounded) identity ``describe_consonant``/``describe_vowel``
 # already use, not on raw IPA strings -- a modified symbol (``"pʰ"``,
 # ``"tʼ"``, ``"aː"``, ...) therefore reuses its own base's example
@@ -116,118 +122,118 @@ def _is_click(ipa: str) -> bool:
 # sound -- one well-chosen, widely-recognizable example per sound, not a
 # ranked list; "ordered by how famous" is reflected by always choosing
 # the single most recognizable option rather than an obscure one.
-_CONSONANT_EXAMPLES: dict[tuple[Place, Manner, bool], tuple[str, str]] = {
-    (Place.ALVEOLAR, Manner.AFFRICATE, False): ("Zeit", "German"),
-    (Place.ALVEOLAR, Manner.AFFRICATE, True): ("kids", "English"),
-    (Place.ALVEOLAR, Manner.FRICATIVE, False): ("sun", "English"),
-    (Place.ALVEOLAR, Manner.FRICATIVE, True): ("zoo", "English"),
-    (Place.ALVEOLAR, Manner.LATERAL_AFFRICATE, False): ("Tlaxcala", "Nahuatl"),
-    (Place.ALVEOLAR, Manner.LATERAL_APPROXIMANT, True): ("light", "English"),
-    (Place.ALVEOLAR, Manner.LATERAL_FRICATIVE, False): ("Llanelli", "Welsh"),
-    (Place.ALVEOLAR, Manner.NASAL, True): ("no", "English"),
-    (Place.ALVEOLAR, Manner.STOP, False): ("top", "English"),
-    (Place.ALVEOLAR, Manner.STOP, True): ("dog", "English"),
-    (Place.ALVEOLAR, Manner.TAP, True): ("pero", "Spanish"),
-    (Place.ALVEOLAR, Manner.TRILL, False): ("Rhys", "Welsh"),
-    (Place.ALVEOLAR, Manner.TRILL, True): ("perro", "Spanish"),
-    (Place.BILABIAL, Manner.APPROXIMANT, True): ("we", "English"),
-    (Place.BILABIAL, Manner.FRICATIVE, False): ("Fuji", "Japanese"),
-    (Place.BILABIAL, Manner.FRICATIVE, True): ("haber", "Spanish"),
-    (Place.BILABIAL, Manner.NASAL, True): ("mom", "English"),
-    (Place.BILABIAL, Manner.STOP, False): ("pin", "English"),
-    (Place.BILABIAL, Manner.STOP, True): ("bed", "English"),
-    (Place.DENTAL, Manner.FRICATIVE, False): ("think", "English"),
-    (Place.DENTAL, Manner.FRICATIVE, True): ("this", "English"),
-    (Place.GLOTTAL, Manner.FRICATIVE, False): ("hat", "English"),
-    (Place.GLOTTAL, Manner.FRICATIVE, True): ("hora", "Czech"),
-    (Place.GLOTTAL, Manner.STOP, False): ("uh-oh", "English"),
-    (Place.LABIODENTAL, Manner.APPROXIMANT, True): ("water", "Dutch"),
-    (Place.LABIODENTAL, Manner.FRICATIVE, False): ("fun", "English"),
-    (Place.LABIODENTAL, Manner.FRICATIVE, True): ("van", "English"),
-    (Place.LABIODENTAL, Manner.NASAL, True): ("comfort", "English"),
-    (Place.PALATAL, Manner.AFFRICATE, False): ("jī", "Mandarin"),
-    (Place.PALATAL, Manner.AFFRICATE, True): ("ji", "Japanese"),
-    (Place.PALATAL, Manner.APPROXIMANT, True): ("yes", "English"),
-    (Place.PALATAL, Manner.FRICATIVE, False): ("ich", "German"),
-    (Place.PALATAL, Manner.FRICATIVE, True): ("yo", "Spanish"),
-    (Place.PALATAL, Manner.LATERAL_APPROXIMANT, True): ("famiglia", "Italian"),
-    (Place.PALATAL, Manner.NASAL, True): ("año", "Spanish"),
-    (Place.PALATAL, Manner.STOP, False): ("kutya", "Hungarian"),
-    (Place.PALATAL, Manner.STOP, True): ("magyar", "Hungarian"),
-    (Place.PHARYNGEAL, Manner.FRICATIVE, False): ("Bahrain", "Arabic"),
-    (Place.PHARYNGEAL, Manner.FRICATIVE, True): ("Iraq", "Arabic"),
-    (Place.POSTALVEOLAR, Manner.AFFRICATE, False): ("chip", "English"),
-    (Place.POSTALVEOLAR, Manner.AFFRICATE, True): ("jump", "English"),
-    (Place.POSTALVEOLAR, Manner.FRICATIVE, False): ("shoe", "English"),
-    (Place.POSTALVEOLAR, Manner.FRICATIVE, True): ("measure", "English"),
-    (Place.RETROFLEX, Manner.AFFRICATE, False): ("zhōng", "Mandarin"),
-    (Place.RETROFLEX, Manner.AFFRICATE, True): ("dżem", "Polish"),
-    (Place.RETROFLEX, Manner.APPROXIMANT, True): ("red", "English"),
-    (Place.RETROFLEX, Manner.FRICATIVE, False): ("shū", "Mandarin"),
-    (Place.RETROFLEX, Manner.FRICATIVE, True): ("rì", "Mandarin"),
-    (Place.RETROFLEX, Manner.LATERAL_APPROXIMANT, True): ("kal", "Tamil"),
-    (Place.RETROFLEX, Manner.NASAL, True): ("barn", "Swedish"),
-    (Place.RETROFLEX, Manner.STOP, False): ("Taj Mahal", "Hindi"),
-    (Place.RETROFLEX, Manner.STOP, True): ("bord", "Swedish"),
-    (Place.RETROFLEX, Manner.TAP, True): ("ladka", "Hindi"),
-    (Place.UVULAR, Manner.FRICATIVE, False): ("Chanukah", "Hebrew"),
-    (Place.UVULAR, Manner.FRICATIVE, True): ("rouge", "French"),
-    (Place.UVULAR, Manner.NASAL, True): ("hon", "Japanese"),
-    (Place.UVULAR, Manner.STOP, False): ("Qatar", "Arabic"),
-    (Place.VELAR, Manner.APPROXIMANT, True): ("fuego", "Spanish"),
-    (Place.VELAR, Manner.FRICATIVE, False): ("loch", "Scottish English"),
-    (Place.VELAR, Manner.FRICATIVE, True): ("lago", "Spanish"),
-    (Place.VELAR, Manner.NASAL, True): ("sing", "English"),
-    (Place.VELAR, Manner.STOP, False): ("cat", "English"),
-    (Place.VELAR, Manner.STOP, True): ("go", "English"),
+_CONSONANT_EXAMPLES: dict[tuple[Place, Manner, bool], tuple[str, str, str]] = {
+    (Place.ALVEOLAR, Manner.AFFRICATE, False): ("Zeit", "German", "Z"),
+    (Place.ALVEOLAR, Manner.AFFRICATE, True): ("kids", "English", "ds"),
+    (Place.ALVEOLAR, Manner.FRICATIVE, False): ("sun", "English", "s"),
+    (Place.ALVEOLAR, Manner.FRICATIVE, True): ("zoo", "English", "z"),
+    (Place.ALVEOLAR, Manner.LATERAL_AFFRICATE, False): ("Tlaxcala", "Nahuatl", "Tl"),
+    (Place.ALVEOLAR, Manner.LATERAL_APPROXIMANT, True): ("light", "English", "l"),
+    (Place.ALVEOLAR, Manner.LATERAL_FRICATIVE, False): ("Llanelli", "Welsh", "Ll"),
+    (Place.ALVEOLAR, Manner.NASAL, True): ("no", "English", "n"),
+    (Place.ALVEOLAR, Manner.STOP, False): ("top", "English", "t"),
+    (Place.ALVEOLAR, Manner.STOP, True): ("dog", "English", "d"),
+    (Place.ALVEOLAR, Manner.TAP, True): ("pero", "Spanish", "r"),
+    (Place.ALVEOLAR, Manner.TRILL, False): ("Rhys", "Welsh", "Rh"),
+    (Place.ALVEOLAR, Manner.TRILL, True): ("perro", "Spanish", "rr"),
+    (Place.BILABIAL, Manner.APPROXIMANT, True): ("we", "English", "w"),
+    (Place.BILABIAL, Manner.FRICATIVE, False): ("Fuji", "Japanese", "F"),
+    (Place.BILABIAL, Manner.FRICATIVE, True): ("haber", "Spanish", "b"),
+    (Place.BILABIAL, Manner.NASAL, True): ("mom", "English", "m"),
+    (Place.BILABIAL, Manner.STOP, False): ("pin", "English", "p"),
+    (Place.BILABIAL, Manner.STOP, True): ("bed", "English", "b"),
+    (Place.DENTAL, Manner.FRICATIVE, False): ("think", "English", "th"),
+    (Place.DENTAL, Manner.FRICATIVE, True): ("this", "English", "th"),
+    (Place.GLOTTAL, Manner.FRICATIVE, False): ("hat", "English", "h"),
+    (Place.GLOTTAL, Manner.FRICATIVE, True): ("hora", "Czech", "h"),
+    (Place.GLOTTAL, Manner.STOP, False): ("Hawaiʻi", "Hawaiian", "ʻ"),
+    (Place.LABIODENTAL, Manner.APPROXIMANT, True): ("water", "Dutch", "w"),
+    (Place.LABIODENTAL, Manner.FRICATIVE, False): ("fun", "English", "f"),
+    (Place.LABIODENTAL, Manner.FRICATIVE, True): ("van", "English", "v"),
+    (Place.LABIODENTAL, Manner.NASAL, True): ("comfort", "English", "m"),
+    (Place.PALATAL, Manner.AFFRICATE, False): ("jī", "Mandarin", "j"),
+    (Place.PALATAL, Manner.AFFRICATE, True): ("ji", "Japanese", "j"),
+    (Place.PALATAL, Manner.APPROXIMANT, True): ("yes", "English", "y"),
+    (Place.PALATAL, Manner.FRICATIVE, False): ("ich", "German", "ch"),
+    (Place.PALATAL, Manner.FRICATIVE, True): ("yo", "Spanish", "y"),
+    (Place.PALATAL, Manner.LATERAL_APPROXIMANT, True): ("famiglia", "Italian", "gli"),
+    (Place.PALATAL, Manner.NASAL, True): ("año", "Spanish", "ñ"),
+    (Place.PALATAL, Manner.STOP, False): ("kutya", "Hungarian", "ty"),
+    (Place.PALATAL, Manner.STOP, True): ("magyar", "Hungarian", "gy"),
+    (Place.PHARYNGEAL, Manner.FRICATIVE, False): ("Bahrain", "Arabic", "h"),
+    (Place.PHARYNGEAL, Manner.FRICATIVE, True): ("Sana'a", "Arabic", "'"),
+    (Place.POSTALVEOLAR, Manner.AFFRICATE, False): ("chip", "English", "ch"),
+    (Place.POSTALVEOLAR, Manner.AFFRICATE, True): ("jump", "English", "j"),
+    (Place.POSTALVEOLAR, Manner.FRICATIVE, False): ("shoe", "English", "sh"),
+    (Place.POSTALVEOLAR, Manner.FRICATIVE, True): ("measure", "English", "s"),
+    (Place.RETROFLEX, Manner.AFFRICATE, False): ("zhōng", "Mandarin", "zh"),
+    (Place.RETROFLEX, Manner.AFFRICATE, True): ("dżem", "Polish", "dż"),
+    (Place.RETROFLEX, Manner.APPROXIMANT, True): ("red", "English", "r"),
+    (Place.RETROFLEX, Manner.FRICATIVE, False): ("shū", "Mandarin", "sh"),
+    (Place.RETROFLEX, Manner.FRICATIVE, True): ("rì", "Mandarin", "r"),
+    (Place.RETROFLEX, Manner.LATERAL_APPROXIMANT, True): ("kal", "Tamil", "l"),
+    (Place.RETROFLEX, Manner.NASAL, True): ("barn", "Swedish", "rn"),
+    (Place.RETROFLEX, Manner.STOP, False): ("Taj Mahal", "Hindi", "T"),
+    (Place.RETROFLEX, Manner.STOP, True): ("bord", "Swedish", "rd"),
+    (Place.RETROFLEX, Manner.TAP, True): ("ladka", "Hindi", "d"),
+    (Place.UVULAR, Manner.FRICATIVE, False): ("Chanukah", "Hebrew", "Ch"),
+    (Place.UVULAR, Manner.FRICATIVE, True): ("rouge", "French", "r"),
+    (Place.UVULAR, Manner.NASAL, True): ("hon", "Japanese", "n"),
+    (Place.UVULAR, Manner.STOP, False): ("Qatar", "Arabic", "Q"),
+    (Place.VELAR, Manner.APPROXIMANT, True): ("fuego", "Spanish", "g"),
+    (Place.VELAR, Manner.FRICATIVE, False): ("loch", "Scottish English", "ch"),
+    (Place.VELAR, Manner.FRICATIVE, True): ("lago", "Spanish", "g"),
+    (Place.VELAR, Manner.NASAL, True): ("sing", "English", "ng"),
+    (Place.VELAR, Manner.STOP, False): ("cat", "English", "c"),
+    (Place.VELAR, Manner.STOP, True): ("go", "English", "g"),
     # No entry for (UVULAR, STOP, True) -- ``ɢ``/``ʛ`` are genuinely rare
     # (a few Caucasian/Inuit languages); no widely-recognizable example.
 }
 
-_CLICK_EXAMPLES: dict[str, tuple[str, str]] = {
-    "ǀ": ("cula", "Zulu"),  # dental click, the letter "c"
-    "ǃ": ("qina", "Zulu"),  # (post)alveolar click, the letter "q"
-    "ǁ": ("Xhosa", "Xhosa"),  # lateral click, the letter "x" -- the language's own name
+_CLICK_EXAMPLES: dict[str, tuple[str, str, str]] = {
+    "ǀ": ("cula", "Zulu", "c"),  # dental click, the letter "c"
+    "ǃ": ("qina", "Zulu", "q"),  # (post)alveolar click, the letter "q"
+    "ǁ": ("Xhosa", "Xhosa", "X"),  # lateral click, the letter "x" -- the language's own name
     # No entry for "ǂ" (palatal click) or "ʘ" (bilabial click) -- both
     # genuinely rare, found mainly in Khoisan languages with no example
     # word recognizable enough to call "famous".
 }
 
-_VOWEL_EXAMPLES: dict[tuple[VowelHeight, VowelBackness, bool], tuple[str, str]] = {
-    (VowelHeight.CLOSE, VowelBackness.BACK, False): ("sushi", "Japanese"),
-    (VowelHeight.CLOSE, VowelBackness.BACK, True): ("food", "English"),
-    (VowelHeight.CLOSE, VowelBackness.CENTRAL, False): ("мы", "Russian"),
-    (VowelHeight.CLOSE, VowelBackness.FRONT, False): ("see", "English"),
-    (VowelHeight.CLOSE, VowelBackness.FRONT, True): ("tu", "French"),
-    (VowelHeight.CLOSE_MID, VowelBackness.BACK, True): ("no", "Spanish"),
-    (VowelHeight.CLOSE_MID, VowelBackness.FRONT, False): ("mesa", "Spanish"),
-    (VowelHeight.CLOSE_MID, VowelBackness.FRONT, True): ("deux", "French"),
-    (VowelHeight.MID, VowelBackness.CENTRAL, False): ("sofa", "English"),
-    (VowelHeight.NEAR_CLOSE, VowelBackness.BACK, True): ("book", "English"),
-    (VowelHeight.NEAR_CLOSE, VowelBackness.FRONT, False): ("bit", "English"),
-    (VowelHeight.NEAR_OPEN, VowelBackness.CENTRAL, False): ("cup", "English"),
-    (VowelHeight.NEAR_OPEN, VowelBackness.FRONT, False): ("cat", "English"),
-    (VowelHeight.OPEN, VowelBackness.BACK, False): ("father", "English"),
-    (VowelHeight.OPEN, VowelBackness.CENTRAL, False): ("casa", "Spanish"),
-    (VowelHeight.OPEN_MID, VowelBackness.BACK, True): ("law", "English"),
-    (VowelHeight.OPEN_MID, VowelBackness.FRONT, False): ("bed", "English"),
-    (VowelHeight.OPEN_MID, VowelBackness.FRONT, True): ("sœur", "French"),
+_VOWEL_EXAMPLES: dict[tuple[VowelHeight, VowelBackness, bool], tuple[str, str, str]] = {
+    (VowelHeight.CLOSE, VowelBackness.BACK, False): ("sushi", "Japanese", "u"),
+    (VowelHeight.CLOSE, VowelBackness.BACK, True): ("food", "English", "oo"),
+    (VowelHeight.CLOSE, VowelBackness.CENTRAL, False): ("мы", "Russian", "ы"),
+    (VowelHeight.CLOSE, VowelBackness.FRONT, False): ("see", "English", "ee"),
+    (VowelHeight.CLOSE, VowelBackness.FRONT, True): ("tu", "French", "u"),
+    (VowelHeight.CLOSE_MID, VowelBackness.BACK, True): ("no", "Spanish", "o"),
+    (VowelHeight.CLOSE_MID, VowelBackness.FRONT, False): ("mesa", "Spanish", "e"),
+    (VowelHeight.CLOSE_MID, VowelBackness.FRONT, True): ("deux", "French", "eu"),
+    (VowelHeight.MID, VowelBackness.CENTRAL, False): ("sofa", "English", "a"),
+    (VowelHeight.NEAR_CLOSE, VowelBackness.BACK, True): ("book", "English", "oo"),
+    (VowelHeight.NEAR_CLOSE, VowelBackness.FRONT, False): ("bit", "English", "i"),
+    (VowelHeight.NEAR_OPEN, VowelBackness.CENTRAL, False): ("cup", "English", "u"),
+    (VowelHeight.NEAR_OPEN, VowelBackness.FRONT, False): ("cat", "English", "a"),
+    (VowelHeight.OPEN, VowelBackness.BACK, False): ("father", "English", "a"),
+    (VowelHeight.OPEN, VowelBackness.CENTRAL, False): ("casa", "Spanish", "a"),
+    (VowelHeight.OPEN_MID, VowelBackness.BACK, True): ("law", "English", "aw"),
+    (VowelHeight.OPEN_MID, VowelBackness.FRONT, False): ("bed", "English", "e"),
+    (VowelHeight.OPEN_MID, VowelBackness.FRONT, True): ("sœur", "French", "œu"),
     # No entry for (CLOSE_MID, BACK, False) -- ``ɤ`` (found in Korean/
     # Vietnamese among others) has no single widely-recognizable example.
 }
 
-_SYMBOL_EXAMPLE_OVERRIDES: dict[str, tuple[str, str]] = {
+_SYMBOL_EXAMPLE_OVERRIDES: dict[str, tuple[str, str, str]] = {
     # Syllabic r and the r-colored schwa share their vowel-table bucket
     # with plain ``ɨ``/``ə`` (the data model has no separate "syllabic"
     # dimension for them) but are distinctive enough to deserve their own
     # citation rather than silently reusing ``ɨ``'s.
-    "r̩": ("butter", "English"),
-    "ɻ̩": ("butter", "English"),
-    "ɚ": ("better", "English"),
+    "r̩": ("butter", "English", "er"),
+    "ɻ̩": ("butter", "English", "er"),
+    "ɚ": ("better", "English", "er"),
 }
 
 
-def _consonant_example(c: Consonant) -> tuple[str, str] | None:
+def _consonant_example(c: Consonant) -> tuple[str, str, str] | None:
     if c.ipa in _SYMBOL_EXAMPLE_OVERRIDES:
         return _SYMBOL_EXAMPLE_OVERRIDES[c.ipa]
     if _is_click(c.ipa):
@@ -236,7 +242,7 @@ def _consonant_example(c: Consonant) -> tuple[str, str] | None:
     return _CONSONANT_EXAMPLES.get((c.place, c.manner, c.voiced))
 
 
-def _vowel_example(v: Vowel) -> tuple[str, str] | None:
+def _vowel_example(v: Vowel) -> tuple[str, str, str] | None:
     if v.ipa in _SYMBOL_EXAMPLE_OVERRIDES:
         return _SYMBOL_EXAMPLE_OVERRIDES[v.ipa]
     return _VOWEL_EXAMPLES.get((v.height, v.backness, v.rounded))
@@ -327,8 +333,11 @@ class PhonemeGuideEntry:
     description: str
     example_word: str | None = None
     example_language: str | None = None
-    """A real word containing this sound, and the language it's from --
-    ``None`` for the handful of sounds with no widely-recognizable
+    example_letters: str | None = None
+    """A real word containing this sound, the language it's from, and
+    which letter(s) within that word spell it (always a literal,
+    case-sensitive substring of ``example_word``) -- all three ``None``
+    together for the handful of sounds with no widely-recognizable
     example (see ``_CONSONANT_EXAMPLES``'s own docstring note)."""
 
     def as_dict(self) -> dict:
@@ -339,6 +348,7 @@ class PhonemeGuideEntry:
             "description": self.description,
             "example_word": self.example_word,
             "example_language": self.example_language,
+            "example_letters": self.example_letters,
         }
 
 
@@ -351,6 +361,7 @@ def _consonant_entry(c: Consonant) -> PhonemeGuideEntry:
         description=describe_consonant(c),
         example_word=example[0] if example else None,
         example_language=example[1] if example else None,
+        example_letters=example[2] if example else None,
     )
 
 
@@ -363,6 +374,7 @@ def _vowel_entry(v: Vowel) -> PhonemeGuideEntry:
         description=describe_vowel(v),
         example_word=example[0] if example else None,
         example_language=example[1] if example else None,
+        example_letters=example[2] if example else None,
     )
 
 

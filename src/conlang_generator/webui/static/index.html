@@ -401,6 +401,17 @@ function escapeAttr(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
+// Bolds the exact span within `word` that `letters` names -- the backend
+// guarantees `letters` is always a literal, case-sensitive substring of
+// `word` (see articulation.py's own _CONSONANT_EXAMPLES docstring), so a
+// plain indexOf is enough; falls back to the escaped word unchanged if
+// that guarantee were ever violated, rather than throwing.
+function highlightExampleWord(word, letters) {
+  const i = word.indexOf(letters);
+  if (i < 0) return escapeAttr(word);
+  return `${escapeAttr(word.slice(0, i))}<strong>${escapeAttr(letters)}</strong>${escapeAttr(word.slice(i + letters.length))}`;
+}
+
 // --- hover/click gloss tooltip (translate tab, conlang-rendering direction only) ---
 let pinnedGlossToken = null;
 
@@ -853,7 +864,7 @@ function renderSoundGuideList(sounds) {
       </summary>
       <div class="log-body">
         <p>${escapeAttr(s.description)}</p>
-        ${s.example_word ? `<p class="ipa">Like the sound in ${escapeAttr(s.example_language)} "${escapeAttr(s.example_word)}"</p>` : ""}
+        ${s.example_word ? `<p class="ipa">Like the ${escapeAttr(s.example_letters)} in ${escapeAttr(s.example_language)} "${highlightExampleWord(s.example_word, s.example_letters)}"</p>` : ""}
       </div>
     </details>`).join("");
 }

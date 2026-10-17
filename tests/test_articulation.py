@@ -90,13 +90,29 @@ def test_word_inventory_deduplicates_a_repeated_symbol():
     assert len(ipas) == len(set(ipas))
 
 
-def test_example_word_and_language_are_both_set_or_both_none():
+def test_example_word_language_and_letters_are_all_set_or_all_none():
     for consonant in phonology_gen.ALL_CONSONANTS:
         entry = articulation._consonant_entry(consonant)
-        assert (entry.example_word is None) == (entry.example_language is None)
+        assert (entry.example_word is None) == (entry.example_language is None) == (entry.example_letters is None)
     for vowel in phonology_gen.ALL_VOWELS:
         entry = articulation._vowel_entry(vowel)
-        assert (entry.example_word is None) == (entry.example_language is None)
+        assert (entry.example_word is None) == (entry.example_language is None) == (entry.example_letters is None)
+
+
+def test_example_letters_are_always_a_literal_substring_of_the_example_word():
+    # Not a phonetic respelling -- a real, case-sensitive substring, so
+    # the frontend can highlight exactly that span within the word as
+    # shown (see articulation.py's own _CONSONANT_EXAMPLES docstring).
+    for consonant in phonology_gen.ALL_CONSONANTS:
+        example = articulation._consonant_example(consonant)
+        if example is not None:
+            word, _language, letters = example
+            assert letters in word
+    for vowel in phonology_gen.ALL_VOWELS:
+        example = articulation._vowel_example(vowel)
+        if example is not None:
+            word, _language, letters = example
+            assert letters in word
 
 
 def test_most_symbols_in_the_global_pool_have_a_real_example():
@@ -124,8 +140,8 @@ def test_a_modified_symbol_reuses_its_base_symbols_example():
 
 
 def test_well_known_consonants_have_their_expected_example():
-    assert articulation._consonant_example(_consonant("p")) == ("pin", "English")
-    assert articulation._consonant_example(_consonant("tʃ")) == ("chip", "English")
+    assert articulation._consonant_example(_consonant("p")) == ("pin", "English", "p")
+    assert articulation._consonant_example(_consonant("tʃ")) == ("chip", "English", "ch")
 
 
 def test_syllabic_r_gets_its_own_override_not_its_vowel_buckets_example():
@@ -140,5 +156,5 @@ def test_full_inventory_entries_carry_the_example_fields_through_as_dict():
     entries = articulation.full_inventory(language)
     for entry in entries:
         d = entry.as_dict()
-        assert "example_word" in d and "example_language" in d
-        assert (d["example_word"] is None) == (d["example_language"] is None)
+        assert "example_word" in d and "example_language" in d and "example_letters" in d
+        assert (d["example_word"] is None) == (d["example_language"] is None) == (d["example_letters"] is None)
