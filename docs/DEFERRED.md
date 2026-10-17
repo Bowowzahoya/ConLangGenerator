@@ -54,50 +54,17 @@ multi-session feature.
 
 - **Voice picker within an engine (S).** No choice of SAPI or eSpeak voice
   -- see §9's multi-engine item, which subsumes this.
-- **Reorganize the Generate/Inspect result view into labeled sections (M-L).** Direct user request.
-  `renderLanguageSummary` (`webui/static/index.html`) is the one function behind the Generate tab's
-  own result, the Inspect tab, and Translate's "view details" -- today it's one flat info dump, a
-  single `.badges` div mixing grammar/orthography/own-script/bookkeeping badges together, traits in a
-  second ad hoc div right below it, and no structure beyond that. Requested grouping, mirroring
-  Advanced Options' own `fieldset.advanced-group` divisions, applied identically everywhere this one
-  function renders:
-  1. **Language Sources & Evolution** -- the `source_languages` badge, `source_language_strictness`,
-     the `real_words` badge, `foreign_names`, `evolved_years`.
-  2. **Grammar** -- `word_order`, `alignment`, `morphological_type`, `has_articles`,
-     `has_overt_copula`, `adjective_after_noun`, `cases`, `tenses`.
-  3. **Phonology (incl. Traits)** -- the existing trait badges (today a second ad hoc `.badges` div)
-     folded in here, with the existing Sound Inventory section (`renderSoundInventorySection`) right
-     underneath.
-  4. **Tones** -- the existing `renderToneSection`, content unchanged, just given the same section
-     wrapper as everything else instead of sitting at the same visual level as the sound-inventory
-     `<h2>` with no further grouping.
-  5. **Roman Orthography** -- the existing `orthography_category` badge.
-  6. **Writing system** -- the existing script toggle/font-download/glyph-count badge (name decided;
-     "Own-script orthography" was only ever a placeholder).
-  7. **Generation Details** -- the cost badge, `pregenerated_audio` badge, `word_selection`, and two
-     fields `_language_summary` doesn't expose to the web UI at all yet:
-     `language.spec.classifier_model`/`word_selection_model` (recorded at generation time, never
-     surfaced here before).
-
-  Concrete plan, not yet started:
-  - `webui/app.py`'s `_language_summary`: add `classifier_model`/`word_selection_model` to the
-    returned dict (plain strings, same shape as `orthography_category`) -- the only backend gap;
-    every other value this reorg needs already rides along on the existing summary dict.
-  - `webui/static/index.html`'s `renderLanguageSummary`: split the one big template literal into one
-    function per section (e.g. `renderSourcesSection`/`renderGrammarSection`/`renderPhonologySection`
-    folding in today's trait-badge rendering/`renderOrthographySection`/`renderScriptSection` extracted
-    from today's inline toggle+download block/`renderGenerationDetailsSection`), each returning its own
-    heading plus a shared new CSS class (e.g. `.summary-section`, visually matching
-    `fieldset.advanced-group` rather than inventing a second look), called in sequence from
-    `renderLanguageSummary`. Generate/Inspect/Translate's "view details" all pick this up for free,
-    since all three already funnel through this one function.
-  - No other backend schema changes -- every other value already exists in the summary dict today;
-    this is a template reorganization plus the two added model fields above.
-  - Tests: a new `tests/test_webui.py` assertion that `classifier_model`/`word_selection_model`
-    round-trip through `/api/generate`'s response. No other backend test changes expected (no field
-    moves or is removed, only grouped differently in the rendered HTML); the HTML reorganization itself
-    gets verified by hand in a real browser, the same standard the preceding `advanced-group` fieldset
-    split already followed.
+- **Reorganize the Generate/Inspect result view into labeled sections, and Advanced Options to match
+  -- done.** `renderLanguageSummary` (the one function behind the Generate tab's own result, the
+  Inspect tab, and Translate's "view details") now renders 7 bordered `.summary-section` blocks
+  (Language Sources & Evolution, Grammar, Phonology (incl. Traits), Tones, Roman Orthography, Writing
+  system, Generation Details -- Tones/Writing system omitted entirely when not applicable, same
+  precedent as before). Advanced Options' own `fieldset.advanced-group`s were regrouped to the same
+  6 names/boundaries (no "Grammar" fieldset there -- no Advanced Option today forces anything
+  grammar-specific; add one if that ever changes). `_language_summary` gained `classifier_model`/
+  `word_selection_model` (recorded at generation time, never surfaced to the web UI before). Pure
+  markup reorganization otherwise -- every field/badge kept its own existing id, so no other JS
+  needed to change. See `architecture/OVERVIEW.md` for the full mapping.
 - **More intuitive script typing: key assignment by sound identity, not just position (M-L).** Direct
   user request/discussion. Today `script.script_render.keyboard_key_for_symbol_index` assigns each of
   `KEYBOARD_KEYS`' 46 keys purely by a glyph's position in `InventedScript.glyphs` -- the key "a" could

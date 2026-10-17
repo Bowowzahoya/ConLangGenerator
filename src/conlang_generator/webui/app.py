@@ -205,6 +205,11 @@ def _language_summary(language: Language) -> dict:
             "salient_context": traits.salient_context,
         },
         "orthography_category": language.romanization.category_name,
+        # Recorded at generation time (`GenerationSpec.classifier_model`/
+        # `word_selection_model`) but never surfaced to the web UI before
+        # the "Generation Details" summary section needed them.
+        "classifier_model": language.spec.classifier_model,
+        "word_selection_model": language.spec.word_selection_model,
         # Empty lists for a non-tonal language (ToneSystem's own default
         # shape), not omitted -- the frontend only renders this section
         # when `grammar.tonal` is true, so an always-present, empty-when-

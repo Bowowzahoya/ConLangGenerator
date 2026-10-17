@@ -53,6 +53,14 @@
     color: var(--accent); padding: 0 6px;
   }
   .advanced-group > *:first-child { margin-top: 10px; }
+  .summary-section {
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px 14px; margin: 16px 0 0;
+  }
+  .summary-section > h3 {
+    font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--accent); margin: 0 0 8px;
+  }
+  .summary-section h4 { margin: 10px 0 6px; font-size: 14px; }
   input[type=text], input[type=number], textarea, select {
     width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
     background: var(--bg); color: var(--text); font: inherit;
@@ -211,28 +219,18 @@
     <details>
       <summary>Advanced options</summary>
 
+      <!-- Same section names/boundaries as a generated language's own result
+           view (renderLanguageSummary) -- no "Grammar" fieldset here, since
+           no Advanced Option today forces anything grammar-specific
+           (word order, alignment, ...); add one if that ever changes. -->
       <fieldset class="advanced-group">
-        <legend>General</legend>
-        <label><input type="checkbox" id="gen-fantasy"> fantasy</label><button type="button" class="info-btn" data-info-key="fantasy" title="What does this do?">&#9432;</button>
-
-        <div class="row">
-          <div>
-            <label for="gen-foreign-names">Foreign names</label><button type="button" class="info-btn" data-info-key="foreign_names" title="What do these options mean?">&#9432;</button>
-            <select id="gen-foreign-names">
-              <option value="">auto (from prompt/source language)</option>
-              <option value="keep">keep as written</option>
-              <option value="adapt">adapt to the language</option>
-            </select>
-          </div>
-          <div>
-            <label for="gen-model">Classifier model</label>
-            <select id="gen-model"></select>
-          </div>
-          <div>
-            <label for="gen-word-model">Word-selection model</label>
-            <select id="gen-word-model"></select>
-          </div>
-        </div>
+        <legend>Language Sources &amp; Evolution</legend>
+        <label for="gen-foreign-names">Foreign names</label><button type="button" class="info-btn" data-info-key="foreign_names" title="What do these options mean?">&#9432;</button>
+        <select id="gen-foreign-names">
+          <option value="">auto (from prompt/source language)</option>
+          <option value="keep">keep as written</option>
+          <option value="adapt">adapt to the language</option>
+        </select>
 
         <label>Source languages <span class="ipa">(bias generation toward a real language's palette)</span></label>
         <div id="source-lang-rows"></div>
@@ -256,11 +254,10 @@
       </fieldset>
 
       <fieldset class="advanced-group">
-        <legend>Grammar &amp; traits</legend>
+        <legend>Phonology (incl. Traits)</legend>
         <div class="checks">
           <label><input type="checkbox" id="gen-isolated"> force isolated</label><button type="button" class="info-btn" data-info-key="force_isolated" title="What does this do?">&#9432;</button>
           <label><input type="checkbox" id="gen-high-altitude"> force high altitude</label><button type="button" class="info-btn" data-info-key="force_high_altitude" title="What does this do?">&#9432;</button>
-          <label><input type="checkbox" id="gen-tonal"> force tonal</label><button type="button" class="info-btn" data-info-key="force_tonal" title="What does this do?">&#9432;</button>
         </div>
         <label>Trait overrides <span class="ipa">(directly set a graded worldbuilding trait, -1.0 to +1.0, overriding the prompt's own inferred value)</span></label>
         <div id="trait-override-rows"></div>
@@ -268,7 +265,14 @@
       </fieldset>
 
       <fieldset class="advanced-group">
-        <legend>Sound &amp; orthography</legend>
+        <legend>Tones</legend>
+        <label><input type="checkbox" id="gen-tonal"> force tonal</label><button type="button" class="info-btn" data-info-key="force_tonal" title="What does this do?">&#9432;</button>
+        <label for="gen-tone-style">Tone style</label><button type="button" class="info-btn" data-info-key="tone_style" title="What do these options mean?">&#9432;</button>
+        <select id="gen-tone-style"><option value="">(unforced)</option></select>
+      </fieldset>
+
+      <fieldset class="advanced-group">
+        <legend>Roman Orthography</legend>
         <label><input type="checkbox" id="gen-allow-all-caps"> allow all-caps POS</label><button type="button" class="info-btn" data-info-key="allow_all_caps" title="What does this do?">&#9432;</button>
 
         <div class="row">
@@ -287,10 +291,6 @@
         </div>
         <div class="row">
           <div>
-            <label for="gen-tone-style">Tone style</label><button type="button" class="info-btn" data-info-key="tone_style" title="What do these options mean?">&#9432;</button>
-            <select id="gen-tone-style"><option value="">(unforced)</option></select>
-          </div>
-          <div>
             <label for="gen-syllable-boundary-marker">Syllable boundary marker</label><button type="button" class="info-btn" data-info-key="syllable_boundary_marker" title="What do these options mean?">&#9432;</button>
             <select id="gen-syllable-boundary-marker"><option value="">(unforced)</option></select>
           </div>
@@ -302,17 +302,19 @@
               <option value="false">false</option>
             </select>
           </div>
+          <div>
+            <label for="gen-consonant-gemination">Consonant gemination marked</label><button type="button" class="info-btn" data-info-key="consonant_gemination" title="What does this do?">&#9432;</button>
+            <select id="gen-consonant-gemination">
+              <option value="">(unforced)</option>
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+          </div>
         </div>
-        <label for="gen-consonant-gemination">Consonant gemination marked</label><button type="button" class="info-btn" data-info-key="consonant_gemination" title="What does this do?">&#9432;</button>
-        <select id="gen-consonant-gemination">
-          <option value="">(unforced)</option>
-          <option value="true">true</option>
-          <option value="false">false</option>
-        </select>
       </fieldset>
 
       <fieldset class="advanced-group">
-        <legend>Script</legend>
+        <legend>Writing system</legend>
         <label for="gen-own-script">Own script</label><button type="button" class="info-btn" data-info-key="own_script" title="What do these options mean?">&#9432;</button>
         <select id="gen-own-script">
           <option value="auto">auto (from prompt, default: no)</option>
@@ -325,7 +327,20 @@
       </fieldset>
 
       <fieldset class="advanced-group">
-        <legend>Audio (TTS)</legend>
+        <legend>Generation Details</legend>
+        <label><input type="checkbox" id="gen-fantasy"> fantasy</label><button type="button" class="info-btn" data-info-key="fantasy" title="What does this do?">&#9432;</button>
+
+        <div class="row">
+          <div>
+            <label for="gen-model">Classifier model</label>
+            <select id="gen-model"></select>
+          </div>
+          <div>
+            <label for="gen-word-model">Word-selection model</label>
+            <select id="gen-word-model"></select>
+          </div>
+        </div>
+
         <label for="gen-pregenerate-audio">Pre-generate audio</label>
         <select id="gen-pregenerate-audio">
           <option value="none">none (default -- audio made on first pronounce/translate)</option>
@@ -1085,7 +1100,7 @@ function renderSoundInventorySection(summary) {
   const badges = sounds.map((s, i) => `
     <button type="button" class="sound-badge" data-sound-index="${i}" title="${escapeAttr(s.label)}">/${escapeAttr(s.ipa)}/</button>
   `).join("");
-  return `<h2>Sound inventory (${sounds.length} phonemes)</h2><div class="badges" id="sound-inventory-badges">${badges}</div>`;
+  return `<h4>Sound inventory (${sounds.length} phonemes)</h4><div class="badges" id="sound-inventory-badges">${badges}</div>`;
 }
 
 // --- one shared popover, positioned under whichever button was
@@ -1233,7 +1248,6 @@ function renderToneSection(summary) {
     `<li>"${r.gloss}" becomes <strong>${withContour(r.becomes)}</strong> before a ${withContour(r.before)}-toned syllable</li>`
   ).join("");
   return `
-    <h2>Tone system</h2>
     <div class="badges">${levelBadges || `<span class="badge">(no levels recorded)</span>`}</div>
     ${sandhiRows ? `<div class="engine-info"><strong>Sandhi rules</strong><ul>${sandhiRows}</ul></div>` : ""}
     ${lexicalRows ? `<div class="engine-info"><strong>Lexical sandhi (word-specific)</strong><ul>${lexicalRows}</ul></div>` : ""}`;
@@ -1274,6 +1288,14 @@ $("inspect-lang").addEventListener("change", () => loadInspectLanguage($("inspec
 // one instance of this markup is ever live at once by construction now
 // (one container, not two), so no "clear the other copy" dance is
 // needed the way there was when Generate/Translate each had their own. ---
+// --- one bordered, labeled block per `renderLanguageSummary` section --
+// visually mirrors the Advanced Options `fieldset.advanced-group` (same
+// section names/boundaries, see docs/DEFERRED.md's "Web app" item), just
+// a plain `<div>`/`<h3>` since this is rendered result HTML, not a form. ---
+function summarySection(title, bodyHtml) {
+  return `<div class="summary-section"><h3>${escapeAttr(title)}</h3>${bodyHtml}</div>`;
+}
+
 function renderLanguageSummary(container, summary) {
   const g = summary.grammar, t = summary.traits;
   // Clickable badges carry their own explanation in data-info (consumed
@@ -1288,42 +1310,71 @@ function renderLanguageSummary(container, summary) {
     ? infoBadge(glossary.simple.source_languages || "", `source: ${t.source_languages.join(", ")} (strictness ${t.source_language_strictness.toFixed(2)})`)
     : "";
 
+  const sourcesSection = summarySection("Language Sources & Evolution", `<div class="badges">
+    ${sourceLangBadge}
+    ${infoBadge(describeGrammarField("foreign_names", g.foreign_names), `foreign names: ${g.foreign_names}`)}
+    ${g.evolved_years ? infoBadge(glossary.simple.evolved_years || "", `evolved ${g.evolved_years} years`) : ""}
+    ${summary.real_words ? infoBadge(glossary.simple.real_words || "", `real-word-based: ${summary.real_words} of ${summary.lexicon.length}`) : ""}
+  </div>`);
+
+  const grammarSection = summarySection("Grammar", `<div class="badges">
+    ${infoBadge(describeGrammarField("word_order", g.word_order), `word order: ${g.word_order}`)}
+    ${infoBadge(describeGrammarField("alignment", g.alignment), `alignment: ${g.alignment}`)}
+    ${infoBadge(describeGrammarField("morphological_type", g.morphological_type), `morphology: ${g.morphological_type}`)}
+    ${infoBadge(describeGrammarField("has_articles", g.has_articles), `articles: ${g.has_articles}`)}
+    ${infoBadge(describeGrammarField("has_overt_copula", g.has_overt_copula), `overt copula: ${g.has_overt_copula}`)}
+    ${infoBadge(describeGrammarField("adjective_after_noun", g.adjective_after_noun), `adj after noun: ${g.adjective_after_noun}`)}
+    ${g.cases.length ? infoBadge(glossary.simple.cases || "", `cases: ${g.cases.join(", ")}`) : ""}
+    ${g.tenses.length ? infoBadge(glossary.simple.tenses || "", `tenses: ${g.tenses.join(", ")}`) : ""}
+  </div>`);
+
+  const phonologySection = summarySection("Phonology (incl. Traits)", `
+    ${traitBadges ? `<div class="badges">${traitBadges}</div>` : ""}
+    ${renderSoundInventorySection(summary)}`);
+
+  // Omitted entirely for a non-tonal language -- renderToneSection already
+  // returns "" then -- same "don't show an empty section" precedent the
+  // Writing System section right below it also follows for a no-script
+  // language.
+  const tonesBody = renderToneSection(summary);
+  const tonesSection = tonesBody ? summarySection("Tones", tonesBody) : "";
+
+  const orthographySection = summarySection("Roman Orthography", `<div class="badges">
+    ${infoBadge(glossary.simple.orthography_category || "", `orthography: ${summary.orthography_category || "(unnamed)"}`)}
+  </div>`);
+
+  const scriptBody = summary.script ? `
+    <div class="badges">${infoBadge(glossary.simple.own_script || "", `own script: ${summary.script.glyph_count} glyphs, ${summary.script.direction}`)}</div>
+    <style>@font-face { font-family: "ConlangScript-${summary.slug}"; src: url("/api/languages/${encodeURIComponent(summary.slug)}/script/font") format("truetype"); }</style>
+    <div class="row" style="align-items:center; margin-top:4px;">
+      <label style="display:flex; align-items:center; gap:6px; margin:0;">
+        <input type="checkbox" id="show-script-toggle"> Show lexicon in its own script
+      </label>
+      <a class="add-row" href="/api/languages/${encodeURIComponent(summary.slug)}/script/font" download="${summary.slug}.ttf">&#8681; Download font (.ttf)</a>
+    </div>` : "";
+  const scriptSection = scriptBody ? summarySection("Writing system", scriptBody) : "";
+
+  const generationDetailsSection = summarySection("Generation Details", `<div class="badges">
+    ${infoBadge(describeGrammarField("word_selection", g.word_selection), `word selection: ${g.word_selection}`)}
+    ${summary.classifier_model ? `<span class="badge">classifier model: ${escapeAttr(summary.classifier_model)}</span>` : ""}
+    ${summary.word_selection_model ? `<span class="badge">word-selection model: ${escapeAttr(summary.word_selection_model)}</span>` : ""}
+    ${summary.cost ? `<span class="badge">this call: $${summary.cost.delta_usd.toFixed(4)} (${summary.cost.delta_calls} calls)</span>` : ""}
+    ${summary.pregenerated_audio ? `<span class="badge">pre-generated audio: ${summary.pregenerated_audio.synthesized}/${summary.pregenerated_audio.total}${summary.pregenerated_audio.failed ? ` (${summary.pregenerated_audio.failed} failed)` : ""}</span>` : ""}
+  </div>`);
+
   container.innerHTML = `
     <div class="card">
       <h2 style="margin-top:0">${summary.name} <span class="ipa">(${summary.slug})</span>
         <button type="button" class="add-row" id="export-generated-btn" style="font-size:12px; margin-left:8px;">&#8681; export</button>
       </h2>
-      <div class="badges">
-        ${infoBadge(describeGrammarField("word_order", g.word_order), `word order: ${g.word_order}`)}
-        ${infoBadge(describeGrammarField("alignment", g.alignment), `alignment: ${g.alignment}`)}
-        ${infoBadge(describeGrammarField("morphological_type", g.morphological_type), `morphology: ${g.morphological_type}`)}
-        ${infoBadge(describeGrammarField("has_articles", g.has_articles), `articles: ${g.has_articles}`)}
-        ${infoBadge(describeGrammarField("has_overt_copula", g.has_overt_copula), `overt copula: ${g.has_overt_copula}`)}
-        ${infoBadge(describeGrammarField("adjective_after_noun", g.adjective_after_noun), `adj after noun: ${g.adjective_after_noun}`)}
-        ${infoBadge(describeGrammarField("tonal", g.tonal), `tonal: ${g.tonal}`)}
-        ${infoBadge(describeGrammarField("word_selection", g.word_selection), `word selection: ${g.word_selection}`)}
-        ${infoBadge(describeGrammarField("foreign_names", g.foreign_names), `foreign names: ${g.foreign_names}`)}
-        ${g.evolved_years ? infoBadge(glossary.simple.evolved_years || "", `evolved ${g.evolved_years} years`) : ""}
-        ${summary.real_words ? infoBadge(glossary.simple.real_words || "", `real-word-based: ${summary.real_words} of ${summary.lexicon.length}`) : ""}
-        ${g.cases.length ? infoBadge(glossary.simple.cases || "", `cases: ${g.cases.join(", ")}`) : ""}
-        ${g.tenses.length ? infoBadge(glossary.simple.tenses || "", `tenses: ${g.tenses.join(", ")}`) : ""}
-        ${infoBadge(glossary.simple.orthography_category || "", `orthography: ${summary.orthography_category || "(unnamed)"}`)}
-        ${summary.script ? infoBadge(glossary.simple.own_script || "", `own script: ${summary.script.glyph_count} glyphs, ${summary.script.direction}`) : ""}
-      </div>
-      ${traitBadges || sourceLangBadge ? `<div class="badges">${traitBadges}${sourceLangBadge}</div>` : ""}
-      ${summary.script ? `
-      <style>@font-face { font-family: "ConlangScript-${summary.slug}"; src: url("/api/languages/${encodeURIComponent(summary.slug)}/script/font") format("truetype"); }</style>
-      <div class="row" style="align-items:center; margin-top:4px;">
-        <label style="display:flex; align-items:center; gap:6px; margin:0;">
-          <input type="checkbox" id="show-script-toggle"> Show lexicon in its own script
-        </label>
-        <a class="add-row" href="/api/languages/${encodeURIComponent(summary.slug)}/script/font" download="${summary.slug}.ttf">&#8681; Download font (.ttf)</a>
-      </div>` : ""}
       ${(summary.warnings || []).map(w => `<div class="error">⚠ ${w}</div>`).join("")}
-      ${summary.cost ? `<div class="badges"><span class="badge">this call: $${summary.cost.delta_usd.toFixed(4)} (${summary.cost.delta_calls} calls)</span></div>` : ""}
-      ${summary.pregenerated_audio ? `<div class="badges"><span class="badge">pre-generated audio: ${summary.pregenerated_audio.synthesized}/${summary.pregenerated_audio.total}${summary.pregenerated_audio.failed ? ` (${summary.pregenerated_audio.failed} failed)` : ""}</span></div>` : ""}
-      ${renderToneSection(summary)}
-      ${renderSoundInventorySection(summary)}
+      ${sourcesSection}
+      ${grammarSection}
+      ${phonologySection}
+      ${tonesSection}
+      ${orthographySection}
+      ${scriptSection}
+      ${generationDetailsSection}
       <h2>Lexicon (${summary.lexicon.length} words)
         <span class="ipa" style="font-weight:normal;">-- &#128266; plays, &#9998; edits, the Translate tab's own chosen backend</span>
       </h2>

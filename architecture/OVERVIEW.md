@@ -7869,3 +7869,57 @@ reading code or one-off ad hoc scripts.
   typing an invented script (closer to a real keyboard layout than the current purely-positional
   assignment) was raised directly with the user rather than designed unilaterally, since it's a genuine
   open design question with several real-world precedents to weigh, not a bug or a mechanical gap.
+
+- **Generate/Inspect result view and Advanced Options reorganized into matching labeled sections --
+  done.** The deferred reorg from the previous entry, implemented, plus the user's own follow-up
+  request to apply the same section taxonomy to Advanced Options too.
+
+  **`renderLanguageSummary`** (the one function behind the Generate tab's own result, the Inspect
+  tab, and Translate's "view details") previously built one flat `<div class="card">` -- a single
+  `.badges` div mixing grammar/orthography/own-script/bookkeeping badges together, traits in a second
+  ad hoc div right below it, no structure beyond that. Replaced with a new `summarySection(title,
+  bodyHtml)` helper (a bordered `.summary-section` block with its own `<h3>` title, visually mirroring
+  `fieldset.advanced-group`) called once per section, in order: **Language Sources & Evolution**
+  (source-language badge, foreign names, evolved years, real-word count), **Grammar** (word order,
+  alignment, morphology, articles, copula, adjective order, cases, tenses), **Phonology (incl.
+  Traits)** (the trait badges, folded in from their own previous ad hoc div, plus
+  `renderSoundInventorySection` right underneath -- that function's own heading demoted from `<h2>` to
+  `<h4>` now that it nests inside a titled section), **Tones** (`renderToneSection`'s own content,
+  its redundant inner `<h2>Tone system</h2>` dropped since the wrapping section already titles it),
+  **Roman Orthography** (the orthography-category badge), **Writing system** (the script
+  toggle/font-download/glyph-count block, renamed from the result view's own previous untitled
+  placement -- "Writing system" beat "Invented script" when the user picked between the two names
+  raised in the prior entry), **Generation Details** (word selection, the cost/pregenerated-audio
+  badges, and two genuinely new fields). Tones and Writing system are each omitted entirely (not
+  rendered as an empty/placeholder section) when not applicable -- the same "don't show it when it
+  isn't there" precedent the script toggle already had; every other section always renders since each
+  always has at least one badge.
+
+  The two new fields -- `language.spec.classifier_model`/`word_selection_model` -- were recorded at
+  generation time from the very first LLM-classifier pass but never once surfaced to the web UI;
+  `_language_summary` (`webui/app.py`) now includes them directly (plain strings, same shape as
+  `orthography_category`), the only backend change this reorg needed. A new
+  `test_generate_response_reports_the_chosen_models` confirms they round-trip through `/api/generate`'s
+  response (a sibling, already-existing test already confirmed they round-trip through the *saved*
+  spec -- this is the same guarantee for the API response specifically).
+
+  **Advanced Options** (`fieldset.advanced-group`s inside the Generate tab's own `<details>`) was
+  regrouped from its previous 5 fieldsets (General; Grammar & traits; Sound & orthography; Script;
+  Audio (TTS)) to the same 6 section names Language Sources & Evolution/Phonology (incl.
+  Traits)/Tones/Roman Orthography/Writing system/Generation Details use above -- no separate "Grammar"
+  fieldset, since no Advanced Option today forces anything grammar-specific (word order, alignment,
+  ...; add one there if that ever changes). Fields moved to follow the same logic as the result view:
+  `force_isolated`/`force_high_altitude` (closely paired with the graded `isolation`/`altitude` trait
+  dials already in that section) and the trait-override rows moved into Phonology (incl. Traits);
+  `force_tonal` and `tone_style` moved into their own new Tones fieldset (both were previously split
+  across "Grammar & traits" and "Sound & orthography" respectively, despite both being purely about
+  tone); `fantasy`/the two model selects/`pregenerate_audio` moved into Generation Details (previously
+  split across "General" and a dedicated "Audio (TTS)" fieldset). Every field kept its own existing
+  `id` throughout -- a pure markup reshuffle, so no JS that reads or writes any of them needed to
+  change, confirmed directly (no `missing` ids found by element-id lookup) rather than assumed from
+  reading the diff alone.
+
+  Verified end-to-end through the real running dev server: a browser-driven generate through the real,
+  reorganized Advanced Options form (forcing isolated + tonal) produced a result with exactly the
+  expected sections present (Tones shown, Writing system correctly absent since no script was
+  requested) -- not just that the page loaded without a JS error.

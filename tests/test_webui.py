@@ -341,6 +341,21 @@ def test_generate_reports_the_chosen_models_in_the_saved_spec(client):
     assert language.spec.word_selection_model == "claude-opus-5"
 
 
+def test_generate_response_reports_the_chosen_models(client):
+    # Recorded in the saved spec already (see the test above) but never
+    # surfaced in the API response itself before the web UI's "Generation
+    # Details" summary section needed them.
+    body = client.post(
+        "/api/generate",
+        json={
+            "prompt": "p", "name": "Model Summary Web", "seed": 1, "llm": "fake",
+            "model": "claude-sonnet-5", "word_model": "claude-opus-5",
+        },
+    ).json()
+    assert body["classifier_model"] == "claude-sonnet-5"
+    assert body["word_selection_model"] == "claude-opus-5"
+
+
 def test_translate_accepts_a_translate_model_field(client):
     client.post("/api/generate", json={"prompt": "p", "name": "Translate Model Web", "seed": 1, "llm": "fake"})
     response = client.post(
