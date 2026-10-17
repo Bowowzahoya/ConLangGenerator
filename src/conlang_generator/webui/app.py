@@ -38,6 +38,7 @@ from conlang_generator.core.romanization import (
     ToneMarkingStrategy,
     VowelLengthStrategy,
 )
+from conlang_generator.core.script import ScriptTraits, ScriptTraitsForce
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
 from conlang_generator.generation import ipa_tokenizer, phonology_gen, script_gen
@@ -341,6 +342,12 @@ class GenerateRequest(BaseModel):
     already have their own dedicated ``strictness``/``word_strictness``
     fields above, one way to set each rather than two, the same
     exclusion ``cli/main.py``'s own ``_parse_trait_overrides`` makes."""
+    script_trait_overrides: dict[str, float] = {}
+    """Directly set one or more invented-script style dials (the web
+    equivalent of the CLI's own repeatable ``--script-trait NAME=VALUE``)
+    -- key one of ``ScriptTraits.model_fields``, value -1.0..1.0,
+    overriding that dial's own seeded roll. Only takes effect when a
+    script is actually generated (see ``own_script``)."""
 
 
 class TranslateRequest(BaseModel):
@@ -630,6 +637,7 @@ def get_options() -> dict:
         "tts_capabilities": tts.backend_capabilities(),
         "max_vocabulary_size": len(ALL_MEANINGS),
         "graded_trait_fields": list(GRADED_TRAIT_FIELDS),
+        "script_trait_fields": list(ScriptTraits.model_fields),
         "glossary": glossary.as_dict(),
         "models": [
             {
@@ -686,6 +694,17 @@ def generate(request: GenerateRequest) -> dict:
     out_of_range = {k: v for k, v in request.trait_overrides.items() if not -1.0 <= v <= 1.0}
     if out_of_range:
         raise HTTPException(status_code=400, detail=f"trait_overrides values must be between -1.0 and 1.0: {out_of_range}")
+    unknown_script_traits = set(request.script_trait_overrides) - set(ScriptTraits.model_fields)
+    if unknown_script_traits:
+        raise HTTPException(
+            status_code=400,
+            detail=f"script_trait_overrides has unknown dial name(s): {', '.join(sorted(unknown_script_traits))}",
+        )
+    script_out_of_range = {k: v for k, v in request.script_trait_overrides.items() if not -1.0 <= v <= 1.0}
+    if script_out_of_range:
+        raise HTTPException(
+            status_code=400, detail=f"script_trait_overrides values must be between -1.0 and 1.0: {script_out_of_range}"
+        )
 
     forced_orthography = OrthographyForce(
         style=request.orthography_style,
@@ -736,6 +755,7 @@ def generate(request: GenerateRequest) -> dict:
         force_tonal=request.tonal,
         force_own_script=force_own_script,
         forced_orthography=forced_orthography,
+        forced_script_traits=ScriptTraitsForce(**request.script_trait_overrides),
         fantasy=request.fantasy,
         seed_examples=seed_examples,
         allow_all_caps=request.allow_all_caps,

@@ -27,6 +27,7 @@ from pydantic import BaseModel
 
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.romanization import OrthographyForce
+from conlang_generator.core.script import ScriptTraitsForce
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 
@@ -91,6 +92,13 @@ class GenerationSpec(BaseModel, frozen=True):
     docstring. All-``None`` (the default) means "not forced, let
     ``traits.source_languages``/``traits.requested_orthography_style``/
     the normal roll decide" -- see ``generation/romanization_gen.py``."""
+    forced_script_traits: ScriptTraitsForce = ScriptTraitsForce()
+    """Same unconditional channel again, one level more granular: forces
+    individual ``ScriptTraits`` dials (angularity, weight, ...) rather
+    than whether a script is generated at all (that's still
+    ``force_own_script`` above). All-``None`` (the default) means "not
+    forced, let ``generation.script_gen.roll_script_traits`` decide" --
+    only consulted when a script is actually generated."""
     fantasy: bool = False
     """Simple explicit metadata (not a graded trait) -- passed as context to
     the classifier and to word-coinage prompts."""

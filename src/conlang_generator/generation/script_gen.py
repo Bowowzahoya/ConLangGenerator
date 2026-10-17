@@ -33,6 +33,7 @@ from conlang_generator.core.script import (
     InventedScript,
     Point,
     ScriptTraits,
+    ScriptTraitsForce,
     Stroke,
     StrokeKind,
     WritingDirection,
@@ -75,9 +76,15 @@ def roll_direction(rng: random.Random) -> WritingDirection:
     return rng.choices(directions, weights=weights, k=1)[0]
 
 
-def roll_script_traits(rng: random.Random) -> ScriptTraits:
+def roll_script_traits(rng: random.Random, force: ScriptTraitsForce = ScriptTraitsForce()) -> ScriptTraits:
+    """Rolls all 15 dials, then applies any non-``None`` field of
+    ``force`` on top (see ``ScriptTraitsForce``'s own docstring) --
+    every ``rng`` draw still happens even for a forced dial, so adding or
+    removing an override never shifts any other dial's own value."""
     fields = ScriptTraits.model_fields
-    return ScriptTraits(**{name: round(rng.uniform(-1.0, 1.0), 2) for name in fields})
+    rolled = {name: round(rng.uniform(-1.0, 1.0), 2) for name in fields}
+    overrides = {name: value for name, value in force.model_dump().items() if value is not None}
+    return ScriptTraits(**{**rolled, **overrides})
 
 
 def _random_point(rng: random.Random, y_max: int) -> Point:
@@ -154,7 +161,11 @@ def generate_glyph(rng: random.Random, ipa: str, traits: ScriptTraits) -> Glyph:
     return Glyph(ipa=ipa, strokes=tuple(strokes))
 
 
-def generate_script(rng: random.Random, inventory: PhonemeInventory) -> InventedScript:
+def generate_script(
+    rng: random.Random,
+    inventory: PhonemeInventory,
+    forced_script_traits: ScriptTraitsForce = ScriptTraitsForce(),
+) -> InventedScript:
     """Every symbol in ``inventory``'s own consonants and vowels, each
     given one glyph, in that stable order -- drawing sequentially from
     one ``rng`` stream (the same convention every other per-symbol
@@ -162,7 +173,7 @@ def generate_script(rng: random.Random, inventory: PhonemeInventory) -> Invented
     the same seed and the same inventory always reproduces the same
     script."""
     direction = roll_direction(rng)
-    traits = roll_script_traits(rng)
+    traits = roll_script_traits(rng, forced_script_traits)
     symbols = inventory.consonant_symbols() + inventory.vowel_symbols()
     glyphs = tuple(generate_glyph(rng, symbol, traits) for symbol in symbols)
     return InventedScript(direction=direction, traits=traits, glyphs=glyphs)

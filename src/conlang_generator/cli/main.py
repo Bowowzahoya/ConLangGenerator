@@ -14,6 +14,7 @@ from conlang_generator.core.romanization import (
 )
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import PartOfSpeech
+from conlang_generator.core.script import ScriptTraits, ScriptTraitsForce
 from conlang_generator.core.spec import GenerationSpec, SeedExample, SeedForm
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
 from conlang_generator.generation.generator import generate_evolved_language, generate_language
@@ -46,6 +47,10 @@ app = typer.Typer(help="Generate constructed languages and translate to/from Eng
 
 LANGUAGES_DIR = Path("conlangs")
 CACHE_DIR = Path(".cache")
+SCRIPT_TRAIT_FIELDS: tuple[str, ...] = tuple(ScriptTraits.model_fields)
+"""The 15 ``ScriptTraits`` dial names, in declaration order -- the
+``--script-trait`` flag's own allowlist, the ``ScriptTraits`` analogue of
+``GRADED_TRAIT_FIELDS``."""
 
 
 def _repository() -> YamlLanguageRepository:
@@ -112,31 +117,40 @@ def _parse_enum_option(raw: str | None, enum_cls: type, flag: str):
         raise typer.Exit(code=1) from None
 
 
-def _parse_trait_overrides(raw_entries: list[str]) -> dict[str, float]:
-    """Parses repeatable ``--trait NAME=VALUE`` entries into a
-    ``TraitProfile.model_copy(update=...)`` payload. ``NAME`` must be one
-    of ``GRADED_TRAIT_FIELDS`` (the 15 bipolar -1.0..1.0 worldbuilding
-    traits) -- ``source_language_strictness``/``source_word_strictness``
-    already have their own dedicated ``--strictness``/``--word-strictness``
-    flags, so aren't accepted here too, one way to set each rather than
-    two. A later entry for the same name overrides an earlier one, the
-    same permissive "last one wins" simplicity ``--source-language``'s
-    own weight suffix already has."""
+def _parse_trait_overrides(
+    raw_entries: list[str],
+    valid_names: tuple[str, ...] = GRADED_TRAIT_FIELDS,
+    flag: str = "--trait",
+) -> dict[str, float]:
+    """Parses repeatable ``FLAG NAME=VALUE`` entries into a
+    ``model_copy(update=...)`` payload, every value a bipolar
+    ``-1.0..1.0`` float. ``NAME`` must be one of ``valid_names``,
+    defaulting to ``GRADED_TRAIT_FIELDS`` (the 15 worldbuilding traits,
+    for ``--trait`` itself) --
+    ``source_language_strictness``/``source_word_strictness`` already have
+    their own dedicated ``--strictness``/``--word-strictness`` flags, so
+    aren't accepted here too, one way to set each rather than two.
+    Reused unchanged for ``--script-trait`` against ``ScriptTraits.
+    model_fields`` instead -- the validation/parsing is identical, only
+    the allowed names and the flag named in an error differ. A later
+    entry for the same name overrides an earlier one, the same
+    permissive "last one wins" simplicity ``--source-language``'s own
+    weight suffix already has."""
     overrides: dict[str, float] = {}
     for entry in raw_entries:
         name, sep, raw_value = entry.partition("=")
         name = name.strip()
-        if not sep or name not in GRADED_TRAIT_FIELDS:
-            valid = ", ".join(GRADED_TRAIT_FIELDS)
-            typer.echo(f"error: --trait must be 'NAME=VALUE' with NAME one of {valid}, got {entry!r}", err=True)
+        if not sep or name not in valid_names:
+            valid = ", ".join(valid_names)
+            typer.echo(f"error: {flag} must be 'NAME=VALUE' with NAME one of {valid}, got {entry!r}", err=True)
             raise typer.Exit(code=1)
         try:
             value = float(raw_value)
         except ValueError:
-            typer.echo(f"error: --trait value must be a number, got {entry!r}", err=True)
+            typer.echo(f"error: {flag} value must be a number, got {entry!r}", err=True)
             raise typer.Exit(code=1) from None
         if not -1.0 <= value <= 1.0:
-            typer.echo(f"error: --trait value must be between -1.0 and 1.0, got {entry!r}", err=True)
+            typer.echo(f"error: {flag} value must be between -1.0 and 1.0, got {entry!r}", err=True)
             raise typer.Exit(code=1)
         overrides[name] = value
     return overrides
@@ -240,6 +254,12 @@ def generate(
         "opposite) to +1.0 (strong evidence for it), 0.0 = no opinion (repeatable, one per trait). Overrides that "
         "trait's own prompt-inferred value. NAME is one of: " + ", ".join(GRADED_TRAIT_FIELDS) + ". For "
         "source_language_strictness/source_word_strictness use --strictness/--word-strictness instead.",
+    ),
+    script_trait: list[str] = typer.Option(
+        [], "--script-trait",
+        help="Directly set one invented-script style dial: 'NAME=VALUE', VALUE from -1.0 to +1.0 (repeatable, "
+        "one per dial). Overrides that dial's own seeded roll; only takes effect when a script is actually "
+        "generated (see --own-script). NAME is one of: " + ", ".join(SCRIPT_TRAIT_FIELDS) + ".",
     ),
     example: list[str] = typer.Option(
         [], "--example",
@@ -366,6 +386,8 @@ def generate(
         typer.echo(f"error: --strictness must be between 0.0 and 1.0, got {strictness!r}", err=True)
         raise typer.Exit(code=1)
     trait_overrides = _parse_trait_overrides(trait)
+    script_trait_overrides = _parse_trait_overrides(script_trait, SCRIPT_TRAIT_FIELDS, "--script-trait")
+    forced_script_traits = ScriptTraitsForce(**script_trait_overrides)
     forced_orthography = OrthographyForce(
         style=orthography_style,
         exotic_symbol_style=_parse_enum_option(exotic_symbol_style, ExoticSymbolStyle, "--exotic-symbol-style"),
@@ -444,6 +466,7 @@ def generate(
         force_tonal=tonal,
         force_own_script=force_own_script,
         forced_orthography=forced_orthography,
+        forced_script_traits=forced_script_traits,
         fantasy=fantasy,
         seed_examples=seed_examples,
         allow_all_caps=allow_all_caps,
@@ -489,6 +512,8 @@ def generate(
         typer.echo(f"Forced (guaranteed): {', '.join(forced)}")
     if forced_orthography != OrthographyForce():
         typer.echo(f"Forced orthography: {forced_orthography.model_dump(exclude_none=True)}")
+    if forced_script_traits != ScriptTraitsForce():
+        typer.echo(f"Forced script traits: {forced_script_traits.model_dump(exclude_none=True)}")
     if seed_examples:
         rendered_examples = ", ".join(
             f"{e.gloss}={e.form} (/{e.ipa}/{f', {e.pos.value}' if e.pos else ''}"

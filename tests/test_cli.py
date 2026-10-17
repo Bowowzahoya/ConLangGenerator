@@ -4,7 +4,12 @@ testing directly, as opposed to the typer command wiring itself)."""
 import pytest
 import typer
 
-from conlang_generator.cli.main import _merge_source_languages, _parse_seed_example, _parse_trait_overrides
+from conlang_generator.cli.main import (
+    SCRIPT_TRAIT_FIELDS,
+    _merge_source_languages,
+    _parse_seed_example,
+    _parse_trait_overrides,
+)
 from conlang_generator.core.lexicon import PartOfSpeech
 
 
@@ -96,6 +101,55 @@ def test_parse_trait_overrides_rejects_the_dedicated_strictness_flags_own_fields
         _parse_trait_overrides(["source_language_strictness=0.5"])
     with pytest.raises(typer.Exit):
         _parse_trait_overrides(["source_word_strictness=0.5"])
+
+
+# --script-trait reuses _parse_trait_overrides against a second
+# allowlist (SCRIPT_TRAIT_FIELDS, ScriptTraits' own 15 dials) and a
+# different flag name for its own error messages -- these mirror the
+# --trait tests above exactly, against that allowlist instead.
+
+
+def test_parse_script_trait_overrides_empty_list_is_a_no_op():
+    assert _parse_trait_overrides([], SCRIPT_TRAIT_FIELDS, "--script-trait") == {}
+
+
+def test_parse_script_trait_overrides_parses_a_single_entry():
+    overrides = _parse_trait_overrides(["angularity=0.7"], SCRIPT_TRAIT_FIELDS, "--script-trait")
+    assert overrides == {"angularity": 0.7}
+
+
+def test_parse_script_trait_overrides_parses_multiple_entries():
+    overrides = _parse_trait_overrides(
+        ["angularity=0.7", "weight=-0.4"], SCRIPT_TRAIT_FIELDS, "--script-trait"
+    )
+    assert overrides == {"angularity": 0.7, "weight": -0.4}
+
+
+def test_parse_script_trait_overrides_last_entry_for_the_same_name_wins():
+    overrides = _parse_trait_overrides(["angularity=0.5", "angularity=-0.9"], SCRIPT_TRAIT_FIELDS, "--script-trait")
+    assert overrides == {"angularity": -0.9}
+
+
+def test_parse_script_trait_overrides_rejects_an_unknown_name():
+    with pytest.raises(typer.Exit):
+        _parse_trait_overrides(["not_a_dial=0.5"], SCRIPT_TRAIT_FIELDS, "--script-trait")
+
+
+def test_parse_script_trait_overrides_rejects_a_graded_trait_name_not_in_its_own_allowlist():
+    # altitude is a GRADED_TRAIT_FIELDS name, not a ScriptTraits dial --
+    # confirms the two allowlists are genuinely separate, not merged.
+    with pytest.raises(typer.Exit):
+        _parse_trait_overrides(["altitude=0.5"], SCRIPT_TRAIT_FIELDS, "--script-trait")
+
+
+def test_parse_script_trait_overrides_rejects_a_value_outside_the_bipolar_range():
+    with pytest.raises(typer.Exit):
+        _parse_trait_overrides(["angularity=2.0"], SCRIPT_TRAIT_FIELDS, "--script-trait")
+
+
+def test_parse_script_trait_overrides_rejects_a_non_numeric_value():
+    with pytest.raises(typer.Exit):
+        _parse_trait_overrides(["angularity=abc"], SCRIPT_TRAIT_FIELDS, "--script-trait")
 
 
 def test_parse_seed_example_gloss_form_only():

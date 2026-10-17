@@ -5,6 +5,7 @@ and the GET /api/languages/{slug}/script/font endpoint."""
 import pytest
 from fastapi.testclient import TestClient
 
+from conlang_generator.core.script import ScriptTraits
 from conlang_generator.webui import app as webui_app
 
 
@@ -122,6 +123,51 @@ def test_script_keyboard_endpoint_404s_for_a_language_with_no_script(client):
 def test_script_keyboard_endpoint_404s_for_an_unknown_language(client):
     response = client.get("/api/languages/does-not-exist/script/keyboard")
     assert response.status_code == 404
+
+
+def test_generate_applies_a_forced_script_trait(client, tmp_path):
+    response = client.post(
+        "/api/generate",
+        json={
+            "prompt": "p", "name": "webscript-forced-trait", "seed": 1, "llm": "fake", "vocabulary_size": 8,
+            "own_script": "yes", "script_trait_overrides": {"angularity": 1.0, "weight": -1.0},
+        },
+    )
+    assert response.status_code == 200
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    language = YamlLanguageRepository(tmp_path / "conlangs").load("webscript-forced-trait")
+    assert language.script.traits.angularity == 1.0
+    assert language.script.traits.weight == -1.0
+
+
+def test_generate_rejects_an_unknown_script_trait_name(client):
+    response = client.post(
+        "/api/generate",
+        json={
+            "prompt": "p", "name": "webscript-bad-trait", "seed": 1, "llm": "fake",
+            "script_trait_overrides": {"not_a_dial": 0.5},
+        },
+    )
+    assert response.status_code == 400
+    assert "not_a_dial" in response.json()["detail"]
+
+
+def test_generate_rejects_a_script_trait_value_outside_the_bipolar_range(client):
+    response = client.post(
+        "/api/generate",
+        json={
+            "prompt": "p", "name": "webscript-oor-trait", "seed": 1, "llm": "fake",
+            "script_trait_overrides": {"angularity": 2.0},
+        },
+    )
+    assert response.status_code == 400
+    assert "angularity" in response.json()["detail"]
+
+
+def test_options_endpoint_serves_the_script_trait_fields(client):
+    opts = client.get("/api/options").json()
+    assert set(opts["script_trait_fields"]) == set(ScriptTraits.model_fields)
 
 
 def test_languages_list_reports_which_ones_have_a_script(client):

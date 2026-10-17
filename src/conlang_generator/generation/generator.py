@@ -80,7 +80,9 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         update={"punctuation_style": romanization_gen._roll_punctuation_style(punctuation_rng)}
     )
     script = (
-        script_gen.generate_script(random.Random(f"{spec.seed}:script"), inventory)
+        script_gen.generate_script(
+            random.Random(f"{spec.seed}:script"), inventory, spec.forced_script_traits
+        )
         if script_gen.should_generate_script(spec)
         else None
     )

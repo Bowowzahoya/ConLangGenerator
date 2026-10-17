@@ -7756,8 +7756,32 @@ reading code or one-off ad hoc scripts.
 
   (3) All 15 `ScriptTraits` dials being individually forceable in Advanced Options (mirroring how the
   existing 15 `TraitProfile` dials already are, via the "+ trait override" row UI) was judged a real,
-  separate piece of work rather than "easy" -- needs a new `ScriptTraitsForce`-style override model
-  (paralleling `OrthographyForce`), threading it through `GenerationSpec`/`script_gen.generate_script`,
-  a mirrored `--script-trait name=value` CLI flag, and a mirrored dynamic-row UI reading from
-  `ScriptTraits.model_fields` instead of `GRADED_TRAIT_FIELDS` -- deferred with a concrete design
-  rather than attempted ad hoc; see `docs/DEFERRED.md`'s own "Own script and font" section.
+  separate piece of work rather than "easy," deferred with a concrete design -- see the next entry for
+  its implementation.
+
+- **Item (3) above, implemented: individual `ScriptTraits` dial forcing -- done.** A new
+  `core.script.ScriptTraitsForce` (15 `float | None` fields, `None` meaning "not forced") -- the same
+  shape `core.romanization.OrthographyForce` already has for the orthography layer, one level more
+  granular than `GenerationSpec.force_own_script` (which only decides *whether* a script exists at
+  all). `GenerationSpec.forced_script_traits: ScriptTraitsForce = ScriptTraitsForce()` threads it
+  through; `script_gen.roll_script_traits(rng, force)` still draws every `rng` value for all 15 dials
+  (so a forced dial never shifts any other dial's own roll) and then overwrites just the forced ones;
+  `generate_script` passes `spec.forced_script_traits` through. No new randomness, no new stored data
+  beyond the force object itself (which is never persisted -- a saved language only ever keeps the
+  already-resolved `ScriptTraits`, same as `OrthographyForce` is never itself part of `Language`).
+
+  The CLI's existing `_parse_trait_overrides` (previously hardcoded to `GRADED_TRAIT_FIELDS` and the
+  `--trait` flag name in its own error messages) was generalized to take the allowlist and flag name as
+  parameters, defaulting to the old behavior -- so `--trait` is unchanged and a new repeatable
+  `--script-trait name=value` reuses the exact same parsing/validation against `SCRIPT_TRAIT_FIELDS`
+  (`tuple(ScriptTraits.model_fields)`) instead, rather than a second near-duplicate function. The web
+  UI mirrors this: `GET /api/options` gained `script_trait_fields` alongside the existing
+  `graded_trait_fields`; a second set of dynamic override rows (`addScriptTraitOverrideRow`/
+  `collectScriptTraitOverrides`, structurally identical to `addTraitOverrideRow`/
+  `collectTraitOverrides`) lives in the Script `<fieldset>` under the existing "Own script" select;
+  `GenerateRequest.script_trait_overrides` gets the same unknown-name/out-of-range validation
+  `trait_overrides` already has. Verified end-to-end through the real running dev server (not just
+  the test suite): a CLI run with `--script-trait angularity=1.0 --script-trait weight=-1.0` and a
+  browser-driven web generate with the same dial set via the real Advanced Options UI both produced a
+  saved `script.yaml` with exactly those two dials forced and every other dial still independently
+  rolled.

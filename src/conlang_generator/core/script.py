@@ -145,6 +145,35 @@ class ScriptTraits(BaseModel, frozen=True):
     """+ serif-like hooks/flourishes at stroke ends; - plain stroke ends."""
 
 
+class ScriptTraitsForce(BaseModel, frozen=True):
+    """Explicit, deterministic per-dial overrides for ``generation.
+    script_gen.roll_script_traits``'s own roll -- the same unconditional
+    channel ``core.romanization.OrthographyForce`` already is for the
+    orthography layer: ``None`` on any field (the default, on every
+    field) means "not forced, let the normal seeded roll decide"; a
+    float sets just that one dial outright, applied *after* rolling, so
+    any fields left ``None`` still vary normally across runs. Unlike
+    ``OrthographyForce``, there's no composite "style" preset here --
+    every one of ``ScriptTraits``' 15 dials is independent, so this is
+    just that same set of fields, each ``float | None``."""
+
+    angularity: float | None = None
+    stroke_contrast: float | None = None
+    weight: float | None = None
+    complexity: float | None = None
+    connectivity: float | None = None
+    symmetry: float | None = None
+    proportion: float | None = None
+    slant: float | None = None
+    openness: float | None = None
+    regularity: float | None = None
+    density: float | None = None
+    height_variance: float | None = None
+    diacritic_density: float | None = None
+    grid_alignment: float | None = None
+    terminal_style: float | None = None
+
+
 class InventedScript(BaseModel, frozen=True):
     direction: WritingDirection
     traits: ScriptTraits

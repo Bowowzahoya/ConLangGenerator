@@ -1725,6 +1725,32 @@ generation, like phonology/romanization) -- the `script` command's own
 conlang generate --prompt "a mountain language" --name doc-script-test --own-script yes
 ```
 
+### `generate --script-trait`
+
+Once a script is generated, its 15 style dials (`angularity`, `stroke_contrast`, `weight`,
+`complexity`, `connectivity`, `symmetry`, `proportion`, `slant`, `openness`, `regularity`, `density`,
+`height_variance`, `diacritic_density`, `grid_alignment`, `terminal_style` -- see
+`architecture/OVERVIEW.md`/`core/script.py` for what each one means) are rolled from the language's
+own seed, same as everything else. `--script-trait NAME=VALUE` (repeatable, one per dial) sets a
+specific dial directly instead, `VALUE` the same -1.0..1.0 range as `--trait` -- NAME is checked
+against this own, separate 15-dial list, not the 15 worldbuilding `--trait` names. Overriding a dial
+only takes effect when a script is actually generated (`--own-script yes`, or a prompt `auto` infers
+one from); every other, unforced dial still rolls normally.
+
+```bash
+conlang generate --prompt "a mountain language" --name doc-script-trait-test --own-script yes \
+  --script-trait angularity=1.0 --script-trait weight=-1.0
+```
+
+```
+Generated 'doc-script-trait-test' (doc-script-trait-test) -- 399 core words.
+Word order: VOS, morphology: isolating, alignment: nominative_accusative, tonal: True
+Orthography: digraph
+Traits from prompt: ...
+Forced script traits: {'angularity': 1.0, 'weight': -1.0}
+Saved to conlangs\doc-script-trait-test
+```
+
 ## `conlang audit-lexicons`
 
 Check the curated real lexicons (`generation/reference_languages/lexicons/`)

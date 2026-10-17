@@ -3,7 +3,7 @@ direction/style and generating one glyph per phoneme."""
 
 import random
 
-from conlang_generator.core.script import ScriptTraits, StrokeKind, WritingDirection
+from conlang_generator.core.script import ScriptTraits, ScriptTraitsForce, StrokeKind, WritingDirection
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import script_gen
@@ -42,6 +42,37 @@ def test_roll_script_traits_covers_every_field_in_range():
     for name in ScriptTraits.model_fields:
         value = getattr(traits, name)
         assert -1.0 <= value <= 1.0
+
+
+def test_roll_script_traits_with_no_force_is_unaffected():
+    traits = script_gen.roll_script_traits(random.Random(1), ScriptTraitsForce())
+    assert traits == script_gen.roll_script_traits(random.Random(1))
+
+
+def test_roll_script_traits_applies_a_forced_dial():
+    traits = script_gen.roll_script_traits(random.Random(1), ScriptTraitsForce(angularity=1.0, weight=-1.0))
+    assert traits.angularity == 1.0
+    assert traits.weight == -1.0
+
+
+def test_roll_script_traits_force_does_not_disturb_the_rng_stream():
+    # The forced dial's own value replaces the roll's result -- it must
+    # not skip or add an rng draw, or every *other* unforced dial would
+    # silently shift too.
+    unforced = script_gen.roll_script_traits(random.Random(1))
+    forced = script_gen.roll_script_traits(random.Random(1), ScriptTraitsForce(angularity=0.99))
+    for name in ScriptTraits.model_fields:
+        if name == "angularity":
+            continue
+        assert getattr(forced, name) == getattr(unforced, name)
+
+
+def test_generate_script_applies_forced_script_traits():
+    language = cached_language(0)
+    script = script_gen.generate_script(
+        random.Random(1), language.phonology, ScriptTraitsForce(complexity=1.0)
+    )
+    assert script.traits.complexity == 1.0
 
 
 def test_generate_script_is_reproducible_for_the_same_seed():
