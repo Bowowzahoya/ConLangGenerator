@@ -92,8 +92,18 @@ def _quad(x0: float, y0: float, x1: float, y1: float, w0: float, w1: float) -> l
 
 
 def _regular_polygon(cx: float, cy: float, radius: float, sides: int = 8) -> list[tuple[float, float]]:
+    # The angle is negated (clockwise) to match `_quad`'s own winding --
+    # TrueType's nonzero fill rule fills wherever contours' winding
+    # numbers sum to nonzero, so two *overlapping* same-glyph contours
+    # that wind in opposite directions cancel out in that overlap
+    # instead of just unioning, punching a visible hole. A dot or a
+    # `terminal_style` foot (both built from this function) sitting right
+    # on top of a line/arc stroke's own `_quad` polygon is exactly that
+    # overlap -- confirmed empirically (every glyph in a real generated
+    # font had this exact mixed-winding signature) before fixing it here,
+    # not assumed from reading the math alone.
     return [
-        (cx + radius * math.cos(2 * math.pi * i / sides), cy + radius * math.sin(2 * math.pi * i / sides))
+        (cx + radius * math.cos(-2 * math.pi * i / sides), cy + radius * math.sin(-2 * math.pi * i / sides))
         for i in range(sides)
     ]
 

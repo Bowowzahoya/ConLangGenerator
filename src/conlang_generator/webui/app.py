@@ -30,7 +30,7 @@ from pydantic import BaseModel, ValidationError
 
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.phonology import TONE_CONTOURS, chao_letters
+from conlang_generator.core.phonology import TONE_CONTOURS, TONE_DIACRITICS, chao_letters
 from conlang_generator.core.romanization import (
     ExoticSymbolStyle,
     OrthographyForce,
@@ -149,6 +149,24 @@ def _cost_delta(before: dict, after: dict) -> dict:
     }
 
 
+def _tone_example(language: Language, level) -> dict | None:
+    """The first lexicon entry whose own IPA actually carries ``level``'s
+    diacritic (see ``TONE_DIACRITICS``), so a tone badge can show a real
+    word from *this* language the same way a sound-inventory badge's own
+    click-to-popover already does -- unlike a sound's entry (a fixed,
+    curated real-world description), a tone has no language-independent
+    "how to pronounce it," so the only real example is one of this
+    language's own words. ``None`` for a level no generated word happens
+    to carry (small lexicons, or a level only ever reached via sandhi)."""
+    mark = TONE_DIACRITICS.get(level)
+    if not mark:
+        return None
+    for entry in language.lexicon.entries:
+        if mark in entry.ipa:
+            return {"gloss": entry.primary_gloss, "romanization": entry.romanization, "ipa": entry.ipa}
+    return None
+
+
 def _language_summary(language: Language) -> dict:
     """The one view both ``/api/generate`` and ``/api/languages/{slug}``
     return, so the frontend renders a freshly generated language and one
@@ -197,7 +215,12 @@ def _language_summary(language: Language) -> dict:
         # "Not done" note on this exact gap).
         "tone_system": {
             "levels": [
-                {"level": level.value, "contour": chao_letters(level), "digits": TONE_CONTOURS.get(level, "")}
+                {
+                    "level": level.value,
+                    "contour": chao_letters(level),
+                    "digits": TONE_CONTOURS.get(level, ""),
+                    "example": _tone_example(language, level),
+                }
                 for level in language.tone_system.levels
             ],
             "sandhi": [

@@ -680,22 +680,43 @@ for _table in (_DIGRAPH_TABLE, _DIACRITIC_TABLE, _MONOLETTER_TABLE):
         if _c.long and _c.ipa not in _table and not _c.ipa.isascii():
             _table[_c.ipa] = _table.get(_c.ipa[:-1], _c.ipa[:-1])
 
-# Digit/letter markers a postposed-tone category maps `core.phonology`'s
-# five `ToneLevel` diacritics onto. Arbitrary assignments (this project's
-# `ToneSystem` is a generic five-level illustrative model, not tied to any
-# one real language's actual tone inventory) but fixed and named, the same
-# "illustrative, not exhaustive" spirit as everywhere else in this module.
+# Digit/letter markers a postposed-tone category maps every `core.
+# phonology.ToneLevel`'s own diacritic onto. Arbitrary assignments (this
+# project's `ToneSystem` isn't tied to any one real language's actual
+# tone inventory) but fixed, named, and -- unlike an early version of
+# this table -- covering every `ToneLevel` member, not just the five a
+# freshly rolled `_TONE_LEVEL_SETS` entry draws from: a 6-level set
+# (Cantonese/Vietnamese-style, see `ToneLevel.DIPPING`'s own docstring)
+# or a reference profile's `neutral_tone` flag can put either of the
+# other two into a real language's own tone system, and a postposed
+# category missing either one used to leave that one tone's own inline
+# diacritic (e.g. DIPPING's hook-above, "ả") stranded on the vowel
+# instead of converting it like every other tone -- a real bug, caught
+# from a user's own generated language, fixed by covering all 7 members
+# here, matching `TONE_DIACRITICS`'s own full set exactly -- see
+# `tests/test_romanization_gen.py`'s own
+# `test_every_tone_level_has_a_postposed_marker` for the structural
+# check that keeps this in sync with any future `ToneLevel` addition,
+# the same "assert, don't assume" discipline `storage.yaml_backend`'s
+# own `_FILE_FIELDS` coverage test already practices.
 _WADE_GILES_TONE_MARKERS = tuple(
     (TONE_DIACRITICS[level], digit)
     for level, digit in zip(
-        (ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.FALLING), "12345"
+        (
+            ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.FALLING,
+            ToneLevel.DIPPING, ToneLevel.NEUTRAL,
+        ),
+        "1234560",
     )
 )
 _ZHUANG_TONE_MARKERS = tuple(
     (TONE_DIACRITICS[level], letter)
     for level, letter in zip(
-        (ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.FALLING),
-        ("z", "j", "x", "q", "h"),
+        (
+            ToneLevel.LOW, ToneLevel.MID, ToneLevel.HIGH, ToneLevel.RISING, ToneLevel.FALLING,
+            ToneLevel.DIPPING, ToneLevel.NEUTRAL,
+        ),
+        ("z", "j", "x", "q", "h", "p", "w"),
     )
 )
 

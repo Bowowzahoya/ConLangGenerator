@@ -91,11 +91,11 @@
   button.badge { border: none; font: inherit; }
   .badge[data-info] { cursor: pointer; border-bottom: 1px dotted var(--accent); }
   .badge[data-info]:hover { background: var(--accent); color: var(--panel); }
-  .sound-badge {
+  .sound-badge, .tone-badge {
     font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--accent-bg);
     color: var(--accent); font-family: var(--mono); border: none; cursor: pointer;
   }
-  .sound-badge:hover, .sound-badge.open { background: var(--accent); color: var(--panel); }
+  .sound-badge:hover, .sound-badge.open, .tone-badge:hover, .tone-badge.open { background: var(--accent); color: var(--panel); }
   .lex-script-text { display: none; }
   .show-script .lex-romanized-text { display: none; }
   .show-script .lex-script-text { display: inline; }
@@ -906,14 +906,32 @@ $("tr-llm").addEventListener("change", () => { $("tr-model-row").hidden = $("tr-
 function fillLanguageSelect(select, slugs, noScriptSlugs) {
   const previous = select.value;
   select.innerHTML = "";
-  for (const slug of slugs) {
+  // When noScriptSlugs is given (the Script tab's own picker), scripted
+  // languages are listed first -- they're the only ones actually usable
+  // here -- then a disabled divider row, then the no-script ones,
+  // greyed/italic and themselves disabled (selecting one would otherwise
+  // just dead-end in the same 404 loadScriptForLanguage already handles,
+  // so there's no reason to let it be picked at all).
+  const scripted = noScriptSlugs ? slugs.filter(s => !noScriptSlugs.has(s)) : slugs;
+  const unscripted = noScriptSlugs ? slugs.filter(s => noScriptSlugs.has(s)) : [];
+  for (const slug of scripted) {
     const opt = document.createElement("option");
     opt.value = slug; opt.textContent = slug;
-    if (noScriptSlugs && noScriptSlugs.has(slug)) {
+    select.appendChild(opt);
+  }
+  if (unscripted.length) {
+    const divider = document.createElement("option");
+    divider.disabled = true;
+    divider.textContent = "────────── no script ──────────";
+    select.appendChild(divider);
+    for (const slug of unscripted) {
+      const opt = document.createElement("option");
+      opt.value = slug; opt.textContent = slug;
+      opt.disabled = true;
       opt.style.color = "var(--muted)";
       opt.style.fontStyle = "italic";
+      select.appendChild(opt);
     }
-    select.appendChild(opt);
   }
   if (slugs.includes(previous)) select.value = previous;
 }
@@ -1167,12 +1185,35 @@ function toggleAdvancedOptionInfo(button) {
   showInfoPopover(button, renderAdvancedOptionInfo(button.dataset.infoKey));
 }
 
+// --- a tone level's own clickable badge, same click-to-popover mechanism
+// as a sound-inventory badge (toggleSoundBadge above) -- unlike a sound,
+// a tone has no language-independent "how to pronounce it," so the
+// popover shows a real word from *this* language's own lexicon instead
+// (webui/app.py's own _tone_example), when one happens to carry it. ---
+function renderToneExample(level) {
+  if (!level.example) return `<p class="ipa">(no word in this generated lexicon carries this tone)</p>`;
+  const e = level.example;
+  return `<p class="ipa">"${escapeAttr(e.gloss)}": ${escapeAttr(e.romanization)} /${escapeAttr(e.ipa)}/</p>`;
+}
+function renderToneBadgeInfo(level) {
+  return `<div class="log-body">
+    <p><strong>${escapeAttr(level.level)}</strong> tone -- contour ${escapeAttr(level.contour)}, Chao pitch digits ${escapeAttr(level.digits)}</p>
+    ${renderToneExample(level)}
+  </div>`;
+}
+function toggleToneBadge(button) {
+  if (openInfoPopoverButton === button) { hideInfoPopover(); return; }
+  const level = currentSummary && currentSummary.tone_system.levels[Number(button.dataset.toneIndex)];
+  if (!level) return;
+  showInfoPopover(button, renderToneBadgeInfo(level));
+}
+
 function renderToneSection(summary) {
   const ts = summary.tone_system;
   if (!summary.grammar.tonal || !ts) return "";
   const contourByLevel = Object.fromEntries(ts.levels.map(l => [l.level, l]));
   const levelBadges = ts.levels
-    .map(l => `<span class="badge">${l.level} ${l.contour} (${l.digits})</span>`).join("");
+    .map((l, i) => `<button type="button" class="tone-badge" data-tone-index="${i}" title="${escapeAttr(l.level)} tone">${l.level} ${l.contour} (${l.digits})</button>`).join("");
   const withContour = (level) => {
     const l = contourByLevel[level];
     return l ? `${level} ${l.contour}` : level;
@@ -1444,6 +1485,8 @@ document.addEventListener("click", (e) => {
   if (sgBtn) { toggleSoundGuide(sgBtn); return; }
   const soundBadge = e.target.closest(".sound-badge");
   if (soundBadge) { toggleSoundBadge(soundBadge); return; }
+  const toneBadge = e.target.closest(".tone-badge");
+  if (toneBadge) { toggleToneBadge(toneBadge); return; }
   const infoBadge = e.target.closest(".badge[data-info]");
   if (infoBadge) { toggleBadgeInfo(infoBadge); return; }
   const infoBtn = e.target.closest(".info-btn[data-info-key]");

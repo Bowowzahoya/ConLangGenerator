@@ -381,6 +381,34 @@ def test_generate_reports_tone_levels_and_sandhi_for_a_tonal_language(client):
     assert body["tone_system"]["sandhi"] == [{"before": "high", "after": "high", "becomes": "low", "target": "after"}]
 
 
+def test_tone_levels_include_a_real_example_word_from_this_languages_own_lexicon(client):
+    # A tone has no language-independent "how to pronounce it" the way a
+    # sound does, so its own example (for the frontend's click-to-popover
+    # tone badge, mirroring the sound-inventory badges) is a real word
+    # from *this* generated lexicon that actually carries the tone,
+    # rather than a curated cross-language one.
+    from conlang_generator.core.phonology import TONE_DIACRITICS
+
+    body = client.post(
+        "/api/generate",
+        json={
+            "prompt": "Zulu", "name": "Zulu Tone Example Web", "seed": 0, "llm": "fake",
+            "source_languages": [{"name": "Zulu", "weight": None}], "strictness": 1.0,
+        },
+    ).json()
+    levels = body["tone_system"]["levels"]
+    assert levels
+    found_one_example = False
+    for entry in levels:
+        assert "example" in entry
+        if entry["example"] is not None:
+            found_one_example = True
+            assert TONE_DIACRITICS[entry["level"]] in entry["example"]["ipa"]
+            assert entry["example"]["gloss"]
+            assert entry["example"]["romanization"]
+    assert found_one_example
+
+
 def test_lexicon_entries_report_their_own_real_spoken_sandhi_form(client):
     # Same strict-Zulu fixture as the tone_system test above -- a
     # per-lexicon-row "play" button needs each word's own real spoken

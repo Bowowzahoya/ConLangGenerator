@@ -10,9 +10,38 @@ import pytest
 fontTools = pytest.importorskip("fontTools")
 from fontTools.ttLib import TTFont  # noqa: E402
 
+from fontTools.pens.recordingPen import RecordingPen  # noqa: E402
+
+from conlang_generator.core.script import ScriptTraits
 from conlang_generator.generation import script_gen
-from conlang_generator.script.font_builder import build_font, codepoint_for_symbol_index
+from conlang_generator.script.font_builder import _build_glyph_outline, build_font, codepoint_for_symbol_index
 from tests._shared_language import cached_language
+
+
+def _contour_signed_areas(glyph_outline) -> list[float]:
+    """Every closed contour's own shoelace signed area, by replaying the
+    already-built glyph outline through a RecordingPen -- the same way
+    `test_build_font_is_a_pure_function...` above re-reads built glyph
+    data, not a separate geometry reimplementation."""
+    pen = RecordingPen()
+    glyph_outline.draw(pen, None)
+    areas = []
+    current: list[tuple[float, float]] = []
+    for cmd, args in pen.value:
+        if cmd == "moveTo":
+            current = [args[0]]
+        elif cmd == "lineTo":
+            current.append(args[0])
+        elif cmd == "closePath":
+            area = 0.0
+            n = len(current)
+            for i in range(n):
+                x0, y0 = current[i]
+                x1, y1 = current[(i + 1) % n]
+                area += x0 * y1 - x1 * y0
+            areas.append(area / 2.0)
+            current = []
+    return areas
 
 
 def _build(tmp_path: Path, seed: int = 1) -> tuple[Path, "object"]:
@@ -58,6 +87,25 @@ def test_every_glyph_with_strokes_has_a_non_empty_outline(tmp_path: Path):
                 assert glyf[name].numberOfContours > 0
     finally:
         tt.close()
+
+
+def test_every_contour_in_a_glyph_winds_the_same_direction():
+    # Real bug, caught empirically (every glyph in a real generated font
+    # had this exact signature before the fix): a dot or a
+    # `terminal_style` foot is built from `_regular_polygon`, which used
+    # to wind the opposite direction from `_quad` (every line/arc stroke's
+    # own shape) -- TrueType's nonzero fill rule cancels out, rather than
+    # unions, two *overlapping* contours that wind oppositely, punching a
+    # visible hole right where a foot or dot sits on top of a stroke.
+    # Forcing terminal_style/diacritic_density/complexity/symmetry to +1.0
+    # guarantees this glyph has feet, dots, lines, and arcs all at once.
+    traits = ScriptTraits(terminal_style=1.0, diacritic_density=1.0, complexity=1.0, symmetry=1.0, angularity=0.0)
+    glyph = script_gen.generate_glyph(random.Random(1), "p", traits)
+    outline, has_contour = _build_glyph_outline(glyph, 0, traits)
+    assert has_contour
+    areas = _contour_signed_areas(outline)
+    nonzero_signs = {1 if a > 0 else -1 for a in areas if abs(a) > 1e-6}
+    assert len(nonzero_signs) == 1
 
 
 def test_build_font_is_a_pure_function_of_the_script_data(tmp_path: Path):

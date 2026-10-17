@@ -7785,3 +7785,87 @@ reading code or one-off ad hoc scripts.
   browser-driven web generate with the same dial set via the real Advanced Options UI both produced a
   saved `script.yaml` with exactly those two dials forced and every other dial still independently
   rolled.
+
+- **Three real bugs fixed, and a new tone-badge feature, from direct user findings after using their
+  own generated own-script language -- done.** All investigated empirically against the user's own
+  real saved `conlangs/script` language (not a synthetic reproduction alone) before fixing anything.
+
+  **Postposed tone digits/letters silently stranded a 6th/7th tone's own inline diacritic.**
+  `generation/romanization_gen.py`'s `_WADE_GILES_TONE_MARKERS`/`_ZHUANG_TONE_MARKERS` only ever
+  covered 5 of `core.phonology.ToneLevel`'s 7 real members (LOW/MID/HIGH/RISING/FALLING, missing
+  DIPPING and NEUTRAL) -- a real, legitimately-rollable 6-level tone set (Cantonese/Vietnamese-style,
+  see `ToneLevel.DIPPING`'s own docstring) or a reference profile's `neutral_tone` flag could put
+  either into a real language's tone system, and `RomanizationScheme.apply`'s postposed-marker lookup
+  (`core/romanization.py`) silently left that one tone's raw combining diacritic on the vowel instead
+  of converting it, since its own `elif deco and postposed and any(ch in tone_marker_map for ch in
+  deco)` guard is false when nothing in `deco` is in the (incomplete) map. Confirmed directly against
+  the user's own `conlangs/script/phonology.yaml` (tone levels `high, rising, dipping, falling,
+  neutral` under `tone_strategy: postposed_digit`) -- exactly the DIPPING case, exactly the "ả"
+  (vowel + combining-hook-above) the user saw instead of a digit. Fixed by extending both tables to
+  all 7 `ToneLevel` members; new `test_every_tone_level_has_a_postposed_marker` (a structural coverage
+  check, the same "assert, don't assume" shape `storage.yaml_backend`'s own `_FILE_FIELDS` coverage
+  test already set) plus a direct reproduction test now guard against a future new `ToneLevel`
+  repeating this silently. An already-saved language's already-baked-in spellings are unaffected
+  (romanization happens once at generation time and is stored, not recomputed on load) -- only newly
+  generated languages benefit automatically.
+
+  **Font glyphs had inconsistent contour winding, producing a visible white/black defect at stroke
+  joints.** `script/font_builder.py`'s `_regular_polygon` (used for both a diacritic dot and a
+  `terminal_style` serif foot) wound counter-clockwise, while `_quad` (every line/arc stroke's own
+  shape) always winds clockwise regardless of its own start/end direction -- confirmed by direct
+  computation, not just reasoning about the math. TrueType's nonzero fill rule sums winding numbers
+  across a glyph's own overlapping contours, so two overlapping contours winding in opposite
+  directions *cancel* in their overlap instead of just unioning -- exactly the "a piece of white, then
+  black again" the user saw right where a foot or dot sits on a stroke's own endpoint. Confirmed
+  empirically on a real generated font before fixing anything: every single glyph in a fresh
+  own-script language, and every glyph in the user's own real `conlangs/script` font, had this exact
+  mixed-winding signature (small positive-area contours from dots/feet, alongside `_quad`'s larger
+  negative-area ones). Fixed by negating `_regular_polygon`'s own angle (now also clockwise); re-ran
+  the same winding inspection on both fonts post-fix -- zero mixed-winding glyphs in either. New
+  `test_every_contour_in_a_glyph_winds_the_same_direction`, confirmed to actually fail without the fix
+  (not just pass trivially) by temporarily reverting it and re-running.
+
+  **Could not reproduce "the last few entries render as a solid black square" independently.** Tried
+  two different real rasterizers -- Chrome's own canvas text rendering and Windows GDI+ (via a
+  `System.Drawing` `PrivateFontCollection`) -- against both a fresh own-script language and the user's
+  own real `conlangs/script` font (post-winding-fix); every glyph, including the last few, rendered at
+  a normal 1-9% black-pixel density, none anywhere close to solid. The winding-consistency bug above is
+  a real, concrete, confirmed defect of exactly the kind that could plausibly render much worse under a
+  different/older/stricter rasterizer than either tested here, but this is reported as "found a related
+  bug and fixed it, could not independently confirm this specific symptom is now gone" rather than a
+  confirmed fix -- worth re-checking after this update, and worth knowing exactly where (which app/
+  browser/viewer) it showed up if it recurs.
+
+  **New: tone levels are now clickable, with a real example word, matching the sound-inventory
+  badges.** A tone has no language-independent "how to pronounce it" the way a sound does, so
+  `webui/app.py`'s new `_tone_example` finds the first lexicon entry whose own IPA actually carries a
+  given `ToneLevel`'s diacritic and returns it (gloss/romanization/IPA) as that level's own worked
+  example -- `None` when no generated word happens to carry it (small lexicons, or a level only ever
+  reached via sandhi). `renderToneSection`'s level badges are now real `<button class="tone-badge">`s
+  (previously plain, non-interactive `<span class="badge">`s) wired through the same click-to-popover
+  `showInfoPopover` mechanism the sound-inventory badges already use. Caught and fixed a real bug of
+  my own introduction while verifying this live in the browser rather than just trusting the code: the
+  new tone badge's `class="sound-badge tone-badge"` meant the delegated click listener's own
+  `.sound-badge` check (checked first) matched and swallowed every click silently before the
+  `.tone-badge` branch was ever reached (`toggleSoundBadge` reading a nonexistent `data-sound-index`
+  off a tone badge and no-op-returning) -- fixed by giving tone badges their own dedicated CSS class
+  instead of reusing the sound badge's, confirmed by dispatching a real click event (not just calling
+  the handler function directly, which had masked the bug on the first verification pass) and checking
+  the popover actually opened with the right tone's own content.
+
+  **Also implemented: scripted languages sort first in the Script tab's own language picker.**
+  `fillLanguageSelect` (`webui/static/index.html`) now partitions `slugs` into scripted/unscripted
+  when `noScriptSlugs` is given, renders the scripted ones first, then a disabled divider option, then
+  the unscripted ones -- each also individually `disabled` now (not just greyed/italic as before),
+  since selecting one already dead-ends in the same 404 `loadScriptForLanguage` was already handling,
+  so there's no reason to let it be picked at all.
+
+  **Deferred, not attempted this pass** (see `docs/DEFERRED.md`'s "Web app" section for the concrete
+  plan): reorganizing the Generate/Inspect result view (`renderLanguageSummary`) into labeled sections
+  mirroring Advanced Options' own fieldset groups, with traits folded into a "Phonology" section rather
+  than left in their own ad hoc badge row -- judged a real, multi-file UI restructuring, not a quick
+  fix, same "write the plan, don't rush it" judgment call this project's own history already makes
+  repeatedly for anything past "mirror an existing pattern." A keyboard-ergonomics discussion for
+  typing an invented script (closer to a real keyboard layout than the current purely-positional
+  assignment) was raised directly with the user rather than designed unilaterally, since it's a genuine
+  open design question with several real-world precedents to weigh, not a bug or a mechanical gap.

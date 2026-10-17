@@ -3,7 +3,17 @@ import random
 import pytest
 
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.phonology import Consonant, Manner, Place, PhonemeInventory, Vowel, VowelBackness, VowelHeight
+from conlang_generator.core.phonology import (
+    TONE_DIACRITICS,
+    Consonant,
+    Manner,
+    Place,
+    PhonemeInventory,
+    ToneLevel,
+    Vowel,
+    VowelBackness,
+    VowelHeight,
+)
 from conlang_generator.core.romanization import (
     ExoticSymbolStyle,
     OrthographyForce,
@@ -23,6 +33,8 @@ from conlang_generator.generation.romanization_gen import (
     _DIACRITIC_TABLE,
     _DIGRAPH_TABLE,
     _MONOLETTER_TABLE,
+    _WADE_GILES_TONE_MARKERS,
+    _ZHUANG_TONE_MARKERS,
     _apply_orthography_drift,
     _category_from_scheme,
     _generate_doubling_rules,
@@ -614,6 +626,43 @@ def test_generated_scheme_always_logs_axis_metadata():
             assert scheme.tone_markers
         else:
             assert scheme.tone_markers == ()
+
+
+def test_every_tone_level_has_a_postposed_marker():
+    # Real bug caught from a user's own generated language: DIPPING (a
+    # 6-level tone set's own extra member, see ToneLevel's own docstring)
+    # had no entry in either postposed table, so a word with that tone
+    # under a postposed-digit/letter orthography silently kept its raw
+    # inline diacritic instead of converting -- a structural check here
+    # (not just a happy-path example) so a future new ToneLevel can't
+    # repeat it silently, the same spirit as storage.yaml_backend's own
+    # `_FILE_FIELDS` coverage test.
+    for table in (_WADE_GILES_TONE_MARKERS, _ZHUANG_TONE_MARKERS):
+        covered_diacritics = {diacritic for diacritic, _marker in table}
+        assert covered_diacritics == set(TONE_DIACRITICS.values())
+    # Markers within one table must also stay distinct from each other --
+    # two tones colliding on the same postposed digit/letter would be a
+    # silently ambiguous romanization.
+    for table in (_WADE_GILES_TONE_MARKERS, _ZHUANG_TONE_MARKERS):
+        markers = [marker for _diacritic, marker in table]
+        assert len(markers) == len(set(markers))
+
+
+def test_dipping_tone_converts_to_a_postposed_digit_not_left_as_an_inline_diacritic():
+    # The concrete real-world case: a DIPPING-toned vowel under
+    # Wade-Giles-style postposed digits must come out as a digit, not as
+    # the raw combining-hook-above diacritic ("ả"-style) stranded on the
+    # vowel.
+    scheme = RomanizationScheme(
+        rules=(RomanizationRule(ipa="a", latin="a"), RomanizationRule(ipa="m", latin="m")),
+        vowel_symbols=("a",),
+        tone_strategy=ToneMarkingStrategy.POSTPOSED_DIGIT,
+        tone_markers=_WADE_GILES_TONE_MARKERS,
+    )
+    dipping_mark = TONE_DIACRITICS[ToneLevel.DIPPING]
+    result = scheme.apply("a" + dipping_mark + "m")
+    assert dipping_mark not in result
+    assert result[-1].isdigit()
 
 
 def test_generate_length_rules_doubling_produces_the_syllable_conditioned_pair():
