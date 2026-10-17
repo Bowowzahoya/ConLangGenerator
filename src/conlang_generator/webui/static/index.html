@@ -80,6 +80,7 @@
     font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--accent-bg);
     color: var(--accent); font-family: var(--mono);
   }
+  .badge[title]:not([title=""]) { cursor: help; border-bottom: 1px dotted var(--accent); }
   .sound-badge {
     font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--accent-bg);
     color: var(--accent); font-family: var(--mono); border: none; cursor: pointer;
@@ -627,6 +628,60 @@ function collectSeedExamples() {
 // from gradedTraitFields, which only exists once /api/options resolves,
 // so starting empty avoids a select with nothing in it yet. ---
 let gradedTraitFields = [];
+
+// --- plain-language explanations for the Generate result's own grammar/
+// trait badges, shown as native `title` hover tooltips -- populated once
+// from /api/options (same pattern as ttsCapabilities below). ---
+let glossary = { traits: {}, grammar: {}, simple: {} };
+
+function lowerFirst(s) {
+  return s.length ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+}
+
+// A bipolar trait (-1.0..1.0): positive value is evidence *for* the
+// named pole, negative is evidence for its opposite -- see
+// webui/glossary.py's own docstring. Describes the actual reading, not
+// just the field in the abstract, per a direct user request ("a
+// numerical value can be described according to a range -- e.g. low,
+// and what does it mean if it is low").
+function describeBipolarTrait(gloss, value) {
+  const magnitude = Math.abs(value);
+  const band = magnitude < 0.34 ? "Somewhat" : magnitude < 0.67 ? "Moderately" : "Strongly";
+  const pole = value > 0 ? gloss.positive : gloss.negative;
+  return `${gloss.summary}\n\n${band} ${lowerFirst(pole)} (${value.toFixed(2)})`;
+}
+
+// A unipolar dial (0.0..1.0, e.g. source_language_strictness): the two
+// ends mean genuinely different things, not opposite poles of one axis,
+// so a "medium" reading is described as between the two named ends
+// rather than leaning toward either.
+function describeUnipolarDial(gloss, value) {
+  if (value < 0.34) return `${gloss.summary}\n\nLow (${value.toFixed(2)}): ${gloss.low}`;
+  if (value > 0.66) return `${gloss.summary}\n\nHigh (${value.toFixed(2)}): ${gloss.high}`;
+  return `${gloss.summary}\n\nMedium (${value.toFixed(2)}): partway between "${gloss.low}" and "${gloss.high}"`;
+}
+
+// A trait badge's own tooltip, looked up by its field name (the same
+// key Object.entries(summary.traits) already yields) and its numeric
+// value -- dispatches on the glossary entry's own declared "kind" since
+// the two strictness dials share this same generic trait-badge loop but
+// need the other banding template.
+function describeTrait(key, value) {
+  const gloss = glossary.traits[key];
+  if (!gloss) return "";
+  return gloss.kind === "unipolar" ? describeUnipolarDial(gloss, value) : describeBipolarTrait(gloss, value);
+}
+
+// A grammar badge's own tooltip, looked up by its field name and
+// current value (a string, including "true"/"false" for a boolean
+// field, matching how JS's own template-literal interpolation already
+// renders one).
+function describeGrammarField(key, value) {
+  const gloss = glossary.grammar[key];
+  if (!gloss) return glossary.simple[key] || "";
+  const valueText = gloss.values[String(value)];
+  return valueText ? `${gloss.summary}\n\n${valueText}` : gloss.summary;
+}
 function addTraitOverrideRow() {
   const row = document.createElement("div");
   row.className = "dyn-row";
@@ -668,6 +723,7 @@ async function loadOptions() {
   fill("gen-tone-style", opts.tone_styles);
   fill("gen-syllable-boundary-marker", opts.syllable_boundary_markers);
   gradedTraitFields = opts.graded_trait_fields || [];
+  glossary = opts.glossary || { traits: {}, grammar: {}, simple: {} };
 
   const fillModels = (id, task) => {
     const select = $(id);
@@ -990,9 +1046,9 @@ function renderLanguageSummary(container, summary) {
   const g = summary.grammar, t = summary.traits;
   const traitBadges = Object.entries(t)
     .filter(([k, v]) => typeof v === "number" && v !== 0)
-    .map(([k, v]) => `<span class="badge">${k}: ${v.toFixed(2)}</span>`).join("");
+    .map(([k, v]) => `<span class="badge" title="${escapeAttr(describeTrait(k, v))}">${k}: ${v.toFixed(2)}</span>`).join("");
   const sourceLangBadge = t.source_languages && t.source_languages.length
-    ? `<span class="badge">source: ${t.source_languages.join(", ")} (strictness ${t.source_language_strictness.toFixed(2)})</span>`
+    ? `<span class="badge" title="${escapeAttr(glossary.simple.source_languages || "")}">source: ${t.source_languages.join(", ")} (strictness ${t.source_language_strictness.toFixed(2)})</span>`
     : "";
 
   container.innerHTML = `
@@ -1001,20 +1057,20 @@ function renderLanguageSummary(container, summary) {
         <button type="button" class="add-row" id="export-generated-btn" style="font-size:12px; margin-left:8px;">&#8681; export</button>
       </h2>
       <div class="badges">
-        <span class="badge">word order: ${g.word_order}</span>
-        <span class="badge">alignment: ${g.alignment}</span>
-        <span class="badge">morphology: ${g.morphological_type}</span>
-        <span class="badge">articles: ${g.has_articles}</span>
-        <span class="badge">overt copula: ${g.has_overt_copula}</span>
-        <span class="badge">adj after noun: ${g.adjective_after_noun}</span>
-        <span class="badge">tonal: ${g.tonal}</span>
-        <span class="badge">word selection: ${g.word_selection}</span>
-        <span class="badge">foreign names: ${g.foreign_names}</span>
-        ${g.evolved_years ? `<span class="badge">evolved ${g.evolved_years} years</span>` : ""}
-        ${summary.real_words ? `<span class="badge">real-word-based: ${summary.real_words} of ${summary.lexicon.length}</span>` : ""}
-        ${g.cases.length ? `<span class="badge">cases: ${g.cases.join(", ")}</span>` : ""}
-        ${g.tenses.length ? `<span class="badge">tenses: ${g.tenses.join(", ")}</span>` : ""}
-        <span class="badge">orthography: ${summary.orthography_category || "(unnamed)"}</span>
+        <span class="badge" title="${escapeAttr(describeGrammarField("word_order", g.word_order))}">word order: ${g.word_order}</span>
+        <span class="badge" title="${escapeAttr(describeGrammarField("alignment", g.alignment))}">alignment: ${g.alignment}</span>
+        <span class="badge" title="${escapeAttr(describeGrammarField("morphological_type", g.morphological_type))}">morphology: ${g.morphological_type}</span>
+        <span class="badge" title="${escapeAttr(describeGrammarField("has_articles", g.has_articles))}">articles: ${g.has_articles}</span>
+        <span class="badge" title="${escapeAttr(describeGrammarField("has_overt_copula", g.has_overt_copula))}">overt copula: ${g.has_overt_copula}</span>
+        <span class="badge" title="${escapeAttr(describeGrammarField("adjective_after_noun", g.adjective_after_noun))}">adj after noun: ${g.adjective_after_noun}</span>
+        <span class="badge" title="${escapeAttr(describeGrammarField("tonal", g.tonal))}">tonal: ${g.tonal}</span>
+        <span class="badge" title="${escapeAttr(describeGrammarField("word_selection", g.word_selection))}">word selection: ${g.word_selection}</span>
+        <span class="badge" title="${escapeAttr(describeGrammarField("foreign_names", g.foreign_names))}">foreign names: ${g.foreign_names}</span>
+        ${g.evolved_years ? `<span class="badge" title="${escapeAttr(glossary.simple.evolved_years || "")}">evolved ${g.evolved_years} years</span>` : ""}
+        ${summary.real_words ? `<span class="badge" title="${escapeAttr(glossary.simple.real_words || "")}">real-word-based: ${summary.real_words} of ${summary.lexicon.length}</span>` : ""}
+        ${g.cases.length ? `<span class="badge" title="${escapeAttr(glossary.simple.cases || "")}">cases: ${g.cases.join(", ")}</span>` : ""}
+        ${g.tenses.length ? `<span class="badge" title="${escapeAttr(glossary.simple.tenses || "")}">tenses: ${g.tenses.join(", ")}</span>` : ""}
+        <span class="badge" title="${escapeAttr(glossary.simple.orthography_category || "")}">orthography: ${summary.orthography_category || "(unnamed)"}</span>
       </div>
       ${traitBadges || sourceLangBadge ? `<div class="badges">${traitBadges}${sourceLangBadge}</div>` : ""}
       ${(summary.warnings || []).map(w => `<div class="error">⚠ ${w}</div>`).join("")}

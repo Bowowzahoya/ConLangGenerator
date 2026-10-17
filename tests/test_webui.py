@@ -307,6 +307,13 @@ def test_options_endpoint_lists_the_graded_trait_fields(client):
     assert len(opts["graded_trait_fields"]) == 15
 
 
+def test_options_endpoint_serves_the_grammar_trait_glossary(client):
+    glossary = client.get("/api/options").json()["glossary"]
+    assert glossary["traits"]["altitude"]["kind"] == "bipolar"
+    assert glossary["grammar"]["has_overt_copula"]["values"]["true"]
+    assert glossary["simple"]["cases"]
+
+
 def test_options_endpoint_lists_models_with_a_price_per_task(client):
     models = client.get("/api/options").json()["models"]
     assert len(models) == 4  # the real, paid models -- "fake-llm" is excluded, it has no real price

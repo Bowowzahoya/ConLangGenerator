@@ -7459,3 +7459,32 @@ reading code or one-off ad hoc scripts.
   guarantees the match always exists, falling back to the plain escaped word if that guarantee were
   ever violated rather than throwing); `cli/main.py`'s own `--sounds` output gained the matching
   `"like the X in Y \"Z\""` line.
+
+- **Hover tooltips on the Generate result's grammar/trait badges -- done.** Direct user request,
+  with two concrete examples ("what does altitude do, what is overt copula") and an explicit numeric
+  design: "a numerical value can be described according to a range -- e.g. low, and what does it mean
+  if it is low." New `webui/glossary.py` module, paraphrased from the real source of truth for each
+  field rather than a second, independently-maintained description that could drift -- `core.traits.
+  TraitProfile`'s own per-field docstrings for the 15 `GRADED_TRAIT_FIELDS` (already written as
+  "Positive: ... Negative: ...", the exact shape a tooltip needs) plus the two strictness dials
+  (`source_language_strictness`/`source_word_strictness`, unipolar `[0, 1]` rather than bipolar, so
+  they get their own `"kind": "unipolar"` glossary shape and banding template), and `core.grammar`'s
+  own enums (`WordOrder`, `Alignment`, `MorphologicalType`) plus the boolean/two-valued fields
+  (`has_articles`, `has_overt_copula`, `adjective_after_noun`, `tonal`, `word_selection`,
+  `foreign_names`) for the 9 grammar badges. Served once via a new `glossary` key on the already-
+  fetched-once `GET /api/options` (the same pattern `tts_capabilities`/`orthography_styles` already
+  use), not a dedicated endpoint. The frontend composes the *actual reading* into the tooltip, not
+  just the field's own general meaning: a bipolar trait's value is banded by magnitude (`<0.34`
+  "Somewhat", `<0.67` "Moderately", else "Strongly") and paired with whichever pole its sign points
+  at (e.g. "altitude: -0.40" -> "Moderately lowland or coastal terrain -- suppresses ejectives
+  (-0.40)"); a unipolar dial bands by the value itself (low/medium/high, medium phrased as "partway
+  between" the two named ends, since 0 and 1 are two different concepts here, not opposite poles of
+  one axis); a grammar badge looks up its own current value's specific explanation (e.g. `word_order:
+  SOV` -> "Subject-Object-Verb, e.g. \"I him see.\" The most common word order cross-linguistically
+  ..."). Native `title` attributes, not a custom popover -- the simplest mechanism that satisfies
+  "hover... and see what it means" literally, with a `.badge[title]:not([title=""])` CSS rule (dotted
+  underline, `cursor: help`) so only badges that actually carry a tooltip look hoverable; the trait-
+  badge loop and the dedicated "source: ..." badge both already had direct access to their own field
+  name as the lookup key, so no new ID/mapping scheme was needed. 7 new tests (`test_glossary.py`)
+  check every `GRADED_TRAIT_FIELDS`/enum value actually has a non-empty glossary entry, so a future
+  trait or grammar enum addition fails loudly here rather than silently rendering an empty tooltip.

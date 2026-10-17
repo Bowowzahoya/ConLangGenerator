@@ -61,6 +61,7 @@ from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm import pricing
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 from conlang_generator.speech import articulation, engine_selection, sentence_synthesis, tts, tts_cache
+from conlang_generator.webui import glossary
 from conlang_generator.speech.pregenerate import pregenerate_audio as run_pregenerate_audio
 from conlang_generator.speech.sapi_worker import SapiWorker
 from conlang_generator.storage.yaml_backend import YamlLanguageRepository
@@ -563,6 +564,7 @@ def get_options() -> dict:
         "tts_capabilities": tts.backend_capabilities(),
         "max_vocabulary_size": len(ALL_MEANINGS),
         "graded_trait_fields": list(GRADED_TRAIT_FIELDS),
+        "glossary": glossary.as_dict(),
         "models": [
             {
                 "id": model_id,

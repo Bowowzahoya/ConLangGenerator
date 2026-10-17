@@ -54,17 +54,6 @@ multi-session feature.
 
 - **Voice picker within an engine (S).** No choice of SAPI or eSpeak voice
   -- see §9's multi-engine item, which subsumes this.
-- **Hover tooltips on grammar/trait badges (M).** The Generate result's
-  badges (`word order`, `alignment`, `has_overt_copula`,
-  `altitude: -0.40`, ...) show a raw key and value with no explanation of
-  what the key means or, for a numeric trait, what a given value implies
-  (e.g. "altitude: -0.40" -- low altitude, and what that biases). Needs: a
-  short description per grammar/trait field (`core.traits`' own ~15
-  dimensions plus the ~9 grammar fields `_language_summary` surfaces), and
-  for numeric traits, bucketing the value into a qualitative band (low/
-  mid/high) with what that band biases -- `generation.prompt_classifier`'s
-  own system prompt already documents each dimension for the classifier
-  LLM and is the natural source to adapt from, not a fresh write.
 - **Info (ⓘ) buttons on the Generate tab's Advanced options (S-M).** Most
   advanced fields already carry inline explanation in their own `<label>`
   text (word/sound strictness, trait overrides, seed examples, years of
