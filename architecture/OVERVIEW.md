@@ -7685,3 +7685,49 @@ reading code or one-off ad hoc scripts.
   dimensions through the already-large, already-costly classifier system prompt, a separate piece of
   work); true cursive joining (needs OpenType contextual substitution); smooth (non-polygon-
   approximated) arc outlines. See `docs/DEFERRED.md`'s own "Own script and font" section.
+
+- **A dedicated Inspect tab, and a Script tab for typing in a language's own invented script --
+  done.** Two direct user requests. The web UI's rich language-summary view (grammar badges, tone
+  system, sound inventory, lexicon table) used to render *inline*, under whichever form produced it --
+  `#generate-result` under the Generate tab's own form, `#language-view-result` under the Translate
+  tab's -- requiring `renderLanguageSummary` to clear whichever of the two containers it *wasn't*
+  rendering into, since both carry the same fixed element ids (`lexicon-search`, `export-generated-btn`,
+  ...) and both panels stay mounted (just hidden via CSS) when switching tabs. Moved to one dedicated
+  "Inspect" tab instead: a single `#inspect-result` container, a new `showInspectResult(summary)` entry
+  point both the post-generate handler and the Translate tab's own "view details" button now call
+  (renders into it, then `showTab("inspect")`), and the old "clear the other copy" logic in
+  `renderLanguageSummary` deleted outright -- only one container can ever exist now, by construction,
+  not by bookkeeping. The tab-switching machinery itself (`showTab`/the five `tab-*-btn`/`panel-*`
+  pairs) was also refactored from four separate hardcoded `classList.toggle` calls per tab into one
+  `TAB_NAMES` array driving a loop, specifically because adding two more tabs in the same change made
+  the old duplication real friction, not hypothetical.
+
+  **The Script tab** is a new, genuinely different capability: typing on a physical keyboard and seeing
+  it live-transliterated into a language's own invented script, with a reference legend showing what
+  each key means. This needed a keyboard-key-to-phoneme assignment that didn't exist anywhere before --
+  `InventedScript` only ever mapped phonemes to Private Use Area codepoints (via `font_builder.
+  codepoint_for_symbol_index`), with no notion of a physical key at all. Solved the same way that
+  mapping already was: no new randomness, no new stored data -- `script.script_render.KEYBOARD_KEYS`
+  (26 letters + 10 digits + 10 punctuation keys, 46 total, comfortable headroom for every inventory
+  size seen in practice) assigns a key to each glyph purely by its position in `InventedScript.glyphs`,
+  the same "derive it from the index, store nothing extra" approach the codepoint assignment already
+  uses. `keyboard_layout(script, romanization)` builds one row per assigned key -- key, IPA, and
+  romanization (via `RomanizationScheme.apply()` on that one isolated symbol, reusing the exact same
+  spelling machinery a whole word already goes through, not a separate lookup table) -- served once via
+  a new `GET /api/languages/{slug}/script/keyboard`; the frontend builds a `key -> codepoint` lookup
+  from that single response and does the live transliteration entirely client-side as the user types,
+  no per-keystroke round trip.
+
+  **Found and fixed a second real, pre-existing-since-the-previous-session bug while testing this
+  against real saved languages, not just fresh ones**: adding `"script"` to `storage/yaml_backend.py`'s
+  own `_FILE_FIELDS` (the previous session's own fix for the *new-save* silent-data-loss bug) broke
+  *loading* every language saved *before* that change -- `load()` read every `_FILE_FIELDS` file
+  unconditionally, and `script.yaml` simply doesn't exist on disk for an old save, which isn't
+  corruption, just "this language predates the field." Confirmed directly: clicking "view details" on
+  a language generated in an earlier session threw `FileNotFoundError` on `script.yaml` instead of
+  showing its summary. Fixed by having `load()` skip (not fail on) a missing file-group file entirely,
+  falling back to that group's own fields' pydantic defaults the same way a missing *field within* an
+  existing file already did -- general enough to protect any future new file-group addition the same
+  way, not just this one. New regression test simulates exactly this (`unlink()`s a freshly saved
+  language's own `script.yaml` to stand in for a genuinely pre-existing save, confirms it still loads
+  with `script: None`) rather than only testing the no-longer-reachable-by-construction happy path.

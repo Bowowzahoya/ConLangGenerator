@@ -7,7 +7,13 @@ import random
 from conlang_generator.core.script import Glyph, Point, Stroke, StrokeKind
 from conlang_generator.generation import script_gen
 from conlang_generator.script.font_builder import codepoint_for_symbol_index
-from conlang_generator.script.script_render import describe_glyph, render_word
+from conlang_generator.script.script_render import (
+    KEYBOARD_KEYS,
+    describe_glyph,
+    keyboard_key_for_symbol_index,
+    keyboard_layout,
+    render_word,
+)
 from tests._shared_language import cached_language
 
 
@@ -63,3 +69,29 @@ def test_describe_glyph_counts_each_stroke_kind():
 def test_describe_glyph_handles_no_strokes():
     glyph = Glyph(ipa="p", strokes=())
     assert describe_glyph(glyph) == "no strokes"
+
+
+def test_keyboard_key_for_symbol_index_is_positional_and_stable():
+    assert keyboard_key_for_symbol_index(0) == "a"
+    assert keyboard_key_for_symbol_index(25) == "z"
+    assert keyboard_key_for_symbol_index(26) == "0"
+    assert keyboard_key_for_symbol_index(len(KEYBOARD_KEYS)) is None
+
+
+def test_keyboard_layout_covers_every_glyph_up_to_the_key_budget():
+    language = cached_language(0)
+    script = script_gen.generate_script(random.Random(1), language.phonology)
+    rows = keyboard_layout(script, language.romanization)
+    assert len(rows) == min(len(script.glyphs), len(KEYBOARD_KEYS))
+    keys = [r["key"] for r in rows]
+    assert keys == list(KEYBOARD_KEYS[: len(rows)])
+
+
+def test_keyboard_layout_rows_carry_real_ipa_romanization_and_codepoint():
+    language = cached_language(0)
+    script = script_gen.generate_script(random.Random(1), language.phonology)
+    rows = keyboard_layout(script, language.romanization)
+    for row, glyph in zip(rows, script.glyphs):
+        assert row["ipa"] == glyph.ipa
+        assert row["romanization"] == language.romanization.apply(glyph.ipa)
+        assert row["codepoint"] >= 0xE000

@@ -89,3 +89,36 @@ def test_script_font_endpoint_404s_for_an_unknown_language(client):
 def test_options_endpoint_serves_the_own_script_advanced_option_glossary(client):
     glossary = client.get("/api/options").json()["glossary"]
     assert set(glossary["advanced_options"]["own_script"]["values"]) == {"auto", "yes", "no"}
+
+
+def test_script_keyboard_endpoint_serves_key_ipa_romanization_and_codepoint(client):
+    client.post(
+        "/api/generate",
+        json={
+            "prompt": "p", "name": "webscript-keyboard", "seed": 1, "llm": "fake", "vocabulary_size": 8,
+            "own_script": "yes",
+        },
+    )
+    response = client.get("/api/languages/webscript-keyboard/script/keyboard")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["direction"] in ("ltr", "rtl", "ttb_ltr", "ttb_rtl", "boustrophedon")
+    assert len(body["keys"]) > 0
+    first = body["keys"][0]
+    assert first["key"] == "a"
+    assert first["ipa"] and first["romanization"]
+    assert first["codepoint"] >= 0xE000
+
+
+def test_script_keyboard_endpoint_404s_for_a_language_with_no_script(client):
+    client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": "webscript-nokeyboard", "seed": 1, "llm": "fake", "vocabulary_size": 8},
+    )
+    response = client.get("/api/languages/webscript-nokeyboard/script/keyboard")
+    assert response.status_code == 404
+
+
+def test_script_keyboard_endpoint_404s_for_an_unknown_language(client):
+    response = client.get("/api/languages/does-not-exist/script/keyboard")
+    assert response.status_code == 404

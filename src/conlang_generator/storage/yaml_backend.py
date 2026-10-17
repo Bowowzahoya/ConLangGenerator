@@ -64,6 +64,19 @@ class YamlLanguageRepository:
         merged: dict = {}
         for filename in _FILE_FIELDS:
             path = directory / f"{filename}.yaml"
+            if not path.is_file():
+                # A file group added after this language was first saved
+                # (e.g. "script.yaml", added once languages could have an
+                # invented script) -- missing here, not corrupt; every
+                # field it would have carried just falls back to its own
+                # pydantic default via model_validate below, the same
+                # backward-compatible "an old save predates this field"
+                # handling a field *within* an existing file already
+                # gets. A real "language" directory with a *required*
+                # group's own file missing (meta/phonology/romanization/
+                # grammar/lexicon) still fails loudly, just later, when
+                # model_validate hits the field it needed.
+                continue
             merged.update(yaml.safe_load(path.read_text(encoding="utf-8")) or {})
         return Language.model_validate(merged)
 

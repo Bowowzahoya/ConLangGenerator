@@ -5,9 +5,30 @@ display once ``font_builder.build_font``'s own compiled font is loaded.
 
 from __future__ import annotations
 
+from conlang_generator.core.romanization import RomanizationScheme
 from conlang_generator.core.script import Glyph, InventedScript, StrokeKind
 from conlang_generator.generation import ipa_tokenizer
 from conlang_generator.script.font_builder import codepoint_for_symbol_index
+
+KEYBOARD_KEYS: tuple[str, ...] = (
+    tuple("abcdefghijklmnopqrstuvwxyz") + tuple("0123456789") + ("-", "=", "[", "]", ";", "'", ",", ".", "/", "`")
+)
+"""The physical keys an invented script's glyphs are assigned to, in
+order -- plain, unshifted keys on a standard US QWERTY layout (26
+letters, 10 digits, 10 punctuation keys, 46 total), comfortable headroom
+for every generated inventory seen in practice (~30-45 phonemes). A
+language whose own inventory is larger than this runs out of keys --
+its remaining phonemes simply have no keyboard binding at all (not
+reachable some other way; not attempted here)."""
+
+
+def keyboard_key_for_symbol_index(index: int) -> str | None:
+    """The physical key ``script.glyphs[index]`` is typed with, by plain
+    position -- the same "no separately stored mapping, derive it from
+    the glyph's own index" approach ``font_builder.codepoint_for_symbol_
+    index`` already uses for Private Use Area codepoints. ``None`` past
+    the last available key."""
+    return KEYBOARD_KEYS[index] if index < len(KEYBOARD_KEYS) else None
 
 
 def render_word(script: InventedScript, ipa_word: str) -> str:
@@ -47,4 +68,30 @@ def describe_glyph(glyph: Glyph) -> str:
     return ", ".join(parts) if parts else "no strokes"
 
 
-__all__ = ["render_word", "describe_glyph"]
+def keyboard_layout(script: InventedScript, romanization: RomanizationScheme) -> list[dict]:
+    """One row per glyph that got a key assignment (see ``KEYBOARD_KEYS``'s
+    own docstring for why not every glyph necessarily does): the
+    physical key that types it, its own IPA symbol, its default
+    (context-free) romanization -- ``RomanizationScheme.apply`` on just
+    that one symbol, the same real spelling machinery a whole word
+    already goes through, not a separate lookup table -- and the
+    codepoint the compiled font renders it at. The web UI's own Script
+    tab builds both its reference legend and its live-typing
+    transliteration from this one call, no per-keystroke round trip."""
+    rows = []
+    for i, glyph in enumerate(script.glyphs):
+        key = keyboard_key_for_symbol_index(i)
+        if key is None:
+            continue
+        rows.append(
+            {
+                "key": key,
+                "ipa": glyph.ipa,
+                "romanization": romanization.apply(glyph.ipa),
+                "codepoint": codepoint_for_symbol_index(i),
+            }
+        )
+    return rows
+
+
+__all__ = ["render_word", "describe_glyph", "keyboard_layout", "keyboard_key_for_symbol_index", "KEYBOARD_KEYS"]

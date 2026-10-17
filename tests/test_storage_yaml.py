@@ -55,6 +55,24 @@ def test_a_generated_script_survives_a_real_save_and_load(tmp_path: Path):
     assert loaded.script == script
 
 
+def test_a_language_saved_before_a_newer_file_group_existed_still_loads(tmp_path: Path):
+    # Real bug hit in practice: adding "script" to _FILE_FIELDS (so a
+    # *newly saved* language's own script stops being silently dropped)
+    # broke loading every language saved *before* that change, since
+    # load() used to read every _FILE_FIELDS file unconditionally --
+    # script.yaml simply doesn't exist on disk for an old save, and
+    # that's not corruption, just "this language predates the field."
+    repo = YamlLanguageRepository(tmp_path)
+    language = make_minimal_language()
+    repo.save(language)
+    (tmp_path / language.slug / "script.yaml").unlink()  # simulate a pre-script-feature save
+
+    loaded = repo.load(language.name)
+
+    assert loaded.script is None
+    assert loaded.name == language.name
+
+
 def test_load_missing_language_raises(tmp_path: Path):
     repo = YamlLanguageRepository(tmp_path)
     try:

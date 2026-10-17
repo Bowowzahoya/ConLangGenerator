@@ -158,6 +158,8 @@
 <nav>
   <button id="tab-generate-btn" class="active">Generate</button>
   <button id="tab-translate-btn">Translate</button>
+  <button id="tab-inspect-btn">Inspect</button>
+  <button id="tab-script-btn">Script</button>
   <button id="tab-reference-btn">Reference</button>
   <button id="tab-log-btn">Log</button>
 </nav>
@@ -318,8 +320,6 @@
     </div>
     <div class="error" id="generate-error" hidden></div>
   </div>
-
-  <div class="result" id="generate-result"></div>
 </section>
 
 <section id="panel-translate" class="panel">
@@ -376,9 +376,30 @@
     <div class="error" id="translate-error" hidden></div>
   </div>
 
-  <div class="result" id="language-view-result"></div>
   <div class="result" id="translate-result"></div>
   <div id="gloss-tooltip"></div>
+</section>
+
+<section id="panel-inspect" class="panel">
+  <div class="result" id="inspect-result">
+    <p class="ipa" style="padding: 20px;">
+      Nothing to inspect yet -- generate a language, or pick one on the Translate tab and click
+      "view details".
+    </p>
+  </div>
+</section>
+
+<section id="panel-script" class="panel">
+  <div class="card">
+    <div class="row">
+      <div>
+        <label for="script-lang">Language</label>
+        <select id="script-lang"></select>
+      </div>
+    </div>
+    <div class="error" id="script-error" hidden></div>
+  </div>
+  <div class="result" id="script-result"></div>
 </section>
 
 <section id="panel-reference" class="panel">
@@ -519,21 +540,20 @@ async function api(path, opts) {
   return body;
 }
 
-// --- tabs ---
+// --- tabs -- list-driven so adding one is a one-line change here,
+// not four separate toggle calls to keep in sync. ---
+const TAB_NAMES = ["generate", "translate", "inspect", "script", "reference", "log"];
 function showTab(which) {
-  $("panel-generate").classList.toggle("active", which === "generate");
-  $("panel-translate").classList.toggle("active", which === "translate");
-  $("panel-reference").classList.toggle("active", which === "reference");
-  $("panel-log").classList.toggle("active", which === "log");
-  $("tab-generate-btn").classList.toggle("active", which === "generate");
-  $("tab-translate-btn").classList.toggle("active", which === "translate");
-  $("tab-reference-btn").classList.toggle("active", which === "reference");
-  $("tab-log-btn").classList.toggle("active", which === "log");
+  for (const name of TAB_NAMES) {
+    $(`panel-${name}`).classList.toggle("active", name === which);
+    $(`tab-${name}-btn`).classList.toggle("active", name === which);
+  }
 }
-$("tab-generate-btn").onclick = () => showTab("generate");
-$("tab-translate-btn").onclick = () => showTab("translate");
-$("tab-reference-btn").onclick = () => showTab("reference");
+for (const name of TAB_NAMES) {
+  $(`tab-${name}-btn`).onclick = () => showTab(name);
+}
 $("tab-log-btn").onclick = () => { showTab("log"); loadLog(); };
+$("tab-script-btn").onclick = () => { showTab("script"); if ($("script-lang").value) loadScriptForLanguage($("script-lang").value); };
 
 // --- LLM call log ---
 const LLM_PURPOSE_LABELS = {
@@ -810,17 +830,24 @@ $("tr-tts").addEventListener("change", () => { showEngineInfo(); refreshPronunci
 $("tr-llm").addEventListener("change", () => { $("tr-model-row").hidden = $("tr-llm").value === "fake"; });
 
 // --- language dropdown (translate tab) ---
-async function refreshLanguages() {
-  const data = await api("/api/languages");
-  const select = $("tr-lang");
+// Fills any <select> with the current language list, preserving its
+// previous selection when still valid -- shared by the Translate tab's
+// own picker and the Script tab's, rather than two near-duplicate copies.
+function fillLanguageSelect(select, slugs) {
   const previous = select.value;
   select.innerHTML = "";
-  for (const slug of data.languages) {
+  for (const slug of slugs) {
     const opt = document.createElement("option");
     opt.value = slug; opt.textContent = slug;
     select.appendChild(opt);
   }
-  if (data.languages.includes(previous)) select.value = previous;
+  if (slugs.includes(previous)) select.value = previous;
+}
+
+async function refreshLanguages() {
+  const data = await api("/api/languages");
+  fillLanguageSelect($("tr-lang"), data.languages);
+  fillLanguageSelect($("script-lang"), data.languages);
 }
 $("refresh-langs").onclick = refreshLanguages;
 
@@ -863,7 +890,7 @@ async function viewSavedLanguage(slug) {
   if (!slug) { showLanguageIoError("Pick a language to view first."); return; }
   try {
     const summary = await api(`/api/languages/${encodeURIComponent(slug)}`);
-    renderLanguageSummary($("language-view-result"), summary);
+    showInspectResult(summary);
   } catch (e) {
     showLanguageIoError(e.message);
   }
@@ -1093,19 +1120,23 @@ function renderToneSection(summary) {
     ${lexicalRows ? `<div class="engine-info"><strong>Lexical sandhi (word-specific)</strong><ul>${lexicalRows}</ul></div>` : ""}`;
 }
 
-// --- rendering a language summary (shared by the Generate tab's own
-// result and the Translate tab's "view details" button). Only one
-// instance of this markup is ever live at once -- both call sites
-// render the same fixed ids (lexicon-search, export-generated-btn, ...),
-// so any *other* known summary container is cleared first to avoid two
-// copies of the same id coexisting in the DOM at once (panels stay
-// mounted, just hidden via CSS, when the user switches tabs). ---
-const SUMMARY_RESULT_CONTAINER_IDS = ["generate-result", "language-view-result"];
+// --- renders a language summary into the dedicated Inspect tab and
+// switches to it -- the one entry point both the Generate tab's own
+// result and the Translate tab's "view details" button use, rather
+// than either rendering inline under its own form. ---
+function showInspectResult(summary) {
+  renderLanguageSummary($("inspect-result"), summary);
+  showTab("inspect");
+}
+
+// --- rendering a language summary -- both the Generate tab's own
+// result and the Translate tab's "view details" button render into
+// this one shared container, on the dedicated Inspect tab (see
+// showInspectResult above), rather than inline under either form. Only
+// one instance of this markup is ever live at once by construction now
+// (one container, not two), so no "clear the other copy" dance is
+// needed the way there was when Generate/Translate each had their own. ---
 function renderLanguageSummary(container, summary) {
-  for (const id of SUMMARY_RESULT_CONTAINER_IDS) {
-    const other = $(id);
-    if (other && other !== container) other.innerHTML = "";
-  }
   const g = summary.grammar, t = summary.traits;
   // Clickable badges carry their own explanation in data-info (consumed
   // by toggleBadgeInfo, the same click-to-popover mechanism the sound
@@ -1476,7 +1507,7 @@ $("generate-btn").onclick = async () => {
     const summary = await api("/api/generate", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
-    renderLanguageSummary($("generate-result"), summary);
+    showInspectResult(summary);
     await Promise.all([refreshCost(), refreshLanguages()]);
   } catch (e) {
     err.textContent = e.message;
@@ -1582,6 +1613,69 @@ $("translate-btn").onclick = async () => {
     btn.disabled = false; btn.textContent = "Translate";
   }
 };
+
+// --- Script tab: typing in a language's own invented script, with a
+// reference legend showing which physical key types which sound, and
+// what it means in both IPA and romanization. One backend call per
+// language switch (GET .../script/keyboard, which already carries the
+// IPA/romanization/codepoint for every key -- see script.script_render.
+// keyboard_layout's own docstring); everything after that -- the live
+// typing transliteration, the legend -- works entirely client-side, no
+// per-keystroke round trip. ---
+function renderScriptLegend(slug, keys) {
+  const rows = keys.map(k => `
+    <tr>
+      <td class="ipa">${escapeAttr(k.key)}</td>
+      <td style="font-family:'ConlangScript-${escapeAttr(slug)}'; font-size:22px;">${escapeAttr(String.fromCodePoint(k.codepoint))}</td>
+      <td class="ipa">/${escapeAttr(k.ipa)}/</td>
+      <td>${escapeAttr(k.romanization)}</td>
+    </tr>`).join("");
+  return `
+    <table>
+      <thead><tr><th>key</th><th>glyph</th><th>IPA</th><th>romanized</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function transliterateToScript(text, keyByChar) {
+  let out = "";
+  for (const ch of text.toLowerCase()) {
+    const entry = keyByChar.get(ch);
+    out += entry ? String.fromCodePoint(entry.codepoint) : ch;
+  }
+  return out;
+}
+
+async function loadScriptForLanguage(slug) {
+  $("script-error").hidden = true;
+  $("script-result").innerHTML = "";
+  if (!slug) return;
+  try {
+    const body = await api(`/api/languages/${encodeURIComponent(slug)}/script/keyboard`);
+    const rtl = body.direction === "rtl" || body.direction === "ttb_rtl";
+    $("script-result").innerHTML = `
+      <style>@font-face { font-family: "ConlangScript-${slug}"; src: url("/api/languages/${encodeURIComponent(slug)}/script/font") format("truetype"); }</style>
+      <div class="card">
+        <p class="ipa">direction: ${escapeAttr(body.direction)}</p>
+        <label for="script-type-input">Type here -- plain letters, digits, and punctuation only; see the legend below for what each key is assigned to</label>
+        <textarea id="script-type-input" placeholder="type here..."></textarea>
+        <label for="script-type-output" style="margin-top:10px; display:block;">In ${escapeAttr(slug)}'s own script</label>
+        <div id="script-type-output" style="font-family:'ConlangScript-${slug}'; font-size:28px; min-height:44px; padding:10px; border:1px solid var(--border); border-radius:8px; direction:${rtl ? "rtl" : "ltr"};"></div>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0">Keyboard legend</h2>
+        <div class="lexicon-wrap">${renderScriptLegend(slug, body.keys)}</div>
+      </div>`;
+    const keyByChar = new Map(body.keys.map(k => [k.key, k]));
+    $("script-type-input").oninput = (e) => {
+      $("script-type-output").textContent = transliterateToScript(e.target.value, keyByChar);
+    };
+  } catch (e) {
+    $("script-error").textContent = e.message;
+    $("script-error").hidden = false;
+  }
+}
+$("script-lang").addEventListener("change", () => loadScriptForLanguage($("script-lang").value));
 
 // --- init ---
 addSourceLangRow();
