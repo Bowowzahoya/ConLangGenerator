@@ -239,6 +239,7 @@ SIMPLE_GLOSSARY: dict[str, str] = {
     "cases": "The grammatical cases this language's nouns and pronouns mark (such as accusative, genitive, or ablative) to show their role in a sentence.",
     "tenses": "The grammatical tenses this language's verbs mark to show when an action happened.",
     "orthography_category": "The general style of this language's writing system -- how its sounds map to letters.",
+    "own_script": "This language also has its own invented writing system -- a procedurally generated glyph for each sound, downloadable as a real font. Click \"Show lexicon in its own script\" below to see it, or download the font to use it elsewhere.",
     "source_languages": "Real language(s) this conlang is meant to evoke or mix, and (see source_language_strictness) how strictly generation sticks to their actual sounds, spelling, and grammar.",
 }
 
@@ -275,6 +276,14 @@ ADVANCED_OPTIONS_GLOSSARY: dict[str, dict] = {
     },
     "allow_all_caps": {
         "summary": "Opt-in permission for a whole word class (e.g. every noun) to be rendered in full capitals in this language's own spelling convention. Off by default, since no real language actually does this -- checking this only makes it *possible*, not guaranteed.",
+    },
+    "own_script": {
+        "summary": "Whether this language gets its own invented writing system -- a set of generated glyphs, downloadable as a real font. A heavier, optional artifact, off by default.",
+        "values": {
+            "auto": "Inferred: \"yes\" only if the prompt explicitly asks for an invented script/alphabet/runes; otherwise \"no\" -- unlike most other \"auto\" options here, an absence of any signal means off, not a 50/50 guess.",
+            "yes": "Always generate one.",
+            "no": "Never generate one, even if the prompt asks for it.",
+        },
     },
     "foreign_names": {
         "summary": "How this language should handle foreign or borrowed proper names.",

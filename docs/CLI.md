@@ -1632,6 +1632,99 @@ SAPI's own isolated-sound clips run a fixed ~1 second regardless of the
 sound's real length (see `docs/LIMITATIONS.md`); eSpeak's are shorter
 and cleaner.
 
+## `conlang script`
+
+Show or export a language's own invented writing system -- a
+procedurally generated glyph for each sound, in the style of 15 graded
+dials (sharp vs. smooth, bold vs. thin, symmetric vs. asymmetric, ...)
+and a writing direction (left-to-right, right-to-left, top-to-bottom,
+...) rolled once for that language. Not every language has one -- it's
+an optional, off-by-default artifact; see `generate --own-script`
+below for how one gets generated in the first place. Errors clearly if
+the language has none:
+
+```bash
+conlang script --lang doc-script-noscript
+```
+
+```
+error: 'doc-script-noscript' has no invented script. Regenerate with `generate --own-script yes` (or a prompt that asks for one).
+```
+
+With no flags, prints a one-line summary:
+
+```bash
+conlang script --lang doc-script-test
+```
+
+```
+'doc-script-test' has an invented script: 37 glyphs, direction rtl. Use --sounds to list them or --export to compile a font file.
+```
+
+`--sounds` lists every phoneme and a plain-language stroke-count summary
+of its own glyph (the actual shape is only really visible once the
+compiled font is loaded -- this is just enough to orient a reader
+looking at raw terminal text):
+
+```bash
+conlang script --lang doc-script-test --sounds
+```
+
+```
+direction: rtl
+/p/ -- 1 straight line, 5 curved strokes, 2 dots
+/t/ -- 1 straight line, 5 curved strokes, 1 dot
+/d/ -- 6 curved strokes
+/k/ -- 1 straight line, 5 curved strokes
+/g/ -- 1 straight line, 5 curved strokes, 2 dots
+...
+```
+
+`--export PATH` compiles the script into a real, installable `.ttf`
+font file (via `fonttools`, a new `font` dependency group, installed by
+default) -- each glyph lives at a Private Use Area codepoint (U+E000
+upward), the standard, collision-free way to ship an invented script as
+a real font:
+
+```bash
+conlang script --lang doc-script-test --export doc-script-test.ttf
+```
+
+```
+Font saved to doc-script-test.ttf
+```
+
+The web UI offers the same font, built on demand and cached, via
+`GET /api/languages/{slug}/script/font`, and a "Show lexicon in its own
+script" toggle that loads it with `@font-face` and swaps the lexicon
+table's own word column over to it, no local font install needed.
+
+Only a simple alphabet is implemented so far -- one atomic glyph per
+phoneme, no composition. A later abugida-style vowel modifier (Hindi-
+like) or syllable block (Hangul-like) is a real extension, not
+precluded by the current design (every glyph already carries named
+attachment points for exactly this, just unused today) -- see
+`architecture/OVERVIEW.md`. A logographic system (Chinese-like, one
+glyph per *gloss* rather than per sound) is a genuinely harder, separate
+problem, not modeled at all yet.
+
+### `generate --own-script`
+
+`conlang generate` itself decides *whether* a language gets an invented
+script, via `--own-script {auto,yes,no}` (default `auto`): `auto` infers
+from the prompt (via the same trait classifier as everything else) --
+`"yes"` only if the prompt explicitly asks for an invented writing
+system, `"no"` (the common case) otherwise; `yes`/`no` force the
+decision outright regardless of what the prompt says, the same
+unconditional-override shape `--isolated`/`--high-altitude`/`--tonal`
+already have. Generating a script is cheap (plain seeded procedural
+generation, like phonology/romanization) -- the `script` command's own
+`--export` is the only part that needs the `font` dependency group.
+
+```bash
+conlang generate --prompt "a mountain language" --name doc-script-test --own-script yes
+```
+
 ## `conlang audit-lexicons`
 
 Check the curated real lexicons (`generation/reference_languages/lexicons/`)

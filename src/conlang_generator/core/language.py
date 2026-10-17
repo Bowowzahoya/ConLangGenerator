@@ -11,6 +11,7 @@ from conlang_generator.core.grammar import GrammarProfile
 from conlang_generator.core.lexicon import Idiom, LexicalEntry, Lexicon
 from conlang_generator.core.phonology import PhonemeInventory, SyllableStructure, ToneSystem, WordAccentSystem
 from conlang_generator.core.romanization import RomanizationScheme
+from conlang_generator.core.script import InventedScript
 from conlang_generator.core.spec import GenerationSpec
 
 
@@ -33,6 +34,11 @@ class Language(BaseModel, frozen=True):
     ``Language(...)`` construction sites (tests included) that predate
     this feature stay valid without modification."""
     romanization: RomanizationScheme
+    script: InventedScript | None = None
+    """An invented writing system, unlike ``romanization`` optional and
+    off by default -- see ``core.script``'s own module docstring and
+    ``generation.script_gen.should_generate_script``. ``None`` means this
+    language was never asked to have one."""
     grammar: GrammarProfile
     lexicon: Lexicon = Lexicon()
     history: tuple[str, ...] = ()

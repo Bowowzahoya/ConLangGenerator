@@ -32,6 +32,7 @@ from conlang_generator.generation import (
     pronoun_gen,
     romanization_gen,
     root_pattern,
+    script_gen,
     seed_examples,
     sound_change,
     subordination_gen,
@@ -77,6 +78,11 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     punctuation_rng = random.Random(f"{spec.seed}:punctuation")
     romanization = romanization.model_copy(
         update={"punctuation_style": romanization_gen._roll_punctuation_style(punctuation_rng)}
+    )
+    script = (
+        script_gen.generate_script(random.Random(f"{spec.seed}:script"), inventory)
+        if script_gen.should_generate_script(spec)
+        else None
     )
     grammar = grammar_gen.generate_grammar(rng, spec)
 
@@ -862,6 +868,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         tone_system=tone_system,
         word_accent=word_accent_system,
         romanization=romanization,
+        script=script,
         grammar=grammar,
         lexicon=Lexicon(entries=tuple(entries_now)),
         history=("generated core language",),

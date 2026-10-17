@@ -16,11 +16,23 @@ from conlang_generator.core.language import Language, slugify
 
 _FILE_FIELDS: dict[str, tuple[str, ...]] = {
     "meta": ("name", "spec", "history"),
-    "phonology": ("phonology", "syllable_structure", "tone_system"),
+    "phonology": ("phonology", "syllable_structure", "tone_system", "word_accent"),
     "romanization": ("romanization",),
+    "script": ("script",),
     "grammar": ("grammar",),
     "lexicon": ("lexicon",),
 }
+"""Every ``Language`` field must appear in exactly one of these groups --
+a field left out isn't an error (``save`` just never writes it, ``load``
+silently falls back to its own pydantic default via ``model_validate``),
+so a missing entry here is invisible until someone notices a round-
+tripped language quietly lost that field's own real value. Caught once
+already: ``word_accent`` was missing from day one (added after this
+dict was last touched) and ``script`` would have shipped the same way
+without this comment -- a stored language's own word-accent system was
+silently discarded and replaced with the default `WordAccentSystem()`
+on every single load, for every language saved since that feature
+existed, with nothing erroring to surface it."""
 
 
 class YamlLanguageRepository:

@@ -88,6 +88,9 @@
     color: var(--accent); font-family: var(--mono); border: none; cursor: pointer;
   }
   .sound-badge:hover, .sound-badge.open { background: var(--accent); color: var(--panel); }
+  .lex-script-text { display: none; }
+  .show-script .lex-romanized-text { display: none; }
+  .show-script .lex-script-text { display: inline; }
   .info-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 16px; height: 16px; border-radius: 50%; border: none; padding: 0;
@@ -235,6 +238,14 @@
           <div class="ipa" style="margin-top: 4px;">
             Synthesizes every lexicon word's pronunciation up front instead of on first use.
           </div>
+        </div>
+        <div>
+          <label for="gen-own-script">Own script</label><button type="button" class="info-btn" data-info-key="own_script" title="What do these options mean?">&#9432;</button>
+          <select id="gen-own-script">
+            <option value="auto">auto (from prompt, default: no)</option>
+            <option value="yes">yes</option>
+            <option value="no">no</option>
+          </select>
         </div>
       </div>
 
@@ -1128,8 +1139,17 @@ function renderLanguageSummary(container, summary) {
         ${g.cases.length ? infoBadge(glossary.simple.cases || "", `cases: ${g.cases.join(", ")}`) : ""}
         ${g.tenses.length ? infoBadge(glossary.simple.tenses || "", `tenses: ${g.tenses.join(", ")}`) : ""}
         ${infoBadge(glossary.simple.orthography_category || "", `orthography: ${summary.orthography_category || "(unnamed)"}`)}
+        ${summary.script ? infoBadge(glossary.simple.own_script || "", `own script: ${summary.script.glyph_count} glyphs, ${summary.script.direction}`) : ""}
       </div>
       ${traitBadges || sourceLangBadge ? `<div class="badges">${traitBadges}${sourceLangBadge}</div>` : ""}
+      ${summary.script ? `
+      <style>@font-face { font-family: "ConlangScript-${summary.slug}"; src: url("/api/languages/${encodeURIComponent(summary.slug)}/script/font") format("truetype"); }</style>
+      <div class="row" style="align-items:center; margin-top:4px;">
+        <label style="display:flex; align-items:center; gap:6px; margin:0;">
+          <input type="checkbox" id="show-script-toggle"> Show lexicon in its own script
+        </label>
+        <a class="add-row" href="/api/languages/${encodeURIComponent(summary.slug)}/script/font" download="${summary.slug}.ttf">&#8681; Download font (.ttf)</a>
+      </div>` : ""}
       ${(summary.warnings || []).map(w => `<div class="error">⚠ ${w}</div>`).join("")}
       ${summary.cost ? `<div class="badges"><span class="badge">this call: $${summary.cost.delta_usd.toFixed(4)} (${summary.cost.delta_calls} calls)</span></div>` : ""}
       ${summary.pregenerated_audio ? `<div class="badges"><span class="badge">pre-generated audio: ${summary.pregenerated_audio.synthesized}/${summary.pregenerated_audio.total}${summary.pregenerated_audio.failed ? ` (${summary.pregenerated_audio.failed} failed)` : ""}</span></div>` : ""}
@@ -1162,6 +1182,11 @@ function renderLanguageSummary(container, summary) {
   $("lexicon-search").oninput = () => filterLexiconTable($("lexicon-search").value);
   $("lexicon-export-btn").onclick = downloadLexiconCsv;
   $("export-generated-btn").onclick = () => downloadLanguageExport(summary.slug);
+  if ($("show-script-toggle")) {
+    $("show-script-toggle").onchange = (e) => {
+      container.querySelector(".lexicon-wrap").classList.toggle("show-script", e.target.checked);
+    };
+  }
 }
 
 // --- lexicon table: one rendered <tr> per entry, reused for both the
@@ -1175,7 +1200,7 @@ function renderLexiconRow(e, slug) {
     <td><button type="button" class="word-play-btn" data-ipa="${e.spoken_ipa}" title="Play pronunciation">&#128266;</button><button type="button" class="sound-guide-btn" data-slug="${escapeAttr(langSlug)}" data-ipa="${escapeAttr(e.spoken_ipa)}" title="How to pronounce each sound">&#128270;</button></td>
     <td>${e.gloss}</td>
     <td>${e.pos}</td>
-    <td class="lex-romanization">${e.romanization}${e.provenance ? ` <span class="badge" title="${e.provenance}">real</span>` : ""}</td>
+    <td class="lex-romanization"><span class="lex-romanized-text">${e.romanization}</span>${e.script_text ? `<span class="lex-script-text" style="font-family:'ConlangScript-${escapeAttr(langSlug)}'; font-size:18px;">${e.script_text}</span>` : ""}${e.provenance ? ` <span class="badge" title="${e.provenance}">real</span>` : ""}</td>
     <td class="ipa lex-ipa">/${e.ipa}/</td>
     <td><button type="button" class="word-edit-btn" title="Edit this word">&#9998;</button></td>
   </tr>`;
@@ -1423,6 +1448,7 @@ $("generate-btn").onclick = async () => {
     isolated: $("gen-isolated").checked,
     high_altitude: $("gen-high-altitude").checked,
     tonal: $("gen-tonal").checked,
+    own_script: $("gen-own-script").value,
     allow_all_caps: $("gen-allow-all-caps").checked,
     word_selection: $("gen-word-selection").value,
     model: $("gen-model").value,

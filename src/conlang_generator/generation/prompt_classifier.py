@@ -148,6 +148,14 @@ unchanged", "names from other languages are kept as-is, Dutch-style"), \
 own sounds (e.g. "foreign names get adapted to the language's own \
 phonology, Chinese-style"), otherwise "" -- almost every prompt should \
 get "", since this is rarely addressed directly.
+- "requested_own_script": "yes" if the text explicitly asks for an \
+invented writing system of its own (e.g. "written in its own ancient \
+script", "has a unique alphabet", "uses invented runes/glyphs"), "no" if \
+it explicitly asks to stick with an ordinary Latin-style rendering (e.g. \
+"written with the Latin alphabet", "no special script"), otherwise "" -- \
+almost every prompt should get "", since this is rarely addressed \
+directly and merely sounding exotic or fantastical is not enough on its \
+own -- the text has to actually ask for or rule out a writing system.
 - "salient_context": one short sentence noting anything else distinctive \
 about the request not captured above, or "" if nothing is.
 
@@ -268,6 +276,15 @@ dimension: 0.0. (An explicit, direct statement about how foreign proper \
 names are handled -- rare; most prompts never address this at all and \
 should get "".)
 
+Prompt: "an ancient desert empire whose priests write in a mysterious \
+script found on old ruins, unlike any alphabet used today"
+-> requested_own_script: "yes", ritual_register: 0.3, every other \
+dimension: 0.0. (An explicit request for an invented writing system of \
+its own, not just an evocative or "exotic-sounding" description -- \
+compare: a merely atmospheric phrase like "an ancient desert empire" \
+alone, with nothing said about writing, earns no value here at all, \
+the same restraint every other dimension already requires.)
+
 Respond with ONLY a single JSON object, no prose, no markdown fences."""
 
 
@@ -308,6 +325,7 @@ def _parse(text: str) -> TraitProfile:
     values["time_depth_years"] = _coerce_optional_int(raw.get("time_depth_years"))
     values["requested_orthography_style"] = _coerce_str(raw.get("requested_orthography_style"))
     values["requested_foreign_names"] = _coerce_str(raw.get("requested_foreign_names"))
+    values["requested_own_script"] = _coerce_str(raw.get("requested_own_script"))
     values["salient_context"] = _coerce_str(raw.get("salient_context"))
 
     return TraitProfile(**values)

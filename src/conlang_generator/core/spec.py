@@ -77,6 +77,14 @@ class GenerationSpec(BaseModel, frozen=True):
     force_isolated: bool = False
     force_high_altitude: bool = False
     force_tonal: bool = False
+    force_own_script: bool | None = None
+    """Unlike the three ``force_*`` flags above (which only ever *force
+    on* -- there's no "force not tonal"), this is a genuine tri-state:
+    ``None`` (the default) means "not forced, let ``traits.requested_
+    own_script`` decide" (see that field's own docstring); ``True``/
+    ``False`` force generating (or not generating) an invented script
+    outright, regardless of what the prompt says. Consulted by
+    ``generation.script_gen.should_generate_script``."""
     forced_orthography: OrthographyForce = OrthographyForce()
     """Same unconditional channel as the ``force_*`` fields above, for the
     romanization layer specifically -- see ``OrthographyForce``'s own

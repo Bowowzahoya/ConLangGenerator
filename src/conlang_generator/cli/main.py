@@ -33,6 +33,8 @@ from conlang_generator.generation.sound_change import evolve_language
 from conlang_generator.generation.tone_sandhi import apply_sandhi
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm.pricing import DEFAULT_MODEL
+from conlang_generator.script.font_builder import build_font
+from conlang_generator.script.script_render import describe_glyph
 from conlang_generator.speech import articulation, engine_selection, reader, sentence_synthesis, tts_cache
 from conlang_generator.speech.pregenerate import pregenerate_audio
 from conlang_generator.speech.sapi_worker import SapiWorker
@@ -215,6 +217,12 @@ def generate(
     isolated: bool = typer.Option(False, "--isolated", help="Force isolated-community typology (guaranteed, not just likely)."),
     high_altitude: bool = typer.Option(False, "--high-altitude", help="Force ejective consonants (guaranteed, not just likely)."),
     tonal: bool = typer.Option(False, "--tonal", help="Force phonemic tone (guaranteed, not just likely)."),
+    own_script: str = typer.Option(
+        "auto",
+        "--own-script",
+        help="Whether to generate an invented writing system/font for this language: 'auto' (infer from "
+        "the prompt, default: no unless it explicitly asks), 'yes', or 'no'.",
+    ),
     fantasy: bool = typer.Option(False, "--fantasy", help="Record as a fantasy-setting language (metadata only)."),
     source_language: list[str] = typer.Option(
         [], "--source-language",
@@ -344,6 +352,10 @@ def generate(
     if foreign_names is not None and foreign_names not in ("keep", "adapt"):
         typer.echo(f"error: --foreign-names must be 'keep' or 'adapt', got {foreign_names!r}", err=True)
         raise typer.Exit(code=1)
+    if own_script not in ("auto", "yes", "no"):
+        typer.echo(f"error: --own-script must be 'auto', 'yes', or 'no', got {own_script!r}", err=True)
+        raise typer.Exit(code=1)
+    force_own_script = None if own_script == "auto" else own_script == "yes"
     if word_selection not in ("algorithmic", "llm"):
         typer.echo(f"error: --word-selection must be 'algorithmic' or 'llm', got {word_selection!r}", err=True)
         raise typer.Exit(code=1)
@@ -430,6 +442,7 @@ def generate(
         force_isolated=isolated,
         force_high_altitude=high_altitude,
         force_tonal=tonal,
+        force_own_script=force_own_script,
         forced_orthography=forced_orthography,
         fantasy=fantasy,
         seed_examples=seed_examples,
@@ -727,6 +740,48 @@ def pronounce(
         else:
             typer.echo(f"error: '{tts}' TTS backend unavailable or synthesis failed.", err=True)
             raise typer.Exit(code=1)
+
+
+@app.command()
+def script(
+    lang: str = typer.Option(..., "--lang", help="Language name."),
+    sounds: bool = typer.Option(
+        False, "--sounds", help="Print each phoneme and a plain-language summary of its own invented glyph."
+    ),
+    export: Path = typer.Option(
+        None, "--export", help="Compile and write this language's own invented script as a real .ttf font file."
+    ),
+) -> None:
+    """Show or export a language's own invented script -- see `generate --own-script` for how one gets
+    generated in the first place. Errors if the language has none."""
+    try:
+        language = _repository().load(lang)
+    except FileNotFoundError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    if language.script is None:
+        typer.echo(
+            f"error: '{lang}' has no invented script. Regenerate with `generate --own-script yes` "
+            "(or a prompt that asks for one).",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    if sounds:
+        typer.echo(f"direction: {language.script.direction.value}")
+        for glyph in language.script.glyphs:
+            typer.echo(f"/{glyph.ipa}/ -- {describe_glyph(glyph)}")
+
+    if export is not None:
+        build_font(language.script, export, language.name)
+        typer.echo(f"Font saved to {export}")
+
+    if not sounds and export is None:
+        typer.echo(
+            f"'{lang}' has an invented script: {len(language.script.glyphs)} glyphs, "
+            f"direction {language.script.direction.value}. Use --sounds to list them or --export to "
+            "compile a font file."
+        )
 
 
 @app.command("audit-lexicons")

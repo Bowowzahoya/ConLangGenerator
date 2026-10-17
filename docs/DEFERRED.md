@@ -119,9 +119,55 @@ multi-session feature.
 
 ## 5. Own script and font
 
-- **Generate an original script and package it as a font (L).** A huge
-  item, kept on the agenda: design glyphs per phoneme/syllable, output a
-  font (TTF/OTF/WOFF), and use it in the web UI.
+- **Phase 1 (a simple alphabet) done -- see architecture/OVERVIEW.md.**
+  One procedurally generated glyph per phoneme, 15 graded style dials
+  (sharp/smooth, bold/thin, symmetric/asymmetric, ...) and a writing
+  direction, rolled once per language and compiled into a real,
+  installable `.ttf` via `fonttools` -- `conlang script`, `generate
+  --own-script`, and a web UI toggle/download. Verified empirically
+  against the real library before committing to the approach (built a
+  toy font, round-tripped it, rendered it in a real browser via
+  `@font-face`) rather than assumed from documentation.
+- **Phase 2: harder writing-system types (L each).** Not implemented,
+  but not precluded by Phase 1's own shape -- see `core/script.py`'s own
+  module docstring for exactly how each would extend it:
+  - **Abugida-style vowel modifiers (Hindi-like).** Every `Glyph`
+    already carries named `anchors` (grid points), unused today -- a
+    vowel modifier would be a second, smaller glyph attached to a base
+    consonant's own anchor, no `Glyph` redesign needed.
+  - **Syllable blocks (Hangul-like).** Several phoneme-glyphs composed
+    into one bounding box via the same anchors (onset/nucleus/coda
+    position rules) -- a composition function on top of the existing
+    per-phoneme glyphs, not a new glyph representation.
+  - **Logographic systems (Chinese-like).** Genuinely harder, not just
+    unimplemented: one glyph per *gloss*, not per phoneme, needing
+    semantic/phonetic component composition -- a real, separate design
+    problem, not attempted or claimed solved by anything above. The same
+    stroke-primitive technique is the likely right tool, but the
+    gloss-to-glyph mapping and component system are undesigned.
+- **Styling the script from the free-text prompt (M-L).** Today the 15
+  style dials and the direction are rolled from the language's own seed
+  only, independent of what the prompt says (a sharp-looking script
+  isn't more likely just because the prompt describes a "harsh" culture)
+  -- seen as a separate, bigger piece of work (extracting several new
+  graded dimensions through `prompt_classifier.py`'s already-large,
+  already-costly system prompt; see this file's own "Trait-classifier
+  call is expensive" item above), not attempted in Phase 1. Only
+  *whether* a script gets generated at all is prompt-inferred
+  (`TraitProfile.requested_own_script`), not what it looks like.
+- **True cursive joining (M-L).** `ScriptTraits.connectivity` is rolled
+  and stored but not yet consumed by the font builder -- real contextual
+  joining (a different glyph form depending on word position, Arabic-
+  style) needs OpenType contextual substitution (GSUB), a genuinely
+  bigger feature than placing isolated glyphs, not attempted here. The
+  same "extracted, not yet consumed" honesty `core.traits.TraitProfile`
+  already applies to several of its own fields.
+- **Smooth (not polygon-approximated) arc outlines (S).** `script.
+  font_builder`'s own arc strokes are a short chain of straight-line
+  segments sampling a curve, not a true smooth Bezier outline --
+  documented as a phase-1 simplification in that module's own docstring,
+  good enough at the sizes this renders at but a real limitation if a
+  script is ever rendered very large.
 
 ## 6. Sounds and phonology
 

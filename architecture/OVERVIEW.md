@@ -1673,6 +1673,52 @@ both gaps.
   tone input mechanism) and are dropped entirely, a known, permanent
   limitation, not something faked.
 
+## `core/script.py` + `generation/script_gen.py` + `script/`
+
+An invented writing system -- optional (`Language.script: InventedScript |
+None`, unlike `romanization`, which every language always has), see
+`core/script.py`'s own module docstring for the full design and forward-
+compatibility story (abugida/syllable-block/logographic systems, not
+implemented but not precluded). Split the same way `speech/` already
+splits data from mechanism:
+
+- **`core/script.py`**: the data model -- `WritingDirection` (5 values),
+  `ScriptTraits` (15 bipolar graded dials, same shape as `TraitProfile`
+  but rolled from the language's own seed, not yet prompt-inferred),
+  `Point`/`Stroke`/`Glyph` (a glyph is a handful of stroke primitives --
+  line, arc, dot -- on a fixed 4x4 grid), `InventedScript` (direction +
+  traits + one glyph per phoneme).
+- **`generation/script_gen.py`**: `should_generate_script` (the two-
+  channel "explicit override beats inferred beats default" decision,
+  default off) and `generate_script` (rolls direction/traits, then one
+  `Glyph` per phoneme via `generate_glyph` -- stroke topology only; see
+  that module's own docstring for exactly which of the 15 traits it
+  consumes vs. `script/font_builder.py` vs. not yet consumed at all).
+- **`script/font_builder.py`**: compiles an `InventedScript` into a real
+  `.ttf` via `fonttools` (new `font` dependency group, installed by
+  default) -- every `Stroke` expanded into its own filled polygon (TTF
+  glyphs are filled outlines, not stroked paths), Private Use Area
+  codepoints (U+E000 upward) assigned by position in `InventedScript.
+  glyphs`. A pure function of the `InventedScript` data alone (never RNG
+  state), including any "organic jitter" rendering (`regularity`'s own
+  effect) -- derived from a stable hash of each point's own identity, so
+  re-building the same script twice is byte-identical.
+- **`script/script_render.py`**: `render_word` (a word's own IPA ->
+  this script's own Private Use Area glyph string, via the same
+  `ipa_tokenizer.symbols_only` approach `speech.articulation.
+  word_inventory` already uses) and `describe_glyph` (a plain-language
+  stroke-count summary for `conlang script --sounds`).
+
+`cli/main.py`'s own `script` command (`--sounds`/`--export`) and
+`generate --own-script {auto,yes,no}`; the web UI's own `GenerateRequest.
+own_script`, `_language_summary`'s `script`/per-word `script_text`
+fields, and `GET /api/languages/{slug}/script/font` (built on demand,
+cached to `CACHE_DIR / "fonts"`). See `architecture/OVERVIEW.md`'s own
+chronological entry below for the full story, including the empirical
+verification (a toy font built, round-tripped, and rendered in a real
+browser via `@font-face`) done before committing to the stroke-expansion
+technique at all.
+
 ## `cli/main.py`
 
 Typer app. `generate`/`translate`/`pronounce` are the core trio per AGENTS.md's
@@ -7538,3 +7584,104 @@ reading code or one-off ad hoc scripts.
   hasn't chosen an Advanced option's value yet, so a select's own popover shows every option's meaning
   at once as a legend (a `<ul>`) rather than singling out a "current reading" the way a grammar badge's
   own tooltip does.
+
+- **Own script and font, phase 1 (a simple alphabet) -- done.** A direct user request, with an
+  explicit phased scope from the start: "first just for a language with simple letters... more
+  complicated matters... can come later, but make sure it is not made impossible." Investigated and
+  proposed a design (procedural stroke-primitive glyphs + `fonttools`, a trait list) before writing any
+  code, per that same request's own "investigate" framing; implementation began only after explicit
+  confirmation of the design and the trait list.
+
+  **Verified the core technique empirically before committing to it**, the same standard this
+  project's own TTS investigations already hold themselves to: built a disposable scratch venv,
+  installed `fonttools` (pure Python, MIT-licensed, the library Google Fonts itself is built on, no
+  heavy native deps), hand-built a toy 3-glyph font from stroke-expanded polygons, round-tripped it
+  through a real `fontTools.ttLib.TTFont` parse, and rendered it in a real browser via `@font-face` --
+  confirming the one real open question (can a hand-built stroke-expansion technique actually produce
+  a working, correctly-rendering font) before designing the real data model around it. Repeated the
+  same empirical check against four real generated scripts with varied trait rolls once the real
+  generator existed, confirming the 15 style dials produce visually distinct, trait-appropriate
+  "script personalities" (sharp/slanted vs. smooth/symmetric vs. bold/dense vs. organic/jittered) --
+  not just a "no exception" check.
+
+  **Data model (`core/script.py`)**: `WritingDirection` (ltr/rtl/ttb_ltr/ttb_rtl/boustrophedon,
+  weighted-random, illustrative not a sourced census); `ScriptTraits`, 15 bipolar graded dials
+  (angularity, stroke_contrast, weight, complexity, connectivity, symmetry, proportion, slant,
+  openness, regularity, density, height_variance, diacritic_density, grid_alignment, terminal_style)
+  mirroring `TraitProfile`'s own bipolar shape but rolled from the language's own seed, not (yet)
+  prompt-inferred (a separate, bigger piece of work -- see below); `Point`/`Stroke`/`Glyph` (a glyph is
+  2-6 stroke primitives -- line, arc, dot -- placed on a fixed 4x4 grid); `InventedScript` (direction +
+  traits + one glyph per phoneme, in the same order used for Private Use Area codepoint assignment).
+  Every `Glyph` carries named `anchors` (unused in phase 1) specifically so a later abugida-style
+  modifier or syllable block can attach to it without a `Glyph` redesign -- the "make sure it is not
+  made impossible" requirement, designed in from the start rather than retrofitted.
+
+  **Generation (`generation/script_gen.py`)**: `should_generate_script` implements the same two-channel
+  "explicit override beats inferred beats default" pattern every other optional feature here already
+  uses (`GenerationSpec.force_own_script`, a genuine tri-state unlike `force_isolated`/`force_tonal`
+  since "force no script" is meaningful here; `TraitProfile.requested_own_script`, classifier-inferred)
+  -- default is *off* (generating a script is a heavier, optional artifact), not a 50/50 roll. Of the 15
+  style dials, 5 drive stroke *topology* here (complexity -> stroke count; angularity -> line-vs-arc
+  probability and arc bulge; symmetry -> mirrors half the strokes; diacritic_density -> extra floating
+  dots; height_variance -> per-glyph restricted-vs-full grid-row range) -- the other 9 drive *rendering*
+  in `font_builder.py`, and `connectivity` is rolled and stored but not yet consumed by either (true
+  cursive joining needs OpenType contextual substitution, a genuinely bigger feature -- the same
+  "extracted, not yet consumed" honesty `TraitProfile` already applies to several of its own fields).
+
+  **Font building (`script/font_builder.py`)**: TrueType glyphs are filled outlines, not stroked paths,
+  so every `Stroke` is expanded into its own filled polygon (a line becomes a rotated rectangle/
+  trapezoid -- tapered via `stroke_contrast` for a calligraphic thick-thin look; an arc a short chain of
+  such polygons sampling a quadratic curve, a documented polygon-approximation, not a true smooth
+  Bezier outline; a dot a small regular polygon) before handing it to `fontTools.pens.ttGlyphPen.
+  TTGlyphPen` -- overlapping polygons within one glyph still render as one solid shape via TrueType's
+  own default nonzero fill rule, confirmed in the empirical check above, no manual polygon-union step
+  needed. `weight`/`openness` set stroke width; `slant` shears the outline; `proportion` scales it
+  horizontally; `regularity`, when markedly negative, jitters each point by a deterministic offset
+  derived from a stable hash of the point's own identity (never RNG state, so font-building stays a
+  pure function of the `InventedScript` data alone -- confirmed by building the same script twice and
+  diffing the raw glyph coordinates); `density` sets side bearings; `grid_alignment` picks uniform vs.
+  per-glyph-tight advance widths; `terminal_style` adds small serif "feet" to line-stroke endpoints.
+  Glyphs land at Private Use Area codepoints (U+E000 upward) by position in `InventedScript.glyphs` --
+  the standard, collision-free way to ship an invented script as a real font, and why a word's own
+  rendering (`script/script_render.py::render_word`, via the same `ipa_tokenizer.symbols_only` approach
+  `speech.articulation.word_inventory` already uses) needs no separate persisted codepoint mapping.
+
+  **Found and fixed a real, pre-existing, silent data-loss bug along the way**:
+  `storage/yaml_backend.py`'s own `_FILE_FIELDS` dict is a fixed, hand-maintained list of which
+  `Language` fields get written to which YAML file on save -- a field missing from it isn't an error
+  anywhere (`save()` just never writes it, `load()`'s `model_validate()` silently falls back to that
+  field's own pydantic default), so the existing round-trip test (which only uses default field values)
+  could never have caught this. `word_accent` turned out to have been missing since the feature was
+  added, discarding every saved language's own real word-accent system on every load, replaced with the
+  default, with nothing erroring to surface it; `script` would have shipped with the exact same bug
+  (confirmed directly: `generate --own-script yes` produced a real in-memory script, but `conlang
+  script --lang X` reported "no invented script" immediately after, since the save/load round trip had
+  silently dropped it). Fixed both; added a new structural test (`test_every_language_field_is_covered_
+  by_file_fields`, checking `_FILE_FIELDS`'s own coverage against `Language.model_fields` directly)
+  specifically so a future new `Language` field can't repeat this silently, plus a real save-then-load
+  test using an actual generated, non-default `script` value (not just the structural check).
+
+  **Surfaced via**: `cli/main.py`'s new `script` command (`--sounds` prints each phoneme's own glyph as
+  a plain-language stroke-count summary via `script_render.describe_glyph`; `--export PATH` compiles
+  the real font) and a new `generate --own-script {auto,yes,no}` flag; the web UI's `GenerateRequest.
+  own_script`, `_language_summary`'s new `script`/per-word `script_text` fields, and a new `GET /api/
+  languages/{slug}/script/font` endpoint (built on demand, cached to `CACHE_DIR / "fonts"`, served
+  inline so the frontend can load it straight into `@font-face`) -- plus a "Show lexicon in its own
+  script" toggle (CSS-class-driven swap between a `.lex-romanized-text` span and a `.lex-script-text`
+  span already rendered into each lexicon row, not a JS-side re-render) and a "Download font (.ttf)"
+  link. Advanced-options `own_script` select wired into the same click-to-popover info-button mechanism
+  the rest of Advanced options already use, with its own `ADVANCED_OPTIONS_GLOSSARY` entry (a separate
+  entry from `GRAMMAR_GLOSSARY`'s own `foreign_names`-style namesake, since this one means a three-way
+  forward-looking choice including `"auto"`, not a resolved outcome).
+
+  **New dependency**: `fonttools` (a new `font` `uv` dependency-group, installed by default alongside
+  `web`/`piper` -- lightweight and pure-Python, unlike `piper-tts`, so no reason to make it opt-out).
+
+  **Deferred, explicitly not made impossible**: abugida-style vowel modifiers and syllable blocks (the
+  `anchors` field exists for exactly this); logographic systems (genuinely harder -- per-gloss, not
+  per-phoneme, needs semantic/phonetic component composition, undesigned); styling the script from the
+  prompt's own free text (today only *whether* a script exists is prompt-inferred, not what it looks
+  like -- wiring the 15 style dials to prompt wording would mean extracting several new graded
+  dimensions through the already-large, already-costly classifier system prompt, a separate piece of
+  work); true cursive joining (needs OpenType contextual substitution); smooth (non-polygon-
+  approximated) arc outlines. See `docs/DEFERRED.md`'s own "Own script and font" section.

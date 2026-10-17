@@ -175,6 +175,22 @@ class TraitProfile(BaseModel, frozen=True):
     profiles -- the same "explicit flag beats inferred reading" precedence
     every other field here already follows."""
 
+    requested_own_script: str = ""
+    """``"yes"`` when the text explicitly asks for an invented writing
+    system/alphabet/script (e.g. "written in its own ancient runic
+    script", "has a unique alphabet unlike anything on Earth"), ``"no"``
+    when it explicitly asks to stick with an ordinary Latin-style
+    rendering, ``""`` (the common case -- most prompts never address
+    this) otherwise. Consulted by ``generation.script_gen.should_
+    generate_script`` as the middle tier, between an explicit
+    ``GenerationSpec.force_own_script`` override (which always wins
+    outright, either direction) and the default of not generating one --
+    the same "explicit flag beats inferred reading beats default"
+    precedence ``requested_foreign_names`` above already follows, except
+    the *default* here is "no" (generating a script is a heavier,
+    optional artifact, not a free restyling of output that already
+    exists) rather than falling through to some further inference."""
+
     salient_context: str = ""
     """Free-text catch-all for anything notable that doesn't map to a field
     above -- the "unknown unknowns" channel. Consumed as extra flavor

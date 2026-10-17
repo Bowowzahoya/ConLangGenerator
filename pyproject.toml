@@ -32,7 +32,7 @@ build-backend = "uv_build"
 # import time unless the corresponding feature is actually used -- this
 # just keeps a normal `uv run conlang ...` from silently uninstalling
 # them once they've been added once.
-default-groups = ["dev", "web", "piper"]
+default-groups = ["dev", "web", "piper", "font"]
 
 [dependency-groups]
 dev = [
@@ -47,6 +47,9 @@ web = [
 ]
 piper = [
     "piper-tts>=1.8",
+]
+font = [
+    "fonttools>=4.0",
 ]
 
 [tool.pytest.ini_options]

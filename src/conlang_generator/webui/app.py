@@ -40,7 +40,7 @@ from conlang_generator.core.romanization import (
 )
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
-from conlang_generator.generation import ipa_tokenizer, phonology_gen
+from conlang_generator.generation import ipa_tokenizer, phonology_gen, script_gen
 from conlang_generator.generation.generator import generate_evolved_language, resolve_evolve_years
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
@@ -60,6 +60,8 @@ from conlang_generator.llm.cost_tracker import CostTracker
 from conlang_generator.llm.factory import build_llm_client
 from conlang_generator.llm import pricing
 from conlang_generator.llm.pricing import DEFAULT_MODEL
+from conlang_generator.script import script_render
+from conlang_generator.script.font_builder import build_font
 from conlang_generator.speech import articulation, engine_selection, sentence_synthesis, tts, tts_cache
 from conlang_generator.webui import glossary
 from conlang_generator.speech.pregenerate import pregenerate_audio as run_pregenerate_audio
@@ -207,6 +209,17 @@ def _language_summary(language: Language) -> dict:
             ],
         },
         "phoneme_inventory": [e.as_dict() for e in articulation.full_inventory(language)],
+        # None when this language has no invented script (the common
+        # case -- see core.script's own module docstring); the frontend
+        # only shows the "own script" section/toggle when this is set.
+        "script": (
+            {
+                "direction": language.script.direction.value,
+                "glyph_count": len(language.script.glyphs),
+            }
+            if language.script is not None
+            else None
+        ),
         # `entry.real_word` (not `entry.notes`, which an evolution step
         # overwrites to an "orthography: ..." tag regardless of a word's
         # own real origin) survives any number of evolution steps --
@@ -234,6 +247,7 @@ def _language_summary(language: Language) -> dict:
                     if entry.real_word is not None
                     else None
                 ),
+                "script_text": script_render.render_word(language.script, entry.ipa) if language.script else None,
             }
             for entry in sorted(language.lexicon.entries, key=lambda e: e.primary_gloss)
         ],
@@ -280,6 +294,9 @@ class GenerateRequest(BaseModel):
     isolated: bool = False
     high_altitude: bool = False
     tonal: bool = False
+    own_script: str = "auto"
+    """"auto" (infer from the prompt), "yes", or "no" -- see
+    ``generation.script_gen.should_generate_script``."""
     fantasy: bool = False
     source_languages: list[SourceLanguageEntry] = []
     strictness: float | None = None
@@ -380,6 +397,30 @@ def export_language(slug: str) -> Response:
     return Response(
         content=body, media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{language.slug}.json"'},
+    )
+
+
+@app.get("/api/languages/{slug}/script/font")
+def get_script_font(slug: str) -> Response:
+    """The language's own invented script, compiled to a real .ttf --
+    served inline (no attachment header) so the frontend can load it
+    straight into an ``@font-face`` rule; cached to disk under
+    ``CACHE_DIR / "fonts"`` since a saved language's own script never
+    changes, the same build-once-serve-many-times spirit
+    ``speech.tts_cache`` already has for audio."""
+    try:
+        language = _repository().load(slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if language.script is None:
+        raise HTTPException(status_code=404, detail=f"'{slug}' has no invented script")
+    font_path = CACHE_DIR / "fonts" / f"{slug}.ttf"
+    if not font_path.is_file():
+        build_font(language.script, font_path, language.name)
+    return Response(
+        content=font_path.read_bytes(),
+        media_type="font/ttf",
+        headers={"Content-Disposition": f'inline; filename="{slug}.ttf"'},
     )
 
 
@@ -608,6 +649,9 @@ def generate(request: GenerateRequest) -> dict:
         raise HTTPException(
             status_code=400, detail="pregenerate_audio must be 'none', 'espeak', 'sapi', 'piper' or 'auto'"
         )
+    if request.own_script not in ("auto", "yes", "no"):
+        raise HTTPException(status_code=400, detail="own_script must be 'auto', 'yes', or 'no'")
+    force_own_script = None if request.own_script == "auto" else request.own_script == "yes"
     unknown_traits = set(request.trait_overrides) - set(GRADED_TRAIT_FIELDS)
     if unknown_traits:
         raise HTTPException(
@@ -665,6 +709,7 @@ def generate(request: GenerateRequest) -> dict:
         force_isolated=request.isolated,
         force_high_altitude=request.high_altitude,
         force_tonal=request.tonal,
+        force_own_script=force_own_script,
         forced_orthography=forced_orthography,
         fantasy=request.fantasy,
         seed_examples=seed_examples,
