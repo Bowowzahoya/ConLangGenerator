@@ -1,21 +1,29 @@
-"""Plain-language explanations for the Generate result's own grammar and
-trait badges -- shown as hover tooltips in the web UI (requested
-directly: "what does altitude do, what is overt copula... include a
-description for the key and the value, where a numerical value can be
-described according to a range").
+"""Plain-language explanations for the Generate tab's own grammar/trait
+badges and Advanced options -- shown in a click-to-open popover in the
+web UI (requested directly: "what does altitude do, what is overt
+copula... include a description for the key and the value, where a
+numerical value can be described according to a range"; then "little i
+info buttons... to describe what the entry does and what all the
+options mean").
 
 Paraphrased from the real source of truth for each field -- ``core.
 traits.TraitProfile``'s own per-field docstrings for the numeric trait
-dials, ``core.grammar``'s own enums for the grammar fields -- rather than
-a second, independently-maintained description that could silently drift
-from what a field actually does. Static reference data, served once via
-``GET /api/options``'s own ``glossary`` key, the same way
-``orthography_styles``/``tts_capabilities`` already are.
+dials, ``core.grammar``'s own enums for the grammar fields, ``core.spec.
+GenerationSpec``'s own docstrings for the Advanced options, and
+``generation.romanization_gen.ORTHOGRAPHY_STYLE_DESCRIPTIONS`` (read
+directly, not copied, so it can never drift) for the 12 named
+orthography presets -- rather than a second, independently-maintained
+description that could silently drift from what a field actually does.
+Static reference data, served once via ``GET /api/options``'s own
+``glossary`` key, the same way ``orthography_styles``/
+``tts_capabilities`` already are.
 """
 
 from __future__ import annotations
 
 from typing import Literal, TypedDict
+
+from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_DESCRIPTIONS
 
 
 class BipolarTraitGloss(TypedDict):
@@ -234,6 +242,101 @@ SIMPLE_GLOSSARY: dict[str, str] = {
     "source_languages": "Real language(s) this conlang is meant to evoke or mix, and (see source_language_strictness) how strictly generation sticks to their actual sounds, spelling, and grammar.",
 }
 
+# --- the Generate tab's own "Advanced options" panel (requested
+# directly, a follow-up to the badge tooltips above: "little i info
+# buttons... to describe what the entry does and what all the options
+# mean"). Most advanced fields already carry their own explanation
+# inline in the form's own <label> text (word/sound strictness, trait
+# overrides, seed examples, years of evolution) and don't need a second
+# one here -- this covers only the fields that don't: the five
+# checkboxes, the foreign-names default, and the seven orthography-style
+# selects. Keyed by core.spec.GenerationSpec's own field name where one
+# exists (the checkboxes), or a short descriptive name otherwise (the
+# selects) -- a separate top-level section from GRAMMAR_GLOSSARY, not
+# merged into it, since e.g. "foreign_names" means something different
+# here (a three-way forward-looking choice including "auto") than it
+# does as a grammar badge (the two-way resolved outcome). Unlike the
+# grammar glossary, an advanced-option select's own "values" are meant
+# to all be shown at once as a legend -- the user hasn't chosen yet, so
+# there's no one "current reading" to single out the way a grammar
+# badge already has. ---
+ADVANCED_OPTIONS_GLOSSARY: dict[str, dict] = {
+    "fantasy": {
+        "summary": "Simple explicit metadata, not a graded trait -- passed as extra context to the LLM classifier and to word-coinage prompts. Doesn't itself bias any specific generation mechanism the way a graded trait does; it's flavor context for an LLM to draw on.",
+    },
+    "force_isolated": {
+        "summary": "Guarantees the language is geographically/socially isolated outright, regardless of what the prompt says or how the classifier reads it -- the same isolation trait a prompt's own wording can otherwise only ever bias probabilistically.",
+    },
+    "force_high_altitude": {
+        "summary": "Guarantees the language's homeland is high-altitude terrain outright (nudging ejective consonants), regardless of what the prompt says or how the classifier reads it.",
+    },
+    "force_tonal": {
+        "summary": "Guarantees the language is tonal outright, regardless of what the prompt says or how likely the classifier judges it to be.",
+    },
+    "allow_all_caps": {
+        "summary": "Opt-in permission for a whole word class (e.g. every noun) to be rendered in full capitals in this language's own spelling convention. Off by default, since no real language actually does this -- checking this only makes it *possible*, not guaranteed.",
+    },
+    "foreign_names": {
+        "summary": "How this language should handle foreign or borrowed proper names.",
+        "values": {
+            "auto": "Inferred: an explicit request in the prompt wins if there is one; otherwise the weighted vote of any matched source language(s)' own real convention; otherwise \"keep as written\".",
+            "keep": "Kept as written in the original language, unchanged (Dutch-style).",
+            "adapt": "Re-fit to the language's own sounds and spelling conventions (Chinese-style).",
+        },
+    },
+    "orthography_style": {
+        "summary": "Forces one of 12 named, real-world-inspired orthography presets outright, instead of letting the normal roll/bias (prompt wording, a matched source language's own convention) decide. Each preset is a bundle of several independent spelling conventions (how an exotic sound is spelled, whether/how vowel length and tone are marked, ...) chosen together because real orthographies of that broad family tend to combine them.",
+        "values": dict(ORTHOGRAPHY_STYLE_DESCRIPTIONS),
+    },
+    "exotic_symbol_style": {
+        "summary": "Forces how a phoneme with no obvious single Latin letter gets spelled, absent a more specific rule.",
+        "values": {
+            "monoletter": "One ASCII letter per sound, even at the cost of merging some distinctions -- a \"shallow\"/phonemic system in the spirit of Finnish, Swahili, or informal Georgian transliteration.",
+            "digraph": "A two-letter ASCII sequence, e.g. \"ʃ\" -> \"sh\".",
+            "diacritic": "A single Latin-Extended letter, e.g. \"ʃ\" -> \"š\".",
+        },
+    },
+    "vowel_length_style": {
+        "summary": "Forces how a phonemically long vowel is distinguished in spelling from its short counterpart.",
+        "values": {
+            "none": "Length isn't marked in the spelling at all.",
+            "doubling": "The letter is doubled, e.g. \"a\"/\"aa\" -- Dutch, Finnish, Estonian.",
+            "macron": "A macron over the letter, e.g. \"ā\" -- the scholarly convention shared by Latin, Hawaiian, and Japanese romaji transliteration.",
+            "colon": "An ASCII colon after the letter, e.g. \"a:\" -- an informal but attested transliteration stand-in for IPA's own length mark.",
+            "silent_e": "A mute \"e\" appended after the syllable's own coda, the way English spelling distinguishes \"mat\" from \"mate\".",
+        },
+    },
+    "tone_style": {
+        "summary": "Forces how a tone mark on a vowel surfaces in the Latin spelling.",
+        "values": {
+            "vowel_diacritic": "The mark stays inline on the vowel -- the default.",
+            "postposed_digit": "Wade-Giles/numbered-Pinyin style: a digit after the syllable.",
+            "postposed_letter": "Zhuang-style: a letter after the syllable.",
+            "unmarked": "Tone simply isn't written.",
+        },
+    },
+    "syllable_boundary_marker": {
+        "summary": "Forces whether/how two adjacent syllables get a separator when the first ends in a vowel and the second begins with one -- without one, the two vowel letters can read as a single ambiguous sequence (Pinyin's own real rule: \"Xi'an\" vs. \"Xian\").",
+        "values": {
+            "none": "No separator is ever inserted.",
+            "apostrophe": "An apostrophe, Pinyin-style (\"Xi'an\").",
+            "hyphen": "A hyphen.",
+            "diaeresis": "A diaeresis/tréma on the second vowel's own letter instead of an inserted character, French-style (Noël, naïve).",
+        },
+    },
+    "short_vowel_doubling": {
+        "summary": "Whether a short vowel makes the following onset consonant double in spelling, Dutch-style (\"zitten\" vs. \"zaten\") -- independent of how long vowels themselves are marked.",
+    },
+    "consonant_gemination": {
+        "summary": "Whether a phonemically long/geminate consonant doubles its own letter in spelling (Finnish \"kukka\" vs. \"kuka\"), independent of any neighboring vowel.",
+    },
+}
+
 
 def as_dict() -> dict:
-    return {"traits": TRAIT_GLOSSARY, "grammar": GRAMMAR_GLOSSARY, "simple": SIMPLE_GLOSSARY}
+    return {
+        "traits": TRAIT_GLOSSARY,
+        "grammar": GRAMMAR_GLOSSARY,
+        "simple": SIMPLE_GLOSSARY,
+        "advanced_options": ADVANCED_OPTIONS_GLOSSARY,
+    }

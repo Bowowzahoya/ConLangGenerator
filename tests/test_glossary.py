@@ -1,8 +1,16 @@
-"""Tests for webui.glossary -- the plain-language hover-tooltip content
-for the Generate result's own grammar/trait badges."""
+"""Tests for webui.glossary -- the plain-language click-to-popover
+content for the Generate tab's own grammar/trait badges and Advanced
+options."""
 
 from conlang_generator.core.grammar import Alignment, MorphologicalType, WordOrder
+from conlang_generator.core.romanization import (
+    ExoticSymbolStyle,
+    SyllableBoundaryMarker,
+    ToneMarkingStrategy,
+    VowelLengthStrategy,
+)
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
+from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.webui import glossary
 
 
@@ -56,9 +64,61 @@ def test_word_selection_and_foreign_names_explain_their_real_values():
     assert set(glossary.GRAMMAR_GLOSSARY["foreign_names"]["values"]) == {"keep", "adapt"}
 
 
-def test_as_dict_has_the_three_top_level_sections():
+def test_as_dict_has_the_four_top_level_sections():
     d = glossary.as_dict()
-    assert set(d) == {"traits", "grammar", "simple"}
+    assert set(d) == {"traits", "grammar", "simple", "advanced_options"}
     assert d["traits"] is glossary.TRAIT_GLOSSARY
     assert d["grammar"] is glossary.GRAMMAR_GLOSSARY
     assert d["simple"] is glossary.SIMPLE_GLOSSARY
+    assert d["advanced_options"] is glossary.ADVANCED_OPTIONS_GLOSSARY
+
+
+def test_every_advanced_option_checkbox_has_a_summary():
+    for key in ("fantasy", "force_isolated", "force_high_altitude", "force_tonal", "allow_all_caps"):
+        assert glossary.ADVANCED_OPTIONS_GLOSSARY[key]["summary"]
+        assert "values" not in glossary.ADVANCED_OPTIONS_GLOSSARY[key]
+
+
+def test_advanced_options_foreign_names_explains_all_three_real_values():
+    # The Generate tab's own forward-looking select (including "auto"),
+    # a distinct entry from GRAMMAR_GLOSSARY's own two-way resolved
+    # "foreign_names" grammar badge.
+    assert set(glossary.ADVANCED_OPTIONS_GLOSSARY["foreign_names"]["values"]) == {"auto", "keep", "adapt"}
+
+
+def test_advanced_options_orthography_style_covers_every_named_preset():
+    values = glossary.ADVANCED_OPTIONS_GLOSSARY["orthography_style"]["values"]
+    assert set(values) == set(ORTHOGRAPHY_STYLE_NAMES)
+    assert all(values.values())
+
+
+def test_advanced_options_exotic_symbol_style_covers_every_enum_value():
+    values = glossary.ADVANCED_OPTIONS_GLOSSARY["exotic_symbol_style"]["values"]
+    assert set(values) == {m.value for m in ExoticSymbolStyle}
+
+
+def test_advanced_options_vowel_length_style_covers_every_enum_value():
+    values = glossary.ADVANCED_OPTIONS_GLOSSARY["vowel_length_style"]["values"]
+    assert set(values) == {m.value for m in VowelLengthStrategy}
+
+
+def test_advanced_options_tone_style_covers_every_enum_value():
+    values = glossary.ADVANCED_OPTIONS_GLOSSARY["tone_style"]["values"]
+    assert set(values) == {m.value for m in ToneMarkingStrategy}
+
+
+def test_advanced_options_syllable_boundary_marker_covers_every_option_the_frontend_actually_sends():
+    # /api/options sends `m.name.lower()`, not `m.value` -- they differ
+    # for NONE/APOSTROPHE/HYPHEN (empty string/punctuation aren't usable
+    # <option value> text), so the glossary must be keyed the same way
+    # the frontend's own <select> options actually are.
+    values = glossary.ADVANCED_OPTIONS_GLOSSARY["syllable_boundary_marker"]["values"]
+    assert set(values) == {m.name.lower() for m in SyllableBoundaryMarker}
+
+
+def test_advanced_options_short_vowel_doubling_and_gemination_have_no_values():
+    # Plain booleans (true/false/unforced in the <select>) -- the select
+    # itself already names the options, so only a summary is needed.
+    for key in ("short_vowel_doubling", "consonant_gemination"):
+        assert glossary.ADVANCED_OPTIONS_GLOSSARY[key]["summary"]
+        assert "values" not in glossary.ADVANCED_OPTIONS_GLOSSARY[key]

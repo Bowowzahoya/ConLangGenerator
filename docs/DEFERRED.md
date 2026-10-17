@@ -54,17 +54,6 @@ multi-session feature.
 
 - **Voice picker within an engine (S).** No choice of SAPI or eSpeak voice
   -- see §9's multi-engine item, which subsumes this.
-- **Info (ⓘ) buttons on the Generate tab's Advanced options (S-M).** Most
-  advanced fields already carry inline explanation in their own `<label>`
-  text (word/sound strictness, trait overrides, seed examples, years of
-  evolution); genuinely unexplained: the five checkboxes (fantasy, force
-  isolated, force high altitude, force tonal, allow all-caps POS),
-  "Foreign names", and the seven "(unforced)" style selects (orthography/
-  exotic-symbol/vowel-length/tone/syllable-boundary-marker/short-vowel-
-  doubling/consonant-gemination) -- about a dozen items, not the whole
-  panel. Each style select's own options need their *values* explained
-  too (e.g. what "diacritic" vs. "monoletter" orthography actually looks
-  like), not just the field.
 
 ## 3. Translation
 

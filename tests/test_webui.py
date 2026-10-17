@@ -312,6 +312,8 @@ def test_options_endpoint_serves_the_grammar_trait_glossary(client):
     assert glossary["traits"]["altitude"]["kind"] == "bipolar"
     assert glossary["grammar"]["has_overt_copula"]["values"]["true"]
     assert glossary["simple"]["cases"]
+    assert glossary["advanced_options"]["fantasy"]["summary"]
+    assert glossary["advanced_options"]["orthography_style"]["values"]["wade-giles-style"]
 
 
 def test_options_endpoint_lists_models_with_a_price_per_task(client):

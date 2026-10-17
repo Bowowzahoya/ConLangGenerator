@@ -818,6 +818,13 @@ ORTHOGRAPHY_STYLE_NAMES: tuple[str, ...] = tuple(_CATEGORIES_BY_NAME)
 """Public -- the valid `OrthographyForce.style`/`--orthography-style`
 names, for CLI help text and validation."""
 
+ORTHOGRAPHY_STYLE_DESCRIPTIONS: dict[str, str] = {name: category.description for name, category in _CATEGORIES_BY_NAME.items()}
+"""Public -- each name's own real ``OrthographyCategory.description``,
+for the web UI's own info popover (``webui/glossary.py``). Reads the
+categories' own descriptions directly rather than a second, hand-copied
+set of explanations that could drift from what each style actually
+does."""
+
 # How often a symbol covered by a matched reference language's own spelling
 # convention actually uses it, vs. falling through to the generic style --
 # organic/free rather than a literal copy (see module docstring). Also

@@ -88,6 +88,15 @@
     color: var(--accent); font-family: var(--mono); border: none; cursor: pointer;
   }
   .sound-badge:hover, .sound-badge.open { background: var(--accent); color: var(--panel); }
+  .info-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; border-radius: 50%; border: none; padding: 0;
+    background: var(--accent-bg); color: var(--accent); font-size: 12px; line-height: 1;
+    cursor: pointer; margin-left: 4px; vertical-align: middle;
+  }
+  .info-btn:hover { background: var(--accent); color: var(--panel); }
+  #info-popover .info-values { margin: 0; padding-left: 18px; }
+  #info-popover .info-values li { margin-bottom: 6px; }
   h2 { font-size: 15px; margin: 18px 0 8px; }
   table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); }
@@ -190,16 +199,16 @@
       <summary>Advanced options</summary>
 
       <div class="checks">
-        <label><input type="checkbox" id="gen-fantasy"> fantasy</label>
-        <label><input type="checkbox" id="gen-isolated"> force isolated</label>
-        <label><input type="checkbox" id="gen-high-altitude"> force high altitude</label>
-        <label><input type="checkbox" id="gen-tonal"> force tonal</label>
-        <label><input type="checkbox" id="gen-allow-all-caps"> allow all-caps POS</label>
+        <label><input type="checkbox" id="gen-fantasy"> fantasy</label><button type="button" class="info-btn" data-info-key="fantasy" title="What does this do?">&#9432;</button>
+        <label><input type="checkbox" id="gen-isolated"> force isolated</label><button type="button" class="info-btn" data-info-key="force_isolated" title="What does this do?">&#9432;</button>
+        <label><input type="checkbox" id="gen-high-altitude"> force high altitude</label><button type="button" class="info-btn" data-info-key="force_high_altitude" title="What does this do?">&#9432;</button>
+        <label><input type="checkbox" id="gen-tonal"> force tonal</label><button type="button" class="info-btn" data-info-key="force_tonal" title="What does this do?">&#9432;</button>
+        <label><input type="checkbox" id="gen-allow-all-caps"> allow all-caps POS</label><button type="button" class="info-btn" data-info-key="allow_all_caps" title="What does this do?">&#9432;</button>
       </div>
 
       <div class="row">
         <div>
-          <label for="gen-foreign-names">Foreign names</label>
+          <label for="gen-foreign-names">Foreign names</label><button type="button" class="info-btn" data-info-key="foreign_names" title="What do these options mean?">&#9432;</button>
           <select id="gen-foreign-names">
             <option value="">auto (from prompt/source language)</option>
             <option value="keep">keep as written</option>
@@ -255,29 +264,29 @@
 
       <div class="row">
         <div>
-          <label for="gen-orthography-style">Orthography style</label>
+          <label for="gen-orthography-style">Orthography style</label><button type="button" class="info-btn" data-info-key="orthography_style" title="What do these options mean?">&#9432;</button>
           <select id="gen-orthography-style"><option value="">(unforced)</option></select>
         </div>
         <div>
-          <label for="gen-exotic-symbol-style">Exotic symbol style</label>
+          <label for="gen-exotic-symbol-style">Exotic symbol style</label><button type="button" class="info-btn" data-info-key="exotic_symbol_style" title="What do these options mean?">&#9432;</button>
           <select id="gen-exotic-symbol-style"><option value="">(unforced)</option></select>
         </div>
         <div>
-          <label for="gen-vowel-length-style">Vowel length style</label>
+          <label for="gen-vowel-length-style">Vowel length style</label><button type="button" class="info-btn" data-info-key="vowel_length_style" title="What do these options mean?">&#9432;</button>
           <select id="gen-vowel-length-style"><option value="">(unforced)</option></select>
         </div>
       </div>
       <div class="row">
         <div>
-          <label for="gen-tone-style">Tone style</label>
+          <label for="gen-tone-style">Tone style</label><button type="button" class="info-btn" data-info-key="tone_style" title="What do these options mean?">&#9432;</button>
           <select id="gen-tone-style"><option value="">(unforced)</option></select>
         </div>
         <div>
-          <label for="gen-syllable-boundary-marker">Syllable boundary marker</label>
+          <label for="gen-syllable-boundary-marker">Syllable boundary marker</label><button type="button" class="info-btn" data-info-key="syllable_boundary_marker" title="What do these options mean?">&#9432;</button>
           <select id="gen-syllable-boundary-marker"><option value="">(unforced)</option></select>
         </div>
         <div>
-          <label for="gen-short-vowel-doubling">Short-vowel consonant doubling</label>
+          <label for="gen-short-vowel-doubling">Short-vowel consonant doubling</label><button type="button" class="info-btn" data-info-key="short_vowel_doubling" title="What does this do?">&#9432;</button>
           <select id="gen-short-vowel-doubling">
             <option value="">(unforced)</option>
             <option value="true">true</option>
@@ -285,7 +294,7 @@
           </select>
         </div>
       </div>
-      <label for="gen-consonant-gemination">Consonant gemination marked</label>
+      <label for="gen-consonant-gemination">Consonant gemination marked</label><button type="button" class="info-btn" data-info-key="consonant_gemination" title="What does this do?">&#9432;</button>
       <select id="gen-consonant-gemination">
         <option value="">(unforced)</option>
         <option value="true">true</option>
@@ -636,7 +645,7 @@ let gradedTraitFields = [];
 // --- plain-language explanations for the Generate result's own grammar/
 // trait badges, shown as native `title` hover tooltips -- populated once
 // from /api/options (same pattern as ttsCapabilities below). ---
-let glossary = { traits: {}, grammar: {}, simple: {} };
+let glossary = { traits: {}, grammar: {}, simple: {}, advanced_options: {} };
 
 function lowerFirst(s) {
   return s.length ? s.charAt(0).toLowerCase() + s.slice(1) : s;
@@ -727,7 +736,7 @@ async function loadOptions() {
   fill("gen-tone-style", opts.tone_styles);
   fill("gen-syllable-boundary-marker", opts.syllable_boundary_markers);
   gradedTraitFields = opts.graded_trait_fields || [];
-  glossary = opts.glossary || { traits: {}, grammar: {}, simple: {} };
+  glossary = opts.glossary || { traits: {}, grammar: {}, simple: {}, advanced_options: {} };
 
   const fillModels = (id, task) => {
     const select = $(id);
@@ -1023,6 +1032,25 @@ function toggleBadgeInfo(button) {
   showInfoPopover(button, renderBadgeInfo(button.dataset.info));
 }
 
+// --- the Generate tab's own "little i" info buttons on Advanced
+// options -- same click-to-popover mechanism again. Unlike a grammar/
+// trait badge (which explains an already-resolved value), the user
+// hasn't chosen yet here, so a select's own glossary entry shows every
+// option's meaning at once, as a legend, rather than just one reading. ---
+function renderAdvancedOptionInfo(key) {
+  const gloss = glossary.advanced_options[key];
+  if (!gloss) return `<p class="ipa">(no description available)</p>`;
+  const valuesList = gloss.values
+    ? `<ul class="info-values">${Object.entries(gloss.values).map(([v, d]) => `<li><strong>${escapeAttr(v)}</strong>: ${escapeAttr(d)}</li>`).join("")}</ul>`
+    : "";
+  return `<div class="log-body"><p>${escapeAttr(gloss.summary)}</p>${valuesList}</div>`;
+}
+
+function toggleAdvancedOptionInfo(button) {
+  if (openInfoPopoverButton === button) { hideInfoPopover(); return; }
+  showInfoPopover(button, renderAdvancedOptionInfo(button.dataset.infoKey));
+}
+
 function renderToneSection(summary) {
   const ts = summary.tone_system;
   if (!summary.grammar.tonal || !ts) return "";
@@ -1265,6 +1293,8 @@ document.addEventListener("click", (e) => {
   if (soundBadge) { toggleSoundBadge(soundBadge); return; }
   const infoBadge = e.target.closest(".badge[data-info]");
   if (infoBadge) { toggleBadgeInfo(infoBadge); return; }
+  const infoBtn = e.target.closest(".info-btn[data-info-key]");
+  if (infoBtn) { toggleAdvancedOptionInfo(infoBtn); return; }
   if (openInfoPopoverButton && !e.target.closest("#info-popover")) hideInfoPopover();
 
   const tr = e.target.closest("#lexicon-tbody tr");

@@ -7507,3 +7507,34 @@ reading code or one-off ad hoc scripts.
   two. `button.badge` gained a small CSS reset (`border: none; font: inherit`) so a badge rendered as a
   real button still looks identical to the plain, non-clickable `<span class="badge">` badges elsewhere
   (tone levels, cost, pre-generated-audio count) that were deliberately left alone.
+
+- **Info (ⓘ) buttons on the Generate tab's Advanced options -- done.** Direct follow-up request
+  after the badge-tooltip item above ("little i info buttons... to describe what the entry does and
+  what all the options mean"), reusing that same click-to-popover mechanism (`showInfoPopover`) rather
+  than inventing a third one. Scoped to what actually needed it, confirmed by reading the form itself
+  first: most Advanced fields already carry their own explanation inline in the `<label>` text (word/
+  sound strictness, trait overrides, seed examples, years of evolution) and were left alone -- new ⓘ
+  buttons were added only to the five checkboxes (fantasy, force isolated/high-altitude/tonal, allow
+  all-caps POS), "Foreign names", and the seven orthography-related style selects, about a dozen
+  fields. `webui/glossary.py` gained a new `ADVANCED_OPTIONS_GLOSSARY` section (a separate top-level
+  key from `GRAMMAR_GLOSSARY`, since e.g. "foreign_names" means something different here -- a
+  three-way forward-looking choice including `"auto"` -- than it does as the grammar badge's own
+  two-way resolved outcome), paraphrased from `core.spec.GenerationSpec`'s own field docstrings. The 7
+  style selects' own per-value legends come from the real enums (`ExoticSymbolStyle`/
+  `VowelLengthStrategy`/`ToneMarkingStrategy`/`SyllableBoundaryMarker`) the same way the grammar
+  glossary's enum values already did -- except `orthography_style`, whose 12 named presets
+  (`wade-giles-style`, `germanic-doubling-style`, ...) already had their own real, well-written
+  `description` field on each `OrthographyCategory` (`romanization_gen.py`'s own `_CATEGORIES`) with
+  no public accessor; rather than hand-copying those 12 descriptions into glossary.py (a second
+  maintained copy that could drift), `romanization_gen.py` gained one new public constant,
+  `ORTHOGRAPHY_STYLE_DESCRIPTIONS: dict[str, str]`, read directly from the categories' own
+  `description` field, sitting right next to the already-public `ORTHOGRAPHY_STYLE_NAMES` it mirrors.
+  One real gotcha caught by a dedicated test rather than assumed: `GET /api/options`'s own
+  `syllable_boundary_markers` list is built from `[m.name.lower() for m in SyllableBoundaryMarker]`,
+  not `m.value` -- they differ for three of the four members (`NONE`/`APOSTROPHE`/`HYPHEN` have
+  `value`s of `""`/`"'"`/`"-"`, unusable as a literal `<select>` option's own `value` text), so the
+  glossary had to be keyed the same way the frontend's own `<option>`s actually are, not by the
+  enum's own value. Unlike a grammar badge (which explains one already-resolved reading), the user
+  hasn't chosen an Advanced option's value yet, so a select's own popover shows every option's meaning
+  at once as a legend (a `<ul>`) rather than singling out a "current reading" the way a grammar badge's
+  own tooltip does.
