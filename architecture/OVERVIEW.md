@@ -7488,3 +7488,22 @@ reading code or one-off ad hoc scripts.
   name as the lookup key, so no new ID/mapping scheme was needed. 7 new tests (`test_glossary.py`)
   check every `GRADED_TRAIT_FIELDS`/enum value actually has a non-empty glossary entry, so a future
   trait or grammar enum addition fails loudly here rather than silently rendering an empty tooltip.
+
+  **Follow-up, same item: switched from a hover tooltip to the sound inventory's own click-to-popover,
+  direct user request to match that exact behavior.** Native `title` attributes are gone; a grammar/
+  trait badge is now a real `<button>` (previously a `<span>`, matching how the sound-inventory badges
+  already were) carrying its explanation in a `data-info` attribute instead. The popover mechanism
+  itself was generalized rather than duplicated a third time: `showSoundGuidePopover`/
+  `hideSoundGuidePopover`/`openSoundGuideButton` (and the `#sound-guide-popover` element/CSS) were
+  renamed to `showInfoPopover`/`hideInfoPopover`/`openInfoPopoverButton`/`#info-popover`, since the one
+  shared popover element now serves three independent callers (a lexicon word's own sound-guide button,
+  a sound-inventory badge, and now a grammar/trait badge) rather than only sound-related ones --
+  `showInfoPopover(anchor, html)` takes already-rendered HTML and owns only the positioning/clamping
+  logic, with each caller (`toggleSoundGuide`/`toggleSoundBadge`/the new `toggleBadgeInfo`) responsible
+  for its own content (`renderSoundGuideList(...)` for the first two, a new `renderBadgeInfo(text)` --
+  splitting the explanation's own `"\n\n"` into separate paragraphs -- for the third). All three share
+  the same open/close/toggle-on-same-button state through the one `openInfoPopoverButton` variable, so
+  clicking a second badge while one popover is already open correctly replaces it rather than stacking
+  two. `button.badge` gained a small CSS reset (`border: none; font: inherit`) so a badge rendered as a
+  real button still looks identical to the plain, non-clickable `<span class="badge">` badges elsewhere
+  (tone levels, cost, pre-generated-audio count) that were deliberately left alone.

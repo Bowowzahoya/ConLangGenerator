@@ -80,7 +80,9 @@
     font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--accent-bg);
     color: var(--accent); font-family: var(--mono);
   }
-  .badge[title]:not([title=""]) { cursor: help; border-bottom: 1px dotted var(--accent); }
+  button.badge { border: none; font: inherit; }
+  .badge[data-info] { cursor: pointer; border-bottom: 1px dotted var(--accent); }
+  .badge[data-info]:hover { background: var(--accent); color: var(--panel); }
   .sound-badge {
     font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--accent-bg);
     color: var(--accent); font-family: var(--mono); border: none; cursor: pointer;
@@ -106,13 +108,15 @@
   }
   #gloss-tooltip .gloss-tooltip-gloss { font-weight: 600; }
   #gloss-tooltip .gloss-tooltip-row { color: var(--muted); font-size: 12px; margin-top: 2px; }
-  #sound-guide-popover {
+  #info-popover {
     position: fixed; display: none; max-width: 340px; max-height: 360px; overflow-y: auto;
     background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
     font-size: 13px; color: var(--text); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
     z-index: 50; pointer-events: auto;
   }
-  #sound-guide-popover .log-entry { margin-bottom: 6px; }
+  #info-popover .log-entry { margin-bottom: 6px; }
+  #info-popover .log-body p { margin: 0 0 8px; }
+  #info-popover .log-body p:last-child { margin-bottom: 0; }
   .sound-guide-btn { margin-left: 2px; }
   .log-entry {
     border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;
@@ -393,7 +397,7 @@
 
 </main>
 
-<div id="sound-guide-popover"></div>
+<div id="info-popover"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -941,21 +945,21 @@ function renderSoundInventorySection(summary) {
   return `<h2>Sound inventory (${sounds.length} phonemes)</h2><div class="badges" id="sound-inventory-badges">${badges}</div>`;
 }
 
-// --- tier 2: a button next to a word's own play button fetches and
-// shows just that word's own sounds, in one shared popover positioned
-// under whichever button was clicked. Cached per slug+word so reopening
-// the same word doesn't refetch. ---
-const soundGuideCache = new Map();
-let openSoundGuideButton = null;
+// --- one shared popover, positioned under whichever button was
+// clicked, reused by every clickable badge on the page (a word's own
+// sound-guide button, a sound-inventory badge, and a grammar/trait
+// badge) -- only one is ever open at a time, tracked by which button
+// opened it. ---
+let openInfoPopoverButton = null;
 
-function hideSoundGuidePopover() {
-  $("sound-guide-popover").style.display = "none";
-  openSoundGuideButton = null;
+function hideInfoPopover() {
+  $("info-popover").style.display = "none";
+  openInfoPopoverButton = null;
 }
 
-function showSoundGuidePopover(anchor, sounds) {
-  const pop = $("sound-guide-popover");
-  pop.innerHTML = renderSoundGuideList(sounds);
+function showInfoPopover(anchor, html) {
+  const pop = $("info-popover");
+  pop.innerHTML = html;
   pop.style.display = "block";
   const rect = anchor.getBoundingClientRect();
   // Clamp vertically too (not just horizontally, below): "position: fixed"
@@ -969,11 +973,16 @@ function showSoundGuidePopover(anchor, sounds) {
   const top = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - pop.offsetHeight - 8));
   pop.style.top = `${top}px`;
   pop.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 340 - 12))}px`;
-  openSoundGuideButton = anchor;
+  openInfoPopoverButton = anchor;
 }
 
+// --- tier 2: a button next to a word's own play button fetches and
+// shows just that word's own sounds. Cached per slug+word so reopening
+// the same word doesn't refetch. ---
+const soundGuideCache = new Map();
+
 async function toggleSoundGuide(button) {
-  if (openSoundGuideButton === button) { hideSoundGuidePopover(); return; }
+  if (openInfoPopoverButton === button) { hideInfoPopover(); return; }
   const { slug, ipa } = button.dataset;
   const key = `${slug}|${ipa}`;
   let sounds = soundGuideCache.get(key);
@@ -986,17 +995,32 @@ async function toggleSoundGuide(button) {
       sounds = [];
     }
   }
-  showSoundGuidePopover(button, sounds);
+  showInfoPopover(button, renderSoundGuideList(sounds));
 }
 
 // --- the sound inventory's own badges (one per phoneme the whole
 // language uses, not one word) -- no fetch needed, since the full
 // inventory already rode along on `currentSummary.phoneme_inventory`. ---
 function toggleSoundBadge(button) {
-  if (openSoundGuideButton === button) { hideSoundGuidePopover(); return; }
+  if (openInfoPopoverButton === button) { hideInfoPopover(); return; }
   const sound = currentSummary && currentSummary.phoneme_inventory[Number(button.dataset.soundIndex)];
   if (!sound) return;
-  showSoundGuidePopover(button, [sound]);
+  showInfoPopover(button, renderSoundGuideList([sound]));
+}
+
+// --- a grammar/trait badge's own glossary explanation (see
+// describeTrait/describeGrammarField above) -- same click-to-popover
+// behavior as the sound badges, not a hover tooltip, per a direct user
+// request to match. The explanation text's own "\n\n" (summary, then
+// the specific value's own reading) becomes separate paragraphs. ---
+function renderBadgeInfo(text) {
+  if (!text) return `<p class="ipa">(no description available)</p>`;
+  return `<div class="log-body">${text.split("\n\n").map(p => `<p>${escapeAttr(p)}</p>`).join("")}</div>`;
+}
+
+function toggleBadgeInfo(button) {
+  if (openInfoPopoverButton === button) { hideInfoPopover(); return; }
+  showInfoPopover(button, renderBadgeInfo(button.dataset.info));
 }
 
 function renderToneSection(summary) {
@@ -1044,11 +1068,16 @@ function renderLanguageSummary(container, summary) {
     if (other && other !== container) other.innerHTML = "";
   }
   const g = summary.grammar, t = summary.traits;
+  // Clickable badges carry their own explanation in data-info (consumed
+  // by toggleBadgeInfo, the same click-to-popover mechanism the sound
+  // inventory badges use -- not a hover tooltip), so they're real
+  // <button>s, not <span>s, the same element the sound badges already are.
+  const infoBadge = (text, label) => `<button type="button" class="badge" data-info="${escapeAttr(text)}">${label}</button>`;
   const traitBadges = Object.entries(t)
     .filter(([k, v]) => typeof v === "number" && v !== 0)
-    .map(([k, v]) => `<span class="badge" title="${escapeAttr(describeTrait(k, v))}">${k}: ${v.toFixed(2)}</span>`).join("");
+    .map(([k, v]) => infoBadge(describeTrait(k, v), `${k}: ${v.toFixed(2)}`)).join("");
   const sourceLangBadge = t.source_languages && t.source_languages.length
-    ? `<span class="badge" title="${escapeAttr(glossary.simple.source_languages || "")}">source: ${t.source_languages.join(", ")} (strictness ${t.source_language_strictness.toFixed(2)})</span>`
+    ? infoBadge(glossary.simple.source_languages || "", `source: ${t.source_languages.join(", ")} (strictness ${t.source_language_strictness.toFixed(2)})`)
     : "";
 
   container.innerHTML = `
@@ -1057,20 +1086,20 @@ function renderLanguageSummary(container, summary) {
         <button type="button" class="add-row" id="export-generated-btn" style="font-size:12px; margin-left:8px;">&#8681; export</button>
       </h2>
       <div class="badges">
-        <span class="badge" title="${escapeAttr(describeGrammarField("word_order", g.word_order))}">word order: ${g.word_order}</span>
-        <span class="badge" title="${escapeAttr(describeGrammarField("alignment", g.alignment))}">alignment: ${g.alignment}</span>
-        <span class="badge" title="${escapeAttr(describeGrammarField("morphological_type", g.morphological_type))}">morphology: ${g.morphological_type}</span>
-        <span class="badge" title="${escapeAttr(describeGrammarField("has_articles", g.has_articles))}">articles: ${g.has_articles}</span>
-        <span class="badge" title="${escapeAttr(describeGrammarField("has_overt_copula", g.has_overt_copula))}">overt copula: ${g.has_overt_copula}</span>
-        <span class="badge" title="${escapeAttr(describeGrammarField("adjective_after_noun", g.adjective_after_noun))}">adj after noun: ${g.adjective_after_noun}</span>
-        <span class="badge" title="${escapeAttr(describeGrammarField("tonal", g.tonal))}">tonal: ${g.tonal}</span>
-        <span class="badge" title="${escapeAttr(describeGrammarField("word_selection", g.word_selection))}">word selection: ${g.word_selection}</span>
-        <span class="badge" title="${escapeAttr(describeGrammarField("foreign_names", g.foreign_names))}">foreign names: ${g.foreign_names}</span>
-        ${g.evolved_years ? `<span class="badge" title="${escapeAttr(glossary.simple.evolved_years || "")}">evolved ${g.evolved_years} years</span>` : ""}
-        ${summary.real_words ? `<span class="badge" title="${escapeAttr(glossary.simple.real_words || "")}">real-word-based: ${summary.real_words} of ${summary.lexicon.length}</span>` : ""}
-        ${g.cases.length ? `<span class="badge" title="${escapeAttr(glossary.simple.cases || "")}">cases: ${g.cases.join(", ")}</span>` : ""}
-        ${g.tenses.length ? `<span class="badge" title="${escapeAttr(glossary.simple.tenses || "")}">tenses: ${g.tenses.join(", ")}</span>` : ""}
-        <span class="badge" title="${escapeAttr(glossary.simple.orthography_category || "")}">orthography: ${summary.orthography_category || "(unnamed)"}</span>
+        ${infoBadge(describeGrammarField("word_order", g.word_order), `word order: ${g.word_order}`)}
+        ${infoBadge(describeGrammarField("alignment", g.alignment), `alignment: ${g.alignment}`)}
+        ${infoBadge(describeGrammarField("morphological_type", g.morphological_type), `morphology: ${g.morphological_type}`)}
+        ${infoBadge(describeGrammarField("has_articles", g.has_articles), `articles: ${g.has_articles}`)}
+        ${infoBadge(describeGrammarField("has_overt_copula", g.has_overt_copula), `overt copula: ${g.has_overt_copula}`)}
+        ${infoBadge(describeGrammarField("adjective_after_noun", g.adjective_after_noun), `adj after noun: ${g.adjective_after_noun}`)}
+        ${infoBadge(describeGrammarField("tonal", g.tonal), `tonal: ${g.tonal}`)}
+        ${infoBadge(describeGrammarField("word_selection", g.word_selection), `word selection: ${g.word_selection}`)}
+        ${infoBadge(describeGrammarField("foreign_names", g.foreign_names), `foreign names: ${g.foreign_names}`)}
+        ${g.evolved_years ? infoBadge(glossary.simple.evolved_years || "", `evolved ${g.evolved_years} years`) : ""}
+        ${summary.real_words ? infoBadge(glossary.simple.real_words || "", `real-word-based: ${summary.real_words} of ${summary.lexicon.length}`) : ""}
+        ${g.cases.length ? infoBadge(glossary.simple.cases || "", `cases: ${g.cases.join(", ")}`) : ""}
+        ${g.tenses.length ? infoBadge(glossary.simple.tenses || "", `tenses: ${g.tenses.join(", ")}`) : ""}
+        ${infoBadge(glossary.simple.orthography_category || "", `orthography: ${summary.orthography_category || "(unnamed)"}`)}
       </div>
       ${traitBadges || sourceLangBadge ? `<div class="badges">${traitBadges}${sourceLangBadge}</div>` : ""}
       ${(summary.warnings || []).map(w => `<div class="error">⚠ ${w}</div>`).join("")}
@@ -1234,7 +1263,9 @@ document.addEventListener("click", (e) => {
   if (sgBtn) { toggleSoundGuide(sgBtn); return; }
   const soundBadge = e.target.closest(".sound-badge");
   if (soundBadge) { toggleSoundBadge(soundBadge); return; }
-  if (openSoundGuideButton && !e.target.closest("#sound-guide-popover")) hideSoundGuidePopover();
+  const infoBadge = e.target.closest(".badge[data-info]");
+  if (infoBadge) { toggleBadgeInfo(infoBadge); return; }
+  if (openInfoPopoverButton && !e.target.closest("#info-popover")) hideInfoPopover();
 
   const tr = e.target.closest("#lexicon-tbody tr");
   if (!tr || !currentSummary) return;
