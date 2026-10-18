@@ -120,13 +120,17 @@ def test_most_symbols_in_the_global_pool_have_a_real_example():
     # rare sounds (bilabial/palatal clicks, voiced uvular stop, ɤ) are
     # deliberately left without a forced, shaky citation (see
     # _CONSONANT_EXAMPLES's own docstring), so 100% coverage is not the
-    # goal; this just guards against the table silently regressing.
+    # goal; this just guards against the table silently regressing. The
+    # vowel threshold is a bit looser than the consonant one: a handful
+    # of Khmer-style diphthongs (ɨə/oə/aə/əɨ/aɨ) are likewise left
+    # without one rather than falsely reusing their onset monophthong's
+    # own example (see `_vowel_example`'s own diphthong handling).
     consonants_with_example = sum(
         1 for c in phonology_gen.ALL_CONSONANTS if articulation._consonant_example(c) is not None
     )
     vowels_with_example = sum(1 for v in phonology_gen.ALL_VOWELS if articulation._vowel_example(v) is not None)
     assert consonants_with_example / len(phonology_gen.ALL_CONSONANTS) > 0.9
-    assert vowels_with_example / len(phonology_gen.ALL_VOWELS) > 0.9
+    assert vowels_with_example / len(phonology_gen.ALL_VOWELS) > 0.85
 
 
 def test_a_modified_symbol_reuses_its_base_symbols_example():

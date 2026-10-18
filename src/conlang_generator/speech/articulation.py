@@ -230,6 +230,32 @@ _SYMBOL_EXAMPLE_OVERRIDES: dict[str, tuple[str, str, str]] = {
     "r̩": ("butter", "English", "er"),
     "ɻ̩": ("butter", "English", "er"),
     "ɚ": ("better", "English", "er"),
+    # Diphthongs are classified by (height, backness, rounded) of their
+    # *onset* alone, which otherwise collides with the plain monophthong
+    # at that exact bucket (e.g. "ai" onsets at the same (OPEN, CENTRAL,
+    # unrounded) bucket plain "a" occupies) -- keyed here by the
+    # diphthong's own full ipa so each gets its own, genuinely
+    # diphthong-containing example instead of silently reusing the
+    # monophthong's.
+    "ai": ("Mai", "German", "ai"),
+    "au": ("Haus", "German", "au"),
+    "ɔi": ("toy", "English", "oy"),
+    "ei": ("day", "English", "ay"),
+    "ɛi": ("klein", "Dutch", "ei"),
+    "œy": ("huis", "Dutch", "ui"),
+    # The rest are the Khmer-style onset-classified diphthongs added in
+    # phonology_gen.py; a few have a widely-recognizable example in a
+    # non-Khmer language that genuinely contains that same glide:
+    "iə": ("fierce", "English (RP)", "ie"),
+    "eə": ("hair", "English (RP)", "air"),
+    "uə": ("tour", "English (RP)", "our"),
+    "ao": ("sao", "Vietnamese", "ao"),
+    "ou": ("soul", "English", "ou"),
+    # ɨə/oə/aə/əɨ/aɨ have no entry on purpose: none has a widely-
+    # recognizable example in a commonly-known language, and
+    # `_vowel_example` deliberately skips the monophthong-bucket
+    # fallback for any diphthong, so these simply show no example
+    # rather than a wrong, colliding one.
 }
 
 
@@ -245,6 +271,12 @@ def _consonant_example(c: Consonant) -> tuple[str, str, str] | None:
 def _vowel_example(v: Vowel) -> tuple[str, str, str] | None:
     if v.ipa in _SYMBOL_EXAMPLE_OVERRIDES:
         return _SYMBOL_EXAMPLE_OVERRIDES[v.ipa]
+    if v.diphthong:
+        # The (height, backness, rounded) bucket is keyed by the onset
+        # alone, so it's already occupied by the plain monophthong at
+        # that same onset -- falling back to it here would silently
+        # reproduce that exact collision instead of fixing it.
+        return None
     return _VOWEL_EXAMPLES.get((v.height, v.backness, v.rounded))
 
 
