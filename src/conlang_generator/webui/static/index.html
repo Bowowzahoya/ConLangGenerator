@@ -928,8 +928,12 @@ function collectScriptTraitOverrides() {
 // value (0.00 included -- "all traits already visible", a direct user
 // request) rather than only appearing for a nonzero one. ---
 function buildTweakTraitRows(currentValues) {
+  // `data-original` keeps the *true, unrounded* current value so
+  // collectTweakTraitOverrides can tell "untouched" apart from "edited"
+  // without being fooled by the input's own display rounding -- see
+  // that function's own comment for why this matters.
   $("tweak-trait-rows").innerHTML = phonologyOnlyTraitFields.map(name => `
-    <div class="dyn-row" data-trait-name="${name}">
+    <div class="dyn-row" data-trait-name="${name}" data-original="${currentValues[name] || 0}">
       <label style="flex:0 0 220px; margin:0; align-self:center;">${name}</label>
       <input type="number" min="-1" max="1" step="0.05" class="to-value" value="${(currentValues[name] || 0).toFixed(2)}">
       <button type="button" class="info-btn" title="What does this trait mean?">&#9432;</button>
@@ -944,9 +948,22 @@ function buildTweakTraitRows(currentValues) {
 }
 
 function collectTweakTraitOverrides() {
+  // Only send an override for a row the user actually changed. The
+  // input's displayed value is rounded to 2 decimals (toFixed(2)) for
+  // readability, but the language's *true* current value usually has
+  // more precision than that -- sending the rounded reading back for
+  // every untouched row would silently perturb every trait by a
+  // sub-0.01 amount on every single tweak, which is enough to re-roll
+  // a different phonology even though nothing visibly changed in the
+  // form. Comparing against the true, unrounded `data-original` (not
+  // the rounded displayed value) avoids that: an omitted field means
+  // "leave this trait exactly as it was", via GenerationSpec.traits'
+  // own model_copy(update=...) semantics in regenerate_phonology.
   const overrides = {};
   for (const row of $("tweak-trait-rows").querySelectorAll(".dyn-row")) {
-    overrides[row.dataset.traitName] = parseFloat(row.querySelector(".to-value").value || "0");
+    const value = parseFloat(row.querySelector(".to-value").value || "0");
+    const original = parseFloat(row.dataset.original || "0");
+    if (Math.abs(value - original) >= 0.005) overrides[row.dataset.traitName] = value;
   }
   return overrides;
 }
