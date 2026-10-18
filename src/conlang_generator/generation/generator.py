@@ -1018,21 +1018,37 @@ def regenerate_phonology_adapt_words(
     introduced here. Every adapted entry's own ``tones`` is cleared to
     ``()`` to match (rather than silently leaving a stale tone reading
     attached to a now-unmarked IPA string) -- adapting a tonal
-    language's own lexicon does not yet preserve its tones."""
+    language's own lexicon does not yet preserve its tones.
+
+    An *exact* real-word copy (``real_words._build_real_entry``'s own
+    ``notes="real word: ..."`` branch -- source_word_strictness 1.0,
+    the word's own literal real-language spelling used verbatim,
+    bypassing ``RomanizationScheme.apply`` entirely) whose own sounds
+    all still fit the new inventory unchanged keeps that real spelling
+    exactly as-is, rather than silently re-deriving one from this
+    language's own (freshly rolled) orthography rules -- a real bug
+    caught from a direct user report: real Dutch "leeg" (ipa unchanged)
+    was coming out "leech" purely because this language's own romanization
+    scheme spells /x/ differently than Dutch itself does, even though
+    the word's own pronunciation never actually changed. Only when the
+    new inventory can no longer represent the real word's own sounds
+    verbatim (``fit_ipa`` actually had to substitute something) does it
+    fall through to the normal re-derivation every other word gets --
+    at that point it's no longer a pure, unmodified copy regardless."""
     regenerated = regenerate_phonology(name, language, trait_overrides, llm_client)
     inventory = regenerated.phonology
     structure = regenerated.syllable_structure
     romanization = regenerated.romanization
-    adapted_entries = tuple(
-        entry.model_copy(
-            update={
-                "ipa": (new_ipa := phoneme_fit.fit_ipa(entry.ipa, inventory, structure)),
-                "romanization": apply_grammatical_spelling(romanization, romanization.apply(new_ipa), entry.pos),
-                "tones": (),
-            }
-        )
-        for entry in language.lexicon.entries
-    )
+
+    def adapt(entry: LexicalEntry) -> LexicalEntry:
+        new_ipa = phoneme_fit.fit_ipa(entry.ipa, inventory, structure)
+        if entry.notes.startswith("real word:") and new_ipa == entry.ipa:
+            new_romanization = entry.romanization
+        else:
+            new_romanization = apply_grammatical_spelling(romanization, romanization.apply(new_ipa), entry.pos)
+        return entry.model_copy(update={"ipa": new_ipa, "romanization": new_romanization, "tones": ()})
+
+    adapted_entries = tuple(adapt(entry) for entry in language.lexicon.entries)
     return regenerated.model_copy(
         update={"lexicon": regenerated.lexicon.model_copy(update={"entries": adapted_entries})}
     )

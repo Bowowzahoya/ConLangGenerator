@@ -459,10 +459,10 @@
         <input type="text" id="tweak-name" placeholder="my-language-tweaked">
       </div>
     </div>
+    <button type="button" class="add-row" id="tweak-edit-words-btn" hidden>&#9998; View &amp; edit this language's words (opens Inspect)</button>
 
-    <label>Phonology trait overrides <span class="ipa">(only altitude, aesthetic_harshness, and phonotactic_restrictiveness can be tweaked here -- editing any other trait could also shift grammar, which a tweak is guaranteed not to do; pre-filled from the picked language's own current reading)</span></label>
+    <label>Phonology traits <span class="ipa">(the only three that can be tweaked here -- editing any other trait could also shift grammar, which a tweak is guaranteed not to do; always shown, pre-filled from the picked language's own current reading)</span></label>
     <div id="tweak-trait-rows"></div>
-    <button type="button" class="add-row" id="add-tweak-trait">+ trait override</button>
 
     <label style="margin-top:14px;">Words</label>
     <div class="checks">
@@ -918,36 +918,35 @@ function collectScriptTraitOverrides() {
   return overrides;
 }
 
-// --- Tweak tab: the same dyn-row pattern again, restricted to
-// phonologyOnlyTraitFields (the only three names the backend will ever
-// accept for a tweak -- see core.traits.PHONOLOGY_ONLY_TRAIT_FIELDS),
-// and -- unlike every other dyn-row builder above -- optionally
-// pre-filled with a specific name/value pair, since loadTweakLanguage
-// below seeds one row per nonzero trait the picked language's own
-// current reading already has, rather than starting blank. ---
-function addTweakTraitRow(presetName, presetValue) {
-  const row = document.createElement("div");
-  row.className = "dyn-row";
-  const options = phonologyOnlyTraitFields
-    .map(name => `<option value="${name}"${name === presetName ? " selected" : ""}>${name}</option>`).join("");
-  const valueAttr = presetValue !== undefined ? ` value="${presetValue}"` : "";
-  row.innerHTML = `
-    <select class="to-name">${options}</select>
-    <input type="number" placeholder="value, -1.0 to +1.0" min="-1" max="1" step="0.05" class="to-value"${valueAttr}>
-    <button type="button" class="info-btn" title="What does this trait mean?">&#9432;</button>
-    <button type="button" class="remove-row">&times;</button>`;
-  wireTraitSelectInfoButton(row, (name) => glossary.traits[name]);
-  row.querySelector(".remove-row").onclick = () => row.remove();
-  $("tweak-trait-rows").appendChild(row);
+// --- Tweak tab: always exactly one row per phonologyOnlyTraitFields
+// name (the only three the backend will ever accept -- see core.
+// traits.PHONOLOGY_ONLY_TRAIT_FIELDS) -- unlike every other trait-
+// override row elsewhere in this app, there's no "add more" concept
+// here (only three names are ever valid at all, so a dynamic add/
+// remove/select-a-name row would just add friction), and every row is
+// always visible and pre-filled with the picked language's own current
+// value (0.00 included -- "all traits already visible", a direct user
+// request) rather than only appearing for a nonzero one. ---
+function buildTweakTraitRows(currentValues) {
+  $("tweak-trait-rows").innerHTML = phonologyOnlyTraitFields.map(name => `
+    <div class="dyn-row" data-trait-name="${name}">
+      <label style="flex:0 0 220px; margin:0; align-self:center;">${name}</label>
+      <input type="number" min="-1" max="1" step="0.05" class="to-value" value="${(currentValues[name] || 0).toFixed(2)}">
+      <button type="button" class="info-btn" title="What does this trait mean?">&#9432;</button>
+    </div>`).join("");
+  for (const row of $("tweak-trait-rows").querySelectorAll(".dyn-row")) {
+    const name = row.dataset.traitName;
+    row.querySelector(".info-btn").onclick = (e) => {
+      if (openInfoPopoverButton === e.currentTarget) { hideInfoPopover(); return; }
+      showInfoPopover(e.currentTarget, renderTraitSelectInfo(glossary.traits[name]));
+    };
+  }
 }
-$("add-tweak-trait").onclick = () => addTweakTraitRow();
 
 function collectTweakTraitOverrides() {
   const overrides = {};
   for (const row of $("tweak-trait-rows").querySelectorAll(".dyn-row")) {
-    const name = row.querySelector(".to-name").value;
-    const raw = row.querySelector(".to-value").value;
-    if (name && raw !== "") overrides[name] = parseFloat(raw);
+    overrides[row.dataset.traitName] = parseFloat(row.querySelector(".to-value").value || "0");
   }
   return overrides;
 }
@@ -968,6 +967,7 @@ function resetTweakPreview() {
 async function loadTweakLanguage(slug) {
   $("tweak-error").hidden = true;
   $("tweak-trait-rows").innerHTML = "";
+  $("tweak-edit-words-btn").hidden = true;
   resetTweakPreview();
   tweakBaseLexicon = null;
   if (!slug) return;
@@ -975,10 +975,17 @@ async function loadTweakLanguage(slug) {
     const summary = await api(`/api/languages/${encodeURIComponent(slug)}`);
     $("tweak-name").value = `${slug}-tweaked`;
     tweakBaseLexicon = summary.lexicon;
-    for (const field of phonologyOnlyTraitFields) {
-      const value = summary.traits[field];
-      if (typeof value === "number" && value !== 0) addTweakTraitRow(field, value);
-    }
+    buildTweakTraitRows(summary.traits);
+    // Pre-render this same language into the Inspect tab's own (already
+    // fully editable, via the existing lexicon-row edit machinery)
+    // result view -- without switching tabs -- so "View & edit words"
+    // just has to jump there, rather than duplicating the whole
+    // lexicon-table-with-inline-editing machinery a second time on this
+    // tab (which would collide on its own element ids, e.g.
+    // #lexicon-tbody, if two copies existed in the DOM at once).
+    renderLanguageSummary($("inspect-result"), summary);
+    if ($("inspect-lang")) $("inspect-lang").value = slug;
+    $("tweak-edit-words-btn").hidden = false;
   } catch (e) {
     $("tweak-error").textContent = e.message;
     $("tweak-error").hidden = false;
@@ -986,30 +993,59 @@ async function loadTweakLanguage(slug) {
 }
 $("tweak-lang").addEventListener("change", () => loadTweakLanguage($("tweak-lang").value));
 $("tweak-refresh-langs").onclick = refreshLanguages;
+$("tweak-edit-words-btn").onclick = () => showTab("inspect");
 
 // --- item 7: word-by-word before/after preview, reusing the lexicon
 // table's own column shape (gloss/pos/word/IPA) with an added "before"
 // pair -- unchanged rows are visually de-emphasized (muted "=") the
 // same way the CLI's own --tweak-from word list already distinguishes
 // "=" from "->". ---
+// Splits an old/new word pair into a shared prefix, a shared suffix,
+// and whatever differs in between -- bolds just that middle part (same
+// <strong>-the-relevant-span convention highlightExampleWord already
+// uses for a sound guide's own example word), so a reader sees exactly
+// which letters changed instead of having to compare two full strings
+// by eye. A short, lightweight "word diff," not a general LCS -- more
+// than enough for comparing two spellings of what's still fundamentally
+// the same short word.
+function diffWordPair(oldWord, newWord) {
+  const minLen = Math.min(oldWord.length, newWord.length);
+  let prefixLen = 0;
+  while (prefixLen < minLen && oldWord[prefixLen] === newWord[prefixLen]) prefixLen++;
+  let suffixLen = 0;
+  while (
+    suffixLen < minLen - prefixLen
+    && oldWord[oldWord.length - 1 - suffixLen] === newWord[newWord.length - 1 - suffixLen]
+  ) suffixLen++;
+  const mark = (word) => {
+    const mid = word.slice(prefixLen, word.length - suffixLen);
+    if (!mid) return escapeAttr(word);
+    return `${escapeAttr(word.slice(0, prefixLen))}<strong>${escapeAttr(mid)}</strong>${escapeAttr(word.slice(word.length - suffixLen))}`;
+  };
+  return { oldHtml: mark(oldWord), newHtml: mark(newWord) };
+}
+
 function renderTweakDiff(baseLexicon, newLexicon) {
   const baseByGloss = new Map(baseLexicon.map(e => [e.gloss, e]));
   const rows = newLexicon.map(entry => {
     const before = baseByGloss.get(entry.gloss);
     const changed = !before || before.romanization !== entry.romanization || before.ipa !== entry.ipa;
     const arrow = changed ? "&rarr;" : "=";
+    const { oldHtml, newHtml } = before
+      ? diffWordPair(before.romanization, entry.romanization)
+      : { oldHtml: "(new word)", newHtml: escapeAttr(entry.romanization) };
     return `<tr${changed ? "" : ` style="opacity:0.6;"`}>
       <td>${escapeAttr(entry.gloss)}</td>
       <td>${escapeAttr(entry.pos)}</td>
-      <td class="ipa">${before ? escapeAttr(before.romanization) : "(new word)"}</td>
+      <td class="ipa">${oldHtml}</td>
       <td class="ipa">${arrow}</td>
-      <td class="ipa">${escapeAttr(entry.romanization)} /${escapeAttr(entry.ipa)}/</td>
+      <td class="ipa">${newHtml} /${escapeAttr(entry.ipa)}/</td>
     </tr>`;
   }).join("");
   return `
     <div class="card">
       <h2 style="margin-top:0">Preview: ${newLexicon.length} words</h2>
-      <p class="ipa">Nothing has been saved yet -- review the words below, then "Save Tweaked Language" to commit, or change the traits/words mode above and preview again.</p>
+      <p class="ipa">Nothing has been saved yet -- changed letters are <strong>bolded</strong> -- review the words below, then "Save Tweaked Language" to commit, or change the traits/words mode above and preview again.</p>
       <div class="lexicon-wrap">
         <table>
           <thead><tr><th>gloss</th><th>pos</th><th>before</th><th></th><th>after</th></tr></thead>
@@ -1050,8 +1086,14 @@ async function runTweak(dryRun) {
     } else {
       resetTweakPreview();
       showInspectResult(body);
+      // showInspectResult's own picker-sync is a no-op for a language
+      // this fresh (refreshLanguages hasn't resolved yet, so it isn't
+      // in #inspect-lang's own options list to select) -- re-applied
+      // once refreshLanguages below actually adds it, the same fix
+      // the Generate tab's own submit handler already has.
+      await refreshLanguages();
+      $("inspect-lang").value = body.slug;
     }
-    await refreshLanguages();
     await refreshCost();
   } catch (e) {
     err.textContent = e.message;

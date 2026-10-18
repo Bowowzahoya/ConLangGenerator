@@ -8,6 +8,7 @@ the new sound inventory."""
 import pytest
 
 from conlang_generator.core.spec import GenerationSpec
+from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation.generator import (
     generate_language,
     regenerate_phonology,
@@ -157,3 +158,29 @@ def test_adapt_words_clears_tones_on_a_tonal_base_language_without_crashing():
     adapted = regenerate_phonology_adapt_words("Adapted", base, {"altitude": 1.0}, FakeLLMClient())
     assert all(e.tones == () for e in adapted.lexicon.entries)
     assert len(adapted.lexicon.entries) == len(base.lexicon.entries)
+
+
+def test_adapt_words_keeps_an_exact_real_words_own_spelling_when_its_sounds_survive():
+    # Real bug caught from a direct user report: real Dutch "leeg" (an
+    # exact source_word_strictness=1.0 copy -- real_words._build_real_
+    # entry's own notes="real word: ..." branch, spelling = the real
+    # word's own literal form, never derived from RomanizationScheme at
+    # all) was coming out "leech" after an adapt-mode tweak, purely
+    # because this language's own (freshly rolled) orthography spells
+    # /x/ differently than Dutch itself does -- even though the word's
+    # own ipa never actually changed. An exact real word whose sounds
+    # still all fit the new inventory unchanged must keep its own real
+    # spelling verbatim, not get silently re-romanized like an ordinary
+    # coined word.
+    traits = TraitProfile(source_languages=("Dutch",), source_language_strictness=1.0, source_word_strictness=1.0)
+    base = generate_language(
+        "RealBase", GenerationSpec(prompt="p", seed=3, traits=traits, vocabulary_size=400), FakeLLMClient()
+    )
+    empty = base.lexicon.by_gloss("empty")
+    assert empty.notes.startswith("real word:")
+    assert empty.real_word is not None and empty.real_word.form == "leeg"
+
+    adapted = regenerate_phonology_adapt_words("RealTweaked", base, {"altitude": 0.5}, FakeLLMClient())
+    adapted_empty = adapted.lexicon.by_gloss("empty")
+    if adapted_empty.ipa == empty.ipa:
+        assert adapted_empty.romanization == empty.romanization == "leeg"

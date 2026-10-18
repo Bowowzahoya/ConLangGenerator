@@ -8155,3 +8155,54 @@ reading code or one-off ad hoc scripts.
   target language's own slug still 404'd (confirmed nothing was written yet); clicking Save then
   produced a real saved language whose own first word matched the preview exactly, redirected to
   Inspect, and cleared the preview state back to its initial, hidden shape.
+
+- **Four fixes from direct user findings on the Tweak tab -- done.**
+
+  **Real bug: an exact real-word copy silently lost its own true spelling under "adapt" mode.**
+  Reported directly: tweaking a Dutch-sourced language turned "leeg" (real Dutch "empty") into "leech"
+  even though nothing seemed to have changed. Root cause, traced to `generation/real_words.py`'s own
+  `_build_real_entry`: at `source_word_strictness` 1.0, an exact real-word copy's own `romanization` is
+  the real word's own literal spelling (`notes` starts `"real word: "`), never derived from
+  `RomanizationScheme.apply` at all -- `regenerate_phonology_adapt_words` was unconditionally
+  re-deriving *every* entry's romanization from the freshly-rolled orthography, silently overwriting
+  that real spelling the moment this invented language's own rules happened to spell the same sound
+  (/x/, in "leeg") differently than Dutch itself does. Fixed: an exact real word whose own sounds still
+  all fit the new inventory unchanged (`fit_ipa` reproduces the identical ipa) now keeps its own real
+  spelling verbatim; only when its sounds actually had to be approximated does it fall through to the
+  normal re-derivation every other word already gets. New regression test confirmed to actually fail
+  against the pre-fix code (`'leech' != 'leeg'`), not just pass trivially.
+
+  **Inspect's own language picker showing the previous language after a tweak.** Reported directly:
+  "it shows in the inspect tab, but on top it still shows the old language." Root cause: `showInspectResult`'s
+  own picker-sync (`$("inspect-lang").value = summary.slug`) is a documented no-op for a language this
+  fresh -- `refreshLanguages()` (which repopulates the picker's own `<option>` list) hadn't resolved
+  yet, so the new slug wasn't a selectable option at the moment the assignment ran, and silently
+  dropped. The *content* below was always correct (a full `innerHTML` replace every time); only the
+  picker's own displayed selection was stale. The Generate tab's own submit handler already re-applies
+  the value after `refreshLanguages()` resolves -- the Tweak tab's own save handler just hadn't been
+  given the same fix yet. Now matches that same established pattern.
+
+  **Tweak tab: all three phonology traits always visible, not just nonzero ones.** Direct request. Since
+  exactly three trait names are ever valid for a tweak, the old dynamic add-row-with-a-name-dropdown
+  pattern (mirroring Advanced Options' own, built for an open-ended 15-name list) was replaced with a
+  fixed three-row layout (`buildTweakTraitRows`) -- no add/remove, each row a plain label plus a number
+  input, always shown, always pre-filled with the picked language's own current reading (0.00 included)
+  rather than only appearing when nonzero.
+
+  **Tweak tab: word-by-word diff now bolds exactly what changed**, not just the two full spellings
+  side by side (also a direct request). New `diffWordPair` -- shared-prefix/shared-suffix split, the
+  differing middle wrapped in `<strong>`, the same "bold the relevant span" convention
+  `highlightExampleWord` already uses for a sound guide's own example word. Confirmed live:
+  "ggauhk**3** -> ggauhk" (a dropped trailing digit) rendered with only the "3" bolded, not the whole
+  word re-flagged as changed.
+
+  **Also addressed, same request: editing a single word directly from the Tweak tab.** Rather than
+  duplicating the lexicon table's own inline-editing machinery a second time (which would collide on
+  shared element ids like `#lexicon-tbody` if two copies existed in the DOM at once),
+  `loadTweakLanguage` now also pre-renders the picked language into the Inspect tab's own
+  `renderLanguageSummary($("inspect-result"), summary)` -- without switching tabs -- and a new "View &
+  edit this language's words" button just jumps there (`showTab("inspect")`); the content, and its full
+  existing edit/save/cancel wiring, is already in place. Clicking the Tweak tab's own nav button again
+  later already re-runs `loadTweakLanguage` (pre-existing behavior), so switching away to edit a word
+  and back refreshes the cached base lexicon the preview diff compares against, rather than leaving it
+  stale.
