@@ -365,7 +365,7 @@ SIMPLE_GLOSSARY: dict[str, str] = {
 # badge already has. ---
 ADVANCED_OPTIONS_GLOSSARY: dict[str, dict] = {
     "fantasy": {
-        "summary": "Simple explicit metadata, not a graded trait -- passed as extra context to the LLM classifier and to word-coinage prompts. Doesn't itself bias any specific generation mechanism the way a graded trait does; it's flavor context for an LLM to draw on.",
+        "summary": "Its entire real effect is appending \" (Note: this is for a fantasy setting.)\" to the one prompt sent to the trait-classifying LLM call -- nothing else in generation reads it (not word coinage, not any phoneme/syllable-shape/grammar roll). Has no effect at all under the Fake LLM backend (which never calls a real LLM to read that note), and only a soft, unverifiable nudge on the classifier's own trait reading with a real LLM backend (llm: anthropic). Web UI only -- there's no CLI flag for it.",
     },
     "force_isolated": {
         "summary": "Guarantees the language is geographically/socially isolated outright, regardless of what the prompt says or how the classifier reads it -- the same isolation trait a prompt's own wording can otherwise only ever bias probabilistically.",
