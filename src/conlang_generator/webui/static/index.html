@@ -179,6 +179,7 @@
   <button id="tab-generate-btn" class="active">Generate</button>
   <button id="tab-translate-btn">Translate</button>
   <button id="tab-inspect-btn">Inspect</button>
+  <button id="tab-tweak-btn">Tweak</button>
   <button id="tab-script-btn">Script</button>
   <button id="tab-reference-btn">Reference</button>
   <button id="tab-log-btn">Log</button>
@@ -444,6 +445,38 @@
   </div>
 </section>
 
+<section id="panel-tweak" class="panel">
+  <div class="card">
+    <div class="row">
+      <div>
+        <label for="tweak-lang">Language to tweak
+          <button type="button" class="add-row" id="tweak-refresh-langs" style="margin-left:8px;">refresh</button>
+        </label>
+        <select id="tweak-lang"><option value="">(choose one)</option></select>
+      </div>
+      <div>
+        <label for="tweak-name">Save tweaked language as</label>
+        <input type="text" id="tweak-name" placeholder="my-language-tweaked">
+      </div>
+    </div>
+
+    <label>Phonology trait overrides <span class="ipa">(only altitude, aesthetic_harshness, and phonotactic_restrictiveness can be tweaked here -- editing any other trait could also shift grammar, which a tweak is guaranteed not to do; pre-filled from the picked language's own current reading)</span></label>
+    <div id="tweak-trait-rows"></div>
+    <button type="button" class="add-row" id="add-tweak-trait">+ trait override</button>
+
+    <label style="margin-top:14px;">Words</label>
+    <div class="checks">
+      <label><input type="radio" name="tweak-words" value="regenerate" checked> regenerate <span class="ipa">(recoin the whole lexicon fresh against the new sounds)</span></label>
+      <label><input type="radio" name="tweak-words" value="adapt"> adapt <span class="ipa">(re-fit each existing word to the new sounds instead, so it stays the same word)</span></label>
+    </div>
+
+    <div class="submit-row">
+      <button class="primary" id="tweak-btn">Tweak Language</button>
+    </div>
+    <div class="error" id="tweak-error" hidden></div>
+  </div>
+</section>
+
 <section id="panel-script" class="panel">
   <div class="card">
     <div class="row">
@@ -597,7 +630,7 @@ async function api(path, opts) {
 
 // --- tabs -- list-driven so adding one is a one-line change here,
 // not four separate toggle calls to keep in sync. ---
-const TAB_NAMES = ["generate", "translate", "inspect", "script", "reference", "log"];
+const TAB_NAMES = ["generate", "translate", "inspect", "tweak", "script", "reference", "log"];
 function showTab(which) {
   for (const name of TAB_NAMES) {
     $(`panel-${name}`).classList.toggle("active", name === which);
@@ -609,6 +642,7 @@ for (const name of TAB_NAMES) {
 }
 $("tab-log-btn").onclick = () => { showTab("log"); loadLog(); };
 $("tab-script-btn").onclick = () => { showTab("script"); if ($("script-lang").value) loadScriptForLanguage($("script-lang").value); };
+$("tab-tweak-btn").onclick = () => { showTab("tweak"); if ($("tweak-lang").value) loadTweakLanguage($("tweak-lang").value); };
 
 // --- LLM call log ---
 const LLM_PURPOSE_LABELS = {
@@ -736,6 +770,10 @@ let gradedTraitFields = [];
 // Same deal, for the Script fieldset's own dial overrides (the web
 // equivalent of the CLI's repeatable --script-trait NAME=VALUE).
 let scriptTraitFields = [];
+// Same deal again, for the Tweak tab's own restricted trait-override
+// rows -- only these three ever actually change phonology without also
+// shifting grammar (see core.traits.PHONOLOGY_ONLY_TRAIT_FIELDS).
+let phonologyOnlyTraitFields = [];
 
 // --- plain-language explanations for the Generate result's own grammar/
 // trait badges, shown as native `title` hover tooltips -- populated once
@@ -878,6 +916,91 @@ function collectScriptTraitOverrides() {
   return overrides;
 }
 
+// --- Tweak tab: the same dyn-row pattern again, restricted to
+// phonologyOnlyTraitFields (the only three names the backend will ever
+// accept for a tweak -- see core.traits.PHONOLOGY_ONLY_TRAIT_FIELDS),
+// and -- unlike every other dyn-row builder above -- optionally
+// pre-filled with a specific name/value pair, since loadTweakLanguage
+// below seeds one row per nonzero trait the picked language's own
+// current reading already has, rather than starting blank. ---
+function addTweakTraitRow(presetName, presetValue) {
+  const row = document.createElement("div");
+  row.className = "dyn-row";
+  const options = phonologyOnlyTraitFields
+    .map(name => `<option value="${name}"${name === presetName ? " selected" : ""}>${name}</option>`).join("");
+  const valueAttr = presetValue !== undefined ? ` value="${presetValue}"` : "";
+  row.innerHTML = `
+    <select class="to-name">${options}</select>
+    <input type="number" placeholder="value, -1.0 to +1.0" min="-1" max="1" step="0.05" class="to-value"${valueAttr}>
+    <button type="button" class="info-btn" title="What does this trait mean?">&#9432;</button>
+    <button type="button" class="remove-row">&times;</button>`;
+  wireTraitSelectInfoButton(row, (name) => glossary.traits[name]);
+  row.querySelector(".remove-row").onclick = () => row.remove();
+  $("tweak-trait-rows").appendChild(row);
+}
+$("add-tweak-trait").onclick = () => addTweakTraitRow();
+
+function collectTweakTraitOverrides() {
+  const overrides = {};
+  for (const row of $("tweak-trait-rows").querySelectorAll(".dyn-row")) {
+    const name = row.querySelector(".to-name").value;
+    const raw = row.querySelector(".to-value").value;
+    if (name && raw !== "") overrides[name] = parseFloat(raw);
+  }
+  return overrides;
+}
+
+// Pre-fills from the picked language's own current trait reading
+// (GET /api/languages/{slug}'s own `traits`) -- the user edits *from*
+// what the language already has, rather than guessing it from scratch.
+async function loadTweakLanguage(slug) {
+  $("tweak-error").hidden = true;
+  $("tweak-trait-rows").innerHTML = "";
+  if (!slug) return;
+  try {
+    const summary = await api(`/api/languages/${encodeURIComponent(slug)}`);
+    $("tweak-name").value = `${slug}-tweaked`;
+    for (const field of phonologyOnlyTraitFields) {
+      const value = summary.traits[field];
+      if (typeof value === "number" && value !== 0) addTweakTraitRow(field, value);
+    }
+  } catch (e) {
+    $("tweak-error").textContent = e.message;
+    $("tweak-error").hidden = false;
+  }
+}
+$("tweak-lang").addEventListener("change", () => loadTweakLanguage($("tweak-lang").value));
+$("tweak-refresh-langs").onclick = refreshLanguages;
+
+$("tweak-btn").onclick = async () => {
+  const err = $("tweak-error");
+  err.hidden = true;
+  const slug = $("tweak-lang").value;
+  const name = $("tweak-name").value.trim();
+  if (!slug) { err.textContent = "Pick a language to tweak first."; err.hidden = false; return; }
+  if (!name) { err.textContent = "Give the tweaked language a name to save as."; err.hidden = false; return; }
+  const words = document.querySelector('input[name="tweak-words"]:checked').value;
+  const btn = $("tweak-btn");
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = "Tweaking...";
+  try {
+    const body = await api(`/api/languages/${encodeURIComponent(slug)}/tweak`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, trait_overrides: collectTweakTraitOverrides(), words }),
+    });
+    showInspectResult(body);
+    await refreshLanguages();
+    await refreshCost();
+  } catch (e) {
+    err.textContent = e.message;
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+};
+
 // --- orthography option selects, populated from /api/options ---
 async function loadOptions() {
   const opts = await api("/api/options");
@@ -897,6 +1020,7 @@ async function loadOptions() {
   fill("gen-syllable-boundary-marker", opts.syllable_boundary_markers);
   gradedTraitFields = opts.graded_trait_fields || [];
   scriptTraitFields = opts.script_trait_fields || [];
+  phonologyOnlyTraitFields = opts.phonology_only_trait_fields || [];
   glossary = opts.glossary || { traits: {}, script_traits: {}, grammar: {}, simple: {}, advanced_options: {} };
 
   const fillModels = (id, task) => {
@@ -1006,6 +1130,7 @@ async function refreshLanguages() {
   const noScript = new Set(data.languages.filter(slug => !scripted.has(slug)));
   fillLanguageSelect($("tr-lang"), data.languages);
   fillLanguageSelect($("inspect-lang"), data.languages);
+  fillLanguageSelect($("tweak-lang"), data.languages);
   fillLanguageSelect($("script-lang"), data.languages, noScript);
 }
 $("refresh-langs").onclick = refreshLanguages;

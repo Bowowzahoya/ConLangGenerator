@@ -211,7 +211,14 @@ def test_the_relative_word_leads_a_postnominal_clause_and_follows_a_prenominal_o
 
 
 def test_a_correlative_moves_the_clause_to_the_front_and_points_back_with_that():
-    language = _with(_base(), relativization="correlative", relative_clause_position="after_noun")
+    # deictic_articles=False: a deictic-article language reduces the
+    # correlate "that" to the clitic "that-article" next to its noun (see
+    # translator._reduced_demonstrative) -- a real, separate feature this
+    # test isn't exercising, so it's turned off here to keep the correlate
+    # as the plain "that" word this test actually checks for.
+    language = _with(
+        _base(), relativization="correlative", relative_clause_position="after_noun", deictic_articles=False
+    )
     _, _, glosses = _render(language, _verb("see"), *_relative_plan("which"))
     assert glosses[0] == "which" and glosses[1] == "sleep"  # the relative clause comes first
     assert glosses.index("that") + 1 == glosses.index("dog")  # the correlate stands before the noun

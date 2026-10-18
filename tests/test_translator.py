@@ -11,7 +11,7 @@ from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.translation import sentence_planner
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
 
-# seed=278 (default traits): has_articles=True, has_overt_copula=True,
+# seed=4 (default traits): has_articles=True, has_overt_copula=True,
 # cases=("nominative", "accusative"), alignment=nominative_accusative,
 # word_order=SVO, adjective_after_noun=True -- every core word this file's
 # own tests need is already core vocabulary at this seed (translate_to_
@@ -23,21 +23,29 @@ from conlang_generator.translation.translator import translate_to_conlang, trans
 # functional regression" pattern this file's own history already has. The
 # "Punctuation" pass's own `punctuation_style` roll deliberately uses its
 # own independent rng stream specifically so it never needs this seed
-# re-found a third time.)
-_NOM_ACC_SEED = 278
+# re-found a third time. Re-found again from seed=278 -> 4 after phonology
+# generation moved to its own independent `random.Random(f"{seed}:phonology")`
+# stream instead of sharing the single spec-seeded stream with
+# romanization/grammar/lexicon -- same "seed-shift from new content, not a
+# functional regression" pattern, this time from the phonology rng split
+# rather than new phoneme-pool content.)
+_NOM_ACC_SEED = 4
 
-# seed=28 (default traits): alignment=ergative_absolutive,
+# seed=7 (default traits): alignment=ergative_absolutive,
 # cases=("ergative", "absolutive"), word_order=SOV, has_overt_copula=True,
 # adjective_after_noun=False -- same "no coinage needed" property.
 # (Re-found from seed=283, same "Missing symbols still" batch and reason
-# as _NOM_ACC_SEED just above.)
-_ERGATIVE_SEED = 28
+# as _NOM_ACC_SEED just above. Re-found again from seed=28 -> 7, same
+# phonology-rng-split reason as _NOM_ACC_SEED's own latest re-find.)
+_ERGATIVE_SEED = 7
 
-# seed=11 (default traits): has_articles=False, has_overt_copula=False,
+# seed=33 (default traits): has_articles=False, has_overt_copula=False,
 # cases=() -- the "none of these features exist" baseline, confirming
 # nothing spurious gets inserted when a language genuinely lacks them.
-# (Re-found from seed=4, same batch/reason as the two seeds just above.)
-_NO_FEATURES_SEED = 11
+# (Re-found from seed=4, same batch/reason as the two seeds just above.
+# Re-found again from seed=11 -> 33, same phonology-rng-split reason as
+# the two seeds just above's own latest re-find.)
+_NO_FEATURES_SEED = 33
 
 
 def _language(seed: int):

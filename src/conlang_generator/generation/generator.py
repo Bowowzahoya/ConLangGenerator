@@ -11,7 +11,7 @@ from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
 from conlang_generator.core.romanization import apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec
-from conlang_generator.core.traits import coining_context
+from conlang_generator.core.traits import PHONOLOGY_ONLY_TRAIT_FIELDS, coining_context
 from conlang_generator.generation import (
     grammar_gen,
     inflection_gen,
@@ -28,6 +28,7 @@ from conlang_generator.generation import (
     paradigm_gen,
     noun_phrase_gen,
     real_words,
+    phoneme_fit,
     phonology_gen,
     pronoun_gen,
     romanization_gen,
@@ -57,8 +58,17 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         }
     )
 
+    # Own independent stream (same pattern as punctuation_rng/clause_rng
+    # below) so a later scoped phonology-only regeneration (DEFERRED.md's
+    # "Tweaking an existing language" item 1) can re-roll just this call
+    # from an edited trait without shifting any of `rng`'s own downstream
+    # romanization/grammar/lexicon draws -- today, before this stream
+    # split, phonology's own draws were the *first* draws `rng` itself
+    # made, so anything downstream was already implicitly entangled with
+    # however many draws phonology happened to consume.
+    phonology_rng = random.Random(f"{spec.seed}:phonology")
     inventory, syllable_structure, tone_system, word_accent_system = phonology_gen.generate_phonology(
-        rng, phonology_spec
+        phonology_rng, phonology_spec
     )
     seed_orthography = romanization_gen._seed_orthography_profile(phonology_spec.seed_examples, inventory)
     romanization = romanization_gen.generate_romanization(
@@ -925,3 +935,104 @@ def generate_evolved_language(name: str, spec: GenerationSpec, llm_client: LLMCl
     )
     lexicon = evolved.lexicon.model_copy(update={"entries": carried})
     return evolved.model_copy(update={"spec": kept_spec, "lexicon": lexicon})
+
+
+def regenerate_phonology(
+    name: str, language: Language, trait_overrides: dict[str, float], llm_client: LLMClient
+) -> Language:
+    """Re-rolls ``language``'s own phonology from ``trait_overrides`` (a
+    dict of trait name -> new value, keys restricted to
+    ``PHONOLOGY_ONLY_TRAIT_FIELDS`` -- see that constant's own docstring
+    for exactly why those three and not others) -- "Tweaking an existing
+    language" item 2 (``docs/DEFERRED.md``). Raises ``ValueError`` for any
+    key outside that allowlist, rather than silently ignoring it or
+    letting it quietly also shift grammar; a grammar-affecting trait has
+    no equivalent regeneration path yet (item 8).
+
+    Implementation is simpler than the original plan sketch: rather than
+    a bespoke function that manually re-derives phonology/romanization/
+    script while hand-copying `language.grammar` across unchanged, this
+    just builds an edited `GenerationSpec` (same seed, same everything
+    else, only `traits` updated) and calls `generate_language` on it
+    again outright. That's sound specifically *because* of item 1 (this
+    module's own phonology stream is independent of the shared one
+    grammar/lexicon draw from) plus the fact that none of the three
+    allowed trait fields are read anywhere outside `phonology_gen.py` in
+    the fresh-generation path (confirmed by grepping every module under
+    `generation/`, not assumed) -- so `generate_language`'s own grammar
+    roll is guaranteed to reproduce byte-identical typological choices
+    (word order, alignment, cases, tenses, morphology type, ...), while
+    phonology, romanization, script, and the lexicon's own concrete
+    spellings (built from the new phonology) all come out freshly
+    rolled. This *is* "regenerate words" mode (item 3) already, for
+    free -- "reuse old words, adapted" (item 4) is a separate, smaller
+    function layered on top of this one's own output.
+
+    Known v1 limitation, not yet handled: if ``language.spec.evolve_years``
+    was set (the base language was itself produced via
+    ``generate_evolved_language``), that evolution is not re-applied here
+    -- this calls ``generate_language`` directly, not the evolved
+    variant. Documented rather than silently wrong; revisit if a tweaked,
+    previously-evolved language turns out to be a real need."""
+    unknown = set(trait_overrides) - set(PHONOLOGY_ONLY_TRAIT_FIELDS)
+    if unknown:
+        raise ValueError(
+            "regenerate_phonology only accepts phonology-only trait overrides "
+            f"({', '.join(PHONOLOGY_ONLY_TRAIT_FIELDS)}), got: {', '.join(sorted(unknown))}"
+        )
+    new_traits = language.spec.traits.model_copy(update=trait_overrides)
+    new_spec = language.spec.model_copy(update={"traits": new_traits})
+    return generate_language(name, new_spec, llm_client)
+
+
+def regenerate_phonology_adapt_words(
+    name: str, language: Language, trait_overrides: dict[str, float], llm_client: LLMClient
+) -> Language:
+    """Like ``regenerate_phonology`` (same validation, same "grammar
+    stays typologically identical" guarantee), except each of
+    ``language``'s own existing lexicon entries is *adapted* to the
+    newly rolled phonology instead of being recoined from scratch --
+    "Tweaking an existing language" item 4 (``docs/DEFERRED.md``),
+    "reuse old words, adapted" mode, layered on top of
+    ``regenerate_phonology``'s own output (that function's own freshly-
+    coined lexicon -- "regenerate words" mode, item 3 -- is simply
+    discarded here in favor of this one).
+
+    ``phoneme_fit.fit_ipa`` (built for adapting a foreign proper name/
+    deviating a real source-language word -- ``translation.names``/
+    ``generation.real_words``) does the real work: nearest-surviving-
+    sound substitution plus syllable-structure repair, against the
+    freshly rolled inventory/syllable structure, so each resulting word
+    stays traceably "based on" its own previous form (same affix/root
+    shape, nearest surviving sounds) rather than being a different,
+    unrelated word. Romanization is then re-derived from the adapted
+    IPA via the freshly rolled ``RomanizationScheme`` (the same
+    ``apply`` + ``apply_grammatical_spelling`` pairing fresh coinage
+    itself already uses). Every other field (``glosses``/``pos``/
+    ``root``/``word_class``/``notes``/``real_word``) carries over
+    unchanged -- only pronunciation and spelling are re-derived.
+
+    Known v1 limitation: ``fit_ipa`` only ever fits the *segmental*
+    (consonant/vowel) shape -- it already strips stress, word-accent,
+    and tone marks for its other two existing callers, not a new gap
+    introduced here. Every adapted entry's own ``tones`` is cleared to
+    ``()`` to match (rather than silently leaving a stale tone reading
+    attached to a now-unmarked IPA string) -- adapting a tonal
+    language's own lexicon does not yet preserve its tones."""
+    regenerated = regenerate_phonology(name, language, trait_overrides, llm_client)
+    inventory = regenerated.phonology
+    structure = regenerated.syllable_structure
+    romanization = regenerated.romanization
+    adapted_entries = tuple(
+        entry.model_copy(
+            update={
+                "ipa": (new_ipa := phoneme_fit.fit_ipa(entry.ipa, inventory, structure)),
+                "romanization": apply_grammatical_spelling(romanization, romanization.apply(new_ipa), entry.pos),
+                "tones": (),
+            }
+        )
+        for entry in language.lexicon.entries
+    )
+    return regenerated.model_copy(
+        update={"lexicon": regenerated.lexicon.model_copy(update={"entries": adapted_entries})}
+    )

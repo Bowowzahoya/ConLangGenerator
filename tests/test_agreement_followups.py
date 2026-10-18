@@ -27,10 +27,14 @@ _CASES = ("nominative", "accusative", "genitive", "dative")
 _language = cached_language
 
 
-def _find(predicate, limit: int = 300):
+def _find(predicate, limit: int = 300, check=None):
+    """The first language whose grammar satisfies ``predicate`` (and, when
+    given, for which ``check(language)`` holds -- short invented suffixes can
+    concatenate into another reading, so tests of exact decoding pick a
+    language where the readings are unambiguous)."""
     for seed in range(1, limit):
         language = _language(seed)
-        if predicate(language.grammar):
+        if predicate(language.grammar) and (check is None or check(language)):
             return language
     raise AssertionError("no seed found")
 
@@ -52,10 +56,11 @@ def _adjective(**kw) -> PlannedSlot:
     return PlannedSlot(kind="content", gloss="high", pos="adjective", **kw)
 
 
-def _animacy_language():
+def _animacy_language(check=None):
     """An animate/inanimate language with adjectives, plain otherwise."""
     language = _find(
-        lambda g: g.noun_classes == _ANIMACY and g.class_marking == "none" and not g.uses_classifiers
+        lambda g: g.noun_classes == _ANIMACY and g.class_marking == "none" and not g.uses_classifiers,
+        check=check,
     )
     return _with(language, number_agreement_targets=(), case_agreement_targets=())
 
@@ -220,7 +225,20 @@ def test_an_adjective_with_no_noun_stays_bare():
 
 
 def test_the_agreeing_adjective_decodes_back():
-    language = _with(_animacy_language(), adjective_after_noun=False)
+    # The class-agreement suffix for "animate" can happen to spell the same
+    # as a degree suffix (e.g. "equative") applied to the same adjective --
+    # a real concatenation ambiguity (see _find's own docstring above), and
+    # _decode_adjective_full's "plainest reading first" tie-break would then
+    # resolve to the degree reading instead. Pick a seed where this
+    # particular rendering is unambiguous, so the decode this test checks
+    # for is actually reachable.
+    def _unambiguous(language):
+        candidate = _with(language, adjective_after_noun=False)
+        token = _render(candidate, _adjective(), _noun("dog"))[1][0]
+        decoded = _decode_adjective_full(candidate, token)
+        return decoded is not None and decoded[1] == "animate"
+
+    language = _with(_animacy_language(check=_unambiguous), adjective_after_noun=False)
     token = _render(language, _adjective(), _noun("dog"))[1][0]
     decoded = _decode_adjective_full(language, token)
     assert decoded is not None and decoded[0] == language.lexicon.by_gloss("high") and decoded[1] == "animate"

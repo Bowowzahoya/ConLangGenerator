@@ -66,13 +66,27 @@ def test_the_cli_pronounce_command_warns_about_an_unvoiceable_tone(tmp_path, mon
     from conlang_generator.llm.fake_client import FakeLLMClient
     from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 
+    from conlang_generator.generation.tone_sandhi import apply_sandhi
+    from conlang_generator.speech import engine_selection
+
     monkeypatch.setattr(cli_main, "LANGUAGES_DIR", tmp_path / "conlangs")
     monkeypatch.setattr(cli_main, "CACHE_DIR", tmp_path / "cache")
     language = generate_language(
         "cli-tone-test", GenerationSpec(prompt="p", seed=1, force_tonal=True), FakeLLMClient()
     )
     YamlLanguageRepository(cli_main.LANGUAGES_DIR).save(language)
-    tonal_entry = next(e for e in language.lexicon.entries if e.tones)
+    # Picks a tonal entry eSpeak voices cleanly (no phoneme-coverage notes
+    # of its own -- that's a separate, legitimate warning covered by
+    # test_the_cli_pronounce_command_auto_tts_warns_when_even_the_best_engine_only_approximates
+    # below), so the "no warning at all" assertion on the --tts auto case
+    # further down tests only what it means to: the absence of a
+    # tone-voicing warning, not an unrelated coverage one.
+    def _no_coverage_notes(entry) -> bool:
+        spoken = apply_sandhi([entry.ipa], language.tone_system, [entry.primary_gloss])[0]
+        choice = engine_selection.choose_engine(spoken, tts.available_engine_kinds())
+        return choice is not None and not choice.notes
+
+    tonal_entry = next(e for e in language.lexicon.entries if e.tones and _no_coverage_notes(e))
 
     result = CliRunner().invoke(
         cli_main.app, ["pronounce", tonal_entry.glosses[0], "--lang", "cli-tone-test", "--tts", "sapi"]

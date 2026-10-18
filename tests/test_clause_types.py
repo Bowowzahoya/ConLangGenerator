@@ -13,7 +13,11 @@ from conlang_generator.translation.translator import (
 )
 from tests._shared_language import cached_language
 
-_SEED = 278  # SVO, nominative-accusative; core vocabulary has mountain/see/river
+_SEED = 4  # SVO, nominative-accusative; core vocabulary has mountain/see/river
+# (Re-found from seed=278 -> 4 after phonology generation moved to its own
+# independent rng stream instead of sharing the single spec-seeded stream
+# with romanization/grammar/lexicon, which shifted seed=278's own
+# word_order away from SVO.)
 
 
 def _language(seed: int = _SEED):

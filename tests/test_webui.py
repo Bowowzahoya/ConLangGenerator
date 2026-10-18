@@ -431,10 +431,15 @@ def test_lexicon_entries_report_their_own_real_spoken_sandhi_form(client):
     # other dictionary entry -- see _language_summary's own comment on
     # why this is never batched across the whole lexicon), not just its
     # unmodified citation IPA.
+    # seed=21 -- re-found from seed=0 after phonology generation moved to
+    # its own independent rng stream instead of sharing the single
+    # spec-seeded stream with romanization/grammar/lexicon, which shifted
+    # which word at this strict-Zulu fixture actually ends up as "dog"
+    # and whether Meeussen's Rule fires on it.
     body = client.post(
         "/api/generate",
         json={
-            "prompt": "Zulu", "name": "Zulu Sandhi Web", "seed": 0, "llm": "fake",
+            "prompt": "Zulu", "name": "Zulu Sandhi Web", "seed": 21, "llm": "fake",
             "source_languages": [{"name": "Zulu", "weight": None}], "strictness": 1.0,
         },
     ).json()

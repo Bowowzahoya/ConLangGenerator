@@ -530,6 +530,65 @@ modes:
   usual; the same reading also drives the evolution period's character,
   since there's only one prompt to read from.
 
+### Tweaking (`--tweak-from`/`--words`)
+
+`--tweak-from NAME` re-rolls an *existing* saved language's own phonology
+from an edited `--trait`, instead of generating fresh or evolving through
+time -- "I'd like to change aesthetic harshness, and then either
+regenerate the words or adapt the old ones to the new sounds." Unlike
+`--evolve-from`, `--prompt`/`--source-language`/`--seed`/etc. are all
+ignored outright (the base language's own already-resolved seed/spec is
+reused directly; `--prompt` is still required syntactically, same as
+`--evolve-from`, but never read). `--trait` is restricted to the three
+dials that only ever affect phonology (`altitude`, `aesthetic_harshness`,
+`phonotactic_restrictiveness` -- any other name, including the
+tempting-sounding `isolation`, is rejected outright rather than silently
+also shifting grammar; see `core.traits.PHONOLOGY_ONLY_TRAIT_FIELDS`'s own
+docstring for why). `--words` picks what happens to the lexicon:
+`regenerate` recoins it fresh against the new phonology, `adapt` re-fits
+each existing word's own IPA to the new phonology instead, so it stays
+recognizably the same word:
+
+```bash
+conlang generate --prompt p --name tweak-base --seed 5 --llm fake --vocabulary-size 10
+conlang generate --tweak-from tweak-base --name tweak-regen --words regenerate \
+  --trait aesthetic_harshness=0.9 --prompt ignored --llm fake
+conlang generate --tweak-from tweak-base --name tweak-adapt --words adapt \
+  --trait aesthetic_harshness=0.9 --prompt ignored --llm fake
+```
+
+```
+Tweaked 'tweak-base' -> 'tweak-regen' (tweak-regen), words: regenerate.
+consonants: 21 -> 20, vowels: 13 -> 12
+Tweaked traits: aesthetic_harshness=+0.90
+  I: Hya -> Ğis
+  you: Wi -> Lat
+  ...
+Saved to conlangs\tweak-regen
+```
+
+```
+Tweaked 'tweak-base' -> 'tweak-adapt' (tweak-adapt), words: adapt.
+consonants: 21 -> 20, vowels: 13 -> 12
+Tweaked traits: aesthetic_harshness=+0.90
+  I: Hya -> Ḫaya
+  you: Wi -> I
+  we: Mu = Mu
+  ...
+Saved to conlangs\tweak-adapt
+```
+
+The qualitative difference is visible right in that output: `regenerate`
+produces entirely unrelated new words ("Hya" -> "Ğis"), while `adapt`
+keeps each word recognizably related to its own previous form (some even
+survive unchanged, like "we" above) -- the whole point of the "adapt"
+mode, not just a cosmetic difference. `--tweak-from`'s own grammar (word
+order, alignment, cases, tenses, ...) is always guaranteed identical to
+the base language's; only phonology, romanization, script, and the
+lexicon's own concrete spellings change. See `docs/DEFERRED.md`'s
+"Tweaking an existing language" chapter for the full design and its
+still-open items (a dedicated web UI tab among them).
+
 **Spelling-pronunciation drift** (low `orality_literacy`, a long enough
 time depth) can also reassign a letter's own conventional reading with no
 formal spelling reform -- the written form itself never changes, only

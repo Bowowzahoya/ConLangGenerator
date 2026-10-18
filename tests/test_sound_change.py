@@ -660,15 +660,19 @@ def test_evolved_dutch_lineage_keeps_coda_devoicing_with_no_new_contact():
     # evolve_language recomputes SyllableStructure -- even on a run that
     # adds no *new* contact language, same failure mode as the romanization
     # lineage bug this mirrors.
-    # seed=1 -- empirically-found (see the seed-search convention noted
+    # seed=0 -- empirically-found (see the seed-search convention noted
     # elsewhere in this file); re-found after the ten-language batch's own
     # new phoneme-pool content shifted downstream rng draws enough that
-    # seed=0 stopped rolling a non-empty excluded_final_coda_consonants.
+    # seed=0 stopped rolling a non-empty excluded_final_coda_consonants
+    # (landing on seed=1 instead), then re-found again, seed=1 -> 0, after
+    # phonology generation moved to its own independent rng stream instead
+    # of sharing the single spec-seeded stream with romanization/grammar/
+    # lexicon -- same "seed-shift from new content" pattern.
     base = generate_language(
-        "Dutch", GenerationSpec(prompt="Dutch", seed=1, traits=TraitProfile(source_languages=("Dutch",))), FakeLLMClient()
+        "Dutch", GenerationSpec(prompt="Dutch", seed=0, traits=TraitProfile(source_languages=("Dutch",))), FakeLLMClient()
     )
     assert base.syllable_structure.excluded_final_coda_consonants  # sanity: the base actually has the constraint
-    evolved = evolve_language("Evolved", base, 100, TraitProfile(), seed=1)
+    evolved = evolve_language("Evolved", base, 100, TraitProfile(), seed=0)
     assert evolved.syllable_structure.excluded_final_coda_consonants
     by_ipa = {c.ipa: c for c in evolved.phonology.consonants}
     for symbol in evolved.syllable_structure.excluded_final_coda_consonants:
@@ -1235,11 +1239,13 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # shifting this once more, and again against seed=2 after
     # sonority.legal_*_pairs began excluding tokenizer-ambiguous clusters
     # -- and again against seed=8 (valid with or without that sonority
-    # change) after the default vocabulary grew to 400 words -- same
-    # "seed-shift from new content" pattern documented elsewhere in this
-    # project's history.)
+    # change) after the default vocabulary grew to 400 words -- and again,
+    # seed=8 -> 1, after phonology generation moved to its own independent
+    # rng stream instead of sharing _base_language()'s single spec-seeded
+    # stream with romanization/grammar/lexicon -- same "seed-shift from new
+    # content" pattern documented elsewhere in this project's history.)
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=8)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=1)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)

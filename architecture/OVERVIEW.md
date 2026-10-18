@@ -8058,3 +8058,76 @@ reading code or one-off ad hoc scripts.
   lines and pointed corners."). A non-tonal, no-script language (`clingonpirate`) still rendered
   cleanly with neither section present, and a fresh end-to-end generate through the real form produced
   all 7 sections with exactly 15 script-trait badges.
+
+- **"Tweaking an existing language," items 1-6 -- done.** The first real chunk of `docs/DEFERRED.md`'s
+  own "Tweaking an existing language" chapter: letting a user re-roll a saved language's own phonology
+  from an edited trait, keeping grammar untouched, with a choice of recoining the lexicon fresh or
+  adapting the old one -- a CLI flag and a new web UI tab both drive the same underlying mechanism.
+
+  **Item 1: phonology gets its own independent `rng` stream.** `generate_language`'s phonology call now
+  draws from `random.Random(f"{spec.seed}:phonology")` instead of the single shared stream romanization/
+  grammar/lexicon all still draw from afterward -- the same "own independent stream" pattern this file
+  already used for its punctuation-style and script rolls. A real, deliberate, scoped architecture
+  change: every existing seed's exact output shifted the moment this landed, confirmed via a real full
+  run (`rm -rf .cache && uv run pytest -q -p no:cacheprovider`) before trusting it -- 32 failures, every
+  one investigated rather than assumed benign. A background agent (resumed once after hitting its own
+  session's rate limit mid-task) traced and fixed all 32, none a genuine bug: ~20 were stale hardcoded
+  seed constants (`test_translator.py`'s own `_NOM_ACC_SEED`/`_ERGATIVE_SEED`/`_NO_FEATURES_SEED` and
+  several siblings elsewhere, each re-found to a new seed matching the *exact same documented grammar
+  shape* as before -- this project's own established "re-found from seed=X -> Y" precedent, now
+  continued a second time for a second root cause), and the rest were test assertions/helpers too
+  narrow for a different-but-equally-valid language a `_find`-style scan now happened to surface --
+  e.g. `test_pronoun_paradigms.py` assumed every rendered gloss is a string, when `translator._render_
+  plan`'s own `gloss_parts: list[str | None]` already documents `None` as legitimate for an unglossed
+  synthetic token; `test_aspect_mood.py`'s naive stem-substring verb finder missed a real, documented
+  `elision` rule dropping a stem's own final letter, fixed by falling back to the same generate-and-
+  compare decode `translator._decode_verb_full` itself already uses. Every fix reviewed by hand before
+  trusting it (a sample confirmed clean, well-reasoned, no weakened assertions) -- full final run: 2255
+  passed, 17 skipped, 0 failed, the 32 original failures now passing alongside 30 new tests for items
+  2-6 below.
+
+  **Item 2: `generator.regenerate_phonology(name, language, trait_overrides, llm_client)`.** Simpler
+  than the plan's own original sketch (hand-copy grammar across unchanged, manually re-derive only
+  phonology/romanization/script): thanks to item 1, and a grep confirming none of the three allowed
+  trait fields are read anywhere outside `phonology_gen.py` in the fresh-generation path, simply
+  building an edited `GenerationSpec` (same seed, only `traits` updated) and calling `generate_language`
+  on it again is enough -- its own grammar roll reproduces byte-identical typological choices by
+  construction, confirmed with a real test, not assumed. **v1 scope corrected from the original plan by
+  that same grep**: only `altitude`/`aesthetic_harshness`/`phonotactic_restrictiveness` are accepted
+  (new `core.traits.PHONOLOGY_ONLY_TRAIT_FIELDS`) -- `isolation` was dropped (also read by
+  `grammar_gen.py`, would have broken the "grammar stays identical" guarantee) and
+  `terrain_communication_distance` was dropped (read only by `sound_change.py`/evolution, a silent
+  no-op in a fresh regeneration). A disallowed key raises `ValueError` rather than being silently
+  ignored. Item 3 ("regenerate words" mode) fell out of this for free, since `generate_language` always
+  recoins the lexicon fresh.
+
+  **Item 4: `generator.regenerate_phonology_adapt_words`.** Layered on item 2's own output: every
+  lexicon entry's `ipa` re-fit via `phoneme_fit.fit_ipa` (built for adapting a foreign name/deviating a
+  real source word, structurally the same problem) against the newly rolled phonology, `romanization`
+  re-derived to match, everything else carried over unchanged. Verified live, not just by the mechanism
+  alone: the same base word under the same trait edit came out "Ğis" (regenerate, unrelated) vs. "Ḫaya"
+  (adapt, recognizably the same word) -- exactly the qualitative difference the feature exists to
+  deliver. `tones` is cleared to `()` on every adapted entry (documented v1 limitation -- `fit_ipa`
+  already strips stress/tone marks for its other two callers, not a new gap), confirmed non-crashing on
+  a real tonal base language via a dedicated test.
+
+  **Item 5: `generate --tweak-from <name> --words {regenerate,adapt}`.** Mirrors `--evolve-from`'s own
+  shape exactly (loads a saved language, always saves under `--name` as a new language, source never
+  overwritten) and reuses the already-existing `--trait`/`_parse_trait_overrides` unchanged --
+  `--prompt`/`--source-language`/`--seed`/etc. are all ignored outright in this mode (placed early
+  enough in `generate`'s own body to skip the LLM-calling `classify_prompt` step entirely, unlike
+  `--evolve-from` which still pays for and uses it). Verified with a real CLI run showing both modes
+  back to back on the same base language (`docs/CLI.md`'s own new "Tweaking" section).
+
+  **Item 6: a new "Tweak" tab.** Its own top-level `panel-tweak`, not folded into Inspect. Trait-override
+  rows reuse the exact `dyn-row` + info-button pattern Advanced Options already has, but restricted to
+  `phonologyOnlyTraitFields` (a new, separate options field from the 15-field `gradedTraitFields`) and
+  pre-filled from the picked language's own current nonzero trait reading rather than starting blank --
+  confirmed live: picking a language with `altitude`/`aesthetic_harshness`/`phonotactic_restrictiveness`
+  already nonzero produced exactly those three rows, pre-populated with their real current values, none
+  of the other 12 (correctly excluded) traits showing up even though some were also nonzero. New
+  `POST /api/languages/{slug}/tweak` renders through `showInspectResult`/`renderLanguageSummary`
+  completely unchanged. Submitting both "regenerate" and "adapt" against the same real language in the
+  actual running dev server (not just the test suite) showed the identical qualitative difference the
+  CLI/unit tests already confirmed -- a real end-to-end check, not just that each layer passed in
+  isolation.

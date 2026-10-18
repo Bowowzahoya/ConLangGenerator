@@ -17,10 +17,13 @@ from conlang_generator.translation import sentence_planner
 from conlang_generator.translation.translator import translate_to_conlang, translate_to_english
 from tests._shared_language import cached_language
 
-# seed=83 (re-found from seed=2 after the "Missing symbols still" batch's
-# own new phoneme-pool content shifted downstream rng draws -- needs
-# has_overt_copula=True for the copula slot these tests check).
-_SEED = 83
+# seed=1 (re-found from seed=2 after the "Missing symbols still" batch's
+# own new phoneme-pool content shifted downstream rng draws, then re-found
+# again, seed=83 -> 1, after phonology generation moved to its own
+# independent rng stream instead of sharing the single spec-seeded stream
+# with romanization/grammar/lexicon -- needs has_overt_copula=True for the
+# copula slot these tests check).
+_SEED = 1
 
 
 def _language():

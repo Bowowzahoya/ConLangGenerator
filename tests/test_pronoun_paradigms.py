@@ -216,12 +216,23 @@ def test_a_classifier_follows_a_possessor_word_and_depends_on_the_possessed_noun
 def test_a_language_without_possessive_classifiers_adds_none():
     language = _find(lambda g: g.uses_classifiers and not g.possessive_classifiers)
     _, _, glosses = _render(language, _pronoun("I", possessive=True), _noun("dog"))
-    assert not any(g.startswith("possessive-classifier-") for g in glosses)
+    # gloss_parts entries are `str | None` by design (e.g. a synthetic
+    # classifier word with no tracked gloss) -- filter those out before
+    # testing the string prefix, rather than assuming every slot has one.
+    assert not any(g.startswith("possessive-classifier-") for g in glosses if g is not None)
 
 
 def test_a_possessive_word_takes_a_classifier_too():
+    # "I" must actually get its own possessive word -- a language whose
+    # possessive_word_persons covers only *some* persons falls back to the
+    # plain personal pronoun for the rest (see translator._normalize_
+    # possessives's own "partial" case), which would gloss as a bare "I"
+    # instead of "possessive-i" and isn't what this test means to exercise.
     language = _find(
-        lambda g: g.possessive_classifiers and g.possessive_pronouns == "words" and not g.noun_classes
+        lambda g: g.possessive_classifiers
+        and g.possessive_pronouns == "words"
+        and not g.noun_classes
+        and (not g.possessive_word_persons or pronoun_gen.person_label("I") in g.possessive_word_persons)
     )  # (any assignment: the classifier word is a possessive classifier either way)
     _, tokens, glosses = _render(language, PlannedSlot(kind="possessive_pronoun", gloss="I"), _noun("dog"))
     assert glosses[0] == "possessive-i" and glosses[1].startswith("possessive-classifier-") and len(tokens) == 3

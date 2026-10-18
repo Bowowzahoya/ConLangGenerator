@@ -563,70 +563,70 @@ from the old language at all) and today's `--evolve-years` (`generate_evolved_la
 from a directly-dialed-in new trait value). Not started; broken into the items below, roughly in build
 order -- each is independently schedulable, and later items depend on earlier ones.
 
-- **1. Give phonology its own independent `rng` stream (S-M), prerequisite for everything below.**
-  `generation/generator.py`'s `generate_language` today draws phonology, then romanization/script/
-  grammar/lexicon, all *sequentially* from one shared `rng = random.Random(spec.seed)`. Re-rolling
-  phonology alone (item 2) from that same shared stream would shift every downstream roll too, whether
-  or not its own governing trait changed -- not a safe foundation for "only the sound inventory should
-  change." Fix: phonology draws from its own `f"{spec.seed}:phonology"` stream, the same "own
-  independent stream so this roll never shifts any existing seed's own output downstream" pattern
-  `generator.py` already uses for its punctuation-style and script rolls. A real, scoped architecture
-  change to `generate_language` itself (every existing seed's exact output changes the moment this
-  lands -- unremarkable by this project's own precedent, since that's already true of any generation
-  change, but worth a deliberate full-suite run to confirm nothing *structurally* breaks, not just that
-  outputs differ). Needed regardless of which regeneration/word mode a user ends up picking below.
-- **2. A scoped phonology-regeneration function (M), builds on 1.** New `generator.regenerate_phonology
-  (language: Language, new_traits: TraitProfile) -> Language` (exact name/shape TBD at implementation
-  time): builds `new_spec = language.spec.model_copy(update={"traits": merged_traits})`, re-rolls only
-  `phonology_gen.generate_phonology` (plus romanization/script, which structurally *depend* on the
-  phonology inventory and must be re-derived from it) using item 1's own phonology stream, and reuses
-  `language.grammar` verbatim, untouched. **v1 scope decision**: only trait edits that actually affect
-  phonology are supported initially (`altitude`/`aesthetic_harshness`/`phonotactic_restrictiveness`/
-  `terrain_communication_distance`/`isolation` -- see the Phonology (incl. Traits) section's own trait
-  list) -- editing a grammar-affecting trait (`social_hierarchy`, `spatial_reference`, ...) is out of
-  scope for v1 and should be rejected with a clear error, not silently ignored, until grammar gets its
-  own equivalent regeneration path (item 8).
-- **3. "Regenerate words" mode (S), builds on 2.** The simple case -- recoin the whole lexicon fresh
-  against the new phonology/romanization, reusing `lexicon_gen`'s existing word-coining path unchanged
-  (same mechanism `generate_language` itself already calls). No new mechanism needed, just wiring.
-- **4. "Reuse old words, adapted" mode (M), builds on 2.** `generation/phoneme_fit.py`'s existing
-  `fit_ipa(guessed_ipa, inventory, structure)` already does almost exactly this -- built originally for
-  fitting a real-word loanword's IPA into a conlang's own inventory, but structurally the same problem
-  as "fit an *existing* word's own IPA into this same language's own *new* inventory after a trait
-  edit": nearest-neighbor symbol substitution (`neighbours`/`_nearest`, feature-distance-based, the same
-  mechanism `docs/LIMITATIONS.md` already documents as "feature-distance-nearest-neighbor rather than
-  lineage-aware" for real-word deviation) plus syllable-structure repair (`_repair`/`first_problem`).
-  Running every existing lexicon entry's own IPA through `fit_ipa` against the freshly rolled inventory,
-  then re-deriving its own romanization via the freshly rolled `RomanizationScheme.apply`, is the
-  concrete mechanism -- each resulting word stays traceably "based on" its own previous form (same
-  affix structure, same root shape, nearest surviving sounds) rather than being coined from scratch.
-  Needs verification this actually reads as "the same word, adapted" rather than "a different word"
-  across a real range of trait edits before calling it done -- not assumed from the mechanism alone.
-- **5. CLI entry point (S), builds on 2-4.** Mirrors `--evolve-from`'s own existing shape exactly
-  (`generate --evolve-from <name> --years N`, which loads a saved language and always saves the result
-  under `--name` as a new, separate language -- the source is never overwritten): a new
-  `--tweak-from <name>` paired with the *already-existing* `--trait NAME=VALUE` flag (zero new parsing
-  needed, `_parse_trait_overrides` already does exactly this) and a new `--words {regenerate,adapt}`
-  choice flag. Per this project's own CLI-discipline rule, needs a verified real example once built,
-  e.g. `conlang generate --tweak-from my-lang --name my-lang-harsher --trait aesthetic_harshness=0.8
-  --words adapt`.
-- **6. A new, separate "Tweak" tab in the web UI (M), builds on 2-5.** Direct user request: its own
-  top-level tab (`panel-tweak`, alongside Generate/Translate/Inspect/Script/Reference/Log in `nav`), not
-  folded into Inspect's own view. Concrete shape:
-  - A language picker, same `fillLanguageSelect`/`refreshLanguages` pattern Inspect's own `#inspect-lang`
-    already uses.
-  - Once picked, the *same* editable trait-override row UI Advanced Options already has
-    (`addTraitOverrideRow`/`gradedTraitFields`/`glossary.traits`/`describeTrait` reused wholesale, not
-    rebuilt) -- but pre-filled from the picked language's own current nonzero trait values (`GET /api/
-    languages/{slug}`'s own `traits` field) rather than starting blank, so the user edits *from* the
-    existing reading instead of guessing it from scratch.
-  - A "words" radio: regenerate vs. adapt (item 3/4).
-  - A save-name field (mirrors `--name` above; never overwrites the source language, same precedent
-    `--evolve-from` already sets).
-  - A new `POST /api/languages/{slug}/tweak` endpoint (same response shape `/api/generate` already
-    returns) backing the submit button; the result renders through the *already-existing*
-    `showInspectResult`/`renderLanguageSummary` unchanged, since a tweaked language is still just a
-    `Language` like any other.
+- **1. Give phonology its own independent `rng` stream -- done.** `generate_language`'s phonology call
+  now draws from its own `random.Random(f"{spec.seed}:phonology")` stream instead of the shared
+  `rng = random.Random(spec.seed)` romanization/grammar/lexicon all still draw from afterward -- same
+  "own independent stream" pattern `generator.py` already used for its punctuation-style and script
+  rolls. Confirmed via a real full-suite run: every seed's exact phonology/romanization/grammar/lexicon
+  output shifted as expected (32 tests failed on hardcoded-seed/fixture assumptions, none on a genuine
+  logic break), each re-pinned to a newly-found seed with the same documented properties or hardened
+  against a legitimate `None`-gloss case the new seed selection happened to newly exercise -- see
+  `architecture/OVERVIEW.md` for the full account.
+- **2. A scoped phonology-regeneration function -- done, simpler than originally sketched.** New
+  `generator.regenerate_phonology(name, language, trait_overrides, llm_client) -> Language`. The
+  original sketch above (hand-copy `language.grammar` across unchanged, manually re-derive only
+  phonology/romanization/script) turned out to be unnecessary complexity: thanks to item 1, phonology's
+  own draws no longer perturb the shared stream grammar/lexicon draw from, and a grep across every
+  module under `generation/` confirmed none of the three allowed trait fields are read outside
+  `phonology_gen.py` in the fresh-generation path -- so simply building an edited `GenerationSpec`
+  (same seed, only `traits` updated) and calling `generate_language` on it again is enough:
+  `generate_language`'s own grammar roll reproduces byte-identical typological choices (word order,
+  alignment, cases, tenses, morphology type, ...) by construction, confirmed with a real test, not
+  assumed. **v1 scope, corrected from the original sketch by the same grep**: only `altitude`/
+  `aesthetic_harshness`/`phonotactic_restrictiveness` are accepted (`core.traits.
+  PHONOLOGY_ONLY_TRAIT_FIELDS`) -- `isolation` was dropped (also read by `grammar_gen.py`, would have
+  broken the "grammar stays identical" guarantee) and `terrain_communication_distance` was dropped
+  (read only by `sound_change.py`/evolution, a silent no-op in a fresh regeneration). A disallowed key
+  raises `ValueError` rather than being silently ignored.
+- **3. "Regenerate words" mode -- done, for free, as a side effect of item 2.** Item 2's own
+  implementation calls `generate_language` outright, which always recoins the lexicon fresh against the
+  new phonology/romanization -- no separate mechanism was needed.
+- **4. "Reuse old words, adapted" mode -- done.** New `generator.regenerate_phonology_adapt_words`,
+  layered on item 2's own output: each of the base language's lexicon entries gets its `ipa` re-fit via
+  `phoneme_fit.fit_ipa` against the newly rolled inventory/syllable structure, then its `romanization`
+  re-derived via the new `RomanizationScheme.apply` + `apply_grammatical_spelling` (the same pairing
+  fresh coinage itself uses) -- every other field (`glosses`/`pos`/`root`/`word_class`/`notes`/
+  `real_word`) carries over unchanged. Verified live, not just by the mechanism's own description: the
+  same base word came out as "Hya" (regenerate -- an unrelated new word) vs. "Ḫaya" (adapt -- the same
+  word, consonant cluster intact) under the identical trait edit; "we" (Mu) came out completely
+  unchanged under adapt, since its own sounds already all survived in the new inventory. **Known v1
+  limitation, documented on the function itself**: `fit_ipa` only ever fits the *segmental* shape --
+  stress/word-accent/tone marks are already stripped for its other two existing callers, not a new gap
+  here -- so every adapted entry's own `tones` is cleared to `()` rather than left stale/inconsistent
+  with a now-unmarked `ipa`; adapting a tonal language's own lexicon does not yet preserve its tones.
+- **5. CLI entry point -- done.** `generate --tweak-from <name> --words {regenerate,adapt}`, mirroring
+  `--evolve-from`'s own shape exactly (loads a saved language, always saves the result under `--name` as
+  a new language, source never overwritten) and reusing the *already-existing* `--trait NAME=VALUE`
+  flag/`_parse_trait_overrides` unchanged. `--prompt`/`--source-language`/`--seed`/etc. are all ignored
+  outright in this mode (the base language's own already-resolved seed/spec is reused directly) --
+  `--prompt` stays required syntactically (same as `--evolve-from`) but is never read. Verified with a
+  real example (see `docs/CLI.md`'s own "Tweaking" section): `regenerate` and `adapt` run back to back
+  on the same base + same trait edit visibly diverge in exactly the way item 4 describes, right in the
+  CLI's own printed word-list.
+- **6. A new, separate "Tweak" tab in the web UI -- done.** Its own top-level tab (`panel-tweak`,
+  alongside Generate/Translate/Inspect/Script/Reference/Log in `nav`), not folded into Inspect. A
+  language picker (same `fillLanguageSelect`/`refreshLanguages` pattern as Inspect's own); trait-override
+  rows restricted to `PHONOLOGY_ONLY_TRAIT_FIELDS` (a new, separate field list from Advanced Options' own
+  15-field `gradedTraitFields`, since the backend rejects anything outside the three phonology-only
+  names) and pre-filled from the picked language's own current nonzero trait reading (`GET /api/
+  languages/{slug}`'s own `traits` field) rather than starting blank; a "words" radio (regenerate/adapt);
+  a save-name field (defaults to `{slug}-tweaked`, never overwrites the source, same precedent
+  `--evolve-from`/`--tweak-from` already set). New `POST /api/languages/{slug}/tweak` endpoint (same
+  response shape `/api/generate` already returns); the result renders through the *already-existing*
+  `showInspectResult`/`renderLanguageSummary` completely unchanged, since a tweaked language is still
+  just a `Language` like any other -- confirmed live: submitting switches to the Inspect tab showing the
+  tweaked result, with grammar/glosses verified identical to the base language the same way the CLI/unit
+  tests already confirm it.
 - **7. Word-by-word diff/preview before saving (M-L), stretch goal, not needed for v1.** Show each
   lexicon entry's old vs. new spelling side by side before committing to save, so a user can sanity-
   check the "adapted" words actually still look related before it's written to disk. Could reuse the

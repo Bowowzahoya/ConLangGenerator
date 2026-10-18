@@ -343,7 +343,19 @@ def test_a_language_without_conditional_sequencing_leaves_the_main_verb():
 
 
 def test_an_if_clause_takes_the_sequenced_tense_unless_the_planner_set_one():
-    language = _find(lambda g: g.conditional_clause_tense == "past" and "past" in g.tenses and not g.subordinate_mood_use)
+    # "past" must also not be periphrastic here: a periphrastic past (see
+    # GrammarProfile.periphrastic_labels) marks tense entirely on the
+    # auxiliary, leaving the lexical verb's own token identical across
+    # tenses -- which would make `forced == because` below even though
+    # sequencing is genuinely happening (just not on the token this test
+    # inspects), a false negative for this test's own purpose rather than
+    # a real absence of sequencing.
+    language = _find(
+        lambda g: g.conditional_clause_tense == "past"
+        and "past" in g.tenses
+        and not g.subordinate_mood_use
+        and "past" not in g.periphrastic_labels
+    )
     forced = _render(language, _noun("dog"), _clause("if", "adverbial", _verb("see")))[1][1]
     because = _render(language, _noun("dog"), _clause("because", "adverbial", _verb("see")))[1][1]
     explicit_past = _render(language, _verb("see", tense="past"))[1][0]

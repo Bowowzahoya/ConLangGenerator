@@ -43,6 +43,26 @@ GRADED_TRAIT_FIELDS: tuple[str, ...] = (
     "tone_sandhi",
 )
 
+PHONOLOGY_ONLY_TRAIT_FIELDS: tuple[str, ...] = (
+    "altitude",
+    "aesthetic_harshness",
+    "phonotactic_restrictiveness",
+)
+"""The subset of `GRADED_TRAIT_FIELDS` read *only* by `generation.
+phonology_gen` (confirmed by grepping every module under `generation/`
+for each field name, not assumed from the docstrings above) -- the
+allowlist `generation.generator.regenerate_phonology` accepts, since
+editing any other trait could also shift `generation.grammar_gen`'s own
+typological choices, breaking that function's own "grammar comes out
+identical" guarantee (see docs/DEFERRED.md's "Tweaking an existing
+language" item 2). Two near-misses worth recording here, not just in
+that item's own history: `isolation` *looks* phonology-adjacent but is
+also read by `grammar_gen.py` (ergative alignment, morphology type),
+so it's excluded; `terrain_communication_distance` is read only by
+`generation.sound_change` (evolution), never by a fresh `phonology_gen`
+roll, so including it would be a silent no-op outside evolution and
+it's excluded too."""
+
 
 class TraitProfile(BaseModel, frozen=True):
     # -- Consumed by generation today (see phonology_gen.py / grammar_gen.py) --

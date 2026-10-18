@@ -16,8 +16,13 @@ from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.script import ScriptTraits, ScriptTraitsForce
 from conlang_generator.core.spec import GenerationSpec, SeedExample, SeedForm
-from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
-from conlang_generator.generation.generator import generate_evolved_language, generate_language
+from conlang_generator.core.traits import GRADED_TRAIT_FIELDS, PHONOLOGY_ONLY_TRAIT_FIELDS
+from conlang_generator.generation.generator import (
+    generate_evolved_language,
+    generate_language,
+    regenerate_phonology,
+    regenerate_phonology_adapt_words,
+)
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.generation.real_words import strictness_warnings
@@ -289,6 +294,18 @@ def generate(
         help="Years of sound change: with --evolve-from, how long to evolve that saved language; otherwise, evolve the "
         "newly generated language this many years (0 = none). Blank uses the time depth the prompt implies.",
     ),
+    tweak_from: str = typer.Option(
+        None, "--tweak-from",
+        help="Re-roll an existing saved language's own phonology from an edited --trait (requires --words); "
+        "--prompt/--source-language/--seed/etc. are all ignored in this mode. NAME is one of: "
+        + ", ".join(PHONOLOGY_ONLY_TRAIT_FIELDS) + ".",
+    ),
+    words: str = typer.Option(
+        None, "--words",
+        help="With --tweak-from, what happens to the lexicon: 'regenerate' (recoin fresh against the new phonology) "
+        "or 'adapt' (re-fit each existing word's own IPA to the new phonology instead, so it stays traceably the "
+        "same word -- see `conlang generate --tweak-from`'s own help for the trait-name allowlist).",
+    ),
     orthography_style: str = typer.Option(
         None, "--orthography-style",
         help=f"Force a whole named orthography style (guaranteed, not just likely). One of: {', '.join(ORTHOGRAPHY_STYLE_NAMES)}.",
@@ -386,6 +403,47 @@ def generate(
         typer.echo(f"error: --strictness must be between 0.0 and 1.0, got {strictness!r}", err=True)
         raise typer.Exit(code=1)
     trait_overrides = _parse_trait_overrides(trait)
+
+    if tweak_from is not None:
+        # No prompt classification, no --seed, no --source-language --
+        # none of that applies here (the base language's own already-
+        # resolved spec/seed is reused directly), the same "reinterpreted/
+        # ignored in this mode" precedent --evolve-from already sets for
+        # its own irrelevant flags.
+        if words is None:
+            typer.echo("error: --tweak-from requires --words {regenerate,adapt}", err=True)
+            raise typer.Exit(code=1)
+        if words not in ("regenerate", "adapt"):
+            typer.echo(f"error: --words must be 'regenerate' or 'adapt', got {words!r}", err=True)
+            raise typer.Exit(code=1)
+        repository = _repository()
+        try:
+            base = repository.load(tweak_from)
+        except FileNotFoundError as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        client = _client(llm)
+        regenerate = regenerate_phonology if words == "regenerate" else regenerate_phonology_adapt_words
+        try:
+            language = regenerate(name, base, trait_overrides, client)
+        except ValueError as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        repository.save(language)
+
+        typer.echo(f"Tweaked '{tweak_from}' -> '{language.name}' ({language.slug}), words: {words}.")
+        typer.echo(
+            f"consonants: {len(base.phonology.consonants)} -> {len(language.phonology.consonants)}, "
+            f"vowels: {len(base.phonology.vowels)} -> {len(language.phonology.vowels)}"
+        )
+        if trait_overrides:
+            typer.echo(f"Tweaked traits: {', '.join(f'{k}={v:+.2f}' for k, v in trait_overrides.items())}")
+        for old_entry, new_entry in list(zip(base.lexicon.entries, language.lexicon.entries))[:6]:
+            arrow = "=" if old_entry.romanization == new_entry.romanization else "->"
+            typer.echo(f"  {old_entry.glosses[0]}: {old_entry.romanization} {arrow} {new_entry.romanization}")
+        typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
+        return
+
     script_trait_overrides = _parse_trait_overrides(script_trait, SCRIPT_TRAIT_FIELDS, "--script-trait")
     forced_script_traits = ScriptTraitsForce(**script_trait_overrides)
     forced_orthography = OrthographyForce(

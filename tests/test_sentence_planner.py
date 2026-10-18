@@ -10,18 +10,21 @@ from conlang_generator.llm.fake_client import FakeLLMClient
 from conlang_generator.translation import sentence_planner
 from tests._shared_language import cached_language
 
-# Same fixtures as test_translator.py -- seed=278 (nominative-accusative,
-# SVO, has_articles/has_overt_copula both true) and seed=28 (ergative-
+# Same fixtures as test_translator.py -- seed=4 (nominative-accusative,
+# SVO, has_articles/has_overt_copula both true) and seed=7 (ergative-
 # absolutive, SOV) -- redefined locally rather than imported, matching
 # this project's own "each test module owns its fixtures" convention.
 # These seeds have moved before (most recently 180 -> 283 for
-# _ERGATIVE_SEED after the Russian palatalization-gap batch, now
+# _ERGATIVE_SEED after the Russian palatalization-gap batch, then
 # 2 -> 83 -> 278 / 283 -> 28 after the "Missing symbols still" batch's own new
-# phoneme-pool content) -- same "seed-shift from new content, not a
-# functional regression" pattern documented elsewhere in this project's
-# own history (see architecture/OVERVIEW.md).
-_NOM_ACC_SEED = 278
-_ERGATIVE_SEED = 28
+# phoneme-pool content, now 278 -> 4 / 28 -> 7 after phonology generation
+# moved to its own independent rng stream instead of sharing the single
+# spec-seeded stream with romanization/grammar/lexicon) -- same
+# "seed-shift from new content, not a functional regression" pattern
+# documented elsewhere in this project's own history (see
+# architecture/OVERVIEW.md).
+_NOM_ACC_SEED = 4
+_ERGATIVE_SEED = 7
 
 
 def _language(seed: int):

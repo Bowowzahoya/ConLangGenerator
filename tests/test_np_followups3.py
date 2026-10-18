@@ -286,7 +286,7 @@ def test_a_deictic_article_is_a_reduced_demonstrative_next_to_a_noun():
     assert glosses[0] in ("this-article", "this")
     if glosses[0] == "this-article":
         assert parts[0] != full.romanization and len(parts[0]) <= len(full.romanization)
-        assert "this" in translate_to_english(parts[0], updated, _CLIENT).text.split()
+        assert "this" in translate_to_english(parts[0], updated, _CLIENT).text.rstrip(".").split()
 
 
 def test_a_standalone_demonstrative_keeps_its_full_form():

@@ -40,9 +40,14 @@ from conlang_generator.core.romanization import (
 )
 from conlang_generator.core.script import ScriptTraits, ScriptTraitsForce
 from conlang_generator.core.spec import GenerationSpec, SeedExample
-from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
+from conlang_generator.core.traits import GRADED_TRAIT_FIELDS, PHONOLOGY_ONLY_TRAIT_FIELDS
 from conlang_generator.generation import ipa_tokenizer, phonology_gen, script_gen
-from conlang_generator.generation.generator import generate_evolved_language, resolve_evolve_years
+from conlang_generator.generation.generator import (
+    generate_evolved_language,
+    regenerate_phonology,
+    regenerate_phonology_adapt_words,
+    resolve_evolve_years,
+)
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.generation.real_words import strictness_warnings
@@ -684,6 +689,7 @@ def get_options() -> dict:
         "tts_capabilities": tts.backend_capabilities(),
         "max_vocabulary_size": len(ALL_MEANINGS),
         "graded_trait_fields": list(GRADED_TRAIT_FIELDS),
+        "phonology_only_trait_fields": list(PHONOLOGY_ONLY_TRAIT_FIELDS),
         "script_trait_fields": list(ScriptTraits.model_fields),
         "glossary": glossary.as_dict(),
         "models": [
@@ -828,6 +834,55 @@ def generate(request: GenerateRequest) -> dict:
         summary["pregenerated_audio"] = {
             "total": pregenerated.total, "synthesized": pregenerated.synthesized, "failed": pregenerated.failed,
         }
+    return summary
+
+
+class TweakRequest(BaseModel):
+    name: str
+    """Where the tweaked result is saved -- a new, separate language,
+    same "source is never overwritten" precedent `--tweak-from`'s own
+    CLI twin (`cli/main.py`) already follows; reusing the source
+    language's own name here overwrites it, the same pre-existing
+    behavior `/api/generate` itself already has for a name collision."""
+    trait_overrides: dict[str, float] = {}
+    """Restricted to `PHONOLOGY_ONLY_TRAIT_FIELDS` -- any other key is
+    rejected outright (see `generation.generator.regenerate_phonology`'s
+    own docstring for why only these three)."""
+    words: str = "regenerate"
+    """'regenerate' (recoin the lexicon fresh against the new phonology)
+    or 'adapt' (re-fit each existing word's own IPA to the new phonology
+    instead, so it stays traceably the same word)."""
+    llm: str = "fake"
+
+
+@app.post("/api/languages/{slug}/tweak")
+def tweak_language(slug: str, request: TweakRequest) -> dict:
+    """"Tweaking an existing language" item 6 (`docs/DEFERRED.md`) --
+    the web UI's own Tweak tab backing endpoint, mirroring `/api/generate`'s
+    own response shape exactly so the result renders through the
+    already-existing `showInspectResult`/`renderLanguageSummary`
+    unchanged, a tweaked language being just a `Language` like any
+    other."""
+    if request.words not in ("regenerate", "adapt"):
+        raise HTTPException(status_code=400, detail="words must be 'regenerate' or 'adapt'")
+    try:
+        base = _repository().load(slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    client = _client(request.llm)
+    before = _cost_snapshot()
+    regenerate = regenerate_phonology if request.words == "regenerate" else regenerate_phonology_adapt_words
+    try:
+        language = regenerate(request.name, base, request.trait_overrides, client)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _repository().save(language)
+
+    after = _cost_snapshot()
+    summary = _language_summary(language)
+    summary["cost"] = _cost_delta(before, after)
+    summary["warnings"] = phonotactic_mismatch_warnings(language) + unused_suppletive_form_warnings(language)
     return summary
 
 

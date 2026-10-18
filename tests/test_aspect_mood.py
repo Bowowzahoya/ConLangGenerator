@@ -62,11 +62,26 @@ def _decodes_as_planned(language, cases) -> bool:
 def _verb_form(language, sentence: str) -> str:
     """The rendered token for the first verb of ``sentence`` -- matched by
     the stem appearing anywhere in the token, not just at the start, since a
-    prefix- or circumfix-marked language (pass 24) puts material before it."""
+    prefix- or circumfix-marked language (pass 24) puts material before it.
+    A hiatus-boundary ``elision`` rule (morphophonology_gen.py) can drop the
+    stem's own final letter against a vowel-initial affix, so the naive
+    substring match can miss the verb token entirely for some languages --
+    when that happens, fall back to the same generate-and-compare decode
+    translator.py's own _decode_verb_full uses (it documents the identical
+    "first two letters, else full search" staging for this exact reason),
+    picking whichever token actually decodes back to this verb."""
     verb = language.lexicon.by_gloss("see")
     result = translate_to_conlang(sentence, language, FakeLLMClient())
     stem = verb.romanization[:2]
-    return next(t for t in result.text.split() if stem in t)
+    tokens = result.text.split()
+    for token in tokens:
+        if stem in token:
+            return token
+    for token in tokens:
+        decoded = _decode_verb_full(language, token)
+        if decoded is not None and decoded[0].glosses == verb.glosses:
+            return token
+    raise AssertionError(f"no verb token found for {sentence!r} in {result.text!r}")
 
 
 # --- generation -----------------------------------------------------------
