@@ -111,9 +111,6 @@
   }
   .tweak-sound-chip.sound-added { background: #1f3d2b; color: #7ee2a0; border-color: #2f5c3f; }
   .tweak-sound-chip.sound-removed { background: #3d1f1f; color: #e28080; border-color: #5c2f2f; text-decoration: line-through; }
-  .lex-script-text { display: none; }
-  .show-script .lex-romanized-text { display: none; }
-  .show-script .lex-script-text { display: inline; }
   .info-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 16px; height: 16px; border-radius: 50%; border: none; padding: 0;
@@ -1770,9 +1767,7 @@ function renderLanguageSummary(container, summary) {
     <div class="badges">${scriptTraitBadges}</div>
     <style>@font-face { font-family: "ConlangScript-${summary.slug}"; src: url("/api/languages/${encodeURIComponent(summary.slug)}/script/font") format("truetype"); }</style>
     <div class="row" style="align-items:center; margin-top:4px;">
-      <label style="display:flex; align-items:center; gap:6px; margin:0;">
-        <input type="checkbox" id="show-script-toggle"> Show lexicon in its own script
-      </label>
+      <p class="ipa" style="margin:0;">Shown as its own column in the lexicon table below.</p>
       <a class="add-row" href="/api/languages/${encodeURIComponent(summary.slug)}/script/font" download="${summary.slug}.ttf">&#8681; Download font (.ttf)</a>
     </div>` : "";
   const scriptSection = scriptBody ? summarySection("Writing system", scriptBody) : "";
@@ -1813,9 +1808,9 @@ function renderLanguageSummary(container, summary) {
       <div class="error" id="lexicon-audio-error" hidden></div>
       <div class="lexicon-wrap">
         <table>
-          <thead><tr><th></th><th>gloss</th><th>pos</th><th>word</th><th>IPA</th><th></th></tr></thead>
+          <thead><tr><th></th><th>gloss</th><th>pos</th><th>word</th><th>IPA</th>${summary.script ? "<th>script</th>" : ""}<th></th></tr></thead>
           <tbody id="lexicon-tbody">
-            ${summary.lexicon.map(e => renderLexiconRow(e, summary.slug)).join("")}
+            ${summary.lexicon.map(e => renderLexiconRow(e, summary.slug, !!summary.script)).join("")}
           </tbody>
         </table>
       </div>
@@ -1825,26 +1820,23 @@ function renderLanguageSummary(container, summary) {
   $("lexicon-search").oninput = () => filterLexiconTable($("lexicon-search").value);
   $("lexicon-export-btn").onclick = downloadLexiconCsv;
   $("export-generated-btn").onclick = () => downloadLanguageExport(summary.slug);
-  if ($("show-script-toggle")) {
-    $("show-script-toggle").onchange = (e) => {
-      container.querySelector(".lexicon-wrap").classList.toggle("show-script", e.target.checked);
-    };
-  }
 }
 
 // --- lexicon table: one rendered <tr> per entry, reused for both the
 // normal display and (via startEditingRow below) restoring a row after
 // an edit is cancelled. `data-search`/`data-gloss` carry what the filter
 // and the edit/save handlers need without a second lookup structure. ---
-function renderLexiconRow(e, slug) {
+function renderLexiconRow(e, slug, hasScript) {
   const langSlug = slug !== undefined ? slug : (currentSummary ? currentSummary.slug : "");
+  const showScript = hasScript !== undefined ? hasScript : !!(currentSummary && currentSummary.script);
   const search = `${e.gloss} ${e.pos} ${e.romanization} ${e.ipa} ${e.provenance || ""}`.toLowerCase();
   return `<tr data-gloss="${e.gloss}" data-search="${search}">
     <td><button type="button" class="word-play-btn" data-ipa="${e.spoken_ipa}" title="Play pronunciation">&#128266;</button><button type="button" class="sound-guide-btn" data-slug="${escapeAttr(langSlug)}" data-ipa="${escapeAttr(e.spoken_ipa)}" title="How to pronounce each sound">&#128270;</button></td>
     <td>${e.gloss}</td>
     <td>${e.pos}</td>
-    <td class="lex-romanization"><span class="lex-romanized-text">${e.romanization}</span>${e.script_text ? `<span class="lex-script-text" style="font-family:'ConlangScript-${escapeAttr(langSlug)}'; font-size:18px;">${e.script_text}</span>` : ""}${e.provenance ? ` <span class="badge" title="${e.provenance}">real</span>` : ""}</td>
+    <td class="lex-romanization">${e.romanization}${e.provenance ? ` <span class="badge" title="${e.provenance}">real</span>` : ""}</td>
     <td class="ipa lex-ipa">/${e.ipa}/</td>
+    ${showScript ? `<td class="lex-script" style="font-family:'ConlangScript-${escapeAttr(langSlug)}'; font-size:18px;">${e.script_text || ""}</td>` : ""}
     <td><button type="button" class="word-edit-btn" title="Edit this word">&#9998;</button></td>
   </tr>`;
 }
