@@ -471,10 +471,12 @@
     </div>
 
     <div class="submit-row">
-      <button class="primary" id="tweak-btn">Tweak Language</button>
+      <button class="primary" id="tweak-btn">Preview Tweak</button>
+      <button class="primary" id="tweak-save-btn" hidden style="margin-left:8px;">Save Tweaked Language</button>
     </div>
     <div class="error" id="tweak-error" hidden></div>
   </div>
+  <div class="result" id="tweak-preview-result"></div>
 </section>
 
 <section id="panel-script" class="panel">
@@ -953,13 +955,26 @@ function collectTweakTraitOverrides() {
 // Pre-fills from the picked language's own current trait reading
 // (GET /api/languages/{slug}'s own `traits`) -- the user edits *from*
 // what the language already has, rather than guessing it from scratch.
+// Also caches the base language's own lexicon (`tweakBaseLexicon`) for
+// renderTweakDiff below, and clears any previous preview -- picking a
+// different language invalidates whatever was last previewed.
+let tweakBaseLexicon = null;
+let tweakLastPreviewBody = null;
+function resetTweakPreview() {
+  tweakLastPreviewBody = null;
+  $("tweak-save-btn").hidden = true;
+  $("tweak-preview-result").innerHTML = "";
+}
 async function loadTweakLanguage(slug) {
   $("tweak-error").hidden = true;
   $("tweak-trait-rows").innerHTML = "";
+  resetTweakPreview();
+  tweakBaseLexicon = null;
   if (!slug) return;
   try {
     const summary = await api(`/api/languages/${encodeURIComponent(slug)}`);
     $("tweak-name").value = `${slug}-tweaked`;
+    tweakBaseLexicon = summary.lexicon;
     for (const field of phonologyOnlyTraitFields) {
       const value = summary.traits[field];
       if (typeof value === "number" && value !== 0) addTweakTraitRow(field, value);
@@ -972,7 +987,39 @@ async function loadTweakLanguage(slug) {
 $("tweak-lang").addEventListener("change", () => loadTweakLanguage($("tweak-lang").value));
 $("tweak-refresh-langs").onclick = refreshLanguages;
 
-$("tweak-btn").onclick = async () => {
+// --- item 7: word-by-word before/after preview, reusing the lexicon
+// table's own column shape (gloss/pos/word/IPA) with an added "before"
+// pair -- unchanged rows are visually de-emphasized (muted "=") the
+// same way the CLI's own --tweak-from word list already distinguishes
+// "=" from "->". ---
+function renderTweakDiff(baseLexicon, newLexicon) {
+  const baseByGloss = new Map(baseLexicon.map(e => [e.gloss, e]));
+  const rows = newLexicon.map(entry => {
+    const before = baseByGloss.get(entry.gloss);
+    const changed = !before || before.romanization !== entry.romanization || before.ipa !== entry.ipa;
+    const arrow = changed ? "&rarr;" : "=";
+    return `<tr${changed ? "" : ` style="opacity:0.6;"`}>
+      <td>${escapeAttr(entry.gloss)}</td>
+      <td>${escapeAttr(entry.pos)}</td>
+      <td class="ipa">${before ? escapeAttr(before.romanization) : "(new word)"}</td>
+      <td class="ipa">${arrow}</td>
+      <td class="ipa">${escapeAttr(entry.romanization)} /${escapeAttr(entry.ipa)}/</td>
+    </tr>`;
+  }).join("");
+  return `
+    <div class="card">
+      <h2 style="margin-top:0">Preview: ${newLexicon.length} words</h2>
+      <p class="ipa">Nothing has been saved yet -- review the words below, then "Save Tweaked Language" to commit, or change the traits/words mode above and preview again.</p>
+      <div class="lexicon-wrap">
+        <table>
+          <thead><tr><th>gloss</th><th>pos</th><th>before</th><th></th><th>after</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+async function runTweak(dryRun) {
   const err = $("tweak-error");
   err.hidden = true;
   const slug = $("tweak-lang").value;
@@ -980,16 +1027,30 @@ $("tweak-btn").onclick = async () => {
   if (!slug) { err.textContent = "Pick a language to tweak first."; err.hidden = false; return; }
   if (!name) { err.textContent = "Give the tweaked language a name to save as."; err.hidden = false; return; }
   const words = document.querySelector('input[name="tweak-words"]:checked').value;
-  const btn = $("tweak-btn");
+  // Saving replays the *exact* body that produced the previewed result
+  // (regenerate_phonology/_adapt_words are both deterministic) rather
+  // than re-reading the form, so "Save" always commits what was shown,
+  // even if the user nudged a field afterward without re-previewing.
+  const requestBody = dryRun || !tweakLastPreviewBody
+    ? { name, trait_overrides: collectTweakTraitOverrides(), words, dry_run: dryRun }
+    : { ...tweakLastPreviewBody, dry_run: false };
+  const btn = dryRun ? $("tweak-btn") : $("tweak-save-btn");
   btn.disabled = true;
   const original = btn.textContent;
-  btn.textContent = "Tweaking...";
+  btn.textContent = dryRun ? "Previewing..." : "Saving...";
   try {
     const body = await api(`/api/languages/${encodeURIComponent(slug)}/tweak`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, trait_overrides: collectTweakTraitOverrides(), words }),
+      body: JSON.stringify(requestBody),
     });
-    showInspectResult(body);
+    if (dryRun) {
+      tweakLastPreviewBody = requestBody;
+      $("tweak-preview-result").innerHTML = renderTweakDiff(tweakBaseLexicon || [], body.lexicon);
+      $("tweak-save-btn").hidden = false;
+    } else {
+      resetTweakPreview();
+      showInspectResult(body);
+    }
     await refreshLanguages();
     await refreshCost();
   } catch (e) {
@@ -999,7 +1060,9 @@ $("tweak-btn").onclick = async () => {
     btn.disabled = false;
     btn.textContent = original;
   }
-};
+}
+$("tweak-btn").onclick = () => runTweak(true);
+$("tweak-save-btn").onclick = () => runTweak(false);
 
 // --- orthography option selects, populated from /api/options ---
 async function loadOptions() {

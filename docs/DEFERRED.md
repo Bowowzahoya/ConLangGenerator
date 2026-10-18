@@ -627,10 +627,17 @@ order -- each is independently schedulable, and later items depend on earlier on
   just a `Language` like any other -- confirmed live: submitting switches to the Inspect tab showing the
   tweaked result, with grammar/glosses verified identical to the base language the same way the CLI/unit
   tests already confirm it.
-- **7. Word-by-word diff/preview before saving (M-L), stretch goal, not needed for v1.** Show each
-  lexicon entry's old vs. new spelling side by side before committing to save, so a user can sanity-
-  check the "adapted" words actually still look related before it's written to disk. Could reuse the
-  lexicon table's own existing rendering with an added "before" column.
+- **7. Word-by-word diff/preview before saving -- done.** `TweakRequest.dry_run`: `/api/languages/
+  {slug}/tweak` computes exactly as normal but skips `_repository().save(...)` when set, returning
+  `"saved": false`. Since `regenerate_phonology`/`regenerate_phonology_adapt_words` are both
+  deterministic, no server-side preview state is needed -- the web UI's own Tweak tab just POSTs the
+  identical body again with `dry_run: false` to commit what it already showed. The Tweak tab's own
+  "Preview Tweak" button renders a before/after table (gloss/pos/old spelling/new spelling, reusing the
+  lexicon table's own column shape as planned) without leaving the tab or saving anything; a "Save
+  Tweaked Language" button then appears to commit. Picking a different language (or anything that would
+  make the preview stale) clears it. Verified live: a preview showed real before/after pairs ("ggauhk3
+  -> ggauhk") with the language confirmed not yet on disk (404), then Save produced a saved language
+  whose first word matched the preview exactly.
 - **8. Extend tweaking to grammar-affecting traits (L), stretch goal, not needed for v1.** Once item 2's
   phonology-scoped mechanism is proven, the same pattern (own independent `rng` stream, a scoped
   regeneration function, reuse existing grammar_gen machinery) could extend to the traits item 2 v1

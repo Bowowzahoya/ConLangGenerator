@@ -853,6 +853,16 @@ class TweakRequest(BaseModel):
     or 'adapt' (re-fit each existing word's own IPA to the new phonology
     instead, so it stays traceably the same word)."""
     llm: str = "fake"
+    dry_run: bool = False
+    """"Tweaking an existing language" item 7 (`docs/DEFERRED.md`):
+    compute the tweaked language exactly as normal, but don't save it --
+    lets the web UI's own Tweak tab show a word-by-word before/after
+    preview and let the user decide whether to actually commit it.
+    `regenerate_phonology`/`regenerate_phonology_adapt_words` are both
+    deterministic (same inputs -> same output, see their own
+    reproducibility tests), so a client that likes what it previewed
+    just POSTs the exact same body again with `dry_run=false` -- no
+    server-side preview state to track or expire."""
 
 
 @app.post("/api/languages/{slug}/tweak")
@@ -862,7 +872,7 @@ def tweak_language(slug: str, request: TweakRequest) -> dict:
     own response shape exactly so the result renders through the
     already-existing `showInspectResult`/`renderLanguageSummary`
     unchanged, a tweaked language being just a `Language` like any
-    other."""
+    other. `dry_run=true` (item 7) computes but never saves."""
     if request.words not in ("regenerate", "adapt"):
         raise HTTPException(status_code=400, detail="words must be 'regenerate' or 'adapt'")
     try:
@@ -877,12 +887,14 @@ def tweak_language(slug: str, request: TweakRequest) -> dict:
         language = regenerate(request.name, base, request.trait_overrides, client)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    _repository().save(language)
+    if not request.dry_run:
+        _repository().save(language)
 
     after = _cost_snapshot()
     summary = _language_summary(language)
     summary["cost"] = _cost_delta(before, after)
     summary["warnings"] = phonotactic_mismatch_warnings(language) + unused_suppletive_form_warnings(language)
+    summary["saved"] = not request.dry_run
     return summary
 
 

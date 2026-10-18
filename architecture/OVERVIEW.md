@@ -8131,3 +8131,27 @@ reading code or one-off ad hoc scripts.
   actual running dev server (not just the test suite) showed the identical qualitative difference the
   CLI/unit tests already confirmed -- a real end-to-end check, not just that each layer passed in
   isolation.
+
+- **"Tweaking an existing language," item 7: word-by-word preview before saving -- done.** `TweakRequest`
+  gained `dry_run: bool = False`; `tweak_language` computes the tweaked language exactly as before but
+  only calls `_repository().save(...)` when `dry_run` is false, returning a new `"saved"` field either
+  way. No server-side preview state to track or expire -- `regenerate_phonology`/
+  `regenerate_phonology_adapt_words` are both already proven deterministic (item 2/4's own
+  reproducibility tests), so a client that likes what it previewed just re-POSTs the *exact same body*
+  with `dry_run: false` and is guaranteed to get back precisely what it previewed.
+
+  The Tweak tab's own "Tweak Language" button is now "Preview Tweak": it renders a before/after table
+  (`renderTweakDiff`, reusing the lexicon table's own gloss/pos/word column shape, each row's own
+  "before" pulled from `tweakBaseLexicon` -- cached from `loadTweakLanguage`'s own earlier fetch, not a
+  second round trip) without leaving the Tweak tab or touching disk, then reveals a "Save Tweaked
+  Language" button. Saving replays the literal request body the preview used (`tweakLastPreviewBody`,
+  only its own `dry_run` flag overridden) rather than re-reading the form, so a user who nudges a field
+  after previewing without re-previewing still gets exactly what they saw, not a silent mismatch.
+  Picking a different language resets the preview (`resetTweakPreview`), so a stale diff for a
+  different language can never linger into a later save.
+
+  Verified live end-to-end, not just that each piece worked in isolation: previewing showed real
+  before/after pairs ("ggauhk3 -> ggauhk", recognizably the same word under "adapt" mode) while the
+  target language's own slug still 404'd (confirmed nothing was written yet); clicking Save then
+  produced a real saved language whose own first word matched the preview exactly, redirected to
+  Inspect, and cleared the preview state back to its initial, hidden shape.

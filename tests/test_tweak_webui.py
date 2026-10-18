@@ -89,3 +89,44 @@ def test_tweak_404s_for_an_unknown_language(client):
 def test_options_endpoint_serves_the_phonology_only_trait_fields(client):
     opts = client.get("/api/options").json()
     assert set(opts["phonology_only_trait_fields"]) == {"altitude", "aesthetic_harshness", "phonotactic_restrictiveness"}
+
+
+# --- dry_run (item 7: word-by-word preview before saving) ---
+
+
+def test_tweak_dry_run_does_not_save_the_language(client):
+    _make_base(client)
+    response = client.post(
+        "/api/languages/tweak-base/tweak",
+        json={"name": "tweak-preview", "trait_overrides": {"altitude": 1.0}, "words": "regenerate", "dry_run": True},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["saved"] is False
+    assert body["name"] == "tweak-preview"
+    # Never written to disk -- loading it back must 404.
+    assert client.get("/api/languages/tweak-preview").status_code == 404
+
+
+def test_tweak_dry_run_preview_matches_a_real_save_with_the_same_inputs(client):
+    # regenerate_phonology/_adapt_words are deterministic -- a client that
+    # likes the preview just re-POSTs the identical body with
+    # dry_run=false, and must get exactly what it previewed.
+    _make_base(client)
+    body = {"name": "tweak-commit", "trait_overrides": {"aesthetic_harshness": 0.8}, "words": "adapt"}
+    preview = client.post("/api/languages/tweak-base/tweak", json={**body, "dry_run": True}).json()
+    saved = client.post("/api/languages/tweak-base/tweak", json={**body, "dry_run": False}).json()
+    assert preview["saved"] is False
+    assert saved["saved"] is True
+    assert [e["ipa"] for e in preview["lexicon"]] == [e["ipa"] for e in saved["lexicon"]]
+    assert client.get("/api/languages/tweak-commit").status_code == 200
+
+
+def test_tweak_without_dry_run_still_defaults_to_saving(client):
+    _make_base(client)
+    response = client.post(
+        "/api/languages/tweak-base/tweak",
+        json={"name": "tweak-default-save", "words": "regenerate"},
+    )
+    assert response.json()["saved"] is True
+    assert client.get("/api/languages/tweak-default-save").status_code == 200
