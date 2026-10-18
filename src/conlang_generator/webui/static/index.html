@@ -46,13 +46,14 @@
   }
   label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
   .advanced-group {
-    border: 1px solid var(--border); border-radius: 8px; padding: 4px 14px 14px; margin: 16px 0 0;
+    border: 1px solid var(--border); border-radius: 8px; padding: 4px 14px 10px; margin: 16px 0 0;
   }
-  .advanced-group legend {
+  .advanced-group summary {
     font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
-    color: var(--accent); padding: 0 6px;
+    color: var(--accent); padding: 8px 6px; cursor: pointer;
   }
-  .advanced-group > *:first-child { margin-top: 10px; }
+  .advanced-group[open] summary { margin-bottom: 2px; }
+  .advanced-group summary + * { margin-top: 10px; }
   .summary-section {
     border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px 14px; margin: 16px 0 0;
   }
@@ -228,55 +229,71 @@
       <summary>Advanced options</summary>
 
       <!-- Same section names/boundaries as a generated language's own result
-           view (renderLanguageSummary) -- no "Grammar" fieldset here, since
-           no Advanced Option today forces anything grammar-specific
-           (word order, alignment, ...); add one if that ever changes. -->
-      <fieldset class="advanced-group">
-        <legend>Language Sources &amp; Evolution</legend>
-        <label for="gen-foreign-names">Foreign names</label><button type="button" class="info-btn" data-info-key="foreign_names" title="What do these options mean?">&#9432;</button>
-        <select id="gen-foreign-names">
-          <option value="">auto (from prompt/source language)</option>
-          <option value="keep">keep as written</option>
-          <option value="adapt">adapt to the language</option>
-        </select>
+           view (renderLanguageSummary); each is independently collapsible
+           and collapsed by default, direct user request. Trait-override
+           rows are fixed, one per trait, split across these same sections
+           by TRAIT_SECTION rather than one dynamic add-row list -- built by
+           buildGenerateTraitRows() once /api/options resolves. -->
+      <details class="advanced-group">
+        <summary>Language Sources &amp; Evolution</summary>
+        <div class="row">
+          <div>
+            <label for="gen-foreign-names">Foreign names</label><button type="button" class="info-btn" data-info-key="foreign_names" title="What do these options mean?">&#9432;</button>
+            <select id="gen-foreign-names">
+              <option value="">auto (from prompt/source language)</option>
+              <option value="keep">keep as written</option>
+              <option value="adapt">adapt to the language</option>
+            </select>
+          </div>
+          <div>
+            <label for="gen-evolve-years">Years of evolution</label><button type="button" class="info-btn" data-info-key="evolve_years" title="What does this do?">&#9432;</button>
+            <input type="number" id="gen-evolve-years" min="0" max="100000" step="50" placeholder="(from prompt)">
+          </div>
+          <div>
+            <label for="gen-word-strictness">Word strictness</label><button type="button" class="info-btn" data-info-key="word_strictness" title="What does this do?">&#9432;</button>
+            <input type="number" id="gen-word-strictness" min="0" max="1" step="0.05" placeholder="(inferred)">
+          </div>
+          <div>
+            <label for="gen-strictness">Sound strictness</label><button type="button" class="info-btn" data-info-key="strictness" title="What does this do?">&#9432;</button>
+            <input type="number" id="gen-strictness" min="0" max="1" step="0.05" placeholder="(inferred)">
+          </div>
+        </div>
 
-        <label>Source languages <span class="ipa">(bias generation toward a real language's palette)</span></label>
+        <label>Source languages</label><button type="button" class="info-btn" data-info-key="source_languages" title="What does this do?">&#9432;</button>
         <div id="source-lang-rows"></div>
         <button type="button" class="add-row" id="add-source-lang">+ source language</button>
 
-        <label for="gen-evolve-years">Years of evolution (sound change applied after generating; 0 = none; blank = whatever the prompt implies, e.g. "evolved forward 200 years")</label>
-        <input type="number" id="gen-evolve-years" min="0" max="100000" step="50" placeholder="(from prompt)">
-
-        <label for="gen-word-strictness">Word strictness (0.0-1.0: how many words follow the source language's actual words, and how closely; 1.0 = exact copies; blank = inferred from prompt)</label>
-        <input type="number" id="gen-word-strictness" min="0" max="1" step="0.05" placeholder="(inferred)">
-
-        <label for="gen-strictness">Sound strictness (0.0-1.0: how tightly the allowed sounds follow the source language; blank = inferred from prompt)</label>
-        <input type="number" id="gen-strictness" min="0" max="1" step="0.05" placeholder="(inferred)">
-
         <label for="gen-examples-text">Seed words <span class="ipa">(literal words that must appear verbatim -- one per line: gloss,form[,ipa[,pos[,forms]]]; forms is optional irregular forms, ";"-separated cell:form[:ipa] entries -- plural/past/comparative/superlative/non_past/present/future, or a pronoun case like accusative, e.g. past:zanu; an optional header row starting with "gloss" is skipped)</span></label>
         <textarea id="gen-examples-text" rows="3" placeholder="water,aqua&#10;mountain,yama,jama,noun"></textarea>
-      </fieldset>
+      </details>
 
-      <fieldset class="advanced-group">
-        <legend>Phonology (incl. Traits)</legend>
+      <details class="advanced-group">
+        <summary>Phonology (incl. Traits)</summary>
         <div class="checks">
           <label><input type="checkbox" id="gen-isolated"> force isolated</label><button type="button" class="info-btn" data-info-key="force_isolated" title="What does this do?">&#9432;</button>
           <label><input type="checkbox" id="gen-high-altitude"> force high altitude</label><button type="button" class="info-btn" data-info-key="force_high_altitude" title="What does this do?">&#9432;</button>
         </div>
-        <label>Trait overrides <span class="ipa">(directly set a graded worldbuilding trait, -1.0 to +1.0, overriding the prompt's own inferred value)</span></label>
-        <div id="trait-override-rows"></div>
-        <button type="button" class="add-row" id="add-trait-override">+ trait override</button>
-      </fieldset>
+        <label>Trait overrides <span class="ipa">(directly set a graded worldbuilding trait, -1.0 to +1.0, overriding the prompt's own inferred value; blank = inferred from the prompt)</span></label>
+        <div id="gen-trait-rows-phonology"></div>
+      </details>
 
-      <fieldset class="advanced-group">
-        <legend>Tones</legend>
+      <details class="advanced-group">
+        <summary>Grammar</summary>
+        <label>Trait overrides <span class="ipa">(directly set a graded worldbuilding trait, -1.0 to +1.0, overriding the prompt's own inferred value; blank = inferred from the prompt)</span></label>
+        <div id="gen-trait-rows-grammar"></div>
+      </details>
+
+      <details class="advanced-group">
+        <summary>Tones</summary>
         <label><input type="checkbox" id="gen-tonal"> force tonal</label><button type="button" class="info-btn" data-info-key="force_tonal" title="What does this do?">&#9432;</button>
         <label for="gen-tone-style">Tone style</label><button type="button" class="info-btn" data-info-key="tone_style" title="What do these options mean?">&#9432;</button>
         <select id="gen-tone-style"><option value="">(unforced)</option></select>
-      </fieldset>
+        <label>Trait overrides <span class="ipa">(directly set a graded worldbuilding trait, -1.0 to +1.0, overriding the prompt's own inferred value; blank = inferred from the prompt)</span></label>
+        <div id="gen-trait-rows-tones"></div>
+      </details>
 
-      <fieldset class="advanced-group">
-        <legend>Roman Orthography</legend>
+      <details class="advanced-group">
+        <summary>Roman Orthography</summary>
         <label><input type="checkbox" id="gen-allow-all-caps"> allow all-caps POS</label><button type="button" class="info-btn" data-info-key="allow_all_caps" title="What does this do?">&#9432;</button>
 
         <div class="row">
@@ -315,23 +332,24 @@
             </select>
           </div>
         </div>
-      </fieldset>
+        <label>Trait overrides <span class="ipa">(directly set a graded worldbuilding trait, -1.0 to +1.0, overriding the prompt's own inferred value; blank = inferred from the prompt)</span></label>
+        <div id="gen-trait-rows-orthography"></div>
+      </details>
 
-      <fieldset class="advanced-group">
-        <legend>Writing system</legend>
+      <details class="advanced-group">
+        <summary>Writing system</summary>
         <label for="gen-own-script">Own script</label><button type="button" class="info-btn" data-info-key="own_script" title="What do these options mean?">&#9432;</button>
         <select id="gen-own-script">
           <option value="auto">auto (from prompt, default: no)</option>
           <option value="yes">yes</option>
           <option value="no">no</option>
         </select>
-        <label>Script trait overrides <span class="ipa">(directly set an invented-script style dial, -1.0 to +1.0, overriding its own seeded roll; only takes effect when a script is generated)</span></label>
-        <div id="script-trait-override-rows"></div>
-        <button type="button" class="add-row" id="add-script-trait-override">+ script trait override</button>
-      </fieldset>
+        <label>Script trait overrides <span class="ipa">(directly set an invented-script style dial, -1.0 to +1.0, overriding its own seeded roll; only takes effect when a script is generated; blank = seeded roll)</span></label>
+        <div id="gen-script-trait-rows"></div>
+      </details>
 
-      <fieldset class="advanced-group">
-        <legend>Generation Details</legend>
+      <details class="advanced-group">
+        <summary>Generation Details</summary>
         <label><input type="checkbox" id="gen-fantasy"> fantasy</label><button type="button" class="info-btn" data-info-key="fantasy" title="What does this do?">&#9432;</button>
 
         <div class="row">
@@ -356,7 +374,7 @@
         <div class="ipa" style="margin-top: 4px;">
           Synthesizes every lexicon word's pronunciation up front instead of on first use.
         </div>
-      </fieldset>
+      </details>
     </details>
 
     <div class="submit-row">
@@ -857,75 +875,72 @@ function renderTraitSelectInfo(gloss) {
   return `<div class="log-body"><p>${escapeAttr(gloss.summary)}</p>${poles}</div>`;
 }
 
-// Shared by addTraitOverrideRow/addScriptTraitOverrideRow below --
-// `glossaryFor(name)` looks the row's own currently-selected trait up
-// in whichever glossary dict that row type uses.
-function wireTraitSelectInfoButton(row, glossaryFor) {
-  const select = row.querySelector(".to-name");
+// --- Generate tab's own trait-override rows: always one fixed row per
+// name (all 15 worldbuilding traits, split across the Phonology/Grammar/
+// Tones/Roman Orthography fieldsets by TRAIT_SECTION; all 15 script
+// traits together under Writing system), same "all traits already
+// visible" treatment the Tweak tab's own fixed rows already have (and
+// Roman Orthography's own fixed selects always had) -- direct user
+// request, replacing the old "+ trait override" dynamic add-row/pick-a-
+// name-from-a-<select> mechanism. Left blank by default (not pre-filled
+// with 0.0): unlike Tweak, there's no language yet to read a "current
+// value" from, and a blank row means "infer from the prompt", which is
+// not the same thing as an explicit 0.0 override.
+function buildFixedTraitRow(name, glossaryDict) {
+  const row = document.createElement("div");
+  row.className = "dyn-row";
+  row.dataset.traitName = name;
+  row.innerHTML = `
+    <label style="flex:0 0 220px; margin:0;">${name}</label>
+    <input type="number" placeholder="(from prompt)" min="-1" max="1" step="0.05" class="to-value">
+    <button type="button" class="info-btn" title="What does this trait mean?">&#9432;</button>`;
   const infoBtn = row.querySelector(".info-btn");
   infoBtn.onclick = (e) => {
-    // Without this, the click also bubbles to the document-level
-    // listener's own "click outside #info-popover closes it" fallback,
-    // which fires right after this same handler opens the popover and
-    // immediately closes it again -- the popover would never actually
-    // appear.
+    // Without e.stopPropagation() here, this same click would also
+    // reach the document-level listener's own "click outside
+    // #info-popover closes it" fallback and immediately re-close the
+    // popover this handler just opened.
     e.stopPropagation();
     if (openInfoPopoverButton === infoBtn) { hideInfoPopover(); return; }
-    showInfoPopover(infoBtn, renderTraitSelectInfo(glossaryFor(select.value)));
+    showInfoPopover(infoBtn, renderTraitSelectInfo(glossaryDict[name]));
+  };
+  return row;
+}
+function buildFixedTraitRows(containerId, names, glossaryDict) {
+  const container = $(containerId);
+  if (!container) return;
+  container.innerHTML = "";
+  for (const name of names) container.appendChild(buildFixedTraitRow(name, glossaryDict));
+}
+function buildGenerateTraitRows() {
+  const bySection = (section) => gradedTraitFields.filter(name => TRAIT_SECTION[name] === section);
+  buildFixedTraitRows("gen-trait-rows-phonology", bySection("phonology"), glossary.traits);
+  buildFixedTraitRows("gen-trait-rows-grammar", bySection("grammar"), glossary.traits);
+  buildFixedTraitRows("gen-trait-rows-tones", bySection("tones"), glossary.traits);
+  buildFixedTraitRows("gen-trait-rows-orthography", bySection("orthography"), glossary.traits);
+  buildFixedTraitRows("gen-script-trait-rows", scriptTraitFields, glossary.script_traits);
+}
+
+function collectOverridesFrom(containerId) {
+  const overrides = {};
+  const container = $(containerId);
+  if (!container) return overrides;
+  for (const row of container.querySelectorAll(".dyn-row")) {
+    const raw = row.querySelector(".to-value").value;
+    if (raw !== "") overrides[row.dataset.traitName] = parseFloat(raw);
+  }
+  return overrides;
+}
+function collectTraitOverrides() {
+  return {
+    ...collectOverridesFrom("gen-trait-rows-phonology"),
+    ...collectOverridesFrom("gen-trait-rows-grammar"),
+    ...collectOverridesFrom("gen-trait-rows-tones"),
+    ...collectOverridesFrom("gen-trait-rows-orthography"),
   };
 }
-
-function addTraitOverrideRow() {
-  const row = document.createElement("div");
-  row.className = "dyn-row";
-  const options = gradedTraitFields.map(name => `<option value="${name}">${name}</option>`).join("");
-  row.innerHTML = `
-    <select class="to-name">${options}</select>
-    <input type="number" placeholder="value, -1.0 to +1.0" min="-1" max="1" step="0.05" class="to-value">
-    <button type="button" class="info-btn" title="What does this trait mean?">&#9432;</button>
-    <button type="button" class="remove-row">&times;</button>`;
-  wireTraitSelectInfoButton(row, (name) => glossary.traits[name]);
-  row.querySelector(".remove-row").onclick = () => row.remove();
-  $("trait-override-rows").appendChild(row);
-}
-$("add-trait-override").onclick = addTraitOverrideRow;
-
-function collectTraitOverrides() {
-  const overrides = {};
-  for (const row of $("trait-override-rows").querySelectorAll(".dyn-row")) {
-    const name = row.querySelector(".to-name").value;
-    const raw = row.querySelector(".to-value").value;
-    if (name && raw !== "") overrides[name] = parseFloat(raw);
-  }
-  return overrides;
-}
-
-// --- script-trait override rows: the Script fieldset's own analogue of
-// the trait-override rows above, reading from scriptTraitFields instead
-// of gradedTraitFields. ---
-function addScriptTraitOverrideRow() {
-  const row = document.createElement("div");
-  row.className = "dyn-row";
-  const options = scriptTraitFields.map(name => `<option value="${name}">${name}</option>`).join("");
-  row.innerHTML = `
-    <select class="to-name">${options}</select>
-    <input type="number" placeholder="value, -1.0 to +1.0" min="-1" max="1" step="0.05" class="to-value">
-    <button type="button" class="info-btn" title="What does this script trait mean?">&#9432;</button>
-    <button type="button" class="remove-row">&times;</button>`;
-  wireTraitSelectInfoButton(row, (name) => glossary.script_traits[name]);
-  row.querySelector(".remove-row").onclick = () => row.remove();
-  $("script-trait-override-rows").appendChild(row);
-}
-$("add-script-trait-override").onclick = addScriptTraitOverrideRow;
-
 function collectScriptTraitOverrides() {
-  const overrides = {};
-  for (const row of $("script-trait-override-rows").querySelectorAll(".dyn-row")) {
-    const name = row.querySelector(".to-name").value;
-    const raw = row.querySelector(".to-value").value;
-    if (name && raw !== "") overrides[name] = parseFloat(raw);
-  }
-  return overrides;
+  return collectOverridesFrom("gen-script-trait-rows");
 }
 
 // --- Tweak tab: always exactly one row per phonologyOnlyTraitFields
@@ -951,7 +966,7 @@ function buildTweakTraitRows(currentValues) {
   for (const row of $("tweak-trait-rows").querySelectorAll(".dyn-row")) {
     const name = row.dataset.traitName;
     row.querySelector(".info-btn").onclick = (e) => {
-      // See wireTraitSelectInfoButton's own comment -- without this the
+      // See buildFixedTraitRow's own comment -- without this the
       // popover opens and is immediately closed again by the document-
       // level click-outside-closes-it listener on the same click.
       e.stopPropagation();
@@ -1190,6 +1205,7 @@ async function loadOptions() {
   scriptTraitFields = opts.script_trait_fields || [];
   phonologyOnlyTraitFields = opts.phonology_only_trait_fields || [];
   glossary = opts.glossary || { traits: {}, script_traits: {}, grammar: {}, simple: {}, advanced_options: {} };
+  buildGenerateTraitRows();
 
   const fillModels = (id, task) => {
     const select = $(id);
@@ -1631,12 +1647,49 @@ $("inspect-lang").addEventListener("change", () => loadInspectLanguage($("inspec
 // (one container, not two), so no "clear the other copy" dance is
 // needed the way there was when Generate/Translate each had their own. ---
 // --- one bordered, labeled block per `renderLanguageSummary` section --
-// visually mirrors the Advanced Options `fieldset.advanced-group` (same
+// visually mirrors the Advanced Options `.advanced-group` (same
 // section names/boundaries, see docs/DEFERRED.md's "Web app" item), just
 // a plain `<div>`/`<h3>` since this is rendered result HTML, not a form. ---
 function summarySection(title, bodyHtml) {
   return `<div class="summary-section"><h3>${escapeAttr(title)}</h3>${bodyHtml}</div>`;
 }
+
+// Which section each of the 15 graded worldbuilding dials belongs in --
+// by its own *documented* effect (see webui/glossary.py's own
+// TRAIT_GLOSSARY), not by name resemblance. contact_intensity *sounds*
+// like "Sources", but its only real effect is morphological (isolating/
+// analytic) -- real-word borrowing is a separate mechanism (source_
+// language_strictness/source_word_strictness), already shown in
+// Language Sources & Evolution via its own "source: ..." badge.
+// `isolation` is a genuine judgment call -- it nudges both phonology
+// (uvulars) and grammar (ergative alignment, polysynthetic/agglutinative
+// morphology) -- filed under Grammar since 2 of its 3 named effects land
+// there. ritual_register/taboo_register aren't consumed by generation at
+// all yet; filed under Grammar by association with social_hierarchy
+// (register), not a documented effect. Fields with no entry here
+// (source_language_strictness, salient_context, ...) simply never render
+// as a "trait" badge/row anywhere -- they're real trait fields, just not
+// one of these 15. Shared by both renderLanguageSummary's own result-view
+// badges below and the Generate tab's own fixed trait-override rows
+// (buildGenerateTraitRows), so a trait always lands in the same section
+// on both sides of the form/result pair.
+const TRAIT_SECTION = {
+  altitude: "phonology",
+  aesthetic_harshness: "phonology",
+  phonotactic_restrictiveness: "phonology",
+  terrain_communication_distance: "phonology",
+  tonal_friendliness: "tones",
+  tone_sandhi: "tones",
+  orality_literacy: "orthography",
+  isolation: "grammar",
+  community_scale: "grammar",
+  contact_intensity: "grammar",
+  social_hierarchy: "grammar",
+  evidentiality_culture: "grammar",
+  spatial_reference: "grammar",
+  ritual_register: "grammar",
+  taboo_register: "grammar",
+};
 
 function renderLanguageSummary(container, summary) {
   const g = summary.grammar, t = summary.traits;
@@ -1645,39 +1698,6 @@ function renderLanguageSummary(container, summary) {
   // inventory badges use -- not a hover tooltip), so they're real
   // <button>s, not <span>s, the same element the sound badges already are.
   const infoBadge = (text, label) => `<button type="button" class="badge" data-info="${escapeAttr(text)}">${label}</button>`;
-  // Which summary section each of the 15 graded worldbuilding dials'
-  // own badge renders in -- by its own *documented* effect (see
-  // webui/glossary.py's own TRAIT_GLOSSARY), not by name resemblance.
-  // contact_intensity *sounds* like "Sources", but its only real effect
-  // is morphological (isolating/analytic) -- real-word borrowing is a
-  // separate mechanism (source_language_strictness/source_word_
-  // strictness), already shown in Language Sources & Evolution via its
-  // own "source: ..." badge below. `isolation` is a genuine judgment
-  // call -- it nudges both phonology (uvulars) and grammar (ergative
-  // alignment, polysynthetic/agglutinative morphology) -- filed under
-  // Grammar since 2 of its 3 named effects land there. ritual_register/
-  // taboo_register aren't consumed by generation at all yet; filed
-  // under Grammar by association with social_hierarchy (register), not
-  // a documented effect. Fields with no entry here (source_language_
-  // strictness, salient_context, ...) simply never render as a "trait"
-  // badge anywhere -- they're real `t` fields, just not one of these 15.
-  const TRAIT_SECTION = {
-    altitude: "phonology",
-    aesthetic_harshness: "phonology",
-    phonotactic_restrictiveness: "phonology",
-    terrain_communication_distance: "phonology",
-    tonal_friendliness: "tones",
-    tone_sandhi: "tones",
-    orality_literacy: "orthography",
-    isolation: "grammar",
-    community_scale: "grammar",
-    contact_intensity: "grammar",
-    social_hierarchy: "grammar",
-    evidentiality_culture: "grammar",
-    spatial_reference: "grammar",
-    ritual_register: "grammar",
-    taboo_register: "grammar",
-  };
   const traitBadge = ([k, v]) => infoBadge(describeTrait(k, v), `${k}: ${v.toFixed(2)}`);
   const traitBadgesFor = (section) => Object.entries(t)
     .filter(([k, v]) => TRAIT_SECTION[k] === section && typeof v === "number" && v !== 0)

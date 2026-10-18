@@ -376,6 +376,32 @@ ADVANCED_OPTIONS_GLOSSARY: dict[str, dict] = {
     "force_tonal": {
         "summary": "Guarantees the language is tonal outright, regardless of what the prompt says or how likely the classifier judges it to be.",
     },
+    "source_languages": {
+        "summary": "Real language(s) this conlang is meant to evoke or mix -- biases phoneme inventory, syllable structure, and (see word_strictness/strictness below) how many of its words toward their actual, real-world sounds and spelling. An optional per-language weight controls each one's share when more than one is given; omitted weights split evenly.",
+    },
+    "evolve_years": {
+        "summary": "How many years of sound change to apply after the language is first generated -- a separate step layered on top of generation, not a generation-time setting itself. Independent of word_strictness/strictness: a real-word-sourced language can be evolved forward in time just like an entirely invented one; the two aren't alternatives to each other.",
+        "values": {
+            "0": "No evolution applied -- the language stays exactly as first generated.",
+            "(blank)": "Inferred from the prompt's own wording (e.g. \"evolved forward 200 years\"); if the prompt implies nothing, defaults to 0.",
+        },
+    },
+    "word_strictness": {
+        "summary": "How many of this language's words are drawn from a source language's own real words, and how closely they're kept to the original, versus coined fresh. Only has an effect when at least one source language is set.",
+        "values": {
+            "0.0": "No real words at all -- every word is coined fresh, only the sound palette is biased by the source language.",
+            "1.0": "Exact copies of real source-language words wherever one exists for a given gloss.",
+            "(blank)": "Inferred from the prompt's own wording.",
+        },
+    },
+    "strictness": {
+        "summary": "How tightly the allowed sound inventory and syllable shapes follow a source language's own real phonology, versus drifting from it. Only has an effect when at least one source language is set -- separate from word_strictness, which is about *words*, not the sound system itself.",
+        "values": {
+            "0.0": "The source language only loosely inspires the palette; most of its own real constraints are ignored.",
+            "1.0": "Sticks closely to the source language's own real phoneme inventory and syllable structure.",
+            "(blank)": "Inferred from the prompt's own wording.",
+        },
+    },
     "allow_all_caps": {
         "summary": "Opt-in permission for a whole word class (e.g. every noun) to be rendered in full capitals in this language's own spelling convention. Off by default, since no real language actually does this -- checking this only makes it *possible*, not guaranteed.",
     },
