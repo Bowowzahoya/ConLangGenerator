@@ -40,6 +40,12 @@ def test_generate_own_script_yes_produces_a_script_and_per_word_text(client):
     assert body["script"]["glyph_count"] > 0
     assert body["script"]["direction"] in ("ltr", "rtl", "ttb_ltr", "ttb_rtl", "boustrophedon")
     assert any(entry["script_text"] for entry in body["lexicon"])
+    # All 15 ScriptTraits dials, not just the nonzero ones -- unlike the
+    # worldbuilding traits (0.0 = "no opinion"), every rolled script-trait
+    # dial is a real, meaningful reading (see webui/app.py's own
+    # _language_summary docstring on this field).
+    assert set(body["script"]["traits"]) == set(ScriptTraits.model_fields)
+    assert all(-1.0 <= v <= 1.0 for v in body["script"]["traits"].values())
 
 
 def test_generate_rejects_an_invalid_own_script_value(client):

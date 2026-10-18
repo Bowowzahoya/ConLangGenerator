@@ -245,6 +245,12 @@ def _language_summary(language: Language) -> dict:
             {
                 "direction": language.script.direction.value,
                 "glyph_count": len(language.script.glyphs),
+                # All 15, not just the nonzero ones (unlike `nonzero_traits`
+                # above) -- a ScriptTraits dial is rolled from a continuous
+                # uniform draw, so every one of them is a real, meaningful
+                # reading, not "0 = no opinion" the worldbuilding traits'
+                # own default means.
+                "traits": language.script.traits.model_dump(),
             }
             if language.script is not None
             else None

@@ -8017,3 +8017,44 @@ reading code or one-off ad hoc scripts.
   user request ("Script, grammar traits in Generate should have a description of what it means when
   selecting"). Served via `/api/options`'s own `glossary.script_traits` key, mirroring `glossary.traits`
   exactly.
+
+- **The 15 graded worldbuilding traits reclassified across summary sections by documented effect, and
+  the rolled ScriptTraits dials surfaced in Writing system for the first time -- done.** Discussed as a
+  proposal before building (a table of each trait's real effect, not just its name, with the one
+  genuinely ambiguous case -- `isolation`, which nudges both phonology and grammar -- flagged openly)
+  and agreed before implementing.
+
+  `renderLanguageSummary`'s own `TRAIT_SECTION` map now routes each of the 15 `GRADED_TRAIT_FIELDS` to
+  the section its own `TRAIT_GLOSSARY` entry says it actually drives, not just dumping all 15 into
+  Phonology: `altitude`/`aesthetic_harshness`/`phonotactic_restrictiveness`/
+  `terrain_communication_distance` (phonology) stay in **Phonology (incl. Traits)**;
+  `tonal_friendliness`/`tone_sandhi` (already moved the session before) stay in **Tones**;
+  `orality_literacy` (governs orthography-reform rate during evolution) moves to **Roman Orthography**;
+  `isolation`/`community_scale`/`contact_intensity`/`social_hierarchy`/`evidentiality_culture`/
+  `spatial_reference`/`ritual_register`/`taboo_register` move to **Grammar** -- `contact_intensity` in
+  particular *sounds* like it belongs in Language Sources & Evolution, but its only documented effect
+  is morphological (nudges isolating/analytic); real-word borrowing is a wholly separate mechanism
+  (`source_language_strictness`/`source_word_strictness`), already shown there via its own "source:
+  ..." badge. `ritual_register`/`taboo_register` aren't consumed by generation at all yet -- filed
+  under Grammar by association with `social_hierarchy` (register), not a documented effect, and said
+  so directly rather than implied.
+
+  Separately, the user noticed the *script* side of this same problem: the 15 rolled `ScriptTraits`
+  dials (`density`, `regularity`, `angularity`, ...) that visually define an invented script weren't
+  shown anywhere in the result view at all before this -- only ever consumed internally to draw the
+  glyphs, with no way to see e.g. "this language's script is strongly angular" short of looking at the
+  rendered font itself. `_language_summary`'s own `script` dict gained a `traits` field
+  (`language.script.traits.model_dump()`, all 15, not filtered to nonzero -- unlike the worldbuilding
+  traits' own "0.0 = no opinion" default, every `ScriptTraits` dial is a real continuous-uniform roll,
+  so there's no meaningful "no opinion" value to filter out). The Writing system section now renders
+  all 15 as clickable badges (`describeScriptTrait`, mirroring `describeTrait` but always bipolar --
+  no unipolar dial exists among `ScriptTraits`' own fields), reusing the `SCRIPT_TRAIT_GLOSSARY` added
+  the session before.
+
+  Verified live against the user's own real `script` language: Grammar correctly picked up
+  `contact_intensity`'s badge, Phonology kept only `altitude`, Tones kept `tonal_friendliness`
+  alongside the tone system, and Writing system rendered all 15 script-trait badges with working
+  click-to-popover descriptions (confirmed one, `angularity: 0.92`, read "Strongly sharp -- straight
+  lines and pointed corners."). A non-tonal, no-script language (`clingonpirate`) still rendered
+  cleanly with neither section present, and a fresh end-to-end generate through the real form produced
+  all 7 sections with exactly 15 script-trait badges.

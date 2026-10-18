@@ -780,6 +780,14 @@ function describeTrait(key, value) {
   return gloss.kind === "unipolar" ? describeUnipolarDial(gloss, value) : describeBipolarTrait(gloss, value);
 }
 
+// A rolled ScriptTraits dial's own tooltip (Writing system section) --
+// always bipolar, unlike describeTrait above which also has to handle
+// the two unipolar strictness dials.
+function describeScriptTrait(key, value) {
+  const gloss = glossary.script_traits[key];
+  return gloss ? describeBipolarTrait(gloss, value) : "";
+}
+
 // A grammar badge's own tooltip, looked up by its field name and
 // current value (a string, including "true"/"false" for a boolean
 // field, matching how JS's own template-literal interpolation already
@@ -1344,24 +1352,47 @@ function renderLanguageSummary(container, summary) {
   // inventory badges use -- not a hover tooltip), so they're real
   // <button>s, not <span>s, the same element the sound badges already are.
   const infoBadge = (text, label) => `<button type="button" class="badge" data-info="${escapeAttr(text)}">${label}</button>`;
-  // Only the 15 graded worldbuilding dials count as "trait badges" --
-  // `t` also carries non-trait numeric fields (source_language_strictness)
-  // that used to leak in here too via a bare `typeof v === "number"`
-  // check, showing the exact same strictness value a second time,
-  // disconnected from its own "source: ..." badge below. Split further
-  // into tone-related dials (shown in the Tones section instead, even
-  // for a non-tonal language -- e.g. a strongly negative
-  // tonal_friendliness is still meaningful evidence to show, not just
-  // for languages that ended up tonal) versus everything else (Phonology).
-  const TONE_TRAIT_FIELDS = ["tonal_friendliness", "tone_sandhi"];
-  const isTraitField = (k, v) => gradedTraitFields.includes(k) && typeof v === "number" && v !== 0;
+  // Which summary section each of the 15 graded worldbuilding dials'
+  // own badge renders in -- by its own *documented* effect (see
+  // webui/glossary.py's own TRAIT_GLOSSARY), not by name resemblance.
+  // contact_intensity *sounds* like "Sources", but its only real effect
+  // is morphological (isolating/analytic) -- real-word borrowing is a
+  // separate mechanism (source_language_strictness/source_word_
+  // strictness), already shown in Language Sources & Evolution via its
+  // own "source: ..." badge below. `isolation` is a genuine judgment
+  // call -- it nudges both phonology (uvulars) and grammar (ergative
+  // alignment, polysynthetic/agglutinative morphology) -- filed under
+  // Grammar since 2 of its 3 named effects land there. ritual_register/
+  // taboo_register aren't consumed by generation at all yet; filed
+  // under Grammar by association with social_hierarchy (register), not
+  // a documented effect. Fields with no entry here (source_language_
+  // strictness, salient_context, ...) simply never render as a "trait"
+  // badge anywhere -- they're real `t` fields, just not one of these 15.
+  const TRAIT_SECTION = {
+    altitude: "phonology",
+    aesthetic_harshness: "phonology",
+    phonotactic_restrictiveness: "phonology",
+    terrain_communication_distance: "phonology",
+    tonal_friendliness: "tones",
+    tone_sandhi: "tones",
+    orality_literacy: "orthography",
+    isolation: "grammar",
+    community_scale: "grammar",
+    contact_intensity: "grammar",
+    social_hierarchy: "grammar",
+    evidentiality_culture: "grammar",
+    spatial_reference: "grammar",
+    ritual_register: "grammar",
+    taboo_register: "grammar",
+  };
   const traitBadge = ([k, v]) => infoBadge(describeTrait(k, v), `${k}: ${v.toFixed(2)}`);
-  const traitBadges = Object.entries(t)
-    .filter(([k, v]) => isTraitField(k, v) && !TONE_TRAIT_FIELDS.includes(k))
+  const traitBadgesFor = (section) => Object.entries(t)
+    .filter(([k, v]) => TRAIT_SECTION[k] === section && typeof v === "number" && v !== 0)
     .map(traitBadge).join("");
-  const toneTraitBadges = Object.entries(t)
-    .filter(([k, v]) => isTraitField(k, v) && TONE_TRAIT_FIELDS.includes(k))
-    .map(traitBadge).join("");
+  const traitBadges = traitBadgesFor("phonology");
+  const grammarTraitBadges = traitBadgesFor("grammar");
+  const orthographyTraitBadges = traitBadgesFor("orthography");
+  const toneTraitBadges = traitBadgesFor("tones");
   const sourceLangBadge = t.source_languages && t.source_languages.length
     ? infoBadge(glossary.simple.source_languages || "", `source: ${t.source_languages.join(", ")} (strictness ${t.source_language_strictness.toFixed(2)})`)
     : "";
@@ -1382,7 +1413,7 @@ function renderLanguageSummary(container, summary) {
     ${infoBadge(describeGrammarField("adjective_after_noun", g.adjective_after_noun), `adj after noun: ${g.adjective_after_noun}`)}
     ${g.cases.length ? infoBadge(glossary.simple.cases || "", `cases: ${g.cases.join(", ")}`) : ""}
     ${g.tenses.length ? infoBadge(glossary.simple.tenses || "", `tenses: ${g.tenses.join(", ")}`) : ""}
-  </div>`);
+  </div>${grammarTraitBadges ? `<div class="badges">${grammarTraitBadges}</div>` : ""}`);
 
   const phonologySection = summarySection("Phonology (incl. Traits)", `
     ${traitBadges ? `<div class="badges">${traitBadges}</div>` : ""}
@@ -1400,10 +1431,16 @@ function renderLanguageSummary(container, summary) {
 
   const orthographySection = summarySection("Roman Orthography", `<div class="badges">
     ${infoBadge(glossary.simple.orthography_category || "", `orthography: ${summary.orthography_category || "(unnamed)"}`)}
+    ${orthographyTraitBadges}
   </div>`);
 
+  const scriptTraitBadges = summary.script
+    ? Object.entries(summary.script.traits)
+        .map(([k, v]) => infoBadge(describeScriptTrait(k, v), `${k}: ${v.toFixed(2)}`)).join("")
+    : "";
   const scriptBody = summary.script ? `
     <div class="badges">${infoBadge(glossary.simple.own_script || "", `own script: ${summary.script.glyph_count} glyphs, ${summary.script.direction}`)}</div>
+    <div class="badges">${scriptTraitBadges}</div>
     <style>@font-face { font-family: "ConlangScript-${summary.slug}"; src: url("/api/languages/${encodeURIComponent(summary.slug)}/script/font") format("truetype"); }</style>
     <div class="row" style="align-items:center; margin-top:4px;">
       <label style="display:flex; align-items:center; gap:6px; margin:0;">
