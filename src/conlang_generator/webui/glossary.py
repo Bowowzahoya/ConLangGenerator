@@ -67,13 +67,13 @@ TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
         "kind": "bipolar",
         "summary": "How much contact, trade, or creolization history the language has had with others.",
         "positive": "Heavy contact/trade/creolization history -- nudges morphology toward isolating/analytic, the opposite pull from isolation/community_scale.",
-        "negative": "Little outside contact.",
+        "negative": "Little outside contact -- no nudge of its own toward isolating/analytic morphology (isolation/community_scale may still independently nudge the other way).",
     },
     "social_hierarchy": {
         "kind": "bipolar",
         "summary": "How hierarchical the speaking culture is.",
         "positive": "A hierarchical culture -- raises the chance the language has honorific pronouns or verb forms at all.",
-        "negative": "Today's flat rate, same as 0 -- no extra push toward honorifics.",
+        "negative": "A flat, egalitarian culture. This trait is one-directional: only a positive reading changes the odds of honorifics; a negative reading has no suppressing effect of its own and behaves exactly like 0.",
     },
     "orality_literacy": {
         "kind": "bipolar",
@@ -85,19 +85,19 @@ TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
         "kind": "bipolar",
         "summary": "How much the culture grammatically marks *how* a speaker knows something (hearsay vs. direct witness, and so on).",
         "positive": "A culture that marks evidentiality richly -- lowers the chance the language ends up with no evidentiality system at all.",
-        "negative": "Today's flat rate, same as 0.",
+        "negative": "A culture that doesn't grammatically mark evidence sources. This trait is one-directional: only a positive reading changes the odds of an evidentiality system; a negative reading has no suppressing effect of its own and behaves exactly like 0.",
     },
     "spatial_reference": {
         "kind": "bipolar",
         "summary": "How much precise spatial or locational reference matters to the culture.",
         "positive": "Precise spatial reference matters -- raises the chance the language has dedicated locative/ablative/allative cases.",
-        "negative": "Today's flat rate, same as 0.",
+        "negative": "Precise spatial reference doesn't especially matter. This trait is one-directional: only a positive reading changes the odds of dedicated spatial cases; a negative reading has no suppressing effect of its own and behaves exactly like 0.",
     },
     "ritual_register": {
         "kind": "bipolar",
         "summary": "How much the culture uses a distinct, formal register for ritual or religious speech. Recorded but not yet consumed by generation.",
-        "positive": "A culture with a strong ritual/formal speech register.",
-        "negative": "No particular ritual register.",
+        "positive": "A culture with a strong ritual/formal speech register. Recorded for future use -- neither pole affects the generated language yet.",
+        "negative": "No particular ritual register. Recorded for future use -- neither pole affects the generated language yet.",
     },
     "aesthetic_harshness": {
         "kind": "bipolar",
@@ -114,14 +114,14 @@ TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
     "taboo_register": {
         "kind": "bipolar",
         "summary": "How much the culture avoids or replaces taboo vocabulary with euphemisms. Recorded but not yet consumed by generation.",
-        "positive": "A culture with strong taboo-avoidance vocabulary.",
-        "negative": "No particular taboo avoidance.",
+        "positive": "A culture with strong taboo-avoidance vocabulary. Recorded for future use -- neither pole affects the generated language yet.",
+        "negative": "No particular taboo avoidance. Recorded for future use -- neither pole affects the generated language yet.",
     },
     "terrain_communication_distance": {
         "kind": "bipolar",
         "summary": "How far speakers typically need their voices to carry -- open terrain or mountains versus close quarters.",
         "positive": "Long-distance communication matters -- resists vowel reduction when the language evolves, since loud, long-distance speech needs distinct vowel quality.",
-        "negative": "Today's flat rate, same as 0 -- close-range communication is typical.",
+        "negative": "Close-range communication is typical. This trait is one-directional: only a positive reading resists vowel reduction over time; a negative reading has no extra effect of its own and behaves exactly like 0 (ordinary vowel reduction still applies as the language evolves).",
     },
     "phonotactic_restrictiveness": {
         "kind": "bipolar",

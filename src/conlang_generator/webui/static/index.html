@@ -802,7 +802,15 @@ function describeBipolarTrait(gloss, value) {
   const magnitude = Math.abs(value);
   const band = magnitude < 0.34 ? "Somewhat" : magnitude < 0.67 ? "Moderately" : "Strongly";
   const pole = value > 0 ? gloss.positive : gloss.negative;
-  return `${gloss.summary}\n\n${band} ${lowerFirst(pole)} (${value.toFixed(2)})`;
+  // Shows this reading's own band *and* both poles' full effect, not
+  // just whichever one this value happens to currently match -- a
+  // badge for isolation=+0.4 used to only ever show the positive
+  // pole's own description, leaving the negative pole's effect (what
+  // a *low* isolation reading would mean) invisible unless the user
+  // happened to find a different language with a negative reading.
+  // Direct user request: trait descriptions should make the effect
+  // "crystal clear" in either direction, not just the rolled one.
+  return `${gloss.summary}\n\nThis language (${value.toFixed(2)}): ${band} ${lowerFirst(pole)}\n\npositive pole: ${gloss.positive}\n\nnegative pole: ${gloss.negative}`;
 }
 
 // A unipolar dial (0.0..1.0, e.g. source_language_strictness): the two
@@ -810,9 +818,14 @@ function describeBipolarTrait(gloss, value) {
 // so a "medium" reading is described as between the two named ends
 // rather than leaning toward either.
 function describeUnipolarDial(gloss, value) {
-  if (value < 0.34) return `${gloss.summary}\n\nLow (${value.toFixed(2)}): ${gloss.low}`;
-  if (value > 0.66) return `${gloss.summary}\n\nHigh (${value.toFixed(2)}): ${gloss.high}`;
-  return `${gloss.summary}\n\nMedium (${value.toFixed(2)}): partway between "${gloss.low}" and "${gloss.high}"`;
+  const reading = value < 0.34
+    ? `Low (${value.toFixed(2)}): ${gloss.low}`
+    : value > 0.66
+    ? `High (${value.toFixed(2)}): ${gloss.high}`
+    : `Medium (${value.toFixed(2)}): partway between "${gloss.low}" and "${gloss.high}"`;
+  // Same "show both ends, not just the matching one" treatment as
+  // describeBipolarTrait above.
+  return `${gloss.summary}\n\nThis language: ${reading}\n\nlow end: ${gloss.low}\n\nhigh end: ${gloss.high}`;
 }
 
 // A trait badge's own tooltip, looked up by its field name (the same
