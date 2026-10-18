@@ -851,6 +851,25 @@ function describeScriptTrait(key, value) {
 // current value (a string, including "true"/"false" for a boolean
 // field, matching how JS's own template-literal interpolation already
 // renders one).
+// The rolled orthography's own name (e.g. "wade-giles-style") only
+// means something if you already know what that style is -- an
+// unforced roll composes its spelling conventions independently and
+// doesn't always land on exactly one of the 12 named presets (see
+// romanization_gen.py's own module docstring), so this only resolves
+// to that preset's own real description (the same text the Advanced
+// Options orthography_style selector's own info button already shows,
+// reused via glossary.advanced_options.orthography_style.values
+// rather than a second copy) when the name matches one exactly;
+// otherwise it falls back to the generic "what orthography_category
+// means" blurb. Direct user request: "orthography: wade-giles-style"
+// doesn't explain what wade-giles-style actually means.
+function describeOrthographyCategory(categoryName) {
+  const generic = glossary.simple.orthography_category || "";
+  const presets = glossary.advanced_options.orthography_style && glossary.advanced_options.orthography_style.values;
+  const specific = presets && categoryName ? presets[categoryName] : null;
+  return specific ? `${generic}\n\n"${categoryName}": ${specific}` : generic;
+}
+
 function describeGrammarField(key, value) {
   const gloss = glossary.grammar[key];
   if (!gloss) return glossary.simple[key] || "";
@@ -1738,7 +1757,7 @@ function renderLanguageSummary(container, summary) {
   const tonesSection = tonesBody ? summarySection("Tones", tonesBody) : "";
 
   const orthographySection = summarySection("Roman Orthography", `<div class="badges">
-    ${infoBadge(glossary.simple.orthography_category || "", `orthography: ${summary.orthography_category || "(unnamed)"}`)}
+    ${infoBadge(describeOrthographyCategory(summary.orthography_category), `orthography: ${summary.orthography_category || "(unnamed)"}`)}
     ${orthographyTraitBadges}
   </div>`);
 
