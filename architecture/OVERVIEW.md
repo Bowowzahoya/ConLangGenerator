@@ -8206,3 +8206,131 @@ reading code or one-off ad hoc scripts.
   later already re-runs `loadTweakLanguage` (pre-existing behavior), so switching away to edit a word
   and back refreshes the cached base lexicon the preview diff compares against, rather than leaving it
   stale.
+
+- **A 19-point deep-dive UX review -- 13 points fixed, 3 clarified (not implemented), 5 deferred to
+  docs/DEFERRED.md.** Two of the fixes were genuine, previously-unsuspected bugs, found only by
+  reproducing the report live rather than reasoning from the code alone.
+
+  **Real bug: Tweak silently perturbed every untouched trait, producing a different language from "no
+  changes."** Reported directly ("using Tweak without changing anything still changes the resulting
+  language"). Root cause: the Tweak tab's trait rows pre-fill from the language's own true current
+  value but *display* it rounded to 2 decimals (`toFixed(2)`); previewing without touching a row sent
+  that *rounded* reading back as an explicit override for all three fields, even when the true value
+  had more precision -- `phonology_gen`'s own `rng` rolls are sensitive enough to a sub-0.01 shift to
+  produce a visibly different inventory from a form that looked completely unchanged. Fixed by also
+  storing each row's true, unrounded original value (`data-original`) and only including a field in
+  `trait_overrides` when the user's typed value differs from *that*, not the rounded display -- an
+  omitted field means "leave this trait exactly as it was" via `GenerationSpec.traits`' own
+  `model_copy(update=...)` semantics. Verified directly in the browser with injected sub-0.01-precision
+  trait values: an untouched preview now produces an empty overrides dict; editing one field includes
+  only that field, at its true new value.
+
+  **Real bug: a trait row's own (i) info button did nothing -- in both Generate's Advanced Options and
+  the Tweak tab.** Root cause: both assign their popover-opening handler directly via `button.onclick`,
+  which fires during the bubble phase *before* the document-level click listener's own "click outside
+  `#info-popover` closes it" fallback runs on the same click -- so every click opened the popover and
+  then immediately closed it again, the same click. Fixed with `e.stopPropagation()` in both handlers;
+  confirmed live the popover now opens and stays open.
+
+  **Trait descriptions now show both poles, not just the one that happened to roll.** A resolved trait
+  badge (e.g. `isolation: 0.41`) only ever displayed the matching pole's own text -- the opposite
+  pole's effect was invisible unless the user happened across a *different* language with a negative
+  reading for that same trait. `describeBipolarTrait`/`describeUnipolarDial` now always include both
+  poles' full text alongside the current banded reading (the trait-override row's own info popover,
+  `renderTraitSelectInfo`, already did this; the result-view badge hadn't). Also reworded six traits
+  (`social_hierarchy`, `evidentiality_culture`, `spatial_reference`, `terrain_communication_distance`,
+  `ritual_register`, `taboo_register`) whose negative-pole text was just "today's flat rate, same as
+  0" with no explanation -- now explicit that these are one-directional traits (confirmed against
+  `core.traits.TraitProfile`'s own field docstrings): only the positive pole changes any generation
+  odds.
+
+  **Diphthongs no longer reuse their onset monophthong's own sound-guide example.** Reported: `/a/`
+  and `/ai/` shared the identical "casa" citation. Root cause: every diphthong's example was looked up
+  by `(height, backness, rounded)` of its *onset alone* -- the same bucket the plain monophthong at
+  that onset already occupies, so e.g. `/a/`/`/ai/`/`/au/`/`/aə/`/`/aɨ/`/`/ao/` all collided on "casa".
+  Fixed with real, ipa-keyed overrides for each diphthong that actually has a widely-recognizable
+  example (German "Mai"/"Haus", Dutch "klein"/"huis", English "toy"/"day"/"fierce"/"hair"/"tour"/
+  "soul", Vietnamese "sao"); diphthongs no longer fall back to the onset bucket at all, so the handful
+  of rare Khmer-style diphthongs with no good citation simply show none, rather than a wrong one --
+  `test_most_symbols_in_the_global_pool_have_a_real_example`'s own vowel-coverage threshold loosened
+  from 90% to 85% to reflect this honest reduction.
+
+  **The Roman Orthography badge now shows the matched preset's own real description**, not just a
+  generic "general style of this writing system" blurb, when the rolled `orthography_category` happens
+  to land on exactly one of the 12 named presets (e.g. "wade-giles-style" -> "tone is written as a
+  digit after the syllable rather than a diacritic on the vowel") -- reused directly from
+  `glossary.advanced_options.orthography_style.values`, the same dict Advanced Options' own selector
+  already populated from `romanization_gen.ORTHOGRAPHY_STYLE_DESCRIPTIONS`, so there's one source of
+  text, not a copy that could drift. An unforced composite roll that doesn't match any single preset
+  still falls back to the generic text.
+
+  **The lexicon table shows a language's own invented script as an always-visible column** instead of
+  a "show lexicon in its own script" checkbox that swapped romanization for script text rather than
+  showing both together. The column only appears for a language that actually has a script (same
+  "don't render an empty section" precedent the Writing System fieldset itself already follows).
+
+  **Tweak's preview now shows before/after IPA (not just romanization) and which sounds changed.** The
+  word-diff table previously only diffed romanization; `diffWordPair` is now applied a second time to
+  each entry's own ipa, with both diffed independently. A new sound-inventory diff section (added vs.
+  the cached base language's own `phoneme_inventory`) sits above the word table as added/removed
+  phoneme chips -- deliberately a new `.tweak-sound-chip` class rather than reusing `.sound-badge`,
+  which the document-level click listener wires up to a *different* language's own inventory by index;
+  these static preview chips have no such index.
+
+  **Removed the redundant "seed example" row UI in Generate**, keeping only the bulk seed-words
+  textarea. Both mechanisms produced the identical `SeedExampleEntry` data server-side (confirmed in
+  `webui/app.py`: `text_examples` and `row_examples` are just concatenated) -- the structured
+  per-field rows were a second, more cumbersome way to enter data the bulk textarea's own
+  `gloss,form[,ipa[,pos[,forms]]]` line format already fully covers, including irregular forms via its
+  own `;`-separated sub-syntax.
+
+  **Generate's Advanced Options redesigned**, four related findings addressed together since they
+  touch the same markup: (a) every fieldset is now its own `<details>`, collapsed by default, instead
+  of one single expand/collapse for the whole block; (b) the "+ trait override" dynamic add-row/pick-
+  a-name mechanism is gone -- all 15 worldbuilding traits and all 15 script traits now show as fixed,
+  always-visible rows (`buildGenerateTraitRows`), left blank by default (blank means "infer from the
+  prompt", distinct from an explicit 0.0 override) -- the same "all traits visible" treatment the
+  Tweak tab's own fixed rows, and Roman Orthography's own fixed selects, already had; (c) the 15
+  worldbuilding trait rows are split across the Phonology/Grammar/Tones/Roman Orthography fieldsets by
+  the same `TRAIT_SECTION` classification the result view's own trait badges already use (hoisted from
+  `renderLanguageSummary` to module scope so both share one source of truth) -- a new Grammar fieldset
+  now exists to hold the 8 traits classified there, and `tonal_friendliness`/`tone_sandhi` moved from
+  a single catch-all list into Tones; (d) "Language Sources & Evolution" condensed into a horizontal
+  row (foreign names / years of evolution / word strictness / sound strictness, matching Roman
+  Orthography's own layout), and every field there gained a short label plus an (i) info button
+  instead of years-of-evolution dumping its whole explanation inline in the label -- new
+  `glossary.py` entries for `source_languages`/`evolve_years`/`word_strictness`/`strictness`, which
+  also documents that years-of-evolution and word/sound strictness are independent axes (sound-change-
+  over-time vs. how closely generation sticks to a real source language), not alternatives to each
+  other -- they're routinely combined on purpose (docs/CLI.md's own realword-base example: strictness
+  1.0 + 300 years of evolution). Verified live end-to-end: each section collapses independently; a
+  touched trait row round-trips through a real `/api/generate` call into the saved language's own
+  traits; an untouched row is correctly omitted.
+
+  **Corrected, not removed: the "fantasy" toggle's own description.** Traced its real effect precisely
+  rather than guessing -- `GenerationSpec.fantasy` only ever reaches one place
+  (`prompt_classifier.classify_prompt`), appending a one-line note to the single LLM call that
+  classifies worldbuilding traits from the prompt; the previous description's claim that it also
+  reaches word-coinage prompts didn't match the code (no other read of `spec.fantasy` exists anywhere).
+  It has zero observable effect under the Fake LLM backend and no CLI flag at all. Not removed --
+  still a real, intentional (if narrow) capability -- but the corrected description now lets the user
+  judge for themselves whether it's worth keeping, rather than silently dropping a working feature on
+  a one-session call.
+
+  **Not a bug, left unchanged: the cost badge showing nonzero calls on a fresh web-app start.** The
+  cost ledger (`CostTracker(CACHE_DIR / "cost_ledger.jsonl")`) is a deliberately *persistent*,
+  cross-session file, not reset per server start -- that's the entire point of tracking total spend
+  rather than a single session's. A nonzero reading on startup reflects real prior calls still on
+  disk; the existing "reset" button (`POST /api/cost/reset`) already exists for this exact case.
+
+  **Not implemented, premise corrected: years-of-evolution and word/sound strictness are not mutually
+  exclusive settings** (see the Advanced Options redesign above) -- the two govern genuinely
+  orthogonal mechanisms and combining them is an intentional, already-documented use case, not an
+  oversight to resolve by making them alternatives.
+
+  Five findings deferred to `docs/DEFERRED.md` rather than attempted now, each needing either new
+  backend computation, a genuinely new feature, or its own larger investigation: per-phoneme
+  prevalence/positional-tendency display in the sound inventory (chapter 6); playing a tone's own
+  pitch contour from Inspect (chapter 9); and extending Tweak to Roman Orthography, language-source
+  features, and the invented script (chapter 12, items 9-11 -- the script one explicitly scoped by the
+  user as its own "deep dive into script" rather than a quick addition alongside the other two).
