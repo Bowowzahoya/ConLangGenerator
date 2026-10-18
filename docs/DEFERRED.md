@@ -249,6 +249,32 @@ multi-session feature.
   (loanwords, verbs); (d) secondary stress is not marked anywhere; (e) vowel
   harmony is absent from real words; (f) Indonesian/Malay diphthong-vs-hiatus
   facts and Persian's 2 low-confidence hits are open.
+- **Show each sound's own prevalence and positional tendencies in the web
+  UI's sound inventory (M).** Direct user request from a deep-dive review:
+  "Inspect's sound inventory should show prevalence of each sound --
+  overall prevalence, and positional tendencies (syllable-initial/final,
+  disallowed in coda, etc.)." The raw data already exists but isn't
+  surfaced anywhere in `articulation.full_inventory`/the `/api/languages/
+  {slug}` response: every `Consonant`/`Vowel` already carries its own
+  `prevalence: float` (an illustrative draw-weight, not a measured corpus
+  frequency -- the "overall prevalence" half of the request would need to
+  be explicit about this distinction rather than implying a real-language-
+  style frequency count), and `SyllableStructure`'s own `max_onset`/
+  `max_coda`/`allowed_onset_clusters`/`allowed_coda_clusters`/
+  `allowed_coda_consonants`/`excluded_coda_consonants` already fully
+  determine which consonants can appear onset-only, coda-only, both, or
+  neither -- just never computed into a per-phoneme "can appear
+  initial/final/not in coda" summary anywhere. Needs: (a) a new backend
+  function deriving that per-phoneme positional summary from a language's
+  own `SyllableStructure` (not a new data model -- it's already fully
+  determined by the existing fields, just needs computing once per
+  language); (b) a `prevalence` + positional-summary field added to each
+  `PhonemeGuideEntry`/`as_dict()` entry; (c) UI work in the sound
+  inventory's own popover (`toggleSoundBadge`/`renderSoundGuideList`) to
+  show both, phrased plainly (e.g. "common" / "rare", "can start or end a
+  syllable" / "never ends a syllable") rather than raw numbers, consistent
+  with how every other sound-guide description in this project is already
+  plain-language rather than technical.
 
 ## 7. Real lexicons
 
@@ -335,6 +361,23 @@ multi-session feature.
   investigated beyond this one reported case.
 - **Untested by ear (S).** eSpeak tone numbers for mid/low/neutral
   (33/21/11) were only length-checked.
+- **Play a tone's own pitch contour from Inspect's Tones section (M).**
+  Direct user request from a deep-dive review: clicking a tone badge
+  (e.g. in a tonal language's own Tones section) should also offer an
+  audio clip of a reference vowel (the request's own example: `/a/`)
+  spoken with that tone's pitch contour, not just the textual contour
+  description `toggleToneBadge`/`renderToneBadgeInfo` already show. The
+  mechanism to synthesize a tone-marked vowel already exists end to end
+  (`/api/pronounce`'s own `ipa` parameter already accepts a tone-marked
+  syllable, and every TTS engine already handles tone marks via
+  `apply_sandhi`/the engine's own tone mechanism -- eSpeak's numeric tone
+  letters, SAPI's pitch contour, Piper's tone marks dropped outright per
+  its own documented limitation) -- what's missing is purely a UI wiring
+  job: a play button on the tone badge's own popover, synthesizing (the
+  language's own default vowel, perhaps its most prevalent one once the
+  prevalence item above lands) + that tone's own mark, reusing
+  `playWordPronunciation`/`wirePronounceButton`'s existing pattern rather
+  than inventing a new audio-playback mechanism.
 
 ## 10. Grammar
 
@@ -644,3 +687,56 @@ order -- each is independently schedulable, and later items depend on earlier on
   explicitly excludes (`social_hierarchy`, `spatial_reference`, `evidentiality_culture`, ...), letting a
   user eventually tweak grammar without touching phonology, or both at once. Not attempted until item 2
   ships and is validated on the phonology-only slice first.
+- **9. Extend tweaking to Roman Orthography (M), not needed for v1.** Direct user request from a
+  deep-dive review: Tweak should also support re-rolling a saved language's own romanization (its
+  `orthography_style`/`exotic_symbol_style`/`vowel_length_style`/`syllable_boundary_marker`/
+  `short_vowel_doubling`/`consonant_gemination` axes) independent of phonology -- e.g. keep the same
+  sound inventory but try a different spelling convention. Genuinely simpler than item 2's own
+  phonology-regeneration problem: orthography is already its own, separate roll
+  (`romanization_gen.roll_romanization_scheme`/`force_romanization_scheme`), not entangled with
+  phonology or grammar the way `PHONOLOGY_ONLY_TRAIT_FIELDS` had to be carefully scoped to avoid
+  perturbing grammar -- re-rolling it doesn't touch the phoneme inventory, syllable structure, or any
+  grammar-affecting trait at all. A new `regenerate_orthography(name, language, orthography_overrides,
+  llm_client)` mirroring `regenerate_phonology`'s own shape (edited `GenerationSpec`, same seed, only
+  the romanization-axis fields forced) would need a "words" mode too -- since every existing word's
+  `romanization` is derived from its `ipa` via the orthography scheme, EVERY word's spelling changes by
+  construction (there is no "adapt" vs. "regenerate" distinction the way phonology has one: the ipa
+  itself never changes, only how it's spelled, so this is really just "re-spell the whole lexicon under
+  the new convention" -- closer to item 3's "regenerate" mode, with no analogue to item 4's "adapt"
+  mode at all). Web UI: a new orthography-axis section in the Tweak tab, likely reusing the Roman
+  Orthography fieldset's own fixed selects (see item 13 of the 19-point review -- same selects Advanced
+  Options' own Roman Orthography section already has, pre-filled from the picked language's current
+  reading) rather than inventing a new control style.
+- **10. Extend tweaking to language-source features (M), not needed for v1.** Direct user request from
+  a deep-dive review: Tweak should also support changing a saved language's own `source_languages`/
+  `source_language_strictness`/`source_word_strictness` after the fact -- e.g. take an already-generated
+  language and re-roll it with a different (or no) real-language influence. Unlike orthography (item 9),
+  this one is NOT obviously side-effect-free: `source_word_strictness` directly drives how many lexicon
+  entries are real-word copies/real-word-based (`real_words.py`), so changing it necessarily means
+  re-deriving a meaningfully different lexicon (not just a re-spelling), and `source_language_strictness`
+  feeds into the actual phoneme-inventory roll in `phonology_gen.py`, meaning this would need the exact
+  same "own independent rng stream + scoped regeneration" treatment item 2 already built for phonology
+  -- changing source languages without the item-2-style care would risk the same grammar-perturbation
+  problem item 2's own design had to solve for `isolation`. Likely the most involved of the three
+  tweakable-axis extensions (8/9/10) precisely because it touches both phonology AND (via
+  `source_word_strictness`) the lexicon at once; scope this one carefully against items 2/4's own
+  machinery (quite possibly reusable close to as-is, given both already handle "re-derive phonology,
+  then either recoin or adapt the lexicon") rather than building a third separate code path.
+- **11. Extend tweaking to the Writing System / invented script (L), deliberately scoped as its own
+  larger investigation, not a quick extension.** Direct user request from a deep-dive review, with its
+  own explicit framing: "tackle this one together with an overall deep dive into script" -- the user
+  flagged this as needing bigger, separate treatment rather than a quick addition alongside items 9/10
+  above. The core design constraint the user already specified: changing a script trait (e.g.
+  `angularity`) during a tweak should only change the ANGLES of a glyph's EXISTING strokes, not add or
+  remove strokes outright -- i.e. a tweaked script should still be visually recognizable as a variant of
+  the original invented script, not an unrelated fresh one. This is a materially harder problem than
+  items 9/10: today, `force_own_script`/`ScriptTraits` feed into `script_gen.py`'s glyph-generation
+  pipeline as seed-time parameters that shape the WHOLE generative process per glyph (stroke count
+  included), not as a post-hoc transform applied to an already-generated glyph's own stroke data -- so
+  "only re-angle existing strokes" would need either (a) a genuinely different, constrained regeneration
+  mode in `script_gen.py` that holds stroke *topology* fixed while re-rolling only angle-affecting
+  parameters, or (b) a true post-processing transform applied directly to each glyph's own stored stroke
+  geometry. Needs its own investigation into `core/script.py`/`generation/script_gen.py`/
+  `speech/font_builder.py`'s actual internals (how a glyph's strokes are represented, whether angle and
+  topology are already cleanly separable parameters or are entangled in the generative process) before
+  any implementation plan can be written -- not attempted here, per the user's own explicit framing.
