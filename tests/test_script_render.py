@@ -4,13 +4,14 @@ in plain language for the CLI."""
 
 import random
 
-from conlang_generator.core.script import Glyph, Point, Stroke, StrokeKind
+from conlang_generator.core.romanization import RomanizationRule, RomanizationScheme
+from conlang_generator.core.script import Glyph, InventedScript, Point, ScriptTraits, Stroke, StrokeKind, WritingDirection
 from conlang_generator.generation import script_gen
 from conlang_generator.script.font_builder import codepoint_for_symbol_index
 from conlang_generator.script.script_render import (
     KEYBOARD_KEYS,
+    assign_keyboard_triggers,
     describe_glyph,
-    keyboard_key_for_symbol_index,
     keyboard_layout,
     render_word,
 )
@@ -41,8 +42,6 @@ def test_render_word_maps_each_symbol_to_its_own_codepoint():
 
 def test_render_word_skips_a_symbol_with_no_matching_glyph():
     glyph = Glyph(ipa="p", strokes=(Stroke(kind=StrokeKind.LINE, start=Point(x=0, y=0), end=Point(x=1, y=1)),))
-    from conlang_generator.core.script import InventedScript, ScriptTraits, WritingDirection
-
     script = InventedScript(direction=WritingDirection.LTR, traits=ScriptTraits(), glyphs=(glyph,))
     # "x" has no glyph in this one-symbol script -- should be dropped,
     # not crash and not render as some placeholder.
@@ -71,27 +70,82 @@ def test_describe_glyph_handles_no_strokes():
     assert describe_glyph(glyph) == "no strokes"
 
 
-def test_keyboard_key_for_symbol_index_is_positional_and_stable():
-    assert keyboard_key_for_symbol_index(0) == "a"
-    assert keyboard_key_for_symbol_index(25) == "z"
-    assert keyboard_key_for_symbol_index(26) == "0"
-    assert keyboard_key_for_symbol_index(len(KEYBOARD_KEYS)) is None
+def _script_of(*ipas: str) -> InventedScript:
+    glyphs = tuple(
+        Glyph(ipa=ipa, strokes=(Stroke(kind=StrokeKind.LINE, start=Point(x=0, y=0), end=Point(x=1, y=1)),))
+        for ipa in ipas
+    )
+    return InventedScript(direction=WritingDirection.LTR, traits=ScriptTraits(), glyphs=glyphs)
 
 
-def test_keyboard_layout_covers_every_glyph_up_to_the_key_budget():
+def _romanization_of(*pairs: tuple[str, str]) -> RomanizationScheme:
+    return RomanizationScheme(rules=tuple(RomanizationRule(ipa=ipa, latin=latin) for ipa, latin in pairs))
+
+
+def test_assign_keyboard_triggers_identity_first():
+    # Every symbol here is already a single plain KEYBOARD_KEYS
+    # character -- each should be typed with that exact key, not some
+    # unrelated positional slot.
+    script = _script_of("p", "a", "m")
+    romanization = _romanization_of(("p", "p"), ("a", "a"), ("m", "m"))
+    triggers = assign_keyboard_triggers(script, romanization)
+    assert triggers == {0: "p", 1: "a", 2: "m"}
+
+
+def test_assign_keyboard_triggers_uses_this_languages_own_romanization_digraph():
+    # /ʃ/ isn't itself a plain key, but this language's own romanization
+    # spells it "sh" -- a plain, free, two-character KEYBOARD_KEYS
+    # sequence -- which becomes the typed trigger instead of falling
+    # back to an arbitrary single key.
+    script = _script_of("ʃ")
+    romanization = _romanization_of(("ʃ", "sh"))
+    triggers = assign_keyboard_triggers(script, romanization)
+    assert triggers == {0: "sh"}
+
+
+def test_assign_keyboard_triggers_falls_back_to_a_free_key_when_romanization_isnt_plain_ascii():
+    # /ʒ/ isn't a plain key, and this language's own romanization of it
+    # ("ž") isn't plain ASCII either -- falls all the way back to the
+    # first still-free single key.
+    script = _script_of("ʒ")
+    romanization = _romanization_of(("ʒ", "ž"))
+    triggers = assign_keyboard_triggers(script, romanization)
+    assert triggers == {0: KEYBOARD_KEYS[0]}
+
+
+def test_assign_keyboard_triggers_identity_wins_over_a_later_glyphs_romanization_sequence():
+    # /s/ claims key "s" outright (pass 1). A later /ʃ/ romanizing as
+    # "sh" still gets that whole sequence (pass 2) -- claiming "s" for
+    # /s/ doesn't block the *sequence* "sh" for /ʃ/, since a sequence is
+    # never itself a single KEYBOARD_KEYS element.
+    script = _script_of("s", "ʃ")
+    romanization = _romanization_of(("s", "s"), ("ʃ", "sh"))
+    triggers = assign_keyboard_triggers(script, romanization)
+    assert triggers == {0: "s", 1: "sh"}
+
+
+def test_assign_keyboard_triggers_every_trigger_is_unique_and_keyboard_keys_only():
     language = cached_language(0)
     script = script_gen.generate_script(random.Random(1), language.phonology)
-    rows = keyboard_layout(script, language.romanization)
-    assert len(rows) == min(len(script.glyphs), len(KEYBOARD_KEYS))
-    keys = [r["key"] for r in rows]
-    assert keys == list(KEYBOARD_KEYS[: len(rows)])
+    triggers = assign_keyboard_triggers(script, language.romanization)
+    values = list(triggers.values())
+    assert len(values) == len(set(values))
+    for trigger in values:
+        assert trigger
+        assert all(ch in KEYBOARD_KEYS for ch in trigger)
 
 
 def test_keyboard_layout_rows_carry_real_ipa_romanization_and_codepoint():
     language = cached_language(0)
     script = script_gen.generate_script(random.Random(1), language.phonology)
+    triggers = assign_keyboard_triggers(script, language.romanization)
     rows = keyboard_layout(script, language.romanization)
-    for row, glyph in zip(rows, script.glyphs):
+    assert len(rows) == len(triggers)
+    rows_by_trigger = {r["trigger"]: r for r in rows}
+    for i, glyph in enumerate(script.glyphs):
+        if i not in triggers:
+            continue
+        row = rows_by_trigger[triggers[i]]
         assert row["ipa"] == glyph.ipa
         assert row["romanization"] == language.romanization.apply(glyph.ipa)
         assert row["codepoint"] >= 0xE000

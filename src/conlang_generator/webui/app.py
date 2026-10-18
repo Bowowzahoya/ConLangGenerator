@@ -467,10 +467,12 @@ def get_script_font(slug: str) -> Response:
 
 @app.get("/api/languages/{slug}/script/keyboard")
 def get_script_keyboard(slug: str) -> dict:
-    """Which physical keyboard key types each of this language's own
-    glyphs, and what it means (IPA + romanization) -- the web UI's own
-    Script tab builds both its reference legend and its live-typing
-    transliteration from this single call, no per-keystroke round trip."""
+    """What a user types to produce each of this language's own glyphs
+    (a single key, or a short multi-key sequence -- see
+    ``script_render.assign_keyboard_triggers``), and what that glyph
+    means (IPA + romanization) -- the web UI's own Script tab builds
+    both its reference legend and its live-typing transliteration from
+    this single call, no per-keystroke round trip."""
     try:
         language = _repository().load(slug)
     except FileNotFoundError as exc:

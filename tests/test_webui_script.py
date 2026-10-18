@@ -92,7 +92,7 @@ def test_options_endpoint_serves_the_own_script_advanced_option_glossary(client)
     assert set(glossary["advanced_options"]["own_script"]["values"]) == {"auto", "yes", "no"}
 
 
-def test_script_keyboard_endpoint_serves_key_ipa_romanization_and_codepoint(client):
+def test_script_keyboard_endpoint_serves_trigger_ipa_romanization_and_codepoint(client):
     client.post(
         "/api/generate",
         json={
@@ -106,7 +106,11 @@ def test_script_keyboard_endpoint_serves_key_ipa_romanization_and_codepoint(clie
     assert body["direction"] in ("ltr", "rtl", "ttb_ltr", "ttb_rtl", "boustrophedon")
     assert len(body["keys"]) > 0
     first = body["keys"][0]
-    assert first["key"] == "a"
+    # Identity-first assignment: a single-plain-letter IPA symbol is
+    # typed with that exact letter -- the first glyph of a real
+    # generated inventory (consonants before vowels) is almost always
+    # one (see script_render.assign_keyboard_triggers).
+    assert first["trigger"] == first["ipa"]
     assert first["ipa"] and first["romanization"]
     assert first["codepoint"] >= 0xE000
 

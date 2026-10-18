@@ -7923,3 +7923,42 @@ reading code or one-off ad hoc scripts.
   reorganized Advanced Options form (forcing isolated + tonal) produced a result with exactly the
   expected sections present (Tones shown, Writing system correctly absent since no script was
   requested) -- not just that the page loaded without a JS error.
+
+- **More intuitive script typing: key assignment by sound identity, not just position -- done.**
+  Implements the plan from the previous entry's own deferred item.
+
+  `script.script_render.keyboard_key_for_symbol_index` (purely positional -- key "a" could end up
+  typing any phoneme at all, whichever glyph happened to land at index 0) is replaced by
+  `assign_keyboard_triggers(script, romanization) -> dict[int, str]`, a three-pass assignment: (1)
+  **identity** -- a glyph whose own IPA symbol is already a single plain `KEYBOARD_KEYS` character
+  (`"p"`, `"a"`, `"m"`, ...) is typed with that exact key; (2) **this language's own romanization** --
+  for whatever identity left unassigned, `RomanizationScheme.apply` on just that one symbol (the same
+  real spelling machinery `keyboard_layout` already called for its own "romanization" column, not a
+  separate static digraph table) becomes the typing trigger when it happens to be a plain, free, 2+
+  character `KEYBOARD_KEYS` sequence; (3) **positional fallback** among whatever single keys are still
+  free, in glyph order -- the same "nothing left" honesty the old function already had, just now
+  applied only to whatever passes 1-2 couldn't place. Deliberately reuses `romanization.apply` rather
+  than reaching for `generation/romanization_gen.py`'s own `_DIGRAPH_TABLE` directly (the option raised
+  in the plan) -- this way it adapts automatically to whichever of the three exotic-symbol styles a
+  given language actually rolled (a diacritic-style language's "š" isn't plain ASCII and correctly
+  falls through to positional fallback instead, rather than wrongly assuming every language spells
+  exotic sounds with digraphs).
+
+  `keyboard_layout`'s own row field is renamed `"key"` -> `"trigger"` (an API break, but nothing
+  outside this module/its own tests/the frontend consumed the old name) since a trigger can now be
+  more than one character. The web UI's `transliterateToScript` changed from a single-character map
+  lookup to a greedy longest-match tokenizer over the *whole* current textarea value (re-run on every
+  keystroke rather than a stateful per-key buffer, since the full value is always available and this
+  stays correct regardless of cursor position or pasted text) -- mirrors this project's own backend
+  tokenizer idiom (`generation/ipa_tokenizer.py`'s "grouped by first character, longest first" greedy
+  match) rather than inventing a different approach for the same kind of problem on the frontend.
+
+  Verified empirically against a real generated language (a diacritic-style one, seed 1): of 36
+  glyphs, every plain-key consonant/vowel (`p`, `t`, `m`, `a`, `i`, ...) got identity-assigned as
+  expected; the diphthong `/ai/` (which romanizes plainly as `"ai"` even under this language's own
+  diacritic exotic-symbol style) got the real 2-character sequence trigger, not a positional single
+  key; every other exotic symbol (whose diacritic-style romanization isn't plain ASCII) correctly fell
+  back to positional assignment; all 36 triggers were unique. Typing `"paai"` through the real Script
+  tab produced exactly 3 glyphs (p, a, the ai-diphthong), confirming the frontend's greedy tokenizer
+  consumes "ai" as one sequence rather than splitting it into "a" + "i" -- not just that the backend
+  endpoint returned the right data.

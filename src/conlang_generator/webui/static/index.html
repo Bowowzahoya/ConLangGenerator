@@ -1818,23 +1818,57 @@ $("translate-btn").onclick = async () => {
 function renderScriptLegend(slug, keys) {
   const rows = keys.map(k => `
     <tr>
-      <td class="ipa">${escapeAttr(k.key)}</td>
+      <td class="ipa">${escapeAttr(k.trigger)}</td>
       <td style="font-family:'ConlangScript-${escapeAttr(slug)}'; font-size:22px;">${escapeAttr(String.fromCodePoint(k.codepoint))}</td>
       <td class="ipa">/${escapeAttr(k.ipa)}/</td>
       <td>${escapeAttr(k.romanization)}</td>
     </tr>`).join("");
   return `
     <table>
-      <thead><tr><th>key</th><th>glyph</th><th>IPA</th><th>romanized</th></tr></thead>
+      <thead><tr><th>type</th><th>glyph</th><th>IPA</th><th>romanized</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
 }
 
-function transliterateToScript(text, keyByChar) {
+// --- live typing transliteration: greedy longest-match over the whole
+// current textarea value (re-run on every keystroke, not a per-key
+// buffer -- the textarea's own value is always available in full, so
+// there's no need to track input state separately, and this stays
+// correct no matter where the cursor is or if text was pasted).
+// Mirrors this project's own backend tokenizer idiom (generation/
+// ipa_tokenizer.py's "grouped by first character, longest first")
+// rather than inventing a different approach for the same problem on
+// the frontend. A trigger can be more than one character now (this
+// language's own romanization digraph, e.g. "sh" -> /ʃ/, reused from
+// assign_keyboard_triggers's second pass), so a single-key lookup alone
+// is no longer enough -- see docs/DEFERRED.md's "More intuitive script
+// typing" item this implements. ---
+function buildTriggerMap(keys) {
+  const byTrigger = new Map(keys.map(k => [k.trigger, k]));
+  const maxLen = keys.reduce((m, k) => Math.max(m, k.trigger.length), 1);
+  return { byTrigger, maxLen };
+}
+
+function transliterateToScript(text, triggerMap) {
+  const { byTrigger, maxLen } = triggerMap;
+  const lower = text.toLowerCase();
   let out = "";
-  for (const ch of text.toLowerCase()) {
-    const entry = keyByChar.get(ch);
-    out += entry ? String.fromCodePoint(entry.codepoint) : ch;
+  let i = 0;
+  while (i < lower.length) {
+    let matched = false;
+    for (let len = Math.min(maxLen, lower.length - i); len >= 1; len--) {
+      const entry = byTrigger.get(lower.slice(i, i + len));
+      if (entry) {
+        out += String.fromCodePoint(entry.codepoint);
+        i += len;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      out += lower[i];
+      i += 1;
+    }
   }
   return out;
 }
@@ -1850,7 +1884,7 @@ async function loadScriptForLanguage(slug) {
       <style>@font-face { font-family: "ConlangScript-${slug}"; src: url("/api/languages/${encodeURIComponent(slug)}/script/font") format("truetype"); }</style>
       <div class="card">
         <p class="ipa">direction: ${escapeAttr(body.direction)}</p>
-        <label for="script-type-input">Type here -- plain letters, digits, and punctuation only; see the legend below for what each key is assigned to</label>
+        <label for="script-type-input">Type here -- most sounds match their own letter directly (p, a, ...); a few are typed as a short sequence, this language's own romanization for that sound (e.g. "sh"); see the legend below for exactly what each sound is typed as</label>
         <textarea id="script-type-input" placeholder="type here..."></textarea>
         <label for="script-type-output" style="margin-top:10px; display:block;">In ${escapeAttr(slug)}'s own script</label>
         <div id="script-type-output" style="font-family:'ConlangScript-${slug}'; font-size:28px; min-height:44px; padding:10px; border:1px solid var(--border); border-radius:8px; direction:${rtl ? "rtl" : "ltr"};"></div>
@@ -1859,9 +1893,9 @@ async function loadScriptForLanguage(slug) {
         <h2 style="margin-top:0">Keyboard legend</h2>
         <div class="lexicon-wrap">${renderScriptLegend(slug, body.keys)}</div>
       </div>`;
-    const keyByChar = new Map(body.keys.map(k => [k.key, k]));
+    const triggerMap = buildTriggerMap(body.keys);
     $("script-type-input").oninput = (e) => {
-      $("script-type-output").textContent = transliterateToScript(e.target.value, keyByChar);
+      $("script-type-output").textContent = transliterateToScript(e.target.value, triggerMap);
     };
   } catch (e) {
     $("script-error").textContent = e.message;
