@@ -174,6 +174,14 @@ def test_options_endpoint_serves_the_script_trait_fields(client):
     assert set(opts["script_trait_fields"]) == set(ScriptTraits.model_fields)
 
 
+def test_options_endpoint_serves_the_script_trait_glossary(client):
+    glossary = client.get("/api/options").json()["glossary"]
+    for field in ScriptTraits.model_fields:
+        entry = glossary["script_traits"][field]
+        assert entry["kind"] == "bipolar"
+        assert entry["summary"] and entry["positive"] and entry["negative"]
+
+
 def test_languages_list_reports_which_ones_have_a_script(client):
     client.post(
         "/api/generate",

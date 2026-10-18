@@ -152,6 +152,108 @@ TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
     },
 }
 
+
+# --- the 15 ScriptTraits dials (core.script.ScriptTraits), bipolar
+# [-1.0, 1.0] -- same shape as TRAIT_GLOSSARY, paraphrased directly from
+# that module's own per-field docstrings. Governs an invented script's
+# visual style, not any worldbuilding/generation choice -- shown next to
+# the Generate tab's own "+ script trait override" rows (and wherever
+# else a script-trait value needs explaining), direct user request
+# ("Script, grammar traits in Generate should have a description of
+# what it means when selecting"). ---
+SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
+    "angularity": {
+        "kind": "bipolar",
+        "summary": "Whether strokes are drawn as straight lines or curves.",
+        "positive": "Sharp -- straight lines and pointed corners.",
+        "negative": "Smooth -- curved strokes and round joints.",
+    },
+    "stroke_contrast": {
+        "kind": "bipolar",
+        "summary": "Whether a stroke's own width varies along its length.",
+        "positive": "Calligraphic -- thick/thin width variation within a single stroke.",
+        "negative": "Monoline -- every stroke keeps a uniform width throughout.",
+    },
+    "weight": {
+        "kind": "bipolar",
+        "summary": "How heavy the strokes themselves look.",
+        "positive": "Bold -- heavy, thick strokes.",
+        "negative": "Thin -- light, fine strokes.",
+    },
+    "complexity": {
+        "kind": "bipolar",
+        "summary": "How many strokes make up a typical glyph.",
+        "positive": "Ornate -- many strokes per glyph.",
+        "negative": "Minimal -- just 1-2 strokes per glyph.",
+    },
+    "connectivity": {
+        "kind": "bipolar",
+        "summary": "Whether neighboring glyphs visually join up, cursive-style. Not yet rendered by the font builder (the data is rolled and stored, but true contextual joining needs real OpenType work not built yet) -- see docs/DEFERRED.md.",
+        "positive": "Cursive -- glyphs join their neighbors.",
+        "negative": "Disconnected -- each glyph stands fully separate.",
+    },
+    "symmetry": {
+        "kind": "bipolar",
+        "summary": "Whether a glyph's own strokes mirror left-to-right.",
+        "positive": "Mirror-symmetric shapes.",
+        "negative": "Asymmetric, irregular shapes.",
+    },
+    "proportion": {
+        "kind": "bipolar",
+        "summary": "A glyph's own width-to-height ratio.",
+        "positive": "Wide, squat glyphs.",
+        "negative": "Tall, narrow glyphs.",
+    },
+    "slant": {
+        "kind": "bipolar",
+        "summary": "Whether glyphs lean, italic-style.",
+        "positive": "Slanted -- an italic-like shear.",
+        "negative": "Upright, no shear.",
+    },
+    "openness": {
+        "kind": "bipolar",
+        "summary": "How much open negative space a glyph encloses.",
+        "positive": "Open, airy -- lots of negative space.",
+        "negative": "Closed -- solid, filled-in counters.",
+    },
+    "regularity": {
+        "kind": "bipolar",
+        "summary": "How mechanically precise the strokes look.",
+        "positive": "Geometric -- ruler-and-compass precision.",
+        "negative": "Organic -- a rustic, hand-drawn feel.",
+    },
+    "density": {
+        "kind": "bipolar",
+        "summary": "How tightly strokes are packed within a glyph, and how close together glyphs sit.",
+        "positive": "Tightly packed strokes.",
+        "negative": "Loosely spaced strokes.",
+    },
+    "height_variance": {
+        "kind": "bipolar",
+        "summary": "Whether every glyph shares one height or varies, ascender/descender-style.",
+        "positive": "Varied ascenders/descenders, like Latin lowercase.",
+        "negative": "Uniform height across every glyph, like Latin capitals.",
+    },
+    "diacritic_density": {
+        "kind": "bipolar",
+        "summary": "How often small marks (dots, hooks) get attached to a glyph.",
+        "positive": "Many small attached marks -- Arabic i'jam-dot-like.",
+        "negative": "Few or no attached marks.",
+    },
+    "grid_alignment": {
+        "kind": "bipolar",
+        "summary": "Whether every glyph shares one fixed advance width or each gets its own.",
+        "positive": "Strict block/square alignment, Hangul-like.",
+        "negative": "Freeform -- each glyph keeps its own, variable width.",
+    },
+    "terminal_style": {
+        "kind": "bipolar",
+        "summary": "Whether a stroke's own end gets a decorative flourish.",
+        "positive": "Serif-like hooks/flourishes at stroke ends.",
+        "negative": "Plain, unadorned stroke ends.",
+    },
+}
+
 # --- grammar badges: categorical, not graded -- a general description of
 # the field plus a specific explanation of each value it can actually
 # take. Booleans are keyed by the lowercase string JS's own template
@@ -345,6 +447,7 @@ ADVANCED_OPTIONS_GLOSSARY: dict[str, dict] = {
 def as_dict() -> dict:
     return {
         "traits": TRAIT_GLOSSARY,
+        "script_traits": SCRIPT_TRAIT_GLOSSARY,
         "grammar": GRAMMAR_GLOSSARY,
         "simple": SIMPLE_GLOSSARY,
         "advanced_options": ADVANCED_OPTIONS_GLOSSARY,

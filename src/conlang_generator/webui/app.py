@@ -630,6 +630,17 @@ def get_cost() -> dict:
     return _cost_snapshot()
 
 
+@app.post("/api/cost/reset")
+def reset_cost() -> dict:
+    """Permanently discards every recorded LLM call -- also empties the
+    Log tab's own history, since both read the same ledger file. The
+    frontend confirms with the user before calling this; nothing here
+    guards against an accidental call, same as any other explicit
+    user-initiated reset."""
+    CostTracker(CACHE_DIR / "cost_ledger.jsonl").reset()
+    return _cost_snapshot()
+
+
 @app.get("/api/llm-log")
 def get_llm_log(limit: int = 300) -> dict:
     """The actual request/response text for the most recent LLM calls

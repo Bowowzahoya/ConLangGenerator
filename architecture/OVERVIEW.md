@@ -7962,3 +7962,58 @@ reading code or one-off ad hoc scripts.
   tab produced exactly 3 glyphs (p, a, the ai-diphthong), confirming the frontend's greedy tokenizer
   consumes "ai" as one sequence rather than splitting it into "a" + "i" -- not just that the backend
   endpoint returned the right data.
+
+- **Four small fixes and one new glossary from a round of direct user findings on the reorganized
+  Inspect/Generate view -- done.**
+
+  **A real cost-reset capability.** `llm.cost_tracker.CostTracker.reset()` deletes the JSONL ledger
+  file outright (`cost_ledger.jsonl` -- both the header's own cost badge and the Log tab's call
+  history read from this one file, so resetting one empties the other too, by construction, not as a
+  separate thing to keep in sync). New `POST /api/cost/reset`; a "reset" button next to the header's
+  own cost badge, gated behind a real `confirm()` dialog since this permanently discards recorded
+  data and there's no undo.
+
+  **Two real CSS inconsistencies found and fixed by direct visual inspection** (not assumed from
+  reading the stylesheet): `button.badge { font: inherit }`'s own `font: inherit` shorthand was
+  silently clobbering `.badge`'s own `font-family: var(--mono)` -- a *clickable* badge (any
+  `infoBadge()`, e.g. "word selection: ...") rendered in the page's sans-serif body font while a
+  plain, non-clickable `<span class="badge">` (e.g. "classifier model: ...") correctly kept the mono
+  font, side by side in the same Generation Details section. Fixed by re-asserting `font-family:
+  var(--mono)` after the shorthand reset. Separately, the Writing System section's own "Download font
+  (.ttf)" link (an `<a class="add-row">`, the only anchor using that class) rendered as a bare blue
+  underlined hyperlink -- `button.add-row, button.remove-row`'s own CSS selector only ever matched
+  the `button` tag, never `a`. Fixed by broadening the selector to `.add-row, .remove-row` (tag-
+  agnostic) plus `text-decoration: none` and `font-family: inherit`, so it now matches "Download CSV"/
+  "export"'s own look exactly. Both confirmed via `getComputedStyle` before and after, not just eyeballed.
+
+  **`source_language_strictness` no longer leaks into the Phonology (incl. Traits) section as a
+  spurious "trait" badge.** `renderLanguageSummary`'s own `traitBadges` used to build itself from a
+  bare `typeof v === "number" && v !== 0` filter over the whole `summary.traits` object -- which also
+  contains `source_language_strictness` (a real, but non-trait, numeric field) alongside the 15 actual
+  `GRADED_TRAIT_FIELDS` dials, showing the exact same strictness value a second time, disconnected
+  from its own correctly-placed "source: ... (strictness ...)" badge in Language Sources & Evolution.
+  Fixed by filtering against `gradedTraitFields` (already loaded from `/api/options` for the trait-
+  override row builder) instead of a bare `typeof` check.
+
+  **Tone-related trait dials (`tonal_friendliness`/`tone_sandhi`) moved out of Phonology into Tones,**
+  per a direct user request that Phonology "should only contain the phonology traits." Both now render
+  in the Tones section instead -- and, since a language's own `tonal_friendliness`/`tone_sandhi` can be
+  real, informative evidence (e.g. strongly negative, meaning "this language resists tone") even when
+  the language *didn't* end up tonal, the Tones section itself is now shown whenever either is nonzero,
+  not only when `grammar.tonal` is true -- a small widening of the "omit when nothing to show" rule the
+  section already followed, rather than silently dropping that evidence for a non-tonal language the
+  way simply moving the two fields without this change would have. The full reclassification of the
+  other 13 graded traits across sections (several, e.g. `social_hierarchy`/`ritual_register`/
+  `evidentiality_culture`, read more like grammar/culture traits than phonology ones) was raised but
+  not attempted this pass -- genuinely debatable per-trait judgment calls better made with the user
+  than assumed; not written up in DEFERRED.md since the motivating, clear-cut case (tone) is already
+  done and the rest needs discussion first, not a pre-made plan.
+
+  **New `webui/glossary.py` `SCRIPT_TRAIT_GLOSSARY`** (15 entries, bipolar, paraphrased directly from
+  `core.script.ScriptTraits`'s own per-field docstrings -- the same sourcing discipline every other
+  glossary table in this module already follows) plus an info (ⓘ) button on both the worldbuilding-
+  trait and script-trait override rows in Advanced Options, wired to whichever trait the row's own
+  `<select>` currently has chosen (`wireTraitSelectInfoButton`, shared by both row builders) -- direct
+  user request ("Script, grammar traits in Generate should have a description of what it means when
+  selecting"). Served via `/api/options`'s own `glossary.script_traits` key, mirroring `glossary.traits`
+  exactly.

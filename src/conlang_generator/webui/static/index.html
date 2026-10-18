@@ -76,11 +76,12 @@
   .dyn-row { display: flex; gap: 8px; margin-bottom: 6px; align-items: center; }
   .dyn-row > * { flex: 1; }
   .dyn-row button { flex: 0 0 auto; }
-  button.add-row, button.remove-row {
-    border: 1px dashed var(--border); background: none; color: var(--muted);
-    border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 13px;
+  .add-row, .remove-row {
+    display: inline-block; border: 1px dashed var(--border); background: none; color: var(--muted);
+    border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 13px; font-family: inherit;
+    text-decoration: none;
   }
-  button.remove-row { flex: 0 0 auto; border-style: solid; }
+  .remove-row { flex: 0 0 auto; border-style: solid; }
   .submit-row { margin-top: 16px; }
   button.primary {
     background: var(--accent); color: #fff; border: none; padding: 10px 20px;
@@ -96,7 +97,7 @@
     font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--accent-bg);
     color: var(--accent); font-family: var(--mono);
   }
-  button.badge { border: none; font: inherit; }
+  button.badge { border: none; font: inherit; font-family: var(--mono); }
   .badge[data-info] { cursor: pointer; border-bottom: 1px dotted var(--accent); }
   .badge[data-info]:hover { background: var(--accent); color: var(--panel); }
   .sound-badge, .tone-badge {
@@ -168,7 +169,10 @@
 
 <header>
   <h1>ConLangGenerator</h1>
-  <div id="cost-badge">cost: $0.0000 (0 calls)</div>
+  <div style="display:flex; align-items:center; gap:8px;">
+    <div id="cost-badge">cost: $0.0000 (0 calls)</div>
+    <button type="button" class="add-row" id="reset-cost-btn" title="Permanently discard every recorded call -- also empties the Log tab">reset</button>
+  </div>
 </header>
 
 <nav>
@@ -667,6 +671,12 @@ async function refreshCost() {
     $("cost-badge").textContent = fmtCost(cost.total_cost_usd, cost.num_calls);
   } catch (e) { /* cost badge is best-effort */ }
 }
+$("reset-cost-btn").onclick = async () => {
+  if (!confirm("Permanently discard every recorded LLM call? This also empties the Log tab's own history. This cannot be undone.")) return;
+  await api("/api/cost/reset", { method: "POST" });
+  await refreshCost();
+  if ($("panel-log").classList.contains("active")) loadLog();
+};
 
 // --- dynamic rows (source languages / seed examples) ---
 function addSourceLangRow() {
@@ -730,7 +740,7 @@ let scriptTraitFields = [];
 // --- plain-language explanations for the Generate result's own grammar/
 // trait badges, shown as native `title` hover tooltips -- populated once
 // from /api/options (same pattern as ttsCapabilities below). ---
-let glossary = { traits: {}, grammar: {}, simple: {}, advanced_options: {} };
+let glossary = { traits: {}, script_traits: {}, grammar: {}, simple: {}, advanced_options: {} };
 
 function lowerFirst(s) {
   return s.length ? s.charAt(0).toLowerCase() + s.slice(1) : s;
@@ -780,6 +790,33 @@ function describeGrammarField(key, value) {
   const valueText = gloss.values[String(value)];
   return valueText ? `${gloss.summary}\n\n${valueText}` : gloss.summary;
 }
+// A trait-override row's own info button shows whichever trait its
+// sibling <select> currently has chosen -- summary plus what each pole
+// means, the same two pieces of content describeTrait's own banded
+// reading is built from, just without a value to band yet (the row's
+// own value input may still be empty at this point). Direct user
+// request: "Script, grammar traits in Generate should have a
+// description of what it means when selecting."
+function renderTraitSelectInfo(gloss) {
+  if (!gloss) return `<p class="ipa">(no description available)</p>`;
+  const poles = gloss.kind === "unipolar"
+    ? `<ul class="info-values"><li><strong>low</strong>: ${escapeAttr(gloss.low)}</li><li><strong>high</strong>: ${escapeAttr(gloss.high)}</li></ul>`
+    : `<ul class="info-values"><li><strong>positive</strong>: ${escapeAttr(gloss.positive)}</li><li><strong>negative</strong>: ${escapeAttr(gloss.negative)}</li></ul>`;
+  return `<div class="log-body"><p>${escapeAttr(gloss.summary)}</p>${poles}</div>`;
+}
+
+// Shared by addTraitOverrideRow/addScriptTraitOverrideRow below --
+// `glossaryFor(name)` looks the row's own currently-selected trait up
+// in whichever glossary dict that row type uses.
+function wireTraitSelectInfoButton(row, glossaryFor) {
+  const select = row.querySelector(".to-name");
+  const infoBtn = row.querySelector(".info-btn");
+  infoBtn.onclick = () => {
+    if (openInfoPopoverButton === infoBtn) { hideInfoPopover(); return; }
+    showInfoPopover(infoBtn, renderTraitSelectInfo(glossaryFor(select.value)));
+  };
+}
+
 function addTraitOverrideRow() {
   const row = document.createElement("div");
   row.className = "dyn-row";
@@ -787,7 +824,9 @@ function addTraitOverrideRow() {
   row.innerHTML = `
     <select class="to-name">${options}</select>
     <input type="number" placeholder="value, -1.0 to +1.0" min="-1" max="1" step="0.05" class="to-value">
+    <button type="button" class="info-btn" title="What does this trait mean?">&#9432;</button>
     <button type="button" class="remove-row">&times;</button>`;
+  wireTraitSelectInfoButton(row, (name) => glossary.traits[name]);
   row.querySelector(".remove-row").onclick = () => row.remove();
   $("trait-override-rows").appendChild(row);
 }
@@ -813,7 +852,9 @@ function addScriptTraitOverrideRow() {
   row.innerHTML = `
     <select class="to-name">${options}</select>
     <input type="number" placeholder="value, -1.0 to +1.0" min="-1" max="1" step="0.05" class="to-value">
+    <button type="button" class="info-btn" title="What does this script trait mean?">&#9432;</button>
     <button type="button" class="remove-row">&times;</button>`;
+  wireTraitSelectInfoButton(row, (name) => glossary.script_traits[name]);
   row.querySelector(".remove-row").onclick = () => row.remove();
   $("script-trait-override-rows").appendChild(row);
 }
@@ -848,7 +889,7 @@ async function loadOptions() {
   fill("gen-syllable-boundary-marker", opts.syllable_boundary_markers);
   gradedTraitFields = opts.graded_trait_fields || [];
   scriptTraitFields = opts.script_trait_fields || [];
-  glossary = opts.glossary || { traits: {}, grammar: {}, simple: {}, advanced_options: {} };
+  glossary = opts.glossary || { traits: {}, script_traits: {}, grammar: {}, simple: {}, advanced_options: {} };
 
   const fillModels = (id, task) => {
     const select = $(id);
@@ -1303,9 +1344,24 @@ function renderLanguageSummary(container, summary) {
   // inventory badges use -- not a hover tooltip), so they're real
   // <button>s, not <span>s, the same element the sound badges already are.
   const infoBadge = (text, label) => `<button type="button" class="badge" data-info="${escapeAttr(text)}">${label}</button>`;
+  // Only the 15 graded worldbuilding dials count as "trait badges" --
+  // `t` also carries non-trait numeric fields (source_language_strictness)
+  // that used to leak in here too via a bare `typeof v === "number"`
+  // check, showing the exact same strictness value a second time,
+  // disconnected from its own "source: ..." badge below. Split further
+  // into tone-related dials (shown in the Tones section instead, even
+  // for a non-tonal language -- e.g. a strongly negative
+  // tonal_friendliness is still meaningful evidence to show, not just
+  // for languages that ended up tonal) versus everything else (Phonology).
+  const TONE_TRAIT_FIELDS = ["tonal_friendliness", "tone_sandhi"];
+  const isTraitField = (k, v) => gradedTraitFields.includes(k) && typeof v === "number" && v !== 0;
+  const traitBadge = ([k, v]) => infoBadge(describeTrait(k, v), `${k}: ${v.toFixed(2)}`);
   const traitBadges = Object.entries(t)
-    .filter(([k, v]) => typeof v === "number" && v !== 0)
-    .map(([k, v]) => infoBadge(describeTrait(k, v), `${k}: ${v.toFixed(2)}`)).join("");
+    .filter(([k, v]) => isTraitField(k, v) && !TONE_TRAIT_FIELDS.includes(k))
+    .map(traitBadge).join("");
+  const toneTraitBadges = Object.entries(t)
+    .filter(([k, v]) => isTraitField(k, v) && TONE_TRAIT_FIELDS.includes(k))
+    .map(traitBadge).join("");
   const sourceLangBadge = t.source_languages && t.source_languages.length
     ? infoBadge(glossary.simple.source_languages || "", `source: ${t.source_languages.join(", ")} (strictness ${t.source_language_strictness.toFixed(2)})`)
     : "";
@@ -1332,11 +1388,14 @@ function renderLanguageSummary(container, summary) {
     ${traitBadges ? `<div class="badges">${traitBadges}</div>` : ""}
     ${renderSoundInventorySection(summary)}`);
 
-  // Omitted entirely for a non-tonal language -- renderToneSection already
-  // returns "" then -- same "don't show an empty section" precedent the
-  // Writing System section right below it also follows for a no-script
-  // language.
-  const tonesBody = renderToneSection(summary);
+  // Omitted entirely when there's neither a real tone system (renderToneSection
+  // returns "" for a non-tonal language) nor a nonzero tone-related trait to
+  // show -- same "don't show an empty section" precedent the Writing System
+  // section right below it also follows for a no-script language.
+  const toneSystemBody = renderToneSection(summary);
+  const tonesBody = toneTraitBadges || toneSystemBody
+    ? `${toneTraitBadges ? `<div class="badges">${toneTraitBadges}</div>` : ""}${toneSystemBody}`
+    : "";
   const tonesSection = tonesBody ? summarySection("Tones", tonesBody) : "";
 
   const orthographySection = summarySection("Roman Orthography", `<div class="badges">

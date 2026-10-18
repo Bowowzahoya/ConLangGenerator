@@ -56,6 +56,14 @@ class CostTracker:
             f.write(json.dumps(asdict(entry)) + "\n")
         return entry
 
+    def reset(self) -> None:
+        """Permanently discards every recorded call (cost, call count, and
+        the web UI's own Log tab history all read from this same ledger
+        file) -- the web UI's own "reset cost" button, for a user who
+        wants to zero the running total shown in the header. A no-op if
+        there's nothing to discard yet."""
+        self._ledger_path.unlink(missing_ok=True)
+
     def _records(self) -> list[dict]:
         if not self._ledger_path.exists():
             return []

@@ -9,6 +9,7 @@ from conlang_generator.core.romanization import (
     ToneMarkingStrategy,
     VowelLengthStrategy,
 )
+from conlang_generator.core.script import ScriptTraits
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.webui import glossary
@@ -33,6 +34,17 @@ def test_trait_glossary_has_exactly_the_graded_fields_plus_the_two_dials():
         "source_language_strictness",
         "source_word_strictness",
     }
+
+
+def test_every_script_trait_field_has_a_bipolar_glossary_entry():
+    for field in ScriptTraits.model_fields:
+        entry = glossary.SCRIPT_TRAIT_GLOSSARY[field]
+        assert entry["kind"] == "bipolar"
+        assert entry["summary"] and entry["positive"] and entry["negative"]
+
+
+def test_script_trait_glossary_has_exactly_the_scripttraits_fields():
+    assert set(glossary.SCRIPT_TRAIT_GLOSSARY) == set(ScriptTraits.model_fields)
 
 
 def test_every_word_order_value_is_explained():
@@ -64,10 +76,11 @@ def test_word_selection_and_foreign_names_explain_their_real_values():
     assert set(glossary.GRAMMAR_GLOSSARY["foreign_names"]["values"]) == {"keep", "adapt"}
 
 
-def test_as_dict_has_the_four_top_level_sections():
+def test_as_dict_has_the_five_top_level_sections():
     d = glossary.as_dict()
-    assert set(d) == {"traits", "grammar", "simple", "advanced_options"}
+    assert set(d) == {"traits", "script_traits", "grammar", "simple", "advanced_options"}
     assert d["traits"] is glossary.TRAIT_GLOSSARY
+    assert d["script_traits"] is glossary.SCRIPT_TRAIT_GLOSSARY
     assert d["grammar"] is glossary.GRAMMAR_GLOSSARY
     assert d["simple"] is glossary.SIMPLE_GLOSSARY
     assert d["advanced_options"] is glossary.ADVANCED_OPTIONS_GLOSSARY

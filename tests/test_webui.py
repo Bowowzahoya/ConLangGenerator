@@ -566,6 +566,22 @@ def test_cost_endpoint_reflects_generation_spend(client):
     assert after["total_cost_usd"] == before["total_cost_usd"] == 0.0  # fake backend, always free
 
 
+def test_cost_reset_zeroes_calls_and_empties_the_log(client):
+    client.post("/api/generate", json={"prompt": "p", "name": "Cost Reset Test", "seed": 2, "llm": "fake"})
+    assert client.get("/api/cost").json()["num_calls"] > 0
+    assert client.get("/api/llm-log").json()["entries"]
+
+    after_reset = client.post("/api/cost/reset").json()
+
+    assert after_reset == {"total_cost_usd": 0.0, "num_calls": 0, "by_model": {}}
+    assert client.get("/api/cost").json()["num_calls"] == 0
+    assert client.get("/api/llm-log").json()["entries"] == []
+
+
+def test_cost_reset_is_a_no_op_when_there_is_nothing_to_discard(client):
+    assert client.post("/api/cost/reset").json()["num_calls"] == 0
+
+
 def test_llm_log_endpoint_is_empty_before_any_call(client):
     response = client.get("/api/llm-log")
     assert response.status_code == 200
