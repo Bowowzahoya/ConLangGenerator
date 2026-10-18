@@ -105,6 +105,12 @@
     color: var(--accent); font-family: var(--mono); border: none; cursor: pointer;
   }
   .sound-badge:hover, .sound-badge.open, .tone-badge:hover, .tone-badge.open { background: var(--accent); color: var(--panel); }
+  .tweak-sound-chip {
+    display: inline-block; font-size: 12.5px; padding: 3px 9px; margin: 2px; border-radius: 999px;
+    font-family: var(--mono); border: 1px solid transparent;
+  }
+  .tweak-sound-chip.sound-added { background: #1f3d2b; color: #7ee2a0; border-color: #2f5c3f; }
+  .tweak-sound-chip.sound-removed { background: #3d1f1f; color: #e28080; border-color: #5c2f2f; text-decoration: line-through; }
   .lex-script-text { display: none; }
   .show-script .lex-romanized-text { display: none; }
   .show-script .lex-script-text { display: inline; }
@@ -859,7 +865,13 @@ function renderTraitSelectInfo(gloss) {
 function wireTraitSelectInfoButton(row, glossaryFor) {
   const select = row.querySelector(".to-name");
   const infoBtn = row.querySelector(".info-btn");
-  infoBtn.onclick = () => {
+  infoBtn.onclick = (e) => {
+    // Without this, the click also bubbles to the document-level
+    // listener's own "click outside #info-popover closes it" fallback,
+    // which fires right after this same handler opens the popover and
+    // immediately closes it again -- the popover would never actually
+    // appear.
+    e.stopPropagation();
     if (openInfoPopoverButton === infoBtn) { hideInfoPopover(); return; }
     showInfoPopover(infoBtn, renderTraitSelectInfo(glossaryFor(select.value)));
   };
@@ -941,6 +953,10 @@ function buildTweakTraitRows(currentValues) {
   for (const row of $("tweak-trait-rows").querySelectorAll(".dyn-row")) {
     const name = row.dataset.traitName;
     row.querySelector(".info-btn").onclick = (e) => {
+      // See wireTraitSelectInfoButton's own comment -- without this the
+      // popover opens and is immediately closed again by the document-
+      // level click-outside-closes-it listener on the same click.
+      e.stopPropagation();
       if (openInfoPopoverButton === e.currentTarget) { hideInfoPopover(); return; }
       showInfoPopover(e.currentTarget, renderTraitSelectInfo(glossary.traits[name]));
     };
@@ -971,10 +987,12 @@ function collectTweakTraitOverrides() {
 // Pre-fills from the picked language's own current trait reading
 // (GET /api/languages/{slug}'s own `traits`) -- the user edits *from*
 // what the language already has, rather than guessing it from scratch.
-// Also caches the base language's own lexicon (`tweakBaseLexicon`) for
-// renderTweakDiff below, and clears any previous preview -- picking a
-// different language invalidates whatever was last previewed.
+// Also caches the base language's own lexicon and phoneme inventory
+// (`tweakBaseLexicon`/`tweakBasePhonemeInventory`) for renderTweakDiff
+// below, and clears any previous preview -- picking a different
+// language invalidates whatever was last previewed.
 let tweakBaseLexicon = null;
+let tweakBasePhonemeInventory = null;
 let tweakLastPreviewBody = null;
 function resetTweakPreview() {
   tweakLastPreviewBody = null;
@@ -987,11 +1005,13 @@ async function loadTweakLanguage(slug) {
   $("tweak-edit-words-btn").hidden = true;
   resetTweakPreview();
   tweakBaseLexicon = null;
+  tweakBasePhonemeInventory = null;
   if (!slug) return;
   try {
     const summary = await api(`/api/languages/${encodeURIComponent(slug)}`);
     $("tweak-name").value = `${slug}-tweaked`;
     tweakBaseLexicon = summary.lexicon;
+    tweakBasePhonemeInventory = summary.phoneme_inventory;
     buildTweakTraitRows(summary.traits);
     // Pre-render this same language into the Inspect tab's own (already
     // fully editable, via the existing lexicon-row edit machinery)
@@ -1042,27 +1062,55 @@ function diffWordPair(oldWord, newWord) {
   return { oldHtml: mark(oldWord), newHtml: mark(newWord) };
 }
 
-function renderTweakDiff(baseLexicon, newLexicon) {
+function renderSoundInventoryDiff(basePhonemes, newPhonemes) {
+  // Keyed by ipa alone -- a symbol either exists in the inventory or it
+  // doesn't; a changed example/description for the *same* symbol isn't
+  // a sound change, only a changed curated citation, so it's ignored
+  // here on purpose.
+  const baseByIpa = new Map((basePhonemes || []).map(p => [p.ipa, p]));
+  const newByIpa = new Map((newPhonemes || []).map(p => [p.ipa, p]));
+  const added = [...newByIpa.values()].filter(p => !baseByIpa.has(p.ipa));
+  const removed = [...baseByIpa.values()].filter(p => !newByIpa.has(p.ipa));
+  if (!added.length && !removed.length) {
+    return `<p class="ipa">Sound inventory unchanged: the same ${newByIpa.size} sounds as before.</p>`;
+  }
+  // Deliberately a different class from the Inspect tab's own
+  // `.sound-badge` (which a document-level click handler wires up to
+  // open a sound-info popover keyed by a `data-sound-index` these
+  // static preview chips don't have) -- reusing that class here would
+  // make clicking one silently look up the wrong language's inventory.
+  const badge = (p, cls) => `<span class="tweak-sound-chip ${cls}" title="${escapeAttr(p.label)}">${escapeAttr(p.ipa)}</span>`;
+  return `
+    <p class="ipa">
+      ${removed.length ? `<strong>${removed.length} sound${removed.length === 1 ? "" : "s"} lost:</strong> ${removed.map(p => badge(p, "sound-removed")).join(" ")}` : ""}
+      ${removed.length && added.length ? "<br>" : ""}
+      ${added.length ? `<strong>${added.length} sound${added.length === 1 ? "" : "s"} gained:</strong> ${added.map(p => badge(p, "sound-added")).join(" ")}` : ""}
+    </p>`;
+}
+
+function renderTweakDiff(baseLexicon, newLexicon, basePhonemes, newPhonemes) {
   const baseByGloss = new Map(baseLexicon.map(e => [e.gloss, e]));
   const rows = newLexicon.map(entry => {
     const before = baseByGloss.get(entry.gloss);
     const changed = !before || before.romanization !== entry.romanization || before.ipa !== entry.ipa;
     const arrow = changed ? "&rarr;" : "=";
-    const { oldHtml, newHtml } = before
-      ? diffWordPair(before.romanization, entry.romanization)
-      : { oldHtml: "(new word)", newHtml: escapeAttr(entry.romanization) };
+    const romDiff = before ? diffWordPair(before.romanization, entry.romanization) : null;
+    const ipaDiff = before ? diffWordPair(before.ipa, entry.ipa) : null;
+    const beforeCell = before ? `${romDiff.oldHtml}<br><span class="ipa">/${ipaDiff.oldHtml}/</span>` : "(new word)";
+    const afterCell = `${romDiff ? romDiff.newHtml : escapeAttr(entry.romanization)}<br><span class="ipa">/${ipaDiff ? ipaDiff.newHtml : escapeAttr(entry.ipa)}/</span>`;
     return `<tr${changed ? "" : ` style="opacity:0.6;"`}>
       <td>${escapeAttr(entry.gloss)}</td>
       <td>${escapeAttr(entry.pos)}</td>
-      <td class="ipa">${oldHtml}</td>
+      <td class="ipa">${beforeCell}</td>
       <td class="ipa">${arrow}</td>
-      <td class="ipa">${newHtml} /${escapeAttr(entry.ipa)}/</td>
+      <td class="ipa">${afterCell}</td>
     </tr>`;
   }).join("");
   return `
     <div class="card">
       <h2 style="margin-top:0">Preview: ${newLexicon.length} words</h2>
-      <p class="ipa">Nothing has been saved yet -- changed letters are <strong>bolded</strong> -- review the words below, then "Save Tweaked Language" to commit, or change the traits/words mode above and preview again.</p>
+      <p class="ipa">Nothing has been saved yet -- changed letters are <strong>bolded</strong> in both the spelling and the /ipa/ -- review below, then "Save Tweaked Language" to commit, or change the traits/words mode above and preview again.</p>
+      ${renderSoundInventoryDiff(basePhonemes, newPhonemes)}
       <div class="lexicon-wrap">
         <table>
           <thead><tr><th>gloss</th><th>pos</th><th>before</th><th></th><th>after</th></tr></thead>
@@ -1098,7 +1146,7 @@ async function runTweak(dryRun) {
     });
     if (dryRun) {
       tweakLastPreviewBody = requestBody;
-      $("tweak-preview-result").innerHTML = renderTweakDiff(tweakBaseLexicon || [], body.lexicon);
+      $("tweak-preview-result").innerHTML = renderTweakDiff(tweakBaseLexicon || [], body.lexicon, tweakBasePhonemeInventory || [], body.phoneme_inventory);
       $("tweak-save-btn").hidden = false;
     } else {
       resetTweakPreview();
