@@ -76,6 +76,25 @@ multi-session feature.
   to whichever exotic-symbol style a given language actually rolled. The real OS-keyboard/IME option
   was considered and set aside (install step outside the browser, breaks the zero-install web demo).
   See `architecture/OVERVIEW.md` for the implementation and verification notes.
+- **Show a multi-section trait (e.g. `isolation`) in every section it actually affects, synced, with a
+  per-section-relevant description (L) -- direct user request, not yet designed.** Several of the 15
+  worldbuilding traits have documented effects landing in more than one section (`isolation` nudges both
+  phonology, uvulars, and grammar, ergative alignment/morphology; `terrain_communication_distance` and
+  several others affect evolution specifically, see §11's own item on this) but `TRAIT_SECTION`
+  (`webui/static/index.html`) assigns each trait to exactly *one* section today, by its most prominent
+  effect -- so a trait's other, real effects go unmentioned wherever it doesn't appear. The user's own
+  request has three distinct parts, each with its own real cost: (1) **render the same trait's row in
+  every section it affects** -- straightforward to loop over a trait-to-sections *list* instead of a
+  single section, reusing the existing row-building code as-is; (2) **keep every copy's value in sync**
+  -- needs either a single shared input moved via DOM reparenting (awkward with per-section layout) or
+  duplicate inputs wired to mirror each other's value on every `input` event (simpler, the more likely
+  approach); (3) **a different description per section, each explaining only that section's own
+  relevant effect while still noting what changes elsewhere** -- this is a real content-authoring task,
+  not a code change: `TRAIT_GLOSSARY` would need a *second* dimension (per trait, per section) rather
+  than one summary/positive/negative triple, for every multi-section trait -- a non-trivial rewrite of
+  `webui/glossary.py`'s own data shape, not just its text. Scope (3) realistically before starting, since
+  it's the part most likely to balloon in practice (potentially a dozen-plus trait x section
+  description pairs to write well).
 
 ## 3. Translation
 
@@ -275,6 +294,64 @@ multi-session feature.
   syllable" / "never ends a syllable") rather than raw numbers, consistent
   with how every other sound-guide description in this project is already
   plain-language rather than technical.
+- **Freshly-coined words can violate their own language's syllable structure (M), found investigating
+  the Tweak no-op bug.** Root-cause, confirmed directly: generating "frenchlike" (a saved language,
+  `max_coda=1`, `allowed_coda_clusters=()`) produced "begin" as `chefr` /ʃəfʁ/ -- a word-final two-
+  consonant coda its own structure explicitly forbids, and the word has no real-word provenance
+  (`notes`/`real_word` both empty, so it wasn't a real-word copy bypassing validation on purpose, see
+  ch. 7's own "exact real word copy" precedent). Re-running `phoneme_fit.fit_ipa` against this exact
+  same (byte-identical, unchanged) inventory/structure "fixes" it to `chefar` /ʃəfaʁ/, confirming
+  `fit_ipa`'s own `SyllableStructure.is_valid_syllable` check disagrees with whatever check (if any)
+  the original word-coining path (`word_builder.py`/`lexicon_gen.py`) used when this word was first
+  built -- a real consistency bug between the two, not something this project's own phonotactics model
+  is incapable of expressing (the structure itself is perfectly expressive; something just isn't
+  enforcing it consistently at coining time). Confirmed in `frenchlike` specifically: 28 of 400 words
+  (7%) have this shape. Not root-caused further or fixed here -- needs reading `word_builder.py`'s own
+  cluster-construction/legality logic side-by-side with `SyllableStructure.is_valid_syllable` to find
+  exactly where they diverge, a genuinely separate investigation from the stress-mark fix this same
+  report led to (already fixed, see `generation/phoneme_fit.py`'s own `fit_ipa`).
+- **"Weird"-looking combinations under a French-inspired sound palette are legally formed, not a bug
+  (verified, not fixed) -- a deeper realism gap instead.** Reported: `pleijmãb`/`scrö̃t`/`plë̃m` (from
+  `frenchlike`) look wrong. Checked directly against the language's own real `SyllableStructure`:
+  `scrö̃t`'s `skʁ-` onset is explicitly present in its own `allowed_onset_triples` (`('s','k','ʁ')`) --
+  a real, intentional French-cluster allowance, not an oversight -- and the other two have no coda-
+  cluster violation either (the ch. 6 bug just above is a different, narrower issue). The actual gap:
+  nothing in this project models *co-occurrence* plausibility between independently-legal choices --
+  real French doesn't productively combine a word-final nasalized vowel with a *following* audible
+  coda consonant the way `pleijmãb`'s `-ãb`/`scrö̃t`'s `-ɔ̃t` do (a real French nasal vowel is normally
+  the syllable's own final sound, with no consonant after it) -- but nothing here currently represents
+  "these two independently-legal features shouldn't co-occur" as a constraint; every phonotactic
+  rule in this project is a single-axis structural check (onset/coda cluster legality, allowed onset-
+  nucleus pairs), not a cross-feature plausibility model. A real fix needs a new kind of constraint this
+  project doesn't have at all yet, not a tweak to an existing one -- related to, but a level more
+  specific than, the "Profile widening" item already above in this chapter.
+- **Word length doesn't correlate with a word's own "basicness," only its part of speech (M) --
+  confirmed, not yet fixed.** Reported: "simple or more difficult words seem equally likely to be long
+  or short" for a generated language, unlike real languages (Zipf's law of abbreviation: frequent/basic
+  concepts trend shorter). Traced directly: `lexicon_gen.choose_syllable_count`'s own `favor_short`
+  parameter -- whose docstring explicitly invokes Zipf's law -- is passed `True` at literally every call
+  site in the codebase (grepped; no caller ever passes `False`), and only ever varies the syllable-count
+  table by **part of speech** (function-like words shortest, then a flat 1-4 syllable table identical
+  for every other open-class word) -- there is no per-*gloss* basicness signal feeding it at all, so
+  e.g. "water" and a far rarer/more specific noun draw from the exact same length distribution. This
+  project already has the natural lever for a real fix: `lexicon_gen.CORE_MEANINGS` (referenced in
+  `_GENERIC_AVERAGE_SYLLABLES`'s own docstring as a hand-counted-average source) is a real, identifiable
+  basic-vocabulary subset of the full ~496-meaning list -- a gloss's own CORE_MEANINGS membership could
+  bias `choose_syllable_count` toward shorter counts specifically, layered on top of (not replacing) the
+  existing POS-based and source-language-average tilts. Not implemented here: this is a hot-path
+  function (`generate_language` calls it for every coined word), so a change here needs the same full-
+  suite-before-and-after discipline `AGENTS.md`'s own testing section already calls for on hot-path
+  changes, not attempted inside an already-large batch of unrelated fixes.
+- **No explicit "prefers long or short words" trait exists (S, once the item above lands) -- direct
+  follow-up question, answered.** Confirmed: today's only word-length levers are the POS-based
+  `favor_short` default (point above) and a matched source language's own curated
+  `core_vocabulary_average_syllables` (`_resolve_average_syllables`, only applies with a source language
+  and nonzero `source_language_strictness`) -- no standalone graded trait exists for "this culture's
+  language favors long/elaborate words vs. short/economical ones" independent of any source language.
+  Once the item above adds a real basicness-aware length mechanism, exposing a dedicated trait for it
+  (rather than only a source-language-derived average) would be a small, natural follow-up -- but
+  doing the trait first, before the underlying mechanism actually varies word length in a meaningful
+  way per-gloss, would just add a dial with nothing real to turn.
 
 ## 7. Real lexicons
 
@@ -548,16 +625,79 @@ evidentiality", the freed weight split proportionally across the three richer sy
 ablative, allative) -- instrumental/comitative, about means/accompaniment rather than spatial
 reference, stay at their flat rate; `salient_vocabulary_domains` folds into the same `salient_context`
 free-text channel word-coining prompts already read (via `core.traits.coining_context`), rather than
-getting its own separate plumbing. `ritual_register`, `taboo_register` and
-`terrain_communication_distance` remain genuinely unconsumed -- no register/formal-speech system, no
-euphemism/avoidance-vocabulary system, and no long-range-communication proxy exists anywhere yet to
-bias; each needs a real new mechanism built first, not just a formula (`orality_literacy` only affects
-evolution's orthography reform; `social_hierarchy` is consumed -- it raises the probability a language
-rolls `honorific_you` at all, see `pronoun_gen.py`). Word order is not trait-linked (S). Matched-language
+getting its own separate plumbing. `ritual_register`, `taboo_register` remain genuinely unconsumed --
+no register/formal-speech system, no euphemism/avoidance-vocabulary system exists anywhere yet to bias;
+each needs a real new mechanism built first, not just a formula (`social_hierarchy` is consumed -- it
+raises the probability a language rolls `honorific_you` at all, see `pronoun_gen.py`). **Correction,
+found during a deep-dive review that asked "is terrain_communication_distance really the only trait
+that affects evolution?" (it isn't -- see §11's new item on this):** `terrain_communication_distance`
+and `orality_literacy` are NOT actually unconsumed the way this entry used to claim -- both are read by
+`sound_change._compute_rates` (vowel-reduction resistance, and literacy anchoring pronunciation against
+drift across all six segmental rules, respectively), just only at *evolution* time, never at fresh-
+generation time -- this entry was stale, describing only the fresh-generation path where these two
+traits genuinely have no effect. Word order is not trait-linked (S). Matched-language
 grammar bias is partial: `real_word_order`, `real_alignment`, `real_has_articles`, ... exist for ~16
 of ~50 profiles, and `morphological_type` has no matched-language bias -- it has no
 `real_morphological_type` field on any profile at all, so this needs new per-profile data curated
 across ~50 profiles, not a formula tweak (M, bigger than the three traits just wired).
+- **Imitate a matched source language's own derivational/word-formation pattern as a graded trait
+  (M-L).** Direct user request: a French-inspired language's verbs could plausibly all take a
+  consistent shape (the user's own example: "jouler", "boller", "avrir", echoing real French's own
+  heavily-dominant `-er` class) the way source-language sound/word sourcing already biases phonology
+  and vocabulary. Today's word-class system (`word_class_gen.py`, `WordClass`/`Paradigm`) already
+  assigns each lexeme to one of several inflection classes with its own prevalence weight -- the
+  missing piece is biasing *that* weighting toward whichever class a matched real profile's own real
+  grammar overwhelmingly favors (the same "weighted real-profile nudge, scaled by strictness" shape
+  `morphological_type`/`uses_root_and_pattern` already use in `grammar_gen.py`), which needs each
+  curated profile to record which of its own real inflection classes dominates and by how much -- new
+  curated data, not just a formula change.
+- **A trait for "appetite for exceptions," covering grammar, orthography, and/or script alike (M-L).**
+  Direct user request, with real-language grounding already named by the user: French's verb system is
+  overwhelmingly `-er` but keeps a real minority of `-ir`/`-re` verbs; Dutch's past participle is mostly
+  `ge-...-t/d` but keeps irregulars like "gevlogen." This project already has *some* irregularity
+  machinery (`_draw_irregulars` in `paradigm_gen.py`, `IRREGULAR_PASTS` in `voice_np_gen.py`) but no
+  single graded dial controlling *how much* a language tolerates irregularity across the board, and
+  critically -- per the user's own framing -- a real exception isn't random noise, it still follows
+  "some sort of smaller rule" (a genuine minority sub-class, not an arbitrary one-off per word). Scoping
+  this well means deciding whether "smaller rule" is modeled as literally more `Paradigm`-style minority
+  classes (consistent with how paradigms already work) activated more often at a high trait value, which
+  seems like the more natural fit than inventing a new per-word-exception mechanism; extending this same
+  idea to orthography/script exceptions is a further, separate step once the grammar side exists.
+- **Occasionally share a root between semantically related words (M) -- "to die"/"death," the user's
+  own example.** Directly grounded in existing, intentionally-left-open infrastructure:
+  `generation/root_pattern.py`'s own module docstring already says this exact thing is out of scope
+  *for now*, not impossible -- "It does not attempt derivational relatedness between words... that needs
+  semantic judgment between an English gloss and the existing lexicon, LLM territory, not attempted
+  here, [but] `LexicalEntry.root` is recorded on every templatic word regardless, so that future work
+  has the data already in place." This is exactly that future work: given two glosses the classifier (or
+  a curated semantic-relatedness list, cheaper and more deterministic than an LLM call per word pair)
+  judges related, reuse the earlier word's own `root` through a *different* template/affix rather than
+  coining an unrelated new root -- a real, scoped feature, not a research problem, but one that needs a
+  "which glosses are related" signal this project doesn't have yet (an LLM-classified list, most likely,
+  given the docstring's own "LLM territory" framing).
+- **A trait for compound-word likelihood (M) -- Monday/understand (English) vs. Mandarin's own heavy
+  compounding, the user's own examples.** `generation/derivation_gen.py`'s own compounding mechanism
+  already exists (see the pass-list at the top of this chapter: "derivation/compounding/reduplication/
+  root-and-pattern morphology" is marked done) -- what's missing is a graded dial controlling *how
+  often* compounding gets picked over a plain coined root or an affixed derivation, the same "weighted,
+  trait-biased choice among existing options" shape several already-wired traits in this chapter use,
+  not a new word-formation mechanism.
+- **Show a word's own grammatical forms/paradigm in Inspect (M) -- direct user question, "are
+  grammatical forms/cases already wired?" answered: yes internally, no visibly.** Confirmed by reading
+  the code, not guessing: `generation/paradigm_gen.py`'s `roll_paradigms`/`Paradigm`/`InflectionAffix`
+  machinery, and `inflection_gen.apply_affix`, already compute a specific word's own inflected form for
+  any (case/tense/etc.) cell on demand -- this is exactly what the translator already calls internally
+  for any sentence using a case-marked noun or tense-marked verb. Grepped `webui/app.py`/`static/
+  index.html`/`cli/main.py` for "paradigm"/"declension"/"conjugation": zero matches -- none of this is
+  exposed anywhere as a standalone, browsable table; the only way to ever see an inflected form today is
+  indirectly, buried inside a translated sentence. A real addition needs: (a) a new function enumerating
+  which cells are worth showing for a given POS (a verb's full tense x aspect x mood x voice x agreement
+  cross-product can combinatorially explode -- a curated, representative subset like infinitive/present/
+  past indicative, not literally every combination, is the realistic scope); (b) correctly resolving
+  that lexeme's own `WordClass`-based `Paradigm` overrides/syncretisms/stem-change before calling
+  `apply_affix`, not just the language's own base affixes; (c) a new endpoint and an Inspect UI section
+  (e.g. a small table under each lexicon row, or a dedicated "declension/conjugation" popover). Not a
+  quick fix -- the combinatorial-scope decision in (a) alone needs real judgment before implementation.
 
 ## 11. Language evolution
 
@@ -577,6 +717,105 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   `community_scale`/`social_hierarchy`/`spatial_reference`/
   `evidentiality_culture`/`ritual_register`/`taboo_register` for Stage 3
   (no individually crisp, sound-change-rate-specific motivation found).
+- **Which traits actually feed evolution -- corrected/completed list, found
+  answering a direct deep-dive question ("is terrain_communication_distance
+  really the only trait that affects evolution?").** It isn't, and the
+  question's own premise undersold how many already do, by only checking
+  `sound_change._compute_rates` for one of them. The full, verified-by-
+  reading-the-code picture: `contact_intensity` (lenition/cluster-
+  simplification strength, the same direction it already nudges fresh-
+  generation's own morphology-type roll); `orality_literacy` (a flat
+  literacy-anchors-against-drift bias across all six segmental rules);
+  `tonal_friendliness`/`terrain_communication_distance` (both resist vowel
+  reduction, for two independent real reasons -- tone and loud/long-
+  distance speech both need distinct vowel quality -- the same target
+  rule); `altitude`/`aesthetic_harshness` (ejective-drift strength, mirroring
+  fresh generation's own ejective-inclusion bias). `terrain_communication_
+  distance` itself genuinely has *zero* fresh-generation effect of its own
+  (unlike the other five, which are dual-purpose, affecting both fresh
+  generation and evolution) -- it was excluded from `core.traits.
+  PHONOLOGY_ONLY_TRAIT_FIELDS` specifically because it's a no-op in the
+  Tweak feature's own fresh-regeneration path (see that constant's own
+  docstring). There is therefore nothing to "split" about it the way the
+  original question's own framing suggested (one trait doing double duty
+  that should become two) -- it's already evolution-only; the actual gap is
+  that today's Generate/Inspect UI shows it in the "Phonology" section
+  alongside three traits that *do* have an immediate generation-time effect,
+  which is genuinely misleading about when it does anything. The right fix
+  is UI classification, not a new trait: once Evolution becomes its own
+  tab/step (see the restructuring item just below), this trait -- and only
+  this one -- should move there instead of staying under Phonology.
+- **Separate Generation from Evolution more clearly across the whole app (XL, needs its own design
+  pass before implementation) -- direct user request, raised as "help me think this out," not yet
+  designed.** Today `generate --evolve-from`/the web UI's own single `--years`/`evolve_years` field
+  bakes evolution into the *same* step as fresh generation (`generate_evolved_language` = generate,
+  then immediately evolve) -- there is no separate moment to inspect, tweak, or branch from the freshly
+  generated "base" before deciding how it should age. The user's own sketch, lightly organized:
+  - **(a) A separate Evolve tab/step,** letting the user evolve *any* saved language (including one
+    generated at 100% real-word/sound strictness from a single source profile -- today's only way to
+    get a "real" starting point, since nothing in this project represents an actual historical language
+    as a full `Language` object the way a generated one is; `evolve_language` itself already requires a
+    full `Language`, not a bare reference profile, so "evolve a real language" is already possible
+    today, just as a two-step "generate at strictness 1.0, then evolve" rather than one convenient
+    action -- worth keeping, since the two-step shape is also how multi-source blending below would
+    naturally work too). Conditions the user wants surfaced: current `terrain_communication_distance`
+    (already modeled, see the item just above), influencing language(s) and their mix (`source_
+    languages`/weights, already modeled for fresh generation -- `evolve_language` already merges a
+    lineage's own curated rules in, but doesn't yet let a *new* set of contact languages bias an
+    evolution run the way fresh generation's own `source_languages` can), whether re-evolving keeps old
+    words vs. only their sounds (this project's existing "regenerate vs. adapt" distinction, already
+    built for Tweak's own phonology-only case -- see ch. 12 -- generalizes directly here), and a more
+    free-text, prompt-like channel for *how* languages influence each other during a contact period
+    (the user's own example: "might expect more words in a particular area such as seafaring,"
+    inferred from a prompt) -- this last piece is new and would need its own extraction work in
+    `prompt_classifier.py`, not a reuse of an existing mechanism.
+  - **(b) Generate stays focused on a "base language,"** with no evolution step of its own -- `--years`/
+    `evolve_years` would move entirely to the new Evolve step; `source_languages` stays in Generate for
+    the sound/word "feel" it already provides (unchanged).
+  - **(c) A "Design" tab for a more complex, multi-source derived language** (evolution + several
+    source languages + a description of what happened during the evolution period, possibly one prompt
+    with sub-prompts for each base language it derives from) is the most novel, least-specified piece
+    of this proposal -- it isn't just a UI reorganization of (a)/(b), it implies a genuinely new
+    mechanism (blending/contact between *several* already-evolved or already-generated languages, not
+    just one base plus one evolution period) that doesn't exist in any form today. Recommend treating
+    this as a separate, later design pass once (a)/(b) are built and proven, not attempted in the same
+    effort.
+  - **(d) Inspect** would need to show a language's own generation-vs-evolution history more legibly
+    (today's `history: list[str]` field is a flat log of free-text strings, e.g. `"evolved 400 years"`
+    -- adequate for a human reading it, not structured enough to drive a UI distinguishing "base" from
+    "evolved" state cleanly).
+  - **(e) CLI:** per `AGENTS.md`'s own CLI discipline ("new capabilities do not automatically justify a
+    new top-level command... consider whether the capability belongs under an existing command first"),
+    recommend `generate --evolve-from` stays the CLI entry point rather than a new top-level `evolve`
+    command, since the web UI's own tab-separation constraint (clarity for a casual user clicking
+    through a form) doesn't apply the same way to a flag on an existing command a user already
+    explicitly invokes by name.
+  - **(f) The invented script evolving too, "grounded in reality"** -- deliberately bundled by the user
+    with this same restructuring, but really depends on ch. 12 item 11 (tweaking a script, which is
+    itself deferred as its own "deep dive into script" investigation) landing first: evolving a script
+    is a repeated/gradual version of the same "change stroke style while staying recognizably the same
+    glyph" problem, not a separate mechanism. Sequence this after that investigation, not in parallel
+    with it.
+
+  No part of (a)-(f) has been scoped into concrete functions/endpoints yet; this is a direction, not a
+  plan. The recommended first slice, if picked up, is (a)+(b) together (a genuine, already-mostly-
+  supported-by-existing-mechanisms separation), with (c) explicitly deferred further and (d)/(e)/(f)
+  following once (a)/(b) exist to react to.
+- **Grade every curated real language on all 15 worldbuilding traits, including the evolution-only
+  ones, as an extra blending weight (L).** Direct user request: when generating a language "like"
+  several real ones, the conlang could take on some of those reference languages' own typical
+  worldbuilding-trait leanings (e.g. an isolated-community-typical language nudging toward the same
+  grammar typology an isolated real language tends to have), weighted independently of -- not instead
+  of -- the existing sound/word-strictness mechanism, which only ever governs the phonological/lexical
+  palette. This is a real, coherent idea but a large one: it needs a documented, defensible trait
+  reading for every one of ~53 curated `ReferenceLanguageProfile`s across all 15 dials (most of which
+  have no agreed-on objective measure at all -- `social_hierarchy`/`ritual_register`/`taboo_register`
+  in particular are cultural judgments, not phonological facts the way `core_vocabulary_average_
+  syllables` is), a new blending formula distinct from today's sound/word strictness (itself already a
+  two-strictness-dial system, see ch. 4), and a decision on how this new "cultural/typological" weight
+  interacts with the classifier's own prompt-inferred trait reading when both apply to the same trait.
+  Not attempted here; flagged as a real but substantial future direction, likely the single largest
+  curation effort in this list.
 - **Tweaking a saved language's own traits and regenerating -- plan written up as its own chapter.**
   See `## 12. Tweaking an existing language` below.
 - **Orthography reform is partial -- done (pass 42 + two follow-ups).**
@@ -740,3 +979,14 @@ order -- each is independently schedulable, and later items depend on earlier on
   `speech/font_builder.py`'s actual internals (how a glyph's strokes are represented, whether angle and
   topology are already cleanly separable parameters or are entangled in the generative process) before
   any implementation plan can be written -- not attempted here, per the user's own explicit framing.
+- **12. Tweak preview should show the sound *correspondence*, not just added/removed sets (M).**
+  Direct user request from a deep-dive review: "if there is a fixed rule for that" -- prefer showing
+  which old sound now maps to which new one, not just two separate chip lists. There usually *is* a
+  fixed, derivable correspondence available: in "adapt" mode, each old symbol's nearest-match target is
+  already computable via `phoneme_fit._nearest(old_symbol, new_inventory)` -- the exact function
+  `fit_ipa` itself calls per-symbol -- so a new small helper could compute, for every symbol in the
+  *base* inventory, what it would be re-fit to in the *new* one, and the preview's own sound-diff
+  section (added in the 19-point round, `renderSoundInventoryDiff`) could show `/f/ -> /f/` (unchanged),
+  `/x/ -> /h/` (shifted), style arrows instead of (or alongside) the current separate added/removed
+  chip lists. Not attempted here -- needs a new backend field (a per-symbol correspondence list) and a
+  frontend rendering pass, a moderate but well-scoped addition building directly on existing machinery.
