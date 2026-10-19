@@ -95,10 +95,25 @@ def _epenthetic_vowel(inventory: PhonemeInventory) -> str:
 
 def fit_ipa(guessed_ipa: str, inventory: PhonemeInventory, structure: SyllableStructure) -> str:
     """Re-fits a pronunciation to ``inventory`` and ``structure`` (see the
-    module docstring)."""
-    symbols = ipa_tokenizer.symbols_only(guessed_ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, ""), ALL_SYMBOLS)
+    module docstring). When the word's own sounds already all fit
+    ``inventory`` exactly and its syllable shape already satisfies
+    ``structure`` -- the common case when re-fitting against an
+    unchanged or byte-identical inventory/structure (e.g. a Tweak with
+    no actual phonology-affecting override) -- this returns
+    ``guessed_ipa`` completely unchanged, stress/word-accent marks
+    included, rather than the stripped-and-rebuilt string every other
+    case produces. Without this, re-fitting a word that needed no
+    repair at all still silently dropped its own stress mark on every
+    call, which is wrong on its own terms (nothing here should ever
+    need touching) and specifically broke Tweak's own "no actual
+    change" case for every multi-syllable word."""
+    stripped = guessed_ipa.replace(STRESS_MARK, "").replace(WORD_ACCENT_MARK, "")
+    symbols = ipa_tokenizer.symbols_only(stripped, ALL_SYMBOLS)
     tokens: list[tuple[str, bool]] = [_nearest(s, inventory) for s in symbols]
-    return _repair(tokens, inventory, structure)
+    repaired = _repair(tokens, inventory, structure)
+    if repaired == stripped:
+        return guessed_ipa
+    return repaired
 
 
 def _resync(
