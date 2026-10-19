@@ -233,8 +233,6 @@ def generate(
     name: str = typer.Option(..., "--name", help="Name to save the language under."),
     seed: int = typer.Option(0, "--seed", help="Random seed for reproducibility."),
     llm: str = typer.Option("fake", "--llm", help="LLM backend: fake or anthropic."),
-    isolated: bool = typer.Option(False, "--isolated", help="Force isolated-community typology (guaranteed, not just likely)."),
-    high_altitude: bool = typer.Option(False, "--high-altitude", help="Force ejective consonants (guaranteed, not just likely)."),
     tonal: bool = typer.Option(False, "--tonal", help="Force phonemic tone (guaranteed, not just likely)."),
     own_script: str = typer.Option(
         "auto",
@@ -242,7 +240,6 @@ def generate(
         help="Whether to generate an invented writing system/font for this language: 'auto' (infer from "
         "the prompt, default: no unless it explicitly asks), 'yes', or 'no'.",
     ),
-    fantasy: bool = typer.Option(False, "--fantasy", help="Record as a fantasy-setting language (metadata only)."),
     source_language: list[str] = typer.Option(
         [], "--source-language",
         help="Bias generation toward a known real language's palette (repeatable); merged with any the prompt implies. "
@@ -456,7 +453,7 @@ def generate(
         consonant_gemination_marked=consonant_gemination_marked,
     )
     client = _client(llm)
-    traits = classify_prompt(prompt, fantasy, client, model=model)
+    traits = classify_prompt(prompt, client, model=model)
     if source_language:
         merged_names, merged_weights = _merge_source_languages(
             traits.source_languages, traits.source_language_weights, source_language
@@ -519,13 +516,10 @@ def generate(
         prompt=prompt,
         seed=seed,
         traits=traits,
-        force_isolated=isolated,
-        force_high_altitude=high_altitude,
         force_tonal=tonal,
         force_own_script=force_own_script,
         forced_orthography=forced_orthography,
         forced_script_traits=forced_script_traits,
-        fantasy=fantasy,
         seed_examples=seed_examples,
         allow_all_caps=allow_all_caps,
         word_selection=word_selection,
@@ -565,7 +559,7 @@ def generate(
         typer.echo(f"Requested orthography style: {traits.requested_orthography_style}")
     if traits.requested_foreign_names:
         typer.echo(f"Requested foreign-name handling: {traits.requested_foreign_names}")
-    forced = [f for f, on in (("isolated", isolated), ("high_altitude", high_altitude), ("tonal", tonal)) if on]
+    forced = [f for f, on in (("tonal", tonal),) if on]
     if forced:
         typer.echo(f"Forced (guaranteed): {', '.join(forced)}")
     if forced_orthography != OrthographyForce():

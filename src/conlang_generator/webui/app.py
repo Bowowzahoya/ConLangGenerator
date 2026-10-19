@@ -331,13 +331,10 @@ class GenerateRequest(BaseModel):
     name: str
     seed: int = 0
     llm: str = "fake"
-    isolated: bool = False
-    high_altitude: bool = False
     tonal: bool = False
     own_script: str = "auto"
     """"auto" (infer from the prompt), "yes", or "no" -- see
     ``generation.script_gen.should_generate_script``."""
-    fantasy: bool = False
     source_languages: list[SourceLanguageEntry] = []
     strictness: float | None = None
     examples: list[SeedExampleEntry] = []
@@ -690,6 +687,23 @@ def get_options() -> dict:
         "max_vocabulary_size": len(ALL_MEANINGS),
         "graded_trait_fields": list(GRADED_TRAIT_FIELDS),
         "phonology_only_trait_fields": list(PHONOLOGY_ONLY_TRAIT_FIELDS),
+        # Direct user request from a deep-dive review: typing a source
+        # language the curated reference-language matcher (generation.
+        # reference_languages.match_profiles) doesn't recognize -- by name
+        # or alias, case-insensitively -- has it silently ignored
+        # everywhere a source language is consulted (phoneme-inventory
+        # bias, romanization convention, real-word sourcing), with no
+        # feedback that it had zero effect. source_language_names (the
+        # curated display names, for a <datalist>) and source_language_
+        # matchable_names (every name *and* alias, lowercased, for
+        # client-side "does this match?" checking) let the web UI surface
+        # that distinction without duplicating the matcher's own logic --
+        # any free-text name still works exactly as before; this is
+        # purely an added feedback layer.
+        "source_language_names": sorted(p.name for p in REFERENCE_LANGUAGES),
+        "source_language_matchable_names": sorted(
+            {p.name.lower() for p in REFERENCE_LANGUAGES} | {alias for p in REFERENCE_LANGUAGES for alias in p.aliases}
+        ),
         "script_trait_fields": list(ScriptTraits.model_fields),
         "glossary": glossary.as_dict(),
         "models": [
@@ -774,7 +788,7 @@ def generate(request: GenerateRequest) -> dict:
     client = _client(request.llm)
     before = _cost_snapshot()
 
-    traits = classify_prompt(request.prompt, request.fantasy, client, model=request.model)
+    traits = classify_prompt(request.prompt, client, model=request.model)
     if request.source_languages:
         names = tuple(e.name for e in request.source_languages)
         weights = tuple(e.weight if e.weight is not None else 1.0 for e in request.source_languages)
@@ -803,13 +817,10 @@ def generate(request: GenerateRequest) -> dict:
         prompt=request.prompt,
         seed=request.seed,
         traits=traits,
-        force_isolated=request.isolated,
-        force_high_altitude=request.high_altitude,
         force_tonal=request.tonal,
         force_own_script=force_own_script,
         forced_orthography=forced_orthography,
         forced_script_traits=ScriptTraitsForce(**request.script_trait_overrides),
-        fantasy=request.fantasy,
         seed_examples=seed_examples,
         allow_all_caps=request.allow_all_caps,
         word_selection=request.word_selection,

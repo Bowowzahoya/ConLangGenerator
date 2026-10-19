@@ -288,11 +288,10 @@ the same restraint every other dimension already requires.)
 Respond with ONLY a single JSON object, no prose, no markdown fences."""
 
 
-def classify_prompt(prompt: str, fantasy: bool, llm_client: LLMClient, model: str = DEFAULT_MODEL) -> TraitProfile:
-    context_note = " (Note: this is for a fantasy setting.)" if fantasy else ""
+def classify_prompt(prompt: str, llm_client: LLMClient, model: str = DEFAULT_MODEL) -> TraitProfile:
     request = LLMRequest(
         system=_SYSTEM_PROMPT,
-        prompt=f"{prompt}{context_note}",
+        prompt=prompt,
         model=model,
         max_tokens=600,
         purpose="prompt.classify_traits",

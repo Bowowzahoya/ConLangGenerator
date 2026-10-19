@@ -28,9 +28,13 @@ so they generalize automatically as the phoneme pool grows -- no longer
 tied to a specific fixed symbol set. Coda typology (none / sonorant-only /
 unrestricted) and vowel harmony are picked per generated language.
 
-``spec.force_high_altitude``/``force_isolated``/``force_tonal`` bypass the
-matching probability entirely (the deterministic testing/override channel
--- see ``core.spec.GenerationSpec``).
+``spec.force_tonal`` bypasses the matching probability entirely (the
+deterministic testing/override channel -- see ``core.spec.
+GenerationSpec``). A trait override of ``altitude=1.0``/``isolation=1.0``
+reaches the same guaranteed outcome directly (``biased_probability``
+hits exactly ``1.0`` at ``strength=1.0``), which is why this module no
+longer has its own ``force_high_altitude``/``force_isolated`` fields to
+check -- they were pure duplication of that same math.
 
 Not literally exhaustive IPA (diacritics, secondary articulations, and most
 non-pulmonic consonants beyond a few illustrative clicks/implosives stay
@@ -1173,18 +1177,14 @@ def _select_consonants(
     if rng.random() < glottal_rate:
         consonants.append(_GLOTTAL_STOP)
 
-    ejective_probability = (
-        1.0 if spec.force_high_altitude else biased_probability(_EJECTIVE_GROUP_BASE_RATE, traits.altitude)
-    )
+    ejective_probability = biased_probability(_EJECTIVE_GROUP_BASE_RATE, traits.altitude)
     ejective_probability = _group_reference_bias(
         ejective_probability, tuple(e.ipa for e in _EJECTIVES), weighted_profiles, strictness
     )
     if rng.random() < ejective_probability:
         consonants.extend(_strict_group_members(rng, _EJECTIVES, reference_weights, strictness))
 
-    uvular_probability = (
-        1.0 if spec.force_isolated else biased_probability(_UVULAR_GROUP_BASE_RATE, traits.isolation)
-    )
+    uvular_probability = biased_probability(_UVULAR_GROUP_BASE_RATE, traits.isolation)
     uvular_probability = _group_reference_bias(
         uvular_probability, tuple(u.ipa for u in _UVULAR_GROUP), weighted_profiles, strictness
     )

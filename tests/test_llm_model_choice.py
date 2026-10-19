@@ -63,7 +63,7 @@ def test_an_older_saved_language_with_no_model_fields_loads_with_the_default():
 
 def test_classify_prompt_sends_the_chosen_model():
     spy = _Spy()
-    classify_prompt("a language", False, spy, model=_CHOSEN_MODEL)
+    classify_prompt("a language", spy, model=_CHOSEN_MODEL)
     assert spy.seen[0].model == _CHOSEN_MODEL
 
 

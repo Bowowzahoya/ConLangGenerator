@@ -87,7 +87,7 @@ def test_as_dict_has_the_five_top_level_sections():
 
 
 def test_every_advanced_option_checkbox_has_a_summary():
-    for key in ("fantasy", "force_isolated", "force_high_altitude", "force_tonal", "allow_all_caps"):
+    for key in ("force_tonal", "allow_all_caps"):
         assert glossary.ADVANCED_OPTIONS_GLOSSARY[key]["summary"]
         assert "values" not in glossary.ADVANCED_OPTIONS_GLOSSARY[key]
 

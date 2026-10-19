@@ -12,9 +12,10 @@ alignment), nudged -- probabilistically, see ``trait_bias.biased_probability``
   isolating/analytic morphology (a standard creolization/high-contact
   tendency).
 
-``spec.force_isolated`` bypasses the probabilities entirely (maximal
-polysynthetic/agglutinative pull, guaranteed ergative alignment) -- the
-deterministic testing/override channel.
+A trait override of ``isolation=1.0`` reaches that same maximal pull/
+guaranteed-ergative-alignment outcome directly (``biased_probability``
+reaches exactly ``1.0`` at ``strength=1.0``) -- no separate ``force_*``
+flag is needed here (one used to exist; removed as pure duplication).
 
 ``uses_root_and_pattern`` is a separate axis (see
 ``core.grammar.GrammarProfile``'s own docstring for why it isn't a 5th
@@ -164,7 +165,7 @@ def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile
     weighted_root_and_pattern = min(1.0, sum(weight for profile, weight in weighted_profiles if profile.root_and_pattern))
     root_and_pattern_reference = weighted_root_and_pattern > 0.0
 
-    isolation_strength = 1.0 if spec.force_isolated else traits.isolation
+    isolation_strength = traits.isolation
     morph_weights = {
         MorphologicalType.FUSIONAL: 30.0,
         MorphologicalType.AGGLUTINATIVE: 30.0 + isolation_strength * 10 + traits.community_scale * 10,
@@ -215,9 +216,7 @@ def generate_grammar(rng: random.Random, spec: GenerationSpec) -> GrammarProfile
         )
     uses_root_and_pattern = rng.random() < uses_root_and_pattern_probability
 
-    ergative_probability = (
-        1.0 if spec.force_isolated else biased_probability(0.12, traits.isolation)
-    )
+    ergative_probability = biased_probability(0.12, traits.isolation)
     # Alignment has a real curated *opposite* to lean on (unlike most
     # boolean axes, where absence never distinguishes "curated false" from
     # "uncurated") -- weighted_ergative/weighted_nominative are each

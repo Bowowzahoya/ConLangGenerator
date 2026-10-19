@@ -364,15 +364,6 @@ SIMPLE_GLOSSARY: dict[str, str] = {
 # there's no one "current reading" to single out the way a grammar
 # badge already has. ---
 ADVANCED_OPTIONS_GLOSSARY: dict[str, dict] = {
-    "fantasy": {
-        "summary": "Its entire real effect is appending \" (Note: this is for a fantasy setting.)\" to the one prompt sent to the trait-classifying LLM call -- nothing else in generation reads it (not word coinage, not any phoneme/syllable-shape/grammar roll). Has no effect at all under the Fake LLM backend (which never calls a real LLM to read that note), and only a soft, unverifiable nudge on the classifier's own trait reading with a real LLM backend (llm: anthropic). Web UI only -- there's no CLI flag for it.",
-    },
-    "force_isolated": {
-        "summary": "Guarantees the language is geographically/socially isolated outright, regardless of what the prompt says or how the classifier reads it -- the same isolation trait a prompt's own wording can otherwise only ever bias probabilistically.",
-    },
-    "force_high_altitude": {
-        "summary": "Guarantees the language's homeland is high-altitude terrain outright (nudging ejective consonants), regardless of what the prompt says or how the classifier reads it.",
-    },
     "force_tonal": {
         "summary": "Guarantees the language is tonal outright, regardless of what the prompt says or how likely the classifier judges it to be.",
     },

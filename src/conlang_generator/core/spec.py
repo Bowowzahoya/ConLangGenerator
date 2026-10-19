@@ -9,11 +9,16 @@ confused:
   and ``generation/trait_bias.py``) -- a confident reading behaves close to
   a guarantee, but the classifier is calibrated to rarely be that confident.
   It's inference, not a command.
-- ``force_isolated``/``force_high_altitude``/``force_tonal``/
-  ``forced_orthography`` come only from explicit CLI flags (default
-  ``False``/all-``None``) and guarantee their outcome outright regardless
-  of the prompt or the classifier's assessment. This is the unconditional
-  channel testing should use.
+- ``force_tonal``/``forced_orthography`` come only from explicit CLI flags
+  (default ``False``/all-``None``) and guarantee their outcome outright
+  regardless of the prompt or the classifier's assessment. This is the
+  unconditional channel testing should use. (``force_isolated``/
+  ``force_high_altitude`` used to live here too, but were removed: every
+  consumer read them as `1.0 if force else biased_probability(base_rate,
+  trait)`, and `biased_probability` already reaches exactly `1.0` at
+  `trait=1.0` -- so setting `isolation`/`altitude` to `1.0` via a trait
+  override was already byte-identical to the force flag, making the flag
+  pure duplication, not a distinct capability.)
 
 ``seed_examples`` is a third, similarly explicit channel: literal words a
 user supplies (not inferred, not probabilistic) that must appear verbatim
@@ -75,8 +80,6 @@ class GenerationSpec(BaseModel, frozen=True):
     prompt: str
     seed: int
     traits: TraitProfile = TraitProfile()
-    force_isolated: bool = False
-    force_high_altitude: bool = False
     force_tonal: bool = False
     force_own_script: bool | None = None
     """Unlike the three ``force_*`` flags above (which only ever *force
@@ -99,9 +102,6 @@ class GenerationSpec(BaseModel, frozen=True):
     ``force_own_script`` above). All-``None`` (the default) means "not
     forced, let ``generation.script_gen.roll_script_traits`` decide" --
     only consulted when a script is actually generated."""
-    fantasy: bool = False
-    """Simple explicit metadata (not a graded trait) -- passed as context to
-    the classifier and to word-coinage prompts."""
     seed_examples: tuple[SeedExample, ...] = ()
     """Literal words the user supplied; always fully resolved (``ipa`` set)
     by the time this reaches ``generate_language`` -- see

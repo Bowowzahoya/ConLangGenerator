@@ -15,15 +15,16 @@ Generate a new language and save it.
 
 ```bash
 conlang generate --prompt "isolated mountain language, tonal" --name test-lang \
-  --seed 42 --isolated --high-altitude --tonal --llm fake
+  --seed 42 --trait isolation=1.0 --trait altitude=1.0 --tonal --llm fake
 ```
 
 ```
 Generated 'test-lang' (test-lang) -- 400 core words.
-Word order: SVO, morphology: isolating, alignment: ergative_absolutive, tonal: True
-Orthography: digraph + macron + postposed_letter
-Traits from prompt: isolation=-0.16, altitude=-0.56, community_scale=-0.43, contact_intensity=+0.23, aesthetic_harshness=-0.78, tonal_friendliness=-0.92, phonotactic_restrictiveness=-0.05, tone_sandhi=-0.85, social_hierarchy=-0.90, orality_literacy=-0.74, evidentiality_culture=-0.42, spatial_reference=-0.61, ritual_register=+0.77, taboo_register=+0.45, terrain_communication_distance=+0.21
-Forced (guaranteed): isolated, high_altitude, tonal
+Word order: SOV, morphology: fusional, alignment: ergative_absolutive, tonal: True
+Orthography: diacritic
+Models: classifier=claude-haiku-4-5-20251001, word selection=claude-haiku-4-5-20251001
+Traits from prompt: isolation=+1.00, altitude=+1.00, community_scale=-0.43, contact_intensity=+0.23, aesthetic_harshness=-0.78, tonal_friendliness=-0.92, phonotactic_restrictiveness=-0.05, tone_sandhi=-0.85, evidentiality_culture=-0.42, spatial_reference=-0.61, social_hierarchy=-0.90, orality_literacy=-0.74, ritual_register=+0.77, taboo_register=+0.45, terrain_communication_distance=+0.21
+Forced (guaranteed): tonal
 Saved to conlangs\test-lang
 ```
 
@@ -62,12 +63,15 @@ Saved to conlangs\trait-test
 `source_language_strictness`/`source_word_strictness` -- also graded,
 0.0-1.0 -- aren't among `--trait`'s own accepted names; they already have
 their own dedicated `--strictness`/`--word-strictness` flags above, one
-way to set each rather than two. `--isolated`/`--high-altitude`/`--tonal`
-are a separate, absolute channel -- "Forced (guaranteed)" -- that bypasses
-the probability entirely (e.g. `--high-altitude` always produces ejectives,
-regardless of what the prompt says or the trait reading). `--fantasy` is
-recorded as metadata and passed as context to the classifier and to
-word-coinage prompts. `--seed` controls reproducibility; `--llm` selects
+way to set each rather than two. `--tonal` is a separate, absolute channel
+-- "Forced (guaranteed)" -- that bypasses the probability entirely,
+regardless of what the prompt says or the trait reading. Isolation/
+altitude used to have their own `--isolated`/`--high-altitude` flags for
+this same "guaranteed" effect, but those were removed: `biased_probability`
+already reaches exactly `1.0` at a trait strength of `1.0`, so `--trait
+isolation=1.0`/`--trait altitude=1.0` above already guarantee the same
+outcome outright -- a separate flag was pure duplication of that math, not
+a distinct capability. `--seed` controls reproducibility; `--llm` selects
 `fake` (default) or `anthropic`. `--vocabulary-size` (default 400, max
 496) sets how many basic meanings get pregenerated up front -- anything
 else is coined on demand during translation and reused after that.
@@ -418,8 +422,8 @@ combinations none of them have are freely reachable.
 
 For an unconditional guarantee -- for testing, or when you want a
 specific style and nothing else -- seven flags force it outright, the
-same "guaranteed, not just likely" spirit as `--isolated`/`--high-altitude`/
-`--tonal`:
+same "guaranteed, not just likely" spirit as `--tonal` (or `--trait
+isolation=1.0`/`--trait altitude=1.0`):
 
 - `--orthography-style NAME` forces one of the ten named presets exactly.
 - `--exotic-symbol-style {digraph,diacritic,monoletter}`
@@ -744,7 +748,7 @@ request to pay that cost -- an explicit opt-in, never automatic:
 
 ```bash
 conlang generate --prompt "isolated mountain language, tonal" --name test-lang \
-  --seed 42 --isolated --high-altitude --tonal --llm fake --pregenerate-audio espeak
+  --seed 42 --trait isolation=1.0 --trait altitude=1.0 --tonal --llm fake --pregenerate-audio espeak
 ```
 
 ```
@@ -1775,8 +1779,7 @@ from the prompt (via the same trait classifier as everything else) --
 `"yes"` only if the prompt explicitly asks for an invented writing
 system, `"no"` (the common case) otherwise; `yes`/`no` force the
 decision outright regardless of what the prompt says, the same
-unconditional-override shape `--isolated`/`--high-altitude`/`--tonal`
-already have. Generating a script is cheap (plain seeded procedural
+unconditional-override shape `--tonal` already has. Generating a script is cheap (plain seeded procedural
 generation, like phonology/romanization) -- the `script` command's own
 `--export` is the only part that needs the `font` dependency group.
 

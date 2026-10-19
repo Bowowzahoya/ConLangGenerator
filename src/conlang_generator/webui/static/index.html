@@ -112,6 +112,9 @@
   }
   .tweak-sound-chip.sound-added { background: #1f3d2b; color: #7ee2a0; border-color: #2f5c3f; }
   .tweak-sound-chip.sound-removed { background: #3d1f1f; color: #e28080; border-color: #5c2f2f; text-decoration: line-through; }
+  .sl-match { flex: 0 0 200px !important; white-space: nowrap; }
+  .sl-match-yes { color: #4a9f6e; }
+  .sl-match-no { color: var(--muted); }
   .info-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 16px; height: 16px; border-radius: 50%; border: none; padding: 0;
@@ -259,21 +262,18 @@
           </div>
         </div>
 
-        <label>Source languages</label><button type="button" class="info-btn" data-info-key="source_languages" title="What does this do?">&#9432;</button>
+        <label>Source languages <span class="ipa">(autocomplete suggests the curated list below; any name can be typed, but only a curated match actually biases sounds/words)</span></label><button type="button" class="info-btn" data-info-key="source_languages" title="What does this do?">&#9432;</button>
         <div id="source-lang-rows"></div>
         <button type="button" class="add-row" id="add-source-lang">+ source language</button>
+        <datalist id="source-lang-names"></datalist>
 
         <label for="gen-examples-text">Seed words <span class="ipa">(literal words that must appear verbatim -- one per line: gloss,form[,ipa[,pos[,forms]]]; forms is optional irregular forms, ";"-separated cell:form[:ipa] entries -- plural/past/comparative/superlative/non_past/present/future, or a pronoun case like accusative, e.g. past:zanu; an optional header row starting with "gloss" is skipped)</span></label>
         <textarea id="gen-examples-text" rows="3" placeholder="water,aqua&#10;mountain,yama,jama,noun"></textarea>
       </details>
 
       <details class="advanced-group">
-        <summary>Phonology (incl. Traits)</summary>
-        <div class="checks">
-          <label><input type="checkbox" id="gen-isolated"> force isolated</label><button type="button" class="info-btn" data-info-key="force_isolated" title="What does this do?">&#9432;</button>
-          <label><input type="checkbox" id="gen-high-altitude"> force high altitude</label><button type="button" class="info-btn" data-info-key="force_high_altitude" title="What does this do?">&#9432;</button>
-        </div>
-        <label>Trait overrides <span class="ipa">(directly set a graded worldbuilding trait, -1.0 to +1.0, overriding the prompt's own inferred value; blank = inferred from the prompt)</span></label>
+        <summary>Phonology</summary>
+        <label>Trait overrides <span class="ipa">(directly set a graded worldbuilding trait, -1.0 to +1.0, overriding the prompt's own inferred value; blank = inferred from the prompt. Setting isolation/altitude to exactly 1.0 here guarantees that pole outright, the same as the old "force isolated"/"force high altitude" checkboxes did -- removed as pure duplication.)</span></label>
         <div id="gen-trait-rows-phonology"></div>
       </details>
 
@@ -350,8 +350,6 @@
 
       <details class="advanced-group">
         <summary>Generation Details</summary>
-        <label><input type="checkbox" id="gen-fantasy"> fantasy</label><button type="button" class="info-btn" data-info-key="fantasy" title="What does this do?">&#9432;</button>
-
         <div class="row">
           <div>
             <label for="gen-model">Classifier model</label>
@@ -732,14 +730,39 @@ $("reset-cost-btn").onclick = async () => {
 };
 
 // --- dynamic rows (source languages / seed examples) ---
+// sourceLanguageMatchableNames/sourceLanguageNames populated once
+// /api/options resolves (loadOptions below) -- an empty set simply means
+// every row shows no match indicator yet, not an error.
+let sourceLanguageMatchableNames = new Set();
+let sourceLanguageNames = [];
+
+// A typed name the curated reference-language matcher (generation.
+// reference_languages.match_profiles) won't recognize is silently
+// ignored everywhere a source language is consulted (phoneme bias,
+// romanization convention, real-word sourcing) -- any free-text name
+// still works exactly as before, this just tells the user up front
+// which case they're in, rather than a silent no-op. Matching is
+// case-insensitive, by name or alias, same as the backend's own check.
+function updateSourceLangMatchIndicator(row) {
+  const indicator = row.querySelector(".sl-match");
+  const name = row.querySelector(".sl-name").value.trim().toLowerCase();
+  if (!name) { indicator.textContent = ""; return; }
+  indicator.textContent = sourceLanguageMatchableNames.has(name)
+    ? "curated"
+    : "not curated -- no effect on sounds/words";
+  indicator.className = `sl-match ipa ${sourceLanguageMatchableNames.has(name) ? "sl-match-yes" : "sl-match-no"}`;
+}
+
 function addSourceLangRow() {
   const row = document.createElement("div");
   row.className = "dyn-row";
   row.innerHTML = `
-    <input type="text" placeholder="language name, e.g. French" class="sl-name">
+    <input type="text" placeholder="language name, e.g. French" class="sl-name" list="source-lang-names">
     <input type="number" placeholder="weight (optional)" step="0.1" class="sl-weight">
+    <span class="sl-match ipa"></span>
     <button type="button" class="remove-row">&times;</button>`;
   row.querySelector(".remove-row").onclick = () => row.remove();
+  row.querySelector(".sl-name").oninput = () => updateSourceLangMatchIndicator(row);
   $("source-lang-rows").appendChild(row);
 }
 $("add-source-lang").onclick = addSourceLangRow;
@@ -1206,6 +1229,10 @@ async function loadOptions() {
   phonologyOnlyTraitFields = opts.phonology_only_trait_fields || [];
   glossary = opts.glossary || { traits: {}, script_traits: {}, grammar: {}, simple: {}, advanced_options: {} };
   buildGenerateTraitRows();
+  sourceLanguageNames = opts.source_language_names || [];
+  sourceLanguageMatchableNames = new Set(opts.source_language_matchable_names || []);
+  $("source-lang-names").innerHTML = sourceLanguageNames.map(n => `<option value="${escapeAttr(n)}">`).join("");
+  for (const row of $("source-lang-rows").querySelectorAll(".dyn-row")) updateSourceLangMatchIndicator(row);
 
   const fillModels = (id, task) => {
     const select = $(id);
@@ -1728,7 +1755,7 @@ function renderLanguageSummary(container, summary) {
     ${g.tenses.length ? infoBadge(glossary.simple.tenses || "", `tenses: ${g.tenses.join(", ")}`) : ""}
   </div>${grammarTraitBadges ? `<div class="badges">${grammarTraitBadges}</div>` : ""}`);
 
-  const phonologySection = summarySection("Phonology (incl. Traits)", `
+  const phonologySection = summarySection("Phonology", `
     ${traitBadges ? `<div class="badges">${traitBadges}</div>` : ""}
     ${renderSoundInventorySection(summary)}`);
 
@@ -2070,9 +2097,6 @@ $("generate-btn").onclick = async () => {
     prompt, name,
     seed: parseInt($("gen-seed").value || "0", 10),
     llm: $("gen-llm").value,
-    fantasy: $("gen-fantasy").checked,
-    isolated: $("gen-isolated").checked,
-    high_altitude: $("gen-high-altitude").checked,
     tonal: $("gen-tonal").checked,
     own_script: $("gen-own-script").value,
     allow_all_caps: $("gen-allow-all-caps").checked,

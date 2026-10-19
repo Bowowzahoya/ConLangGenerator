@@ -37,9 +37,9 @@ def test_evolving_changes_real_words_by_sound_change_and_records_history():
 
 
 def test_the_callers_own_settings_survive_evolution():
-    spec = _spec(evolve_years=200, word_selection="algorithmic", foreign_names="adapt", fantasy=True)
+    spec = _spec(evolve_years=200, word_selection="algorithmic", foreign_names="adapt", allow_all_caps=True)
     evolved = generate_evolved_language("T", spec, FakeLLMClient())
-    assert (evolved.spec.foreign_names, evolved.spec.fantasy, evolved.spec.vocabulary_size) == ("adapt", True, 60)
+    assert (evolved.spec.foreign_names, evolved.spec.allow_all_caps, evolved.spec.vocabulary_size) == ("adapt", True, 60)
     assert evolved.spec.traits.source_word_strictness == 1.0
 
 

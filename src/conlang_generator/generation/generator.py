@@ -911,15 +911,12 @@ def generate_evolved_language(name: str, spec: GenerationSpec, llm_client: LLMCl
     kept_spec = evolved.spec.model_copy(
         update={
             "prompt": spec.prompt,
-            "fantasy": spec.fantasy,
             "word_selection": spec.word_selection,
             "classifier_model": spec.classifier_model,
             "word_selection_model": spec.word_selection_model,
             "vocabulary_size": spec.vocabulary_size,
             "foreign_names": spec.foreign_names,
             "evolve_years": years,
-            "force_isolated": spec.force_isolated,
-            "force_high_altitude": spec.force_high_altitude,
             "force_tonal": spec.force_tonal,
             "forced_orthography": spec.forced_orthography,
             "allow_all_caps": spec.allow_all_caps,

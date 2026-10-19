@@ -1,8 +1,12 @@
 """Verifies that a graded trait's strength scales directly to probability
-(0 -> base rate, 1 -> certainty -- see ``generation/trait_bias.py``), and
-that ``force_*`` flags guarantee an outcome unconditionally, independent of
-``traits`` -- the two structurally separate channels described in
-``core/spec.py``."""
+(0 -> base rate, 1 -> certainty -- see ``generation/trait_bias.py``).
+`test_maximal_trait_strength_reaches_certainty` below is also what used to
+be covered separately by a now-removed `force_high_altitude` flag test:
+that flag was `1.0 if force_high_altitude else biased_probability(base,
+altitude)`, which is simply `biased_probability(base, 1.0)` -- i.e.
+byte-identical to `altitude=1.0` -- so the flag (and its
+`force_isolated` sibling) were removed as pure duplication of this exact
+math, not a distinct capability."""
 
 import random
 
@@ -65,7 +69,3 @@ def test_maximal_negative_trait_strength_suppresses_to_zero():
     assert _ejective_rate(-1.0) == 0.0
 
 
-def test_force_high_altitude_guarantees_ejectives_independent_of_traits():
-    for seed in range(50):
-        spec = GenerationSpec(prompt="p", seed=seed, force_high_altitude=True)
-        assert _has_ejectives(_inventory(spec))

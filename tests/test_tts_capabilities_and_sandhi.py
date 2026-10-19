@@ -697,4 +697,4 @@ def test_tone_sandhi_is_a_graded_trait_the_classifier_reads():
         def complete(self, request):
             return LLMResponse(text='{"tone_sandhi": 0.7}', model="stub", input_tokens=1, output_tokens=1)
 
-    assert classify_prompt("a tonal language where tones shift a lot", False, _Fixed()).tone_sandhi == 0.7
+    assert classify_prompt("a tonal language where tones shift a lot", _Fixed()).tone_sandhi == 0.7

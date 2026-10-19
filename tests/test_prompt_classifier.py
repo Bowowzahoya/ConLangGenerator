@@ -25,21 +25,21 @@ class _FixedJsonLLMClient:
 
 def test_different_prompts_yield_different_profiles():
     client = FakeLLMClient()
-    a = classify_prompt("a language spoken in the mountains", False, client)
-    b = classify_prompt("a language spoken on a tropical island", False, client)
+    a = classify_prompt("a language spoken in the mountains", client)
+    b = classify_prompt("a language spoken on a tropical island", client)
     assert a != b
 
 
 def test_same_prompt_is_deterministic():
     client = FakeLLMClient()
-    a = classify_prompt("a language spoken in the mountains", False, client)
-    b = classify_prompt("a language spoken in the mountains", False, client)
+    a = classify_prompt("a language spoken in the mountains", client)
+    b = classify_prompt("a language spoken in the mountains", client)
     assert a == b
 
 
 def test_fake_profile_floats_are_within_bipolar_interval():
     client = FakeLLMClient()
-    profile = classify_prompt("anything", False, client)
+    profile = classify_prompt("anything", client)
     for field in ("isolation", "altitude", "aesthetic_harshness", "tonal_friendliness"):
         assert -1.0 <= getattr(profile, field) <= 1.0
 
@@ -47,7 +47,7 @@ def test_fake_profile_floats_are_within_bipolar_interval():
 def test_fake_profiles_span_both_positive_and_negative():
     client = FakeLLMClient()
     values = [
-        getattr(classify_prompt(f"prompt {i}", False, client), "aesthetic_harshness")
+        getattr(classify_prompt(f"prompt {i}", client), "aesthetic_harshness")
         for i in range(30)
     ]
     assert any(v > 0 for v in values)
@@ -55,56 +55,56 @@ def test_fake_profiles_span_both_positive_and_negative():
 
 
 def test_unparseable_response_degrades_to_neutral_profile():
-    profile = classify_prompt("anything", False, _GarbageLLMClient())
+    profile = classify_prompt("anything", _GarbageLLMClient())
     assert profile == TraitProfile()
 
 
 def test_requested_orthography_style_parses_like_salient_context():
     client = _FixedJsonLLMClient('{"requested_orthography_style": "wade-giles-style"}')
-    profile = classify_prompt("mark tone with a number, Wade-Giles style", False, client)
+    profile = classify_prompt("mark tone with a number, Wade-Giles style", client)
     assert profile.requested_orthography_style == "wade-giles-style"
 
 
 def test_missing_requested_orthography_style_defaults_to_empty():
     client = _FixedJsonLLMClient("{}")
-    profile = classify_prompt("anything", False, client)
+    profile = classify_prompt("anything", client)
     assert profile.requested_orthography_style == ""
 
 
 def test_requested_foreign_names_parses_like_salient_context():
     client = _FixedJsonLLMClient('{"requested_foreign_names": "adapt"}')
-    profile = classify_prompt("foreign names are always adapted to the language's own sounds", False, client)
+    profile = classify_prompt("foreign names are always adapted to the language's own sounds", client)
     assert profile.requested_foreign_names == "adapt"
 
 
 def test_missing_requested_foreign_names_defaults_to_empty():
     client = _FixedJsonLLMClient("{}")
-    profile = classify_prompt("anything", False, client)
+    profile = classify_prompt("anything", client)
     assert profile.requested_foreign_names == ""
 
 
 def test_requested_own_script_parses_like_salient_context():
     client = _FixedJsonLLMClient('{"requested_own_script": "yes"}')
-    profile = classify_prompt("written in its own ancient script", False, client)
+    profile = classify_prompt("written in its own ancient script", client)
     assert profile.requested_own_script == "yes"
 
 
 def test_missing_requested_own_script_defaults_to_empty():
     client = _FixedJsonLLMClient("{}")
-    profile = classify_prompt("anything", False, client)
+    profile = classify_prompt("anything", client)
     assert profile.requested_own_script == ""
 
 
 def test_source_language_strictness_parses_within_unit_interval():
     client = _FixedJsonLLMClient('{"source_languages": ["English", "German"], "source_language_strictness": 0.85}')
-    profile = classify_prompt("basically a mix of English and German", False, client)
+    profile = classify_prompt("basically a mix of English and German", client)
     assert profile.source_languages == ("English", "German")
     assert profile.source_language_strictness == 0.85
 
 
 def test_missing_source_language_strictness_defaults_to_zero():
     client = _FixedJsonLLMClient("{}")
-    profile = classify_prompt("anything", False, client)
+    profile = classify_prompt("anything", client)
     assert profile.source_language_strictness == 0.0
 
 
@@ -112,7 +112,7 @@ def test_phonotactic_restrictiveness_parses_as_an_ordinary_graded_trait():
     # Reuses the existing bipolar coercion (GRADED_TRAIT_FIELDS) -- no new
     # parsing helper needed, unlike source_language_strictness.
     client = _FixedJsonLLMClient('{"phonotactic_restrictiveness": 0.8}')
-    profile = classify_prompt("a language with a tiny, rigid set of allowed syllables", False, client)
+    profile = classify_prompt("a language with a tiny, rigid set of allowed syllables", client)
     assert profile.phonotactic_restrictiveness == 0.8
 
 
@@ -120,19 +120,19 @@ def test_source_language_weights_parses_a_float_list():
     client = _FixedJsonLLMClient(
         '{"source_languages": ["French", "German"], "source_language_weights": [0.7, 0.3]}'
     )
-    profile = classify_prompt("mostly French with a German influence", False, client)
+    profile = classify_prompt("mostly French with a German influence", client)
     assert profile.source_language_weights == (0.7, 0.3)
 
 
 def test_missing_source_language_weights_defaults_to_empty():
     client = _FixedJsonLLMClient('{"source_languages": ["English", "German"]}')
-    profile = classify_prompt("basically a mix of English and German", False, client)
+    profile = classify_prompt("basically a mix of English and German", client)
     assert profile.source_language_weights == ()
 
 
 def test_source_language_weights_drops_non_numeric_entries():
     client = _FixedJsonLLMClient('{"source_language_weights": [0.7, "a lot", 0.3]}')
-    profile = classify_prompt("anything", False, client)
+    profile = classify_prompt("anything", client)
     assert profile.source_language_weights == (0.7, 0.3)
 
 
@@ -143,5 +143,5 @@ def test_source_language_strictness_is_clamped_to_the_unit_interval():
     # [0.0, 1.0], not [-1.0, 1.0].
     high = _FixedJsonLLMClient('{"source_language_strictness": 5.0}')
     low = _FixedJsonLLMClient('{"source_language_strictness": -5.0}')
-    assert classify_prompt("anything", False, high).source_language_strictness == 1.0
-    assert classify_prompt("anything", False, low).source_language_strictness == 0.0
+    assert classify_prompt("anything", high).source_language_strictness == 1.0
+    assert classify_prompt("anything", low).source_language_strictness == 0.0
