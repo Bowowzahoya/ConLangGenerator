@@ -8334,3 +8334,66 @@ reading code or one-off ad hoc scripts.
   pitch contour from Inspect (chapter 9); and extending Tweak to Roman Orthography, language-source
   features, and the invented script (chapter 12, items 9-11 -- the script one explicitly scoped by the
   user as its own "deep dive into script" rather than a quick addition alongside the other two).
+
+- **"Tweaking Phase 2" -- a real, previously-unsuspected phonology bug fixed, plus two of the four
+  DEFERRED.md items it was scoped to pick up.** Chosen as the next project specifically because it
+  reused infrastructure already proven this session (the `regenerate_*` pattern, dry-run preview, diff
+  rendering, fixed-trait-row UI) rather than opening a new design question.
+
+  **Real bug: freshly-coined words could violate their own language's syllable structure.** Found by
+  directly reproducing the Tweak no-op report with a monkeypatch trace (not guessed): generating
+  "frenchlike" (`max_coda=1`, `allowed_coda_clusters=()`) produced "begin" as `chefr` /ʃəfʁ/ -- an
+  illegal word-final two-consonant coda. Root-caused precisely: `word_class_gen.generate_word_classes`'s
+  own matched-reference-profile branch adopts a curated `WordClass` straight from a profile's own YAML
+  data (`french.yaml`'s real "-re" verb class, `suffix: ["ʁ"]`, modeling real French's genuinely bare
+  /ʁ/ ending) -- unlike an *invented* class's own suffix (`word_builder.build_class_suffix`, always
+  nucleus-first by construction, so concatenation is safe by construction), a curated suffix is real
+  morpheme data taken verbatim and silently assumes whatever stem shape its own real source language's
+  stems usually have; an arbitrary invented stem doesn't always oblige. The same risk exists
+  symmetrically on the prefix side (Swahili's own real bare "m-"/"n-" noun-class prefixes,
+  `swahili.yaml`). Fixed with a new `word_builder.safe_affix_junction` (checks the would-be coda/onset
+  against the run's own rolled `SyllableStructure`, inserting this language's own epenthetic vowel at
+  the boundary only when concatenating directly would be illegal), called from `word_class_gen.
+  apply_word_class` on both boundaries -- which needed a new `structure` parameter threaded through
+  `apply_word_class`'s own 6 call sites across `lexicon_gen.py`/`root_pattern.py`/`sound_change.py`.
+  Verified directly: the regenerated "frenchlike" has zero illegal word-final codas (was 17/400 before
+  the fix); full suite (hot-path change) confirmed no regressions (2276 passed).
+
+  **Item 9 (Roman Orthography tweaking) -- done.** New `generator.regenerate_orthography(name, language,
+  orthography_overrides: OrthographyForce, llm_client)`. Investigating it surfaced a real asymmetry with
+  phonology tweaking: `romanization_gen.generate_romanization` draws from the *same* shared `rng` stream
+  grammar/lexicon coining also draw from (no independent `":romanization"` stream exists the way
+  phonology's own `":phonology"` stream does) -- so the "edit `GenerationSpec`, call `generate_language`
+  again" shape `regenerate_phonology` uses would also shift grammar/lexicon here, not just spelling.
+  Implemented instead as a direct, standalone re-derivation: a new independent `":orthography-tweak"`
+  stream builds a fresh `RomanizationScheme`, then every lexicon entry is re-spelled from its own
+  *unchanged* `ipa` -- phonology/grammar/script and every word's own IPA stay byte-identical (verified in
+  `tests/test_regenerate_orthography.py`), only spelling changes. No "regenerate vs. adapt" words mode
+  exists for this axis, confirmed correct rather than cut for time: since the ipa never changes, every
+  word is always "re-spelled," never recoined. An exact real-word copy keeps its own real spelling
+  verbatim, the same guarantee item 4 already has for phonology tweaking, for the same reason (its own
+  literal spelling was never derived from the romanization scheme to begin with). Can't be combined with
+  a phonology-trait tweak in one request -- the web UI's own Tweak tab gained a new collapsible "Roman
+  Orthography (separate axis)" section reusing Generate's own fixed selects, and `generate --tweak-from`
+  gained the same dispatch (any orthography-forcing flag set tweaks spelling instead of phonology,
+  `--words`/`--trait` ignored). Verified live through both the real dev server and the real CLI: IPA
+  identical before/after, spelling visibly changed under a forced Wade-Giles-style tweak (a tonal base
+  language's own tone marking visibly moved from an inline diacritic to a postposed digit).
+
+  **Sound correspondence in the Tweak preview -- done.** New `phoneme_fit.sound_correspondence(old_
+  inventory, new_inventory) -> dict[str, str]`, reusing `fit_ipa`'s own internal per-symbol `_nearest`
+  match rather than a new matching mechanism, surfaced via the tweak endpoint's own `sound_correspondence`
+  response field and rendered directly in the preview's "sounds lost" chip list (e.g. "ç → /x/") instead
+  of a bare symbol with no indication of where it went.
+
+  **Item 10 (language-source tweaking) -- investigated, not implemented.** Confirmed harder than
+  originally guessed: beyond phonology's own inventory roll and `real_words.plan_real_words`'s own
+  lexicon planning (which already has an independent `":real-words"` stream, so that channel is fine),
+  `word_class_gen.generate_word_classes` *also* reads `traits.source_languages`/
+  `source_language_strictness` directly to decide whether to adopt a matched profile's own curated word
+  classes -- and `word_classes` lives on `GrammarProfile`, the exact thing `regenerate_phonology`'s own
+  "grammar stays identical" guarantee protects. So this axis risks perturbing grammar through a *third*
+  channel, via a module (`word_class_gen.py`) that has no independent rng stream of its own at all --
+  the same gap orthography turned out to have. Not attempted this round; `docs/DEFERRED.md`'s own item
+  10 entry now carries this specific finding for whoever picks it up next, rather than the original,
+  vaguer "likely the most involved" guess.

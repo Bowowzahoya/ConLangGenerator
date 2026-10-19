@@ -49,9 +49,8 @@ increasing order of certainty:
   (``OrthographyForce(style="germanic-doubling-style",
   tone_strategy=POSTPOSED_DIGIT)`` combines two different anchors' axes on
   purpose). This is the "for testing, or when you want a specific style"
-  channel -- same spirit as ``core.spec.GenerationSpec``'s
-  ``force_isolated``/``force_high_altitude``/``force_tonal``, and the only
-  one of the three that's a guarantee rather than a lean.
+  channel -- same spirit as ``core.spec.GenerationSpec.force_tonal``, a
+  guarantee rather than a lean.
 
 For a symbol *not* covered by any matched profile's curated rules, the
 fallback still tries to stay in the family: ``_rules_for_symbol`` prefers

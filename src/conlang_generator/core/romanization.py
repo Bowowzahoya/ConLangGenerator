@@ -1109,11 +1109,10 @@ class OrthographyCategory(BaseModel, frozen=True):
 class OrthographyForce(BaseModel, frozen=True):
     """Explicit, deterministic overrides for ``generation.romanization_gen``'s
     style selection -- the unconditional channel (same spirit as
-    ``GenerationSpec``'s ``force_isolated``/``force_high_altitude``/
-    ``force_tonal``): a prompt's wording, and a matched reference
-    profile's own bias, are inference and can be wrong or absent; this is
-    a guarantee, for testing or for when you want a specific style and
-    nothing else.
+    ``GenerationSpec.force_tonal``): a prompt's wording, and a matched
+    reference profile's own bias, are inference and can be wrong or
+    absent; this is a guarantee, for testing or for when you want a
+    specific style and nothing else.
 
     ``None`` on any field means "not forced, let the normal roll/bias
     decide." ``style`` picks one of ``generation.romanization_gen``'s

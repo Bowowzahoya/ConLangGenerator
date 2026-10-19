@@ -112,3 +112,29 @@ def test_tweak_from_adapt_words_keeps_the_same_glosses(tmp_path, monkeypatch):
     base = repo.load("tweak-base")
     tweaked = repo.load("tweak-adapt")
     assert [e.glosses for e in tweaked.lexicon.entries] == [e.glosses for e in base.lexicon.entries]
+
+
+def test_tweak_from_with_an_orthography_flag_tweaks_spelling_not_phonology(tmp_path, monkeypatch):
+    # "Tweaking an existing language" item 9 -- any orthography-forcing
+    # flag set dispatches to regenerate_orthography instead, and doesn't
+    # require --words at all (there's no regenerate/adapt distinction for
+    # this axis).
+    runner = _runner(tmp_path, monkeypatch)
+    _make_base(runner)
+    result = runner.invoke(
+        cli_main.app,
+        [
+            "generate", "--tweak-from", "tweak-base", "--name", "tweak-ortho",
+            "--orthography-style", "wade-giles-style", "--prompt", "ignored", "--llm", "fake",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "orthography only" in result.output
+
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    repo = YamlLanguageRepository(tmp_path / "conlangs")
+    base = repo.load("tweak-base")
+    tweaked = repo.load("tweak-ortho")
+    assert [e.ipa for e in tweaked.lexicon.entries] == [e.ipa for e in base.lexicon.entries]
+    assert tweaked.grammar == base.grammar

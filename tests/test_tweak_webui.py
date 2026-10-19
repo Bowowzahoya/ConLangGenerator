@@ -130,3 +130,57 @@ def test_tweak_without_dry_run_still_defaults_to_saving(client):
     )
     assert response.json()["saved"] is True
     assert client.get("/api/languages/tweak-default-save").status_code == 200
+
+
+def test_tweak_with_an_orthography_field_set_tweaks_spelling_not_phonology(client):
+    # "Tweaking an existing language" item 9 -- any orthography field set
+    # dispatches to regenerate_orthography instead of the phonology path,
+    # ignoring trait_overrides/words entirely (the two axes can't combine
+    # in one request).
+    _make_base(client)
+    base_full = client.get("/api/languages/tweak-base").json()
+    response = client.post(
+        "/api/languages/tweak-base/tweak",
+        json={
+            "name": "tweak-ortho",
+            "trait_overrides": {"aesthetic_harshness": 0.9},  # ignored
+            "orthography_style": "wade-giles-style",
+            "dry_run": True,
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    base_ipa = [e["ipa"] for e in base_full["lexicon"]]
+    tweaked_ipa = [e["ipa"] for e in body["lexicon"]]
+    base_romanization = [e["romanization"] for e in base_full["lexicon"]]
+    tweaked_romanization = [e["romanization"] for e in body["lexicon"]]
+    assert base_ipa == tweaked_ipa
+    assert base_romanization != tweaked_romanization
+    assert body["grammar"] == base_full["grammar"]
+
+
+def test_tweak_orthography_rejects_an_unknown_style(client):
+    _make_base(client)
+    response = client.post(
+        "/api/languages/tweak-base/tweak",
+        json={"name": "tweak-ortho-bad", "orthography_style": "not-a-real-style", "dry_run": True},
+    )
+    assert response.status_code == 400
+
+
+def test_tweak_orthography_rejects_an_unknown_exotic_symbol_style(client):
+    _make_base(client)
+    response = client.post(
+        "/api/languages/tweak-base/tweak",
+        json={"name": "tweak-ortho-bad2", "exotic_symbol_style": "not-a-real-choice", "dry_run": True},
+    )
+    assert response.status_code == 400
+
+
+def test_tweak_orthography_response_includes_sound_correspondence(client):
+    _make_base(client)
+    response = client.post(
+        "/api/languages/tweak-base/tweak",
+        json={"name": "tweak-ortho-corr", "exotic_symbol_style": "monoletter", "dry_run": True},
+    )
+    assert "sound_correspondence" in response.json()

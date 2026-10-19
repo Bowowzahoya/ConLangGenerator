@@ -111,7 +111,7 @@
     font-family: var(--mono); border: 1px solid transparent;
   }
   .tweak-sound-chip.sound-added { background: #1f3d2b; color: #7ee2a0; border-color: #2f5c3f; }
-  .tweak-sound-chip.sound-removed { background: #3d1f1f; color: #e28080; border-color: #5c2f2f; text-decoration: line-through; }
+  .tweak-sound-chip.sound-removed { background: #3d1f1f; color: #e28080; border-color: #5c2f2f; }
   .sl-match { flex: 0 0 200px !important; white-space: nowrap; }
   .sl-match-yes { color: #4a9f6e; }
   .sl-match-no { color: var(--muted); }
@@ -484,6 +484,47 @@
       <label><input type="radio" name="tweak-words" value="regenerate" checked> regenerate <span class="ipa">(recoin the whole lexicon fresh against the new sounds)</span></label>
       <label><input type="radio" name="tweak-words" value="adapt"> adapt <span class="ipa">(re-fit each existing word to the new sounds instead, so it stays the same word)</span></label>
     </div>
+
+    <details class="advanced-group" style="margin-top:14px;">
+      <summary>Roman Orthography (separate axis)</summary>
+      <p class="ipa">Forces a new spelling convention without touching sounds/grammar -- every word's own IPA stays exactly the same, only how it's written changes. Setting anything here ignores the phonology traits/words mode above (the two axes can't be tweaked in the same preview -- see <code>generation.generator.regenerate_orthography</code>'s own docstring for why). Leave everything "(unforced)" to tweak phonology instead.</p>
+      <div class="row">
+        <div>
+          <label for="tweak-orthography-style">Orthography style</label>
+          <select id="tweak-orthography-style"><option value="">(unforced)</option></select>
+        </div>
+        <div>
+          <label for="tweak-exotic-symbol-style">Exotic symbol style</label>
+          <select id="tweak-exotic-symbol-style"><option value="">(unforced)</option></select>
+        </div>
+        <div>
+          <label for="tweak-vowel-length-style">Vowel length style</label>
+          <select id="tweak-vowel-length-style"><option value="">(unforced)</option></select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="tweak-syllable-boundary-marker">Syllable boundary marker</label>
+          <select id="tweak-syllable-boundary-marker"><option value="">(unforced)</option></select>
+        </div>
+        <div>
+          <label for="tweak-short-vowel-doubling">Short-vowel consonant doubling</label>
+          <select id="tweak-short-vowel-doubling">
+            <option value="">(unforced)</option>
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        </div>
+        <div>
+          <label for="tweak-consonant-gemination">Consonant gemination marked</label>
+          <select id="tweak-consonant-gemination">
+            <option value="">(unforced)</option>
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        </div>
+      </div>
+    </details>
 
     <div class="submit-row">
       <button class="primary" id="tweak-btn">Preview Tweak</button>
@@ -1042,6 +1083,10 @@ async function loadTweakLanguage(slug) {
   resetTweakPreview();
   tweakBaseLexicon = null;
   tweakBasePhonemeInventory = null;
+  for (const id of [
+    "tweak-orthography-style", "tweak-exotic-symbol-style", "tweak-vowel-length-style",
+    "tweak-syllable-boundary-marker", "tweak-short-vowel-doubling", "tweak-consonant-gemination",
+  ]) $(id).value = "";
   if (!slug) return;
   try {
     const summary = await api(`/api/languages/${encodeURIComponent(slug)}`);
@@ -1098,7 +1143,7 @@ function diffWordPair(oldWord, newWord) {
   return { oldHtml: mark(oldWord), newHtml: mark(newWord) };
 }
 
-function renderSoundInventoryDiff(basePhonemes, newPhonemes) {
+function renderSoundInventoryDiff(basePhonemes, newPhonemes, correspondence) {
   // Keyed by ipa alone -- a symbol either exists in the inventory or it
   // doesn't; a changed example/description for the *same* symbol isn't
   // a sound change, only a changed curated citation, so it's ignored
@@ -1116,15 +1161,30 @@ function renderSoundInventoryDiff(basePhonemes, newPhonemes) {
   // static preview chips don't have) -- reusing that class here would
   // make clicking one silently look up the wrong language's inventory.
   const badge = (p, cls) => `<span class="tweak-sound-chip ${cls}" title="${escapeAttr(p.label)}">${escapeAttr(p.ipa)}</span>`;
+  // A removed sound didn't just vanish -- fit_ipa (and this same
+  // correspondence, computed the identical way) always re-fits it to
+  // its own nearest surviving sound, so showing that target directly
+  // answers "what does this sound now map to" without the user having
+  // to infer it from scanning individual word diffs. Only ever present
+  // for "removed" sounds specifically: an "added" sound with no old
+  // counterpart has nothing upstream to show a correspondence *from*.
+  const correspondenceFor = (ipa) => (correspondence && correspondence[ipa]) || null;
+  const removedBadge = (p) => {
+    const target = correspondenceFor(p.ipa);
+    const arrow = target && target !== p.ipa ? ` &rarr; /${escapeAttr(target)}/` : "";
+    // Only the removed symbol itself is struck through -- `.sound-removed`'s
+    // own line-through would otherwise cross out the replacement target too.
+    return `<span class="tweak-sound-chip sound-removed" title="${escapeAttr(p.label)}"><s>${escapeAttr(p.ipa)}</s>${arrow}</span>`;
+  };
   return `
     <p class="ipa">
-      ${removed.length ? `<strong>${removed.length} sound${removed.length === 1 ? "" : "s"} lost:</strong> ${removed.map(p => badge(p, "sound-removed")).join(" ")}` : ""}
+      ${removed.length ? `<strong>${removed.length} sound${removed.length === 1 ? "" : "s"} lost:</strong> ${removed.map(removedBadge).join(" ")}` : ""}
       ${removed.length && added.length ? "<br>" : ""}
       ${added.length ? `<strong>${added.length} sound${added.length === 1 ? "" : "s"} gained:</strong> ${added.map(p => badge(p, "sound-added")).join(" ")}` : ""}
     </p>`;
 }
 
-function renderTweakDiff(baseLexicon, newLexicon, basePhonemes, newPhonemes) {
+function renderTweakDiff(baseLexicon, newLexicon, basePhonemes, newPhonemes, correspondence) {
   const baseByGloss = new Map(baseLexicon.map(e => [e.gloss, e]));
   const rows = newLexicon.map(entry => {
     const before = baseByGloss.get(entry.gloss);
@@ -1146,7 +1206,7 @@ function renderTweakDiff(baseLexicon, newLexicon, basePhonemes, newPhonemes) {
     <div class="card">
       <h2 style="margin-top:0">Preview: ${newLexicon.length} words</h2>
       <p class="ipa">Nothing has been saved yet -- changed letters are <strong>bolded</strong> in both the spelling and the /ipa/ -- review below, then "Save Tweaked Language" to commit, or change the traits/words mode above and preview again.</p>
-      ${renderSoundInventoryDiff(basePhonemes, newPhonemes)}
+      ${renderSoundInventoryDiff(basePhonemes, newPhonemes, correspondence)}
       <div class="lexicon-wrap">
         <table>
           <thead><tr><th>gloss</th><th>pos</th><th>before</th><th></th><th>after</th></tr></thead>
@@ -1165,11 +1225,19 @@ async function runTweak(dryRun) {
   if (!name) { err.textContent = "Give the tweaked language a name to save as."; err.hidden = false; return; }
   const words = document.querySelector('input[name="tweak-words"]:checked').value;
   // Saving replays the *exact* body that produced the previewed result
-  // (regenerate_phonology/_adapt_words are both deterministic) rather
-  // than re-reading the form, so "Save" always commits what was shown,
-  // even if the user nudged a field afterward without re-previewing.
+  // (regenerate_phonology/_adapt_words/_orthography are all deterministic)
+  // rather than re-reading the form, so "Save" always commits what was
+  // shown, even if the user nudged a field afterward without re-previewing.
   const requestBody = dryRun || !tweakLastPreviewBody
-    ? { name, trait_overrides: collectTweakTraitOverrides(), words, dry_run: dryRun }
+    ? {
+        name, trait_overrides: collectTweakTraitOverrides(), words, dry_run: dryRun,
+        orthography_style: $("tweak-orthography-style").value || null,
+        exotic_symbol_style: $("tweak-exotic-symbol-style").value || null,
+        vowel_length_style: $("tweak-vowel-length-style").value || null,
+        syllable_boundary_marker: $("tweak-syllable-boundary-marker").value || null,
+        short_vowel_doubling: $("tweak-short-vowel-doubling").value === "" ? null : $("tweak-short-vowel-doubling").value === "true",
+        consonant_gemination_marked: $("tweak-consonant-gemination").value === "" ? null : $("tweak-consonant-gemination").value === "true",
+      }
     : { ...tweakLastPreviewBody, dry_run: false };
   const btn = dryRun ? $("tweak-btn") : $("tweak-save-btn");
   btn.disabled = true;
@@ -1182,7 +1250,7 @@ async function runTweak(dryRun) {
     });
     if (dryRun) {
       tweakLastPreviewBody = requestBody;
-      $("tweak-preview-result").innerHTML = renderTweakDiff(tweakBaseLexicon || [], body.lexicon, tweakBasePhonemeInventory || [], body.phoneme_inventory);
+      $("tweak-preview-result").innerHTML = renderTweakDiff(tweakBaseLexicon || [], body.lexicon, tweakBasePhonemeInventory || [], body.phoneme_inventory, body.sound_correspondence);
       $("tweak-save-btn").hidden = false;
     } else {
       resetTweakPreview();
@@ -1224,6 +1292,10 @@ async function loadOptions() {
   fill("gen-vowel-length-style", opts.vowel_length_styles);
   fill("gen-tone-style", opts.tone_styles);
   fill("gen-syllable-boundary-marker", opts.syllable_boundary_markers);
+  fill("tweak-orthography-style", opts.orthography_styles);
+  fill("tweak-exotic-symbol-style", opts.exotic_symbol_styles);
+  fill("tweak-vowel-length-style", opts.vowel_length_styles);
+  fill("tweak-syllable-boundary-marker", opts.syllable_boundary_markers);
   gradedTraitFields = opts.graded_trait_fields || [];
   scriptTraitFields = opts.script_trait_fields || [];
   phonologyOnlyTraitFields = opts.phonology_only_trait_fields || [];

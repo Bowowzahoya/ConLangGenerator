@@ -3,7 +3,11 @@
 This is the one place that actually assembles IPA strings; it's reused for
 whole lexicon entries (multiple syllables) and short grammatical affixes
 (one syllable), so both are guaranteed to obey the language's own
-``SyllableStructure``.
+``SyllableStructure`` -- with one documented exception: a matched
+reference profile's own *curated* ``WordClass`` prefix/suffix is real
+morpheme data, not built by this module at all, and can assume a stem
+shape its own real source language usually has but an arbitrary invented
+stem doesn't always share. See ``safe_affix_junction``'s own docstring.
 
 Phoneme selection is weighted by each candidate's ``prevalence`` (see
 ``core/phonology.py``) rather than uniform -- the same phonemes that are
@@ -25,7 +29,7 @@ from conlang_generator.core.phonology import (
     VowelBackness,
     VowelHeight,
 )
-from conlang_generator.generation import stress_gen, word_accent_gen, word_phonology
+from conlang_generator.generation import phoneme_fit, stress_gen, word_accent_gen, word_phonology
 
 _SMALL_HEIGHTS = (VowelHeight.CLOSE, VowelHeight.NEAR_CLOSE)
 _BIG_HEIGHTS = (VowelHeight.OPEN, VowelHeight.NEAR_OPEN)
@@ -333,6 +337,76 @@ def build_class_prefix(rng: random.Random, inventory: PhonemeInventory, structur
     onset = _build_onset(rng, inventory, structure)
     nucleus = _choose_nucleus(rng, inventory, structure, onset[-1] if onset else None).ipa
     return onset + (nucleus,)
+
+
+def _consonant_run(symbols: tuple[str, ...], vowel_symbols: frozenset[str], from_end: bool) -> tuple[str, ...]:
+    """The run of consonants at one end of ``symbols``, stopping at the
+    first vowel (or the whole tuple, if it has none) -- the trailing run
+    when ``from_end``, else the leading run."""
+    ordered = reversed(symbols) if from_end else symbols
+    run: list[str] = []
+    for symbol in ordered:
+        if symbol in vowel_symbols:
+            break
+        run.append(symbol)
+    if from_end:
+        run.reverse()
+    return tuple(run)
+
+
+def safe_affix_junction(
+    left: tuple[str, ...], right: tuple[str, ...], inventory: PhonemeInventory, structure: SyllableStructure | None,
+    *, at_right_is_suffix: bool,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """``(left, right)``, with this language's own epenthetic vowel
+    inserted at the ``left``/``right`` boundary if concatenating them
+    directly would create a consonant cluster ``structure`` doesn't
+    actually allow there.
+
+    ``build_class_suffix``/``build_class_prefix`` above each guarantee
+    this by construction for an *invented* class (a suffix always starts
+    with a vowel, a prefix always ends with one) -- but a matched
+    reference profile's own *curated* ``WordClass.suffix``/``.prefix``
+    (``word_class_gen.generate_word_classes``'s own ``profile_classes_
+    for_pos`` branch) is real morpheme data taken verbatim, not run
+    through either builder, and can be consonant-only on purpose (real
+    French's own "-re" verb class is genuinely just /ʁ/, its spelled "e"
+    silent -- ``french.yaml``'s own ``suffix: ["ʁ"]``; real Swahili's own
+    "m-"/"n-" noun-class prefixes are genuinely bare nasals --
+    ``swahili.yaml``'s own ``prefix: [m]``) -- a real morpheme shape,
+    assuming whatever stem shape its own real source language's stems
+    usually have. An arbitrary invented stem doesn't always oblige: found
+    directly reproducing a reported Tweak bug, where a French-sourced
+    language's own freshly-coined "ʃəf" ("begin"'s own stem) plus this
+    exact curated ``["ʁ"]`` suffix produced "ʃəfʁ", an illegal two-
+    consonant coda under that run's own rolled ``max_coda=1``, with
+    nothing validating it.
+
+    ``at_right_is_suffix=True`` checks the *coda* this boundary would
+    extend (``left``'s own trailing run + ``right``'s own leading run);
+    ``False`` checks the *onset* it would extend instead (mirrored). Only
+    ever changes anything when both sides of the boundary are consonants
+    in the first place -- a single legal consonant, or any vowel-adjacent
+    boundary, is always left alone. ``structure=None`` (``root_pattern.
+    py``'s own optional case) always abstains, same "no structure to
+    check against, don't guess" convention as everywhere else in this
+    project a structure check is conditionally unavailable."""
+    if structure is None or not left or not right:
+        return left, right
+    vowel_symbols = frozenset(inventory.vowel_symbols())
+    if left[-1] in vowel_symbols or right[0] in vowel_symbols:
+        return left, right
+    trailing = _consonant_run(left, vowel_symbols, from_end=True)
+    leading = _consonant_run(right, vowel_symbols, from_end=False)
+    combined = trailing + leading
+    if len(combined) <= 1:
+        return left, right
+    nucleus = phoneme_fit.epenthetic_vowel(inventory)
+    if at_right_is_suffix:
+        is_valid = structure.is_valid_syllable((), nucleus, combined, final=True, initial=False)
+        return (left, right) if is_valid else (left, (nucleus,) + right)
+    is_valid = structure.is_valid_syllable(combined, nucleus, (), final=False, initial=True)
+    return (left, right) if is_valid else (left + (nucleus,), right)
 
 
 def attach_affix_and_restress(

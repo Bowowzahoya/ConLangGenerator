@@ -20,6 +20,7 @@ from conlang_generator.core.traits import GRADED_TRAIT_FIELDS, PHONOLOGY_ONLY_TR
 from conlang_generator.generation.generator import (
     generate_evolved_language,
     generate_language,
+    regenerate_orthography,
     regenerate_phonology,
     regenerate_phonology_adapt_words,
 )
@@ -400,49 +401,6 @@ def generate(
         typer.echo(f"error: --strictness must be between 0.0 and 1.0, got {strictness!r}", err=True)
         raise typer.Exit(code=1)
     trait_overrides = _parse_trait_overrides(trait)
-
-    if tweak_from is not None:
-        # No prompt classification, no --seed, no --source-language --
-        # none of that applies here (the base language's own already-
-        # resolved spec/seed is reused directly), the same "reinterpreted/
-        # ignored in this mode" precedent --evolve-from already sets for
-        # its own irrelevant flags.
-        if words is None:
-            typer.echo("error: --tweak-from requires --words {regenerate,adapt}", err=True)
-            raise typer.Exit(code=1)
-        if words not in ("regenerate", "adapt"):
-            typer.echo(f"error: --words must be 'regenerate' or 'adapt', got {words!r}", err=True)
-            raise typer.Exit(code=1)
-        repository = _repository()
-        try:
-            base = repository.load(tweak_from)
-        except FileNotFoundError as exc:
-            typer.echo(f"error: {exc}", err=True)
-            raise typer.Exit(code=1) from exc
-        client = _client(llm)
-        regenerate = regenerate_phonology if words == "regenerate" else regenerate_phonology_adapt_words
-        try:
-            language = regenerate(name, base, trait_overrides, client)
-        except ValueError as exc:
-            typer.echo(f"error: {exc}", err=True)
-            raise typer.Exit(code=1) from exc
-        repository.save(language)
-
-        typer.echo(f"Tweaked '{tweak_from}' -> '{language.name}' ({language.slug}), words: {words}.")
-        typer.echo(
-            f"consonants: {len(base.phonology.consonants)} -> {len(language.phonology.consonants)}, "
-            f"vowels: {len(base.phonology.vowels)} -> {len(language.phonology.vowels)}"
-        )
-        if trait_overrides:
-            typer.echo(f"Tweaked traits: {', '.join(f'{k}={v:+.2f}' for k, v in trait_overrides.items())}")
-        for old_entry, new_entry in list(zip(base.lexicon.entries, language.lexicon.entries))[:6]:
-            arrow = "=" if old_entry.romanization == new_entry.romanization else "->"
-            typer.echo(f"  {old_entry.glosses[0]}: {old_entry.romanization} {arrow} {new_entry.romanization}")
-        typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
-        return
-
-    script_trait_overrides = _parse_trait_overrides(script_trait, SCRIPT_TRAIT_FIELDS, "--script-trait")
-    forced_script_traits = ScriptTraitsForce(**script_trait_overrides)
     forced_orthography = OrthographyForce(
         style=orthography_style,
         exotic_symbol_style=_parse_enum_option(exotic_symbol_style, ExoticSymbolStyle, "--exotic-symbol-style"),
@@ -452,6 +410,65 @@ def generate(
         syllable_boundary_marker=_parse_enum_option(syllable_boundary_marker, SyllableBoundaryMarker, "--syllable-boundary-marker"),
         consonant_gemination_marked=consonant_gemination_marked,
     )
+
+    if tweak_from is not None:
+        # No prompt classification, no --seed, no --source-language --
+        # none of that applies here (the base language's own already-
+        # resolved spec/seed is reused directly), the same "reinterpreted/
+        # ignored in this mode" precedent --evolve-from already sets for
+        # its own irrelevant flags.
+        repository = _repository()
+        try:
+            base = repository.load(tweak_from)
+        except FileNotFoundError as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        client = _client(llm)
+        tweaking_orthography = forced_orthography != OrthographyForce()
+        if tweaking_orthography:
+            # A Roman-Orthography tweak (item 9, docs/DEFERRED.md) is a
+            # separate axis from a phonology-trait tweak -- see
+            # `regenerate_orthography`'s own docstring for why the two
+            # can't be combined in one call. `--words`/`--trait` are
+            # ignored here, the same "irrelevant flag in this mode"
+            # precedent the comment above already sets.
+            try:
+                language = regenerate_orthography(name, base, forced_orthography, client)
+            except ValueError as exc:
+                typer.echo(f"error: {exc}", err=True)
+                raise typer.Exit(code=1) from exc
+            repository.save(language)
+            typer.echo(f"Tweaked '{tweak_from}' -> '{language.name}' ({language.slug}), orthography only.")
+        else:
+            if words is None:
+                typer.echo("error: --tweak-from requires --words {regenerate,adapt} (unless tweaking orthography)", err=True)
+                raise typer.Exit(code=1)
+            if words not in ("regenerate", "adapt"):
+                typer.echo(f"error: --words must be 'regenerate' or 'adapt', got {words!r}", err=True)
+                raise typer.Exit(code=1)
+            regenerate = regenerate_phonology if words == "regenerate" else regenerate_phonology_adapt_words
+            try:
+                language = regenerate(name, base, trait_overrides, client)
+            except ValueError as exc:
+                typer.echo(f"error: {exc}", err=True)
+                raise typer.Exit(code=1) from exc
+            repository.save(language)
+            typer.echo(f"Tweaked '{tweak_from}' -> '{language.name}' ({language.slug}), words: {words}.")
+
+        typer.echo(
+            f"consonants: {len(base.phonology.consonants)} -> {len(language.phonology.consonants)}, "
+            f"vowels: {len(base.phonology.vowels)} -> {len(language.phonology.vowels)}"
+        )
+        if trait_overrides and not tweaking_orthography:
+            typer.echo(f"Tweaked traits: {', '.join(f'{k}={v:+.2f}' for k, v in trait_overrides.items())}")
+        for old_entry, new_entry in list(zip(base.lexicon.entries, language.lexicon.entries))[:6]:
+            arrow = "=" if old_entry.romanization == new_entry.romanization else "->"
+            typer.echo(f"  {old_entry.glosses[0]}: {old_entry.romanization} {arrow} {new_entry.romanization}")
+        typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
+        return
+
+    script_trait_overrides = _parse_trait_overrides(script_trait, SCRIPT_TRAIT_FIELDS, "--script-trait")
+    forced_script_traits = ScriptTraitsForce(**script_trait_overrides)
     client = _client(llm)
     traits = classify_prompt(prompt, client, model=model)
     if source_language:

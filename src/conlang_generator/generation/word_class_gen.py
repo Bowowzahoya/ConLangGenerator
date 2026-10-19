@@ -400,6 +400,7 @@ def apply_word_class(
     stress_pattern: str,
     stress_deviation_rate: float | None,
     stress_strictness: float,
+    structure: SyllableStructure | None = None,
     word_accent_realization: str = "",
     word_accent_pattern: str = "",
     word_accent_deviation_rate: float | None = None,
@@ -412,7 +413,13 @@ def apply_word_class(
     sound-change rule exactly like any other phoneme in the word. A
     no-op when ``word_class`` is ``None`` or carries no actual prefix/
     suffix (an "unmarked" class, e.g. German's own real masculine/
-    neuter nouns -- see german.yaml).
+    neuter nouns -- see german.yaml). ``structure``, when given, is only
+    used to guard a curated class's own real-morpheme prefix/suffix
+    against forming an illegal cluster against an arbitrary stem -- see
+    ``word_builder.safe_affix_junction``'s own docstring; ``None`` skips
+    that guard (an invented class's own prefix/suffix from
+    ``build_class_prefix``/``build_class_suffix`` never needs it in the
+    first place, so this is only ever a real gap for the curated case).
 
     Critically, this *re-derives* stress (and word accent) on the full,
     now-longer word rather than trusting whatever ``ipa`` already had
@@ -504,8 +511,21 @@ def apply_word_class(
     stem_symbols = tuple(symbol + deco for symbol, deco in raw_tokens)
     suffix = _resolve_conditioned_suffix(word_class, tuple(symbol for symbol, _ in raw_tokens))
     position_prefix = _resolve_position_classes(rng, word_class)
+    prefix = position_prefix + word_class.prefix
+    # A curated reference-profile class's own prefix/suffix (unlike an
+    # invented one from build_class_prefix/build_class_suffix) is real
+    # morpheme data taken verbatim, and can be consonant-only on purpose
+    # (French's own bare "-re" /ʁ/; Swahili's own bare "m-"/"n-") -- see
+    # word_builder.safe_affix_junction's own docstring for the real
+    # Tweak-reported bug this guards against.
+    prefix, stem_symbols = word_builder.safe_affix_junction(
+        prefix, stem_symbols, inventory, structure, at_right_is_suffix=False
+    )
+    stem_symbols, suffix = word_builder.safe_affix_junction(
+        stem_symbols, suffix, inventory, structure, at_right_is_suffix=True
+    )
     return word_builder.attach_affix_and_restress(
-        rng, position_prefix + word_class.prefix, stem_symbols, suffix, inventory,
+        rng, prefix, stem_symbols, suffix, inventory,
         stress_pattern, stress_deviation_rate, stress_strictness,
         word_accent_realization=word_accent_realization,
         word_accent_pattern=word_accent_pattern,

@@ -85,9 +85,21 @@ def _nearest(symbol: str, inventory: PhonemeInventory) -> tuple[str, bool]:
     return best_c.ipa, False
 
 
-def _epenthetic_vowel(inventory: PhonemeInventory) -> str:
+def sound_correspondence(old_inventory: PhonemeInventory, new_inventory: PhonemeInventory) -> dict[str, str]:
+    """For every symbol in ``old_inventory``, the symbol in ``new_inventory``
+    it's nearest to by feature distance -- the exact same per-symbol match
+    ``fit_ipa`` itself uses internally, exposed standalone so a caller (the
+    Tweak tab's own preview) can show the sound-level correspondence
+    directly, independent of which specific words happen to use which
+    sounds. A symbol unchanged by the new inventory simply maps to itself."""
+    return {symbol: _nearest(symbol, new_inventory)[0] for symbol in old_inventory.all_symbols()}
+
+
+def epenthetic_vowel(inventory: PhonemeInventory) -> str:
     """The language's own most natural filler vowel: a schwa/central mid
-    vowel when it has one, else its most prevalent plain vowel."""
+    vowel when it has one, else its most prevalent plain vowel. Public --
+    also reused by ``word_builder``'s own curated-affix safety check (see
+    its own docstring), not just this module's internal repair loop."""
     plain = [v for v in inventory.vowels if not (v.long or v.diphthong or v.nasalized)] or list(inventory.vowels)
     central = [v for v in plain if v.backness.value == "central"]
     return max(central or plain, key=lambda v: (v.prevalence, v.ipa)).ipa
@@ -137,7 +149,7 @@ def _resync(
 
 
 def _repair(tokens: list[tuple[str, bool]], inventory: PhonemeInventory, structure: SyllableStructure) -> str:
-    epenthetic = _epenthetic_vowel(inventory)
+    epenthetic = epenthetic_vowel(inventory)
     all_symbols = inventory.all_symbols()
     vowel_symbols = frozenset(v.ipa for v in inventory.vowels)
 

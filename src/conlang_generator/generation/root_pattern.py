@@ -309,7 +309,7 @@ def build_pending_templatic_word(
         assigned_class = word_class_gen.assign_word_class(rng, word_classes, word_class_deviation_rate, pos)
         stressed = word_class_gen.apply_word_class(
             rng, assigned_class, stressed, inventory,
-            stress_pattern, stress_deviation_rate, strictness,
+            stress_pattern, stress_deviation_rate, strictness, structure,
             word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
             word_accent_deviation_rate=word_accent_deviation_rate, word_accent_length_rate=word_accent_length_rate,
             word_accent_window=word_accent_window,

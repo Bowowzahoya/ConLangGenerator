@@ -593,6 +593,42 @@ lexicon's own concrete spellings change. See `docs/DEFERRED.md`'s
 "Tweaking an existing language" chapter for the full design and its
 still-open items (a dedicated web UI tab among them).
 
+**Tweaking Roman Orthography instead of phonology**: any of the usual
+orthography-forcing flags (`--orthography-style`, `--exotic-symbol-style`,
+`--vowel-length-style`, `--syllable-boundary-marker`,
+`--short-vowel-doubling`, `--consonant-gemination-marked`) combined with
+`--tweak-from` re-derives just the romanization scheme and every word's own
+spelling -- phonology, grammar, and every word's own IPA stay byte-identical.
+A separate axis from the phonology tweak above: `--words`/`--trait` are
+ignored when any orthography flag is set (the two can't be combined in one
+call -- romanization draws from the same shared `rng` stream grammar/lexicon
+coining also draw from, so changing it inside the same regeneration pass
+phonology-tweaking itself uses would also shift grammar/lexicon output, not
+just the spelling; see `generation.generator.regenerate_orthography`'s own
+docstring):
+
+```bash
+conlang generate --tweak-from tweak-base --name tweak-ortho \
+  --orthography-style wade-giles-style --prompt ignored --llm fake
+```
+
+```
+Tweaked 'tweak-base' -> 'tweak-ortho' (tweak-ortho), orthography only.
+consonants: 19 -> 19, vowels: 13 -> 13
+  I: Zal -> zal1
+  you: Raw -> raw3
+  he: Ma -> ma5
+  we: Zir -> zir3
+  this: Na -> na3
+  that: Se -> se4
+Saved to conlangs\tweak-ortho
+```
+
+(This particular base language is tonal, so forcing Wade-Giles-style
+here visibly moves its own tone marking from an inline diacritic to a
+postposed digit -- a real, substantive change under "orthography only"
+even though the sounds themselves never moved.)
+
 **Spelling-pronunciation drift** (low `orality_literacy`, a long enough
 time depth) can also reassign a letter's own conventional reading with no
 formal spelling reform -- the written form itself never changes, only

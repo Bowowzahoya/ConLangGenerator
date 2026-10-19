@@ -9,7 +9,7 @@ import unicodedata
 from conlang_generator.core.grammar import MorphologicalType
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
-from conlang_generator.core.romanization import apply_grammatical_spelling
+from conlang_generator.core.romanization import OrthographyForce, apply_grammatical_spelling
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import PHONOLOGY_ONLY_TRAIT_FIELDS, coining_context
 from conlang_generator.generation import (
@@ -1048,4 +1048,88 @@ def regenerate_phonology_adapt_words(
     adapted_entries = tuple(adapt(entry) for entry in language.lexicon.entries)
     return regenerated.model_copy(
         update={"lexicon": regenerated.lexicon.model_copy(update={"entries": adapted_entries})}
+    )
+
+
+def regenerate_orthography(
+    name: str, language: Language, orthography_overrides: OrthographyForce, llm_client: LLMClient
+) -> Language:
+    """Re-derives ``language``'s own Roman Orthography -- the romanization
+    scheme itself, plus every lexicon entry's own spelling -- from
+    ``orthography_overrides`` (only its non-``None`` fields are applied,
+    layered on top of ``language``'s own current ``forced_orthography`` --
+    the same "force just the axes you set, leave the rest alone" shape
+    ``OrthographyForce`` itself already documents), leaving phonology/
+    grammar/script and every word's own IPA completely untouched.
+    "Tweaking an existing language" item 9 (``docs/DEFERRED.md``).
+    Takes an already-validated ``OrthographyForce`` (not a raw dict of
+    strings) deliberately -- its own enum-typed fields (``exotic_symbol_
+    style``, ...) need real enum members, not strings, and
+    ``model_copy(update=...)`` -- used below to merge just the non-``None``
+    fields onto the existing one -- never coerces a raw string into an
+    enum the way constructing a model fresh would; the caller (CLI/web UI)
+    already does that coercion to build a fresh-generation ``OrthographyForce``
+    today, so this reuses that exact same validated-input shape rather
+    than re-validating a second time here.
+
+    Unlike ``regenerate_phonology``, this can't just edit ``GenerationSpec.
+    forced_orthography`` and call ``generate_language`` again:
+    ``romanization_gen.generate_romanization`` draws from the *same* shared
+    ``rng`` stream grammar/lexicon coining also draw from (no independent
+    ``":romanization"`` stream exists the way phonology's own
+    ``":phonology"`` stream does -- see ``generate_language``'s own comment
+    on ``phonology_rng`` for exactly why that split was made), so re-rolling
+    it that way would also shift grammar/lexicon output, not just the
+    spelling. Instead, this re-derives just the romanization scheme (from
+    its own new, independent ``":orthography-tweak"`` stream, so repeated
+    tweaks stay reproducible and never collide with any other stream) and
+    re-spells each existing entry from its own unchanged ``ipa`` -- the
+    *sound* of every word never changes here, only how it's written.
+
+    There is no "regenerate" vs. "adapt" words mode the way phonology
+    tweaking has one: since the IPA itself never changes, every entry is
+    always "re-spelled", never recoined -- the closest analogue is
+    phonology tweaking's own "regenerate" mode, with no equivalent to its
+    "adapt" mode at all.
+
+    An *exact* real-word copy (``real_words._build_real_entry``'s own
+    ``notes="real word: ..."`` branch) keeps its own real spelling
+    verbatim, same as ``regenerate_phonology_adapt_words`` already
+    guarantees for the phonology-tweak case -- a real word's own literal
+    orthography was never derived from this language's own romanization
+    scheme in the first place (it bypasses ``RomanizationScheme.apply``
+    entirely by construction), so a Roman-Orthography tweak changing that
+    scheme has nothing to do with it either."""
+    overrides = {k: v for k, v in orthography_overrides.model_dump().items() if v is not None}
+    new_forced = language.spec.forced_orthography.model_copy(update=overrides)
+    rng = random.Random(f"{language.spec.seed}:orthography-tweak")
+    traits = language.spec.traits
+    seed_orthography = romanization_gen._seed_orthography_profile(language.spec.seed_examples, language.phonology)
+    romanization = romanization_gen.generate_romanization(
+        rng,
+        language.phonology,
+        traits.source_languages,
+        traits.requested_orthography_style,
+        new_forced,
+        language.spec.allow_all_caps,
+        traits.source_language_strictness,
+        traits.source_language_weights,
+        extra_weighted_profiles=(seed_orthography,) if seed_orthography is not None else (),
+    )
+
+    def respell(entry: LexicalEntry) -> LexicalEntry:
+        if entry.notes.startswith("real word:"):
+            return entry
+        new_romanization = apply_grammatical_spelling(romanization, romanization.apply(entry.ipa), entry.pos)
+        return entry.model_copy(update={"romanization": new_romanization})
+
+    new_entries = tuple(respell(entry) for entry in language.lexicon.entries)
+    new_spec = language.spec.model_copy(update={"forced_orthography": new_forced})
+    return language.model_copy(
+        update={
+            "name": name,
+            "romanization": romanization,
+            "spec": new_spec,
+            "lexicon": language.lexicon.model_copy(update={"entries": new_entries}),
+        }
     )

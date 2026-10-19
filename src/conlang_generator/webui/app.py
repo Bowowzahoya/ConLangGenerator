@@ -41,9 +41,10 @@ from conlang_generator.core.romanization import (
 from conlang_generator.core.script import ScriptTraits, ScriptTraitsForce
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS, PHONOLOGY_ONLY_TRAIT_FIELDS
-from conlang_generator.generation import ipa_tokenizer, phonology_gen, script_gen
+from conlang_generator.generation import ipa_tokenizer, phoneme_fit, phonology_gen, script_gen
 from conlang_generator.generation.generator import (
     generate_evolved_language,
+    regenerate_orthography,
     regenerate_phonology,
     regenerate_phonology_adapt_words,
     resolve_evolve_years,
@@ -864,6 +865,23 @@ class TweakRequest(BaseModel):
     or 'adapt' (re-fit each existing word's own IPA to the new phonology
     instead, so it stays traceably the same word)."""
     llm: str = "fake"
+    orthography_style: str | None = None
+    exotic_symbol_style: str | None = None
+    vowel_length_style: str | None = None
+    short_vowel_doubling: bool | None = None
+    tone_style: str | None = None
+    syllable_boundary_marker: str | None = None
+    consonant_gemination_marked: bool | None = None
+    """"Tweaking an existing language" item 9 (`docs/DEFERRED.md`): any of
+    these set (non-`None`) tweaks Roman Orthography instead of phonology
+    -- the two axes can't be combined in the same request (see
+    `generation.generator.regenerate_orthography`'s own docstring for
+    why: romanization draws from the same shared `rng` stream grammar/
+    lexicon coining also draw from, so changing it inside the same
+    `generate_language` call phonology-tweaking itself makes would also
+    shift grammar/lexicon, not just the spelling). `trait_overrides`/
+    `words` are ignored when any of these is set; chain two separate
+    tweak requests to change both axes."""
     dry_run: bool = False
     """"Tweaking an existing language" item 7 (`docs/DEFERRED.md`):
     compute the tweaked language exactly as normal, but don't save it --
@@ -893,9 +911,23 @@ def tweak_language(slug: str, request: TweakRequest) -> dict:
 
     client = _client(request.llm)
     before = _cost_snapshot()
-    regenerate = regenerate_phonology if request.words == "regenerate" else regenerate_phonology_adapt_words
+    orthography_overrides = OrthographyForce(
+        style=request.orthography_style,
+        exotic_symbol_style=_parse_enum(request.exotic_symbol_style, ExoticSymbolStyle, "exotic_symbol_style"),
+        vowel_length_strategy=_parse_enum(request.vowel_length_style, VowelLengthStrategy, "vowel_length_style"),
+        short_vowel_consonant_doubling=request.short_vowel_doubling,
+        tone_strategy=_parse_enum(request.tone_style, ToneMarkingStrategy, "tone_style"),
+        syllable_boundary_marker=_parse_enum(
+            request.syllable_boundary_marker, SyllableBoundaryMarker, "syllable_boundary_marker"
+        ),
+        consonant_gemination_marked=request.consonant_gemination_marked,
+    )
     try:
-        language = regenerate(request.name, base, request.trait_overrides, client)
+        if orthography_overrides != OrthographyForce():
+            language = regenerate_orthography(request.name, base, orthography_overrides, client)
+        else:
+            regenerate = regenerate_phonology if request.words == "regenerate" else regenerate_phonology_adapt_words
+            language = regenerate(request.name, base, request.trait_overrides, client)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not request.dry_run:
@@ -906,6 +938,12 @@ def tweak_language(slug: str, request: TweakRequest) -> dict:
     summary["cost"] = _cost_delta(before, after)
     summary["warnings"] = phonotactic_mismatch_warnings(language) + unused_suppletive_form_warnings(language)
     summary["saved"] = not request.dry_run
+    # "Tweaking Phase 2": which old sound now maps to which new one, by
+    # feature distance -- the same per-symbol match regenerate_phonology_
+    # adapt_words' own fit_ipa already uses internally, surfaced directly
+    # so the preview can show it without the user having to infer it from
+    # individual word diffs.
+    summary["sound_correspondence"] = phoneme_fit.sound_correspondence(base.phonology, language.phonology)
     return summary
 
 
