@@ -568,17 +568,28 @@
     <div id="evolve-source-lang-rows"></div>
     <button type="button" class="add-row" id="evolve-add-source-lang">+ source language</button>
 
-    <label style="margin-top:14px;">Phonology trait overrides <span class="ipa">(pre-filled from the language's own current reading; unlike Tweak, all 15 worldbuilding traits can be changed here -- evolving never re-rolls grammar typology no matter which ones change, see docs/DEFERRED.md ch.11)</span></label>
-    <div id="evolve-trait-rows-phonology"></div>
-
-    <label style="margin-top:14px;">Grammar trait overrides</label>
-    <div id="evolve-trait-rows-grammar"></div>
-
-    <label style="margin-top:14px;">Tones trait overrides</label>
-    <div id="evolve-trait-rows-tones"></div>
-
-    <label style="margin-top:14px;">Roman Orthography trait overrides</label>
-    <div id="evolve-trait-rows-orthography"></div>
+    <!-- Only the 6 of 15 worldbuilding traits that actually affect
+         evolution (core.traits.EVOLUTION_TRAIT_FIELDS) are shown here, each
+         with its own evolution-specific info description -- not the same
+         15 rows/descriptions Generate shows, since most of the other 9 are
+         real traits that simply never get read anywhere in evolve_language's
+         own call path. Each group is hidden outright when empty (buildEvolveTraitRows). -->
+    <div id="evolve-group-phonology">
+      <label style="margin-top:14px;">Phonology trait overrides <span class="ipa">(pre-filled from the language's own current reading)</span></label>
+      <div id="evolve-trait-rows-phonology"></div>
+    </div>
+    <div id="evolve-group-grammar">
+      <label style="margin-top:14px;">Grammar trait overrides</label>
+      <div id="evolve-trait-rows-grammar"></div>
+    </div>
+    <div id="evolve-group-tones">
+      <label style="margin-top:14px;">Tones trait overrides</label>
+      <div id="evolve-trait-rows-tones"></div>
+    </div>
+    <div id="evolve-group-orthography">
+      <label style="margin-top:14px;">Roman Orthography trait overrides</label>
+      <div id="evolve-trait-rows-orthography"></div>
+    </div>
 
     <div class="submit-row">
       <button class="primary" id="evolve-btn">Preview Evolution</button>
@@ -888,11 +899,15 @@ let scriptTraitFields = [];
 // rows -- only these three ever actually change phonology without also
 // shifting grammar (see core.traits.PHONOLOGY_ONLY_TRAIT_FIELDS).
 let phonologyOnlyTraitFields = [];
+// Same deal again, for the Evolve tab's own restricted trait-override
+// rows -- only these ever actually change anything during evolution (see
+// core.traits.EVOLUTION_TRAIT_FIELDS).
+let evolutionTraitFields = [];
 
 // --- plain-language explanations for the Generate result's own grammar/
 // trait badges, shown as native `title` hover tooltips -- populated once
 // from /api/options (same pattern as ttsCapabilities below). ---
-let glossary = { traits: {}, script_traits: {}, grammar: {}, simple: {}, advanced_options: {} };
+let glossary = { traits: {}, evolution_traits: {}, script_traits: {}, grammar: {}, simple: {}, advanced_options: {} };
 
 function lowerFirst(s) {
   return s.length ? s.charAt(0).toLowerCase() + s.slice(1) : s;
@@ -1075,11 +1090,14 @@ function collectScriptTraitOverrides() {
 // value (0.00 included -- "all traits already visible", a direct user
 // request) rather than only appearing for a nonzero one. ---
 // Generalized over a container id + a list of trait names so both Tweak's
-// own fixed 3-row set and Evolve's own fixed 15-row set (no allowlist,
-// split across its own Phonology/Grammar/Tones/Orthography containers --
-// see buildEvolveTraitRows below) can share this one implementation
-// instead of near-duplicating it.
-function buildPrefilledTraitRows(containerId, names, currentValues) {
+// own fixed 3-row set and Evolve's own fixed 6-row set (see
+// buildEvolveTraitRows below) can share this one implementation instead
+// of near-duplicating it. `glossaryDict` defaults to the Generate-tab-
+// oriented `glossary.traits`; Evolve's own rows pass `glossary.
+// evolution_traits` instead, so the info popover describes the effect
+// during evolution specifically, not fresh generation (they can read
+// quite differently for a trait that affects both).
+function buildPrefilledTraitRows(containerId, names, currentValues, glossaryDict = glossary.traits) {
   const container = $(containerId);
   if (!container) return;
   // `data-original` keeps the *true, unrounded* current value so
@@ -1100,7 +1118,7 @@ function buildPrefilledTraitRows(containerId, names, currentValues) {
       // level click-outside-closes-it listener on the same click.
       e.stopPropagation();
       if (openInfoPopoverButton === e.currentTarget) { hideInfoPopover(); return; }
-      showInfoPopover(e.currentTarget, renderTraitSelectInfo(glossary.traits[name]));
+      showInfoPopover(e.currentTarget, renderTraitSelectInfo(glossaryDict[name]));
     };
   }
 }
@@ -1133,20 +1151,45 @@ function collectTweakTraitOverrides() {
   return collectPrefilledOverrides("tweak-trait-rows");
 }
 
-// --- Evolve tab: all 15 worldbuilding traits, no allowlist (unlike Tweak's
-// own 3) -- evolve_language never re-rolls grammar typology no matter which
-// of these change, so every trait is safe here (confirmed by direct code
-// reading + tests/test_evolve_webui.py, not assumed). Split across the same
-// four fieldsets Generate/Tweak already use, via EVOLVE_TRAIT_SECTION
-// (defined further down, right after TRAIT_SECTION itself, since it's
-// derived from it) -- these two builder functions are only ever called
-// after the whole script has loaded, so the later definition is fine.
+// --- Evolve tab: only `evolutionTraitFields` (core.traits.
+// EVOLUTION_TRAIT_FIELDS, populated from /api/options -- see loadOptions),
+// not all 15 the way the first cut of this tab showed -- confirmed by
+// grepping sound_change.py that the other 9 have zero effect during
+// evolution, so showing them here would silently do nothing (direct user
+// request, after noticing the Evolve tab showed the same 15 rows as
+// Generate and asking whether they really all apply to both evolution and
+// generation; they don't). Grouped by each trait's own *evolution*-time
+// mechanism -- not the Generate-tab grouping (TRAIT_SECTION) a few lines
+// below this, which groups by generation-time mechanism instead and
+// doesn't apply cleanly here: `tonal_friendliness`/`terrain_communication_
+// distance` move to "phonology" (both purely resist vowel reduction, a
+// segmental rule, during evolution -- neither touches the tone system
+// itself, see EVOLUTION_TRAIT_GLOSSARY's own description); `contact_
+// intensity` stays "grammar" (matching where Generate/Tweak already show
+// it) even though its own evolution effects are broader (phonology +
+// orthography + tone loss). A group with no traits in it (today, only
+// "tones") is hidden outright rather than shown empty.
+const EVOLVE_TRAIT_SECTION = {
+  altitude: "phonology",
+  aesthetic_harshness: "phonology",
+  tonal_friendliness: "phonology",
+  terrain_communication_distance: "phonology",
+  contact_intensity: "grammar",
+  orality_literacy: "orthography",
+};
 function buildEvolveTraitRows(currentValues) {
-  const bySection = (section) => gradedTraitFields.filter(name => EVOLVE_TRAIT_SECTION[name] === section);
-  buildPrefilledTraitRows("evolve-trait-rows-phonology", bySection("phonology"), currentValues);
-  buildPrefilledTraitRows("evolve-trait-rows-grammar", bySection("grammar"), currentValues);
-  buildPrefilledTraitRows("evolve-trait-rows-tones", bySection("tones"), currentValues);
-  buildPrefilledTraitRows("evolve-trait-rows-orthography", bySection("orthography"), currentValues);
+  const bySection = (section) => evolutionTraitFields.filter(name => EVOLVE_TRAIT_SECTION[name] === section);
+  for (const [section, containerId, groupId] of [
+    ["phonology", "evolve-trait-rows-phonology", "evolve-group-phonology"],
+    ["grammar", "evolve-trait-rows-grammar", "evolve-group-grammar"],
+    ["tones", "evolve-trait-rows-tones", "evolve-group-tones"],
+    ["orthography", "evolve-trait-rows-orthography", "evolve-group-orthography"],
+  ]) {
+    const names = bySection(section);
+    buildPrefilledTraitRows(containerId, names, currentValues, glossary.evolution_traits);
+    const group = $(groupId);
+    if (group) group.hidden = names.length === 0;
+  }
 }
 function collectEvolveTraitOverrides() {
   return {
@@ -1494,7 +1537,8 @@ async function loadOptions() {
   gradedTraitFields = opts.graded_trait_fields || [];
   scriptTraitFields = opts.script_trait_fields || [];
   phonologyOnlyTraitFields = opts.phonology_only_trait_fields || [];
-  glossary = opts.glossary || { traits: {}, script_traits: {}, grammar: {}, simple: {}, advanced_options: {} };
+  evolutionTraitFields = opts.evolution_trait_fields || [];
+  glossary = opts.glossary || { traits: {}, evolution_traits: {}, script_traits: {}, grammar: {}, simple: {}, advanced_options: {} };
   buildGenerateTraitRows();
   sourceLanguageNames = opts.source_language_names || [];
   sourceLanguageMatchableNames = new Set(opts.source_language_matchable_names || []);
@@ -1990,14 +2034,6 @@ const TRAIT_SECTION = {
   ritual_register: "grammar",
   taboo_register: "grammar",
 };
-
-// Evolve tab's own variant of TRAIT_SECTION (see buildEvolveTraitRows):
-// terrain_communication_distance has zero fresh-generation effect but a
-// real evolution-rate effect (sound_change._compute_rates, see docs/
-// DEFERRED.md ch.11), so it's pulled out of "phonology" and shown under
-// "grammar" there instead, to avoid implying it does something during a
-// Tweak-style phonology-only edit.
-const EVOLVE_TRAIT_SECTION = { ...TRAIT_SECTION, terrain_communication_distance: "grammar" };
 
 function renderLanguageSummary(container, summary) {
   const g = summary.grammar, t = summary.traits;

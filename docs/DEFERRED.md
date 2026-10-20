@@ -770,9 +770,33 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
     before/after lexicon + phoneme-inventory pair) -- plus a new `buildPrefilledTraitRows`/
     `collectPrefilledOverrides` pair generalizing what used to be Tweak-only logic, and a generalized
     `addSourceLangRow(containerId)`/`collectSourceLanguages(containerId)` shared with Generate's own
-    source-language rows rather than duplicated. `terrain_communication_distance` (see the item above
-    this one) is shown under this tab's own "Grammar" fieldset rather than "Phonology"
-    (`EVOLVE_TRAIT_SECTION`), fixing exactly the misleading classification that item flagged.
+    source-language rows rather than duplicated.
+
+    **Follow-up, direct user request after noticing the tab showed the same 15 trait rows/descriptions
+    as Generate and asking whether they all really apply to both generation and evolution -- they
+    don't.** New `core.traits.EVOLUTION_TRAIT_FIELDS`: of the 15 `GRADED_TRAIT_FIELDS`, only 6 are ever
+    actually read anywhere in `sound_change.py`'s own evolution call path (confirmed by grep, tracing
+    every helper `evolve_language` calls, not assumed) -- `altitude`/`aesthetic_harshness` (ejective
+    drift), `contact_intensity` (cluster simplification, lexical replacement rate, orthography drift/
+    reform, *and* tonal detonalization -- the real Swahili case), `orality_literacy` (literacy anchors
+    pronunciation and spelling against drift), `tonal_friendliness`/`terrain_communication_distance`
+    (both resist vowel reduction only -- a genuinely surprising finding: neither touches the tone
+    *system* itself at all, despite `tonal_friendliness`'s own name; only `contact_intensity` can
+    cause detonalization, and tonogenesis is a separate, purely structural coda-driven mechanism). The
+    other 9 are real, still-consumed traits -- just never by anything evolution calls (7 are fresh-
+    generation-only: `isolation`/`community_scale`/`social_hierarchy`/`evidentiality_culture`/
+    `spatial_reference`/`phonotactic_restrictiveness`/`tone_sandhi`; 2, `ritual_register`/
+    `taboo_register`, aren't consumed by *anything* yet, generation or evolution alike). The Evolve tab
+    now shows only these 6 as trait-override rows (unlike `PHONOLOGY_ONLY_TRAIT_FIELDS`, this is
+    display-only -- the endpoint's own `trait_overrides` validation still accepts any of the 15, since
+    setting one of the other 9 during evolution is a harmless no-op, not a correctness risk), grouped
+    by each trait's own *evolution*-time mechanism rather than Generate's own `TRAIT_SECTION` grouping
+    (`tonal_friendliness`/`terrain_communication_distance` move into "Phonology" here, since neither has
+    any tone-system effect during evolution; `contact_intensity` stays "Grammar", matching where
+    Generate/Tweak already show it, even though its own evolution effects are broader) -- a group with
+    nothing in it (today, only "Tones") is hidden outright. New `webui.glossary.EVOLUTION_TRAIT_GLOSSARY`
+    gives each of the 6 its own info-popover description written purely in terms of the evolution
+    effect, instead of reusing `TRAIT_GLOSSARY`'s generation-focused text.
   - **(b) Generate stays focused on a base language.** The "Years of evolution" input was removed from
     Generate's own Advanced Options (web UI only); `evolve_years`/`generate_evolved_language`/CLI's own
     `--years` are unchanged at the backend/CLI level -- a prompt that itself implies a time depth

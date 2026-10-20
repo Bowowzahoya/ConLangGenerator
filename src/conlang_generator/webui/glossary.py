@@ -153,6 +153,55 @@ TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
 }
 
 
+# --- the Evolve tab's own 6 trait-override rows (core.traits.
+# EVOLUTION_TRAIT_FIELDS) -- unlike TRAIT_GLOSSARY above, every
+# description here is written purely in terms of the effect during
+# *evolution*, not fresh generation (several of these traits also affect
+# generation, described above instead; a couple only ever affect
+# evolution, so the two descriptions happen to read similarly). Direct
+# user request, after noticing the Evolve tab showed the same 15 rows as
+# Generate and asking whether all of them really apply to both -- they
+# don't (see EVOLUTION_TRAIT_FIELDS's own docstring for the investigation). ---
+EVOLUTION_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
+    "altitude": {
+        "kind": "bipolar",
+        "summary": "How high up the language's homeland terrain is.",
+        "positive": "High-altitude terrain -- strengthens the drift toward ejective consonants as the language evolves, the same real high-altitude/ejective link (Everett 2013) generation itself already leans on, now acting gradually over time instead of as a one-time roll.",
+        "negative": "Lowland or coastal terrain -- weakens that same ejective drift as the language evolves.",
+    },
+    "aesthetic_harshness": {
+        "kind": "bipolar",
+        "summary": "How harsh and guttural, versus soft and melodic, the language is meant to sound.",
+        "positive": "A harsh, guttural aesthetic -- strengthens ejective-consonant drift as the language evolves, the same direction a high `altitude` reading pushes.",
+        "negative": "A soft, melodic aesthetic -- weakens that same ejective drift as the language evolves.",
+    },
+    "contact_intensity": {
+        "kind": "bipolar",
+        "summary": "How much contact, trade, or creolization history the language has had with others.",
+        "positive": "Heavy contact/trade history -- speeds up consonant-cluster simplification, the rate words get replaced wholesale, and orthography drift/reform, and raises the chance a tonal language loses its tone system under sustained contact (the real, documented path Swahili took).",
+        "negative": "Little outside contact -- none of those changes are sped up; the language drifts at whatever its own internal rate already is.",
+    },
+    "orality_literacy": {
+        "kind": "bipolar",
+        "summary": "How much the culture relies on writing versus a purely spoken tradition.",
+        "positive": "A literate culture with an established writing tradition -- anchors both pronunciation and spelling against drift as the language evolves, and lowers the rate of deliberate orthography reform.",
+        "negative": "A purely, or mostly, oral culture -- pronunciation and spelling drift more freely as the language evolves, with no literate anchor holding either in place.",
+    },
+    "tonal_friendliness": {
+        "kind": "bipolar",
+        "summary": "How much the culture favors lexical tone -- pitch that changes a word's meaning.",
+        "positive": "A cultural affinity for tone -- resists vowel reduction as the language evolves, since a tonal language needs distinct vowel quality to keep its pitch contrasts legible. Doesn't on its own make a non-tonal language gain tone, or a tonal one lose it -- that's `contact_intensity` (loss) and a purely structural, coda-driven mechanism (gain); see `generation.sound_change._evolve_tone_system`.",
+        "negative": "Evidence against a tonal affinity -- no extra resistance to vowel reduction of its own.",
+    },
+    "terrain_communication_distance": {
+        "kind": "bipolar",
+        "summary": "How far speakers typically need their voices to carry -- open terrain or mountains versus close quarters.",
+        "positive": "Long-distance communication matters -- resists vowel reduction as the language evolves, since loud, long-distance speech needs distinct vowel quality.",
+        "negative": "Close-range communication is typical -- no extra resistance of its own; ordinary vowel reduction still applies as the language evolves.",
+    },
+}
+
+
 # --- the 15 ScriptTraits dials (core.script.ScriptTraits), bipolar
 # [-1.0, 1.0] -- same shape as TRAIT_GLOSSARY, paraphrased directly from
 # that module's own per-field docstrings. Governs an invented script's
@@ -464,6 +513,7 @@ ADVANCED_OPTIONS_GLOSSARY: dict[str, dict] = {
 def as_dict() -> dict:
     return {
         "traits": TRAIT_GLOSSARY,
+        "evolution_traits": EVOLUTION_TRAIT_GLOSSARY,
         "script_traits": SCRIPT_TRAIT_GLOSSARY,
         "grammar": GRAMMAR_GLOSSARY,
         "simple": SIMPLE_GLOSSARY,

@@ -8490,3 +8490,36 @@ reading code or one-off ad hoc scripts.
   field it posted (`evolve_years`) is unchanged, so a prompt that itself implies a time depth still
   triggers evolution during fresh generation exactly as before -- only the manual override input is
   gone, matching the user's own "Generate stays focused on a base language" framing of part (b).
+
+  **Nav reordered** (direct user request): Generate, Evolve, Tweak, Inspect, Script, Translate,
+  Reference, Log -- groups the three "work on one saved language" tabs together right after Generate.
+
+  **Follow-up: the Evolve tab's own trait rows cut down from 15 to the 6 that actually matter, with
+  evolution-specific descriptions.** Direct user request, after noticing the tab showed the same 15
+  rows/descriptions Generate does and asking whether all 15 really affect both. They don't: new
+  `core.traits.EVOLUTION_TRAIT_FIELDS` is the subset actually read anywhere in `sound_change.py`'s own
+  evolution call path (confirmed by grep, not assumed) -- `altitude`/`aesthetic_harshness` (ejective
+  drift), `contact_intensity` (cluster simplification, lexical-replacement rate, orthography drift/
+  reform, and tonal detonalization), `orality_literacy` (literacy anchors pronunciation/spelling
+  against drift), `tonal_friendliness`/`terrain_communication_distance` (both resist vowel reduction
+  only -- genuinely surprising, since neither touches the tone *system* itself: `_evolve_tone_system`
+  reads only `contact_intensity`). The other 9 are real, still-consumed traits, just never by anything
+  `evolve_language` calls (7 fresh-generation-only: `isolation`/`community_scale`/`social_hierarchy`/
+  `evidentiality_culture`/`spatial_reference`/`phonotactic_restrictiveness`/`tone_sandhi`; `ritual_
+  register`/`taboo_register` aren't consumed by anything at all yet). Unlike `PHONOLOGY_ONLY_TRAIT_
+  FIELDS`, this is a **display-only** restriction -- `EvolveRequest.trait_overrides` still accepts any
+  of the 15 through the API, since the other 9 are harmless no-ops during evolution, not a correctness
+  risk the way a Tweak-phonology trait touching grammar would be. `buildEvolveTraitRows` (`static/
+  index.html`) now groups these 6 by a new `EVOLVE_TRAIT_SECTION` map reflecting each trait's own
+  *evolution*-time mechanism rather than Generate's `TRAIT_SECTION` (generation-time grouping) --
+  `tonal_friendliness`/`terrain_communication_distance` move to "Phonology" (neither affects the tone
+  system during evolution); `contact_intensity` stays "Grammar" (matching Generate/Tweak's own
+  placement) despite its broader evolution effects -- and hides a group outright when empty (today,
+  "Tones"). `buildPrefilledTraitRows` gained an optional `glossaryDict` parameter (default `glossary.
+  traits`) so Evolve's own rows can pass the new `webui.glossary.EVOLUTION_TRAIT_GLOSSARY` instead,
+  giving each of the 6 an info-popover description written purely in terms of the evolution effect
+  (e.g. `tonal_friendliness`'s now explicitly says it doesn't make a language gain or lose tone on its
+  own) rather than reusing `TRAIT_GLOSSARY`'s generation-focused text. Verified live: the Evolve tab
+  for a matched language shows exactly 4/1/0/1 rows across Phonology/Grammar/Tones/Orthography with
+  Tones hidden, and the `tonal_friendliness` popover renders the new evolution-specific text; Generate's
+  own 15-row layout (4/8/2/1) and Tweak's own 3-row layout are both unaffected.

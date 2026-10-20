@@ -63,6 +63,44 @@ so it's excluded; `terrain_communication_distance` is read only by
 roll, so including it would be a silent no-op outside evolution and
 it's excluded too."""
 
+EVOLUTION_TRAIT_FIELDS: tuple[str, ...] = (
+    "altitude",
+    "contact_intensity",
+    "orality_literacy",
+    "aesthetic_harshness",
+    "tonal_friendliness",
+    "terrain_communication_distance",
+)
+"""The subset of `GRADED_TRAIT_FIELDS` actually read anywhere in
+`generation.sound_change`'s own evolution call path (confirmed by
+grepping `sound_change.py` for every field name and tracing each helper
+it calls, not assumed) -- found answering a direct user question after
+the web UI's own Evolve tab showed all 15 fields, the same as Generate:
+`altitude`/`aesthetic_harshness` bias ejective drift; `contact_intensity`
+biases consonant-cluster simplification, lexical-replacement rate,
+orthography drift/reform, *and* tonal-language detonalization (the real
+Swahili case); `orality_literacy` anchors both pronunciation and spelling
+against drift; `tonal_friendliness`/`terrain_communication_distance` both
+resist vowel reduction, for two independent real reasons (tone and loud/
+long-distance speech both need distinct vowel quality) -- neither one
+has any effect on whether the tone *system* itself changes (see
+`_evolve_tone_system`, which reads only `contact_intensity`).
+
+The other 9 of the 15 `GRADED_TRAIT_FIELDS` are real, documented, and
+still consumed -- just never by anything `evolve_language` calls:
+`isolation`/`community_scale`/`social_hierarchy`/`evidentiality_culture`/
+`spatial_reference`/`phonotactic_restrictiveness`/`tone_sandhi` are read
+only by fresh-generation modules (`grammar_gen.py`, `phonology_gen.py`,
+`pronoun_gen.py`, `inflection_gen.py`, `np_followups_gen.py`); `ritual_
+register`/`taboo_register` aren't consumed by *anything* yet, generation
+or evolution alike (see `docs/DEFERRED.md`). The web UI's Evolve tab uses
+this allowlist to show only these 6 as trait-override rows, rather than
+all 15 -- unlike `PHONOLOGY_ONLY_TRAIT_FIELDS`, this is a display-only
+restriction (`generation.webui.app.EvolveRequest.trait_overrides` still
+accepts any of the 15 through the API/CLI, since setting one of the other
+9 during evolution is a harmless no-op, not a correctness risk the way a
+Tweak-phonology trait touching grammar would be)."""
+
 
 class TraitProfile(BaseModel, frozen=True):
     # -- Consumed by generation today (see phonology_gen.py / grammar_gen.py) --

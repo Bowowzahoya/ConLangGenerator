@@ -40,7 +40,7 @@ from conlang_generator.core.romanization import (
 )
 from conlang_generator.core.script import ScriptTraits, ScriptTraitsForce
 from conlang_generator.core.spec import GenerationSpec, SeedExample
-from conlang_generator.core.traits import GRADED_TRAIT_FIELDS, PHONOLOGY_ONLY_TRAIT_FIELDS
+from conlang_generator.core.traits import EVOLUTION_TRAIT_FIELDS, GRADED_TRAIT_FIELDS, PHONOLOGY_ONLY_TRAIT_FIELDS
 from conlang_generator.generation import ipa_tokenizer, phoneme_fit, phonology_gen, script_gen, sound_change
 from conlang_generator.generation.generator import (
     generate_evolved_language,
@@ -699,6 +699,7 @@ def get_options() -> dict:
         "max_vocabulary_size": len(ALL_MEANINGS),
         "graded_trait_fields": list(GRADED_TRAIT_FIELDS),
         "phonology_only_trait_fields": list(PHONOLOGY_ONLY_TRAIT_FIELDS),
+        "evolution_trait_fields": list(EVOLUTION_TRAIT_FIELDS),
         # Direct user request from a deep-dive review: typing a source
         # language the curated reference-language matcher (generation.
         # reference_languages.match_profiles) doesn't recognize -- by name
