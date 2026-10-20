@@ -48,15 +48,25 @@ GRADED_TRAIT_FIELDS: tuple[str, ...] = (
     "vowel_length_affinity",
     "word_length_preference",
     "vowel_reduction_affinity",
+    "compound_likelihood",
 )
-"""The last 7 (``fricative_density`` through ``vowel_reduction_affinity``)
-were added in one later pass, direct user request after a brainstorm
+"""7 of these (``fricative_density`` through ``vowel_reduction_affinity``)
+were added in one pass, direct user request after a brainstorm
 ("I wonder if there can be more phonology traits in generation... help
 me come up with some more possible traits" -> "I like all of them.
 Implement all."). All 7 are phonology-generation-only, confirmed by the
 same grepping discipline `PHONOLOGY_ONLY_TRAIT_FIELDS`'s own docstring
 already uses -- see that constant below for exactly where each one
-plugs in."""
+plugs in.
+
+``compound_likelihood`` (the 23rd) was added in a later, separate pass --
+a word-formation feature (compounding/derivation/ablaut-style relatedness
+instead of always coining a fresh root), *not* phonology-only (it touches
+the lexicon/grammar coinage path, see `generation.derivation_gen`) and not
+in `EVOLUTION_TRAIT_FIELDS` either (not read anywhere in `sound_change.py`'s
+own evolution path -- see docs/DEFERRED.md's own "frequency-resistant
+sound change"/"compound ossification" entries for why that's a separate,
+later follow-up, not this one)."""
 
 PHONOLOGY_ONLY_TRAIT_FIELDS: tuple[str, ...] = (
     "altitude",
@@ -257,6 +267,20 @@ class TraitProfile(BaseModel, frozen=True):
     this one way or the other (see ``generation.lexicon_gen``'s own
     ``reduce_unstressed_vowels``) -- a real curated profile always wins
     outright."""
+    compound_likelihood: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: a language that favors building new words out of existing
+    ones (compounding, or an affixal/ablaut derivation) over coining a
+    fresh, unrelated root -- the real mechanism behind Mandarin's own heavy
+    compounding (电脑 "electric-brain" = computer) at one extreme. Negative:
+    a language that prefers a fresh root even where a real, flagged
+    relatedness exists (Monday/understand-style English, which rarely
+    recomposes). Composed with -- not a substitute for -- a per-part-of-
+    speech multiplier (nouns compound far more than verbs cross-
+    linguistically, function words essentially never) and a hard
+    suppression for ``lexicon_gen._CORE_MEANING_GLOSSES`` (frequent/basic
+    words are definitionally the ones nothing else has been built from
+    yet). See ``generation.derivation_gen``'s own word-formation-strategy
+    docstring for the full mechanism."""
 
     # -- Extracted and stored, not yet consumed by generation --
     orality_literacy: float = Field(default=0.0, ge=-1.0, le=1.0)

@@ -153,3 +153,16 @@ class GenerationSpec(BaseModel, frozen=True):
     translation time (``translation/expansion.py``'s ``coin_word``,
     ``translation/names.py``'s ``make_name_entry``) the same way
     ``word_selection`` itself already is."""
+    word_formation: str = "algorithmic"
+    """How a gloss flagged by ``traits.compound_likelihood`` (compounding/
+    derivation/ablaut-relatedness instead of a fresh root) decides *what*
+    it's related to -- ``"algorithmic"`` (default): looks the gloss up in
+    the curated ``generation.word_relations.WORD_RELATIONS`` table, no LLM
+    call; ``"llm"``: asks the configured LLM to name the 1-2 component
+    English glosses instead, reaching any gloss, not just a pre-tabulated
+    one. Same "off by default, no cost unless asked" shape as
+    ``word_selection``, and a genuinely separate decision from it: this is
+    about *what a word is built from*, ``word_selection`` is about picking
+    among already-built candidate spellings. Consulted during initial core-
+    vocabulary generation and later translation-time coinage alike (see
+    ``generation.derivation_gen``)."""

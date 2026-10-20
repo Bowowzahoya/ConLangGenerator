@@ -355,6 +355,12 @@ def generate(
         "no LLM call) or 'llm' (sound-symbolism-informed, one batched request for the whole core vocabulary). "
         "Prompt classification always uses --llm regardless.",
     ),
+    word_formation: str = typer.Option(
+        "algorithmic", "--word-formation",
+        help="How a word flagged by --trait compound_likelihood decides what it's built from: 'algorithmic' "
+        "(default, looks it up in a curated compound/derivation list, no LLM call) or 'llm' (asks the configured "
+        "LLM, reaching any gloss, not just a pre-tabulated one).",
+    ),
     model: str = typer.Option(
         DEFAULT_MODEL, "--model", help="Model for prompt classification.",
     ),
@@ -394,6 +400,9 @@ def generate(
     force_own_script = None if own_script == "auto" else own_script == "yes"
     if word_selection not in ("algorithmic", "llm"):
         typer.echo(f"error: --word-selection must be 'algorithmic' or 'llm', got {word_selection!r}", err=True)
+        raise typer.Exit(code=1)
+    if word_formation not in ("algorithmic", "llm"):
+        typer.echo(f"error: --word-formation must be 'algorithmic' or 'llm', got {word_formation!r}", err=True)
         raise typer.Exit(code=1)
     if orthography_style is not None and orthography_style not in ORTHOGRAPHY_STYLE_NAMES:
         typer.echo(f"error: --orthography-style must be one of {', '.join(ORTHOGRAPHY_STYLE_NAMES)}, got {orthography_style!r}", err=True)
@@ -553,6 +562,7 @@ def generate(
         seed_examples=seed_examples,
         allow_all_caps=allow_all_caps,
         word_selection=word_selection,
+        word_formation=word_formation,
         classifier_model=model,
         word_selection_model=word_model,
         vocabulary_size=vocabulary_size,

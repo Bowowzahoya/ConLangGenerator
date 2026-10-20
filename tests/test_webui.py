@@ -304,7 +304,7 @@ def test_options_endpoint_lists_the_graded_trait_fields(client):
     assert "tone_sandhi" in opts["graded_trait_fields"]
     assert "altitude" in opts["graded_trait_fields"]
     assert "source_language_strictness" not in opts["graded_trait_fields"]
-    assert len(opts["graded_trait_fields"]) == 22
+    assert len(opts["graded_trait_fields"]) == 23
 
 
 def test_options_endpoint_serves_the_grammar_trait_glossary(client):
@@ -435,17 +435,17 @@ def test_lexicon_entries_report_their_own_real_spoken_sandhi_form(client):
     # other dictionary entry -- see _language_summary's own comment on
     # why this is never batched across the whole lexicon), not just its
     # unmodified citation IPA.
-    # seed=16 -- re-found from seed=21 after the word-length-preference/
-    # basicness trait work (plus the 7 new phonology traits' own fake-LLM-
-    # classified values for this prompt) shifted the shared rng stream's
-    # own draw sequence, which shifted which word at this strict-Zulu
-    # fixture actually ends up as "dog" and whether Meeussen's Rule fires
-    # on it -- same "seed-shift from new content" pattern documented
-    # elsewhere in this project's history.
+    # seed=17 -- re-found from seed=16 after the word-formation pass's own
+    # core-lexicon planning pre-pass made every eligible gloss roll
+    # `compound_likelihood` during generation itself, shifting the shared
+    # rng stream's own draw sequence, which shifted which word at this
+    # strict-Zulu fixture actually ends up as "dog" and whether Meeussen's
+    # Rule fires on it -- same "seed-shift from new content" pattern
+    # documented elsewhere in this project's history.
     body = client.post(
         "/api/generate",
         json={
-            "prompt": "Zulu", "name": "Zulu Sandhi Web", "seed": 16, "llm": "fake",
+            "prompt": "Zulu", "name": "Zulu Sandhi Web", "seed": 17, "llm": "fake",
             "source_languages": [{"name": "Zulu", "weight": None}], "strictness": 1.0,
         },
     ).json()

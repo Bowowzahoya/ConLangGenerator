@@ -407,6 +407,34 @@ multi-session feature.
   `nasality`/`consonant_richness`/`vowel_richness` override measurably shifts the resulting phoneme
   inventory's own fricative/nasal-vowel/long-vowel/consonant/vowel counts across several seeds (e.g.
   `consonant_richness=1.0` averaged 89 consonants vs. 21.6 neutral vs. 12.1 at `-1.0`, across 20 seeds).
+- **Graded complexity-to-length gradient within non-core vocabulary (M) -- surfaced while scoping
+  the word-formation plan, deliberately set aside from it.** The word-length basicness fix above
+  (`is_core_meaning`) and the word-formation plan (see ch. 10's new entry) both explain length
+  through two *binary* mechanisms -- "is this one of the 51 `CORE_MEANINGS`" and "is this word built
+  from parts" -- but real word length also tracks rarity/specificity on a *continuum* even for
+  monomorphemic words with neither property: "giraffe"/"umbrella"/"octopus" are longer than "dog"/
+  "cat" despite being loanwords, not compounds, and not core vocabulary either (the modern,
+  information-theoretic restatement of Zipf's law -- Piantadosi, Tily & Gibson 2011 -- length tracks
+  predictability/surprisal, frequency is just a strong proxy for that). Nothing in `choose_syllable_
+  count` currently distinguishes "giraffe"-tier rareness from "photosynthesis"-tier rareness within
+  the non-core bucket -- it's one flat table. Needs a per-gloss rarity/specificity signal this
+  project doesn't have (plausibly an LLM-classified or curated rank over `ALL_MEANINGS`/translation-
+  time vocabulary), composed as one more additive delta into the same tilt
+  `word_length_preference`/`is_core_meaning` already use -- not a new mechanism, just a third input
+  to it, deliberately not attempted alongside the word-formation plan since the two explain length
+  through genuinely different channels (composition vs. raw rarity) and conflating them risks double-
+  counting the same words.
+- **Serial verb constructions as their own typological axis (M) -- surfaced the same way, also set
+  aside.** Verb-verb *compounding* (one lexical word, see ch. 10's new entry) is related to but
+  distinct from serial verb constructions (Mandarin's resultative 打破 "hit-break" = to break;
+  Japanese's 飛び出す "fly-out" = to jump out; robust across Niger-Congo and Austronesian) -- SVCs are
+  a *syntactic* phenomenon (multiple verbs in one clause with no intervening conjunction/marking),
+  not a single compound word, and this project has no existing clause-structure axis for it (`core.
+  grammar.GrammarProfile`'s own fields are all either word-level or about a single clause's
+  arguments). Worth keeping conceptually separate from the word-formation plan's own per-POS
+  compound-likelihood multiplier (which only ever produces single lexical compound verbs, not
+  multi-verb clauses) -- a real, scoped future addition to the grammar/syntax side, not the lexicon
+  side, not attempted here.
 
 ## 7. Real lexicons
 
@@ -718,25 +746,39 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   classes (consistent with how paradigms already work) activated more often at a high trait value, which
   seems like the more natural fit than inventing a new per-word-exception mechanism; extending this same
   idea to orthography/script exceptions is a further, separate step once the grammar side exists.
-- **Occasionally share a root between semantically related words (M) -- "to die"/"death," the user's
-  own example.** Directly grounded in existing, intentionally-left-open infrastructure:
-  `generation/root_pattern.py`'s own module docstring already says this exact thing is out of scope
-  *for now*, not impossible -- "It does not attempt derivational relatedness between words... that needs
-  semantic judgment between an English gloss and the existing lexicon, LLM territory, not attempted
-  here, [but] `LexicalEntry.root` is recorded on every templatic word regardless, so that future work
-  has the data already in place." This is exactly that future work: given two glosses the classifier (or
-  a curated semantic-relatedness list, cheaper and more deterministic than an LLM call per word pair)
-  judges related, reuse the earlier word's own `root` through a *different* template/affix rather than
-  coining an unrelated new root -- a real, scoped feature, not a research problem, but one that needs a
-  "which glosses are related" signal this project doesn't have yet (an LLM-classified list, most likely,
-  given the docstring's own "LLM territory" framing).
-- **A trait for compound-word likelihood (M) -- Monday/understand (English) vs. Mandarin's own heavy
-  compounding, the user's own examples.** `generation/derivation_gen.py`'s own compounding mechanism
-  already exists (see the pass-list at the top of this chapter: "derivation/compounding/reduplication/
-  root-and-pattern morphology" is marked done) -- what's missing is a graded dial controlling *how
-  often* compounding gets picked over a plain coined root or an affixed derivation, the same "weighted,
-  trait-biased choice among existing options" shape several already-wired traits in this chapter use,
-  not a new word-formation mechanism.
+- **Occasionally share a root between semantically related words -- done, "to die"/"death," the
+  user's own example.** The "which glosses are related" signal this entry itself said was missing is
+  now `generation/word_relations.WORD_RELATIONS` (a curated list) or the configured LLM
+  (`GenerationSpec.word_formation`); relatedness is realized via a new non-concatenative (ablaut)
+  `DerivationRule.stem_change`, reusing `paradigm_gen.build_stem_maps`/`change_stem` (inflection's own
+  umlaut-plural machinery, found already built for an unrelated reason) rather than `LexicalEntry.
+  root`/the templatic root-and-pattern path this entry originally pointed at -- `root_pattern.py`'s
+  own mechanism turned out to need no changes at all, since it already reuses `root` through a
+  different template whenever a `DerivationRule.pattern` applies. See `architecture/OVERVIEW.md`'s
+  own "compounding/derivation/ablaut word formation" entry for the full mechanism.
+- **A trait for compound-word likelihood -- done, Monday/understand (English) vs. Mandarin's own
+  heavy compounding, the user's own examples.** `traits.compound_likelihood`, composed with a
+  per-part-of-speech multiplier (noun > adjective > verb, cross-linguistically grounded) and a hard
+  suppression for core/basic vocabulary -- the "graded dial controlling how often" this entry asked
+  for, generalized to gate derivation/ablaut too, not just literal compounding. See `architecture/
+  OVERVIEW.md`'s own "compounding/derivation/ablaut word formation" entry.
+- **Dutch "ver-"-style recurring opaque formatives (S-M) -- direct user question ("can we enable
+  very common patterns like ver- in Dutch: verhuizen, verlaten, vertragen, verplaatsen?").**
+  Linguistically a different phenomenon from the derivation/compounding above: real "ver-" doesn't
+  derive one word *from* an identifiable base with one clean meaning the way agent "-er" does --
+  linguists describe it as having 8-plus loosely related senses (completive, directional,
+  pejorative, privative...), closer to a recognizable recurring *texture* than a predictable rule.
+  Confirmed by reading the code: this already exists almost as-is --
+  `generation/word_class_gen.py`'s `WordClass` mechanism already assigns a chunk of words of a given
+  POS an arbitrary, invented, baked-into-the-IPA prefix/suffix with its own prevalence weight, with
+  no requirement for a semantic base at all. A Dutch-flavored language can already get a `ver-`-
+  shaped verb class today; the gap is (a) the prevalence weight may need tuning so it reads as
+  "common" the way real "ver-" does, and (b) it's invisible -- `word_class` is recorded on every
+  `LexicalEntry` but never surfaced (same gap the "Show a word's own grammatical forms/paradigm in
+  Inspect" entry right below already names). If a *semantically clustered* version is ever wanted
+  (leaning toward change-of-state/motion senses the way real "ver-" loosely does, rather than purely
+  arbitrary), that would need the relatedness machinery from the word-formation plan above -- but the
+  base "recurring textural prefix" case needs no new architecture.
 - **Show a word's own grammatical forms/paradigm in Inspect (M) -- direct user question, "are
   grammatical forms/cases already wired?" answered: yes internally, no visibly.** Confirmed by reading
   the code, not guessing: `generation/paradigm_gen.py`'s `roll_paradigms`/`Paradigm`/`InflectionAffix`
@@ -988,6 +1030,28 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   OVERVIEW.md`. Deferred: lineage-biasing *which* palatalization variant
   a matched real profile prefers; the intermediate `ts`/`dz` stage; a
   conditioning tag other than front/back vowel.
+- **Frequent words should change less during evolution (M) -- direct user request, scoping the
+  word-formation plan.** Real, well-documented frequency effect (Bybee's usage-based phonology;
+  frequent words are maintained by rote and resist regular sound change, hence English's own most
+  irregular verbs are overwhelmingly its most frequent ones). Confirmed feasible, not attempted here:
+  `evolve_language`'s own loop (`sound_change.py`, the `_evolve_ipa(entry.ipa, rng, rates, ...)` call
+  over `base.lexicon.entries`) already has each full `LexicalEntry` -- including `.glosses` -- in
+  scope at the exact point `rates` get applied; nothing currently reads it. The natural fix is a
+  per-word rate dampener keyed on `lexicon_gen.CORE_MEANINGS`/`_CORE_MEANING_GLOSSES` membership
+  (the same frequency proxy fresh generation's own word-length fix already uses), composed into
+  `_compute_rates`'s existing rate-biasing shape as one more multiplicative factor rather than a new
+  per-rule mechanism -- scoped and real, just not built in this pass.
+- **Compound ossification during evolution (M) -- direct user request, same scoping conversation.**
+  Real diachronic phenomenon: a compound's own internal boundary erodes under sound change until
+  it's reclassified as a single opaque root (English "woman" < "wife-man", "window" < "wind-eye",
+  "lord" < "hlāfweard" "loaf-ward" -- the user's own `_compound_entry` fallback case in the word-
+  formation plan above is this exact process working forward instead of backward). This needs the
+  word-formation plan's own structured compound-marking on `LexicalEntry` to exist first (today
+  `_compound_entry`'s own compound-ness is recorded only as free-text `notes`, not structured) --
+  once that lands, evolution could roll, per compound word per evolution run, whether its boundary
+  survives recognizably or the word gets reclassified as a plain root (and its `root`/compound
+  metadata cleared), biased by the same contact/drift-strength traits already feeding every other
+  evolution rule. A direct, concrete follow-up once the word-formation plan ships, not before.
 
 ## 12. Tweaking an existing language
 

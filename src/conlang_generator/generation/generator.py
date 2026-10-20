@@ -40,7 +40,9 @@ from conlang_generator.generation import (
     word_builder,
     word_class_gen,
 )
+from conlang_generator.generation.word_relations import WordRelation
 from conlang_generator.llm.base import LLMClient
+from conlang_generator.translation import expansion, translator
 
 
 def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) -> Language:
@@ -579,6 +581,18 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
 
     known_forms = {normalized_form(entry.romanization) for entry in seed_entries}
 
+    # Derivation and compounding rolled here, well before its own later position below (own
+    # independent rng stream -- `random.Random(f"{spec.seed}:derivation")`, untouched by anything
+    # else, so moving *when* it's called changes nothing else's draw sequence) -- `traits.compound_
+    # likelihood`'s own word-formation pre-pass right below needs `grammar.derivations`/`compounding`
+    # to already exist, since (unlike translation-time coinage) there is no later point to roll them
+    # at before the core lexicon itself is built.
+    grammar = grammar.model_copy(
+        update=derivation_gen.roll_derivation(
+            random.Random(f"{spec.seed}:derivation"), grammar, inventory, syllable_structure, romanization
+        )
+    )
+
     eligible_meanings = []
     for gloss, pos in meanings:
         if gloss.lower() in seeded_glosses:
@@ -587,6 +601,26 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         if gate_attr is not None and not getattr(grammar, gate_attr):
             continue
         eligible_meanings.append((gloss, pos))
+
+    # Planning pre-pass for `traits.compound_likelihood` (see `derivation_gen`'s own word-formation
+    # docstring): decide *before* the batch build below which glosses are plain roots (the existing,
+    # unchanged path) versus realized as a compound/derivation/ablaut of another gloss -- there is no
+    # incrementally-growing lexicon to look up a sibling against inside `build_and_pick` itself (it
+    # builds every word in one batch), so related words get their own, separate assembly pass further
+    # down, once the plain-root subset actually exists to be looked up.
+    plain_meanings: list[tuple[str, PartOfSpeech]] = []
+    related_meanings: list[tuple[str, PartOfSpeech, WordRelation]] = []
+    for gloss, pos in eligible_meanings:
+        gloss_key = gloss.lower()
+        relation = None
+        if pos in (PartOfSpeech.NOUN, PartOfSpeech.VERB, PartOfSpeech.ADJECTIVE) and derivation_gen.should_attempt_word_formation(
+            rng, spec.traits.compound_likelihood, pos, gloss_key in lexicon_gen._CORE_MEANING_GLOSSES,
+        ):
+            relation = derivation_gen.relation_for(gloss_key, pos, spec.word_formation, llm_client, spec.word_selection_model)
+        if relation is not None:
+            related_meanings.append((gloss, pos, relation))
+        else:
+            plain_meanings.append((gloss, pos))
 
     def build_and_pick(meanings: list[tuple[str, PartOfSpeech]], use_llm: bool) -> list[LexicalEntry]:
         # Build every word's candidate pool (algorithmic), then make every
@@ -610,7 +644,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         chosen_iter = iter(chosen_candidates)
         return [item if isinstance(item, LexicalEntry) else item.finish(next(chosen_iter)) for item in built]
 
-    generated_entries = build_and_pick(eligible_meanings, use_llm=True)
+    generated_entries = build_and_pick(plain_meanings, use_llm=True)
 
     # Retry a romanization collision with a word already placed in this
     # lexicon (same discipline as translation.expansion.coin_word), since
@@ -628,7 +662,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     for _ in range(20):
         if not unresolved:
             break
-        retried = build_and_pick([eligible_meanings[i] for i in unresolved], use_llm=False)
+        retried = build_and_pick([plain_meanings[i] for i in unresolved], use_llm=False)
         still_colliding: list[int] = []
         for index, entry in zip(unresolved, retried):
             generated_entries[index] = entry
@@ -640,6 +674,48 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     for index in unresolved:
         known_forms.add(normalized_form(generated_entries[index].romanization))
     generated_entries = tuple(generated_entries)
+
+    if related_meanings:
+        # Assembly pass for the compound/derived/ablaut subset flagged above -- the plain-root
+        # lexicon now exists to look siblings up against, so build a real (temporary) `Language`
+        # around it and reuse `translation.translator`'s own word-formation builders (the one place
+        # `generation.generator` depends on `translation.translator` rather than the other way
+        # around, since this is genuinely shared logic -- see `translator._build_from_relation`'s
+        # own docstring). Resolved in dependency-respecting rounds (a related gloss may itself be
+        # another related gloss's own component), not a single linear pass.
+        interim_language = Language(
+            name=name, spec=spec, phonology=inventory, syllable_structure=syllable_structure,
+            tone_system=tone_system, word_accent=word_accent_system, romanization=romanization,
+            grammar=grammar, lexicon=Lexicon(entries=seed_entries + generated_entries),
+        )
+        coined: list[LexicalEntry] = []
+        pending = list(related_meanings)
+        progressed = True
+        while pending and progressed:
+            progressed = False
+            still_pending = []
+            for gloss, pos, relation in pending:
+                if interim_language.lexicon.by_gloss(gloss) is not None:
+                    continue  # already resolved as an earlier sibling's own recursive component
+                built = translator._build_from_relation(
+                    interim_language, gloss, pos, relation, coined, llm_client, spec.word_selection_model, depth=2,
+                )
+                if built is not None:
+                    interim_language, _entry = built
+                    progressed = True
+                else:
+                    still_pending.append((gloss, pos, relation))
+            pending = still_pending
+        # Never silently dropped: anything left over (a rule mismatch, a spelling collision, a
+        # component that itself never resolved) is coined as its own plain root instead.
+        for gloss, pos, _relation in pending:
+            if interim_language.lexicon.by_gloss(gloss) is not None:
+                continue
+            entry = expansion.coin_word(interim_language, gloss, pos, llm_client)
+            interim_language = interim_language.with_new_words(
+                (entry,), reason=f"coined '{entry.romanization}' for '{gloss}' (word-formation fallback)",
+            )
+        generated_entries = generated_entries + interim_language.lexicon.entries[len(seed_entries) + len(generated_entries):]
 
     # The question particle is a free word: re-roll it (own rng stream) if it
     # spells the same as a lexicon word, so it can be told apart on decoding.
@@ -867,13 +943,6 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
     grammar = grammar.model_copy(
         update={"reduplications": reduplication_gen.roll_reduplication(random.Random(f"{spec.seed}:reduplication"), grammar)}
     )
-    # Derivation and compounding, after the morphophonology (own stream).
-    grammar = grammar.model_copy(
-        update=derivation_gen.roll_derivation(
-            random.Random(f"{spec.seed}:derivation"), grammar, inventory, syllable_structure, romanization
-        )
-    )
-
     return Language(
         name=name,
         spec=spec,

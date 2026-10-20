@@ -51,7 +51,8 @@ _DIMENSION_POLES = """- isolation: + isolated/cut off from outsiders; - well-con
 - consonant_richness: + a large, elaborate consonant inventory; - a small, minimal consonant inventory
 - vowel_length_affinity: + vowels distinguished by length (short vs. long); - no such length distinction
 - word_length_preference: + long, elaborate-sounding words; - short, economical words
-- vowel_reduction_affinity: + unstressed vowels weaken/reduce (a "clipped"/stress-timed rhythm, English-like); - every vowel keeps its full quality regardless of stress (a flowing/syllable-timed rhythm, French/Spanish-like)"""
+- vowel_reduction_affinity: + unstressed vowels weaken/reduce (a "clipped"/stress-timed rhythm, English-like); - every vowel keeps its full quality regardless of stress (a flowing/syllable-timed rhythm, French/Spanish-like)
+- compound_likelihood: + favors building new words by compounding/deriving from existing ones (Mandarin-style); - favors coining a fresh, unrelated root even where words could be recomposed (English-style)"""
 
 _SYSTEM_PROMPT = f"""You classify a free-text description of a constructed language \
 against a fixed set of dimensions known to shape real languages. For each \

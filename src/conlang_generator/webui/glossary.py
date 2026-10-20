@@ -177,6 +177,12 @@ TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
         "positive": "Stress-timed rhythm -- unstressed vowels reduce toward a central quality, English/German/Portuguese-like.",
         "negative": "Syllable-timed rhythm -- every vowel keeps its full quality regardless of stress, French/Spanish/Turkish/Finnish-like.",
     },
+    "compound_likelihood": {
+        "kind": "bipolar",
+        "summary": "Whether a new word tends to be built from existing words (compounding/derivation) or coined as a fresh, unrelated root -- composed with a part-of-speech bias (nouns compound far more than verbs) and a hard suppression for basic/frequent vocabulary.",
+        "positive": "Favors building new words from existing ones -- Mandarin's own heavy compounding (电脑 \"electric-brain\" = computer).",
+        "negative": "Favors a fresh, unrelated root even where words could be recomposed -- English-style (Monday, understand rarely get re-analyzed).",
+    },
     # --- the two strictness dials: unipolar [0.0, 1.0], not bipolar --
     # 0.0 is today's existing soft, non-exclusive influence, 1.0 hard-
     # restricts to only the named source language(s)' own real values. ---
@@ -410,6 +416,13 @@ GRAMMAR_GLOSSARY: dict[str, dict] = {
         "values": {
             "algorithmic": "Chosen by a free, deterministic algorithm -- no LLM call involved.",
             "llm": "Chosen with help from one batched LLM call, picking among algorithmically-generated candidates.",
+        },
+    },
+    "word_formation": {
+        "summary": "How a word flagged to be built from existing words (compound/derivation/ablaut) decides what it's built from.",
+        "values": {
+            "algorithmic": "Looked up in a curated list of known compounds/derivations -- no LLM call involved.",
+            "llm": "Asked of the configured LLM, reaching any gloss, not just a pre-tabulated one.",
         },
     },
     "foreign_names": {

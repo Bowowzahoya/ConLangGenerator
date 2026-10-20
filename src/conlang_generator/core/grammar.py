@@ -56,6 +56,16 @@ class DerivationRule(BaseModel, frozen=True):
     pattern: str = ""
     """In a root-and-pattern language, the ``WordTemplate`` (by name) that derives the word from the
     base's root instead of attaching ``affix`` (empty: the affix is used)."""
+    stem_change: str = ""
+    """``"umlaut"``/``"ablaut"``/``"gradation"`` (same vocabulary as ``Paradigm.stem_change``, same
+    ``paradigm_gen.change_stem`` applier, looked up in ``GrammarProfile.derivation_stem_maps`` rather
+    than inflection's own ``stem_maps``): derives the word by changing the base's own root vowel (or
+    final consonant, for ``"gradation"``) instead of attaching ``affix`` -- the non-templatic
+    equivalent of a root-and-pattern ``pattern`` above, modeling real non-concatenative derivation
+    families with no affix at all (English "bind"/"band"/"bond", "sing"/"song", the fossilized
+    "die"/"death"). Empty: ``affix`` is used, as before. ``affix`` is still required even when this
+    is set (an unused ``InflectionAffix(label=name)`` placeholder), simpler than making it optional
+    for one rare case."""
 
 
 class PatternCell(BaseModel, frozen=True):
@@ -718,6 +728,22 @@ class GrammarProfile(BaseModel, frozen=True):
     """Cells marked by reduplication of the stem (alongside the cell's affix)."""
     derivations: tuple[DerivationRule, ...] = ()
     """Derivational rules the language has (see ``generation.derivation_gen``)."""
+    derivation_stem_maps: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = ()
+    """Vowel/consonant substitution tables for any ``DerivationRule.stem_change`` this language
+    rolled, keyed by kind (``"umlaut"``/``"ablaut"``/``"gradation"``) -- same shape and same
+    ``paradigm_gen.change_stem`` applier as inflection's own ``stem_maps`` below, but built and
+    rolled independently (``generation.derivation_gen.roll_derivation``'s own call to
+    ``paradigm_gen.build_stem_maps``), since a language's inflectional umlaut and its derivational
+    ablaut are conceptually separate facts that don't need to agree, and inflection's own
+    ``stem_maps`` is filtered down to only the kinds some ``Paradigm`` actually used -- deriving from
+    it instead of a fresh independent roll would make this feature's own presence depend on an
+    unrelated inflectional coin-flip."""
+    compound_typical_elements: int = 2
+    """How many atomic roots a compound in this language typically has, sampled once (see
+    ``generation.derivation_gen.roll_derivation``) -- Chinese-style compounding is overwhelmingly
+    2-element; a few languages run longer. Recursive compound coinage uses this as the soft target a
+    decaying continue-splitting roll works toward (not a hard cap -- see the hard ceiling in
+    ``generation.derivation_gen`` itself for that)."""
     compounding: bool = False
     """The language compounds two nouns into one word."""
     compound_order: str = "modifier_head"

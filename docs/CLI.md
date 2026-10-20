@@ -336,6 +336,34 @@ in translation -- `keep` (as written, Dutch-style) or `adapt` (re-fitted
 to its own sounds, Chinese-style); defaults to whatever the matched
 `--source-language` implies, else `keep`.
 
+`--trait compound_likelihood=X` controls how often a word is built from
+others the language already has (compounding, or an affixal/ablaut
+derivation -- "death" from "die", "teacher" from "teach") instead of a
+fresh, unrelated root; positive favors Mandarin-style recomposition,
+negative favors English-style fresh coinage even where a real relation
+exists. `--word-formation` picks how a flagged word decides *what* it's
+related to: the default `algorithmic` (a curated list of real English
+compounds/derivations, `generation/word_relations.py`, no LLM call) or
+`llm` (asks the configured LLM, reaching any gloss, not just a
+pre-tabulated one):
+
+```bash
+conlang generate --prompt "a plain language" --name wordform-demo --seed 18 \
+  --vocabulary-size 496 --trait compound_likelihood=1.0 --llm fake
+```
+
+```
+Generated 'wordform-demo' (wordform-demo) -- 494 core words.
+...
+```
+
+Its lexicon includes `truth`, built as `derived: abstract of true` rather
+than a fresh root -- real relatedness only ever gets *realized* when the
+language actually has a matching derivation rule or compounds at all
+(rolled independently per language), so which of the curated table's
+relations show up varies by seed, the same "a trait biases, it doesn't
+force" shape every other graded trait in this project already has.
+
 ### Model choice
 
 `--model` picks the model for prompt classification; `--word-model` picks

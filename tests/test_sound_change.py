@@ -221,7 +221,10 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
     # rng-stream reorder, plus the batched build-then-pick pass; re-found
     # again (now evolve seed=1) after the "Missing symbols still" batch's
     # own new _EXOTIC_POOL/_VOWEL_EXTRAS content shifted downstream rng
-    # draws once more.)
+    # draws once more; re-found again (now evolve seed=2) after the word-formation pass's own
+    # core-lexicon planning pre-pass -- every eligible gloss now rolls `compound_likelihood` during
+    # generation itself, shifting the shared lexicon rng stream's own draw sequence once more, the
+    # same "seed-shift from new content" pattern documented throughout this history.)
     base = generate_language(
         "Dutch",
         GenerationSpec(
@@ -232,7 +235,7 @@ def test_evolving_with_no_new_contact_still_uses_the_base_languages_curated_spel
         ),
         FakeLLMClient(),
     )
-    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=1)
+    evolved = evolve_language("Evolved", base, 3000, TraitProfile(), seed=2)
     x_rules = [r for r in evolved.romanization.rules if r.ipa == "x"]
     assert x_rules and all(r.latin == "ch" for r in x_rules)
 
@@ -1253,11 +1256,13 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # stream with romanization/grammar/lexicon -- and again, seed=1 -> 7,
     # after the word-length-preference/basicness trait work made every
     # CORE_MEANINGS gloss skew shorter unconditionally, shifting the
-    # shared lexicon rng stream's own draw sequence -- same "seed-shift
-    # from new content" pattern documented elsewhere in this project's
-    # history.)
+    # shared lexicon rng stream's own draw sequence -- and again, seed=7 ->
+    # 0, after the word-formation pass's own core-lexicon planning pre-pass
+    # made every eligible gloss roll `compound_likelihood` during
+    # generation itself -- same "seed-shift from new content" pattern
+    # documented elsewhere in this project's history.)
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=7)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=0)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)

@@ -8696,3 +8696,112 @@ reading code or one-off ad hoc scripts.
   vs. 21.6 neutral vs. 12.1 at `-1.0` (20-seed average); `fricative_density` 19.85/5.5/1.85; `vowel_
   richness` 62.0/9.0; `nasality` nasal-vowel count 11.0/1.1; `vowel_length_affinity` long-vowel count
   18.0/0.95 -- all directionally correct and cleanly isolated from each other.
+
+  **Seventh follow-up round: compounding/derivation/ablaut word formation (`compound_likelihood`),
+  a multi-message design collaboration following directly from the length/complexity question
+  above.** The user's own thread: Chinese-style compounding and "homo-" in homophone/homogeneous
+  pointed at word-formation *strategy*, not a synthetic length dial, as the real source of graded
+  length; "death"/"die" turned out to be non-concatenative derivation (ablaut), already live in this
+  project for templatic languages only; cross-linguistic grounding established a real noun >>
+  adjective > verb >> function-word compounding hierarchy and that frequent/basic words structurally
+  resist compounding (they're definitionally the ones nothing else has been built from yet). Two
+  `docs/DEFERRED.md` entries already named this exact feature from an earlier session, citing the
+  user's own "death"/"die" and "Monday/understand vs. Mandarin" examples -- this pass resolves both.
+  A formal plan (`EnterPlanMode`) was written and approved before implementation, given the size;
+  one scope question (how large the non-LLM curated decomposition list should start) was put to the
+  user directly rather than assumed -- answered "start small, real, expand later," the same standard
+  this project's own lexicon curation already uses.
+
+  **Mechanism, reusing existing architecture rather than inventing a new one.** One new trait,
+  `compound_likelihood` (`GRADED_TRAIT_FIELDS` 15 -> 23; not phonology-only, not an evolution trait --
+  see docs/DEFERRED.md's own new "frequency-resistant sound change"/"compound ossification" entries
+  for why evolution is a separate, later follow-up). `generation.derivation_gen.should_attempt_word_
+  formation` gates whether a gloss even attempts this at all: a base rate composed with a per-POS
+  multiplier (noun 1.0, adjective 0.45, verb 0.2, function-words forced to 0, matching the
+  cross-linguistic hierarchy above) and a hard suppression for `lexicon_gen._CORE_MEANING_GLOSSES`.
+  `relation_for` then decides *what* a flagged gloss is related to -- the curated `generation.
+  word_relations.WORD_RELATIONS` table (~130 hand-verified real English relations: ablaut families
+  death/die, life/live, song/sing; agent teacher/teach, hunter/hunt; abstract truth/true; ~120 common
+  compounds reaching outside the fixed vocabulary, understand/moonlight/sunrise/...) when
+  `GenerationSpec.word_formation == "algorithmic"` (default, no LLM, mirrors `word_selection`'s own
+  shape exactly), or one short LLM call (`purpose="lexicon.decompose"`, new `FakeLLMClient` strategy
+  `"decompose_word"` for free deterministic dev/test runs) when `"llm"`.
+
+  Three word-formation strategies, two already existing: compounding and affixal derivation
+  (`translator._compound_entry`/`_derived_entry`, generalized -- `_compound_entry` no longer
+  hardcodes `PartOfSpeech.NOUN`, so verb/adjective compounds work too, per the POS hierarchy above).
+  The third, **non-concatenative (ablaut) derivation**, turned out to already have its real machinery
+  built for an unrelated reason: `core.grammar.Paradigm.stem_change`/`GrammarProfile.stem_maps`/
+  `paradigm_gen.build_stem_maps`/`change_stem` already model exactly "change the root's last vowel
+  per a real-inventory-derived mapping" for *inflectional* umlaut-plurals -- found by reading the
+  code, not designed fresh. Reused via a new `DerivationRule.stem_change` field (parallel to
+  `pattern`, the templatic-language equivalent) and a new, *independently* rolled `GrammarProfile.
+  derivation_stem_maps` (deliberately not shared with inflection's own filtered-down `stem_maps` --
+  a language's inflectional umlaut and its derivational ablaut are separate facts that don't need to
+  agree) plus one new rule family, `derivation_gen.ABLAUT_RULES` (`ablaut_v2n`, verb -> noun, rate
+  highest for fusional languages -- real Germanic-style ablaut's own typological skew).
+
+  **Sequencing bug found via live verification, not anticipated in the plan**: the gate/relation
+  mechanism initially had zero effect in `generator.py` even when forced to fire, because `roll_
+  derivation` (the call that actually populates `grammar.derivations`/`compounding`) ran at its
+  long-standing *end-of-generation* position -- long after the core lexicon itself is built, which
+  was never a problem before since compounding/derivation were only ever consumed at translation
+  time. Fixed by moving the `roll_derivation` call to right before the new lexicon-building pre-pass
+  -- safe because it already uses its own independent rng stream (`random.Random(f"{seed}:
+  derivation")`), so relocating *when* it's called changes nothing else's draw sequence, confirmed by
+  reading every other caller before moving it, not assumed.
+
+  **`generator.py`'s own two-phase core-lexicon build**, needed because `build_and_pick` builds all
+  ~496 `ALL_MEANINGS` words in one batch (no incrementally-growing lexicon to look a sibling gloss up
+  against): a planning pre-pass splits eligible glosses into `plain_meanings` (built via the existing,
+  completely unchanged batch path) and `related_meanings` (gloss + already-decided `WordRelation`);
+  once the plain subset is built, a temporary real `Language` is assembled around it and a dependency-
+  respecting fixed-point loop resolves the related subset via `translator._build_from_relation` (one
+  new, narrow exception to this project's usual layering -- `generation.generator` depending on
+  `translation.translator`, documented inline, since the word-formation *application* logic is
+  genuinely shared, not translation-specific); anything left over (a missing rule, a spelling
+  collision) is coined as its own plain root, never silently dropped.
+
+  **Translation-time coinage got real recursion, not just a single-level check**: a compound
+  component that doesn't exist yet is now coined through the *same* mechanism recursively (so it can
+  itself turn out to be a compound), per the user's own design, bounded by a new `GrammarProfile.
+  compound_typical_elements` (sampled once, Chinese-style 2-element skew) soft target with sharply
+  decaying continue-odds past it, plus a hard ceiling of 5 regardless (pure runaway-recursion safety).
+  The "can't un-compound an existing compound" edge case (also the user's own design): a new
+  structured `LexicalEntry.compound_of` field (distinct from the free-text `notes` every strategy
+  already writes) lets `_resolve_component` detect this and, in `word_formation="llm"` mode, mint a
+  separate archaic-synonym entry instead (a distinctly-tagged gloss, since `Lexicon.by_gloss` only
+  ever returns the *first* match) -- real etymological flavor (English "loaf" surviving separately
+  from "lord" < "hlafweard"), not just a technical workaround; `"algorithmic"` mode has no natural way
+  to ask for "a simpler synonym," so it reuses the existing compound as-is, accepted as a narrow,
+  documented simplification rather than attempted more precisely.
+
+  **Budgeted risk, materialized and triaged, not a surprise reacted to mid-pass**: the new pre-pass
+  rolls `compound_likelihood` for every eligible gloss of every generated language regardless of trait
+  value (a real incidence baseline, not a no-op at 0.0 -- unlike every phonology trait so far, this
+  one genuinely changes core-lexicon generation itself), shifting the shared lexicon rng stream's own
+  draw sequence project-wide. A full-suite run surfaced 9 fixture failures (plus 37 unrelated
+  `ERRORs` from a self-inflicted `.pytest_tmp` collision running two pytest invocations concurrently,
+  confirmed spurious by a clean re-run in isolation) -- all triaged via `git stash` before touching
+  anything: 2 simple signature/assertion updates (`_derive_or_compound` gained a required `llm_client`
+  parameter; `ABLAUT_RULES` names now legitimately appear in `grammar.derivations` alongside `RULES`);
+  4 straightforward seed re-pins (`test_sound_change.py` x2, `test_translator.py`, `test_nested_
+  clauses.py`'s own default-seed helper); 2 upgraded from a bare fixed/first-match seed to a
+  *self-validating search* (`test_morphophonology.py`'s mutation test, `test_patterns_reduplication.
+  py`'s templatic-evolution test) after tracing their failures to a real but tangential pre-existing
+  edge case (an inflection cell's own co-occurring phonological process, e.g. harmony, being
+  conflated with the mutation/pattern effect the test meant to isolate) that a new seed's content
+  happened to trigger for the first time -- immune to any future rng-stream shift, not just this one;
+  1 similarly upgraded (`test_noun_phrase.py`'s plural-after-numeral test) for the same reason (a
+  specific word's own plural marking not always being audible). Verified: full suite green, 2321
+  passed, 17 skipped.
+
+  Live-verified through the real dev server, the CLI, and a direct `/api/generate` call, not just by
+  test: `--trait compound_likelihood=1.0 --vocabulary-size 496` reliably builds `death`/`life`/`song`
+  via ablaut (`"ˈp'es'e"`-style, notes `derived: ablaut_v2n of die (ablaut)`), `teacher`/`hunter` via
+  agent derivation, `truth` via abstract derivation, and (less often -- compounding itself is rolled
+  independently per language) `understand` as a real compound of `under`+`stand`, whenever this run's
+  own language happens to have the matching rule/feature; `--word-formation llm` with `--llm fake`
+  exercises the full recursive coinage path end-to-end (new, never-seen components like `geta`/`getb`
+  coined fresh and added to the lexicon, vocabulary growing from 496 to 664 words in one run) using
+  only the free fake backend.

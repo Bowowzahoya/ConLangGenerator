@@ -82,6 +82,19 @@ class LexicalEntry(BaseModel, frozen=True):
     survives any number of evolution steps unchanged, for display
     alongside however far the word has since drifted (see
     ``cli/main.py``'s evolve print)."""
+    compound_of: tuple[str, ...] | None = None
+    """The glosses this word was compounded from (see ``generation.
+    derivation_gen``'s word-formation mechanism), in surface order --
+    ``None`` for every word that isn't a compound (coined fresh, or
+    derived by an affix/ablaut from one base, which isn't "compounded" in
+    this sense). Structured, unlike the free-text ``notes`` every
+    word-formation strategy also writes, specifically so a *component*
+    of a larger compound can be told apart from an ordinary word when
+    recursive coinage decides whether it's still splittable (an already-
+    committed compound can't un-compound without ossification -- the
+    archaic-synonym fallback -- and the same structure is what a future
+    "compound ossification during evolution" pass, see docs/DEFERRED.md,
+    would need to detect a boundary that could erode)."""
 
     @property
     def primary_gloss(self) -> str:

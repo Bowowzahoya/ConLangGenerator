@@ -24,6 +24,7 @@ TYPICAL_TOKENS: dict[str, tuple[int, int]] = {
     "classifier": (3300, 320),
     "word_selection": (1500, 60),
     "translation": (1500, 200),
+    "word_formation": (120, 20),
 }
 """(input, output) token counts typical of one call for each model-choice
 task -- a ballpark for ``estimated_price``, not a measurement: most local
@@ -34,7 +35,10 @@ read as "0 samples." Taken from docs/DEFERRED.md's own ledger-sourced
 figures (classify ~3.3k in / 0.3k out, translate plan ~1.5k in / 0.05-0.3k
 out); ``"word_selection"`` is a flat guess -- its real cost scales with
 candidate-list/vocabulary size, not captured by one fixed number (see
-docs/LIMITATIONS.md)."""
+docs/LIMITATIONS.md). ``"word_formation"`` is one small decomposition call
+(short gloss in, 1-2 words out) -- cheap, but made once per
+``compound_likelihood``-flagged gloss, so its total cost scales with how
+often that trait fires, not captured here either."""
 
 
 def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:

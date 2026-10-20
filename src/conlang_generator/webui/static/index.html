@@ -227,6 +227,13 @@
           <option value="llm">llm (1 batched call)</option>
         </select>
       </div>
+      <div>
+        <label for="gen-word-formation">Word formation</label>
+        <select id="gen-word-formation">
+          <option value="algorithmic">algorithmic (curated list, no LLM)</option>
+          <option value="llm">llm (one call per compound/derived word)</option>
+        </select>
+      </div>
     </div>
 
     <details>
@@ -2129,6 +2136,7 @@ const TRAIT_SECTION = {
   vowel_length_affinity: "phonology",
   word_length_preference: "phonology",
   vowel_reduction_affinity: "phonology",
+  compound_likelihood: "grammar",
 };
 
 function renderLanguageSummary(container, summary) {
@@ -2203,6 +2211,7 @@ function renderLanguageSummary(container, summary) {
 
   const generationDetailsSection = summarySection("Generation Details", `<div class="badges">
     ${infoBadge(describeGrammarField("word_selection", g.word_selection), `word selection: ${g.word_selection}`)}
+    ${infoBadge(describeGrammarField("word_formation", g.word_formation), `word formation: ${g.word_formation}`)}
     ${summary.classifier_model ? `<span class="badge">classifier model: ${escapeAttr(summary.classifier_model)}</span>` : ""}
     ${summary.word_selection_model ? `<span class="badge">word-selection model: ${escapeAttr(summary.word_selection_model)}</span>` : ""}
     ${summary.cost ? `<span class="badge">this call: $${summary.cost.delta_usd.toFixed(4)} (${summary.cost.delta_calls} calls)</span>` : ""}
@@ -2519,6 +2528,7 @@ $("generate-btn").onclick = async () => {
     own_script: $("gen-own-script").value,
     allow_all_caps: $("gen-allow-all-caps").checked,
     word_selection: $("gen-word-selection").value,
+    word_formation: $("gen-word-formation").value,
     model: $("gen-model").value,
     word_model: $("gen-word-model").value,
     pregenerate_audio: $("gen-pregenerate-audio").value,

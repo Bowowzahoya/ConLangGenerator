@@ -376,10 +376,13 @@ def test_lexical_tone_sandhi_changes_not_before_a_real_falling_tone_neighbor():
     # environment this profile's own curated rule ("not" + falling ->
     # rising) targets. (Re-found, seed=6 -> 2, after the word-length-
     # preference/basicness trait work changed CORE_MEANINGS words' own
-    # length distribution -- same "seed-shift from new content" pattern
-    # documented elsewhere in this project's history.)
+    # length distribution; re-found again, seed=2 -> 3, after the word-
+    # formation pass's own core-lexicon planning pre-pass made every
+    # eligible gloss roll `compound_likelihood` during generation itself --
+    # same "seed-shift from new content" pattern documented elsewhere in
+    # this project's history.)
     traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=1.0)
-    language = generate_language("T", GenerationSpec(prompt="p", seed=2, traits=traits), FakeLLMClient())
+    language = generate_language("T", GenerationSpec(prompt="p", seed=3, traits=traits), FakeLLMClient())
     assert language.tone_system.lexical_sandhi  # sanity: the curated rules are actually present
     not_entry = language.lexicon.by_gloss("not")
     plan = sentence_planner.plan_sentence("the mountain is not high", language, FakeLLMClient())

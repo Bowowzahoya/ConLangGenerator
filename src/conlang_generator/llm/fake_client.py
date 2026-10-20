@@ -1705,6 +1705,18 @@ def _fake_sentence_plan(prompt: str, metadata: dict[str, str]) -> str:
     return json.dumps(_fake_plan_dict(prompt, metadata))
 
 
+def _fake_decompose_word(gloss: str) -> str:
+    """Deterministic stand-in for ``derivation_gen._llm_relation_for``'s own real LLM call -- cycles
+    through compound/derive/none by a stable hash of the gloss, not real semantics (never shown to a
+    user; only exercises the parsing/recursion code path deterministically in dev/test runs)."""
+    choice = stable_hash(gloss) % 3
+    if choice == 0:
+        return f"COMPOUND: {gloss}a {gloss}b"
+    if choice == 1:
+        return f"DERIVE: {gloss}base"
+    return "NONE"
+
+
 def _fake_guess_ipa(form: str) -> str:
     text = form.lower()
     out: list[str] = []
@@ -1740,6 +1752,8 @@ class FakeLLMClient:
             text = _fake_trait_profile(request.prompt, field_names)
         elif strategy == "guess_ipa":
             text = _fake_guess_ipa(request.prompt)
+        elif strategy == "decompose_word":
+            text = _fake_decompose_word(request.metadata.get("gloss", request.prompt))
         elif strategy == "sentence_plan":
             text = _fake_sentence_plan(request.prompt, request.metadata)
         else:

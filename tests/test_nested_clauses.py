@@ -10,7 +10,11 @@ from conlang_generator.translation.translator import _decode_verb, translate_to_
 from tests._shared_language import cached_language
 
 
-def _language(seed: int = 278):
+def _language(seed: int = 1):
+    # Re-pinned from 278 after the word-formation pass's own core-lexicon planning pre-pass made
+    # every eligible gloss roll `compound_likelihood` during generation itself, shifting the shared
+    # lexicon rng stream's own draw sequence -- same "seed-shift from new content" pattern
+    # documented throughout this project's history.
     return cached_language(seed)
 
 

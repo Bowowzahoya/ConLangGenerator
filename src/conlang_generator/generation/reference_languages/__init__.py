@@ -749,6 +749,8 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     typical_vowel_length_affinity: float | None = None
     typical_word_length_preference: float | None = None
     typical_vowel_reduction_affinity: float | None = None
+    # Added again, same reasoning, for the word-formation pass's own new trait.
+    typical_compound_likelihood: float | None = None
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

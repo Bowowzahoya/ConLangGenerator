@@ -45,13 +45,20 @@ def _has_rule(name):
 def test_the_derivation_choices_are_rolled():
     grammars = [_language(s).grammar for s in range(1, 100)]
     names = {r.name for g in grammars for r in g.derivations}
-    assert names == {n for n, _, _ in derivation_gen.RULES}
+    all_names = {n for n, _, _ in derivation_gen.RULES} | {n for n, _, _, _ in derivation_gen.ABLAUT_RULES}
+    assert names == all_names
     assert any(g.compounding for g in grammars) and not all(g.compounding for g in grammars)
     assert {g.compound_order for g in grammars} == {"modifier_head", "head_modifier"}
+    affixal_rules = {n: (i, o) for n, i, o in derivation_gen.RULES}
+    ablaut_rules = {n: (i, o) for n, i, o, _ in derivation_gen.ABLAUT_RULES}
     for g in grammars:
         for rule in g.derivations:
-            assert (rule.affix.prefix or rule.affix.suffix) and not (rule.affix.prefix and rule.affix.suffix)
-            assert (rule.pos_in, rule.pos_out) == next((i, o) for n, i, o in derivation_gen.RULES if n == rule.name)
+            if rule.stem_change:
+                assert not (rule.affix.prefix or rule.affix.suffix)  # ablaut: no affix, a changed root instead
+                assert (rule.pos_in, rule.pos_out) == ablaut_rules[rule.name]
+            else:
+                assert (rule.affix.prefix or rule.affix.suffix) and not (rule.affix.prefix and rule.affix.suffix)
+                assert (rule.pos_in, rule.pos_out) == affixal_rules[rule.name]
         assert bool(g.compound_linker) <= g.compounding
 
 
@@ -145,8 +152,8 @@ def test_a_language_without_the_rule_coins_the_word_normally():
 
 def test_the_word_class_of_the_result_must_match_the_rule():
     language = _find(_has_rule("agent"))
-    assert _derive_or_compound(language, "teacher", PartOfSpeech.VERB, []) is None
-    assert _derive_or_compound(language, "teacher", PartOfSpeech.NOUN, []) is not None
+    assert _derive_or_compound(language, "teacher", PartOfSpeech.VERB, [], _CLIENT) is None
+    assert _derive_or_compound(language, "teacher", PartOfSpeech.NOUN, [], _CLIENT) is not None
 
 
 def test_a_negative_prefix_derives_an_adjective():

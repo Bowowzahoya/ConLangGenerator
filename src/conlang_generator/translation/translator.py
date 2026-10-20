@@ -71,6 +71,7 @@ from conlang_generator.generation import (
     classifier_gen,
     inflection_gen,
     ipa_tokenizer,
+    lexicon_gen,
     noun_class_gen,
     pronoun_gen,
     stress_gen,
@@ -87,6 +88,7 @@ from conlang_generator.generation import (
     word_accent_gen,
     word_builder,
 )
+from conlang_generator.generation.word_relations import WordRelation
 from conlang_generator.generation.reference_languages import match_profiles
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
@@ -1159,7 +1161,7 @@ def _lookup_or_coin(
         if entry is not None:
             return language, entry
 
-    built = _derive_or_compound(language, token, pos, coined)
+    built = _derive_or_compound(language, token, pos, coined, llm_client)
     if built is not None:
         return built
 
@@ -1212,18 +1214,30 @@ def _derived_entry(language: Language, base: LexicalEntry, rule, token: str) -> 
         patterned = _pattern_derived_entry(language, base, rule, token)
         if patterned is not None:
             return patterned
-    rng = _translation_rng(language, f"derive:{rule.name}:{base.ipa}")
-    ipa = inflection_gen.apply_affix(rng, rule.affix, base.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
+    if rule.stem_change:
+        # Non-concatenative derivation (the regular-language equivalent of `rule.pattern` above) --
+        # a changed root vowel/consonant instead of an affix, via the same `paradigm_gen.change_stem`
+        # applier inflection's own umlaut-plural mechanism already uses, looked up in this
+        # language's own *derivation*-specific stem maps (independent of whatever inflection rolled).
+        mapping = dict(dict(language.grammar.derivation_stem_maps).get(rule.stem_change, ()))
+        known = inflection_gen._known_symbols_for(language.phonology)
+        vowels = frozenset(language.phonology.vowel_symbols())
+        ipa = paradigm_gen.change_stem(base.ipa, mapping, vowels, known, rule.stem_change == "gradation")
+    else:
+        rng = _translation_rng(language, f"derive:{rule.name}:{base.ipa}")
+        ipa = inflection_gen.apply_affix(rng, rule.affix, base.ipa, language.phonology, **_stress_and_word_accent_kwargs(language))
     spelled = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), PartOfSpeech(rule.pos_out))
     if language.lexicon.by_form(spelled) is not None or ipa == base.ipa:
-        return None  # it would spell like a word the language already has
+        return None  # it would spell like a word the language already has (or, for stem_change: no mapped sound to change -- a no-op, not a real derivation)
     return LexicalEntry(
         ipa=ipa, romanization=spelled, glosses=(token,), pos=PartOfSpeech(rule.pos_out), tones=base.tones,
-        notes=f"derived: {rule.name} of {base.primary_gloss}",
+        notes=f"derived: {rule.name} of {base.primary_gloss}" + (" (ablaut)" if rule.stem_change else ""),
     )
 
 
-def _compound_entry(language: Language, modifier: LexicalEntry, head: LexicalEntry, token: str) -> LexicalEntry | None:
+def _compound_entry(
+    language: Language, modifier: LexicalEntry, head: LexicalEntry, token: str, pos: PartOfSpeech = PartOfSpeech.NOUN,
+) -> LexicalEntry | None:
     grammar = language.grammar
     first, second = (modifier, head) if grammar.compound_order == "modifier_head" else (head, modifier)
     known = inflection_gen._known_symbols_for(language.phonology)
@@ -1233,26 +1247,135 @@ def _compound_entry(language: Language, modifier: LexicalEntry, head: LexicalEnt
     rng = _translation_rng(language, f"compound:{first.ipa}:{second.ipa}")
     kwargs = {**_stress_and_word_accent_kwargs(language), "morphophonology": None}  # no harmony across a compound
     ipa = inflection_gen.apply_affix(rng, affix, second.ipa, language.phonology, **kwargs)
-    spelled = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), PartOfSpeech.NOUN)
+    spelled = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), pos)
     if language.lexicon.by_form(spelled) is not None:
         return None
     return LexicalEntry(
-        ipa=ipa, romanization=spelled, glosses=(token,), pos=PartOfSpeech.NOUN,
+        ipa=ipa, romanization=spelled, glosses=(token,), pos=pos,
         tones=(*first.tones, *second.tones),
         notes=f"compound: {modifier.primary_gloss} + {head.primary_gloss}",
+        compound_of=(modifier.primary_gloss, head.primary_gloss),
     )
 
 
-def _derive_or_compound(
-    language: Language, token: str, pos: PartOfSpeech, coined: list[LexicalEntry]
+def _build_from_relation(
+    language: Language, gloss: str, pos: PartOfSpeech, relation: WordRelation, coined: list[LexicalEntry],
+    llm_client: LLMClient, model: str, depth: int,
 ) -> tuple[Language, LexicalEntry] | None:
-    """A word built from words the language already has -- a derivation (``teacher`` from ``teach``) by
-    one of its derivational rules, or a compound (``moonlight``) -- instead of a fresh coinage;
-    ``None`` when neither applies."""
+    """Builds ``gloss``'s entry from an already-decided relatedness (``derivation_gen.relation_for``)
+    -- resolving each component recursively (``_resolve_component`` below, so a component can itself
+    turn out to be a compound), ``None`` when the relation doesn't actually pan out (no matching
+    derivation rule, or compounding isn't a feature this language has at all). Compound components
+    are looked up as ``PartOfSpeech.NOUN`` -- real compounding is overwhelmingly noun+noun, and
+    ``_find_word`` ignores POS for an *already-existing* word regardless, so this only matters if a
+    component doesn't exist yet and needs fresh coinage, which would mistype a non-noun component
+    (e.g. "understand" = under + stand, a particle and a verb) -- a narrow, accepted simplification,
+    not attempted more precisely here since ``word_relations.WORD_RELATIONS`` doesn't carry a
+    per-component POS tag today."""
+    if relation.kind == "compound":
+        if not language.grammar.compounding:
+            return None
+        language, modifier = _resolve_component(language, relation.parts[0], PartOfSpeech.NOUN, coined, llm_client, model, depth)
+        language, head = _resolve_component(language, relation.parts[1], PartOfSpeech.NOUN, coined, llm_client, model, depth)
+        entry = _compound_entry(language, modifier, head, gloss, pos)
+        reason = f"compounded '{{}}' for '{gloss}'"
+    else:
+        rule = next((r for r in language.grammar.derivations if r.name == relation.rule and r.pos_out == pos.value), None)
+        if rule is None:
+            return None
+        language, base = _resolve_component(language, relation.parts[0], PartOfSpeech(rule.pos_in), coined, llm_client, model, depth)
+        entry = _derived_entry(language, base, rule, gloss)
+        reason = f"derived '{{}}' ({relation.rule}) for '{gloss}'"
+    if entry is None:
+        return None
+    coined.append(entry)
+    return language.with_new_words((entry,), reason=reason.format(entry.romanization)), entry
+
+
+def _archaic_synonym_entry(language: Language, gloss: str, pos: PartOfSpeech, llm_client: LLMClient) -> LexicalEntry:
+    """A second, simpler non-compound entry for ``gloss``, used only as a component inside a larger
+    word once recursion depth says an *already-committed* compound for the same gloss can't be
+    reused directly -- real etymological flavor (English "loaf" surviving on its own, separately
+    from "lord" < "hlafweard" "loaf-ward"), not just a technical workaround. Tagged with its own
+    distinct gloss (``Lexicon.by_gloss`` returns only the *first* entry matching a gloss, so sharing
+    the bare one would make this entry unreachable and the original compound's own lookup
+    ambiguous)."""
+    entry = expansion.coin_word(language, gloss, pos, llm_client)
+    return entry.model_copy(update={
+        "glosses": (f"{gloss} (archaic)",),
+        "notes": f"archaic synonym, non-compound form of '{gloss}', coined for use inside a larger word",
+    })
+
+
+def _resolve_component(
+    language: Language, gloss: str, pos: PartOfSpeech, coined: list[LexicalEntry],
+    llm_client: LLMClient, model: str, depth: int,
+) -> tuple[Language, LexicalEntry]:
+    """Find-or-build one compound/derivation component -- recurses through the same relatedness
+    mechanism (so a component can itself turn out to be a compound), bounded by this language's own
+    ``compound_typical_elements``-driven soft target (sharply decaying odds of one more split past
+    it) and a hard ceiling of 5 total elements regardless (pure runaway-recursion safety, not a
+    linguistic claim). A missing component is coined through the *normal* pipeline, same as any
+    other word -- never silently dropped. A component that already exists as a *committed* compound
+    and whose budget says "no more splitting" can't be un-compounded without ossifying it (see
+    docs/DEFERRED.md's own "compound ossification during evolution" entry for the diachronic version
+    of this) -- in ``word_formation="llm"`` mode the LLM mints a separate, simpler archaic-synonym
+    entry instead (dedup'd by its own tag, so repeated requests reuse the same one); in
+    ``"algorithmic"`` mode, where there's no natural way to ask for "a simpler synonym," the existing
+    compound is reused as-is instead, letting the budget be exceeded by one in that rare case."""
+    existing = _find_word(language, gloss)
+    if existing is not None:
+        if existing.compound_of is not None and depth > language.grammar.compound_typical_elements and language.spec.word_formation == "llm":
+            tagged_gloss = f"{gloss} (archaic)"
+            archaic = _find_word(language, tagged_gloss)
+            if archaic is None:
+                archaic = _archaic_synonym_entry(language, gloss, pos, llm_client)
+                coined.append(archaic)
+                language = language.with_new_words(
+                    (archaic,), reason=f"coined archaic non-compound '{archaic.romanization}' for '{gloss}'",
+                )
+            return language, archaic
+        return language, existing
+    if depth < 5:
+        overrun = max(0, depth + 1 - language.grammar.compound_typical_elements)
+        continue_rate = 0.85 if overrun == 0 else 0.15 ** overrun
+        rng = _translation_rng(language, f"component-split:{gloss}:{depth}")
+        if rng.random() < continue_rate:
+            relation = derivation_gen.relation_for(gloss, pos, language.spec.word_formation, llm_client, model)
+            if relation is not None:
+                built = _build_from_relation(language, gloss, pos, relation, coined, llm_client, model, depth + 1)
+                if built is not None:
+                    return built
+    new_entry = expansion.coin_word(language, gloss, pos, llm_client)
+    coined.append(new_entry)
+    return language.with_new_words(
+        (new_entry,), reason=f"coined '{new_entry.romanization}' for '{gloss}' (compound component)",
+    ), new_entry
+
+
+def _derive_or_compound(
+    language: Language, token: str, pos: PartOfSpeech, coined: list[LexicalEntry], llm_client: LLMClient,
+) -> tuple[Language, LexicalEntry] | None:
+    """A word built from words the language already has -- a derivation (``teacher`` from ``teach``)
+    by one of its derivational rules, a non-concatenative ablaut derivation (``death`` from ``die``),
+    or a compound (``moonlight``) -- instead of a fresh coinage; ``None`` when neither applies.
+    Tries the curated/LLM relatedness source first (``traits.compound_likelihood``-gated,
+    ``derivation_gen.relation_for``/``should_attempt_word_formation``), then falls back to the
+    English-surface-form heuristic below (always tried, ungated -- today's pre-existing behavior,
+    unaffected by the trait, so a language with ``compound_likelihood=0`` doesn't regress)."""
     grammar = language.grammar
     word = token.strip().lower()
     if pos not in (PartOfSpeech.NOUN, PartOfSpeech.VERB, PartOfSpeech.ADJECTIVE) or not word:
         return None
+    model = language.spec.word_selection_model
+    is_core_meaning = word in lexicon_gen._CORE_MEANING_GLOSSES
+    roll_rng = _translation_rng(language, f"word-formation-roll:{word}")
+    if derivation_gen.should_attempt_word_formation(roll_rng, language.spec.traits.compound_likelihood, pos, is_core_meaning):
+        relation = derivation_gen.relation_for(word, pos, language.spec.word_formation, llm_client, model)
+        if relation is not None:
+            built = _build_from_relation(language, token, pos, relation, coined, llm_client, model, depth=2)
+            if built is not None:
+                return built
     rules = {r.name: r for r in grammar.derivations}
     for name, candidates in derivation_gen.english_derivations(word):
         rule = rules.get(name)

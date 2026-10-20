@@ -212,6 +212,7 @@ def _language_summary(language: Language) -> dict:
             "tenses": list(grammar.tenses),
             "tonal": language.tone_system.enabled,
             "word_selection": language.spec.word_selection,
+            "word_formation": language.spec.word_formation,
             "foreign_names": names.resolve_foreign_names(language),
             "evolved_years": resolve_evolve_years(language.spec) if any(h.startswith("evolved") for h in language.history) else 0,
         },
@@ -376,6 +377,7 @@ class GenerateRequest(BaseModel):
     consonant_gemination_marked: bool | None = None
     allow_all_caps: bool = False
     word_selection: str = "algorithmic"
+    word_formation: str = "algorithmic"
     model: str = DEFAULT_MODEL
     """Model for prompt classification."""
     word_model: str = DEFAULT_MODEL
@@ -745,6 +747,7 @@ def get_options() -> dict:
                     "classifier": pricing.estimated_price(model_id, "classifier"),
                     "word_selection": pricing.estimated_price(model_id, "word_selection"),
                     "translation": pricing.estimated_price(model_id, "translation"),
+                    "word_formation": pricing.estimated_price(model_id, "word_formation"),
                 },
             }
             for model_id, label in _MODEL_LABELS.items()
@@ -771,6 +774,8 @@ def generate(request: GenerateRequest) -> dict:
         raise HTTPException(status_code=400, detail="foreign_names must be 'keep' or 'adapt' (or omitted)")
     if request.word_selection not in ("algorithmic", "llm"):
         raise HTTPException(status_code=400, detail="word_selection must be 'algorithmic' or 'llm'")
+    if request.word_formation not in ("algorithmic", "llm"):
+        raise HTTPException(status_code=400, detail="word_formation must be 'algorithmic' or 'llm'")
     if request.pregenerate_audio not in ("none", "espeak", "sapi", "piper", "auto"):
         raise HTTPException(
             status_code=400, detail="pregenerate_audio must be 'none', 'espeak', 'sapi', 'piper' or 'auto'"
@@ -860,6 +865,7 @@ def generate(request: GenerateRequest) -> dict:
         seed_examples=seed_examples,
         allow_all_caps=request.allow_all_caps,
         word_selection=request.word_selection,
+        word_formation=request.word_formation,
         classifier_model=request.model,
         word_selection_model=request.word_model,
         vocabulary_size=request.vocabulary_size,
