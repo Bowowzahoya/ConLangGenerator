@@ -136,6 +136,8 @@ real_adjective_after_noun: false     # real Mandarin attributive adjectives prec
 real_case_count: 0                   # Mandarin is a classic isolating language -- no case marking of any kind
 foreign_name_handling: adapt      # Chinese-style: foreign names are re-spelled in the language's own syllables (Bruno -> Bulu'ni)
 
+typical_tone_sandhi: 0.7  # real Mandarin's own third-tone sandhi (nǐ hǎo -> ní hǎo, already curated above) is the textbook, most-cited real example of pervasive tone sandhi in any language -- directly grounding this trait's own "like Mandarin's third-tone rule" description
+
 attested_onset_clusters:
   # glide onsets (Mandarin medial /j w ɥ/ are written as onset clusters)
   - ["ɕ", j]

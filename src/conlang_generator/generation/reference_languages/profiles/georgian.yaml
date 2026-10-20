@@ -116,6 +116,9 @@ real_has_overt_copula: false         # real Georgian's present-tense copula is a
 real_adjective_after_noun: false     # real Georgian attributive adjectives precede the noun (maghali mta = "tall mountain")
 real_case_count: 7                   # nominative, ergative, dative, genitive, instrumental, adverbial, vocative -- real, well-documented (the exact count is debated by some analyses, but 7 is the standard citation)
 
+typical_altitude: 0.4              # real Georgian's homeland spans the Caucasus, one of the world's great mountain ranges, though the modern population centers (Tbilisi) sit in lowland valleys -- moderate rather than extreme, unlike Tibetan's own plateau-wide case
+typical_aesthetic_harshness: 0.5    # real Georgian's own famous dense consonant clusters and rich ejective series (see historical_ejective_drift_affinity above, and real words like gvbrdgvni with zero vowels) are a frequently-cited real case of a phonologically "harsh"-perceived language, grounded in genuine structural facts rather than pure stereotype
+
 attested_onset_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [s, x, v]

@@ -173,3 +173,6 @@ real_has_articles: true              # al- -- a real, grammaticalized (if prefix
 real_has_overt_copula: false         # real Arabic present-tense nominal/adjectival predicate sentences are genuinely zero-copula (huwa taweel = "he (is) tall")
 real_adjective_after_noun: true      # real Arabic attributive adjectives follow the noun (al-bait al-kabir = "the house the-big")
 real_case_count: 3                   # nominative, accusative, genitive -- the real Classical/MSA i'rab system (largely unmarked in speech, but the standard citation count)
+
+typical_aesthetic_harshness: 0.5   # real Arabic's own pharyngeal/uvular/emphatic consonant series is one of the most frequently cited "guttural"-perceived real phonologies in both popular and academic commentary, grounded in genuinely distinctive articulation rather than pure stereotype
+typical_contact_intensity: 0.65    # Classical Arabic spread via trade and Islamic expansion across North Africa, the Middle East, and beyond, leaving a massive, extensively documented loanword layer in Persian, Turkish, Swahili (already cited in this project's own Swahili profile), Spanish, Malay/Indonesian, and Hindi/Urdu among others

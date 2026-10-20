@@ -17,6 +17,8 @@ consonants: [p, "pʰ", "bʱ", t, "tʰ", "dʱ", k, "kʰ", "gʱ", m, n, "ɲ", "ŋ"
 # Zulu also lacks native /r/ entirely (a genuine Bantu-wide fact, not
 # an oversight) -- /l/ covers that space instead.
 #
+typical_contact_intensity: 0.5  # real Zulu's own click consonants (below) are themselves the product of well-documented historical contact with Khoisan-speaking peoples in southern Africa -- one of linguistics' most-cited real cases of areal sound-borrowing between unrelated language families
+#
 # Click places: dental ǀ, postalveolar ǃ, lateral ǁ -- the same 3-way
 # system and same letters (c/q/x) Xhosa's own profile already uses; the
 # palatoalveolar click has no standard Nguni letter and stays unused by

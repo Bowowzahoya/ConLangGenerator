@@ -26,6 +26,7 @@ consonants: [p, b, t, d, k, g, "tʃ", "dʒ", "ʔ", m, n, "ŋ", s, "ʃ", h, z, l,
 # -- research for this batch didn't confirm Xhosa's stops work
 # identically to Zulu's, so this isn't force-matched to Zulu's own
 # shape.
+typical_contact_intensity: 0.55  # real Xhosa carries an even richer click inventory than Zulu's own (see consonants above) -- the same well-documented real Khoisan-contact origin, with Xhosa frequently cited as the more extensively click-adopting of the two Nguni languages
 vowels: [i, a, u, e, o]
 coda_profile: none
 # Corrected from "sonorant": Zulu (Xhosa's closest sister, curated

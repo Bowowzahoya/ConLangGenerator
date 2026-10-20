@@ -98,3 +98,5 @@ real_has_overt_copula: false         # real Turkish present-tense predicate adje
 real_adjective_after_noun: false     # real Turkish attributive adjectives precede the noun (buyuk ev = "big house")
 real_case_count: 6                   # nominative, accusative, genitive, dative, locative, ablative -- real, well-documented
 foreign_name_handling: keep       # foreign personal names are used as written
+
+typical_contact_intensity: 0.6  # Ottoman Turkish absorbed a massive layer of Arabic and Persian vocabulary over centuries of administrative/religious/literary contact (at times estimated to be a majority of its own written lexicon), only later pared back by the 20th-century language reform -- a well-documented real contact history

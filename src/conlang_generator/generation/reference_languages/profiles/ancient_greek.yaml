@@ -17,6 +17,7 @@ coda_profile: unrestricted
 max_onset: 2
 max_coda: 2
 tonal: false
+typical_contact_intensity: 0.6  # real Koine Greek spread as the lingua franca of the Hellenistic world via Alexander's conquests and the ensuing trade/administrative networks across the Eastern Mediterranean and Near East -- extremely well documented, later the language of the New Testament specifically because of that same reach
 word_classes:
   # Real Attic noun declension -- an illustrative subset (real Greek has
   # a real 3rd, consonant-stem declension too, left out here the same

@@ -102,6 +102,8 @@ real_adjective_after_noun: null      # genuinely too free/stylistically-driven t
 real_case_count: 6                   # nominative, genitive, dative, accusative, ablative, vocative -- real, well-documented
 foreign_name_handling: keep       # foreign personal names are used as written
 
+typical_orality_literacy: 0.8   # real Classical Latin survived over a millennium as a purely written/liturgical/administrative language (Church Latin, legal Latin, scholarly Latin) long after it ceased being anyone's native vernacular (which had already evolved into the Romance languages) -- one of history's clearest cases of a written norm outliving ordinary spoken transmission
+
 attested_onset_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [s, t, r]

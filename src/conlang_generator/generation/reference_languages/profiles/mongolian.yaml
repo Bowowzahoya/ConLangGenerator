@@ -111,6 +111,8 @@ word_class_deviation_rate: 0.08  # illustrative -- real Mongolian citation-form 
 stress_pattern: first_long_vowel_else_initial  # real Mongolian (Svantesson et al.): stress falls on the first syllable with a long vowel or diphthong, else the initial syllable -- a defensible first-order approximation of a genuinely more complex real system (some analyses describe Khalkha stress as one of the most complex regularly-stressed systems in the world, with real weight-sensitivity and directionality interactions beyond this flat rule)
 stress_deviation_rate: 0.25  # illustrative -- reflects the real complexity beyond the simple "first long vowel" statement, without treating it as fully unpredictable the way a genuinely lexical system would be
 
+typical_terrain_communication_distance: 0.5  # real traditional Mongolian pastoral life spans vast open steppe, with genuine long-distance herding-call/communication traditions (e.g. urtiin duu "long song," traditionally performed to carry across open distance) -- a real, if illustrative, case distinct from the mountain-village framing other high-altitude profiles get instead
+
 attested_onset_clusters:
   # real clusters found by `conlang audit-lexicons`
   - [m, j]

@@ -161,6 +161,8 @@ real_adjective_after_noun: false     # real Dutch attributive adjectives precede
 real_case_count: 0                   # modern Dutch has genuinely lost its real historical case system -- only vestigial in a few fixed expressions/pronouns
 foreign_name_handling: keep       # foreign personal names are used as written
 
+typical_aesthetic_harshness: 0.45  # real Dutch's own voiceless velar/uvular fricative (the "ch"/g sound) is one of the most frequently cited "harsh-sounding" real features of Dutch in both popular and phonetic commentary -- a genuine, distinctive phonological fact, not pure stereotype, though still a perceptual judgment this project stays appropriately modest about
+
 attested_onset_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [s, p, r]

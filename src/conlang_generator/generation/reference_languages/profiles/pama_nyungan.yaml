@@ -8,6 +8,8 @@ name: Pama-Nyungan
 # is just three vowels -- both genuinely typical, well-documented facts
 # about this family, not a simplification of convenience.
 aliases: [pitjantjatjara, western desert, aboriginal]
+typical_isolation: 0.3       # real traditional Western Desert societies lived in comparatively small, dispersed, often highly mobile groups across remote arid Australia, with limited external (non-Aboriginal) contact prior to European colonization -- real but more moderate than this project's own textbook isolate case (Basque), since contact *within* the wider Aboriginal Australian world was itself real and ongoing
+typical_community_scale: 0.5  # the same real small-scale, kin-based social organization well documented for traditional Western Desert communities
 # No word_classes curated -- real Western Desert languages like
 # Pitjantjatjara have no grammatical gender (the famous Dyirbal noun-
 # class/classifier system some readers may expect from "Australian

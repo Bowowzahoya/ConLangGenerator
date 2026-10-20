@@ -8,6 +8,7 @@ restricted_initial_consonants: ["dː", "kː", "pː", "rː", "lː", "nː"]  # gem
 max_onset: 1
 max_coda: 2  # real Persian words end in up to two consonants (dast, mard, gorg)
 tonal: false
+typical_contact_intensity: 0.55  # historically Persian served as a major literary/administrative lingua franca across the "Persianate world" (from the Ottoman realm through Central Asia to Mughal India), with extensive, well-documented loanword exchange with Arabic, Turkish, and Urdu/Hindi in particular
 orthography_category: diacritic-style
 # No attested_onset_clusters -- real Persian genuinely has no native
 # syllable-initial consonant clusters at all (max_onset: 1 above is the

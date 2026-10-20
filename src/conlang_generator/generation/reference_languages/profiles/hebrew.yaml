@@ -6,6 +6,7 @@ coda_profile: unrestricted
 max_onset: 2
 max_coda: 1  # see the segolate comment below -- real native Hebrew coda clusters are rare/avoided, not a productive modern pattern
 tonal: false
+typical_orality_literacy: 0.85  # real Classical/Biblical Hebrew ceased to be an everyday vernacular by roughly the early centuries CE and survived purely as a written and liturgical language -- Torah study, rabbinic literature, synagogue liturgy -- for some 1,700 years before its 19th/20th-century revival (Ben-Yehuda), arguably history's most famous case of a written norm outliving ordinary spoken transmission entirely
 root_and_pattern: true
 word_classes:
   # Real Hebrew feminine marker (ה-, phonemically /-a/) -- the same real

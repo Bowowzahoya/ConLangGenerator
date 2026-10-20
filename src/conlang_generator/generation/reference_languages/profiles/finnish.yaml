@@ -78,3 +78,5 @@ word_class_deviation_rate: 0.1  # illustrative -- a bit above Turkish's own rate
 stress_pattern: initial  # real Finnish: always the word's first syllable
 stress_deviation_rate: 0.05  # illustrative -- real Finnish initial stress is famously rigid, close to exceptionless
 stress_driven_vowel_reduction: false  # real Finnish: a syllable-timed language that keeps full vowel quality regardless of stress -- no schwa-style reduction at all
+
+typical_phonotactic_restrictiveness: 0.5  # real native Finnish vocabulary famously disallows word-initial consonant clusters and keeps a tight native coda/cluster inventory (vowel harmony's own phonotactic cousin) -- well documented, though loanwords and modern colloquial Finnish are considerably looser, so kept moderate rather than extreme

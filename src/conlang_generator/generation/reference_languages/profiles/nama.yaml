@@ -10,6 +10,8 @@ consonants: [p, t, k, "kʰ", "ʔ", s, h, m, n, "ŋ", w, j, "ǀ", "ǃ", "ǁ", "ǂ
 # independently-attested accompaniment system, structurally different
 # from Zulu's own Nguni-internal voiced/breathy "depressor" innovation
 # (which Nama genuinely lacks -- see phonology_gen.py's own comment).
+typical_isolation: 0.35   # real Khoekhoe-speaking communities historically lived in relatively small, often semi-nomadic pastoralist groups across arid southern Africa (Namibia/Botswana), with comparatively limited contact beyond the region prior to European colonization -- real but more moderate than Basque's own textbook linguistic-isolate case
+typical_community_scale: 0.5  # the same real small-scale, kin-based social organization traditionally documented for Khoekhoe/San pastoralist and hunter-gatherer communities in this region
 vowels: [a, e, i, o, u, "aː", "eː", "iː", "oː", "uː", "ã", "ẽ", "ĩ", "õ", "ũ"]
 coda_profile: sonorant
 max_onset: 2

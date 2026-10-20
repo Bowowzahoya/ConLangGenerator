@@ -5,6 +5,7 @@ vowels: [a, e, i, o, u]
 # Europe's only language isolate -- no known genetic relatives, so unlike
 # every other profile here there's no wider family to lean on for
 # typological plausibility checks; every fact below is Basque-specific.
+typical_isolation: 0.9  # real Basque is THE textbook case of a surviving European language isolate -- no demonstrated relationship to any other language family, predating the Indo-European arrival in Western Europe entirely
 coda_profile: unrestricted
 max_onset: 1  # real native Basque syllable structure is simple and strictly CV(C)-leaning -- onset clusters are essentially a loanword-only phenomenon (Romance contact), not modeled here
 max_coda: 1   # real native Basque codas are always a single consonant

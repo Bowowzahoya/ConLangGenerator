@@ -9,6 +9,7 @@ restricted_initial_consonants: ["sː", "kː", "rː", "mː", "tː", "lː", "gː",
 max_onset: 2
 max_coda: 2  # real Old Norse coda clusters exist (land, kaldr, fyrst, bjǫrn)
 tonal: false
+typical_contact_intensity: 0.55  # real Viking Age trade and settlement spread Old Norse (and its loanwords) across an extensive real network -- the British Isles (Old Norse loans into English), the Rus' trade routes into Eastern Europe, and Norman French -- a well-documented real contact history, not just raiding
 word_classes:
   # Real Old Norse strong noun declension: masculine a-stems famously
   # take a real nominative-singular -r (úlfr "wolf", hestr "horse",

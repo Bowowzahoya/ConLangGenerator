@@ -48,6 +48,7 @@ orthography:
   - {ipa: "ŋ", latin: "ŋ"}   # a real letter used directly in scholarly transliteration
   - {ipa: h, latin: "ḫ"}     # real under-dot convention for this fricative
 core_vocabulary_average_syllables: 1.3  # illustrative -- Sumerian's own core vocabulary is famously described as heavily monosyllabic-root-based (e.g. "a" water, "dug" pot, "lu" person/man), among the shortest in this project's own set; meaningfully more counting uncertainty than even the other newly-added profiles, given this language's own uniquely indirect evidence base
+typical_orality_literacy: 0.8  # real Sumerian cuneiform is literally the earliest attested writing system (late 4th millennium BCE), backed by an extensive, well-documented scribal/literary tradition (administrative archives, law, literature) -- about as uncontroversial a "established writing tradition" case as exists, even though this profile's own phonology is reconstructed rather than directly attested
 onset_frequency_tiers:
   very_common: [g, d, m, n, s, l]
   common: [b, p, t, k, r, "ŋ"]

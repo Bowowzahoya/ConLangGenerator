@@ -850,6 +850,52 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   `tests/test_reference_trait_blend.py`'s own end-to-end test), while an explicit `trait_overrides`
   still wins outright. Remaining curation (the other ~42 profiles, the three uncurated-for-now traits)
   is still a real, substantial future direction if picked back up later, just no longer unscoped.
+
+  **Batch 2 -- 18 more profiles curated (24 new trait values), direct user request to keep working
+  through the remaining ~42.** Same "abstain rather than guess" standard as batch 1, each with a real
+  citation: `isolation` for Basque (0.9, Europe's own textbook surviving language isolate), Nama (0.35)
+  and Pama-Nyungan (0.3) (traditional small-scale Khoisan/Western-Desert societies, more moderate than
+  Basque's case); `community_scale` for Nama (0.5) and Pama-Nyungan (0.5) (the same real small-scale
+  social organization); `altitude` for Georgian (0.4, the Caucasus) and, added to the two already-
+  curated profiles above, Tibetan (0.9, the Tibetan Plateau) and Quechua (0.6, the Andes, more moderate
+  since Quechua is also spoken in lowland valleys); `contact_intensity` for Ancient Greek (0.6, Koine's
+  Hellenistic-era spread), Turkish (0.6, Ottoman-era Arabic/Persian loanword absorption), Old Norse
+  (0.55, Viking Age trade/settlement -- English/Russian loanwords), Persian (0.55, the Persianate
+  world's own literary lingua franca), Arabic (0.65, Islamic-era trade/conquest spread), and Zulu
+  (0.5)/Xhosa (0.55) (click consonants adopted from well-documented Khoisan contact, one of
+  linguistics' most-cited areal sound-borrowing cases); `orality_literacy` for Latin (0.8, Medieval
+  Latin's centuries as a purely written/liturgical language), Hebrew (0.85, ~1,700 years as a written-
+  and-liturgical-only language before its 19th/20th-century revival), and Sumerian (0.8, the literal
+  origin of writing itself, cuneiform); `aesthetic_harshness` for Georgian (0.5, dense real consonant
+  clusters/ejectives), Dutch (0.45, the real velar/uvular fricative), and Arabic (0.5, real pharyngeal/
+  uvular/emphatic consonants); `tone_sandhi` for Mandarin (0.7, its own third-tone rule, already the
+  trait's own canonical textbook example); `phonotactic_restrictiveness` for Finnish (0.5, native-
+  vocabulary consonant-cluster restrictions); `terrain_communication_distance` for Mongolian (0.5,
+  traditional steppe herding-call/long-song tradition). Verified: new blend-mechanism spot checks
+  (Basque-sourced generation nudges `isolation` to 0.9, Zulu-sourced nudges `contact_intensity` to 0.5,
+  both at blend weight 1.0) plus the full test suite.
+
+  **Deliberately not curated this batch, for a specific reason each, not an oversight**: Sumerian's own
+  city-states were major Bronze Age trade hubs, so `isolation` was *not* added there despite Sumerian
+  also being a genealogical language isolate -- "no known relatives" and "a geographically/socially
+  isolated speech community" are different facts, and only the first is true of Sumerian. Sanskrit was
+  considered for `orality_literacy` but dropped: its own real tradition is just as famous for
+  *precise oral* transmission (Vedic recitation, the Śikṣā phonetic tradition) as for writing, making a
+  one-directional "written norm anchors it" framing genuinely ambiguous rather than well-grounded.
+  Welsh was considered for `contact_intensity` but dropped: its own real history with English is
+  substantially about suppression/displacement, not the trade/creolization-flavored contact this trait's
+  own description centers on.
+
+  **Still unscoped for a future batch** -- 24 of the ~53 profiles remain completely uncurated:
+  Indonesian, Malay, Khmer, Arawakan, Danish, Hungarian, Italian, Welsh, Norwegian, Swedish, Tamil,
+  Hindi, Bengali, Cantonese, Vietnamese, Yoruba, French, German, Polish, Portuguese, Russian, Serbo-
+  Croatian, Spanish, and Sanskrit (the last two considered and deliberately skipped this round, per
+  above, but worth a second look with more specific research rather than permanently excluded). No
+  specific trait candidates picked yet for any of these -- unlike batch 1/2's own "easy, uncontroversial
+  real-world correlate" selection criterion, this remaining set likely needs more specific research per
+  language (e.g. Vietnamese's own real contact history with Chinese/French, Yoruba's own real tonal/
+  diaspora contact history, Cantonese's own real British-colonial-era contact) rather than being another
+  quick pass over obvious cases.
 - **Tweaking a saved language's own traits and regenerating -- plan written up as its own chapter.**
   See `## 12. Tweaking an existing language` below.
 - **Orthography reform is partial -- done (pass 42 + two follow-ups).**

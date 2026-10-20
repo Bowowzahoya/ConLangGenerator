@@ -8599,3 +8599,19 @@ reading code or one-off ad hoc scripts.
   field-swap); 6 new tests in `tests/test_evolve_webui.py`; full suite green; live-verified through the
   real dev server end to end (add source language at intensity 0.25 -> disables/shows derived total ->
   save -> saved language's own `contact_intensity` is exactly 0.25).
+
+  **Fourth follow-up round: reference-language trait grading extended to 18 more profiles ("batch 2"),
+  direct user request to keep working through the remaining ~42 un-graded profiles in batches.** Same
+  curation standard as the original 11 (`core.traits.GRADED_TRAIT_FIELDS` minus `ritual_register`/
+  `taboo_register`/`spatial_reference`/`tonal_friendliness`, each left project-wide uncurated for the
+  same reasons as before) -- every new `typical_<field>` value has a real, specific citation in its own
+  profile's YAML comment, not a guessed number. See `docs/DEFERRED.md`'s own entry (ch. 11, "Grade every
+  curated real language...") for the full per-profile list and citations, and for which profiles were
+  *deliberately* skipped with a stated reason (Sumerian's own real trade-hub history vs. its separate
+  genealogical-isolate status; Sanskrit's genuine oral-vs-written ambiguity; Welsh's suppression-not-
+  trade contact history) rather than simply not yet reached. 29 of ~53 profiles now have at least one
+  curated trait; 24 remain completely unscoped for a future batch, listed explicitly in that same
+  DEFERRED.md entry rather than left as a vague "the rest." Verified: all 53 profile YAML files still
+  parse; a direct `blend_toward_reference` spot check confirms a Basque-sourced generation at blend
+  weight 1.0 now resolves `isolation` to exactly `0.9` and a Zulu-sourced one resolves `contact_intensity`
+  to exactly `0.5`; full suite green.
