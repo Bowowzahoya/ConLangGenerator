@@ -857,7 +857,7 @@ def test_gain_acceptance_has_a_floor_even_at_full_strictness_against_a_foreign_s
     lineage_profiles = (
         ReferenceLanguageProfile(name="TestLineage", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False),
     )
-    traits = TraitProfile(source_languages=("TestLineage",), source_language_strictness=1.0)
+    traits = TraitProfile(source_languages=("TestLineage",), contact_intensity=1.0)
     used_symbols = {"p", "a", "pʼ"}  # "pʼ" is foreign to this lineage
 
     # A roll just below the floor (_MIN_GAIN_ACCEPTANCE = 0.1): accepted --
@@ -889,7 +889,7 @@ def test_merger_never_empties_a_whole_class_even_with_only_one_member():
     lineage_profiles = (
         ReferenceLanguageProfile(name="TestLineage", consonants=("p",), vowels=("a",), coda_profile="none", max_onset=1, tonal=False),
     )
-    traits = TraitProfile(source_languages=("TestLineage",), source_language_strictness=1.0)
+    traits = TraitProfile(source_languages=("TestLineage",), contact_intensity=1.0)
     used_symbols = {"p", "a"}
     for seed in range(30):
         accepted = sound_change._evolve_phonology_membership(
@@ -908,7 +908,7 @@ def test_merger_can_actually_drop_exactly_one_retained_symbol_from_a_bigger_inve
             name="TestLineage", consonants=("p", "t", "k", "s"), vowels=("a", "i"), coda_profile="none", max_onset=1, tonal=False,
         ),
     )
-    traits = TraitProfile(source_languages=("TestLineage",), source_language_strictness=1.0)
+    traits = TraitProfile(source_languages=("TestLineage",), contact_intensity=1.0)
     used_symbols = {"p", "t", "k", "s", "a", "i"}
     dropped_something = False
     for seed in range(50):
@@ -946,7 +946,15 @@ def test_strictness_damps_but_never_forbids_ejective_gain_and_keeps_every_entry_
     loose_hits = 0
     for seed in range(n):
         for strictness, counter_name in ((1.0, "strict"), (0.0, "loose")):
-            traits = TraitProfile(source_languages=("Dutch",), source_language_strictness=strictness)
+            # source_language_strictness (fresh generation's own dial) gives
+            # "Base" its properly Dutch-strict/loose starting phonology;
+            # contact_intensity (evolution's own dial, since the strictness
+            # ->contact_intensity swap, see docs/DEFERRED.md ch. 13) is what
+            # the subsequent evolve_language call below actually reads for
+            # its own gain-damping -- both set to the same value here so
+            # this test still exercises "a strict lineage end to end," just
+            # via the two different fields each half now reads.
+            traits = TraitProfile(source_languages=("Dutch",), source_language_strictness=strictness, contact_intensity=strictness)
             base = generate_language("Base", GenerationSpec(prompt="p", seed=seed, traits=traits), FakeLLMClient())
             evolved = evolve_language("Evolved", base, 500, traits, seed=seed + 500)
             allowed = frozenset(evolved.phonology.all_symbols())

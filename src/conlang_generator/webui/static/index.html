@@ -561,15 +561,21 @@
         <label for="evolve-years">Years of evolution</label><button type="button" class="info-btn" data-info-key="evolve_years" title="What does this do?">&#9432;</button>
         <input type="number" id="evolve-years" min="1" max="100000" step="50" placeholder="e.g. 500" required>
       </div>
-      <div>
-        <label for="evolve-strictness">Sound strictness <span class="ipa">(for newly added source languages)</span></label><button type="button" class="info-btn" data-info-key="strictness" title="What does this do?">&#9432;</button>
-        <input type="number" id="evolve-strictness" min="0" max="1" step="0.05" placeholder="(current value)">
-      </div>
     </div>
 
+    <!-- Each source language's own "intensity" is an absolute contact-
+         pressure dial, not Generate's own relative "weight" -- required
+         (no default), and the sum across every row here is capped at
+         1.0 (EvolveSourceLanguageEntry's own docstring, webui/app.py) --
+         direct user request (docs/DEFERRED.md ch. 13). contact_intensity
+         itself (shown as a normal trait-override row further down,
+         inside Grammar) is auto-derived from this sum and disabled
+         whenever any row here is active, since the two can't both set
+         it at once -- see updateEvolveIntensityTotal. -->
     <label>Source languages <span class="ipa">(merges additively with the language's own existing lineage -- a language evolved more than once keeps every past source, see <code>sound_change.evolve_language</code>'s own docstring; autocomplete suggests the curated list below, same as Generate's own field)</span></label><button type="button" class="info-btn" data-info-key="source_languages" title="What does this do?">&#9432;</button>
     <div id="evolve-source-lang-rows"></div>
     <button type="button" class="add-row" id="evolve-add-source-lang">+ source language</button>
+    <p class="ipa" id="evolve-intensity-total" style="margin:6px 0 0;"></p>
 
     <!-- Only the 6 of 15 worldbuilding traits that actually affect
          evolution (core.traits.EVOLUTION_TRAIT_FIELDS) are shown here, each
@@ -1426,10 +1432,74 @@ $("tweak-save-btn").onclick = () => runTweak(false);
 // renderTweakDiff/renderSoundInventoryDiff as-is, since both are already
 // generic over any before/after lexicon + phoneme inventory pair, not
 // Tweak-specific. ---
-$("evolve-add-source-lang").onclick = () => addSourceLangRow("evolve-source-lang-rows");
+// Evolve's own source-language rows are NOT built with the generic
+// addSourceLangRow/collectSourceLanguages (Generate's own "weight" is an
+// optional, relative blend proportion; here each row's own "intensity" is
+// a required, absolute contact-pressure dial capped at a combined 1.0 --
+// genuinely different semantics, not worth forcing through one shared
+// shape just to avoid a second small builder. See EvolveSourceLanguageEntry's
+// own docstring (webui/app.py) for the full reasoning, docs/DEFERRED.md
+// ch. 13 for the history.
+function addEvolveSourceLangRow() {
+  const row = document.createElement("div");
+  row.className = "dyn-row";
+  row.innerHTML = `
+    <input type="text" placeholder="language name, e.g. French" class="sl-name" list="source-lang-names">
+    <input type="number" placeholder="intensity, e.g. 0.2" min="0" max="1" step="0.05" class="sl-intensity">
+    <span class="sl-match ipa"></span>
+    <button type="button" class="remove-row">&times;</button>`;
+  row.querySelector(".remove-row").onclick = () => { row.remove(); updateEvolveIntensityTotal(); };
+  row.querySelector(".sl-name").oninput = () => { updateSourceLangMatchIndicator(row); updateEvolveIntensityTotal(); };
+  row.querySelector(".sl-intensity").oninput = updateEvolveIntensityTotal;
+  $("evolve-source-lang-rows").appendChild(row);
+}
+
+function collectEvolveSourceLanguages() {
+  return [...$("evolve-source-lang-rows").querySelectorAll(".dyn-row")]
+    .map(row => ({
+      name: row.querySelector(".sl-name").value.trim(),
+      intensity: row.querySelector(".sl-intensity").value ? parseFloat(row.querySelector(".sl-intensity").value) : null,
+    }))
+    .filter(e => e.name);
+}
+
+// contact_intensity (a normal trait-override row inside the Grammar
+// group) becomes derived -- and un-editable -- the moment any source
+// language row is active this run, since the backend rejects setting
+// both at once (ambiguous which should win). Restores the base
+// language's own actual current contact_intensity (evolveBaseContactIntensity)
+// once every source-language row is removed again.
+function updateEvolveIntensityTotal() {
+  const rows = [...$("evolve-source-lang-rows").querySelectorAll(".dyn-row")];
+  const active = rows.filter(row => row.querySelector(".sl-name").value.trim());
+  const total = active.reduce((sum, row) => {
+    const v = parseFloat(row.querySelector(".sl-intensity").value);
+    return sum + (Number.isFinite(v) ? v : 0);
+  }, 0);
+  const totalEl = $("evolve-intensity-total");
+  totalEl.textContent = active.length
+    ? `total contact intensity: ${total.toFixed(2)} / 1.0${total > 1.0 ? " -- exceeds the maximum, preview will be rejected" : ""}`
+    : "";
+  totalEl.className = total > 1.0 ? "error" : "ipa";
+
+  const traitRow = document.querySelector('#evolve-trait-rows-grammar .dyn-row[data-trait-name="contact_intensity"]');
+  if (!traitRow) return;
+  const input = traitRow.querySelector(".to-value");
+  if (active.length) {
+    input.value = total.toFixed(2);
+    input.disabled = true;
+    traitRow.dataset.original = String(total);
+  } else {
+    input.disabled = false;
+    input.value = evolveBaseContactIntensity.toFixed(2);
+    traitRow.dataset.original = String(evolveBaseContactIntensity);
+  }
+}
+$("evolve-add-source-lang").onclick = addEvolveSourceLangRow;
 
 let evolveBaseLexicon = null;
 let evolveBasePhonemeInventory = null;
+let evolveBaseContactIntensity = 0;
 let evolveLastPreviewBody = null;
 function resetEvolvePreview() {
   evolveLastPreviewBody = null;
@@ -1443,17 +1513,19 @@ async function loadEvolveLanguage(slug) {
   $("evolve-trait-rows-tones").innerHTML = "";
   $("evolve-trait-rows-orthography").innerHTML = "";
   $("evolve-source-lang-rows").innerHTML = "";
+  $("evolve-intensity-total").textContent = "";
   $("evolve-years").value = "";
-  $("evolve-strictness").value = "";
   resetEvolvePreview();
   evolveBaseLexicon = null;
   evolveBasePhonemeInventory = null;
+  evolveBaseContactIntensity = 0;
   if (!slug) return;
   try {
     const summary = await api(`/api/languages/${encodeURIComponent(slug)}`);
     $("evolve-name").value = `${slug}-evolved`;
     evolveBaseLexicon = summary.lexicon;
     evolveBasePhonemeInventory = summary.phoneme_inventory;
+    evolveBaseContactIntensity = summary.traits.contact_intensity || 0;
     buildEvolveTraitRows(summary.traits);
     // Same "pre-render into Inspect without switching tabs" convenience
     // loadTweakLanguage already has -- see its own comment for why.
@@ -1475,13 +1547,25 @@ async function runEvolve(dryRun) {
   if (!slug) { err.textContent = "Pick a language to evolve first."; err.hidden = false; return; }
   if (!name) { err.textContent = "Give the evolved language a name to save as."; err.hidden = false; return; }
   if (!Number.isFinite(years) || years <= 0) { err.textContent = "Years of evolution must be a positive number."; err.hidden = false; return; }
+  const sourceLanguages = collectEvolveSourceLanguages();
+  const missingIntensity = sourceLanguages.filter(e => e.intensity === null);
+  if (missingIntensity.length) {
+    err.textContent = `Give an explicit contact intensity for: ${missingIntensity.map(e => e.name).join(", ")}.`;
+    err.hidden = false;
+    return;
+  }
+  const totalIntensity = sourceLanguages.reduce((sum, e) => sum + e.intensity, 0);
+  if (totalIntensity > 1.0) {
+    err.textContent = `The sum of source-language intensities must not exceed 1.0 (got ${totalIntensity.toFixed(2)}).`;
+    err.hidden = false;
+    return;
+  }
   // Same "save replays the exact previewed body" discipline runTweak's own
   // comment explains -- evolve_language is deterministic too.
   const requestBody = dryRun || !evolveLastPreviewBody
     ? {
         name, years, trait_overrides: collectEvolveTraitOverrides(),
-        source_languages: collectSourceLanguages("evolve-source-lang-rows"),
-        strictness: $("evolve-strictness").value ? parseFloat($("evolve-strictness").value) : null,
+        source_languages: sourceLanguages,
         dry_run: dryRun,
       }
     : { ...evolveLastPreviewBody, dry_run: false };

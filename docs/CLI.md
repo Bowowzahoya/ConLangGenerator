@@ -705,35 +705,48 @@ evolved) get unrelated hash noise; use `--llm anthropic`, or construct a
 `TraitProfile` directly in Python, for a real side-by-side comparison at a
 fixed trait profile across several `--years` values.
 
-**`--strictness`/`--source-language` reach evolution too, not just fresh
-generation.** A strict lineage's inventory doesn't just drift back toward
-the generic the moment `--years` runs -- gaining a sound stays possible
-(damped, never blocked), while losing one is an independent, bounded,
-at-most-one-symbol-per-run event. Same base language (`dutch-base-strict`,
-`--source-language Dutch --strictness 1.0`), same seed, evolved 500 years
-two different ways:
+**`contact_intensity` (not `--strictness`) drives this during evolution --
+changed, see `docs/DEFERRED.md` ch. 13.** `--strictness`/`source_language_
+strictness` used to double as evolution's own "how closely does the
+inventory stick to the lineage" dial too; direct user request ("sound
+strictness should be removed from evolution -- that belongs in generating
+languages inspired by a language") moved this to `contact_intensity`
+instead, read throughout `sound_change.py`'s evolution mechanics (phoneme-
+inventory gain/loss, lexical-replacement rate, orthography reform/drift
+speed, native-word accent fidelity, tonal detonalization chance) -- gaining
+a sound stays possible even under heavy contact (damped, never blocked),
+while losing one is an independent, bounded, at-most-one-symbol-per-run
+event. `--strictness`/`--source-language` still work exactly as before for
+*fresh* generation (`dutch-base-strict` below), and still set the blend
+weight for grading reference languages on worldbuilding traits (ch. 11);
+only evolution's own inventory/orthography mechanics switched dials. The
+web UI's own Evolve tab derives `contact_intensity` automatically from its
+own per-source-language "intensity" fields (capped at a combined 1.0); the
+CLI has no equivalent convenience yet -- set it directly with `--trait
+contact_intensity=X`. Same base language, same seed, evolved 500 years two
+different ways:
 
 ```bash
+conlang generate --name dutch-base-strict --prompt p --source-language Dutch --strictness 1.0 --seed 1 --llm fake
 conlang generate --name dutch-evolved-strict --evolve-from dutch-base-strict \
-  --years 500 --source-language Dutch --strictness 1.0 --seed 5 --llm fake
+  --years 500 --source-language Dutch --trait contact_intensity=1.0 --seed 5 --prompt p --llm fake
 conlang generate --name dutch-evolved-loose --evolve-from dutch-base-strict \
-  --years 500 --strictness 0.0 --seed 5 --llm fake
+  --years 500 --trait contact_intensity=0.0 --seed 5 --prompt p --llm fake
 ```
 
 ```
 Evolved 'dutch-base-strict' -> 'dutch-evolved-strict' (dutch-evolved-strict) over 500 years.
-consonants: 19 -> 19, vowels: 16 -> 13
+consonants: 19 -> 19, vowels: 16 -> 14
 ...
 Evolved 'dutch-base-strict' -> 'dutch-evolved-loose' (dutch-evolved-loose) over 500 years.
-consonants: 19 -> 26, vowels: 16 -> 14
+consonants: 19 -> 24, vowels: 16 -> 13
 ...
 ```
 
-At `--strictness 1.0` the inventory stays close to its original size (a
-small bounded loss, no net foreign gain); at `--strictness 0.0` the same
-500 years under the same underlying sound-change rolls lets the inventory
-balloon with contact-driven gains instead. See `docs/DEFERRED.md`'s
-"Language evolution" section for the mechanism.
+At `contact_intensity=1.0` the inventory stays close to its original size
+(a small bounded loss, no net foreign gain); at `contact_intensity=0.0` the
+same 500 years under the same underlying sound-change rolls lets the
+inventory balloon with contact-driven gains instead.
 
 Two kinds of change run, independently gated: six gradient, per-position
 **segmental** rules (cluster simplification, lenition, final devoicing,

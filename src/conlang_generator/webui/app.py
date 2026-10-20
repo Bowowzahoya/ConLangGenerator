@@ -326,6 +326,19 @@ class SourceLanguageEntry(BaseModel):
     weight: float | None = None
 
 
+class EvolveSourceLanguageEntry(BaseModel):
+    name: str
+    intensity: float
+    """How much this specific source language actively reshapes the
+    language during this evolution run -- not Generate's own `weight`
+    (a relative blend proportion among several sources, used to bias a
+    palette), but an absolute contact-pressure dial `EvolveRequest`'s
+    own docstring explains in full. Required, no default: a silently
+    defaulted intensity would make it too easy to introduce heavy,
+    unintended contact just by adding a source language without
+    thinking about how strong it should be."""
+
+
 class SeedExampleEntry(BaseModel):
     gloss: str
     form: str
@@ -988,22 +1001,39 @@ class EvolveRequest(BaseModel):
     generate_word_classes`) -- so every one of the 15 `GRADED_TRAIT_
     FIELDS` is safe to change here, unlike `regenerate_phonology`'s own
     `PHONOLOGY_ONLY_TRAIT_FIELDS` restriction."""
-    source_languages: list[SourceLanguageEntry] = []
+    source_languages: list[EvolveSourceLanguageEntry] = []
     """New contact language(s) to introduce during this evolution run,
     merged *additively* with the base language's own existing lineage
     by `evolve_language` itself (confirmed: `lineage_languages = tuple(
     dict.fromkeys((*base.spec.traits.source_languages, *traits.
-    source_languages)))`, sound_change.py) -- never replaces it."""
-    strictness: float | None = None
-    """Both the sound-strictness weight `evolve_language` itself already
-    reads, and the blend weight for grading reference languages on
-    worldbuilding traits (see `blend_toward_reference`) -- applied only
-    against these *newly introduced* source languages, not the base's
-    own already-established lineage (which already had its own chance
-    to blend at whatever point it was itself generated/evolved).
-    Defaults to the base language's own `source_language_strictness`
-    when not given, so introducing a new contact language without
-    explicitly restating strictness still does something sensible."""
+    source_languages)))`, sound_change.py) -- never replaces it.
+
+    Unlike Generate's own `source_languages` (a relative blend
+    proportion, `SourceLanguageEntry.weight`), each entry's own
+    `intensity` here is an *absolute* contact-pressure dial: 0.1 always
+    means "mild," regardless of how many other source languages are
+    also active, and 0.1 among five other 0.1s is not a fifth of
+    anything. The SUM of every entry's own intensity in one request
+    must not exceed 1.0 -- "the maximum influence imaginable without
+    this language losing its own identity entirely," not a target to
+    reach (ordinary contact should sit well below it). This sum becomes
+    this run's own `contact_intensity` trait value directly (see
+    `core.traits.TraitProfile.contact_intensity`'s own docstring --
+    already read throughout `sound_change.py`'s evolution mechanics:
+    phoneme-inventory gain/loss, lexical-replacement rate, orthography
+    reform/drift speed, native-word accent fidelity, and tonal-language
+    detonalization chance), which is why `trait_overrides` is rejected
+    outright if it also tries to set `contact_intensity` directly
+    alongside a nonempty `source_languages` here -- it would be
+    ambiguous which one wins. Direct user request: "sound strictness
+    should be removed from evolution... introduce words from the
+    source languages slowly, as well as take over phonology, grammar
+    etc., with a particular speed based on weight... Contact intensity
+    should follow directly from the sum of intensities of source
+    languages." See `docs/DEFERRED.md` ch. 13 for the full history --
+    including why this is deliberately *not* cumulative across separate
+    evolution runs (a language's own prior contact history doesn't
+    count toward this run's own 1.0 ceiling)."""
     llm: str = "fake"
     dry_run: bool = False
     """Same "compute but don't save" contract every other tweak-family
@@ -1015,14 +1045,18 @@ def evolve_language_endpoint(slug: str, request: EvolveRequest) -> dict:
     """"Language evolution" restructuring (`docs/DEFERRED.md`, chapter
     11) -- the web UI's own Evolve tab backing endpoint, the first place
     evolving an *already-saved* language is possible outside the CLI's
-    own `generate --evolve-from` (which this mirrors directly, down to
-    reusing the exact same trait-resolution shape: start from the base
-    language's own traits, merge in any new `source_languages`, blend
-    toward matched reference profiles, then apply `trait_overrides` on
-    top -- the only thing `--evolve-from` has that isn't reproduced
-    here is prompt classification, since there's no new prompt to
-    classify). `dry_run=true` computes but never saves, same contract
-    `/api/languages/{slug}/tweak` already has."""
+    own `generate --evolve-from`. Trait-resolution shape: start from the
+    base language's own traits, merge in any new `source_languages`
+    (deriving `contact_intensity` as their own capped intensity sum --
+    see `EvolveRequest.source_languages`'s own docstring, ch. 13), blend
+    toward matched reference profiles by that same derived intensity,
+    then apply `trait_overrides` on top. Unlike the CLI's own
+    `--evolve-from` (which still passes `contact_intensity` through
+    unvalidated via a plain `--trait`, same as any other trait -- see
+    `sound_change._evolve_phonology_membership`'s own docstring), only
+    this endpoint has the capped-sum derivation/validation; a deliberate
+    scope limit, not an oversight. `dry_run=true` computes but never
+    saves, same contract `/api/languages/{slug}/tweak` already has."""
     unknown_traits = set(request.trait_overrides) - set(GRADED_TRAIT_FIELDS)
     if unknown_traits:
         raise HTTPException(
@@ -1033,6 +1067,29 @@ def evolve_language_endpoint(slug: str, request: EvolveRequest) -> dict:
         raise HTTPException(status_code=400, detail=f"trait_overrides values must be between -1.0 and 1.0: {out_of_range}")
     if request.years <= 0:
         raise HTTPException(status_code=400, detail="years must be > 0")
+    total_intensity = sum(e.intensity for e in request.source_languages)
+    if request.source_languages:
+        out_of_range_intensity = {e.name: e.intensity for e in request.source_languages if not 0.0 <= e.intensity <= 1.0}
+        if out_of_range_intensity:
+            raise HTTPException(
+                status_code=400, detail=f"source-language intensity must be between 0.0 and 1.0: {out_of_range_intensity}"
+            )
+        if total_intensity > 1.0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "the sum of source-language intensities must not exceed 1.0 (the maximum influence "
+                    f"imaginable without the language losing its own identity) -- got {total_intensity:.2f}"
+                ),
+            )
+        if "contact_intensity" in request.trait_overrides:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "contact_intensity can't be set via trait_overrides alongside source_languages during "
+                    "evolution -- it's derived automatically as the sum of their own intensities"
+                ),
+            )
     try:
         base = _repository().load(slug)
     except FileNotFoundError as exc:
@@ -1043,14 +1100,15 @@ def evolve_language_endpoint(slug: str, request: EvolveRequest) -> dict:
 
     traits = base.spec.traits
     new_source_languages = ()
+    blend_weight = 0.0
     if request.source_languages:
         names = tuple(e.name for e in request.source_languages)
-        weights = tuple(e.weight if e.weight is not None else 1.0 for e in request.source_languages)
-        traits = traits.model_copy(update={"source_languages": names, "source_language_weights": weights})
-        new_source_languages = match_profiles_weighted(names, weights)
-    blend_weight = request.strictness if request.strictness is not None else base.spec.traits.source_language_strictness
-    if request.strictness is not None:
-        traits = traits.model_copy(update={"source_language_strictness": request.strictness})
+        intensities = tuple(e.intensity for e in request.source_languages)
+        traits = traits.model_copy(
+            update={"source_languages": names, "source_language_weights": intensities, "contact_intensity": total_intensity}
+        )
+        new_source_languages = match_profiles_weighted(names, intensities)
+        blend_weight = total_intensity
     traits = blend_toward_reference(traits, new_source_languages, blend_weight)
     if request.trait_overrides:
         traits = traits.model_copy(update=request.trait_overrides)

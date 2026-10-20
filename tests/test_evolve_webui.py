@@ -115,10 +115,85 @@ def test_evolve_merges_new_source_languages_additively(client):
         "/api/languages/evolve-src-base/evolve",
         json={
             "name": "evolve-src-result", "years": 200,
-            "source_languages": [{"name": "Dutch", "weight": 1.0}],
+            "source_languages": [{"name": "Dutch", "intensity": 0.3}],
         },
     )
     assert evolved.status_code == 200
     saved = client.get("/api/languages/evolve-src-result").json()
     assert "French" in saved["traits"]["source_languages"]
     assert "Dutch" in saved["traits"]["source_languages"]
+    assert saved["traits"]["contact_intensity"] == 0.3
+
+
+# --- contact intensity (docs/DEFERRED.md ch. 13): sound strictness removed
+# from evolution, replaced by a capped sum of each newly-added source
+# language's own explicit intensity -- direct user request. ---
+
+
+def test_evolve_rejects_a_source_language_with_no_explicit_intensity(client):
+    _make_base(client)
+    response = client.post(
+        "/api/languages/evolve-base/evolve",
+        json={"name": "x", "years": 100, "source_languages": [{"name": "Dutch"}]},
+    )
+    assert response.status_code == 422
+
+
+def test_evolve_rejects_an_out_of_range_intensity(client):
+    _make_base(client)
+    response = client.post(
+        "/api/languages/evolve-base/evolve",
+        json={"name": "x", "years": 100, "source_languages": [{"name": "Dutch", "intensity": 1.5}]},
+    )
+    assert response.status_code == 400
+
+
+def test_evolve_rejects_intensities_summing_above_one(client):
+    _make_base(client)
+    response = client.post(
+        "/api/languages/evolve-base/evolve",
+        json={
+            "name": "x", "years": 100,
+            "source_languages": [{"name": "Dutch", "intensity": 0.6}, {"name": "French", "intensity": 0.6}],
+        },
+    )
+    assert response.status_code == 400
+    assert "1.0" in response.json()["detail"]
+
+
+def test_evolve_rejects_an_explicit_contact_intensity_override_alongside_source_languages(client):
+    _make_base(client)
+    response = client.post(
+        "/api/languages/evolve-base/evolve",
+        json={
+            "name": "x", "years": 100,
+            "source_languages": [{"name": "Dutch", "intensity": 0.3}],
+            "trait_overrides": {"contact_intensity": 0.5},
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_evolve_derives_contact_intensity_as_the_sum_of_source_language_intensities(client):
+    _make_base(client)
+    response = client.post(
+        "/api/languages/evolve-base/evolve",
+        json={
+            "name": "evolve-derived-intensity", "years": 100,
+            "source_languages": [{"name": "Dutch", "intensity": 0.2}, {"name": "French", "intensity": 0.15}],
+        },
+    )
+    assert response.status_code == 200
+    assert abs(response.json()["traits"]["contact_intensity"] - 0.35) < 1e-9
+
+
+def test_evolve_with_no_source_languages_still_lets_contact_intensity_be_overridden(client):
+    # Unchanged old behavior: the derivation/validation above only kicks in
+    # when source_languages is actually given this run.
+    _make_base(client)
+    response = client.post(
+        "/api/languages/evolve-base/evolve",
+        json={"name": "x", "years": 100, "trait_overrides": {"contact_intensity": 0.7}},
+    )
+    assert response.status_code == 200
+    assert response.json()["traits"]["contact_intensity"] == 0.7

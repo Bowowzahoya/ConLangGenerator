@@ -1043,7 +1043,6 @@ order -- each is independently schedulable, and later items depend on earlier on
 Two related "this doesn't feel realistic" reports from a round of hands-on use of the new Evolve tab,
 both pointing at the same underlying theme (real-world rarity/magnitude isn't yet reflected in how
 traits get picked or how fast they act) but requiring unrelated fixes with very different risk profiles.
-Triaged but not implemented -- each needs its own design/calibration pass, not a quick patch.
 
 - **The fake LLM's trait distribution is unrealistically uniform, not weighted toward real-world rarity
   (M-L, needs a full-suite re-pin).** Direct user report: "there are not that many languages with very
@@ -1070,62 +1069,105 @@ Triaged but not implemented -- each needs its own design/calibration pass, not a
   test asserting a specific generated property that happens to sit near a probabilistic threshold a
   trait feeds into). Needs a dedicated pass budgeted for a full re-pin, not a quick edit alongside
   other work -- deferred for that reason alone, not because the fix itself is unclear.
-- **Evolution's own contact mechanism should be redesigned around a capped per-source "contact
-  intensity" instead of the current flat `source_language_strictness`, and the resulting rate of change
-  recalibrated against real contact-linguistics history (L-XL, needs its own design pass).** Three of
-  the user's own notes, interlocking, taken together as one item since they're the same underlying
-  redesign:
+- **Evolution's own contact mechanism redesigned around a capped per-source "contact intensity" instead
+  of the flat `source_language_strictness` it used to read -- done.** Three of the user's own notes,
+  interlocking, implemented together as one redesign:
   - *"Sound strictness should be removed from evolution... introduce words from the source languages
     slowly, as well as take over phonology, grammar etc., with a particular speed based on weight
     (better to rename to contact intensity). Contact intensity should have a limit in terms of total sum
     of 1.0..."* and *"Contact intensity should follow directly from the sum of intensities of source
     languages."*
   - *"When adding Thai with 0.5 influence... and 100 years of evolution, it quickly gained 15 sounds. Is
-    this reasonable? ... Maybe this should be tweaked around real data for how quickly languages change
-    with a lot of influence."*
+    this reasonable?"*
+  - Two follow-up clarifications: the per-language intensity must be given **explicitly, with no
+    default** ("the sum doesn't have to sum up to 1.0, that is merely the maximum of all influence...
+    normally it would be quite far below 1.0"); the 1.0 ceiling is **not cumulative** across separate
+    evolution runs ("a language's own prior contact history... does not count"), and `contact_intensity`
+    itself becomes fully derived -- not separately configurable via `trait_overrides` -- the moment any
+    source language is active this run ("it should not be configurable in evolution when there is a
+    source language specified, but gets taken over by the source languages").
 
-  Confirmed, not assumed, exactly how the current mechanism works and why it doesn't match what the user
-  wants: `sound_change._evolve_phonology_membership` (the function that decides whether a newly-sound-
-  changed phoneme is *kept*) reads a single flat scalar, `strictness = traits.source_language_strictness
-  if lineage_profiles else 0.0` -- every matched source language's own symbols are pooled into one
-  `reference_symbols` set with **no per-language weight applied at all**, so a source language added at
-  `weight=0.5` is treated identically to one added at `weight=1.0` for this mechanism specifically (weight
-  *does* matter for `_coin_borrowed_word`'s own lexical-replacement sourcing, via `weighted_reference_
-  profiles` -- so the two mechanisms are already inconsistent with each other about what "weight" means).
-  This mismatch -- a per-language "influence" dial that silently does nothing for the inventory-gain
-  mechanism -- is almost certainly *why* Thai at 0.5 still produced a large, "full-strength" sound change:
-  the user's own weight setting was never actually consulted there. `source_language_strictness` itself
-  is also explicitly a *generation-style* "how closely does this stick to a real source" dial (see its
-  own glossary text), not a *rate-of-contact-over-time* dial -- the user's own framing ("that belongs in
-  generating languages inspired by a language... mimic real evolution... with a particular speed based on
-  weight") is a real, correct architectural distinction this project hasn't drawn yet.
+  Confirmed, not assumed, exactly why Thai at weight 0.5 still produced full-strength change:
+  `sound_change._evolve_phonology_membership` read a single flat scalar, `strictness = traits.source_
+  language_strictness if lineage_profiles else 0.0` -- every matched source language's own symbols were
+  pooled into one `reference_symbols` set with **no per-language weight applied at all**, so a source
+  language added at `weight=0.5` was treated identically to one at `weight=1.0` for this mechanism
+  specifically (weight *did* matter for `_coin_borrowed_word`'s own lexical-replacement sourcing --
+  the two mechanisms were already inconsistent about what "weight" meant). `source_language_strictness`
+  is also explicitly a *generation-style* "how closely does this stick to a real source" dial, not a
+  *rate-of-contact-over-time* one -- the user's own "that belongs in generating languages inspired by a
+  language" framing was a real, correct architectural distinction this project hadn't drawn yet.
 
-  Proposed shape (not implemented, needs its own scoping before a plan): (1) stop reading `source_
-  language_strictness` anywhere in the evolution path (`_evolve_phonology_membership`'s own gain/loss
-  rolls, and wherever else it's consulted during `evolve_language` specifically -- `generate_language`'s
-  own fresh-generation use of it stays exactly as-is, per the user's own "that belongs in generating
-  languages inspired by a language" distinction); (2) give each of an evolution run's own newly-added
-  `source_languages` entries a per-language "contact intensity" (likely the existing per-entry `weight`
-  field, reinterpreted/renamed, rather than a new field) that the lexical-replacement rate, the inventory
-  gain/loss roll, and (per the user's 5th note) grammar/orthography takeover all scale with directly,
-  instead of today's flat scalar; (3) enforce a hard cap of `1.0` on the *sum* of all active contact
-  intensities for a single evolution run (the user's own "max intensity imaginable without actually
-  taking over the languages and dropping [the] own language") -- needs a validation point (likely the
-  web UI's `EvolveRequest`/CLI's `--evolve-from` path) rejecting or rescaling a request whose weights sum
-  above 1.0, and a decision on whether the *base* language's own already-established lineage counts
-  against this run's own cap or is exempt (the existing `lineage_languages` merge in `evolve_language`
-  keeps the base's own prior contact around indefinitely -- unclear yet whether that prior contact should
-  also count toward the 1.0 ceiling on a *later* evolution run, or whether the cap applies only to each
-  run's own newly-added intensity); (4) separately, recalibrate the actual *magnitude* of change per unit
-  of contact intensity x years against real historical contact-linguistics cases (the same kind of
-  real-citation grounding this project already uses elsewhere, e.g. Swahili's own real tone loss under
-  contact) -- the concrete trigger for this item, "15 sounds in 100 years" feeling too fast, can only be
-  properly judged once contact intensity is actually driving the roll the user intended it to (today's
-  reported number may partly just be an artifact of weight being ignored, not purely an overly-fast
-  rate). This item depends on, and should probably be scoped together with, a second look at
-  `_evolve_phonology_membership`'s own `_MERGER_HALF_LIFE`/`_MIN_GAIN_ACCEPTANCE` constants and
-  `_compute_rates`'s own per-rule half-lives, none of which were calibrated against a contact-intensity-
-  capped-at-1.0 model since that model didn't exist until this note. Not attempted here -- this is a
-  genuine architecture change touching the evolution endpoint's own request validation, `sound_change.py`'s
-  core rate/membership functions, and probably the Evolve tab's own UI (a weight input that's currently
-  unbounded free-form would need a visible running total against the 1.0 cap), not a one-file patch.
+  **Mechanism** (`sound_change.py`): every evolution-path read of `source_language_strictness` now reads
+  `contact_intensity` instead -- `_evolve_phonology_membership`'s own gain/loss roll (now gated on, and
+  scaled by, `contact_intensity`), `_coin_native_word`'s stress/accent lineage-fidelity, and `romanization_
+  gen.evolve_romanization`'s own reform/drift strictness. `contact_intensity` was already read by
+  `_replacement_rate` (lexical-replacement speed) and `_evolve_tone_system` (tonal detonalization chance)
+  from earlier work, so this unifies *every* contact-related evolution mechanism (phonology gain/loss,
+  lexical replacement, orthography reform/drift, native-word accent fidelity, tonal detonalization) onto
+  one dial, matching "take over phonology, grammar [orthography] etc. with a particular speed based on
+  weight" directly. `generate_language`'s own fresh-generation use of `source_language_strictness` is
+  completely unchanged, per the user's own "that belongs in generating languages inspired by a language"
+  distinction -- only `evolve_language`'s own mechanics switched dials, and `evolve_language` itself
+  doesn't derive anything -- it just reads whatever `contact_intensity` its caller resolved, same as any
+  other trait, so this applies identically regardless of caller.
+
+  **Web endpoint** (`webui/app.py`, scope deliberately limited to here -- see below): new
+  `EvolveSourceLanguageEntry(name, intensity)` replaces `SourceLanguageEntry` for `EvolveRequest.
+  source_languages` -- `intensity` is **required** (no default at all, not even for a single entry,
+  per the user's own explicit correction) and semantically an *absolute* contact-pressure dial, unlike
+  Generate's own `weight` (a *relative* blend proportion among sibling sources). `evolve_language_
+  endpoint` validates each intensity is in `[0.0, 1.0]`, that their **sum** doesn't exceed `1.0` (400 if
+  it does -- a ceiling "normally... quite far below," never a target), and rejects outright if `trait_
+  overrides` also tries to set `contact_intensity` alongside a nonempty `source_languages` (ambiguous
+  which should win) -- then derives `contact_intensity = sum(intensities)` directly and feeds that same
+  value as `blend_toward_reference`'s own blend weight too (previously a separate `strictness` field on
+  `EvolveRequest`, now removed -- one number now drives every contact-related effect for the run,
+  including the reference-trait-grading blend). The cap is **per-run, not cumulative**: a language's own
+  prior lineage (carried forward via `evolve_language`'s existing `lineage_languages` merge) does not
+  count against a *later* run's own 1.0 ceiling, confirmed as the user's own explicit choice. When no
+  `source_languages` are given this run, `contact_intensity` is untouched by any of this and `trait_
+  overrides.contact_intensity` still works exactly as before (unchanged old behavior, verified with a
+  test) -- the derivation/validation only activates when there's new contact to compute from.
+
+  **Web UI** (`static/index.html`): Evolve's own source-language rows are a dedicated `addEvolveSource
+  LangRow`/`collectEvolveSourceLanguages` pair (not a reuse of Generate's `addSourceLangRow` -- the two
+  fields mean genuinely different things now, not worth forcing through one shared shape), each row
+  showing a required "intensity" input instead of an optional "weight," plus a live running total against
+  the 1.0 cap (`updateEvolveIntensityTotal`, turns red when exceeded). The `contact_intensity` row inside
+  the Grammar trait-override group becomes disabled and shows the live derived total the moment any
+  source-language row is active, and restores the language's own actual current value
+  (`evolveBaseContactIntensity`) the moment every source-language row is removed again -- so the UI never
+  lets a user set both at once, matching the backend's own rejection. The standalone "Sound strictness"
+  input that used to sit next to "Years of evolution" is gone entirely (its only remaining role, the
+  reference-trait-grading blend weight, is now the same derived `contact_intensity`).
+
+  **Deliberately out of scope**: the CLI's own `--evolve-from` keeps its existing `--source-language
+  NAME[:WEIGHT]`/`--strictness` flags with their existing *relative, auto-normalized* semantics --
+  fundamentally different from the web endpoint's new *absolute, capped-sum* "intensity," so unifying
+  them would be semantically wrong, not just more code. The underlying `sound_change.py` mechanism swap
+  still applies to every `--evolve-from` run (no CLI code needed for that part), but a CLI user who wants
+  the old "strict lineage-gain" effect must now use `--trait contact_intensity=X` explicitly instead of
+  `--strictness X` -- `docs/CLI.md`'s own `dutch-evolved-strict`/`dutch-evolved-loose` example was
+  updated and re-verified with real output to reflect this (`contact_intensity=1.0`: 19->19 consonants,
+  no net gain; `contact_intensity=0.0`: 19->24, balloons with contact-driven gains -- same demonstrated
+  direction as before, just via the new dial).
+
+  **Item 2's own "15 sounds in 100 years" magnitude question**: not separately recalibrated. The Thai-
+  at-0.5 report is now believed to have been largely explained by weight being silently ignored (fixed
+  above) rather than the base rate itself being wrong -- recalibrating `_MERGER_HALF_LIFE`/`_MIN_GAIN_
+  ACCEPTANCE`/`_compute_rates`'s own per-rule half-lives against real contact-linguistics history remains
+  a real, legitimate future direction if the magnitude still feels off once contact intensity is actually
+  driving the roll as intended, but doing so needs real comparative data to ground it, not a guessed
+  number -- left for a future session to judge with the fix in place, not attempted blind here.
+
+  Verified: `tests/test_sound_change.py`'s own membership/strictness-damping tests (4 of them) updated to
+  construct `contact_intensity` instead of `source_language_strictness` where that field was literally
+  the mechanism under test -- same assertions, same behavior, confirming this was a pure field-swap, not
+  a formula change; `tests/test_evolve_webui.py` gained 6 new tests (intensity required, out-of-range
+  rejected, sum-over-1.0 rejected, explicit `contact_intensity` override rejected alongside source
+  languages, correct derivation as the sum, and unaffected behavior with no source languages); full
+  suite green. Live-verified through the real dev server: adding a source language at intensity 0.25
+  disables and live-updates the `contact_intensity` row to match, removing it restores the language's
+  own actual value, and the saved result's own `traits.contact_intensity` matches the entered intensity
+  exactly.

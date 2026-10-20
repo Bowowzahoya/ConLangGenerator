@@ -1445,26 +1445,45 @@ def _evolve_phonology_membership(
       reference" question.
     - **Gain**: every phoneme sound change introduced that the base
       inventory didn't have gets an acceptance roll, biased by
-      ``source_language_strictness`` against whether this lineage's own
-      matched reference profile(s) use it -- heavily suppressed when
-      foreign to the lineage at high strictness, but never driven below
+      ``contact_intensity`` against whether this lineage's own matched
+      reference profile(s) use it -- heavily suppressed when foreign to
+      the lineage at high contact intensity, but never driven below
       ``_MIN_GAIN_ACCEPTANCE``: evolution gaining a sound stays possible
-      even for a strict lineage, just less likely.
+      even under heavy contact, just less likely.
 
-    Gated on ``strictness > 0.0`` (no matched lineage collapses to
-    ``0.0`` too): at the default ``strictness=0.0``, this is a no-op that
-    returns ``used_symbols`` unchanged and spends no rng draw at all --
-    byte-identical to this project's behavior before Stage 2 existed, for
-    every language that never engages ``source_languages``/``strictness``
-    in the first place.
+    Gated on ``contact_intensity > 0.0`` (no matched lineage collapses to
+    ``0.0`` too): at the default ``contact_intensity=0.0``, this is a
+    no-op that returns ``used_symbols`` unchanged and spends no rng draw
+    at all -- byte-identical to this project's behavior before Stage 2
+    existed, for every language with no active contact this run.
+
+    Reads ``contact_intensity``, not ``source_language_strictness`` --
+    the latter is deliberately a *fresh-generation* dial (see its own
+    docstring: "how closely generation sticks to a source language's own
+    real values"), while this is specifically about how much *this
+    evolution run's own contact* reshapes the inventory, direct user
+    request ("sound strictness should be removed from evolution... take
+    over phonology... with a particular speed based on [contact
+    intensity]"). See ``docs/DEFERRED.md`` ch. 13 for the full history --
+    the web UI's own Evolve endpoint derives ``contact_intensity`` as the
+    capped sum of this run's own newly-added source languages'
+    intensities when any are given (``evolve_language`` itself just
+    reads whatever value its caller resolved, same as every other
+    field), so a source language added at a low intensity now actually
+    produces a correspondingly mild effect here, unlike the old flat
+    ``source_language_strictness`` read, which ignored each language's
+    own weight entirely. The CLI's own ``--evolve-from`` still passes
+    ``contact_intensity`` through unvalidated (via plain ``--trait``),
+    same as any other trait -- only the web endpoint has the capped-sum
+    derivation and validation.
 
     A rejected/lost symbol isn't deleted from any word's IPA here --
     ``evolve_language`` repairs every word's final IPA against the
     resulting inventory afterward (Stage 3, ``phoneme_fit.fit_ipa``), so a
     rejection functions as a real merger into that symbol's own nearest
     surviving neighbour, consistently everywhere it occurs."""
-    strictness = traits.source_language_strictness if lineage_profiles else 0.0
-    if strictness <= 0.0:
+    contact_intensity = traits.contact_intensity if lineage_profiles else 0.0
+    if contact_intensity <= 0.0:
         return used_symbols
 
     prior_symbols = frozenset(base_inventory.all_symbols())
@@ -1488,7 +1507,7 @@ def _evolve_phonology_membership(
 
     for symbol in sorted(used_symbols - prior_symbols):
         in_lineage = symbol in reference_symbols
-        acceptance = biased_probability(1.0, strictness if in_lineage else -strictness)
+        acceptance = biased_probability(1.0, contact_intensity if in_lineage else -contact_intensity)
         acceptance = max(acceptance, _MIN_GAIN_ACCEPTANCE)
         if phon_rng.random() >= acceptance:
             accepted.discard(symbol)
@@ -1991,7 +2010,7 @@ def evolve_language(
             else:
                 ipa, root, word_class = _coin_native_word(
                     rng, entry, provisional_inventory, provisional_structure, base.tone_system, base.word_accent, base.grammar,
-                    lineage_profiles=lineage_profiles, strictness=traits.source_language_strictness,
+                    lineage_profiles=lineage_profiles, strictness=traits.contact_intensity,
                 )
                 final_ipas.append(ipa)
                 replaced_native.add(i)
@@ -2039,7 +2058,7 @@ def evolve_language(
         reform_rate=orthography_rates.reform, drift_rate=orthography_rates.drift,
         reading_drift_rate=orthography_rates.reading_drift,
         forced_orthography=forced_orthography,
-        strictness=traits.source_language_strictness,
+        strictness=traits.contact_intensity,
         source_language_weights=lineage_weights,
     )
 

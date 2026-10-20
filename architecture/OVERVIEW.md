@@ -8549,18 +8549,53 @@ reading code or one-off ad hoc scripts.
     user request), and Phonology traits itself is now a collapsible `<details>` (open by default,
     unlike the already-collapsed-by-default "Roman Orthography" section below it, since phonology is
     this tab's own primary axis).
-  - **Deferred instead** (`docs/DEFERRED.md` ch. 13, new): the fake LLM's own trait-value distribution
-    being unrealistically uniform rather than weighted toward real-world rarity (confirmed mechanism:
-    `llm/fake_client.py::_fake_trait_profile`'s `(hash % 201 - 100) / 100.0` is a flat draw over
-    `[-1.0, 1.0]`) -- deferred specifically because of blast radius, not because the fix is unclear:
-    nearly every test in the suite generates at least one language via the fake LLM, and this project's
-    own prior "give phonology its own rng stream" change (ch. 12 item 1) already demonstrated that a
-    far smaller reshaping of fake-LLM-driven draws broke 32 fixed-seed tests needing individual re-
-    pinning; and redesigning evolution's own contact mechanism around a capped (sum <= 1.0) per-source
-    "contact intensity" instead of today's flat, weight-blind `source_language_strictness` (confirmed:
-    `_evolve_phonology_membership`'s own gain/loss roll pools every matched source language's symbols
-    into one set with **no per-language weight applied at all**, unlike `_coin_borrowed_word`'s lexical-
-    replacement sourcing, which does use weight -- the likely real explanation for why a Thai source
-    added at `weight=0.5` still produced full-strength sound change), paired with recalibrating the
-    actual rate of change against real contact-linguistics history. Both are real, well-specified
-    future directions now, not just reported symptoms -- see ch. 13 for the full proposed shape of each.
+  - **Deferred instead** (`docs/DEFERRED.md` ch. 13): the fake LLM's own trait-value distribution being
+    unrealistically uniform rather than weighted toward real-world rarity (confirmed mechanism: `llm/
+    fake_client.py::_fake_trait_profile`'s `(hash % 201 - 100) / 100.0` is a flat draw over `[-1.0,
+    1.0]`) -- deferred specifically because of blast radius, not because the fix is unclear: nearly
+    every test in the suite generates at least one language via the fake LLM, and this project's own
+    prior "give phonology its own rng stream" change (ch. 12 item 1) already demonstrated that a far
+    smaller reshaping of fake-LLM-driven draws broke 32 fixed-seed tests needing individual re-pinning.
+
+  **Third follow-up round: evolution's own contact mechanism redesigned around a capped "contact
+  intensity," replacing the flat, weight-blind `source_language_strictness` it used to read -- done
+  (`docs/DEFERRED.md` ch. 13 has the full account).** Confirmed root cause of the reported "Thai at
+  weight 0.5 still produced full-strength sound change": `sound_change._evolve_phonology_membership`'s
+  own gain/loss roll pooled every matched source language's symbols into one set with **no per-language
+  weight applied at all** -- weight only ever mattered for `_coin_borrowed_word`'s own lexical-
+  replacement sourcing, a second, inconsistent meaning for the same concept. Fix: every evolution-path
+  read of `source_language_strictness` in `sound_change.py` (`_evolve_phonology_membership`'s gain/loss
+  roll, `_coin_native_word`'s accent fidelity, `romanization_gen.evolve_romanization`'s reform/drift
+  strictness) now reads `contact_intensity` instead -- unifying with `_replacement_rate`/
+  `_evolve_tone_system`, which already read `contact_intensity` from earlier work, so one dial now
+  drives every contact-related evolution mechanism. `generate_language`'s own fresh-generation use of
+  `source_language_strictness` is completely unchanged (a deliberate distinction: that dial is about
+  "how closely does this stick to a real source" at generation time, not "how fast does contact reshape
+  an already-evolving language"). New web-endpoint-only (`webui/app.py`) `EvolveSourceLanguageEntry
+  (name, intensity)` replaces `SourceLanguageEntry` for `EvolveRequest.source_languages`: `intensity` is
+  required with no default at all (direct user correction -- a silent default would make heavy,
+  unintended contact too easy to introduce by omission), validated into `[0.0, 1.0]` per entry, summed
+  and capped at `1.0` total (a ceiling "normally... quite far below," never a target), and rejected
+  outright alongside an explicit `trait_overrides.contact_intensity` (ambiguous which should win) --
+  the sum then becomes both `contact_intensity` directly and `blend_toward_reference`'s own blend
+  weight, replacing a separate `EvolveRequest.strictness` field that's now gone entirely. The cap is
+  per-run, not cumulative across a language's own evolution history (explicit user confirmation). Web
+  UI (`static/index.html`) gained a dedicated `addEvolveSourceLangRow`/`collectEvolveSourceLanguages`
+  pair (not a reuse of Generate's own -- the two fields mean genuinely different things now: an
+  absolute contact-pressure dial here vs. a relative blend proportion there), a live running total
+  against the 1.0 cap, and the `contact_intensity` trait row inside Grammar becomes disabled and
+  shows the live derived total the moment any source-language row is active, restoring the language's
+  own actual value when every row is removed again. Deliberately scoped to the web endpoint only: the
+  CLI's `--source-language NAME:WEIGHT`/`--strictness` flags keep their existing *relative, auto-
+  normalized* semantics (unifying them with the new *absolute, capped-sum* web semantics would be
+  wrong, not just more code), though the underlying `sound_change.py` mechanism swap applies to every
+  `--evolve-from` run automatically -- `docs/CLI.md`'s own `dutch-evolved-strict`/`-loose` example was
+  re-verified with real output using `--trait contact_intensity=X` in place of `--strictness` for the
+  evolution step specifically. The "15 sounds in 100 years" magnitude question itself was not
+  separately recalibrated -- now believed to have been largely explained by weight being silently
+  ignored, left for a future look with the fix in place rather than guessed at blind. Verified: 4 tests
+  in `tests/test_sound_change.py` renamed their own `source_language_strictness` to `contact_intensity`
+  where that field was literally the mechanism under test (same assertions pass, confirming a pure
+  field-swap); 6 new tests in `tests/test_evolve_webui.py`; full suite green; live-verified through the
+  real dev server end to end (add source language at intensity 0.25 -> disables/shows derived total ->
+  save -> saved language's own `contact_intensity` is exactly 0.25).
