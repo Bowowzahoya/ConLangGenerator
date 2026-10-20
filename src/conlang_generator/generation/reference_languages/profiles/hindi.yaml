@@ -5,6 +5,8 @@ vowels: [i, "iː", u, "uː", e, "ɛ", a, "aː", o, "ɔ", "ə", "ã", "ĩ", "ũ",
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
+typical_contact_intensity: 0.55  # real Hindi/Hindustani absorbed a massive, well-documented Persian and Arabic vocabulary layer under centuries of Mughal administrative/literary contact -- the same historical layer that gave rise to Urdu as its own register/standard of the same spoken language
+typical_social_hierarchy: 0.5  # real Hindi's own well-documented three-tier second-person pronoun system (tū/tum/āp, intimate/familiar/respectful) is a frequently-cited real case of grammaticalized social-hierarchy marking in South Asian sociolinguistics
 orthography_category: scholarly-macron-style
 restricted_coda_consonants: ["ɦ"]  # real Hindi ह /ɦ/ never closes a syllable
 restricted_onset_consonants: ["ŋ"]  # real Hindi retroflex ɳ never opens a native word -- medial/final only, the same real fact already curated for Tamil's own ɳ

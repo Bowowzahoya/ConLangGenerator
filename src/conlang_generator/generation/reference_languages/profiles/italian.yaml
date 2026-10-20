@@ -146,6 +146,8 @@ nucleus_frequency_tiers:
   rare: [u]
 foreign_name_handling: keep       # foreign personal names are used as written
 
+typical_aesthetic_harshness: -0.45  # real Italian's well-known "melodious"/"singing" reputation (bel canto, opera) is grounded in genuine phonological facts, not pure stereotype: a high vowel-to-consonant ratio, simple open syllables, and no harsh uvular/pharyngeal/ejective series at all
+
 attested_onset_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [s, t, r]

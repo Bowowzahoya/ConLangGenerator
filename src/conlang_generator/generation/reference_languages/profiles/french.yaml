@@ -232,6 +232,8 @@ real_adjective_after_noun: true      # most real French descriptive adjectives f
 real_case_count: 0                   # modern French nouns don't decline for case at all (only a few pronouns retain a vestigial nominative/oblique distinction: je/moi)
 foreign_name_handling: keep       # foreign personal names are used as written
 
+typical_contact_intensity: 0.55  # real French served for centuries as Europe's dominant international diplomatic and courtly lingua franca ("langue de la diplomatie"), on top of its own real Norman-era contact history with English -- a well-documented, if genteel rather than trade-driven, contact history
+
 attested_coda_clusters:
   # real clusters found by `conlang audit-lexicons`
   - [n, s]

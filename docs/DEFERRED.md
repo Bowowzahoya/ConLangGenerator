@@ -886,16 +886,42 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   substantially about suppression/displacement, not the trade/creolization-flavored contact this trait's
   own description centers on.
 
-  **Still unscoped for a future batch** -- 24 of the ~53 profiles remain completely uncurated:
-  Indonesian, Malay, Khmer, Arawakan, Danish, Hungarian, Italian, Welsh, Norwegian, Swedish, Tamil,
-  Hindi, Bengali, Cantonese, Vietnamese, Yoruba, French, German, Polish, Portuguese, Russian, Serbo-
-  Croatian, Spanish, and Sanskrit (the last two considered and deliberately skipped this round, per
-  above, but worth a second look with more specific research rather than permanently excluded). No
-  specific trait candidates picked yet for any of these -- unlike batch 1/2's own "easy, uncontroversial
-  real-world correlate" selection criterion, this remaining set likely needs more specific research per
-  language (e.g. Vietnamese's own real contact history with Chinese/French, Yoruba's own real tonal/
-  diaspora contact history, Cantonese's own real British-colonial-era contact) rather than being another
-  quick pass over obvious cases.
+  **Batch 3 -- all remaining 20 reachable profiles curated, direct user request ("go ahead with
+  those").** 22 new trait values, same "real, specific citation, not a guessed number" standard as
+  batches 1/2: `contact_intensity` for Indonesian/Malay (0.6 each, the shared Malacca-Strait trade-
+  lingua-franca and layered Sanskrit/Arabic/Dutch/Portuguese/Chinese loanword history), Khmer (0.45,
+  Sanskrit/Pali via Indian Ocean trade and Theravada Buddhism), Arawakan (0.5, real Garifuna
+  ethnogenesis -- Carib/Arawakan intermarriage with shipwrecked West Africans, a UNESCO-recognized
+  contact story), Danish (0.4, Hanseatic Middle Low German trade contact), Tamil (0.4, Chola-era
+  maritime trade network) alongside `orality_literacy` (0.65, one of the world's longest continuous
+  literary traditions, Sangam-era poetry), Hindi (0.55, Mughal-era Persian/Arabic absorption, the same
+  layer that produced Urdu) alongside `social_hierarchy` (0.5, the real tū/tum/āp three-tier pronoun
+  system), Bengali (0.45, Bengal Sultanate/Mughal-era Persian/Arabic layer), Cantonese (0.4, British
+  colonial-era English loanwords), Vietnamese (0.6, a millennium of Chinese contact plus French
+  colonial contact), Yoruba (0.45, the transatlantic contact history behind Santería/Candomblé),
+  French (0.55, its own centuries as Europe's diplomatic lingua franca), Portuguese (0.55, Age-of-
+  Exploration maritime/colonial contact), Russian (0.35, Mongol-Tatar Golden Horde-era loanwords, kept
+  modest as one specific historical layer), Spanish (0.6, ~800 years of Al-Andalus Arabic contact plus
+  its own colonial spread), and Sanskrit (0.5, the well-documented "Sanskrit cosmopolis" spread across
+  South/Southeast Asia -- a different, cleaner angle than the `orality_literacy` ambiguity that got it
+  skipped in batch 2); `isolation` for Hungarian (0.5, a Uralic language surrounded by unrelated
+  Indo-European languages in the Carpathian Basin for a millennium); `aesthetic_harshness` for Italian
+  (-0.45, the real phonological grounding behind its "melodious" reputation -- high vowel-to-consonant
+  ratio, no harsh series at all), German (0.4) and Polish (0.4, alongside `phonotactic_restrictiveness`
+  at -0.45 for Polish's own famously permissive consonant clusters -- the opposite pole from Finnish's
+  own restrictive case).
+
+  **Still deliberately uncurated, same "no clean real-world correlate found" standard as the 4
+  project-wide-excluded traits**: Welsh, Norwegian, Swedish, and Serbo-Croatian remain completely
+  uncurated -- Welsh for the reason already stated above (its English contact is suppression, not
+  trade); Norwegian/Swedish for lacking a distinctly *their own* well-documented fact beyond the shared
+  Old Norse/Viking-era history already curated on that profile directly; Serbo-Croatian because its own
+  real contact/history is bound up in politically sensitive questions about the underlying language's
+  own unification/division that this project isn't equipped to adjudicate. 49 of 53 profiles now have
+  at least one curated trait -- these 4 are the only ones left with none, and are being left that way
+  deliberately rather than force-filled. Verified: all 53 YAML files still parse; direct
+  `blend_toward_reference` spot checks (Spanish/Polish/Hindi/Hungarian) each resolve to their exact
+  curated value at blend weight 1.0; full suite green.
 - **Tweaking a saved language's own traits and regenerating -- plan written up as its own chapter.**
   See `## 12. Tweaking an existing language` below.
 - **Orthography reform is partial -- done (pass 42 + two follow-ups).**

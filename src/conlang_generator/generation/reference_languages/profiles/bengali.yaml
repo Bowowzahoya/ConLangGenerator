@@ -42,6 +42,7 @@ attested_onset_clusters:
   - ["dʒ", r]
   - [n, j]
 tonal: false
+typical_contact_intensity: 0.45  # real Bengali absorbed a substantial, well-documented Persian and Arabic administrative/literary vocabulary layer under the Bengal Sultanate and later Mughal rule, on top of its own Sanskrit heritage
 stress_pattern: initial
 stress_deviation_rate: 0.15  # illustrative -- real Bengali fixed word-initial stress (primary on the first syllable, secondary on alternating syllables after) is considerably more reliable/exceptionless than Hindi's own quantity-sensitive system (Chatterji; Ferguson & Chowdhury), genuine consensus rather than a live dispute, so this sits well below Hindi's own 0.40
 # Real Bengali inherent-vowel deletion (orthographic word-final "অ" /ɔ/

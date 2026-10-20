@@ -13,6 +13,7 @@ coda_profile: unrestricted
 max_onset: 2  # real Khmer onset clusters run up to 3 members (e.g. real "st-" type); this profile models a representative 2-member subset, the same "illustrative, not exhaustive" scale this batch's own Latin/Ancient Greek profiles already use for their own richer real cluster inventories
 max_coda: 1
 tonal: false
+typical_contact_intensity: 0.45  # real Khmer absorbed a large, well-documented layer of Sanskrit and Pali vocabulary through Indian Ocean trade contact and Theravada Buddhism's own religious/literary influence, alongside later Thai and French contact
 restricted_coda_consonants: [b, d, r, s, "pʰ", "tʰ", "kʰ", "tʃʰ"]  # real Khmer codas exclude the voiced stops, /r/, /s/, and the whole aspirated/affricate series -- a genuinely small, well-documented closed set
 attested_onset_clusters:
   # Real, common Khmer initial clusters -- illustrative, not exhaustive.

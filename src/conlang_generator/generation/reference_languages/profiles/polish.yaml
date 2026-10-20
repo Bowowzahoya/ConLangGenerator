@@ -213,6 +213,9 @@ real_adjective_after_noun: false     # real Polish attributive adjectives preced
 real_case_count: 7                   # nominative, genitive, dative, accusative, instrumental, locative, vocative -- real, well-documented
 foreign_name_handling: keep       # foreign personal names are used as written
 
+typical_phonotactic_restrictiveness: -0.45  # real Polish is famous for genuinely permissive, complex consonant clusters (e.g. "wszczynać", "pszczyna") -- a well-documented, often-cited real phonotactic fact, the opposite pole from this project's own Finnish/Japanese-style restrictive cases
+typical_aesthetic_harshness: 0.4  # the same dense real consonant-cluster/sibilant inventory (sz/cz/ż/ć etc.) is also a frequently-cited "harsh"-perceived real phonology
+
 attested_onset_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [s, t, r]

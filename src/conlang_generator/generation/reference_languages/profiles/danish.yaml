@@ -145,6 +145,8 @@ word_accent_pattern: monosyllabic_heavy  # real stød's own conditioning is more
 word_accent_deviation_rate: 0.15  # illustrative -- real stød has genuine lexical/dialectal exceptions to its own predictable-by-shape default
 foreign_name_handling: keep       # foreign personal names are used as written
 
+typical_contact_intensity: 0.4  # real Danish absorbed a substantial, well-documented layer of Middle Low German vocabulary via Hanseatic League trade contact through the medieval and early modern period, on top of its own ordinary Scandinavian contact history
+
 attested_onset_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [s, d, j]

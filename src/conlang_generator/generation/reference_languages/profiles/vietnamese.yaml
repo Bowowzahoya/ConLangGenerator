@@ -109,6 +109,8 @@ coda_frequency_tiers:
   # listing the restricted set here.
 foreign_name_handling: adapt      # foreign names are respelled in Vietnamese syllables
 
+typical_contact_intensity: 0.6  # real Vietnamese absorbed an enormous, well-documented Sino-Vietnamese vocabulary layer over roughly a millennium of Chinese rule/cultural contact, followed by substantial French-colonial-era contact -- a genuinely heavy, layered real contact history
+
 attested_onset_clusters:
   # glide onsets (Vietnamese medial /w/ is an onset cluster)
   - [k, w]

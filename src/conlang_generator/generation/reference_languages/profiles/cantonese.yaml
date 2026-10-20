@@ -99,3 +99,5 @@ coda_frequency_tiers:
   # harmless "dead data") -- every legal coda symbol is already covered by
   # the two tiers above, so this one stays empty.
 foreign_name_handling: adapt      # same Sinitic habit as Mandarin
+
+typical_contact_intensity: 0.4  # real Hong Kong Cantonese absorbed a well-documented layer of English loanwords under British colonial administration (e.g. basi "bus", dik1si2 "taxi") -- a real but comparatively narrower contact history than this project's own strongest trade-lingua-franca cases

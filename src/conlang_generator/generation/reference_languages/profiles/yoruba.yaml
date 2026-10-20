@@ -29,6 +29,7 @@ max_onset: 1
 # mechanism, the same "below this project's modeled granularity" status
 # Swahili's own syllabic-nasal prefix gets.
 tonal: true
+typical_contact_intensity: 0.45  # real Yoruba has a well-documented transatlantic contact history: the forced migration of Yoruba speakers during the slave trade carried the language and religion into the Americas, where they mixed with other languages to shape real creole-influenced traditions still practiced today (Santería/Lucumí in Cuba, Candomblé in Brazil)
 tone_levels: [low, mid, high]
 tone_level_count: 3
 # No tone_sandhi/lexical_tone_sandhi curated -- real Yoruba's own

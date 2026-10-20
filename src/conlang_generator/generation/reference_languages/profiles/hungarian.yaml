@@ -6,6 +6,7 @@ final_geminates: true  # tett, kell, hall: real word-final geminates
 coda_profile: unrestricted
 max_onset: 2
 tonal: false
+typical_isolation: 0.5  # real Hungarian is a Uralic (Finno-Ugric) language that migrated into, and has remained surrounded by, unrelated Indo-European languages in the Carpathian Basin for over a millennium -- a well-documented real case of genealogical/areal isolation, though less extreme than Basque's own true language-isolate status (Hungarian does have known Uralic relatives, just none nearby)
 vowel_harmony: true
 orthography_category: diacritic-style
 orthography:

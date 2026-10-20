@@ -20,6 +20,8 @@ coda_profile: sonorant  # real Tamil codas are restricted to nasals, liquids, an
 restricted_initial_consonants: ["ʈ", "ɳ", "ɻ", "ɭ", "nː", "ʈː", "tː", "kː", "lː", "pː", "vː", "ɭː", "ɳː", "tʃː", "mː"]  # ɳ ɻ ɭ never open a word but occur between vowels
 max_onset: 1
 tonal: false
+typical_orality_literacy: 0.65  # real Tamil has one of the world's longest continuously-attested literary traditions (Sangam-era poetry dating back over two millennia), with UNESCO classical-language recognition specifically on that basis -- a strong, well-documented written-tradition case
+typical_contact_intensity: 0.4  # real medieval Chola-era maritime trade spread Tamil-speaking merchant communities (and loanwords) across the Indian Ocean into Southeast Asia -- a well-documented real contact/trade network, more modest than this project's own strongest trade-lingua-franca cases
 orthography_category: scholarly-macron-style
 restricted_onset_consonants: ["ŋ"]
 # Real Tamil: retroflex ʈ/ɳ, velar ŋ, and the retroflex approximant ɻ

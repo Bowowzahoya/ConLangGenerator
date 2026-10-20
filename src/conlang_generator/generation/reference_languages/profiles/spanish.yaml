@@ -143,6 +143,8 @@ coda_frequency_tiers:
   rare: [p, g, "tʃ", m, "ɲ", f, h, j, w]
 foreign_name_handling: keep       # foreign personal names are used as written
 
+typical_contact_intensity: 0.6  # real Spanish has two well-documented heavy-contact layers: roughly 800 years of Arabic contact during Al-Andalus (alcalde, aceite, almohada, and hundreds more), and its own Age-of-Exploration colonial spread across the Americas, the Caribbean, and the Philippines
+
 attested_onset_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [f, l, w]

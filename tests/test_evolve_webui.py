@@ -176,11 +176,17 @@ def test_evolve_rejects_an_explicit_contact_intensity_override_alongside_source_
 
 def test_evolve_derives_contact_intensity_as_the_sum_of_source_language_intensities(client):
     _make_base(client)
+    # Dutch/Mandarin deliberately: neither has curated its own
+    # typical_contact_intensity (see reference_languages/profiles/), so
+    # blend_toward_reference's own separate nudge (already tested in
+    # test_reference_trait_blend.py) can't perturb this assertion away
+    # from a pure sum -- a source language that *has* curated the trait
+    # would get blended toward its own reference value on top of the sum.
     response = client.post(
         "/api/languages/evolve-base/evolve",
         json={
             "name": "evolve-derived-intensity", "years": 100,
-            "source_languages": [{"name": "Dutch", "intensity": 0.2}, {"name": "French", "intensity": 0.15}],
+            "source_languages": [{"name": "Dutch", "intensity": 0.2}, {"name": "Mandarin", "intensity": 0.15}],
         },
     )
     assert response.status_code == 200

@@ -110,3 +110,5 @@ stress_deviation_rate: 0.15  # illustrative -- same figure as Spanish, the real 
 stress_accent_marking: irregular_only  # real Portuguese's own á/é/í/ó/ú and â/ê/ô: written only when a word's actual stress deviates from the predictable default above (café, órgão), never when it follows the rule (casa, comem)
 stress_driven_vowel_reduction: true  # real Portuguese: unstressed vowels (especially European Portuguese's own famously reduced/devoiced final -e) weaken toward a central "ə" quality, already curated in this profile's own orthography rule above
 foreign_name_handling: keep       # foreign personal names are used as written
+
+typical_contact_intensity: 0.55  # real Portuguese spread via Age-of-Exploration maritime trade and colonial contact across Africa, South America, and Asia (Goa, Macau, Malacca), a well-documented real contact history comparable to Spanish's own

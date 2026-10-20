@@ -24,6 +24,7 @@ coda_profile: unrestricted
 max_onset: 2
 max_coda: 1  # real Indonesian has no tautosyllabic coda clusters at all
 tonal: false
+typical_contact_intensity: 0.6  # real Malay/Indonesian served as the trade lingua franca of the maritime Southeast Asian archipelago for centuries (Srivijaya, Malacca), absorbing well-documented loanword layers from Sanskrit, Arabic, Dutch, Portuguese, and Chinese (see this profile's own attested_onset_clusters comment below for several directly)
 orthography_category: digraph-style
 restricted_coda_consonants: [b, d, g, "tʃ", "dʒ", f, z, "ʃ", "ɲ", j, w]
 # Real native/settled Indonesian codas are restricted to roughly

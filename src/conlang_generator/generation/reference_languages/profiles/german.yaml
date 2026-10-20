@@ -188,6 +188,8 @@ real_adjective_after_noun: false     # real German attributive adjectives preced
 real_case_count: 4                   # nominative, accusative, dative, genitive -- real, well-documented
 foreign_name_handling: keep       # foreign personal names are used as written
 
+typical_aesthetic_harshness: 0.4  # real German's own uvular/velar fricatives, affricates, and real consonant clusters are a frequently-cited "harsh"-perceived real phonology, the same kind of grounded (not purely stereotyped) perceptual judgment this project's own Dutch/Arabic profiles already make
+
 attested_onset_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - ["ʃ", p, "ʁ"]

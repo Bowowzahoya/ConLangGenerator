@@ -16,6 +16,7 @@ name: Arawakan
 # empty word_classes here doesn't suppress generation.word_class_gen's
 # own generic invented-class roll for an unmatched/uncurated POS.
 aliases: [garifuna, lokono]
+typical_contact_intensity: 0.5  # real Garifuna's own well-documented ethnogenesis is itself a contact story -- Island Carib/Arawakan intermarriage with shipwrecked/escaped West Africans in the 17th-century Caribbean, producing a language with substantial Carib and African layers alongside its Arawakan base (recognized by UNESCO as an intangible cultural heritage partly for this reason)
 consonants: [p, b, t, d, k, "tʃ", f, s, h, m, n, l, r, w, j, g]
 vowels: [a, e, i, o, u, "ɨ"]
 # The 6th vowel here was previously modeled as schwa ("ə") -- real

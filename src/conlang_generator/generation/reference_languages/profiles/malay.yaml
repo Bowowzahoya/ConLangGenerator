@@ -25,6 +25,7 @@ coda_profile: unrestricted
 max_onset: 2
 max_coda: 1  # same real fact as Indonesian's own profile -- no tautosyllabic coda clusters at all
 tonal: false
+typical_contact_intensity: 0.6  # the same real Malacca-Strait trade-lingua-franca history and layered Sanskrit/Arabic/Portuguese/Dutch/Chinese loanword contact as Indonesian's own profile documents -- the two standards share this history, only diverging later (see this profile's own top comment)
 orthography_category: digraph-style
 restricted_coda_consonants: [b, d, g, "tʃ", "dʒ", f, z, "ʃ", "ɲ", j, w]
 # Same real coda facts as Indonesian's own profile -- native/settled

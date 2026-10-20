@@ -222,6 +222,8 @@ real_adjective_after_noun: false     # real Russian attributive adjectives prece
 real_case_count: 6                   # nominative, genitive, dative, accusative, instrumental, prepositional -- real, well-documented
 foreign_name_handling: keep       # foreign personal names are used as written
 
+typical_contact_intensity: 0.35  # real Russian absorbed a documented, if comparatively modest, loanword layer from Mongol-Tatar contact during the Golden Horde period (e.g. loshad' "horse", dengi "money"), on top of its own later European contact -- kept modest since this is one specific historical layer, not a sustained trade-lingua-franca role
+
 attested_onset_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [s, p, r]

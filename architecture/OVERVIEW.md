@@ -8615,3 +8615,14 @@ reading code or one-off ad hoc scripts.
   parse; a direct `blend_toward_reference` spot check confirms a Basque-sourced generation at blend
   weight 1.0 now resolves `isolation` to exactly `0.9` and a Zulu-sourced one resolves `contact_intensity`
   to exactly `0.5`; full suite green.
+
+  **Fifth follow-up round: all remaining reachable profiles curated ("batch 3"), direct user request
+  to go ahead with the rest.** 20 more profiles, 22 new trait values, same citation standard -- see
+  `docs/DEFERRED.md`'s own ch. 11 entry for the full per-profile list. 49 of 53 profiles now have at
+  least one curated trait; only 4 (Welsh, Norwegian, Swedish, Serbo-Croatian) remain completely
+  uncurated, each for a stated reason (Welsh's contact history is suppression not trade;
+  Norwegian/Swedish lack a distinctly own-language fact beyond the already-curated shared Old Norse
+  history; Serbo-Croatian's own contact history is bound up in politically sensitive questions about
+  the underlying language's unification/division) rather than simply not yet reached. Verified: all 53
+  YAML files still parse; direct `blend_toward_reference` spot checks (Spanish/Polish/Hindi/Hungarian)
+  each resolve to their exact curated value at blend weight 1.0; full suite green.
