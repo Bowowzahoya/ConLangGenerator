@@ -735,6 +735,20 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     typical_terrain_communication_distance: float | None = None
     typical_phonotactic_restrictiveness: float | None = None
     typical_tone_sandhi: float | None = None
+    # Added in a later pass with the 7 new phonology traits themselves
+    # (core.traits.GRADED_TRAIT_FIELDS' own last 7) -- required here too,
+    # not optional: blend_toward_reference below iterates every name in
+    # that constant and does getattr(profile, f"typical_{field}"), so
+    # omitting any of these would crash (not just silently abstain) the
+    # moment a request names any source_languages at all, for every
+    # profile at once, not only ones that would curate them.
+    typical_fricative_density: float | None = None
+    typical_nasality: float | None = None
+    typical_vowel_richness: float | None = None
+    typical_consonant_richness: float | None = None
+    typical_vowel_length_affinity: float | None = None
+    typical_word_length_preference: float | None = None
+    typical_vowel_reduction_affinity: float | None = None
 
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)

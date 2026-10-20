@@ -72,6 +72,8 @@ def coin_word(
                 strictness=language.spec.traits.source_language_strictness,
                 word_selection=language.spec.word_selection,
                 model=language.spec.word_selection_model,
+                word_length_preference=language.spec.traits.word_length_preference,
+                vowel_reduction_affinity=language.spec.traits.vowel_reduction_affinity,
             )
         if language.lexicon.by_form(entry.romanization) is None:
             return entry

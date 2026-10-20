@@ -8626,3 +8626,73 @@ reading code or one-off ad hoc scripts.
   the underlying language's unification/division) rather than simply not yet reached. Verified: all 53
   YAML files still parse; direct `blend_toward_reference` spot checks (Spanish/Polish/Hindi/Hungarian)
   each resolve to their exact curated value at blend weight 1.0; full suite green.
+
+  **Sixth follow-up round: seven new phonology worldbuilding traits, direct user request following an
+  exploratory brainstorm ("I wonder if there can be more phonology traits... lengths of words too" ->
+  rhythm/fricative-density/inventory-richness/nasality proposed -> "I like all of them. Implement
+  all.").** `fricative_density`, `nasality`, `vowel_richness`, `consonant_richness`, `vowel_length_
+  affinity` each add one `biased_probability(rate, trait)` wrap at an existing rate-computation site in
+  `phonology_gen.py`'s `_select_consonants`/`_select_vowels`, composed *before* the existing reference-
+  bias step -- the same general-then-specific layering `altitude`->ejectives/`isolation`->uvulars
+  already use. `fricative_density` wraps the `_FRICATIVE_POOL` loop's own rate (composing with
+  `aesthetic_harshness`'s own which-ones bias on the same pool -- density is *how many*, harshness is
+  *which ones*, both legitimately apply to the same symbols); `nasality`/`vowel_length_affinity` filter
+  `_select_vowels`'s extras loop to `extra.nasalized`/`extra.long`; `vowel_richness`/`consonant_
+  richness` apply uniformly across the whole optional-extras tier (vowel extras; consonant nasal/
+  fricative/approximant/exotic loops) -- deliberately excluding the ejective/uvular/aspirated/
+  pharyngealized/breathy/pre-aspirated *group* gates (each already owned by a specific trait, avoiding
+  two traits silently fighting over the same roll) and the stop/affricate pairs (core, not "extra").
+
+  `word_length_preference` required a prerequisite fix, the other half of the user's own original
+  question: `lexicon_gen.choose_syllable_count` varied length by POS and a matched source language's
+  own curated average, but never by a gloss's own "basicness" (Zipf's law -- basic vocabulary runs
+  shorter cross-linguistically, independent of any source language). Fixed by adding a new `_CORE_
+  MEANING_GLOSSES` frozenset (derived from `CORE_MEANINGS`) and an `is_core_meaning` parameter,
+  contributing its own fixed negative delta to the function's existing exponential-tilt math, summed
+  additively with the source-language-average term and `word_length_preference`'s own new trait-scaled
+  delta -- one composed `theta`, not three separate rolls. `vowel_reduction_affinity` is the scoped-down
+  implementation of an eighth proposed idea, "rhythm type" (stress-timed vs. syllable-timed):
+  investigated directly and confirmed no data-model field or downstream consumer represents timing class
+  anywhere in the pipeline -- a literal 3-way categorical would be pure unconsumed metadata, the same
+  risk `ritual_register`/`taboo_register` already carry. Instead it biases `lexicon_gen.py`'s own
+  `reduce_unstressed_vowels` boolean (previously unconditionally `False` without a matched source
+  language) for exactly that no-source-language case; a real curated profile's value always wins
+  outright, unchanged.
+
+  Two real bugs found during implementation, neither anticipated in the plan. First, `vowel_reduction_
+  affinity` initially had zero measurable effect: `word_builder.build_word`'s own reduction *rate* is
+  separately scaled by `stress_strictness`, always `0.0` without a source language, zeroing the rate
+  regardless of the boolean gate. Confirmed via direct code reading that `stress_gen.assign_stress`'s
+  own use of that same parameter is unconditionally gated on a truthy `stress_pattern` (also always
+  empty without a source language), so bumping it for this case changes nothing about stress
+  *position* -- fixed with a `reduction_strictness` local, bumped to `max(strictness, abs(vowel_
+  reduction_affinity))` only on the new trait-driven branch. Second, `ReferenceLanguageProfile` needed
+  all 7 new `typical_<field>` fields added too -- without them, `blend_toward_reference` (which iterates
+  `GRADED_TRAIT_FIELDS` unconditionally) crashed every profile with `AttributeError` the instant any
+  request named a source language, caught by the broader test suite rather than anticipated. None of the
+  7 are curated on any profile yet, left uncurated for a future batch.
+
+  All 7 added to `GRADED_TRAIT_FIELDS` (15 -> 22) and `PHONOLOGY_ONLY_TRAIT_FIELDS` (5 -> 12, confirmed
+  phonology-generation-only) -- immediately usable in Tweak with zero extra UI code, same precedent as
+  the `tonal_friendliness`/`tone_sandhi` audit. Not added to `EVOLUTION_TRAIT_FIELDS`: the five
+  inventory-shape traits are read only by `generate_phonology`, never called during evolution
+  (`evolve_language` reconstructs its inventory via the structurally different `_evolve_phonology_
+  membership`); `word_length_preference` could also matter to `sound_change._coin_native_word`'s own
+  `choose_syllable_count` call, left as an easy, separate follow-up rather than threaded here.
+
+  **Budgeted risk, not a surprise reacted to mid-pass**: 22 names in `GRADED_TRAIT_FIELDS` means the
+  fake LLM now classifies all 7 to a real non-zero value for any test through `classify_prompt`, and the
+  basicness fix is unconditionally active for every `CORE_MEANINGS` gloss -- both shift the shared
+  lexicon/phonology rng stream's draw sequence for nearly every generated language. A full-suite run
+  surfaced exactly 7 fixture failures (not hundreds -- most of the suite checks structural properties,
+  not byte-exact content): 5 stale fixed-seed expectations re-pinned after confirming causation via
+  `git stash`/`git stash pop` (`test_webui.py` x2, `test_sound_change.py`, `test_translator.py`, plus one
+  already-caught stale count assertion); 2 fixed properly rather than re-pinned
+  (`test_subordination.py`'s own `_clause_verb` helper matched the clause verb by a naive romanization-
+  prefix string match, which broke once "see" -- a `CORE_MEANINGS` gloss -- genuinely got shorter;
+  rewritten to decode each candidate token via the already-imported `_decode_verb_full` and match by
+  gloss instead, robust to any future length shift). Verified: full suite green, 2312 passed, 17
+  skipped. Live-verified through the real dev server: `consonant_richness=1.0` averaged 89 consonants
+  vs. 21.6 neutral vs. 12.1 at `-1.0` (20-seed average); `fricative_density` 19.85/5.5/1.85; `vowel_
+  richness` 62.0/9.0; `nasality` nasal-vowel count 11.0/1.1; `vowel_length_affinity` long-vowel count
+  18.0/0.95 -- all directionally correct and cleanly isolated from each other.

@@ -1250,10 +1250,14 @@ def test_a_reformed_symbol_still_changes_a_word_whose_own_sound_never_moved():
     # change) after the default vocabulary grew to 400 words -- and again,
     # seed=8 -> 1, after phonology generation moved to its own independent
     # rng stream instead of sharing _base_language()'s single spec-seeded
-    # stream with romanization/grammar/lexicon -- same "seed-shift from new
-    # content" pattern documented elsewhere in this project's history.)
+    # stream with romanization/grammar/lexicon -- and again, seed=1 -> 7,
+    # after the word-length-preference/basicness trait work made every
+    # CORE_MEANINGS gloss skew shorter unconditionally, shifting the
+    # shared lexicon rng stream's own draw sequence -- same "seed-shift
+    # from new content" pattern documented elsewhere in this project's
+    # history.)
     base = _base_language()
-    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=1)
+    evolved = evolve_language("Evolved", base, 20, TraitProfile(), seed=7)
     touched = [
         (old, new)
         for old, new in zip(base.lexicon.entries, evolved.lexicon.entries)

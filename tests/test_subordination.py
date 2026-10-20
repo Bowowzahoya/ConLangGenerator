@@ -271,9 +271,19 @@ def test_a_form_the_language_lacks_is_ignored():
 
 
 def _clause_verb(language, tokens):
-    """The clause verb's token: the one after the leading noun that starts like "see"."""
-    stem = language.lexicon.by_gloss("see").romanization[:2].lower()
-    return next(t for t in tokens[1:] if t.lower().startswith(stem))
+    """The clause verb's token: the one after the leading noun that
+    decodes back to "see" -- via _decode_verb_full's own entry+form
+    search (already robust to prefixing/suffixing morphology, unlike a
+    naive stem-prefix string match, which breaks once "see" itself
+    happens to be short enough that inflection obscures its own first
+    two letters -- a real failure mode this exact match hit once "see"'s
+    own word got shorter after the word-length-preference/basicness
+    trait work landed)."""
+    for token in tokens[1:]:
+        decoded = _decode_verb_full(language, token)
+        if decoded is not None and decoded[0].primary_gloss == "see":
+            return token
+    raise AssertionError(f"no token among {tokens[1:]!r} decodes back to 'see'")
 
 
 def test_an_if_clause_takes_the_subjunctive_in_a_language_that_does_so():

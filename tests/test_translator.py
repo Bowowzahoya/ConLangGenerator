@@ -370,13 +370,16 @@ def test_lexical_tone_sandhi_changes_not_before_a_real_falling_tone_neighbor():
     # sourced generated language, translating a real sentence, actually
     # applies LexicalToneSandhiRule through the whole sentence_planner ->
     # translate_to_conlang -> tone_sandhi pipeline, not just the isolated
-    # function. seed=6 -- found by searching for a seed whose own "not"
+    # function. seed=2 -- found by searching for a seed whose own "not"
     # (real citation tone, whatever it happens to be) sits immediately
     # before a real word whose own citation tone is falling, the exact
     # environment this profile's own curated rule ("not" + falling ->
-    # rising) targets.
+    # rising) targets. (Re-found, seed=6 -> 2, after the word-length-
+    # preference/basicness trait work changed CORE_MEANINGS words' own
+    # length distribution -- same "seed-shift from new content" pattern
+    # documented elsewhere in this project's history.)
     traits = TraitProfile(source_languages=("Mandarin",), source_language_strictness=1.0)
-    language = generate_language("T", GenerationSpec(prompt="p", seed=6, traits=traits), FakeLLMClient())
+    language = generate_language("T", GenerationSpec(prompt="p", seed=2, traits=traits), FakeLLMClient())
     assert language.tone_system.lexical_sandhi  # sanity: the curated rules are actually present
     not_entry = language.lexicon.by_gloss("not")
     plan = sentence_planner.plan_sentence("the mountain is not high", language, FakeLLMClient())

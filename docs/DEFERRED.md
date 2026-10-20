@@ -329,33 +329,84 @@ multi-session feature.
   nucleus pairs), not a cross-feature plausibility model. A real fix needs a new kind of constraint this
   project doesn't have at all yet, not a tweak to an existing one -- related to, but a level more
   specific than, the "Profile widening" item already above in this chapter.
-- **Word length doesn't correlate with a word's own "basicness," only its part of speech (M) --
-  confirmed, not yet fixed.** Reported: "simple or more difficult words seem equally likely to be long
-  or short" for a generated language, unlike real languages (Zipf's law of abbreviation: frequent/basic
-  concepts trend shorter). Traced directly: `lexicon_gen.choose_syllable_count`'s own `favor_short`
-  parameter -- whose docstring explicitly invokes Zipf's law -- is passed `True` at literally every call
-  site in the codebase (grepped; no caller ever passes `False`), and only ever varies the syllable-count
-  table by **part of speech** (function-like words shortest, then a flat 1-4 syllable table identical
-  for every other open-class word) -- there is no per-*gloss* basicness signal feeding it at all, so
-  e.g. "water" and a far rarer/more specific noun draw from the exact same length distribution. This
-  project already has the natural lever for a real fix: `lexicon_gen.CORE_MEANINGS` (referenced in
-  `_GENERIC_AVERAGE_SYLLABLES`'s own docstring as a hand-counted-average source) is a real, identifiable
-  basic-vocabulary subset of the full ~496-meaning list -- a gloss's own CORE_MEANINGS membership could
-  bias `choose_syllable_count` toward shorter counts specifically, layered on top of (not replacing) the
-  existing POS-based and source-language-average tilts. Not implemented here: this is a hot-path
-  function (`generate_language` calls it for every coined word), so a change here needs the same full-
-  suite-before-and-after discipline `AGENTS.md`'s own testing section already calls for on hot-path
-  changes, not attempted inside an already-large batch of unrelated fixes.
-- **No explicit "prefers long or short words" trait exists (S, once the item above lands) -- direct
-  follow-up question, answered.** Confirmed: today's only word-length levers are the POS-based
-  `favor_short` default (point above) and a matched source language's own curated
-  `core_vocabulary_average_syllables` (`_resolve_average_syllables`, only applies with a source language
-  and nonzero `source_language_strictness`) -- no standalone graded trait exists for "this culture's
-  language favors long/elaborate words vs. short/economical ones" independent of any source language.
-  Once the item above adds a real basicness-aware length mechanism, exposing a dedicated trait for it
-  (rather than only a source-language-derived average) would be a small, natural follow-up -- but
-  doing the trait first, before the underlying mechanism actually varies word length in a meaningful
-  way per-gloss, would just add a dial with nothing real to turn.
+- **Word length doesn't correlate with a word's own "basicness," only its part of speech -- done,
+  alongside a new `word_length_preference` trait (direct user request: "I wonder if there can be more
+  phonology traits in generation... lengths of words etc.").** Originally reported: "simple or more
+  difficult words seem equally likely to be long or short" for a generated language, unlike real
+  languages (Zipf's law of abbreviation: frequent/basic concepts trend shorter). Confirmed at the time:
+  `lexicon_gen.choose_syllable_count`'s own `favor_short` parameter only ever varies the syllable-count
+  table by **part of speech**, never by per-*gloss* basicness. Fixed using the exact lever already
+  identified: a new `_CORE_MEANING_GLOSSES` frozenset (`lexicon_gen.py`, lowercased `CORE_MEANINGS`
+  glosses) feeds a new `is_core_meaning: bool` parameter on `choose_syllable_count`, contributing a flat
+  `_CORE_MEANING_LENGTH_DELTA` (-0.4) into the function's own existing exponential-tilt math (`weights
+  scaled by exp(theta * count)`) -- composed additively with the source-language-average tilt already
+  there, not replacing it. `build_pending_word` passes `gloss_key in _CORE_MEANING_GLOSSES`, confirmed
+  wired (not just correct in isolation) via a monkeypatch spy test. New `word_length_preference`
+  `GRADED_TRAIT_FIELD` contributes its own delta (`_WORD_LENGTH_PREFERENCE_MAX_DELTA`, 0.9) into the same
+  combined tilt -- one `theta`, not three separate rolls, so a basic gloss in a culture that also
+  prefers long words nets out to whichever pull is stronger. Verified: core-meaning glosses measurably
+  skew shorter (mean syllable count ~1.36 vs. ~2.51 neutral, 3000-draw average); `word_length_preference`
+  gradient is monotonic (-1.0 -> ~1.04, 0.0 -> ~2.5, +1.0 -> ~3.96); composes additively rather than one
+  silently overriding the other. Scope note: `sound_change._coin_native_word`'s own `choose_syllable_
+  count` call (evolution's native-word replacement) was deliberately *not* threaded with either new
+  parameter -- an easy, separate follow-up, not required for the trait itself to work during fresh
+  generation.
+- **Six more phonology traits -- done, same brainstorm/request as the word-length item above.**
+  `fricative_density`, `nasality`, `vowel_richness`, `consonant_richness`, `vowel_length_affinity` each
+  add one `biased_probability(rate, trait)` wrap at an already-identified rate-computation site in
+  `phonology_gen.py`'s `_select_consonants`/`_select_vowels` (composed *before* the existing reference-
+  bias step, same general-then-specific layering `altitude`->ejectives/`isolation`->uvulars already
+  use): `fricative_density` wraps the `_FRICATIVE_POOL` loop's own per-symbol rate (composing with
+  `aesthetic_harshness`'s own which-ones bias on the same pool -- density is *how many*, harshness is
+  *which ones*); `nasality`/`vowel_length_affinity` wrap `_select_vowels`'s extras loop filtered to
+  `extra.nasalized`/`extra.long` respectively; `vowel_richness`/`consonant_richness` wrap the *entire*
+  optional extras tier uniformly (vowel extras; nasal/fricative/approximant/exotic consonant loops --
+  deliberately excluding the ejective/uvular/aspirated/pharyngealized/breathy/pre-aspirated *group*
+  gates, each already owned by a specific trait, and the stop/affricate pairs, which are core, not
+  "extra"). `vowel_reduction_affinity` is the scoped-down implementation of a 7th idea, "rhythm type"
+  (stress-timed vs. syllable-timed): investigated directly and confirmed no data-model field or
+  downstream consumer represents timing class anywhere in the pipeline today -- a literal rhythm-class
+  categorical would be pure unconsumed metadata, the same risk `ritual_register`/`taboo_register`
+  already carry. Instead, it biases `lexicon_gen.py`'s own `reduce_unstressed_vowels` boolean (`any(p.
+  stress_driven_vowel_reduction for p in reference_profiles)`, previously unconditionally `False` for
+  any language with no matched source language) for exactly that no-source-language case -- a real
+  curated profile (true *or* false) always wins outright. A second, less obvious fix was needed for this
+  one to actually do anything: `word_builder.build_word`'s own reduction *rate* (not just whether it can
+  fire at all) is separately scaled by `stress_strictness`, which is always `0.0` without a source
+  language -- confirmed safe to override just for this trait-driven case, since `stress_gen.assign_
+  stress`'s own use of that same parameter is unconditionally gated on a truthy `stress_pattern` (also
+  always empty without a source language), so bumping it changes nothing about stress *position*, only
+  the reduction rate. Also required a fix not originally scoped: `ReferenceLanguageProfile` (`generation/
+  reference_languages/__init__.py`) needed all 7 new `typical_<field>` fields added too -- without them,
+  `blend_toward_reference` crashed with `AttributeError` the moment *any* request named a source
+  language, for every profile at once (found by running the broader test suite, not anticipated in the
+  plan). None of the 7 are curated on any profile yet -- left uncurated, a separate future batch, same
+  "abstain rather than guess" standard as the other curation rounds.
+
+  All 7 added to `GRADED_TRAIT_FIELDS` (15 -> 22) and `PHONOLOGY_ONLY_TRAIT_FIELDS` (confirmed phonology-
+  generation-only, never read by `grammar_gen.py` or any other grammar-adjacent module) -- immediately
+  usable in Tweak with zero extra UI code, same precedent as the `tonal_friendliness`/`tone_sandhi`
+  audit. Not added to `EVOLUTION_TRAIT_FIELDS`: the 5 inventory-shape traits are read only by
+  `generate_phonology`, never called during evolution (`evolve_language` reconstructs its inventory via
+  a structurally different mechanism, `_evolve_phonology_membership`).
+
+  **Budgeted risk, materialized and resolved, not a surprise reacted to mid-pass**: adding 22 names to
+  `GRADED_TRAIT_FIELDS` means the fake LLM now classifies all 7 new fields to a real, non-zero, hash-
+  derived value for any test going through `classify_prompt`+fake LLM, and the word-length basicness fix
+  above is *unconditionally* active for every `CORE_MEANINGS` gloss regardless of any trait value --
+  both shift the shared lexicon/phonology rng stream's own draw sequence for nearly every generated
+  language. A full-suite run surfaced exactly 7 fixture failures (not hundreds -- most of the suite
+  checks structural properties, not byte-exact lexicon content, so stayed robust) across `test_webui.py`
+  (2), `test_sound_change.py` (1), `test_translator.py` (1), and `test_subordination.py` (2, fixed
+  properly rather than re-pinned -- `_clause_verb`'s own naive romanization-prefix string match was
+  fragile to begin with, now rewritten to decode each candidate token via `_decode_verb_full` and match
+  by gloss instead); all re-verified with a new seed/value where the fixture itself needed one. Verified:
+  full suite green (2329 passed) after triage.
+
+  Verified live through the real dev server, not just by test: a strongly-positive `fricative_density`/
+  `nasality`/`consonant_richness`/`vowel_richness` override measurably shifts the resulting phoneme
+  inventory's own fricative/nasal-vowel/long-vowel/consonant/vowel counts across several seeds (e.g.
+  `consonant_richness=1.0` averaged 89 consonants vs. 21.6 neutral vs. 12.1 at `-1.0`, across 20 seeds).
 
 ## 7. Real lexicons
 

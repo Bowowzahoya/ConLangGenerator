@@ -44,7 +44,14 @@ _DIMENSION_POLES = """- isolation: + isolated/cut off from outsiders; - well-con
 - taboo_register: + an avoidance/taboo speech register; - no such register
 - terrain_communication_distance: + need for loud/long-distance communication; - close-quarters, no such need
 - phonotactic_restrictiveness: + a tight, rigid set of allowed syllables (only a small fixed combination of sounds actually occurs); - loose/permissive, almost any sound combination goes
-- tone_sandhi: + tones change depending on neighbouring syllables in connected speech; - explicitly no such tone changes (only meaningful for a tonal language)"""
+- tone_sandhi: + tones change depending on neighbouring syllables in connected speech; - explicitly no such tone changes (only meaningful for a tonal language)
+- fricative_density: + many hissing/fricative sounds; - very few or none at all
+- nasality: + heavy nasal vowel sounds (e.g. French-like); - no nasalized vowels at all
+- vowel_richness: + a large, elaborate vowel inventory; - a small, minimal vowel inventory
+- consonant_richness: + a large, elaborate consonant inventory; - a small, minimal consonant inventory
+- vowel_length_affinity: + vowels distinguished by length (short vs. long); - no such length distinction
+- word_length_preference: + long, elaborate-sounding words; - short, economical words
+- vowel_reduction_affinity: + unstressed vowels weaken/reduce (a "clipped"/stress-timed rhythm, English-like); - every vowel keeps its full quality regardless of stress (a flowing/syllable-timed rhythm, French/Spanish-like)"""
 
 _SYSTEM_PROMPT = f"""You classify a free-text description of a constructed language \
 against a fixed set of dimensions known to shape real languages. For each \

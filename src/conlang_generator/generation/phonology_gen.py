@@ -1221,25 +1221,45 @@ def _select_consonants(
     if rng.random() < alveolo_palatal_probability:
         consonants.extend(_strict_group_members(rng, _ALVEOLO_PALATAL_GROUP, reference_weights, strictness))
 
+    # consonant_richness is this project's own "how large/elaborate is the
+    # whole optional tier" dial -- applied uniformly to all four loops
+    # below, composed *before* each loop's own more specific bias (harsh/
+    # soft lean, fricative_density), the same general-then-specific
+    # layering altitude/isolation already use relative to reference bias.
+    # Deliberately excludes the ejective/uvular/aspirated/pharyngealized/
+    # breathy/pre-aspirated *group* gates above and the stop/affricate
+    # pairs earlier in this function -- those are each already owned by a
+    # specific trait (or are the non-optional core), so richness only
+    # touches the genuinely generic "extra" tier.
     for nasal in _NASAL_POOL:
         rate = biased_probability(nasal.prevalence, -traits.aesthetic_harshness) if nasal is _ng else nasal.prevalence
+        rate = biased_probability(rate, traits.consonant_richness)
         rate = _reference_biased_rate(rate, nasal.ipa, reference_weights, strictness)
         if rng.random() < rate:
             consonants.append(nasal)
 
     for fricative in _FRICATIVE_POOL:
         rate = _fricative_inclusion_probability(fricative, traits.aesthetic_harshness)
+        rate = biased_probability(rate, traits.consonant_richness)
+        # fricative_density is the narrower "how many fricatives
+        # specifically" dial, layered on top of the broader richness bias
+        # just above -- the two compose rather than conflict, the same
+        # way aesthetic_harshness's own which-ones bias already coexists
+        # with both.
+        rate = biased_probability(rate, traits.fricative_density)
         rate = _reference_biased_rate(rate, fricative.ipa, reference_weights, strictness)
         if rng.random() < rate:
             consonants.append(fricative)
 
     for approximant in _APPROXIMANT_POOL:
-        rate = _reference_biased_rate(approximant.prevalence, approximant.ipa, reference_weights, strictness)
+        rate = biased_probability(approximant.prevalence, traits.consonant_richness)
+        rate = _reference_biased_rate(rate, approximant.ipa, reference_weights, strictness)
         if rng.random() < rate:
             consonants.append(approximant)
 
     for exotic in _EXOTIC_POOL:
-        rate = _reference_biased_rate(exotic.prevalence, exotic.ipa, reference_weights, strictness)
+        rate = biased_probability(exotic.prevalence, traits.consonant_richness)
+        rate = _reference_biased_rate(rate, exotic.ipa, reference_weights, strictness)
         if rng.random() < rate:
             consonants.append(exotic)
 
@@ -1270,10 +1290,26 @@ def _select_vowels(
     reference_weights: dict[str, float],
     strictness: float = 0.0,
     must_include: frozenset[str] = frozenset(),
+    vowel_richness: float = 0.0,
+    nasality: float = 0.0,
+    vowel_length_affinity: float = 0.0,
 ) -> list[Vowel]:
     vowels = list(_strict_group_members(rng, _VOWEL_ANCHORS, reference_weights, strictness))
+    # vowel_richness is the broad "how large is the optional tier" dial,
+    # applied to every _VOWEL_EXTRAS member -- deliberately not to
+    # _VOWEL_ANCHORS above (the near-universal baseline every language
+    # has regardless; _ensure_floor below already guarantees a sane
+    # minimum regardless of how low richness pushes things). nasality/
+    # vowel_length_affinity are narrower overlays on the same loop,
+    # composing on top of richness the same way fricative_density
+    # composes on top of consonant_richness in `_select_consonants`.
     for extra in _VOWEL_EXTRAS:
-        rate = _reference_biased_rate(extra.prevalence, extra.ipa, reference_weights, strictness)
+        rate = biased_probability(extra.prevalence, vowel_richness)
+        if extra.nasalized:
+            rate = biased_probability(rate, nasality)
+        if extra.long:
+            rate = biased_probability(rate, vowel_length_affinity)
+        rate = _reference_biased_rate(rate, extra.ipa, reference_weights, strictness)
         if rng.random() < rate:
             vowels.append(extra)
     reference_only = frozenset(
@@ -1682,7 +1718,13 @@ def generate_phonology(
     consonants = tuple(
         _select_consonants(rng, spec, reference_weights, weighted_profiles, strictness, must_include_consonants)
     )
-    vowels = tuple(_select_vowels(rng, reference_weights, strictness, must_include_vowels))
+    vowels = tuple(
+        _select_vowels(
+            rng, reference_weights, strictness, must_include_vowels,
+            vowel_richness=traits.vowel_richness, nasality=traits.nasality,
+            vowel_length_affinity=traits.vowel_length_affinity,
+        )
+    )
     inventory = PhonemeInventory(consonants=consonants, vowels=vowels)
     consonant_symbols = inventory.consonant_symbols()
     vowel_symbols_for_pairs = inventory.vowel_symbols()

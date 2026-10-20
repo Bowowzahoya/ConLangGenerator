@@ -15,12 +15,13 @@ from conlang_generator.core.phonology import (
     PhonemeInventory,
     Place,
     SyllableStructure,
+    ToneSystem,
     Vowel,
     VowelBackness,
     VowelHeight,
     WordAccentSystem,
 )
-from conlang_generator.core.romanization import STRESS_MARK
+from conlang_generator.core.romanization import STRESS_MARK, RomanizationScheme
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import ipa_tokenizer, lexicon_gen, phonology_gen, romanization_gen, sonority, word_builder
@@ -1226,6 +1227,134 @@ def test_full_strictness_german_words_average_more_syllables_than_english():
             total += sum(1 for ch in entry.ipa if ch in vowel_symbols)
         means[lang] = total / n
     assert means["German"] > means["English"]
+
+
+# --- New phonology traits (direct user request, a brainstorm follow-up:
+# "I wonder if there can be more phonology traits in generation... help
+# me come up with some more possible traits" -> "I like all of them.
+# Implement all.") ---
+
+
+def _mean_syllable_count_biased(is_core_meaning: bool, word_length_preference: float, seed: int, n: int = 400) -> float:
+    rng = random.Random(seed)
+    total = sum(
+        lexicon_gen.choose_syllable_count(
+            rng, PartOfSpeech.NOUN, False, is_core_meaning=is_core_meaning, word_length_preference=word_length_preference,
+        )
+        for _ in range(n)
+    )
+    return total / n
+
+
+def test_core_meaning_glosses_skew_shorter_than_non_core_ones():
+    # docs/DEFERRED.md ch. 6's own "word length doesn't correlate with
+    # basicness, only part of speech" finding -- confirms the fix (Zipf's
+    # law of abbreviation) actually moves the sampled mean.
+    core_mean = _mean_syllable_count_biased(True, 0.0, seed=10)
+    non_core_mean = _mean_syllable_count_biased(False, 0.0, seed=10)
+    assert core_mean < non_core_mean
+
+
+def test_word_length_preference_gradient_is_monotonic():
+    means = [_mean_syllable_count_biased(False, p, seed=11) for p in (-1.0, 0.0, 1.0)]
+    assert means[0] < means[1] < means[2]
+
+
+def test_word_length_preference_composes_additively_with_the_core_meaning_tilt():
+    # A strong "prefers long words" trait still pulls a core-meaning
+    # gloss's own mean up relative to that same gloss with the trait at
+    # 0.0 -- the two deltas add into one combined tilt, neither silently
+    # overriding the other.
+    core_neutral = _mean_syllable_count_biased(True, 0.0, seed=12)
+    core_with_long_preference = _mean_syllable_count_biased(True, 1.0, seed=12)
+    assert core_with_long_preference > core_neutral
+
+
+def test_build_pending_word_passes_core_meaning_membership_through(monkeypatch):
+    # Confirms build_pending_word's own gloss_key-in-_CORE_MEANING_GLOSSES
+    # check is actually wired to choose_syllable_count, not just correct
+    # in isolation -- "water" is core, "xylophone" isn't.
+    seen: list[bool] = []
+    real = lexicon_gen.choose_syllable_count
+
+    def _spy(*args, **kwargs):
+        seen.append(kwargs.get("is_core_meaning"))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(lexicon_gen, "choose_syllable_count", _spy)
+    inventory, structure, tone_system, word_accent_system = _phonology(30)
+    romanization = romanization_gen.generate_romanization(random.Random(30), inventory)
+    lexicon_gen.build_pending_word(
+        random.Random(30), inventory, structure, tone_system, word_accent_system, romanization, "water", PartOfSpeech.NOUN,
+    )
+    lexicon_gen.build_pending_word(
+        random.Random(30), inventory, structure, tone_system, word_accent_system, romanization, "xylophone", PartOfSpeech.NOUN,
+    )
+    assert seen == [True, False]
+
+
+_SCHWA_INVENTORY = PhonemeInventory(
+    consonants=(
+        Consonant(ipa="p", place=Place.BILABIAL, manner=Manner.STOP, voiced=False, prevalence=0.9),
+        Consonant(ipa="t", place=Place.ALVEOLAR, manner=Manner.STOP, voiced=False, prevalence=0.9),
+    ),
+    vowels=(
+        Vowel(ipa="e", height=VowelHeight.CLOSE_MID, backness=VowelBackness.FRONT, rounded=False, prevalence=0.99),
+        Vowel(ipa="ə", height=VowelHeight.MID, backness=VowelBackness.CENTRAL, rounded=False, prevalence=0.01),
+    ),
+)
+"""Same controlled inventory `test_reduce_unstressed_vowels_swaps_non_
+stressed_nuclei_toward_schwa` above uses -- schwa's own near-zero
+prevalence (0.01) against a dominant "e" (0.99) means almost none should
+appear via ordinary weighted selection alone, isolating the swap
+mechanism's own effect."""
+_SCHWA_STRUCTURE = SyllableStructure(max_onset=1, max_coda=0)
+
+
+def _schwa_candidate_count(
+    source_languages: tuple[str, ...], vowel_reduction_affinity: float, monkeypatch, strictness: float = 0.0, n: int = 150
+) -> int:
+    # Fixes num_syllables=3 (same as the reduce_unstressed_vowels tests
+    # above), isolating the trait-driven *gate* this test targets from
+    # choose_syllable_count's own separately-tested randomness -- a
+    # 1-syllable word has no unstressed syllable at all for the swap to
+    # ever touch, which would otherwise dilute the count unpredictably.
+    monkeypatch.setattr(lexicon_gen, "choose_syllable_count", lambda *a, **k: 3)
+    romanization = RomanizationScheme(rules=())
+    total = 0
+    for seed in range(n):
+        pending = lexicon_gen.build_pending_word(
+            random.Random(seed), _SCHWA_INVENTORY, _SCHWA_STRUCTURE, ToneSystem(), WordAccentSystem(), romanization,
+            "word", PartOfSpeech.NOUN, favor_short=False, source_languages=source_languages, strictness=strictness,
+            vowel_reduction_affinity=vowel_reduction_affinity,
+        )
+        assert isinstance(pending, lexicon_gen.PendingWord)  # "word" isn't a kinship gloss
+        total += sum(candidate.count("ə") for candidate in pending.candidates)
+    return total
+
+
+def test_vowel_reduction_affinity_increases_schwa_presence_with_no_source_language(monkeypatch):
+    # Exercises the trait-driven gate in build_pending_word itself (new
+    # this pass), not just the downstream swap mechanism the
+    # reduce_unstressed_vowels tests above already cover. Each seed builds
+    # 5 candidates (build_pending_word's own default), so the baseline
+    # floor here is several times the single-candidate-per-seed reduce_
+    # unstressed_vowels tests' own threshold -- calibrated empirically
+    # (~25 at the floor, ~860 firing), not guessed.
+    assert _schwa_candidate_count((), 0.0, monkeypatch) < 50  # near the floor-driven baseline
+    assert _schwa_candidate_count((), 1.0, monkeypatch) > 500  # the swap mechanism visibly firing
+
+
+def test_vowel_reduction_affinity_never_overrides_a_curated_source_language_value(monkeypatch):
+    # English curates stress_driven_vowel_reduction=true; Finnish curates
+    # it false (see reference_languages/profiles/*.yaml) -- either way, a
+    # real curated profile wins outright, the trait never gets a say once
+    # any source language is matched. strictness=1.0 so the real swap
+    # *rate* (not just reduce_unstressed_vowels's own boolean) is actually
+    # exercised -- a source language with strictness=0.0 is a pre-existing,
+    # separate no-op this test isn't about.
+    assert _schwa_candidate_count(("English",), -1.0, monkeypatch, strictness=1.0) > 500
+    assert _schwa_candidate_count(("Finnish",), 1.0, monkeypatch, strictness=1.0) < 50
 
 
 # --- Per-position in-word phoneme frequency realism ---

@@ -41,7 +41,22 @@ GRADED_TRAIT_FIELDS: tuple[str, ...] = (
     "terrain_communication_distance",
     "phonotactic_restrictiveness",
     "tone_sandhi",
+    "fricative_density",
+    "nasality",
+    "vowel_richness",
+    "consonant_richness",
+    "vowel_length_affinity",
+    "word_length_preference",
+    "vowel_reduction_affinity",
 )
+"""The last 7 (``fricative_density`` through ``vowel_reduction_affinity``)
+were added in one later pass, direct user request after a brainstorm
+("I wonder if there can be more phonology traits in generation... help
+me come up with some more possible traits" -> "I like all of them.
+Implement all."). All 7 are phonology-generation-only, confirmed by the
+same grepping discipline `PHONOLOGY_ONLY_TRAIT_FIELDS`'s own docstring
+already uses -- see that constant below for exactly where each one
+plugs in."""
 
 PHONOLOGY_ONLY_TRAIT_FIELDS: tuple[str, ...] = (
     "altitude",
@@ -49,6 +64,13 @@ PHONOLOGY_ONLY_TRAIT_FIELDS: tuple[str, ...] = (
     "phonotactic_restrictiveness",
     "tonal_friendliness",
     "tone_sandhi",
+    "fricative_density",
+    "nasality",
+    "vowel_richness",
+    "consonant_richness",
+    "vowel_length_affinity",
+    "word_length_preference",
+    "vowel_reduction_affinity",
 )
 """The subset of `GRADED_TRAIT_FIELDS` read *only* by `generation.
 phonology_gen` in the fresh-generation path (confirmed by grepping every
@@ -80,7 +102,18 @@ cover them first, not attempted here). `terrain_communication_distance`/
 here would be a silent no-op outside evolution -- both excluded.
 `ritual_register`/`taboo_register` aren't consumed by *anything* in
 either path yet (see docs/DEFERRED.md) -- also excluded, for the same
-"would be a silent no-op" reason."""
+"would be a silent no-op" reason.
+
+The 7 newest fields (`fricative_density` through `vowel_reduction_
+affinity`) are each confirmed phonology_gen.py/lexicon_gen.py-only too:
+`fricative_density`/`nasality`/`vowel_richness`/`consonant_richness`/
+`vowel_length_affinity` only ever bias a `_select_consonants`/`_select_
+vowels` inclusion roll; `word_length_preference` only ever biases
+`lexicon_gen.choose_syllable_count`'s own weighted choice;
+`vowel_reduction_affinity` only ever biases `lexicon_gen.py`'s own
+`reduce_unstressed_vowels` boolean for a language with no matched
+source language. None of the seven are read by `grammar_gen.py` or any
+other grammar-adjacent module."""
 
 EVOLUTION_TRAIT_FIELDS: tuple[str, ...] = (
     "altitude",
@@ -179,6 +212,51 @@ class TraitProfile(BaseModel, frozen=True):
     rolls ``honorific_you``/``referent_honorifics`` at all (see
     ``generation.pronoun_gen.roll_pronoun_system``). Negative: today's
     flat rate, same as ``0.0``."""
+    fricative_density: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: many fricatives/sibilants -- raises the acceptance rate
+    for every member of ``generation.phonology_gen._FRICATIVE_POOL``,
+    independent of ``aesthetic_harshness``'s own *which* ones get picked
+    (this is *how many*). Negative: very few or none at all -- several
+    real Australian Aboriginal languages genuinely have no fricatives."""
+    nasality: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: heavy vowel nasalization (French/Portuguese-like) --
+    raises the acceptance rate for every nasalized member of
+    ``generation.phonology_gen._VOWEL_EXTRAS``. Negative: no nasalized
+    vowels at all."""
+    vowel_richness: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: a large, elaborate vowel inventory (Danish/English-
+    like) -- raises the acceptance rate for every optional member of
+    ``generation.phonology_gen._VOWEL_EXTRAS`` (the near-universal
+    anchor vowels every language has regardless are untouched).
+    Negative: a small, minimal inventory (Arabic/Quechua-like)."""
+    consonant_richness: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: a large, elaborate consonant inventory -- raises the
+    acceptance rate for the optional nasal/fricative/approximant/exotic
+    tiers in ``generation.phonology_gen._select_consonants`` (the
+    ejective/uvular/aspirated/pharyngealized groups stay ``altitude``/
+    ``isolation``'s own territory, to avoid two traits fighting over the
+    same roll). Negative: a small, minimal inventory."""
+    vowel_length_affinity: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: phonemic vowel-length contrasts -- raises the
+    acceptance rate for every long-vowel member of ``generation.
+    phonology_gen._VOWEL_EXTRAS``. Negative: no length distinction at
+    all."""
+    word_length_preference: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: long, elaborate words -- tilts ``generation.lexicon_
+    gen.choose_syllable_count``'s own weighted choice toward more
+    syllables, composed with (not replacing) a matched source
+    language's own curated average and the per-gloss basicness tilt.
+    Negative: short, economical words."""
+    vowel_reduction_affinity: float = Field(default=0.0, ge=-1.0, le=1.0)
+    """Positive: stress-timed rhythm -- unstressed vowels reduce toward
+    a central quality (English/German/Portuguese-like), the real
+    phenomenon behind a "musical"/"flowing" vs. "staccato" speech
+    impression. Negative: syllable-timed rhythm -- every vowel keeps its
+    full quality regardless of stress (French/Spanish/Turkish/Finnish-
+    like). Only applies when no matched source language already settles
+    this one way or the other (see ``generation.lexicon_gen``'s own
+    ``reduce_unstressed_vowels``) -- a real curated profile always wins
+    outright."""
 
     # -- Extracted and stored, not yet consumed by generation --
     orality_literacy: float = Field(default=0.0, ge=-1.0, le=1.0)

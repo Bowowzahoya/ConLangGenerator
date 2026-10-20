@@ -90,6 +90,8 @@ def test_options_endpoint_serves_the_phonology_only_trait_fields(client):
     opts = client.get("/api/options").json()
     assert set(opts["phonology_only_trait_fields"]) == {
         "altitude", "aesthetic_harshness", "phonotactic_restrictiveness", "tonal_friendliness", "tone_sandhi",
+        "fricative_density", "nasality", "vowel_richness", "consonant_richness", "vowel_length_affinity",
+        "word_length_preference", "vowel_reduction_affinity",
     }
 
 

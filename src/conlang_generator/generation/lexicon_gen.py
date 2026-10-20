@@ -30,6 +30,7 @@ from conlang_generator.core.romanization import RomanizationScheme, apply_gramma
 from conlang_generator.generation import stress_gen, word_accent_gen, word_builder, word_class_gen
 from conlang_generator.generation.extended_meanings import EXTENDED_MEANINGS
 from conlang_generator.generation.reference_languages import ReferenceLanguageProfile, match_profiles
+from conlang_generator.generation.trait_bias import biased_probability
 from conlang_generator.llm.base import LLMClient, LLMRequest
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 
@@ -89,6 +90,15 @@ CORE_MEANINGS: tuple[tuple[str, PartOfSpeech], ...] = (
     ("the", PartOfSpeech.PARTICLE),
     ("be", PartOfSpeech.VERB),
 )
+
+_CORE_MEANING_GLOSSES: frozenset[str] = frozenset(gloss.lower() for gloss, _ in CORE_MEANINGS)
+"""Lowercased for direct comparison against ``build_pending_word``'s own
+``gloss_key``. The real basic-vocabulary signal `choose_syllable_count`
+was missing entirely before (see its own docstring) -- Zipf's law of
+abbreviation says frequent/basic words trend shorter cross-
+linguistically, but until this was added, a gloss's own membership in
+this genuinely basic subset (as opposed to ``EXTENDED_MEANINGS``) never
+fed the length roll at all, only its part of speech did."""
 
 ALL_MEANINGS: tuple[tuple[str, PartOfSpeech], ...] = CORE_MEANINGS + EXTENDED_MEANINGS
 """Every meaning this project can pregenerate, most basic first (the
@@ -187,6 +197,24 @@ span only ~1.14-1.43), so a much larger scale than other
 tilt to actually move the sampled mean toward that curated figure -- see
 ``choose_syllable_count``."""
 
+_CORE_MEANING_LENGTH_DELTA = -0.4
+"""A flat, always-on shortening tilt applied whenever the gloss is a
+member of ``_CORE_MEANING_GLOSSES`` -- the fix for ``docs/DEFERRED.md``
+ch. 6's own "word length doesn't correlate with basicness, only part of
+speech" finding. Modest by design (about half of this project's own
+curated real cross-linguistic range, see ``_GENERIC_AVERAGE_SYLLABLES``'s
+own docstring) -- Zipf's law of abbreviation is a real statistical
+*tendency*, not a rule that every basic word must be short."""
+
+_WORD_LENGTH_PREFERENCE_MAX_DELTA = 0.9
+"""The syllable-count delta ``traits.word_length_preference=1.0``
+(maximal "prefers long/elaborate words") reaches toward, chosen to land
+near the upper end of this project's own curated real cross-linguistic
+range (``_GENERIC_AVERAGE_SYLLABLES``'s own docstring) -- a *strong*,
+clearly measurable preference, not a cartoonish one, the same calibration
+goal ``_LENGTH_BIAS_TILT_SCALE``'s own docstring already states for the
+source-language-average tilt this composes with."""
+
 
 def choose_syllable_count(
     rng: random.Random,
@@ -194,6 +222,8 @@ def choose_syllable_count(
     favor_short: bool,
     average_syllables: float | None = None,
     strictness: float = 0.0,
+    is_core_meaning: bool = False,
+    word_length_preference: float = 0.0,
 ) -> int:
     """``average_syllables`` (a matched ``source_languages`` profile's own
     ``core_vocabulary_average_syllables``, when curated) and ``strictness``
@@ -208,10 +238,21 @@ def choose_syllable_count(
     or can't open a syllable), but average word length is a statistical
     *tendency* -- even Mandarin has some bisyllabic roots, even German has
     plenty of monosyllabic words -- so this always leaves every count
-    reachable. A no-op (returns the base table unchanged) when
-    ``average_syllables`` is ``None`` (no curated match) or
-    ``strictness <= 0.0``, same "no source language, no bias" guarantee
-    every other axis in this feature already has.
+    reachable.
+
+    ``is_core_meaning`` (``_CORE_MEANING_LENGTH_DELTA``) and ``word_length_
+    preference`` (``_WORD_LENGTH_PREFERENCE_MAX_DELTA``, ``traits.word_
+    length_preference``) contribute their own delta into the *same* tilt,
+    composed additively with the source-language delta above -- one
+    combined ``theta``, not three separate rolls, so e.g. a basic gloss in
+    a culture that also prefers long words nets out to whichever pull is
+    stronger rather than canceling out via separate independent rolls. A
+    true no-op (returns the base table completely unchanged) only when
+    every one of the three contributing deltas is itself a no-op (no
+    curated/active source-language match, not a core meaning, and
+    ``word_length_preference == 0.0``), same "nothing to bias, don't
+    disturb the rng draw at all" guarantee every other axis in this
+    feature already has.
     """
     if pos in _FUNCTION_LIKE_POS:
         counts, weights = (1, 2, 3), (90, 9, 1)
@@ -219,8 +260,15 @@ def choose_syllable_count(
         counts, weights = (1, 2, 3), (70, 25, 5)
     else:
         counts, weights = (1, 2, 3, 4), (15, 35, 35, 15)
+    delta = 0.0
     if average_syllables is not None and strictness > 0.0:
-        theta = _LENGTH_BIAS_TILT_SCALE * strictness * (average_syllables - _GENERIC_AVERAGE_SYLLABLES)
+        delta += strictness * (average_syllables - _GENERIC_AVERAGE_SYLLABLES)
+    if is_core_meaning:
+        delta += _CORE_MEANING_LENGTH_DELTA
+    if word_length_preference != 0.0:
+        delta += word_length_preference * _WORD_LENGTH_PREFERENCE_MAX_DELTA
+    if delta != 0.0:
+        theta = _LENGTH_BIAS_TILT_SCALE * delta
         weights = [w * math.exp(theta * c) for w, c in zip(weights, counts)]
     return rng.choices(counts, weights=weights)[0]
 
@@ -501,6 +549,8 @@ def build_pending_word(
     strictness: float = 0.0,
     word_classes: tuple[WordClass, ...] = (),
     word_class_deviation_rate: float | None = None,
+    word_length_preference: float = 0.0,
+    vowel_reduction_affinity: float = 0.0,
 ) -> PendingWord | LexicalEntry:
     """Build candidate forms deterministically -- everything ``propose_word``
     does short of the final pick. Returns a finished ``LexicalEntry``
@@ -539,6 +589,15 @@ def build_pending_word(
     the same "stored system decides *whether*, matched profile decides
     *how*" split ``tone_system.enabled``/``tone_system.levels`` already
     has.
+
+    ``word_length_preference`` (``traits.word_length_preference``) and
+    whether ``gloss`` is a genuinely basic ``_CORE_MEANING_GLOSSES`` member
+    both feed ``choose_syllable_count``'s own composed tilt alongside the
+    source-language-average one -- see that function's own docstring.
+    ``vowel_reduction_affinity`` (``traits.vowel_reduction_affinity``)
+    only ever applies to ``reduce_unstressed_vowels`` below when no
+    matched source language already settles it -- a real curated
+    ``stress_driven_vowel_reduction`` always wins outright.
     """
     gloss_key = gloss.lower()
     reference_profiles = match_profiles(source_languages)
@@ -565,9 +624,26 @@ def build_pending_word(
             return kinship_entry
 
     average_syllables = _resolve_average_syllables(reference_profiles)
-    num_syllables = choose_syllable_count(rng, pos, favor_short, average_syllables, strictness)
+    num_syllables = choose_syllable_count(
+        rng, pos, favor_short, average_syllables, strictness,
+        is_core_meaning=gloss_key in _CORE_MEANING_GLOSSES, word_length_preference=word_length_preference,
+    )
     size_bias = _SIZE_BIAS_GLOSSES.get(gloss_key)
     reduce_unstressed_vowels = any(p.stress_driven_vowel_reduction for p in reference_profiles)
+    # word_builder.build_word's own reduction *rate* (not just whether it
+    # can fire at all) is scaled by `stress_strictness` directly (its
+    # line ``reduction_rate = _STRESS_REDUCTION_RATE * stress_strictness``)
+    # -- `strictness` here is always 0.0 without a source language, which
+    # would silently zero out the swap rate regardless of this trait. Safe
+    # to override just for this case: `stress_pattern` is already "" for
+    # every sourceless language, and `stress_gen.assign_stress`'s own
+    # `strictness` use is unconditionally gated on a truthy `pattern`
+    # (confirmed by reading it directly) -- so bumping it here changes
+    # nothing about stress *position*, only the reduction rate.
+    reduction_strictness = strictness
+    if not reference_profiles and rng.random() < biased_probability(0.0, vowel_reduction_affinity):
+        reduce_unstressed_vowels = True
+        reduction_strictness = max(strictness, abs(vowel_reduction_affinity))
     word_level_phonology = next((p.word_level_phonology for p in reference_profiles if p.word_level_phonology), "")
 
     tones: tuple = ()
@@ -586,7 +662,8 @@ def build_pending_word(
     for _ in range(num_candidates):
         word = word_builder.build_word(
             rng, inventory, structure, num_syllables, tone_marks, size_bias=size_bias,
-            stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate, stress_strictness=strictness,
+            stress_pattern=stress_pattern, stress_deviation_rate=stress_deviation_rate,
+            stress_strictness=reduction_strictness,
             reduce_unstressed_vowels=reduce_unstressed_vowels,
             word_accent_realization=word_accent_system.realization, word_accent_pattern=word_accent_pattern,
             word_accent_deviation_rate=word_accent_deviation_rate, word_accent_strictness=strictness,
@@ -638,6 +715,8 @@ def propose_word(
     word_class_deviation_rate: float | None = None,
     word_selection: str = "algorithmic",
     model: str = DEFAULT_MODEL,
+    word_length_preference: float = 0.0,
+    vowel_reduction_affinity: float = 0.0,
 ) -> LexicalEntry:
     """Build candidate forms deterministically (``build_pending_word``),
     then pick one -- via a uniform seeded-rng pick by default
@@ -650,6 +729,7 @@ def propose_word(
         rng, inventory, structure, tone_system, word_accent_system, romanization, gloss, pos,
         num_candidates=num_candidates, favor_short=favor_short, source_languages=source_languages,
         strictness=strictness, word_classes=word_classes, word_class_deviation_rate=word_class_deviation_rate,
+        word_length_preference=word_length_preference, vowel_reduction_affinity=vowel_reduction_affinity,
     )
     if isinstance(pending, LexicalEntry):
         return pending

@@ -570,6 +570,8 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             strictness=spec.traits.source_language_strictness,
             word_classes=grammar.word_classes,
             word_class_deviation_rate=grammar.word_class_deviation_rate,
+            word_length_preference=spec.traits.word_length_preference,
+            vowel_reduction_affinity=spec.traits.vowel_reduction_affinity,
         )
 
     def normalized_form(romanization_str: str) -> str:

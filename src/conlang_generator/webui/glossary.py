@@ -135,6 +135,48 @@ TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
         "positive": "Pervasive tone sandhi, like Mandarin's third-tone rule -- raises the chance the language keeps or invents sandhi rules.",
         "negative": "Evidence the language has no tone sandhi.",
     },
+    "fricative_density": {
+        "kind": "bipolar",
+        "summary": "How many hissing/fricative sounds (s, f, sh, and similar) the language's consonant inventory tends to have.",
+        "positive": "Many fricatives/sibilants -- a hissy-sounding consonant inventory.",
+        "negative": "Very few fricatives, or none at all -- several real Australian Aboriginal languages genuinely have no fricatives.",
+    },
+    "nasality": {
+        "kind": "bipolar",
+        "summary": "How much the language favors nasalized vowels (a vowel pronounced partly through the nose).",
+        "positive": "Heavy vowel nasalization, French/Portuguese-like.",
+        "negative": "No nasalized vowels at all.",
+    },
+    "vowel_richness": {
+        "kind": "bipolar",
+        "summary": "How large and elaborate the vowel inventory tends to be.",
+        "positive": "A large, elaborate vowel inventory, Danish/English-like.",
+        "negative": "A small, minimal vowel inventory, Arabic/Quechua-like.",
+    },
+    "consonant_richness": {
+        "kind": "bipolar",
+        "summary": "How large and elaborate the consonant inventory tends to be.",
+        "positive": "A large, elaborate consonant inventory.",
+        "negative": "A small, minimal consonant inventory.",
+    },
+    "vowel_length_affinity": {
+        "kind": "bipolar",
+        "summary": "How likely the language is to distinguish short and long vowels as separate sounds.",
+        "positive": "Phonemic vowel-length contrasts -- a short and long version of a vowel count as different sounds.",
+        "negative": "No length distinction at all.",
+    },
+    "word_length_preference": {
+        "kind": "bipolar",
+        "summary": "Whether this culture's words tend to be long and elaborate, or short and economical, independent of a source language's own real average.",
+        "positive": "Long, elaborate words.",
+        "negative": "Short, economical words.",
+    },
+    "vowel_reduction_affinity": {
+        "kind": "bipolar",
+        "summary": "Whether an unstressed vowel keeps its full quality or weakens toward a central sound -- the real difference behind a \"flowing\"/\"musical\" vs. \"clipped\"/\"staccato\" speech impression. Only matters when no source language already settles this.",
+        "positive": "Stress-timed rhythm -- unstressed vowels reduce toward a central quality, English/German/Portuguese-like.",
+        "negative": "Syllable-timed rhythm -- every vowel keeps its full quality regardless of stress, French/Spanish/Turkish/Finnish-like.",
+    },
     # --- the two strictness dials: unipolar [0.0, 1.0], not bipolar --
     # 0.0 is today's existing soft, non-exclusive influence, 1.0 hard-
     # restricts to only the named source language(s)' own real values. ---
