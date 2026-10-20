@@ -88,7 +88,9 @@ def test_tweak_404s_for_an_unknown_language(client):
 
 def test_options_endpoint_serves_the_phonology_only_trait_fields(client):
     opts = client.get("/api/options").json()
-    assert set(opts["phonology_only_trait_fields"]) == {"altitude", "aesthetic_harshness", "phonotactic_restrictiveness"}
+    assert set(opts["phonology_only_trait_fields"]) == {
+        "altitude", "aesthetic_harshness", "phonotactic_restrictiveness", "tonal_friendliness", "tone_sandhi",
+    }
 
 
 # --- dry_run (item 7: word-by-word preview before saving) ---

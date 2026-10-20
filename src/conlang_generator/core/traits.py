@@ -47,21 +47,40 @@ PHONOLOGY_ONLY_TRAIT_FIELDS: tuple[str, ...] = (
     "altitude",
     "aesthetic_harshness",
     "phonotactic_restrictiveness",
+    "tonal_friendliness",
+    "tone_sandhi",
 )
 """The subset of `GRADED_TRAIT_FIELDS` read *only* by `generation.
-phonology_gen` (confirmed by grepping every module under `generation/`
-for each field name, not assumed from the docstrings above) -- the
-allowlist `generation.generator.regenerate_phonology` accepts, since
-editing any other trait could also shift `generation.grammar_gen`'s own
-typological choices, breaking that function's own "grammar comes out
-identical" guarantee (see docs/DEFERRED.md's "Tweaking an existing
-language" item 2). Two near-misses worth recording here, not just in
-that item's own history: `isolation` *looks* phonology-adjacent but is
-also read by `grammar_gen.py` (ergative alignment, morphology type),
-so it's excluded; `terrain_communication_distance` is read only by
-`generation.sound_change` (evolution), never by a fresh `phonology_gen`
-roll, so including it would be a silent no-op outside evolution and
-it's excluded too."""
+phonology_gen` in the fresh-generation path (confirmed by grepping every
+module under `generation/` for each of the 15 field names, not assumed
+from the docstrings above) -- the allowlist `generation.generator.
+regenerate_phonology` accepts, since editing any other trait could also
+shift `generation.grammar_gen`'s own typological choices, breaking that
+function's own "grammar comes out identical" guarantee (see docs/
+DEFERRED.md's "Tweaking an existing language" item 2). `tonal_
+friendliness`/`tone_sandhi` were added to this constant in a second
+audit (direct user request: "include all the other phonology traits in
+tweak") -- both gate tone-system generation in `phonology_gen.py` alone
+(whether the language is tonal at all, and its sandhi-rule richness),
+never touching `grammar_gen.py` or any other grammar-adjacent module
+(`pronoun_gen.py`/`inflection_gen.py`/`np_followups_gen.py`/`word_class_
+gen.generate_word_classes`).
+
+Several more near-misses worth recording here, not just in that item's
+own history: `isolation`/`community_scale`/`contact_intensity`/`social_
+hierarchy`/`evidentiality_culture`/`spatial_reference` all *look*
+phonology-adjacent but are each read by a grammar-adjacent module too
+(`grammar_gen.py` for the first three, `pronoun_gen.py`/`inflection_
+gen.py`/`np_followups_gen.py` respectively for the last three), so all
+six stay excluded -- deliberately not wired into Tweak yet (grammar
+would need its own "regenerate but keep identical" guarantee extended to
+cover them first, not attempted here). `terrain_communication_distance`/
+`orality_literacy` are read only by `generation.sound_change`
+(evolution), never by a fresh `phonology_gen` roll, so including either
+here would be a silent no-op outside evolution -- both excluded.
+`ritual_register`/`taboo_register` aren't consumed by *anything* in
+either path yet (see docs/DEFERRED.md) -- also excluded, for the same
+"would be a silent no-op" reason."""
 
 EVOLUTION_TRAIT_FIELDS: tuple[str, ...] = (
     "altitude",

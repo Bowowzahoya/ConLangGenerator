@@ -8523,3 +8523,44 @@ reading code or one-off ad hoc scripts.
   for a matched language shows exactly 4/1/0/1 rows across Phonology/Grammar/Tones/Orthography with
   Tones hidden, and the `tonal_friendliness` popover renders the new evolution-specific text; Generate's
   own 15-row layout (4/8/2/1) and Tweak's own 3-row layout are both unaffected.
+
+  **Second follow-up round: collapsible sections, a second `PHONOLOGY_ONLY_TRAIT_FIELDS` audit, and a
+  Tweak reorder -- all three done; two related realism concerns triaged into `docs/DEFERRED.md` ch. 13
+  instead (see that chapter for the full write-up).**
+  - **Evolve tab's own 4 trait groups are now collapsible** (`<details class="advanced-group">`,
+    direct user request) instead of a plain `<label>`+`<div>` -- `buildEvolveTraitRows`'s own
+    `group.hidden = names.length === 0` toggle works identically on a `<details>` element, no JS
+    change needed beyond the markup tag swap.
+  - **`PHONOLOGY_ONLY_TRAIT_FIELDS` grew from 3 to 5** (`tonal_friendliness`, `tone_sandhi` added),
+    after a second grep-based audit of all 15 `GRADED_TRAIT_FIELDS` against every grammar-adjacent
+    module (`grammar_gen.py`, `pronoun_gen.py`, `inflection_gen.py`, `np_followups_gen.py`, `word_class_
+    gen.generate_word_classes`) -- both gate tone-system generation in `phonology_gen.py` alone
+    (whether the language is tonal at all, and sandhi-rule richness) and are read by nothing grammar-
+    adjacent, the same "confirmed safe" bar the original 3 already had to clear. The audit reconfirmed
+    `isolation`/`community_scale`/`contact_intensity`/`social_hierarchy`/`evidentiality_culture`/
+    `spatial_reference` all stay excluded (each read by a grammar-adjacent module too) and
+    `orality_literacy`/`terrain_communication_distance`/`ritual_register`/`taboo_register` stay
+    excluded (no fresh-generation effect at all -- including any of them would be a silent no-op, not
+    a correctness risk). Because `generator.regenerate_phonology`'s own validation and the web UI's
+    `buildTweakTraitRows` both already read this one constant dynamically (via `/api/options`'s
+    `phonology_only_trait_fields`), growing it was the entire fix -- no endpoint or frontend code
+    needed updating to actually surface the 2 new rows.
+  - **Tweak tab reordered**: "Words" (regenerate/adapt) now appears *above* "Phonology traits" (direct
+    user request), and Phonology traits itself is now a collapsible `<details>` (open by default,
+    unlike the already-collapsed-by-default "Roman Orthography" section below it, since phonology is
+    this tab's own primary axis).
+  - **Deferred instead** (`docs/DEFERRED.md` ch. 13, new): the fake LLM's own trait-value distribution
+    being unrealistically uniform rather than weighted toward real-world rarity (confirmed mechanism:
+    `llm/fake_client.py::_fake_trait_profile`'s `(hash % 201 - 100) / 100.0` is a flat draw over
+    `[-1.0, 1.0]`) -- deferred specifically because of blast radius, not because the fix is unclear:
+    nearly every test in the suite generates at least one language via the fake LLM, and this project's
+    own prior "give phonology its own rng stream" change (ch. 12 item 1) already demonstrated that a
+    far smaller reshaping of fake-LLM-driven draws broke 32 fixed-seed tests needing individual re-
+    pinning; and redesigning evolution's own contact mechanism around a capped (sum <= 1.0) per-source
+    "contact intensity" instead of today's flat, weight-blind `source_language_strictness` (confirmed:
+    `_evolve_phonology_membership`'s own gain/loss roll pools every matched source language's symbols
+    into one set with **no per-language weight applied at all**, unlike `_coin_borrowed_word`'s lexical-
+    replacement sourcing, which does use weight -- the likely real explanation for why a Thai source
+    added at `weight=0.5` still produced full-strength sound change), paired with recalibrating the
+    actual rate of change against real contact-linguistics history. Both are real, well-specified
+    future directions now, not just reported symptoms -- see ch. 13 for the full proposed shape of each.

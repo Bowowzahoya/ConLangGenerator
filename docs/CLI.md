@@ -551,9 +551,10 @@ regenerate the words or adapt the old ones to the new sounds." Unlike
 `--evolve-from`, `--prompt`/`--source-language`/`--seed`/etc. are all
 ignored outright (the base language's own already-resolved seed/spec is
 reused directly; `--prompt` is still required syntactically, same as
-`--evolve-from`, but never read). `--trait` is restricted to the three
-dials that only ever affect phonology (`altitude`, `aesthetic_harshness`,
-`phonotactic_restrictiveness` -- any other name, including the
+`--evolve-from`, but never read). `--trait` is restricted to the 5 dials
+confirmed (by grepping every grammar-adjacent module) to only ever affect
+phonology (`altitude`, `aesthetic_harshness`, `phonotactic_restrictiveness`,
+`tonal_friendliness`, `tone_sandhi` -- any other name, including the
 tempting-sounding `isolation`, is rejected outright rather than silently
 also shifting grammar; see `core.traits.PHONOLOGY_ONLY_TRAIT_FIELDS`'s own
 docstring for why). `--words` picks what happens to the lexicon:

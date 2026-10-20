@@ -76,10 +76,11 @@ def test_word_selection_and_foreign_names_explain_their_real_values():
     assert set(glossary.GRAMMAR_GLOSSARY["foreign_names"]["values"]) == {"keep", "adapt"}
 
 
-def test_as_dict_has_the_five_top_level_sections():
+def test_as_dict_has_the_six_top_level_sections():
     d = glossary.as_dict()
-    assert set(d) == {"traits", "script_traits", "grammar", "simple", "advanced_options"}
+    assert set(d) == {"traits", "evolution_traits", "script_traits", "grammar", "simple", "advanced_options"}
     assert d["traits"] is glossary.TRAIT_GLOSSARY
+    assert d["evolution_traits"] is glossary.EVOLUTION_TRAIT_GLOSSARY
     assert d["script_traits"] is glossary.SCRIPT_TRAIT_GLOSSARY
     assert d["grammar"] is glossary.GRAMMAR_GLOSSARY
     assert d["simple"] is glossary.SIMPLE_GLOSSARY

@@ -1037,3 +1037,95 @@ order -- each is independently schedulable, and later items depend on earlier on
   `/x/ -> /h/` (shifted), style arrows instead of (or alongside) the current separate added/removed
   chip lists. Not attempted here -- needs a new backend field (a per-symbol correspondence list) and a
   frontend rendering pass, a moderate but well-scoped addition building directly on existing machinery.
+
+## 13. Trait realism
+
+Two related "this doesn't feel realistic" reports from a round of hands-on use of the new Evolve tab,
+both pointing at the same underlying theme (real-world rarity/magnitude isn't yet reflected in how
+traits get picked or how fast they act) but requiring unrelated fixes with very different risk profiles.
+Triaged but not implemented -- each needs its own design/calibration pass, not a quick patch.
+
+- **The fake LLM's trait distribution is unrealistically uniform, not weighted toward real-world rarity
+  (M-L, needs a full-suite re-pin).** Direct user report: "there are not that many languages with very
+  high altitude, yet randomly it will be relatively high 25% of the time with a random pick." Confirmed
+  the exact mechanism: `llm/fake_client.py::_fake_trait_profile` maps each trait name to
+  `round((stable_hash(prompt + name) % 201 - 100) / 100.0, 2)` -- a flat, uniform draw over 201 values
+  spanning `[-1.0, 1.0]`, so `P(value > 0.5)` really is exactly 25%, matching the report precisely. This
+  is deliberate *for its original purpose* (the fake LLM's own module docstring: "just needs to vary
+  deterministically by prompt... spanning both positive and negative," for exercising "different
+  prompts -> different generated languages" in tests) -- but the free "Fake LLM" backend is also this
+  project's primary *everyday* generation mode (the real LLM costs money), so its unrealistic shape
+  leaks straight into ordinary use, not just tests. `core.traits.TraitProfile`'s own module docstring
+  already states the intended real shape for the *real* classifier -- "calibrated to rarely report
+  values near +-1.0" -- so the fake stand-in arguably should mimic that same statistical shape instead
+  of diverging from it. Fix would be mechanical (reshape the hash-derived uniform draw toward 0 with a
+  sign-preserving power curve, e.g. `sign(x) * abs(x) ** p` for some `p > 1`, still deterministic, still
+  spanning both signs) and apply uniformly to all 15 `GRADED_TRAIT_FIELDS` as the user requested -- but
+  the blast radius is large: nearly every test in this project's suite generates at least one language
+  via the fake LLM (`AGENTS.md`'s own "fake-LLM-first rule"), and this project has *already* been
+  through the exact shape of fallout a change like this causes -- the "give phonology its own
+  independent rng stream" change (ch. 12 item 1's own history) reshaped far fewer draws and still broke
+  32 fixed-seed tests needing individual re-pinning. Changing every trait's own magnitude for every
+  fake-LLM-classified prompt would very plausibly affect an order of magnitude more tests than that (any
+  test asserting a specific generated property that happens to sit near a probabilistic threshold a
+  trait feeds into). Needs a dedicated pass budgeted for a full re-pin, not a quick edit alongside
+  other work -- deferred for that reason alone, not because the fix itself is unclear.
+- **Evolution's own contact mechanism should be redesigned around a capped per-source "contact
+  intensity" instead of the current flat `source_language_strictness`, and the resulting rate of change
+  recalibrated against real contact-linguistics history (L-XL, needs its own design pass).** Three of
+  the user's own notes, interlocking, taken together as one item since they're the same underlying
+  redesign:
+  - *"Sound strictness should be removed from evolution... introduce words from the source languages
+    slowly, as well as take over phonology, grammar etc., with a particular speed based on weight
+    (better to rename to contact intensity). Contact intensity should have a limit in terms of total sum
+    of 1.0..."* and *"Contact intensity should follow directly from the sum of intensities of source
+    languages."*
+  - *"When adding Thai with 0.5 influence... and 100 years of evolution, it quickly gained 15 sounds. Is
+    this reasonable? ... Maybe this should be tweaked around real data for how quickly languages change
+    with a lot of influence."*
+
+  Confirmed, not assumed, exactly how the current mechanism works and why it doesn't match what the user
+  wants: `sound_change._evolve_phonology_membership` (the function that decides whether a newly-sound-
+  changed phoneme is *kept*) reads a single flat scalar, `strictness = traits.source_language_strictness
+  if lineage_profiles else 0.0` -- every matched source language's own symbols are pooled into one
+  `reference_symbols` set with **no per-language weight applied at all**, so a source language added at
+  `weight=0.5` is treated identically to one added at `weight=1.0` for this mechanism specifically (weight
+  *does* matter for `_coin_borrowed_word`'s own lexical-replacement sourcing, via `weighted_reference_
+  profiles` -- so the two mechanisms are already inconsistent with each other about what "weight" means).
+  This mismatch -- a per-language "influence" dial that silently does nothing for the inventory-gain
+  mechanism -- is almost certainly *why* Thai at 0.5 still produced a large, "full-strength" sound change:
+  the user's own weight setting was never actually consulted there. `source_language_strictness` itself
+  is also explicitly a *generation-style* "how closely does this stick to a real source" dial (see its
+  own glossary text), not a *rate-of-contact-over-time* dial -- the user's own framing ("that belongs in
+  generating languages inspired by a language... mimic real evolution... with a particular speed based on
+  weight") is a real, correct architectural distinction this project hasn't drawn yet.
+
+  Proposed shape (not implemented, needs its own scoping before a plan): (1) stop reading `source_
+  language_strictness` anywhere in the evolution path (`_evolve_phonology_membership`'s own gain/loss
+  rolls, and wherever else it's consulted during `evolve_language` specifically -- `generate_language`'s
+  own fresh-generation use of it stays exactly as-is, per the user's own "that belongs in generating
+  languages inspired by a language" distinction); (2) give each of an evolution run's own newly-added
+  `source_languages` entries a per-language "contact intensity" (likely the existing per-entry `weight`
+  field, reinterpreted/renamed, rather than a new field) that the lexical-replacement rate, the inventory
+  gain/loss roll, and (per the user's 5th note) grammar/orthography takeover all scale with directly,
+  instead of today's flat scalar; (3) enforce a hard cap of `1.0` on the *sum* of all active contact
+  intensities for a single evolution run (the user's own "max intensity imaginable without actually
+  taking over the languages and dropping [the] own language") -- needs a validation point (likely the
+  web UI's `EvolveRequest`/CLI's `--evolve-from` path) rejecting or rescaling a request whose weights sum
+  above 1.0, and a decision on whether the *base* language's own already-established lineage counts
+  against this run's own cap or is exempt (the existing `lineage_languages` merge in `evolve_language`
+  keeps the base's own prior contact around indefinitely -- unclear yet whether that prior contact should
+  also count toward the 1.0 ceiling on a *later* evolution run, or whether the cap applies only to each
+  run's own newly-added intensity); (4) separately, recalibrate the actual *magnitude* of change per unit
+  of contact intensity x years against real historical contact-linguistics cases (the same kind of
+  real-citation grounding this project already uses elsewhere, e.g. Swahili's own real tone loss under
+  contact) -- the concrete trigger for this item, "15 sounds in 100 years" feeling too fast, can only be
+  properly judged once contact intensity is actually driving the roll the user intended it to (today's
+  reported number may partly just be an artifact of weight being ignored, not purely an overly-fast
+  rate). This item depends on, and should probably be scoped together with, a second look at
+  `_evolve_phonology_membership`'s own `_MERGER_HALF_LIFE`/`_MIN_GAIN_ACCEPTANCE` constants and
+  `_compute_rates`'s own per-rule half-lives, none of which were calibrated against a contact-intensity-
+  capped-at-1.0 model since that model didn't exist until this note. Not attempted here -- this is a
+  genuine architecture change touching the evolution endpoint's own request validation, `sound_change.py`'s
+  core rate/membership functions, and probably the Evolve tab's own UI (a weight input that's currently
+  unbounded free-form would need a visible running total against the 1.0 cap), not a one-file patch.

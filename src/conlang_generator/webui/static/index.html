@@ -482,14 +482,17 @@
     </div>
     <button type="button" class="add-row" id="tweak-edit-words-btn" hidden>&#9998; View &amp; edit this language's words (opens Inspect)</button>
 
-    <label>Phonology traits <span class="ipa">(the only three that can be tweaked here -- editing any other trait could also shift grammar, which a tweak is guaranteed not to do; always shown, pre-filled from the picked language's own current reading)</span></label>
-    <div id="tweak-trait-rows"></div>
-
-    <label style="margin-top:14px;">Words</label>
+    <label>Words</label>
     <div class="checks">
       <label><input type="radio" name="tweak-words" value="regenerate" checked> regenerate <span class="ipa">(recoin the whole lexicon fresh against the new sounds)</span></label>
       <label><input type="radio" name="tweak-words" value="adapt"> adapt <span class="ipa">(re-fit each existing word to the new sounds instead, so it stays the same word)</span></label>
     </div>
+
+    <details class="advanced-group" open style="margin-top:14px;">
+      <summary>Phonology traits</summary>
+      <p class="ipa">Only these can be tweaked here -- editing any other trait could also shift grammar, which a tweak is guaranteed not to do (see <code>core.traits.PHONOLOGY_ONLY_TRAIT_FIELDS</code>'s own docstring for exactly which traits qualify and why). Always shown, pre-filled from the picked language's own current reading.</p>
+      <div id="tweak-trait-rows"></div>
+    </details>
 
     <details class="advanced-group" style="margin-top:14px;">
       <summary>Roman Orthography (separate axis)</summary>
@@ -573,23 +576,25 @@
          with its own evolution-specific info description -- not the same
          15 rows/descriptions Generate shows, since most of the other 9 are
          real traits that simply never get read anywhere in evolve_language's
-         own call path. Each group is hidden outright when empty (buildEvolveTraitRows). -->
-    <div id="evolve-group-phonology">
-      <label style="margin-top:14px;">Phonology trait overrides <span class="ipa">(pre-filled from the language's own current reading)</span></label>
+         own call path. Each group is hidden outright when empty
+         (buildEvolveTraitRows) -- collapsible `<details>`, same as every
+         other trait-override group on this page, direct user request. -->
+    <details class="advanced-group" id="evolve-group-phonology" style="margin-top:14px;">
+      <summary>Phonology trait overrides <span class="ipa">(pre-filled from the language's own current reading)</span></summary>
       <div id="evolve-trait-rows-phonology"></div>
-    </div>
-    <div id="evolve-group-grammar">
-      <label style="margin-top:14px;">Grammar trait overrides</label>
+    </details>
+    <details class="advanced-group" id="evolve-group-grammar" style="margin-top:14px;">
+      <summary>Grammar trait overrides</summary>
       <div id="evolve-trait-rows-grammar"></div>
-    </div>
-    <div id="evolve-group-tones">
-      <label style="margin-top:14px;">Tones trait overrides</label>
+    </details>
+    <details class="advanced-group" id="evolve-group-tones" style="margin-top:14px;">
+      <summary>Tones trait overrides</summary>
       <div id="evolve-trait-rows-tones"></div>
-    </div>
-    <div id="evolve-group-orthography">
-      <label style="margin-top:14px;">Roman Orthography trait overrides</label>
+    </details>
+    <details class="advanced-group" id="evolve-group-orthography" style="margin-top:14px;">
+      <summary>Roman Orthography trait overrides</summary>
       <div id="evolve-trait-rows-orthography"></div>
-    </div>
+    </details>
 
     <div class="submit-row">
       <button class="primary" id="evolve-btn">Preview Evolution</button>
