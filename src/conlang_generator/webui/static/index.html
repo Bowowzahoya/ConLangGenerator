@@ -184,11 +184,11 @@
 
 <nav>
   <button id="tab-generate-btn" class="active">Generate</button>
-  <button id="tab-translate-btn">Translate</button>
-  <button id="tab-inspect-btn">Inspect</button>
-  <button id="tab-tweak-btn">Tweak</button>
   <button id="tab-evolve-btn">Evolve</button>
+  <button id="tab-tweak-btn">Tweak</button>
+  <button id="tab-inspect-btn">Inspect</button>
   <button id="tab-script-btn">Script</button>
+  <button id="tab-translate-btn">Translate</button>
   <button id="tab-reference-btn">Reference</button>
   <button id="tab-log-btn">Log</button>
 </nav>
@@ -742,7 +742,7 @@ async function api(path, opts) {
 
 // --- tabs -- list-driven so adding one is a one-line change here,
 // not four separate toggle calls to keep in sync. ---
-const TAB_NAMES = ["generate", "translate", "inspect", "tweak", "evolve", "script", "reference", "log"];
+const TAB_NAMES = ["generate", "evolve", "tweak", "inspect", "script", "translate", "reference", "log"];
 function showTab(which) {
   for (const name of TAB_NAMES) {
     $(`panel-${name}`).classList.toggle("active", name === which);
