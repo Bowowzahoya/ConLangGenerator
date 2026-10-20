@@ -95,6 +95,8 @@ real_adjective_after_noun: true      # real Swahili attributive adjectives follo
 real_case_count: 0                   # Swahili (like other Bantu languages) marks grammatical relations via noun-class agreement, not case inflection
 foreign_name_handling: keep       # foreign personal names are used as written
 
+typical_contact_intensity: 0.85   # real Swahili grew as an Indian Ocean trade-contact lingua franca, with a heavy, extensively documented Arabic loanword layer (plus Persian/Portuguese/Hindi/English contact) on a Bantu grammatical base -- a textbook real-world trade-contact case
+
 attested_onset_clusters:
   # nasal+consonant and glide onset clusters (syllabic nasals, labialization)
   - [m, w]

@@ -301,6 +301,9 @@ real_adjective_after_noun: false     # real English attributive adjectives prece
 real_case_count: 0                   # modern English nouns don't decline for case at all (only pronouns retain a real nominative/oblique distinction: he/him)
 foreign_name_handling: keep       # foreign personal names are used as written
 
+typical_contact_intensity: 0.8   # a real, heavily-documented contact history (Old Norse via the Danelaw, Norman French after 1066, Latin via scholarship/church, plus a huge modern global-loanword layer) widely cited as a major driver of English's own shift toward analytic/isolating morphology
+typical_community_scale: -0.7    # a large, diffuse, geographically dispersed speaker population (including as a global lingua franca) -- the opposite end of this dial from a small, tight-knit community
+
 attested_onset_triples:
   # real 3-consonant clusters found by `conlang audit-lexicons`
   - [s, t, r]

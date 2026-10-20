@@ -27,6 +27,7 @@ from conlang_generator.generation.generator import (
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.generation.real_words import strictness_warnings
+from conlang_generator.generation.reference_languages import blend_toward_reference, match_profiles_weighted
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.generation.seed_examples import (
     CELL_POS,
@@ -480,6 +481,18 @@ def generate(
         traits = traits.model_copy(update={"source_language_strictness": strictness})
     if word_strictness is not None:
         traits = traits.model_copy(update={"source_word_strictness": word_strictness})
+    # Grading reference languages on worldbuilding traits: nudges the
+    # classifier's own trait reading toward whatever matched source
+    # language(s) have curated as their own typical reading -- reuses
+    # source_language_strictness as the blend weight rather than a new
+    # dial (see blend_toward_reference's own docstring). Applies to both
+    # fresh generation and --evolve-from, since both share this same
+    # trait-resolution block. Before --trait so an explicit override
+    # always wins outright.
+    traits = blend_toward_reference(
+        traits, match_profiles_weighted(traits.source_languages, traits.source_language_weights),
+        traits.source_language_strictness,
+    )
     if trait_overrides:
         traits = traits.model_copy(update=trait_overrides)
     for warning in strictness_warnings(traits):

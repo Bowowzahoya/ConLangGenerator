@@ -1,5 +1,8 @@
 name: Icelandic
 aliases: ["íslenska"]
+typical_isolation: 0.9          # a genuinely isolated North Atlantic island settled ~9th century, with a real, well-documented history of deliberate linguistic purism actively resisting loanwords (neologism coinage over borrowing is official language policy)
+typical_community_scale: 0.6    # a small total speaker population (~350,000) relative to most other profiles here
+typical_contact_intensity: -0.8 # the direct counterpart of the isolation/purism above -- minimal external contact pressure on the language itself, by design as much as by geography
 # "old norse"/"norse"/"viking" used to alias here (a stand-in for the
 # unmodeled ancestor) -- now that Old Norse has its own real profile
 # (see old_norse.yaml), those aliases moved there; Icelandic is its own

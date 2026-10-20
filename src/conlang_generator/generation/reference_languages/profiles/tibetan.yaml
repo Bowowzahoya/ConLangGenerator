@@ -1,4 +1,5 @@
 name: Tibetan
+typical_evidentiality_culture: 0.85   # real Tibetan grammaticalizes evidentiality/epistemic source directly in its copula and verb-auxiliary system (the well-documented egophoric/testimonial/inferential distinctions), another of the most-cited real evidential systems in linguistics alongside Quechua's own
 # No word_classes curated, deliberately -- real Tibetan has no
 # citation-form noun-declension system (case is marked by separate
 # postposed particles), and while real spoken Tibetan verbs do have a

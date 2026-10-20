@@ -1,5 +1,6 @@
 name: Nahuatl
 aliases: [aztec, "náhuatl"]
+typical_community_scale: 0.5   # pre-contact Nahuatl-speaking altepetl (city-states) were real small, tight-knit polities -- real_word_order/morphology here already reflect the resulting polysynthetic-leaning grammar this same community-scale tendency is independently documented to favor
 consonants: [p, t, k, "tʃ", "tɬ", s, "ʃ", h, m, n, l, w, j, "ʔ", "lː", "tː", "kː", ts]
 vowels: [a, e, i, o, "aː", "eː", "iː", "oː"]
 coda_profile: unrestricted

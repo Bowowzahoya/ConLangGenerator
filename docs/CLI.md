@@ -452,7 +452,15 @@ orthography reform mid-evolution (see below).
 ### Evolution (`--years`, with or without `--evolve-from`)
 
 `--years` triggers rule-based diachronic sound change, in either of two
-modes:
+modes. The web UI's own dedicated Evolve tab (`POST /api/languages/{slug}/
+evolve`) is the equivalent of the `--evolve-from` mode below -- evolving an
+already-saved language on its own, separate from Generate's own combined
+generate+evolve path -- with all 15 worldbuilding traits available as
+overrides there (no allowlist, unlike the Tweak tab's own three), since
+evolving never re-rolls grammar typology no matter which trait changes (see
+docs/DEFERRED.md ch. 11). `--evolve-from` itself is unchanged by that
+addition and remains the CLI's own entry point -- no new top-level `evolve`
+command was added, per this project's own CLI discipline.
 
 - **With `--evolve-from NAME`**: evolve an *existing saved language*
   instead of generating fresh -- this is how a real starting vocabulary

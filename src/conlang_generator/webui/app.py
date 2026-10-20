@@ -41,7 +41,7 @@ from conlang_generator.core.romanization import (
 from conlang_generator.core.script import ScriptTraits, ScriptTraitsForce
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS, PHONOLOGY_ONLY_TRAIT_FIELDS
-from conlang_generator.generation import ipa_tokenizer, phoneme_fit, phonology_gen, script_gen
+from conlang_generator.generation import ipa_tokenizer, phoneme_fit, phonology_gen, script_gen, sound_change
 from conlang_generator.generation.generator import (
     generate_evolved_language,
     regenerate_orthography,
@@ -52,7 +52,13 @@ from conlang_generator.generation.generator import (
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
 from conlang_generator.generation.real_words import strictness_warnings
-from conlang_generator.generation.reference_languages import REFERENCE_LANGUAGES, lexicon_audit, real_lexicon
+from conlang_generator.generation.reference_languages import (
+    REFERENCE_LANGUAGES,
+    blend_toward_reference,
+    lexicon_audit,
+    match_profiles_weighted,
+    real_lexicon,
+)
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.generation.seed_examples import (
     CELL_POS,
@@ -190,6 +196,11 @@ def _language_summary(language: Language) -> dict:
     return {
         "name": language.name,
         "slug": language.slug,
+        # Already recorded on every `Language` at generation/evolution
+        # time (`"generated core language"`, `"evolved N years
+        # (seed=...)"`, ...) but never surfaced to the web UI before --
+        # pure frontend display, no new backend data.
+        "history": list(language.history),
         "grammar": {
             "word_order": grammar.word_order.value,
             "alignment": grammar.alignment.value,
@@ -798,6 +809,16 @@ def generate(request: GenerateRequest) -> dict:
         traits = traits.model_copy(update={"source_language_strictness": request.strictness})
     if request.word_strictness is not None:
         traits = traits.model_copy(update={"source_word_strictness": request.word_strictness})
+    # Grading reference languages on worldbuilding traits: nudges the
+    # classifier's own trait reading toward whatever matched source
+    # language(s) have curated as their own typical reading -- reuses
+    # source_language_strictness as the blend weight rather than a new
+    # dial (see blend_toward_reference's own docstring). Applied before
+    # trait_overrides so an explicit override always wins outright.
+    traits = blend_toward_reference(
+        traits, match_profiles_weighted(traits.source_languages, traits.source_language_weights),
+        traits.source_language_strictness,
+    )
     if request.trait_overrides:
         traits = traits.model_copy(update=request.trait_overrides)
 
@@ -944,6 +965,106 @@ def tweak_language(slug: str, request: TweakRequest) -> dict:
     # so the preview can show it without the user having to infer it from
     # individual word diffs.
     summary["sound_correspondence"] = phoneme_fit.sound_correspondence(base.phonology, language.phonology)
+    return summary
+
+
+class EvolveRequest(BaseModel):
+    name: str
+    """Where the evolved result is saved -- a new, separate language,
+    same "source is never overwritten" precedent every other tweak-
+    family endpoint already follows."""
+    years: int
+    """Must be > 0 -- unlike the combined generate+evolve path's own
+    "0 = none" convenience default, a dedicated Evolve action with
+    nothing to do isn't a meaningful request."""
+    trait_overrides: dict[str, float] = {}
+    """Unlike `TweakRequest.trait_overrides`, **no allowlist**:
+    `sound_change.evolve_language` never re-rolls grammar typology
+    (word order, alignment, morphological_type, word_classes) the way
+    fresh generation does -- confirmed by reading `_evolve_grammar_
+    affixes` (only evolves existing affixes' own *spelling*, never
+    calls `grammar_gen.generate_grammar`/`word_class_gen.
+    generate_word_classes`) -- so every one of the 15 `GRADED_TRAIT_
+    FIELDS` is safe to change here, unlike `regenerate_phonology`'s own
+    `PHONOLOGY_ONLY_TRAIT_FIELDS` restriction."""
+    source_languages: list[SourceLanguageEntry] = []
+    """New contact language(s) to introduce during this evolution run,
+    merged *additively* with the base language's own existing lineage
+    by `evolve_language` itself (confirmed: `lineage_languages = tuple(
+    dict.fromkeys((*base.spec.traits.source_languages, *traits.
+    source_languages)))`, sound_change.py) -- never replaces it."""
+    strictness: float | None = None
+    """Both the sound-strictness weight `evolve_language` itself already
+    reads, and the blend weight for grading reference languages on
+    worldbuilding traits (see `blend_toward_reference`) -- applied only
+    against these *newly introduced* source languages, not the base's
+    own already-established lineage (which already had its own chance
+    to blend at whatever point it was itself generated/evolved).
+    Defaults to the base language's own `source_language_strictness`
+    when not given, so introducing a new contact language without
+    explicitly restating strictness still does something sensible."""
+    llm: str = "fake"
+    dry_run: bool = False
+    """Same "compute but don't save" contract every other tweak-family
+    endpoint already has."""
+
+
+@app.post("/api/languages/{slug}/evolve")
+def evolve_language_endpoint(slug: str, request: EvolveRequest) -> dict:
+    """"Language evolution" restructuring (`docs/DEFERRED.md`, chapter
+    11) -- the web UI's own Evolve tab backing endpoint, the first place
+    evolving an *already-saved* language is possible outside the CLI's
+    own `generate --evolve-from` (which this mirrors directly, down to
+    reusing the exact same trait-resolution shape: start from the base
+    language's own traits, merge in any new `source_languages`, blend
+    toward matched reference profiles, then apply `trait_overrides` on
+    top -- the only thing `--evolve-from` has that isn't reproduced
+    here is prompt classification, since there's no new prompt to
+    classify). `dry_run=true` computes but never saves, same contract
+    `/api/languages/{slug}/tweak` already has."""
+    unknown_traits = set(request.trait_overrides) - set(GRADED_TRAIT_FIELDS)
+    if unknown_traits:
+        raise HTTPException(
+            status_code=400, detail=f"trait_overrides has unknown trait name(s): {', '.join(sorted(unknown_traits))}"
+        )
+    out_of_range = {k: v for k, v in request.trait_overrides.items() if not -1.0 <= v <= 1.0}
+    if out_of_range:
+        raise HTTPException(status_code=400, detail=f"trait_overrides values must be between -1.0 and 1.0: {out_of_range}")
+    if request.years <= 0:
+        raise HTTPException(status_code=400, detail="years must be > 0")
+    try:
+        base = _repository().load(slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    client = _client(request.llm)
+    before = _cost_snapshot()
+
+    traits = base.spec.traits
+    new_source_languages = ()
+    if request.source_languages:
+        names = tuple(e.name for e in request.source_languages)
+        weights = tuple(e.weight if e.weight is not None else 1.0 for e in request.source_languages)
+        traits = traits.model_copy(update={"source_languages": names, "source_language_weights": weights})
+        new_source_languages = match_profiles_weighted(names, weights)
+    blend_weight = request.strictness if request.strictness is not None else base.spec.traits.source_language_strictness
+    if request.strictness is not None:
+        traits = traits.model_copy(update={"source_language_strictness": request.strictness})
+    traits = blend_toward_reference(traits, new_source_languages, blend_weight)
+    if request.trait_overrides:
+        traits = traits.model_copy(update=request.trait_overrides)
+
+    language = sound_change.evolve_language(
+        request.name, base, request.years, traits, base.spec.seed, forced_orthography=base.spec.forced_orthography
+    )
+    if not request.dry_run:
+        _repository().save(language)
+
+    after = _cost_snapshot()
+    summary = _language_summary(language)
+    summary["cost"] = _cost_delta(before, after)
+    summary["warnings"] = phonotactic_mismatch_warnings(language) + unused_suppletive_form_warnings(language)
+    summary["saved"] = not request.dry_run
     return summary
 
 

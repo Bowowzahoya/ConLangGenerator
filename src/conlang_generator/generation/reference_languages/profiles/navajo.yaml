@@ -1,5 +1,7 @@
 name: Navajo
 aliases: ["diné bizaad"]
+typical_isolation: 0.6          # a real, historically isolated speech community (the Navajo Nation's own geographic remoteness in the Southwestern US) -- famously the basis for its use as an unbreakable WWII code specifically because outsiders had essentially no exposure to it
+typical_community_scale: 0.6    # a comparatively small, close-knit speech community relative to most other profiles here
 word_classes:
   # Real Navajo's own famous polysynthetic verb-prefix structure --
   # previously left entirely uncurated here (see this project's own

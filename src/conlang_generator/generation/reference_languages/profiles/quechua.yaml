@@ -1,5 +1,6 @@
 name: Quechua
 aliases: [runasimi]
+typical_evidentiality_culture: 0.9   # real Quechua grammaticalizes evidentiality directly on the verb (the well-documented -mi/-si/-chá "direct witness / hearsay / conjecture" source-marking system), one of the most-cited real evidential systems in linguistics
 consonants: [p, "pʰ", "pʼ", t, "tʰ", "tʼ", k, "kʰ", "kʼ", q, "tʃ", s, "ʃ", h, m, n, "ɲ", l, "lʲ", r, w, j, "tʃʼ"]
 vowels: [a, i, u]
 coda_profile: unrestricted

@@ -52,3 +52,6 @@ real_has_overt_copula: false         # real Hawaiian predicate-adjective sentenc
 real_adjective_after_noun: true      # real Hawaiian modifiers follow the noun (mauna ki'eki'e = "tall mountain")
 real_case_count: null                # real Hawaiian marks grammatical relations with preposed case-marking particles, not fused inflectional suffixes -- same abstention reasoning as Japanese/Korean's own profiles
 foreign_name_handling: adapt      # borrowings are fitted to Hawaiian's tiny inventory
+
+typical_isolation: 0.95         # among the most geographically isolated inhabited islands on Earth (over 3,200 km from the nearest continental landmass) -- a real, extreme, well-documented case
+typical_orality_literacy: -0.7  # a rich pre-contact oral tradition (chant, genealogy, and narrative transmitted orally for centuries) with no native writing system before 19th-century missionary contact

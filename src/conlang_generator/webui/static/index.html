@@ -187,6 +187,7 @@
   <button id="tab-translate-btn">Translate</button>
   <button id="tab-inspect-btn">Inspect</button>
   <button id="tab-tweak-btn">Tweak</button>
+  <button id="tab-evolve-btn">Evolve</button>
   <button id="tab-script-btn">Script</button>
   <button id="tab-reference-btn">Reference</button>
   <button id="tab-log-btn">Log</button>
@@ -238,7 +239,16 @@
            by TRAIT_SECTION rather than one dynamic add-row list -- built by
            buildGenerateTraitRows() once /api/options resolves. -->
       <details class="advanced-group">
-        <summary>Language Sources &amp; Evolution</summary>
+        <!-- Formerly "Language Sources & Evolution" -- the "Years of
+             evolution" field that justified the second half of that name
+             moved to its own dedicated Evolve tab (saved/already-generated
+             languages only, deliberate action rather than bundled into
+             fresh generation). A prompt that itself implies a time depth
+             (e.g. "...evolved over 500 years") can still trigger evolution
+             during fresh generation exactly as before -- evolve_years'
+             own backend default (infer from the prompt) is unchanged, only
+             this manual override input is gone. -->
+        <summary>Language Sources</summary>
         <div class="row">
           <div>
             <label for="gen-foreign-names">Foreign names</label><button type="button" class="info-btn" data-info-key="foreign_names" title="What do these options mean?">&#9432;</button>
@@ -247,10 +257,6 @@
               <option value="keep">keep as written</option>
               <option value="adapt">adapt to the language</option>
             </select>
-          </div>
-          <div>
-            <label for="gen-evolve-years">Years of evolution</label><button type="button" class="info-btn" data-info-key="evolve_years" title="What does this do?">&#9432;</button>
-            <input type="number" id="gen-evolve-years" min="0" max="100000" step="50" placeholder="(from prompt)">
           </div>
           <div>
             <label for="gen-word-strictness">Word strictness</label><button type="button" class="info-btn" data-info-key="word_strictness" title="What does this do?">&#9432;</button>
@@ -535,6 +541,54 @@
   <div class="result" id="tweak-preview-result"></div>
 </section>
 
+<section id="panel-evolve" class="panel">
+  <div class="card">
+    <div class="row">
+      <div>
+        <label for="evolve-lang">Language to evolve
+          <button type="button" class="add-row" id="evolve-refresh-langs" style="margin-left:8px;">refresh</button>
+        </label>
+        <select id="evolve-lang"><option value="">(choose one)</option></select>
+      </div>
+      <div>
+        <label for="evolve-name">Save evolved language as</label>
+        <input type="text" id="evolve-name" placeholder="my-language-evolved">
+      </div>
+      <div>
+        <label for="evolve-years">Years of evolution</label><button type="button" class="info-btn" data-info-key="evolve_years" title="What does this do?">&#9432;</button>
+        <input type="number" id="evolve-years" min="1" max="100000" step="50" placeholder="e.g. 500" required>
+      </div>
+      <div>
+        <label for="evolve-strictness">Sound strictness <span class="ipa">(for newly added source languages)</span></label><button type="button" class="info-btn" data-info-key="strictness" title="What does this do?">&#9432;</button>
+        <input type="number" id="evolve-strictness" min="0" max="1" step="0.05" placeholder="(current value)">
+      </div>
+    </div>
+
+    <label>Source languages <span class="ipa">(merges additively with the language's own existing lineage -- a language evolved more than once keeps every past source, see <code>sound_change.evolve_language</code>'s own docstring; autocomplete suggests the curated list below, same as Generate's own field)</span></label><button type="button" class="info-btn" data-info-key="source_languages" title="What does this do?">&#9432;</button>
+    <div id="evolve-source-lang-rows"></div>
+    <button type="button" class="add-row" id="evolve-add-source-lang">+ source language</button>
+
+    <label style="margin-top:14px;">Phonology trait overrides <span class="ipa">(pre-filled from the language's own current reading; unlike Tweak, all 15 worldbuilding traits can be changed here -- evolving never re-rolls grammar typology no matter which ones change, see docs/DEFERRED.md ch.11)</span></label>
+    <div id="evolve-trait-rows-phonology"></div>
+
+    <label style="margin-top:14px;">Grammar trait overrides</label>
+    <div id="evolve-trait-rows-grammar"></div>
+
+    <label style="margin-top:14px;">Tones trait overrides</label>
+    <div id="evolve-trait-rows-tones"></div>
+
+    <label style="margin-top:14px;">Roman Orthography trait overrides</label>
+    <div id="evolve-trait-rows-orthography"></div>
+
+    <div class="submit-row">
+      <button class="primary" id="evolve-btn">Preview Evolution</button>
+      <button class="primary" id="evolve-save-btn" hidden style="margin-left:8px;">Save Evolved Language</button>
+    </div>
+    <div class="error" id="evolve-error" hidden></div>
+  </div>
+  <div class="result" id="evolve-preview-result"></div>
+</section>
+
 <section id="panel-script" class="panel">
   <div class="card">
     <div class="row">
@@ -688,7 +742,7 @@ async function api(path, opts) {
 
 // --- tabs -- list-driven so adding one is a one-line change here,
 // not four separate toggle calls to keep in sync. ---
-const TAB_NAMES = ["generate", "translate", "inspect", "tweak", "script", "reference", "log"];
+const TAB_NAMES = ["generate", "translate", "inspect", "tweak", "evolve", "script", "reference", "log"];
 function showTab(which) {
   for (const name of TAB_NAMES) {
     $(`panel-${name}`).classList.toggle("active", name === which);
@@ -701,6 +755,7 @@ for (const name of TAB_NAMES) {
 $("tab-log-btn").onclick = () => { showTab("log"); loadLog(); };
 $("tab-script-btn").onclick = () => { showTab("script"); if ($("script-lang").value) loadScriptForLanguage($("script-lang").value); };
 $("tab-tweak-btn").onclick = () => { showTab("tweak"); if ($("tweak-lang").value) loadTweakLanguage($("tweak-lang").value); };
+$("tab-evolve-btn").onclick = () => { showTab("evolve"); if ($("evolve-lang").value) loadEvolveLanguage($("evolve-lang").value); };
 
 // --- LLM call log ---
 const LLM_PURPOSE_LABELS = {
@@ -794,7 +849,10 @@ function updateSourceLangMatchIndicator(row) {
   indicator.className = `sl-match ipa ${sourceLanguageMatchableNames.has(name) ? "sl-match-yes" : "sl-match-no"}`;
 }
 
-function addSourceLangRow() {
+// containerId defaults to Generate's own rows for every pre-existing call
+// site; the Evolve tab (built this session) reuses this same function with
+// its own container id instead of duplicating it.
+function addSourceLangRow(containerId = "source-lang-rows") {
   const row = document.createElement("div");
   row.className = "dyn-row";
   row.innerHTML = `
@@ -804,12 +862,12 @@ function addSourceLangRow() {
     <button type="button" class="remove-row">&times;</button>`;
   row.querySelector(".remove-row").onclick = () => row.remove();
   row.querySelector(".sl-name").oninput = () => updateSourceLangMatchIndicator(row);
-  $("source-lang-rows").appendChild(row);
+  $(containerId).appendChild(row);
 }
-$("add-source-lang").onclick = addSourceLangRow;
+$("add-source-lang").onclick = () => addSourceLangRow();
 
-function collectSourceLanguages() {
-  return [...$("source-lang-rows").querySelectorAll(".dyn-row")]
+function collectSourceLanguages(containerId = "source-lang-rows") {
+  return [...$(containerId).querySelectorAll(".dyn-row")]
     .map(row => ({
       name: row.querySelector(".sl-name").value.trim(),
       weight: row.querySelector(".sl-weight").value ? parseFloat(row.querySelector(".sl-weight").value) : null,
@@ -1016,18 +1074,25 @@ function collectScriptTraitOverrides() {
 // always visible and pre-filled with the picked language's own current
 // value (0.00 included -- "all traits already visible", a direct user
 // request) rather than only appearing for a nonzero one. ---
-function buildTweakTraitRows(currentValues) {
+// Generalized over a container id + a list of trait names so both Tweak's
+// own fixed 3-row set and Evolve's own fixed 15-row set (no allowlist,
+// split across its own Phonology/Grammar/Tones/Orthography containers --
+// see buildEvolveTraitRows below) can share this one implementation
+// instead of near-duplicating it.
+function buildPrefilledTraitRows(containerId, names, currentValues) {
+  const container = $(containerId);
+  if (!container) return;
   // `data-original` keeps the *true, unrounded* current value so
-  // collectTweakTraitOverrides can tell "untouched" apart from "edited"
+  // collectPrefilledOverrides can tell "untouched" apart from "edited"
   // without being fooled by the input's own display rounding -- see
   // that function's own comment for why this matters.
-  $("tweak-trait-rows").innerHTML = phonologyOnlyTraitFields.map(name => `
+  container.innerHTML = names.map(name => `
     <div class="dyn-row" data-trait-name="${name}" data-original="${currentValues[name] || 0}">
       <label style="flex:0 0 220px; margin:0; align-self:center;">${name}</label>
       <input type="number" min="-1" max="1" step="0.05" class="to-value" value="${(currentValues[name] || 0).toFixed(2)}">
       <button type="button" class="info-btn" title="What does this trait mean?">&#9432;</button>
     </div>`).join("");
-  for (const row of $("tweak-trait-rows").querySelectorAll(".dyn-row")) {
+  for (const row of container.querySelectorAll(".dyn-row")) {
     const name = row.dataset.traitName;
     row.querySelector(".info-btn").onclick = (e) => {
       // See buildFixedTraitRow's own comment -- without this the
@@ -1039,26 +1104,57 @@ function buildTweakTraitRows(currentValues) {
     };
   }
 }
+function buildTweakTraitRows(currentValues) {
+  buildPrefilledTraitRows("tweak-trait-rows", phonologyOnlyTraitFields, currentValues);
+}
 
-function collectTweakTraitOverrides() {
-  // Only send an override for a row the user actually changed. The
-  // input's displayed value is rounded to 2 decimals (toFixed(2)) for
-  // readability, but the language's *true* current value usually has
-  // more precision than that -- sending the rounded reading back for
-  // every untouched row would silently perturb every trait by a
-  // sub-0.01 amount on every single tweak, which is enough to re-roll
-  // a different phonology even though nothing visibly changed in the
-  // form. Comparing against the true, unrounded `data-original` (not
-  // the rounded displayed value) avoids that: an omitted field means
-  // "leave this trait exactly as it was", via GenerationSpec.traits'
-  // own model_copy(update=...) semantics in regenerate_phonology.
+// Only send an override for a row the user actually changed. The input's
+// displayed value is rounded to 2 decimals (toFixed(2)) for readability,
+// but the language's *true* current value usually has more precision than
+// that -- sending the rounded reading back for every untouched row would
+// silently perturb every trait by a sub-0.01 amount on every single
+// tweak/evolve, which is enough to re-roll a different phonology even
+// though nothing visibly changed in the form. Comparing against the true,
+// unrounded `data-original` (not the rounded displayed value) avoids that:
+// an omitted field means "leave this trait exactly as it was", via
+// GenerationSpec.traits' own model_copy(update=...) semantics.
+function collectPrefilledOverrides(containerId) {
   const overrides = {};
-  for (const row of $("tweak-trait-rows").querySelectorAll(".dyn-row")) {
+  const container = $(containerId);
+  if (!container) return overrides;
+  for (const row of container.querySelectorAll(".dyn-row")) {
     const value = parseFloat(row.querySelector(".to-value").value || "0");
     const original = parseFloat(row.dataset.original || "0");
     if (Math.abs(value - original) >= 0.005) overrides[row.dataset.traitName] = value;
   }
   return overrides;
+}
+function collectTweakTraitOverrides() {
+  return collectPrefilledOverrides("tweak-trait-rows");
+}
+
+// --- Evolve tab: all 15 worldbuilding traits, no allowlist (unlike Tweak's
+// own 3) -- evolve_language never re-rolls grammar typology no matter which
+// of these change, so every trait is safe here (confirmed by direct code
+// reading + tests/test_evolve_webui.py, not assumed). Split across the same
+// four fieldsets Generate/Tweak already use, via EVOLVE_TRAIT_SECTION
+// (defined further down, right after TRAIT_SECTION itself, since it's
+// derived from it) -- these two builder functions are only ever called
+// after the whole script has loaded, so the later definition is fine.
+function buildEvolveTraitRows(currentValues) {
+  const bySection = (section) => gradedTraitFields.filter(name => EVOLVE_TRAIT_SECTION[name] === section);
+  buildPrefilledTraitRows("evolve-trait-rows-phonology", bySection("phonology"), currentValues);
+  buildPrefilledTraitRows("evolve-trait-rows-grammar", bySection("grammar"), currentValues);
+  buildPrefilledTraitRows("evolve-trait-rows-tones", bySection("tones"), currentValues);
+  buildPrefilledTraitRows("evolve-trait-rows-orthography", bySection("orthography"), currentValues);
+}
+function collectEvolveTraitOverrides() {
+  return {
+    ...collectPrefilledOverrides("evolve-trait-rows-phonology"),
+    ...collectPrefilledOverrides("evolve-trait-rows-grammar"),
+    ...collectPrefilledOverrides("evolve-trait-rows-tones"),
+    ...collectPrefilledOverrides("evolve-trait-rows-orthography"),
+  };
 }
 
 // Pre-fills from the picked language's own current trait reading
@@ -1184,7 +1280,7 @@ function renderSoundInventoryDiff(basePhonemes, newPhonemes, correspondence) {
     </p>`;
 }
 
-function renderTweakDiff(baseLexicon, newLexicon, basePhonemes, newPhonemes, correspondence) {
+function renderTweakDiff(baseLexicon, newLexicon, basePhonemes, newPhonemes, correspondence, saveButtonLabel = "Save Tweaked Language") {
   const baseByGloss = new Map(baseLexicon.map(e => [e.gloss, e]));
   const rows = newLexicon.map(entry => {
     const before = baseByGloss.get(entry.gloss);
@@ -1205,7 +1301,7 @@ function renderTweakDiff(baseLexicon, newLexicon, basePhonemes, newPhonemes, cor
   return `
     <div class="card">
       <h2 style="margin-top:0">Preview: ${newLexicon.length} words</h2>
-      <p class="ipa">Nothing has been saved yet -- changed letters are <strong>bolded</strong> in both the spelling and the /ipa/ -- review below, then "Save Tweaked Language" to commit, or change the traits/words mode above and preview again.</p>
+      <p class="ipa">Nothing has been saved yet -- changed letters are <strong>bolded</strong> in both the spelling and the /ipa/ -- review below, then "${escapeAttr(saveButtonLabel)}" to commit, or change the traits above and preview again.</p>
       ${renderSoundInventoryDiff(basePhonemes, newPhonemes, correspondence)}
       <div class="lexicon-wrap">
         <table>
@@ -1275,6 +1371,105 @@ async function runTweak(dryRun) {
 $("tweak-btn").onclick = () => runTweak(true);
 $("tweak-save-btn").onclick = () => runTweak(false);
 
+// --- Evolve tab: a dedicated "evolve an already-saved language" step,
+// separate from Generate's own combined generate+evolve path (docs/
+// DEFERRED.md ch.11, Part A). Mirrors the Tweak tab's own preview/save
+// shape (loadTweakLanguage/runTweak above) almost exactly -- reusing
+// renderTweakDiff/renderSoundInventoryDiff as-is, since both are already
+// generic over any before/after lexicon + phoneme inventory pair, not
+// Tweak-specific. ---
+$("evolve-add-source-lang").onclick = () => addSourceLangRow("evolve-source-lang-rows");
+
+let evolveBaseLexicon = null;
+let evolveBasePhonemeInventory = null;
+let evolveLastPreviewBody = null;
+function resetEvolvePreview() {
+  evolveLastPreviewBody = null;
+  $("evolve-save-btn").hidden = true;
+  $("evolve-preview-result").innerHTML = "";
+}
+async function loadEvolveLanguage(slug) {
+  $("evolve-error").hidden = true;
+  $("evolve-trait-rows-phonology").innerHTML = "";
+  $("evolve-trait-rows-grammar").innerHTML = "";
+  $("evolve-trait-rows-tones").innerHTML = "";
+  $("evolve-trait-rows-orthography").innerHTML = "";
+  $("evolve-source-lang-rows").innerHTML = "";
+  $("evolve-years").value = "";
+  $("evolve-strictness").value = "";
+  resetEvolvePreview();
+  evolveBaseLexicon = null;
+  evolveBasePhonemeInventory = null;
+  if (!slug) return;
+  try {
+    const summary = await api(`/api/languages/${encodeURIComponent(slug)}`);
+    $("evolve-name").value = `${slug}-evolved`;
+    evolveBaseLexicon = summary.lexicon;
+    evolveBasePhonemeInventory = summary.phoneme_inventory;
+    buildEvolveTraitRows(summary.traits);
+    // Same "pre-render into Inspect without switching tabs" convenience
+    // loadTweakLanguage already has -- see its own comment for why.
+    renderLanguageSummary($("inspect-result"), summary);
+    if ($("inspect-lang")) $("inspect-lang").value = slug;
+  } catch (e) {
+    $("evolve-error").textContent = e.message;
+    $("evolve-error").hidden = false;
+  }
+}
+$("evolve-lang").addEventListener("change", () => loadEvolveLanguage($("evolve-lang").value));
+
+async function runEvolve(dryRun) {
+  const err = $("evolve-error");
+  err.hidden = true;
+  const slug = $("evolve-lang").value;
+  const name = $("evolve-name").value.trim();
+  const years = parseInt($("evolve-years").value || "", 10);
+  if (!slug) { err.textContent = "Pick a language to evolve first."; err.hidden = false; return; }
+  if (!name) { err.textContent = "Give the evolved language a name to save as."; err.hidden = false; return; }
+  if (!Number.isFinite(years) || years <= 0) { err.textContent = "Years of evolution must be a positive number."; err.hidden = false; return; }
+  // Same "save replays the exact previewed body" discipline runTweak's own
+  // comment explains -- evolve_language is deterministic too.
+  const requestBody = dryRun || !evolveLastPreviewBody
+    ? {
+        name, years, trait_overrides: collectEvolveTraitOverrides(),
+        source_languages: collectSourceLanguages("evolve-source-lang-rows"),
+        strictness: $("evolve-strictness").value ? parseFloat($("evolve-strictness").value) : null,
+        dry_run: dryRun,
+      }
+    : { ...evolveLastPreviewBody, dry_run: false };
+  const btn = dryRun ? $("evolve-btn") : $("evolve-save-btn");
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = dryRun ? "Previewing..." : "Saving...";
+  try {
+    const body = await api(`/api/languages/${encodeURIComponent(slug)}/evolve`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+    if (dryRun) {
+      evolveLastPreviewBody = requestBody;
+      $("evolve-preview-result").innerHTML = renderTweakDiff(evolveBaseLexicon || [], body.lexicon, evolveBasePhonemeInventory || [], body.phoneme_inventory, body.sound_correspondence, "Save Evolved Language");
+      $("evolve-save-btn").hidden = false;
+    } else {
+      resetEvolvePreview();
+      showInspectResult(body);
+      // See runTweak's own comment -- refreshLanguages hasn't resolved
+      // yet when showInspectResult's own picker-sync runs, so repeat it.
+      await refreshLanguages();
+      $("inspect-lang").value = body.slug;
+    }
+    await refreshCost();
+  } catch (e) {
+    err.textContent = e.message;
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+$("evolve-btn").onclick = () => runEvolve(true);
+$("evolve-save-btn").onclick = () => runEvolve(false);
+
 // --- orthography option selects, populated from /api/options ---
 async function loadOptions() {
   const opts = await api("/api/options");
@@ -1304,7 +1499,11 @@ async function loadOptions() {
   sourceLanguageNames = opts.source_language_names || [];
   sourceLanguageMatchableNames = new Set(opts.source_language_matchable_names || []);
   $("source-lang-names").innerHTML = sourceLanguageNames.map(n => `<option value="${escapeAttr(n)}">`).join("");
-  for (const row of $("source-lang-rows").querySelectorAll(".dyn-row")) updateSourceLangMatchIndicator(row);
+  for (const containerId of ["source-lang-rows", "evolve-source-lang-rows"]) {
+    const container = $(containerId);
+    if (!container) continue;
+    for (const row of container.querySelectorAll(".dyn-row")) updateSourceLangMatchIndicator(row);
+  }
 
   const fillModels = (id, task) => {
     const select = $(id);
@@ -1414,10 +1613,12 @@ async function refreshLanguages() {
   fillLanguageSelect($("tr-lang"), data.languages);
   fillLanguageSelect($("inspect-lang"), data.languages);
   fillLanguageSelect($("tweak-lang"), data.languages);
+  fillLanguageSelect($("evolve-lang"), data.languages);
   fillLanguageSelect($("script-lang"), data.languages, noScript);
 }
 $("refresh-langs").onclick = refreshLanguages;
 $("inspect-refresh-langs").onclick = refreshLanguages;
+$("evolve-refresh-langs").onclick = refreshLanguages;
 
 // --- whole-language export/import (translate tab) -- the full
 // language.model_dump(), not the trimmed summary view, as one
@@ -1790,6 +1991,14 @@ const TRAIT_SECTION = {
   taboo_register: "grammar",
 };
 
+// Evolve tab's own variant of TRAIT_SECTION (see buildEvolveTraitRows):
+// terrain_communication_distance has zero fresh-generation effect but a
+// real evolution-rate effect (sound_change._compute_rates, see docs/
+// DEFERRED.md ch.11), so it's pulled out of "phonology" and shown under
+// "grammar" there instead, to avoid implying it does something during a
+// Tweak-style phonology-only edit.
+const EVOLVE_TRAIT_SECTION = { ...TRAIT_SECTION, terrain_communication_distance: "grammar" };
+
 function renderLanguageSummary(container, summary) {
   const g = summary.grammar, t = summary.traits;
   // Clickable badges carry their own explanation in data-info (consumed
@@ -1866,7 +2075,12 @@ function renderLanguageSummary(container, summary) {
     ${summary.word_selection_model ? `<span class="badge">word-selection model: ${escapeAttr(summary.word_selection_model)}</span>` : ""}
     ${summary.cost ? `<span class="badge">this call: $${summary.cost.delta_usd.toFixed(4)} (${summary.cost.delta_calls} calls)</span>` : ""}
     ${summary.pregenerated_audio ? `<span class="badge">pre-generated audio: ${summary.pregenerated_audio.synthesized}/${summary.pregenerated_audio.total}${summary.pregenerated_audio.failed ? ` (${summary.pregenerated_audio.failed} failed)` : ""}</span>` : ""}
-  </div>`);
+  </div>
+  ${(summary.history || []).length ? `
+    <p class="ipa" style="margin:10px 0 2px;">History:</p>
+    <ol class="ipa" style="margin:0 0 0 18px; padding:0;">
+      ${summary.history.map(step => `<li>${escapeAttr(step)}</li>`).join("")}
+    </ol>` : ""}`);
 
   container.innerHTML = `
     <div class="card">
@@ -2183,7 +2397,6 @@ $("generate-btn").onclick = async () => {
     word_strictness: $("gen-word-strictness").value ? parseFloat($("gen-word-strictness").value) : null,
     trait_overrides: collectTraitOverrides(),
     script_trait_overrides: collectScriptTraitOverrides(),
-    evolve_years: $("gen-evolve-years").value === "" ? null : parseInt($("gen-evolve-years").value, 10),
     examples_text: $("gen-examples-text").value.trim() || null,
     orthography_style: $("gen-orthography-style").value || null,
     exotic_symbol_style: $("gen-exotic-symbol-style").value || null,

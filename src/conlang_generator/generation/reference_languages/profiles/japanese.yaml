@@ -91,6 +91,9 @@ real_adjective_after_noun: false     # real Japanese attributive adjectives prec
 real_case_count: null                # real Japanese marks grammatical relations with postpositional particles (ga/wo/no/ni/de), not fused inflectional case suffixes -- genuinely different enough from the case systems this field otherwise describes to honestly abstain rather than force a count
 foreign_name_handling: adapt      # katakana rendering fits names to Japanese syllable structure
 
+typical_social_hierarchy: 0.9   # real Japanese keigo -- a pervasive, grammaticalized honorific system (teineigo/sonkeigo/kenjougo) distinguishing addressee/referent status across verbs, nouns, and copulas alike; one of the most extensively documented honorific systems in linguistics
+typical_orality_literacy: 0.6   # a long, continuous literary tradition (court literature from the Heian period onward, a stable standardized writing system) -- real, but less extreme a case than e.g. Latin/Sanskrit's own classical-literacy traditions, hence a moderate rather than maximal reading
+
 attested_onset_clusters:
   # palatalized-mora onsets (kya, ryo, ...)
   - [k, j]

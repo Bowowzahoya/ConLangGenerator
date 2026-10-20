@@ -112,6 +112,7 @@ from pydantic import BaseModel, Field
 from conlang_generator.core.grammar import Alignment, WordClass, WordOrder
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.romanization import JointSpelling, MuteSuffixRule, RomanizationRule
+from conlang_generator.core.traits import GRADED_TRAIT_FIELDS, TraitProfile
 
 _PROFILES_DIR = Path(__file__).parent / "profiles"
 
@@ -705,6 +706,36 @@ class ReferenceLanguageProfile(BaseModel, frozen=True):
     ``GenerationSpec.foreign_names`` wins). ``None`` means not curated --
     abstains, same convention as every other optional field here."""
 
+    # -- Typical worldbuilding-trait readings (one per core.traits.
+    # GRADED_TRAIT_FIELDS name, prefixed `typical_` rather than `real_`
+    # since these are this project's own characterization of a cultural/
+    # typological *tendency*, not a hard phonological fact the way
+    # `real_word_order` is) -- consumed by `blend_toward_reference`
+    # below. `None` means not curated; same "confident partial coverage,
+    # not full accuracy" standard as `real_case_count`'s own docstring
+    # just above -- most of these 15 x 53 profiles are intentionally
+    # left uncurated rather than guessed (ritual_register/taboo_register/
+    # spatial_reference in particular have no clean real-world
+    # correlate this project is confident enough to assert a number
+    # for; tonal_friendliness is deliberately skipped everywhere too,
+    # since it would just duplicate this same profile's own existing
+    # `tonal: bool` signal).
+    typical_isolation: float | None = None
+    typical_altitude: float | None = None
+    typical_community_scale: float | None = None
+    typical_contact_intensity: float | None = None
+    typical_social_hierarchy: float | None = None
+    typical_orality_literacy: float | None = None
+    typical_evidentiality_culture: float | None = None
+    typical_spatial_reference: float | None = None
+    typical_ritual_register: float | None = None
+    typical_aesthetic_harshness: float | None = None
+    typical_tonal_friendliness: float | None = None
+    typical_taboo_register: float | None = None
+    typical_terrain_communication_distance: float | None = None
+    typical_phonotactic_restrictiveness: float | None = None
+    typical_tone_sandhi: float | None = None
+
     def symbols(self) -> frozenset[str]:
         return frozenset(self.consonants) | frozenset(self.vowels)
 
@@ -766,3 +797,59 @@ def match_profiles_weighted(
         equal = 1.0 / len(matched)
         return tuple((profile, equal) for profile, _ in matched)
     return tuple((profile, weight / total) for profile, weight in matched)
+
+
+def blend_toward_reference(
+    traits: TraitProfile, weighted_profiles: tuple[tuple[ReferenceLanguageProfile, float], ...], blend_weight: float
+) -> TraitProfile:
+    """Nudges each of ``traits``' own 15 ``GRADED_TRAIT_FIELDS`` toward
+    ``weighted_profiles``' own curated ``typical_<field>`` readings --
+    weighted independently of (not instead of) the existing sound/word-
+    strictness mechanism, which only ever governs the phonological/
+    lexical palette, never these worldbuilding dials. Direct user
+    request: generating (or evolving-with-new-contact) a language "like"
+    a real one should also be able to pull it toward that language's own
+    typical cultural/typological tendencies, not just its sounds.
+
+    For each trait field independently: averages *only* the matched
+    profiles that actually curated that specific field (weighted by
+    their own ``match_profiles_weighted``-normalized share, re-normalized
+    across just the curated subset) -- the same "ignore what hasn't been
+    curated, don't let an abstention silently count as a neutral vote"
+    pattern ``lexicon_gen._resolve_average_syllables`` already uses for
+    ``core_vocabulary_average_syllables``. A field no matched profile has
+    curated is left completely untouched, not nudged toward anything.
+
+    The actual nudge is a linear interpolation from the trait's own
+    current value toward that reference average, scaled by
+    ``blend_weight`` -- ``0.0`` is a true no-op (same "evidence nudges
+    toward a target, 0 means no evidence" shape ``trait_bias.
+    biased_probability`` already establishes for every other graded
+    trait in this project), ``1.0`` snaps fully to the reference average.
+    Both endpoints already lie in ``[-1.0, 1.0]``, so the convex
+    combination needs no separate clamp.
+
+    Callers apply this *before* any explicit ``trait_overrides`` --
+    an explicit override always wins outright over an inferred blend,
+    the same precedence every other explicit-vs-inferred channel in
+    this project already has (e.g. ``prompt_classifier``'s own reading
+    vs. an explicit ``--trait``)."""
+    if not weighted_profiles or blend_weight <= 0.0:
+        return traits
+    updates: dict[str, float] = {}
+    for field in GRADED_TRAIT_FIELDS:
+        curated_key = f"typical_{field}"
+        curated = [
+            (getattr(profile, curated_key), weight)
+            for profile, weight in weighted_profiles
+            if getattr(profile, curated_key) is not None
+        ]
+        if not curated:
+            continue
+        total_weight = sum(weight for _, weight in curated)
+        if total_weight <= 0.0:
+            continue
+        reference_average = sum(value * weight for value, weight in curated) / total_weight
+        current = getattr(traits, field)
+        updates[field] = current + blend_weight * (reference_average - current)
+    return traits.model_copy(update=updates) if updates else traits

@@ -8397,3 +8397,96 @@ reading code or one-off ad hoc scripts.
   the same gap orthography turned out to have. Not attempted this round; `docs/DEFERRED.md`'s own item
   10 entry now carries this specific finding for whoever picks it up next, rather than the original,
   vaguer "likely the most involved" guess.
+
+- **Language evolution restructuring (`docs/DEFERRED.md` ch. 11, parts (a)+(b)) + grading reference
+  languages on worldbuilding traits -- both done.** Two items the user asked to tackle together, scoped
+  via `AskUserQuestion` to "core split + grading real languages on all traits" (not the narrower
+  (a)+(b)-only option).
+
+  **Part A: Evolve as its own step.** New `EvolveRequest`/`evolve_language_endpoint` (`webui/app.py`,
+  `POST /api/languages/{slug}/evolve`), confirmed via direct code reading (not assumed) that no
+  `PHONOLOGY_ONLY_TRAIT_FIELDS`-style allowlist is needed here, unlike `regenerate_phonology`:
+  `sound_change.evolve_language` already accepts a `traits: TraitProfile` independent of
+  `base.spec.traits`, merges `source_languages` additively (`dict.fromkeys` dedup of base + new), and
+  never re-rolls grammar typology -- `_evolve_grammar_affixes` only evolves existing affixes' own
+  *spelling*, never calling `grammar_gen.generate_grammar`/`word_class_gen.generate_word_classes`, and
+  native-word replacement during evolution reuses an already-chosen word class via `word_class_gen.
+  apply_word_class`, never re-rolling the class set. Confirmed with a real test, not just by reading the
+  code: `tests/test_evolve_webui.py::test_evolve_with_a_grammar_adjacent_trait_still_keeps_typology_
+  identical` evolves with a grammar-adjacent trait override and asserts `word_order`/`alignment`/
+  `morphological_type`/`has_articles`/`has_overt_copula` stay identical to the base -- deliberately
+  excluding `tonal` from that comparison, since real tonogenesis (`sound_change.py`'s own intentionally-
+  modeled mechanism, citing real cases like Vietnamese/Punjabi) can legitimately flip a non-tonal
+  language to tonal during a long evolution run; this was found by first assuming full grammar-dict
+  equality, watching that assertion fail, and investigating the actual cause (tonogenesis firing) rather
+  than assuming the new endpoint was broken. `years <= 0` is rejected (400) -- unlike the combined
+  generate+evolve path's own "0 = none" convenience default, a dedicated evolve action with nothing to
+  do isn't a meaningful request. 8 tests in `tests/test_evolve_webui.py` cover: typology identity,
+  `years` validation (zero/negative), an unknown trait name (400), a 404 for an unknown language,
+  `dry_run` not saving, and `source_languages` merging additively with an existing lineage.
+
+  The web UI's own Evolve tab (`static/index.html`, `panel-evolve`) directly copies the Tweak tab's
+  proven preview/save shape rather than inventing a new one: `loadEvolveLanguage`/`runEvolve` mirror
+  `loadTweakLanguage`/`runTweak` almost line for line, and `renderTweakDiff`/`renderSoundInventoryDiff`
+  are reused completely unchanged (both were already generic over any before/after lexicon + phoneme-
+  inventory pair, not Tweak-specific) -- `renderTweakDiff` gained one new optional `saveButtonLabel`
+  parameter (default `"Save Tweaked Language"`) so its own preview copy reads correctly when Evolve
+  passes `"Save Evolved Language"` instead, rather than hardcoding Tweak's own wording into a function
+  two tabs now share. Two more pieces of Tweak's own logic were generalized rather than duplicated for
+  Evolve's own 15-trait, no-allowlist row set: `buildTweakTraitRows`/`collectTweakTraitOverrides` became
+  thin wrappers around new `buildPrefilledTraitRows(containerId, names, currentValues)`/
+  `collectPrefilledOverrides(containerId)`, and `addSourceLangRow`/`collectSourceLanguages` gained a
+  `containerId` parameter (defaulting to Generate's own `#source-lang-rows`) instead of being hardcoded
+  to Generate's own container. A new `EVOLVE_TRAIT_SECTION` (`= {...TRAIT_SECTION,
+  terrain_communication_distance: "grammar"}`) moves exactly the one trait the item just above this one
+  flagged as misleadingly shown under "Phonology" into "Grammar" for this tab specifically, since it has
+  zero fresh-generation effect but a real evolution-rate effect.
+
+  **Part B: grading reference languages on worldbuilding traits.** New optional `typical_<field>` fields
+  on `ReferenceLanguageProfile` (one per `core.traits.GRADED_TRAIT_FIELDS` name, `None` = not curated),
+  and a new `blend_toward_reference(traits, weighted_profiles, blend_weight) -> TraitProfile`
+  (`generation/reference_languages/__init__.py`): for each of the 15 fields, averages only the matched
+  profiles that curated that specific field (weighted, re-normalized across just that curated subset --
+  the same pattern `lexicon_gen._resolve_average_syllables` already uses for `core_vocabulary_average_
+  syllables`), then linearly interpolates the trait's current value toward that average by
+  `blend_weight` (0 = true no-op, 1 = snaps to the reference average). A field no matched profile
+  curated is left completely untouched, never defaulted to 0.0. Wired into both `/api/generate`
+  (`webui/app.py`) and `cli/main.py`'s shared generate/`--evolve-from` trait-resolution block, and into
+  the new Evolve endpoint above -- in every case right after `source_languages`/strictness are merged in
+  but *before* `trait_overrides` is applied, so an explicit override still wins outright (same precedence
+  every other explicit-vs-inferred channel in this project already has). Deliberately reuses
+  `source_language_strictness` as the blend weight rather than adding a new Advanced Options dial, a
+  documented v1 simplification to avoid growing that surface further. Curated 11 of ~53 profiles (17
+  trait values), each with a real linguistic/historical citation in its own YAML comment:
+  `social_hierarchy` for Japanese/Korean/Thai (honorific-register systems); `isolation`/
+  `community_scale`/`contact_intensity` for Icelandic/Hawaiian/Nahuatl/Navajo (real geographic/
+  historical isolation); `evidentiality_culture` for Quechua/Tibetan (grammaticalized evidential
+  systems); `contact_intensity` for Swahili/English (heavy-contact history). `ritual_register`/
+  `taboo_register`/`spatial_reference` (no confident real-world correlate) and `tonal_friendliness`
+  (would duplicate the existing `tonal: bool` field) are left uncurated project-wide, matching this
+  file's own established "curate what's genuinely documented, abstain otherwise" standard rather than
+  force-filling all 15 x 53 cells. 9 tests in `tests/test_reference_trait_blend.py` cover the pure
+  function (no match -> untouched, `blend_weight=0`/`=1.0`, partial curation only averaging the curated
+  subset, an uncurated field left untouched, linear interpolation at a partial weight, other fields
+  staying byte-identical) plus two end-to-end tests through `/api/generate`: a Japanese-sourced
+  generation at `strictness=1.0` with no explicit override nudges `social_hierarchy` to `0.9`
+  (Japanese's own curated value), and an explicit `trait_overrides` still wins outright over that blend.
+
+  Verified live through the real dev server, not just by test: evolving a saved language from the new
+  Evolve tab with an added source language (Dutch) and a 300-year run previews a word/sound-inventory
+  diff, saves as a new language, and Inspect shows both history steps (`"generated core language"`,
+  `"evolved 300 years (seed=0)"`); a Japanese-sourced-at-`strictness=1.0` generation through the live
+  `/api/generate` endpoint (no explicit override) returned `social_hierarchy: 0.9`; `--evolve-from`'s
+  own CLI output was smoke-tested against docs/CLI.md's first documented example and is unaffected.
+
+  **Inspect's own `history` rendering** -- `_language_summary` (`webui/app.py`) gained a `"history"` key
+  (`list(language.history)`, already recorded on every language at generation/evolution time but never
+  surfaced to the web UI before); `renderLanguageSummary` (`static/index.html`) renders it as a small
+  ordered list under Generation Details when non-empty. Pure frontend surfacing, no new backend
+  mechanism.
+
+  **Generate's own "Years of evolution" field** was removed from Advanced Options (web UI only, its
+  own `advanced-group` renamed from "Language Sources & Evolution" to "Language Sources"); the backend
+  field it posted (`evolve_years`) is unchanged, so a prompt that itself implies a time depth still
+  triggers evolution during fresh generation exactly as before -- only the manual override input is
+  gone, matching the user's own "Generate stays focused on a base language" framing of part (b).

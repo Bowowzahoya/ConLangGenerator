@@ -749,77 +749,83 @@ across ~50 profiles, not a formula tweak (M, bigger than the three traits just w
   is UI classification, not a new trait: once Evolution becomes its own
   tab/step (see the restructuring item just below), this trait -- and only
   this one -- should move there instead of staying under Phonology.
-- **Separate Generation from Evolution more clearly across the whole app (XL, needs its own design
-  pass before implementation) -- direct user request, raised as "help me think this out," not yet
-  designed.** Today `generate --evolve-from`/the web UI's own single `--years`/`evolve_years` field
-  bakes evolution into the *same* step as fresh generation (`generate_evolved_language` = generate,
-  then immediately evolve) -- there is no separate moment to inspect, tweak, or branch from the freshly
-  generated "base" before deciding how it should age. The user's own sketch, lightly organized:
-  - **(a) A separate Evolve tab/step,** letting the user evolve *any* saved language (including one
-    generated at 100% real-word/sound strictness from a single source profile -- today's only way to
-    get a "real" starting point, since nothing in this project represents an actual historical language
-    as a full `Language` object the way a generated one is; `evolve_language` itself already requires a
-    full `Language`, not a bare reference profile, so "evolve a real language" is already possible
-    today, just as a two-step "generate at strictness 1.0, then evolve" rather than one convenient
-    action -- worth keeping, since the two-step shape is also how multi-source blending below would
-    naturally work too). Conditions the user wants surfaced: current `terrain_communication_distance`
-    (already modeled, see the item just above), influencing language(s) and their mix (`source_
-    languages`/weights, already modeled for fresh generation -- `evolve_language` already merges a
-    lineage's own curated rules in, but doesn't yet let a *new* set of contact languages bias an
-    evolution run the way fresh generation's own `source_languages` can), whether re-evolving keeps old
-    words vs. only their sounds (this project's existing "regenerate vs. adapt" distinction, already
-    built for Tweak's own phonology-only case -- see ch. 12 -- generalizes directly here), and a more
-    free-text, prompt-like channel for *how* languages influence each other during a contact period
-    (the user's own example: "might expect more words in a particular area such as seafaring,"
-    inferred from a prompt) -- this last piece is new and would need its own extraction work in
-    `prompt_classifier.py`, not a reuse of an existing mechanism.
-  - **(b) Generate stays focused on a "base language,"** with no evolution step of its own -- `--years`/
-    `evolve_years` would move entirely to the new Evolve step; `source_languages` stays in Generate for
-    the sound/word "feel" it already provides (unchanged).
-  - **(c) A "Design" tab for a more complex, multi-source derived language** (evolution + several
-    source languages + a description of what happened during the evolution period, possibly one prompt
-    with sub-prompts for each base language it derives from) is the most novel, least-specified piece
-    of this proposal -- it isn't just a UI reorganization of (a)/(b), it implies a genuinely new
-    mechanism (blending/contact between *several* already-evolved or already-generated languages, not
-    just one base plus one evolution period) that doesn't exist in any form today. Recommend treating
-    this as a separate, later design pass once (a)/(b) are built and proven, not attempted in the same
-    effort.
-  - **(d) Inspect** would need to show a language's own generation-vs-evolution history more legibly
-    (today's `history: list[str]` field is a flat log of free-text strings, e.g. `"evolved 400 years"`
-    -- adequate for a human reading it, not structured enough to drive a UI distinguishing "base" from
-    "evolved" state cleanly).
-  - **(e) CLI:** per `AGENTS.md`'s own CLI discipline ("new capabilities do not automatically justify a
-    new top-level command... consider whether the capability belongs under an existing command first"),
-    recommend `generate --evolve-from` stays the CLI entry point rather than a new top-level `evolve`
-    command, since the web UI's own tab-separation constraint (clarity for a casual user clicking
-    through a form) doesn't apply the same way to a flag on an existing command a user already
-    explicitly invokes by name.
-  - **(f) The invented script evolving too, "grounded in reality"** -- deliberately bundled by the user
-    with this same restructuring, but really depends on ch. 12 item 11 (tweaking a script, which is
-    itself deferred as its own "deep dive into script" investigation) landing first: evolving a script
-    is a repeated/gradual version of the same "change stroke style while staying recognizably the same
-    glyph" problem, not a separate mechanism. Sequence this after that investigation, not in parallel
-    with it.
-
-  No part of (a)-(f) has been scoped into concrete functions/endpoints yet; this is a direction, not a
-  plan. The recommended first slice, if picked up, is (a)+(b) together (a genuine, already-mostly-
-  supported-by-existing-mechanisms separation), with (c) explicitly deferred further and (d)/(e)/(f)
-  following once (a)/(b) exist to react to.
+- **Separate Generation from Evolution more clearly across the whole app -- (a)+(b) done.** Direct
+  user request, scoped down from the original six-part (a)-(f) sketch to the two parts confirmed as
+  already-mostly-supported by existing mechanisms:
+  - **(a) A separate Evolve tab**, `POST /api/languages/{slug}/evolve` (new `EvolveRequest`/
+    `evolve_language_endpoint`, `webui/app.py`), mirroring `/api/languages/{slug}/tweak`'s own shape
+    but with **no trait allowlist** -- confirmed by reading `_evolve_grammar_affixes`/`word_class_gen.
+    apply_word_class` that `sound_change.evolve_language` never re-rolls grammar typology (word order,
+    alignment, morphological_type, word classes) no matter which of the 15 `GRADED_TRAIT_FIELDS`
+    change, unlike fresh generation's own shared-rng grammar roll -- so, unlike Tweak's own
+    `PHONOLOGY_ONLY_TRAIT_FIELDS` restriction, every trait is safe here. Confirmed with a real test
+    (`tests/test_evolve_webui.py::test_evolve_with_a_grammar_adjacent_trait_still_keeps_typology_
+    identical`), not just by reading the code. `source_languages` merge *additively* with the base's
+    own existing lineage (already `evolve_language`'s own behavior, just not previously reachable from
+    the web UI); `years <= 0` is rejected outright (a dedicated evolve action with nothing to do isn't
+    a meaningful request, unlike the combined path's own "0 = none" convenience default). The web UI's
+    own Evolve tab (`index.html`, `panel-evolve`) copies the Tweak tab's proven preview/save shape
+    directly -- `loadEvolveLanguage`/`runEvolve` mirror `loadTweakLanguage`/`runTweak`, and
+    `renderTweakDiff`/`renderSoundInventoryDiff` are reused as-is (both already generic over any
+    before/after lexicon + phoneme-inventory pair) -- plus a new `buildPrefilledTraitRows`/
+    `collectPrefilledOverrides` pair generalizing what used to be Tweak-only logic, and a generalized
+    `addSourceLangRow(containerId)`/`collectSourceLanguages(containerId)` shared with Generate's own
+    source-language rows rather than duplicated. `terrain_communication_distance` (see the item above
+    this one) is shown under this tab's own "Grammar" fieldset rather than "Phonology"
+    (`EVOLVE_TRAIT_SECTION`), fixing exactly the misleading classification that item flagged.
+  - **(b) Generate stays focused on a base language.** The "Years of evolution" input was removed from
+    Generate's own Advanced Options (web UI only); `evolve_years`/`generate_evolved_language`/CLI's own
+    `--years` are unchanged at the backend/CLI level -- a prompt that itself implies a time depth
+    (e.g. "...evolved over 500 years") still triggers evolution during fresh generation exactly as
+    before, only the manual override input is gone. `--evolve-from` was already the CLI's own dedicated
+    entry point and needed no change; confirmed unaffected with a live smoke run of docs/CLI.md's own
+    first `--evolve-from` example.
+  - **(c)-(f)** (a "Design" tab for multi-source derived languages; richer structured `history`
+    beyond Inspect's new flat list below; a CLI discussion, resolved as "no change needed"; the
+    invented script evolving too) remain deferred, same reasoning as originally written: (c) implies a
+    genuinely new blending-between-several-already-evolved-languages mechanism that doesn't exist in
+    any form today; (f) depends on ch. 12 item 11 (tweaking a script) landing first.
+  - **Inspect** now renders `Language.history` as a small ordered list under Generation Details
+    (`_language_summary` gained a `"history"` key, `webui/app.py`; pure frontend surfacing in
+    `renderLanguageSummary`, no new backend mechanism) -- previously recorded on every language but
+    never shown anywhere in the web UI.
+  - Verified live through the real dev server: evolving a saved language from the new tab with an
+    added source language (Dutch) and a 300-year run previews a word/sound-inventory diff, saves as a
+    new language, and Inspect shows both history steps (`"generated core language"`, `"evolved 300
+    years (seed=0)"`); `--evolve-from`'s own CLI output is unaffected (smoke-tested above).
 - **Grade every curated real language on all 15 worldbuilding traits, including the evolution-only
-  ones, as an extra blending weight (L).** Direct user request: when generating a language "like"
-  several real ones, the conlang could take on some of those reference languages' own typical
-  worldbuilding-trait leanings (e.g. an isolated-community-typical language nudging toward the same
-  grammar typology an isolated real language tends to have), weighted independently of -- not instead
-  of -- the existing sound/word-strictness mechanism, which only ever governs the phonological/lexical
-  palette. This is a real, coherent idea but a large one: it needs a documented, defensible trait
-  reading for every one of ~53 curated `ReferenceLanguageProfile`s across all 15 dials (most of which
-  have no agreed-on objective measure at all -- `social_hierarchy`/`ritual_register`/`taboo_register`
-  in particular are cultural judgments, not phonological facts the way `core_vocabulary_average_
-  syllables` is), a new blending formula distinct from today's sound/word strictness (itself already a
-  two-strictness-dial system, see ch. 4), and a decision on how this new "cultural/typological" weight
-  interacts with the classifier's own prompt-inferred trait reading when both apply to the same trait.
-  Not attempted here; flagged as a real but substantial future direction, likely the single largest
-  curation effort in this list.
+  ones, as an extra blending weight -- done, for a defensible curated subset (not all ~53 profiles).**
+  New optional `typical_<field>` fields on `ReferenceLanguageProfile` (one per `GRADED_TRAIT_FIELDS`
+  name, deliberately prefixed `typical_` rather than `real_`, since these are this project's own
+  cultural/typological characterization rather than hard phonological facts the way `real_word_order`
+  is), `None` meaning "not curated" -- the same "abstain rather than guess" convention every other
+  optional profile field already follows. New `blend_toward_reference(traits, weighted_profiles,
+  blend_weight) -> TraitProfile` (`generation/reference_languages/__init__.py`): per trait, averages
+  only the matched profiles that actually curated that specific field (weighted, re-normalized across
+  just that subset -- the same pattern `lexicon_gen._resolve_average_syllables` already uses for
+  `core_vocabulary_average_syllables` -- an uncurated field is left completely untouched, never treated
+  as a silent "0.0 vote"), then linearly interpolates the trait's current value toward that average by
+  `blend_weight` (0 = true no-op, 1 = snaps to the reference average). Wired into both `/api/generate`
+  and the new Evolve endpoint above, right after `source_languages`/strictness are merged in but
+  *before* `trait_overrides` -- so an explicit override still wins outright, the same precedence every
+  other explicit-vs-inferred channel in this project already has. **Deliberately reuses
+  `source_language_strictness` as the blend weight** rather than adding a new Advanced Options dial, a
+  documented v1 simplification. Curated 11 of ~53 profiles (17 trait values total), each with a real
+  linguistic/historical citation in its own YAML comment, not a guessed number: `social_hierarchy` for
+  Japanese (0.9)/Korean (0.9)/Thai (0.8) (well-documented honorific-register systems); `isolation`/
+  `community_scale`/`contact_intensity` for Icelandic (0.9/0.6/-0.8), Hawaiian (0.95 isolation,
+  -0.7 orality_literacy), Nahuatl (0.5 community_scale), Navajo (0.6/0.6); `evidentiality_culture` for
+  Quechua (0.9)/Tibetan (0.85) (extensively documented grammaticalized evidential systems);
+  `contact_intensity` for Swahili (0.85)/English (0.8, with -0.7 community_scale). `ritual_register`/
+  `taboo_register`/`spatial_reference` (no confident real-world correlate found) and
+  `tonal_friendliness` (would just duplicate the existing `tonal: bool` field) are left uncurated
+  project-wide for v1, matching every other profile field's own "curate what's genuinely documented,
+  abstain otherwise" standard rather than force-filling all 15 x 53 cells. Verified end to end, not
+  just unit-tested: a Japanese-sourced generation at strictness 1.0 with no explicit trait override
+  nudges `social_hierarchy` to 0.9 (confirmed live through the real dev server, and in
+  `tests/test_reference_trait_blend.py`'s own end-to-end test), while an explicit `trait_overrides`
+  still wins outright. Remaining curation (the other ~42 profiles, the three uncurated-for-now traits)
+  is still a real, substantial future direction if picked back up later, just no longer unscoped.
 - **Tweaking a saved language's own traits and regenerating -- plan written up as its own chapter.**
   See `## 12. Tweaking an existing language` below.
 - **Orthography reform is partial -- done (pass 42 + two follow-ups).**

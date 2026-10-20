@@ -126,6 +126,8 @@ real_adjective_after_noun: false     # real Korean attributive adjectives preced
 real_case_count: null                # real Korean marks grammatical relations with case particles, not fused inflectional suffixes -- same abstention reasoning as Japanese's own profile
 foreign_name_handling: adapt      # hangeul rendering fits names to Korean syllable structure
 
+typical_social_hierarchy: 0.9   # real Korean has an extensively documented, grammaticalized honorific system (speech levels marked on the verb itself -- haeyo-che/hasipsio-che/etc. -- plus honorific nouns/particles), on a par with Japanese keigo as one of the most-cited real honorific systems in linguistics
+
 attested_onset_clusters:
   # glide onsets (Korean medial /j w/ are written as onset clusters)
   - [h, j]
