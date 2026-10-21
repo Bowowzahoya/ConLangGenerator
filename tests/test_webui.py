@@ -46,6 +46,26 @@ def test_generate_returns_a_language_summary_with_words_grammar_and_cost(client)
     assert body["cost"]["delta_usd"] == 0.0  # fake backend never spends
 
 
+def test_lexicon_entries_report_their_own_compound_or_derived_word_formation(client):
+    # Seed/trait combo already confirmed (test_word_formation.py) to build "teacher" via a real
+    # agent-derivation rule for this exact seed -- a real structured cross-reference, not a guess.
+    body = client.post(
+        "/api/generate",
+        json={
+            "prompt": "a plain language", "name": "Webformation", "seed": 1, "llm": "fake",
+            "vocabulary_size": 496, "trait_overrides": {"compound_likelihood": 1.0},
+        },
+    ).json()
+    assert {"compound_of", "derived_from", "notes"} <= body["lexicon"][0].keys()
+    teacher = next(e for e in body["lexicon"] if e["gloss"] == "teacher")
+    assert teacher["derived_from"] == "teach"
+    assert teacher["compound_of"] is None
+    assert "agent of teach" in teacher["notes"]
+    # An ordinary, unrelated word carries neither -- a no-op, not an empty-but-present marker.
+    water = next(e for e in body["lexicon"] if e["gloss"] == "water")
+    assert water["compound_of"] is None and water["derived_from"] is None
+
+
 def test_generate_pregenerates_audio_when_requested(client):
     response = client.post(
         "/api/generate",

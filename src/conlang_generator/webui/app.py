@@ -301,6 +301,13 @@ def _language_summary(language: Language) -> dict:
                     else None
                 ),
                 "script_text": script_render.render_word(language.script, entry.ipa) if language.script else None,
+                # Word-formation cross-reference (`compound_likelihood`'s own mechanism, see
+                # `generation.derivation_gen`) -- `compound_of`/`derived_from` give the frontend a
+                # structured link to render as a clickable chip; `notes` (already free-text, already
+                # surfaced on the Translate tab's own gloss tooltip) explains *how* (which rule).
+                "compound_of": list(entry.compound_of) if entry.compound_of else None,
+                "derived_from": entry.derived_from,
+                "notes": entry.notes or None,
             }
             for entry in sorted(language.lexicon.entries, key=lambda e: e.primary_gloss)
         ],

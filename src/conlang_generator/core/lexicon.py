@@ -95,6 +95,16 @@ class LexicalEntry(BaseModel, frozen=True):
     archaic-synonym fallback -- and the same structure is what a future
     "compound ossification during evolution" pass, see docs/DEFERRED.md,
     would need to detect a boundary that could erode)."""
+    derived_from: str | None = None
+    """The single base gloss this word was derived from by an affix, a
+    root-and-pattern template, or ablaut (see ``translation.translator``'s
+    ``_derived_entry``/``_pattern_derived_entry``) -- ``None`` for a
+    compound (``compound_of`` above) or a fresh coinage. The ``compound_of``/
+    ``derived_from`` split mirrors the real linguistic distinction (two
+    roots joined vs. one root transformed), and exists for the same reason
+    ``compound_of`` does: a structured link the web UI's own lexicon table
+    can turn into a clickable cross-reference, instead of only the
+    free-text ``notes`` every strategy already writes."""
 
     @property
     def primary_gloss(self) -> str:

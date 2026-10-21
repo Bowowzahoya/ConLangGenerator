@@ -8805,3 +8805,20 @@ reading code or one-off ad hoc scripts.
   exercises the full recursive coinage path end-to-end (new, never-seen components like `geta`/`getb`
   coined fresh and added to the lexicon, vocabulary growing from 496 to 664 words in one run) using
   only the free fake backend.
+
+  **Immediate follow-up: surfacing word formation in the web UI's own lexicon table, direct user
+  request.** `_derived_entry`/`_pattern_derived_entry` only ever wrote their base gloss into free-text
+  `notes` (`"derived: agent of teach"`) -- no structured link, unlike `_compound_entry`'s own
+  `compound_of`. New `LexicalEntry.derived_from: str | None` mirrors `compound_of` for exactly this
+  case (one base gloss instead of two component glosses), set by both derivation builders. `webui/
+  app.py`'s lexicon JSON now includes `compound_of`/`derived_from`/`notes` (previously sent none of
+  the three). `index.html`'s `renderLexiconRow` appends a `formationBadge` right after a word's own
+  gloss -- `"= under + stand"` for a compound, `"&larr; teach"` for a derived word, each base gloss a
+  clickable `.gloss-link` (only rendered clickable when the target is actually a row in this same
+  table, computed once per render as `lexiconGlossSet` rather than risking a dead-end click) -- that
+  scrolls the referenced row into view and flashes it (`jumpToLexiconRow`, a new small addition to
+  the table's own existing delegated click handler; no jump-to-row mechanism existed anywhere in this
+  file before this). Verified: 2 new/extended unit tests (`test_derivation.py`,
+  `test_webui.py`) plus a live dev-server check -- generating with `compound_likelihood=1.0` shows
+  `teacher ← teach` in the real Inspect table, and clicking `teach` scrolls to and flashes that exact
+  row; a synthetic compound entry confirms the "= moon + light" two-link rendering. Full suite green.

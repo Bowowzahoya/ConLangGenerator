@@ -101,6 +101,11 @@
   button.badge { border: none; font: inherit; font-family: var(--mono); }
   .badge[data-info] { cursor: pointer; border-bottom: 1px dotted var(--accent); }
   .badge[data-info]:hover { background: var(--accent); color: var(--panel); }
+  .formation-badge { cursor: help; }
+  .gloss-link { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
+  .gloss-link:hover { opacity: 0.7; }
+  @keyframes row-flash { from { background: var(--accent-bg); } to { background: transparent; } }
+  .row-flash { animation: row-flash 1.4s ease-out; }
   .sound-badge, .tone-badge {
     font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--accent-bg);
     color: var(--accent); font-family: var(--mono); border: none; cursor: pointer;
@@ -2223,6 +2228,10 @@ function renderLanguageSummary(container, summary) {
       ${summary.history.map(step => `<li>${escapeAttr(step)}</li>`).join("")}
     </ol>` : ""}`);
 
+  // Which glosses this lexicon actually has a row for -- a compound/derived word's own cross-
+  // reference link only renders clickable when its target really is in this same table, rather
+  // than risking a dead-end click if it somehow isn't.
+  const lexiconGlossSet = new Set(summary.lexicon.map(e => e.gloss));
   container.innerHTML = `
     <div class="card">
       <h2 style="margin-top:0">${summary.name} <span class="ipa">(${summary.slug})</span>
@@ -2253,7 +2262,7 @@ function renderLanguageSummary(container, summary) {
         <table>
           <thead><tr><th></th><th>gloss</th><th>pos</th><th>word</th><th>IPA</th>${summary.script ? "<th>script</th>" : ""}<th></th></tr></thead>
           <tbody id="lexicon-tbody">
-            ${summary.lexicon.map(e => renderLexiconRow(e, summary.slug, !!summary.script)).join("")}
+            ${summary.lexicon.map(e => renderLexiconRow(e, summary.slug, !!summary.script, lexiconGlossSet)).join("")}
           </tbody>
         </table>
       </div>
@@ -2269,19 +2278,55 @@ function renderLanguageSummary(container, summary) {
 // normal display and (via startEditingRow below) restoring a row after
 // an edit is cancelled. `data-search`/`data-gloss` carry what the filter
 // and the edit/save handlers need without a second lookup structure. ---
-function renderLexiconRow(e, slug, hasScript) {
+function renderLexiconRow(e, slug, hasScript, glossSet) {
   const langSlug = slug !== undefined ? slug : (currentSummary ? currentSummary.slug : "");
   const showScript = hasScript !== undefined ? hasScript : !!(currentSummary && currentSummary.script);
+  const words = glossSet !== undefined ? glossSet : (currentSummary ? new Set(currentSummary.lexicon.map(x => x.gloss)) : new Set());
   const search = `${e.gloss} ${e.pos} ${e.romanization} ${e.ipa} ${e.provenance || ""}`.toLowerCase();
   return `<tr data-gloss="${e.gloss}" data-search="${search}">
     <td><button type="button" class="word-play-btn" data-ipa="${e.spoken_ipa}" title="Play pronunciation">&#128266;</button><button type="button" class="sound-guide-btn" data-slug="${escapeAttr(langSlug)}" data-ipa="${escapeAttr(e.spoken_ipa)}" title="How to pronounce each sound">&#128270;</button></td>
-    <td>${e.gloss}</td>
+    <td>${e.gloss}${formationBadge(e, words)}</td>
     <td>${e.pos}</td>
     <td class="lex-romanization">${e.romanization}${e.provenance ? ` <span class="badge" title="${e.provenance}">real</span>` : ""}</td>
     <td class="ipa lex-ipa">/${e.ipa}/</td>
     ${showScript ? `<td class="lex-script" style="font-family:'ConlangScript-${escapeAttr(langSlug)}'; font-size:18px;">${e.script_text || ""}</td>` : ""}
     <td><button type="button" class="word-edit-btn" title="Edit this word">&#9998;</button></td>
   </tr>`;
+}
+
+// --- word-formation cross-reference badge: "= under + stand" for a compound, "<- teach" for a
+// derived word (agent/abstract/ablaut/...), appended right after the gloss itself. Each base gloss
+// renders as a clickable `.gloss-link` (only when it's really a row in this same table -- see
+// `jumpToLexiconRow` below) rather than plain text, and the badge's own title carries this word's
+// full `notes` (the free-text "derived: agent of teach" explanation every strategy already writes),
+// so hovering explains *how*, not just *from what*. ---
+function glossLinkHtml(gloss, glossSet) {
+  return glossSet.has(gloss)
+    ? `<a href="#" class="gloss-link" data-jump-gloss="${escapeAttr(gloss)}">${gloss}</a>`
+    : gloss;
+}
+function formationBadge(e, glossSet) {
+  if (e.compound_of && e.compound_of.length) {
+    const parts = e.compound_of.map(g => glossLinkHtml(g, glossSet)).join(" + ");
+    return ` <span class="badge formation-badge" title="${escapeAttr(e.notes || "")}">= ${parts}</span>`;
+  }
+  if (e.derived_from) {
+    return ` <span class="badge formation-badge" title="${escapeAttr(e.notes || "")}">&larr; ${glossLinkHtml(e.derived_from, glossSet)}</span>`;
+  }
+  return "";
+}
+// Scrolls a cross-referenced word's own row into view and flashes it, clearing an active search
+// filter first (a linked word could otherwise be hidden by an unrelated query with no visible
+// effect at all). Does nothing if the target row genuinely isn't in this table.
+function jumpToLexiconRow(gloss) {
+  const row = [...document.querySelectorAll("#lexicon-tbody tr")].find(tr => tr.dataset.gloss === gloss);
+  if (!row) return;
+  const searchBox = $("lexicon-search");
+  if (searchBox && searchBox.value) { searchBox.value = ""; filterLexiconTable(""); }
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  row.classList.remove("row-flash");
+  void row.offsetWidth; // restart the CSS animation even if the same row was just flashed
+  row.classList.add("row-flash");
 }
 
 // --- per-word pronunciation, from the lexicon table (event-delegated --
@@ -2392,6 +2437,8 @@ document.addEventListener("click", (e) => {
   if (refPlayBtn) { playWordPronunciation(refPlayBtn, refPlayBtn.dataset.ipa, "reference-audio-error"); return; }
   const sgBtn = e.target.closest(".sound-guide-btn");
   if (sgBtn) { toggleSoundGuide(sgBtn); return; }
+  const glossLinkEl = e.target.closest(".gloss-link");
+  if (glossLinkEl) { e.preventDefault(); jumpToLexiconRow(glossLinkEl.dataset.jumpGloss); return; }
   const soundBadge = e.target.closest(".sound-badge");
   if (soundBadge) { toggleSoundBadge(soundBadge); return; }
   const toneBadge = e.target.closest(".tone-badge");

@@ -128,6 +128,7 @@ def test_a_derived_word_is_its_base_plus_the_languages_own_exponent():
     coined: list = []
     updated, entry = _lookup_or_coin(language, "happiness", PartOfSpeech.NOUN, coined, _CLIENT, ["happiness"])
     assert entry.notes == "derived: abstract of happy" and entry.pos is PartOfSpeech.NOUN
+    assert entry.derived_from == "happy" and entry.compound_of is None
     assert entry.glosses == ("happiness",) and coined == [entry]
     assert entry.ipa != base.ipa
     stripped = entry.ipa.replace("ˈ", "")
@@ -197,6 +198,7 @@ def test_a_compound_joins_modifier_and_head_in_the_languages_order():
         moon, light = language.lexicon.by_gloss("moon"), language.lexicon.by_gloss("light")
         _, entry = _lookup_or_coin(language, "moonlight", PartOfSpeech.NOUN, [], _CLIENT, ["moonlight"])
         assert entry.notes == "compound: moon + light"
+        assert entry.compound_of == ("moon", "light") and entry.derived_from is None
         first, second = (moon, light) if order == "modifier_head" else (light, moon)
         plain = entry.ipa.replace("ˈ", "")
         assert plain.startswith(first.ipa.replace("ˈ", "")[:2]) and plain.endswith(second.ipa.replace("ˈ", "")[-2:])

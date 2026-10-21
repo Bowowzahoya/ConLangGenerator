@@ -1206,6 +1206,7 @@ def _pattern_derived_entry(language: Language, base: LexicalEntry, rule, token: 
     return LexicalEntry(
         ipa=ipa, romanization=spelled, glosses=(token,), pos=pos, root=base.root,
         notes=f"derived: {rule.name} of {base.primary_gloss} (pattern {rule.pattern})",
+        derived_from=base.primary_gloss,
     )
 
 
@@ -1232,6 +1233,7 @@ def _derived_entry(language: Language, base: LexicalEntry, rule, token: str) -> 
     return LexicalEntry(
         ipa=ipa, romanization=spelled, glosses=(token,), pos=PartOfSpeech(rule.pos_out), tones=base.tones,
         notes=f"derived: {rule.name} of {base.primary_gloss}" + (" (ablaut)" if rule.stem_change else ""),
+        derived_from=base.primary_gloss,
     )
 
 
