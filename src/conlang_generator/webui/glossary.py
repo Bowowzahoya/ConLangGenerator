@@ -349,6 +349,12 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
         "positive": "Serif-like hooks/flourishes at stroke ends.",
         "negative": "Plain, unadorned stroke ends.",
     },
+    "stroke_continuity": {
+        "kind": "bipolar",
+        "summary": "Whether one stroke starts where the last one ended, or lifts and restarts elsewhere.",
+        "positive": "Strokes chain continuously, start-to-end, rarely lifting.",
+        "negative": "Strokes often lift and restart fresh, as in multi-component letters like F or H.",
+    },
 }
 
 # --- grammar badges: categorical, not graded -- a general description of

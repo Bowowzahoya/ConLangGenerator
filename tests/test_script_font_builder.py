@@ -14,7 +14,7 @@ from fontTools.pens.recordingPen import RecordingPen  # noqa: E402
 
 from conlang_generator.core.script import ScriptTraits
 from conlang_generator.generation import script_gen
-from conlang_generator.script.font_builder import _build_glyph_outline, build_font, codepoint_for_symbol_index
+from conlang_generator.script.font_builder import UPM, _build_glyph_outline, build_font, codepoint_for_symbol_index
 from tests._shared_language import cached_language
 
 
@@ -100,8 +100,8 @@ def test_every_contour_in_a_glyph_winds_the_same_direction():
     # Forcing terminal_style/diacritic_density/complexity/symmetry to +1.0
     # guarantees this glyph has feet, dots, lines, and arcs all at once.
     traits = ScriptTraits(terminal_style=1.0, diacritic_density=1.0, complexity=1.0, symmetry=1.0, angularity=0.0)
-    glyph = script_gen.generate_glyph(random.Random(1), "p", traits)
-    outline, has_contour = _build_glyph_outline(glyph, 0, traits)
+    glyph = script_gen.generate_glyph(random.Random(1), "p", traits, 2, 2)
+    outline, has_contour = _build_glyph_outline(glyph, 0, traits, UPM / 2, UPM / 2)
     assert has_contour
     areas = _contour_signed_areas(outline)
     nonzero_signs = {1 if a > 0 else -1 for a in areas if abs(a) > 1e-6}

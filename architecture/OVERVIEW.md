@@ -9021,3 +9021,76 @@ reading code or one-off ad hoc scripts.
   generate --name no-prompt-demo --seed 1 --llm fake --trait tone_sandhi=0.9 --trait altitude=-0.7`
   (no `--prompt` flag anywhere on the command line) generated normally, with the two explicit trait
   overrides still showing under "Traits from prompt" exactly as they would alongside real prompt text.
+
+  **Pass 50: invented-script redesign -- connected strokes, smaller grid, cheap letter-joining, the
+  other two ideas from the same brainstorming pass.** Direct report: "the scripts look much too random
+  right now... real alphabets often have something that looks like an o, or some very simple letters."
+  Root cause, confirmed by reading the actual code rather than assumed: `generation/script_gen.py::
+  _random_line_or_arc` drew a stroke's `start` *and* `end` as two fully independent random grid points
+  -- strokes never related to each other at all, so a glyph was just a pile of unrelated line/arc
+  segments. The user's own second ask (a cheap way to make letters visually join their neighbors,
+  "easiest solved by letting letters always begin and end in the same spot") mapped directly onto
+  `ScriptTraits.connectivity` -- a dial that already existed, already rolled per language, and was
+  consumed by nothing at all.
+
+  Investigated first via two sequential sub-agent passes (an Explore pass mapping every relevant
+  function/field/test across `script_gen.py`/`core/script.py`/`script/font_builder.py`, then a Plan
+  pass validating a draft design against that ground truth) before writing the final plan -- caught
+  several real issues a surface-level design would have missed: `ScriptTraits`' field *order* is its
+  own rng-draw order in `roll_script_traits`, so a new dial had to be appended last, not inserted
+  anywhere else, to avoid silently shifting every later dial's own roll; `tests/test_glossary.py`
+  asserts exact-set-equality between `SCRIPT_TRAIT_GLOSSARY` and `ScriptTraits.model_fields`, making a
+  glossary entry for the new dial mandatory, not optional; `storage/yaml_backend.py` needed no
+  `_FILE_FIELDS` change at all (new sub-fields of an already-covered field persist automatically); and
+  `height_variance`'s existing row-restriction would flatten a glyph onto one row on the new "wide"
+  grid shape if left unguarded.
+
+  What shipped, building on the existing primitives rather than replacing them (`Stroke`/`Point`, the
+  existing 15 dials, `angularity`'s existing line-vs-arc role, all unchanged):
+  - A grid shape is now rolled once per script (`script_gen.roll_grid_shape`, same weighted-tuple
+    pattern as `_DIRECTION_WEIGHTS`): 2x2 cells ~70% of the time (the common, "stocky" case the user
+    asked for), 1x2/2x1 "tall"/"wide" the rest. All three are *smaller* than the old fixed 4x4-point
+    grid, so `Point`'s own `ge=0, le=3` bound needed no widening at all. `InventedScript.grid_max_x`/
+    `grid_max_y` (both defaulting to 3) persist the roll; `font_builder.py`'s own separately-hardcoded
+    `_GRID_MAX`/`_GRID_UNIT` were removed and threaded through as real parameters instead (`grid_unit_x`/
+    `grid_unit_y`, computed once in `build_font`).
+  - A new 16th `ScriptTraits` dial, `stroke_continuity`, replaces independent stroke endpoints with a
+    chain: each new stroke's `start` is the previous stroke's own `end` with probability `lerp(stroke_
+    continuity, 0.15, 0.95)` -- never quite 0% or 100%, so a near-fully-connected script still gets the
+    rare multi-component letter (F, H), and a mostly-disconnected one can still coincidentally chain.
+  - A corner-coverage quality gate (`_touches_enough_corners`, `_build_stroke_chain`): a small, connected
+    grid risks a glyph too sparse to read clearly, so the whole chain is regenerated (bounded retry,
+    8 attempts, same bounded-retry spirit as the pre-existing zero-length-stroke `tries < 5` loop) until
+    it touches at least 2 (or 3, if `complexity > 0`) of the grid's 4 extreme corners.
+  - `connectivity` (the user's own 2nd ask) now does something: above its own 0.3 threshold, and only
+    for horizontal directions (`LTR`/`RTL` -- vertical joining is a separate, unattempted follow-up),
+    `generate_script`'s new `_apply_connectivity` pins a glyph's overall first and last *non-dot* stroke
+    to two fixed baseline anchor points (swapped for RTL), so adjacent glyphs visually touch/align at
+    the baseline when typeset in sequence -- a cheap approximation, not real OpenType GSUB contextual
+    substitution (`docs/DEFERRED.md`'s own "True cursive joining" item updated to reflect exactly this
+    split: covered now vs. still genuinely deferred).
+  - Symmetry's existing mirror-half-the-strokes branch was adapted to mirror a connected sub-chain
+    rather than independent strokes, so both the mirroring and the corner gate see fully chain-aware
+    output.
+
+  Explicitly not attempted, logged as separate follow-ups: a new decorative-stroke-end dial (`terminal_
+  style` already draws serif-like "feet" at line endpoints -- re-checked against the new connected base
+  visually, nothing needed changing); a richer diacritic-as-composed-mini-glyph system (own grid, own
+  style, anchor-based placement -- reuses `Glyph.anchors`, already future-proofed for exactly this,
+  still always empty today); vertical cross-letter joining.
+
+  Verified: 18 new/updated tests (`tests/test_script_gen.py` -- grid-shape distribution and persistence,
+  `stroke_continuity`'s chaining rate at both extremes, its own rng-stream non-interference, the corner-
+  coverage gate's own lower bound, `_apply_connectivity`'s LTR/RTL/vertical-no-op/dot-exclusion cases;
+  signature fixes at every direct `generate_glyph`/`_build_glyph_outline` call site in `tests/test_
+  script_gen.py`/`tests/test_script_font_builder.py`, including a hardcoded `3 - x` mirror check that
+  was silently assuming the old fixed grid size); full suite green (2369 passed, 17 skipped, no
+  re-pinning needed beyond the direct signature fixes -- the grid-shape roll's own rng-stream shift
+  changed glyph geometry everywhere, but nothing else asserted specific literal coordinates). **The
+  real bar, per this redesign's own fundamentally visual nature**: built real fonts from the identical
+  seed under the old code (`git stash`) and the new code side by side, rendered both via `@font-face`
+  in the browser -- the old code's glyphs are genuinely scattered, crossing, unrelated line segments;
+  the new code's are visibly coherent, connected shapes under both `stroke_continuity=+1.0` and `-1.0`;
+  a `connectivity=1.0` script's own glyphs visibly share baseline entry/exit points. `--script-trait
+  stroke_continuity=1.0` worked with zero CLI/web-UI code changes (both derive their dial allowlist
+  dynamically from `ScriptTraits.model_fields`), verified directly rather than assumed.

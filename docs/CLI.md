@@ -1821,7 +1821,7 @@ and cleaner.
 ## `conlang script`
 
 Show or export a language's own invented writing system -- a
-procedurally generated glyph for each sound, in the style of 15 graded
+procedurally generated glyph for each sound, in the style of 16 graded
 dials (sharp vs. smooth, bold vs. thin, symmetric vs. asymmetric, ...)
 and a writing direction (left-to-right, right-to-left, top-to-bottom,
 ...) rolled once for that language. Not every language has one -- it's
@@ -1912,19 +1912,35 @@ conlang generate --prompt "a mountain language" --name doc-script-test --own-scr
 
 ### `generate --script-trait`
 
-Once a script is generated, its 15 style dials (`angularity`, `stroke_contrast`, `weight`,
+Once a script is generated, its 16 style dials (`angularity`, `stroke_contrast`, `weight`,
 `complexity`, `connectivity`, `symmetry`, `proportion`, `slant`, `openness`, `regularity`, `density`,
-`height_variance`, `diacritic_density`, `grid_alignment`, `terminal_style` -- see
+`height_variance`, `diacritic_density`, `grid_alignment`, `terminal_style`, `stroke_continuity` -- see
 `architecture/OVERVIEW.md`/`core/script.py` for what each one means) are rolled from the language's
 own seed, same as everything else. `--script-trait NAME=VALUE` (repeatable, one per dial) sets a
 specific dial directly instead, `VALUE` the same -1.0..1.0 range as `--trait` -- NAME is checked
-against this own, separate 15-dial list, not the 15 worldbuilding `--trait` names. Overriding a dial
+against this own, separate 16-dial list, not the 15 worldbuilding `--trait` names. Overriding a dial
 only takes effect when a script is actually generated (`--own-script yes`, or a prompt `auto` infers
 one from); every other, unforced dial still rolls normally.
 
 ```bash
 conlang generate --prompt "a mountain language" --name doc-script-trait-test --own-script yes \
   --script-trait angularity=1.0 --script-trait weight=-1.0
+```
+
+`stroke_continuity` governs whether a glyph's own strokes chain continuously (each new stroke
+starting where the last one ended) or lift and restart fresh elsewhere, as a real multi-component
+letter like F or H would need -- the mechanism behind generated scripts looking like coherent
+letterforms rather than piles of unrelated line segments (see `architecture/OVERVIEW.md`'s pass-50
+entry):
+
+```bash
+conlang generate --prompt "a mountain language" --name doc-stroke-continuity-test --own-script yes \
+  --script-trait stroke_continuity=1.0
+conlang script --lang doc-stroke-continuity-test
+```
+
+```
+'doc-stroke-continuity-test' has an invented script: 27 glyphs, direction ltr. Use --sounds to list them or --export to compile a font file.
 ```
 
 ```

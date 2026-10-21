@@ -214,13 +214,14 @@ multi-session feature.
   call is expensive" item above), not attempted in Phase 1. Only
   *whether* a script gets generated at all is prompt-inferred
   (`TraitProfile.requested_own_script`), not what it looks like.
-- **True cursive joining (M-L).** `ScriptTraits.connectivity` is rolled
-  and stored but not yet consumed by the font builder -- real contextual
-  joining (a different glyph form depending on word position, Arabic-
-  style) needs OpenType contextual substitution (GSUB), a genuinely
-  bigger feature than placing isolated glyphs, not attempted here. The
-  same "extracted, not yet consumed" honesty `core.traits.TraitProfile`
-  already applies to several of its own fields.
+- **True cursive joining -- partly done (pass 50).** `ScriptTraits.connectivity` now drives a cheap
+  approximation: when it's above threshold (and the script's own direction is horizontal, `LTR`/
+  `RTL`), `generate_script` pins every glyph's own first and last non-dot stroke to two fixed
+  baseline anchor points, so adjacent glyphs' shapes visually touch/align at the baseline when
+  typeset in sequence -- "letters always begin and end in the same spot," direct user request. Real
+  contextual joining (a *different* glyph form depending on word position, Arabic-style) still needs
+  OpenType contextual substitution (GSUB), a genuinely bigger feature than two glyphs' shapes merely
+  touching, not attempted here; vertical (TTB) directions are also untouched by the new mechanism.
 - **Smooth (not polygon-approximated) arc outlines (S).** `script.
   font_builder`'s own arc strokes are a short chain of straight-line
   segments sampling a curve, not a true smooth Bezier outline --
@@ -1399,7 +1400,7 @@ traits get picked or how fast they act) but requiring unrelated fixes with very 
 ## 14. Generation without a prompt, and script realism
 
 Three user-proposed ideas from a single brainstorming pass, logged together but independent in size
-and scope -- not yet designed or implemented.
+and scope -- all three now done (passes 49-50).
 
 - **Allow generating a language with no prompt text, from traits alone -- done (pass 49).**
   `GenerationSpec.prompt` and the webui's `GenerateRequest.prompt` both now default to `""`; `generate`
@@ -1407,58 +1408,31 @@ and scope -- not yet designed or implemented.
   on a blank prompt (proven with a call-counting stub, not just a return-value check), falling back to
   `TraitProfile()`'s own all-defaults. Every other `spec.prompt` reader already degraded gracefully to
   an empty value with no special-casing needed.
-- **A script "connectivity" toggle that actually joins letterforms (M), beyond today's rolled-but-unused
-  dial.** Direct ask: let a trait determine whether strokes connect edge-to-edge across letters (the top
-  line in Devanagari, cursive joining) by constraining each glyph's own strokes to always begin and end
-  at the same anchor point. This is the same gap already named in this file's own "Own script and font"
-  chapter (§5) as "True cursive joining" -- `core.script.ScriptTraits.connectivity` is already rolled
-  and stored per language but not consumed by anything; real cross-letter joining needs OpenType
-  contextual substitution (GSUB) in the font builder, a bigger step than within-glyph connectivity alone.
-  This idea's own "always begin/end at the same spot" framing is more precisely a *within-glyph* stroke-
-  connectivity constraint (see the next item, which proposes exactly that as the new base algorithm) --
-  real letter-to-letter joining across word boundaries is the separate, harder GSUB piece §5 already
-  flagged.
+- **A script "connectivity" toggle that actually joins letterforms -- done (pass 50).** See §5's own
+  "True cursive joining" entry for the mechanism (baseline-anchor pinning via `generate_script`).
 - **Redesign the glyph stroke-generation algorithm around a small connected-stroke grid, for more
-  alphabet-realistic letterforms (L).** Direct, detailed user report: generated scripts "look much too
-  random right now" compared to real alphabets, which mostly stay simple and often reuse basic shapes
-  (something "o"-like, etc.) within a modest 20-50-letter inventory. Root cause, confirmed by reading
-  `generation/script_gen.py`: `_random_line_or_arc` independently picks a random start point *and* a
-  random end point for every stroke (`_random_point` called twice, unrelated to any other stroke), over
-  a 4x4 grid (`Point.x/y` in `0..3`) with 2-6 strokes per glyph (`_MIN_STROKES`/`_MAX_STROKES`) -- strokes
-  never have to relate to each other at all, which is exactly why letterforms read as disconnected noise
-  rather than coherent shapes.
+  alphabet-realistic letterforms -- done (pass 50).** Root cause confirmed by reading `generation/
+  script_gen.py`: `_random_line_or_arc` used to independently pick a random start point *and* a random
+  end point for every stroke, unrelated to any other stroke -- exactly why letterforms read as
+  disconnected noise rather than coherent shapes. Fixed: a grid shape is now rolled per script (2x2
+  cells ~70% of the time, 1x2/2x1 "tall"/"wide" the rest, replacing the old fixed 4x4-point grid);
+  strokes chain by default (each new stroke's start = the previous stroke's end), governed by a new
+  16th `ScriptTraits` dial, `stroke_continuity` (a tunable "pen-lift" rate, never quite 0% or 100% so
+  even a near-fully-connected script gets the rare multi-component letter like F/H, and a mostly-
+  disconnected one can still coincidentally chain); a bounded-retry corner-coverage gate regenerates a
+  glyph's whole chain if it doesn't touch enough of the grid's own 4 extreme corners, so letters don't
+  end up too sparse to read clearly at the smaller grid size. All 9 existing rendering dials (weight,
+  slant, proportion, jitter, terminal-style hooks, ...) apply on top of this connected skeleton exactly
+  as before -- the redesign only changed *where* stroke endpoints come from, not how a stroke renders.
+  Live-verified, not just tested: built real fonts from the same seed under the old and new code side
+  by side and rendered both via `@font-face` -- the old code's glyphs are genuinely scattered, crossing,
+  unrelated line segments; the new code's are visibly coherent, connected shapes under both high and
+  low `stroke_continuity`, and `connectivity`-forced glyphs visibly share baseline entry/exit points.
 
-  Proposed redesign, building on the existing primitives rather than replacing them (`Stroke`/`Point`/
-  the 15 `ScriptTraits` dials all stay; `angularity` already governs line-vs-arc per stroke, i.e. a form
-  of "roundedness" already exists at the per-stroke level):
-  - Shrink the base grid to 2x2 (rarer 1x2/2x1 for scripts styled more vertical/horizontal) -- small
-    enough that a connected-stroke skeleton on it can reproduce most real Latin/Greek/Cyrillic-style
-    letter shapes in a "stocky, blocky" register, the user's own comparison point.
-  - Roll a stroke count, then *chain* strokes by default (each new stroke's start = the previous
-    stroke's end), with a tunable "pen-lift" probability/dial that lets a stroke start fresh elsewhere
-    instead -- this is what makes multi-component shapes like F or H possible, and reads as a new,
-    named `ScriptTraits` dial (needs a name less confusing than "connectivity," already used for the
-    cross-letter-joining idea above) rather than a hardcoded constant, consistent with how every other
-    stylistic choice in this module is already a rolled dial.
-  - A forcing function ensuring a minimum number of grid corners get touched per glyph (user's own
-    suggestion: "2 or 3 corners"), so letters don't end up too small/sparse to read clearly at the
-    smaller grid size -- likely a rejection-resample loop around the existing stroke-generation routine,
-    similar in spirit to this module's existing zero-length-stroke retry (`_random_line_or_arc`'s own
-    `tries < 5` loop).
-  - Existing dials (`angularity`/roundedness, slant, compression, thickness, jitter) then apply on top
-    of this connected skeleton exactly as they do today -- this redesign only changes *where* stroke
-    endpoints come from, not how a stroke is finally rendered.
-  - New, not-yet-existing dials/features for later iteration once the base skeleton lands: decorative
-    stroke-end elements (hooks, swings, circles, serif feet) -- "always the same" vs. "more random" per
-    language is itself a plausible new dial; free-floating dot-style marks. Diacritics proposed as a
-    structurally smaller, separate instance of the same system (own grid, own roundedness/slant, often
-    fewer strokes), potentially rendered above/below the normal letter baseline -- this reuses `Glyph`'s
-    already-unused `anchors` concept (see §5's abugida note) rather than inventing new composition
-    machinery.
-
-  Genuinely the biggest of the three (`L`) -- it changes the core per-glyph generation algorithm that
-  every rolled script already depends on, not an additive feature, and touches the "Randomness should be
-  meaningful and reproducible" seed-determinism contract (`AGENTS.md`) throughout. Treat as a sizeable
-  project of its own: a Plan-Mode design pass (grid size, the pen-lift dial's exact shape, the corner-
-  forcing resample strategy) before implementation, same precedent as this project's other multi-session
-  generative features, not a quick edit alongside other work.
+  Left as genuinely separate, smaller follow-ups, not attempted in pass 50: a new decorative-stroke-end
+  dial (`terminal_style` already draws serif-like "feet" at line endpoints, re-checked against the new
+  connected base and left as-is -- no new dial needed); a richer diacritic-as-composed-mini-glyph system
+  (own grid, own style, anchor-based placement above/below the baseline -- reuses `Glyph.anchors`,
+  already future-proofed for exactly this in §5's abugida note, still always empty today); vertical
+  (top-to-bottom) cross-letter joining (`connectivity`'s new baseline-pinning effect is horizontal-only,
+  `LTR`/`RTL`).

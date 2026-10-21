@@ -105,7 +105,7 @@ class Glyph(BaseModel, frozen=True):
 
 
 class ScriptTraits(BaseModel, frozen=True):
-    """Fifteen graded dials (bipolar, ``[-1.0, 1.0]``, same shape as
+    """Sixteen graded dials (bipolar, ``[-1.0, 1.0]``, same shape as
     ``core.traits.TraitProfile``) controlling the *style* the stroke
     generator draws every glyph in -- rolled once per language, seeded,
     by ``generation.script_gen.roll_script_traits``, not (yet) something
@@ -143,6 +143,9 @@ class ScriptTraits(BaseModel, frozen=True):
     """+ strict block/square alignment (Hangul-like); - freeform, variable-width letters."""
     terminal_style: float = 0.0
     """+ serif-like hooks/flourishes at stroke ends; - plain stroke ends."""
+    stroke_continuity: float = 0.0
+    """+ strokes chain continuously, start of one at the end of the last, rarely lifting; - strokes
+    often lift and restart fresh elsewhere (multi-component letters like F or H)."""
 
 
 class ScriptTraitsForce(BaseModel, frozen=True):
@@ -172,11 +175,18 @@ class ScriptTraitsForce(BaseModel, frozen=True):
     diacritic_density: float | None = None
     grid_alignment: float | None = None
     terminal_style: float | None = None
+    stroke_continuity: float | None = None
 
 
 class InventedScript(BaseModel, frozen=True):
     direction: WritingDirection
     traits: ScriptTraits
+    grid_max_x: int = 3
+    grid_max_y: int = 3
+    """The glyph grid's own x/y extent -- every ``Point.x`` in a glyph below is ``0..grid_max_x``,
+    every ``Point.y`` is ``0..grid_max_y``. Rolled once per script by ``generation.script_gen.
+    generate_script`` (see ``roll_grid_shape`` there); defaults to the old fixed 3x3-cell size so a
+    script saved before this field existed round-trips to its exact original geometry on load."""
     glyphs: tuple[Glyph, ...]
     """One per phoneme in the language's own ``phonology.consonants``/
     ``.vowels`` at the time this was generated -- see

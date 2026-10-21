@@ -43,8 +43,6 @@ from conlang_generator.core.script import Glyph, InventedScript, Point, Stroke, 
 UPM = 1000
 """Units per em -- the standard TrueType working resolution."""
 
-_GRID_MAX = 3  # Point.x/y range 0..3, see core.script.Point
-_GRID_UNIT = UPM / _GRID_MAX
 _ASCENT = 850
 _DESCENT = -150
 _ARC_SAMPLES = 5
@@ -62,9 +60,9 @@ def _stable_unit(seed_text: str) -> float:
     return (digest[0] / 255.0) * 2.0 - 1.0
 
 
-def _point_to_em(point: Point, jitter_seed: str, traits) -> tuple[float, float]:
-    x = point.x * _GRID_UNIT
-    y = point.y * _GRID_UNIT
+def _point_to_em(point: Point, jitter_seed: str, traits, grid_unit_x: float, grid_unit_y: float) -> tuple[float, float]:
+    x = point.x * grid_unit_x
+    y = point.y * grid_unit_y
     if traits.regularity < -0.15:
         jitter_scale = lerp(-traits.regularity, 0.0, UPM * 0.035)
         x += _stable_unit(f"{jitter_seed}:x") * jitter_scale
@@ -114,18 +112,20 @@ def _stroke_width(traits) -> float:
     return base * openness_factor
 
 
-def _stroke_polygons(stroke: Stroke, glyph_index: int, stroke_index: int, traits) -> list[list[tuple[float, float]]]:
+def _stroke_polygons(
+    stroke: Stroke, glyph_index: int, stroke_index: int, traits, grid_unit_x: float, grid_unit_y: float,
+) -> list[list[tuple[float, float]]]:
     jitter_prefix = f"{glyph_index}:{stroke_index}"
     width = _stroke_width(traits)
     contrast = lerp(traits.stroke_contrast, 0.0, 0.45)
     w_start, w_end = width * (1 + contrast), width * (1 - contrast)
 
     if stroke.kind is StrokeKind.DOT:
-        cx, cy = _point_to_em(stroke.start, f"{jitter_prefix}:dot", traits)
+        cx, cy = _point_to_em(stroke.start, f"{jitter_prefix}:dot", traits, grid_unit_x, grid_unit_y)
         return [_regular_polygon(cx, cy, max(width * 0.5, UPM * 0.02))]
 
-    x0, y0 = _point_to_em(stroke.start, f"{jitter_prefix}:a", traits)
-    x1, y1 = _point_to_em(stroke.end, f"{jitter_prefix}:b", traits)
+    x0, y0 = _point_to_em(stroke.start, f"{jitter_prefix}:a", traits, grid_unit_x, grid_unit_y)
+    x1, y1 = _point_to_em(stroke.end, f"{jitter_prefix}:b", traits, grid_unit_x, grid_unit_y)
 
     polygons: list[list[tuple[float, float]]] = []
     if stroke.kind is StrokeKind.LINE:
@@ -155,11 +155,11 @@ def _stroke_polygons(stroke: Stroke, glyph_index: int, stroke_index: int, traits
     return polygons
 
 
-def _build_glyph_outline(glyph: Glyph, glyph_index: int, traits):
+def _build_glyph_outline(glyph: Glyph, glyph_index: int, traits, grid_unit_x: float, grid_unit_y: float):
     pen = TTGlyphPen(None)
     any_contour = False
     for stroke_index, stroke in enumerate(glyph.strokes):
-        for polygon in _stroke_polygons(stroke, glyph_index, stroke_index, traits):
+        for polygon in _stroke_polygons(stroke, glyph_index, stroke_index, traits, grid_unit_x, grid_unit_y):
             pen.moveTo((round(polygon[0][0]), round(polygon[0][1])))
             for pt in polygon[1:]:
                 pen.lineTo((round(pt[0]), round(pt[1])))
@@ -168,12 +168,12 @@ def _build_glyph_outline(glyph: Glyph, glyph_index: int, traits):
     return pen.glyph(), any_contour
 
 
-def _glyph_extent(glyph: Glyph, glyph_index: int, traits) -> tuple[float, float]:
+def _glyph_extent(glyph: Glyph, glyph_index: int, traits, grid_unit_x: float, grid_unit_y: float) -> tuple[float, float]:
     xs: list[float] = []
     for stroke_index, stroke in enumerate(glyph.strokes):
         jitter_prefix = f"{glyph_index}:{stroke_index}"
-        xs.append(_point_to_em(stroke.start, f"{jitter_prefix}:a", traits)[0])
-        xs.append(_point_to_em(stroke.end, f"{jitter_prefix}:b", traits)[0])
+        xs.append(_point_to_em(stroke.start, f"{jitter_prefix}:a", traits, grid_unit_x, grid_unit_y)[0])
+        xs.append(_point_to_em(stroke.end, f"{jitter_prefix}:b", traits, grid_unit_x, grid_unit_y)[0])
     if not xs:
         return 0.0, UPM
     return min(xs), max(xs)
@@ -190,6 +190,8 @@ def build_font(script: InventedScript, output_path: Path, family_name: str) -> N
     advance: dict[str, tuple[int, int]] = {}
     cmap: dict[int, str] = {}
 
+    grid_unit_x = UPM / script.grid_max_x
+    grid_unit_y = UPM / script.grid_max_y
     side_bearing = lerp(-script.traits.density, UPM * 0.05, UPM * 0.22)
     uniform_width = script.traits.grid_alignment > 0.15
     uniform_advance = UPM * lerp(script.traits.proportion, 0.7, 1.3) + 2 * side_bearing
@@ -205,12 +207,12 @@ def build_font(script: InventedScript, output_path: Path, family_name: str) -> N
 
     for i, glyph in enumerate(script.glyphs):
         name = f"g{i:04d}"
-        outline, has_contour = _build_glyph_outline(glyph, i, script.traits)
+        outline, has_contour = _build_glyph_outline(glyph, i, script.traits, grid_unit_x, grid_unit_y)
         glyphs[name] = outline
         if uniform_width or not has_contour:
             width = uniform_advance
         else:
-            min_x, max_x = _glyph_extent(glyph, i, script.traits)
+            min_x, max_x = _glyph_extent(glyph, i, script.traits, grid_unit_x, grid_unit_y)
             width = (max_x - min_x) + 2 * side_bearing
         advance[name] = (round(width), round(side_bearing))
         cmap[0xE000 + i] = name
