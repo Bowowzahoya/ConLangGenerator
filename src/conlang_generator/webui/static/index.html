@@ -202,7 +202,7 @@
 
 <section id="panel-generate" class="panel active">
   <div class="card">
-    <label for="gen-prompt">Prompt</label>
+    <label for="gen-prompt">Prompt <span class="ipa">(optional -- leave blank to generate purely from traits/seed words below, with no classifier call)</span></label>
     <textarea id="gen-prompt" placeholder="a language spoken by seafaring traders in a tropical archipelago"></textarea>
 
     <div class="row">
@@ -2562,8 +2562,8 @@ $("generate-btn").onclick = async () => {
   err.hidden = true;
   const prompt = $("gen-prompt").value.trim();
   const name = $("gen-name").value.trim();
-  if (!prompt || !name) {
-    err.textContent = "Prompt and name are both required.";
+  if (!name) {
+    err.textContent = "Name is required.";
     err.hidden = false;
     return;
   }

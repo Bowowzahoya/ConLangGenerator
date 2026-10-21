@@ -8995,3 +8995,29 @@ reading code or one-off ad hoc scripts.
   gloss individually, with a regression test (`test_a_multi_word_name_glosses_each_of_its_own_
   words_too`) added for it; re-verified clean against the real backend afterward, and the name came
   back from the lexicon unchanged (reused, not re-coined) on the repeat call.
+
+  **Pass 49: generating with no prompt at all, first of three user-proposed ideas (`docs/DEFERRED.md`
+  ch. 14).** `GenerationSpec.prompt` had no default and both `generate` CLI's `--prompt` (a required
+  Typer option) and the webui's own JS validation ("Prompt and name are both required") blocked
+  generating purely from explicit `--trait`/`--seed-word`/other overrides and normal unconditioned
+  rolls. Fixed at the source rather than at each entry point: `prompt_classifier.classify_prompt`
+  itself now short-circuits on a blank (or whitespace-only) prompt, returning the all-defaults
+  `TraitProfile()` directly with *no LLM call made at all* -- proven with a counting stub client
+  asserting zero calls, not just that the return value happens to look like the no-call default.
+  `GenerationSpec.prompt` and the webui's `GenerateRequest.prompt` both gained a `""` default; the CLI
+  flag became optional (`typer.Option("", ...)`); the webui's own blank-prompt rejection was removed
+  (name alone is still required), with its label updated to say the field is optional and why. Every
+  downstream consumer of a traits object already degrades gracefully to "no signal, use normal rolls"
+  for a zero-valued dimension -- confirmed by reading every real `GenerationSpec.prompt`/`TraitProfile`
+  consumer first (the CLI's own "Traits from prompt" summary line is already guarded on `nonzero_
+  traits`, so it simply doesn't print when there's nothing to report), so no special-casing of "no
+  prompt" was needed anywhere past the classifier call itself.
+
+  Verified: 7 new tests (`tests/test_no_prompt_generation.py` -- `GenerationSpec`'s own default, a full
+  CLI `generate` invocation with no `--prompt` flag at all, webui `/api/generate` with an explicit
+  blank prompt and with the key omitted from the JSON body entirely, an explicit trait override still
+  taking effect with no prompt; `tests/test_prompt_classifier.py` -- blank and whitespace-only prompts
+  both proven to make zero LLM calls); full suite green. Live-verified through the real CLI: `conlang
+  generate --name no-prompt-demo --seed 1 --llm fake --trait tone_sandhi=0.9 --trait altitude=-0.7`
+  (no `--prompt` flag anywhere on the command line) generated normally, with the two explicit trait
+  overrides still showing under "Traits from prompt" exactly as they would alongside real prompt text.

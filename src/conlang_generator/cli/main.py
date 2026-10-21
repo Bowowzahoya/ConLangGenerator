@@ -231,7 +231,12 @@ def _pregenerate_with_progress(language: Language, kind: str) -> None:
 
 @app.command()
 def generate(
-    prompt: str = typer.Option(..., "--prompt", help="Free-text description of the language."),
+    prompt: str = typer.Option(
+        "", "--prompt",
+        help="Free-text description of the language. Optional -- omit it to generate purely from "
+        "--trait/--seed-word/other explicit overrides and normal unconditioned rolls, with no "
+        "classifier call at all.",
+    ),
     name: str = typer.Option(..., "--name", help="Name to save the language under."),
     seed: int = typer.Option(0, "--seed", help="Random seed for reproducibility."),
     llm: str = typer.Option("fake", "--llm", help="LLM backend: fake or anthropic."),

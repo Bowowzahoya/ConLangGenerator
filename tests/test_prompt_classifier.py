@@ -23,6 +23,30 @@ class _FixedJsonLLMClient:
         return LLMResponse(text=self._text, model="stub", input_tokens=1, output_tokens=1)
 
 
+class _CountingLLMClient:
+    """Stub that records how many times `.complete` was called, to prove a code path never actually
+    calls the LLM (not just that its return value happens to look like the no-call default)."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def complete(self, request: LLMRequest) -> LLMResponse:
+        self.calls += 1
+        return LLMResponse(text="{}", model="stub", input_tokens=1, output_tokens=1)
+
+
+def test_a_blank_prompt_skips_the_llm_call_entirely_and_returns_defaults():
+    client = _CountingLLMClient()
+    assert classify_prompt("", client) == TraitProfile()
+    assert client.calls == 0
+
+
+def test_a_whitespace_only_prompt_also_skips_the_llm_call():
+    client = _CountingLLMClient()
+    assert classify_prompt("   \n\t ", client) == TraitProfile()
+    assert client.calls == 0
+
+
 def test_different_prompts_yield_different_profiles():
     client = FakeLLMClient()
     a = classify_prompt("a language spoken in the mountains", client)

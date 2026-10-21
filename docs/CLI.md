@@ -52,6 +52,29 @@ conlang generate --prompt "a plain language" --name trait-test --seed 1 \
   --llm fake --trait tone_sandhi=0.9 --trait altitude=-0.7
 ```
 
+`--prompt` is itself optional -- omit it entirely to generate purely from
+`--trait`/`--seed-word`/other explicit overrides and this language's own
+normal unconditioned rolls, with no classifier call made at all (nothing to
+classify from blank text, so nothing is spent on one):
+
+```bash
+conlang generate --name no-prompt-demo --seed 1 \
+  --llm fake --trait tone_sandhi=0.9 --trait altitude=-0.7
+```
+
+```
+Generated 'no-prompt-demo' (no-prompt-demo) -- 399 core words.
+Word order: SOV, morphology: fusional, alignment: nominative_accusative, tonal: False
+Orthography: digraph + colon
+Models: classifier=claude-haiku-4-5-20251001, word selection=claude-haiku-4-5-20251001
+Traits from prompt: altitude=-0.70, tone_sandhi=+0.90
+Saved to conlangs\no-prompt-demo
+```
+
+(The `--trait` overrides still show under "Traits from prompt" -- that line
+reports every nonzero dimension regardless of source, prompt-inferred or
+explicit, same as with a prompt present.)
+
 ```
 Generated 'trait-test' (trait-test) -- 400 core words.
 Word order: SOV, morphology: fusional, alignment: nominative_accusative, tonal: False

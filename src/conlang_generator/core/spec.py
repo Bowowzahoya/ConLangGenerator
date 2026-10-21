@@ -77,7 +77,11 @@ class SeedExample(BaseModel, frozen=True):
 
 
 class GenerationSpec(BaseModel, frozen=True):
-    prompt: str
+    prompt: str = ""
+    """Free-text description read by `generation.prompt_classifier.classify_prompt`. Blank is a
+    first-class choice, not an error -- it skips that classifier call entirely (nothing to
+    classify), generating purely from `traits`/explicit `force_*` overrides and normal
+    unconditioned rolls."""
     seed: int
     traits: TraitProfile = TraitProfile()
     force_tonal: bool = False

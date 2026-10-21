@@ -360,7 +360,9 @@ class SeedExampleEntry(BaseModel):
 
 
 class GenerateRequest(BaseModel):
-    prompt: str
+    prompt: str = ""
+    """Optional -- blank skips `classify_prompt`'s own LLM call entirely (see its own docstring),
+    generating purely from explicit overrides and normal unconditioned rolls."""
     name: str
     seed: int = 0
     llm: str = "fake"

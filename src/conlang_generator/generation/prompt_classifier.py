@@ -297,6 +297,13 @@ Respond with ONLY a single JSON object, no prose, no markdown fences."""
 
 
 def classify_prompt(prompt: str, llm_client: LLMClient, model: str = DEFAULT_MODEL) -> TraitProfile:
+    """A blank (or whitespace-only) ``prompt`` skips the LLM call entirely and returns the
+    all-defaults ``TraitProfile()`` directly -- there's nothing to classify, so there's no reason to
+    pay for (or wait on) a call whose only possible answer is "no evidence for anything." Every trait
+    then simply falls back to its own normal unconditioned roll, same as any trait this classifier
+    doesn't confidently address for an ordinary prompt today."""
+    if not prompt.strip():
+        return TraitProfile()
     request = LLMRequest(
         system=_SYSTEM_PROMPT,
         prompt=prompt,
