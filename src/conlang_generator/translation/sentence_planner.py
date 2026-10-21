@@ -259,7 +259,10 @@ def _build_system_prompt(language: Language) -> str:
         'and it broke" -> "I hit-broke it"): write TWO "content" verb slots back to back, the first ordinary/'
         'finite (its own tense/agreement), the second with "serial_result":true and NO tense/agreement/aspect/'
         'mood of its own (a bare citation form) -- ONLY when the result gloss is one of: '
-        + ", ".join(grammar.serial_result_verbs) + ". Never set \"serial_result\" on any other verb."
+        + ", ".join(grammar.serial_result_verbs) + ". Never set \"serial_result\" on any other verb. The same "
+        'juxtaposition also expresses DIRECTION of motion ("he ran away/off" -> "he ran-went"): a motion verb '
+        'directly followed by a second verb slot, also marked "serial_result":true, bare, no subject/object of '
+        'its own -- ONLY when that direction gloss is one of: ' + ", ".join(grammar.serial_directional_verbs) + "."
         if grammar.has_serial_verbs
         else 'none -- never set "serial_result" on anything'
     )
@@ -886,6 +889,7 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient, model: s
             "voices": ",".join(grammar.voices),
             "has_serial_verbs": "true" if grammar.has_serial_verbs else "false",
             "serial_result_verbs": ",".join(grammar.serial_result_verbs),
+            "serial_directional_verbs": ",".join(grammar.serial_directional_verbs),
             "postpositional": "true" if grammar.postpositional else "false",
             "has_indefinite_article": "true" if grammar.has_indefinite_article else "false",
             "has_specific_article": "true" if grammar.has_specific_article else "false",

@@ -8887,3 +8887,33 @@ reading code or one-off ad hoc scripts.
   result verb's own rendered form (`nasa`) byte-identical to its citation-form lexicon entry; decoded
   back as "I hit break he," structurally correct (fluency smoothing is the real LLM's own job here,
   same established division as every other construction this project already defers to it for).
+
+  **Pass 47: the directional SVC subtype, direct follow-up asked right after pass 46 shipped.**
+  Japanese's own 飛び出す "fly-out" = to jump out (path-of-motion, a motion-manner verb directly
+  followed by a bare directional verb), vs. pass 46's resultative. The real finding: this needed
+  *no* new render/decode/safety machinery at all. `PlannedSlot.serial_result` was already fully
+  subtype-agnostic by construction (it just means "bare form following the finite verb"), so
+  `_render_plan`'s bare-citation-form branch, `translate_to_english`'s per-token decode, and the
+  `_finite_verb_indices`/`_negatable_verb_indices` exclusions all applied unchanged. The entire pass
+  is: a second closed pool, `voice_np_gen.DIRECTIONAL_VERB_POOL` (go/come/arrive/leave/return/climb/
+  turn -- deliberately excluding rise/fall, already claimed by the resultative pool and genuinely
+  ambiguous between the two readings), rolled alongside the existing `serial_result_verbs` inside
+  the same `roll_followups`, gated by the same `has_serial_verbs` flag (one capability, two
+  flavors -- real SVC-heavy languages don't typically pick one subtype to the exclusion of the
+  other); and a second fake-planner trigger function, `_fake_serial_directional_slots`, a sibling of
+  pass 46's own `_fake_serial_verb_slots` rather than a branch inside it (the shapes genuinely
+  differ: resultative's own fixed trigger is 4 bare words, subject+transitive-verb+object+result,
+  since a result reading implies something was acted upon; directional's own is 3, subject+motion-
+  verb+direction-verb, since motion verbs are canonically intransitive) -- both inserted at the same
+  priority level in the existing shape-dispatch chain, each gated tightly on the language actually
+  having the feature and the final word really being a member of *its own* rolled pool, so an
+  ordinary sentence in any other language still falls through to the general case unchanged.
+
+  Verified: 7 new tests alongside pass 46's own (pool disjointness, pool-shape assertions folded
+  into the existing roll-rate sweep rather than a second expensive seed loop, bare-citation-form
+  render, decode, fake-planner detection positive/negative/pool-gated cases, a full `translate_to_
+  conlang` round trip); full suite green. Live-verified through the real CLI: a seed rolling `go` in
+  its own directional pool produced `'oru xen.` for "he run go" -- the two verb roots directly
+  adjacent, no linking word, `xen` byte-identical to `go`'s own citation-form lexicon entry (`he`
+  itself correctly subject-pro-dropped by this language's own independent, unrelated feature);
+  decoded back as "he run go," both verbs and the recovered subject present.

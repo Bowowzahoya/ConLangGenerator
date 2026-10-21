@@ -3542,7 +3542,10 @@ def _construction_note(language: Language) -> str:
     serial = (
         ' This language also allows two verbs in a row with no conjunction, the second a bare '
         '"result" verb (e.g. "break"): read that as the first verb causing the result -- "hit break" '
-        'is "hit [it] so it broke" / "broke [it] by hitting it", not two separate actions.'
+        'is "hit [it] so it broke" / "broke [it] by hitting it", not two separate actions. The same '
+        'juxtaposition also marks DIRECTION of motion, the second verb a bare "path" word (e.g. '
+        '"go"): "run go" is "ran away/off", not two separate actions either -- the second verb names '
+        "where the first verb's motion ended up, not a further event."
         if grammar.has_serial_verbs else ""
     )
     return (

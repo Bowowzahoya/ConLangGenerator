@@ -33,6 +33,15 @@ _SVC_RATE = {
 toward serial verb constructions -- nonzero everywhere else, since SVCs aren't exclusively an
 isolating-language property (west African languages with agglutinative tendencies have them too)."""
 _SERIAL_RESULT_POOL_SIZE = (3, 4, 5, 6)
+DIRECTIONAL_VERB_POOL = ("go", "come", "arrive", "leave", "return", "climb", "turn")
+"""Candidates for a serial verb construction's own directional slot (the directional subtype --
+Japanese's own 飛び出す "fly-out" = to jump out) -- every one confirmed present in `lexicon_gen.
+ALL_MEANINGS` as a verb gloss. Deliberately excludes rise/fall (already claimed by `RESULT_VERB_
+POOL`, and genuinely ambiguous between a resultative and directional reading) to keep the two pools
+disjoint. Smaller than `RESULT_VERB_POOL` -- realistic, not a shortfall: real deictic/path verb
+inventories are typically small, closed, grammaticalized sets cross-linguistically (Mandarin's own
+directional-complement system has about 8 core members: 来/去/上/下/进/出/回/过)."""
+_SERIAL_DIRECTIONAL_POOL_SIZE = (2, 3, 4, 5)
 EXTRA_NUMBERS = ("trial", "collective")
 _NUMBER_RATES = (0.12, 0.15)
 EXTRA_CASES = ("locative", "instrumental")
@@ -178,6 +187,8 @@ def roll_followups(rng: random.Random, grammar) -> dict[str, object]:
     has_serial_verbs = rng.random() < _SVC_RATE.get(grammar.morphological_type, 0.2)
     serial_pool_size = rng.choice(_SERIAL_RESULT_POOL_SIZE)
     sampled_result_verbs = tuple(rng.sample(RESULT_VERB_POOL, serial_pool_size))
+    serial_directional_pool_size = rng.choice(_SERIAL_DIRECTIONAL_POOL_SIZE)
+    sampled_directional_verbs = tuple(rng.sample(DIRECTIONAL_VERB_POOL, serial_directional_pool_size))
     return {
         "voices": tuple(v for v, hit in zip(EXTRA_VOICES, voice_hits) if hit and v not in grammar.voices),
         "passive_agreement": passive_agreement,
@@ -193,4 +204,5 @@ def roll_followups(rng: random.Random, grammar) -> dict[str, object]:
         "inalienable_possession": inalienable,
         "has_serial_verbs": has_serial_verbs,
         "serial_result_verbs": sampled_result_verbs if has_serial_verbs else (),
+        "serial_directional_verbs": sampled_directional_verbs if has_serial_verbs else (),
     }

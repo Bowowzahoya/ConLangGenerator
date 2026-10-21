@@ -656,6 +656,15 @@ class GrammarProfile(BaseModel, frozen=True):
     verb class, the same "closed curated pool, per-language subset" shape
     ``paradigm_gen``'s own ``IRREGULAR_VERBS`` already uses. Empty unless
     ``has_serial_verbs``."""
+    serial_directional_verbs: tuple[str, ...] = ()
+    """This language's own closed set of directional-verb glosses its serial construction's path
+    slot draws from (e.g. go/come/arrive/leave/return/climb/turn) -- the directional SVC subtype
+    (Japanese's own 飛び出す "fly-out" = to jump out), alongside ``serial_result_verbs``'s
+    resultative subtype. Both are flavors of the same ``has_serial_verbs`` capability; render/decode
+    don't distinguish them at all (``translation.sentence_planner.PlannedSlot.serial_result`` is
+    already subtype-agnostic) -- only the fake planner's own free-text detection needs the two pools
+    kept separate, to decide which trigger shape a given word matches. Empty unless ``has_serial_
+    verbs``."""
 
     passive_agreement: str = "patient"
     """``"patient"`` (the passive verb agrees with its subject, the patient) or

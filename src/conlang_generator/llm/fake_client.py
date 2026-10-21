@@ -378,6 +378,7 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
     voices = [v for v in metadata.get("voices", "").split(",") if v]
     has_serial_verbs = metadata.get("has_serial_verbs") == "true"
     serial_result_verbs = [v for v in metadata.get("serial_result_verbs", "").split(",") if v]
+    serial_directional_verbs = [v for v in metadata.get("serial_directional_verbs", "").split(",") if v]
     comparative_strategy = metadata.get("comparative_strategy", "particle")
     comparative_case = metadata.get("comparative_case", "")
     comparative_marking = metadata.get("comparative_marking", "word")
@@ -558,6 +559,13 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         content_tokens, has_serial_verbs, serial_result_verbs, word_order, alignment, tenses, noun_phrase,
         base_of, noun_classes, name_by_placeholder, verb_number_agreement,
     )
+    serial_directional_slots = None if (
+        existence_slots is not None or degree_slots is not None or voice_slots is not None
+        or serial_slots is not None
+    ) else _fake_serial_directional_slots(
+        content_tokens, has_serial_verbs, serial_directional_verbs, word_order, alignment, tenses,
+        noun_phrase, base_of, noun_classes, name_by_placeholder, verb_number_agreement,
+    )
     if existence_slots is not None:
         slots = existence_slots
     elif degree_slots is not None:
@@ -566,6 +574,8 @@ def _fake_single_clause_plan(prompt: str, metadata: dict[str, str]) -> dict:
         slots = voice_slots
     elif serial_slots is not None:
         slots = serial_slots
+    elif serial_directional_slots is not None:
+        slots = serial_directional_slots
     elif mood == "imperative" and content_tokens:
         if negated and content_tokens[0] == "do" and len(content_tokens) > 1:
             content_tokens = content_tokens[1:]  # "Do not go!": the "do" is only support for the "not"
@@ -1190,6 +1200,44 @@ def _fake_serial_verb_slots(
         "V": [verb_slot, result_slot],
         "O": noun_phrase(obj_tok, object_case),
     }
+    order = _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O"))
+    return [s for role in order for s in role_slots[role]]
+
+
+def _fake_serial_directional_slots(
+    content_tokens, has_serial_verbs, serial_directional_verbs, word_order, alignment, tenses,
+    noun_phrase, base_of, noun_classes, name_by_placeholder, verb_number_agreement,
+):
+    """Plans a directional serial verb construction ("he run go" -> "he ran away/off") when the
+    tokens have that shape; ``None`` otherwise -- the path-of-motion sibling of `_fake_serial_verb_
+    slots`'s own resultative shape (Japanese's own 飛び出す "fly-out" = to jump out). Directional
+    serialization is canonically intransitive (a manner-of-motion verb takes no object), so this
+    claims a fixed three-bare-content-word shape (subject, motion verb, direction verb) instead of
+    that function's own four-word transitive one -- kept as its own sibling function rather than a
+    branch inside it, since the token count and role construction genuinely differ. Gated the same
+    tight way: the language must actually have the feature AND the final token must really be a
+    member of its own rolled ``serial_directional_verbs`` pool, so an ordinary 3-content-word
+    transitive sentence ("I see it") still falls through to the general case unchanged."""
+    if not has_serial_verbs or len(content_tokens) != 3:
+        return None
+    subject_tok, verb_tok, direction_tok = content_tokens
+    if direction_tok not in serial_directional_verbs:
+        return None
+    detected_tense, verb_lemma = _fake_detect_tense_and_lemma(verb_tok)
+    tense_label = _fake_tense_label(detected_tense, tenses)
+    subject_case = "ergative" if alignment == "ergative_absolutive" else None
+    verb_slot = {
+        "kind": "content", "gloss": verb_lemma, "pos": "verb",
+        "agreement": _FAKE_AGREEMENT_BY_PRONOUN.get(subject_tok, "default"),
+    }
+    if verb_number_agreement and subject_tok in ("we", "they", "us", "them"):
+        verb_slot["subject_number"] = "plural"
+    if tense_label:
+        verb_slot["tense"] = tense_label
+    if noun_classes and subject_tok not in _FAKE_PRONOUN_TOKENS and subject_tok not in name_by_placeholder:
+        verb_slot["subject_gloss"] = base_of(subject_tok)
+    direction_slot = {"kind": "content", "gloss": direction_tok, "pos": "verb", "serial_result": True}
+    role_slots = {"S": noun_phrase(subject_tok, subject_case), "V": [verb_slot, direction_slot], "O": []}
     order = _FAKE_ROLE_ORDER.get(word_order, ("S", "V", "O"))
     return [s for role in order for s in role_slots[role]]
 

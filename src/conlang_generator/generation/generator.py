@@ -511,6 +511,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
             "inalienable_possession": vnp["inalienable_possession"],
             "has_serial_verbs": vnp["has_serial_verbs"],
             "serial_result_verbs": vnp["serial_result_verbs"],
+            "serial_directional_verbs": vnp["serial_directional_verbs"],
         }
     )
     # Deduplicates a lemma seeded for both degree cells, since
