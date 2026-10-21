@@ -692,6 +692,8 @@ def translate(
         repository.save(result.language)
         coined_forms = ", ".join(e.romanization for e in result.coined)
         typer.echo(f"Coined {len(result.coined)} new word(s): {coined_forms}")
+    for warning in result.warnings:
+        typer.echo(f"Warning: {warning}")
     typer.echo(f"(pattern: {result.pattern})")
     if result.tokens:
         rendered = " ".join(

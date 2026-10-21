@@ -932,6 +932,20 @@ Coined 1 new word(s): lil'jhah
 Glosses: nimtz(I) lizmafakay(see) twiza(the) lil'jhah.(boat*)
 ```
 
+`translate` (conlang direction only) may also print one `Warning: ...` line
+per issue it noticed but didn't treat as an error -- a real LLM plan possibly
+dropping an input content word entirely, or coining a brand-new word for a
+token it never recognized as a real word (`pos` missing or unrecognized in
+its own plan JSON). Both are heuristics, not guarantees, and neither blocks
+or changes the translation itself -- see `TranslationResult.warnings`'s own
+docstring in `translation/translator.py`. Live-verified against the real
+Anthropic backend (`--llm anthropic`): the original bug report "My friend, I
+think you are really dumb. Just piss off. You are a lkdjhr" now prints
+`Warning: possibly dropped: "really" (no matching word found in the
+translated plan)` and the same for `"just"` -- both genuinely-dropped
+intensifiers -- alongside a 13-word rendered output for the 14-word input,
+no longer suspiciously short.
+
 The `Glosses:` line (conlang direction only -- absent from an `english`
 decode, since there's no equivalent per-word alignment there, see below)
 is the CLI's own view of `TranslationResult.tokens`: `word(gloss)` for

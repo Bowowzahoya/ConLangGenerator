@@ -27,15 +27,19 @@ multi-session feature.
   re-checked with a fixed prompt set against the saved classifier outputs
   before adopting. The end result is ~$0.002-0.003; do not expect
   much lower.
-- **Translation output is sometimes far too short (S-M, partly done).**
+- **Translation output is sometimes far too short -- done (pass 48).**
   Reported: "My friend, I think you are really dumb. Just piss off. You are
   a lkdjhr" into a Dutch-like language gave "sko kiszomongo holt stoehol".
-  Done: input is now split into sentences and each is planned on its own
-  (previously one prompt whose system text said "one sentence"). Still open:
-  a "never drop meaningful words" check that compares plan glosses with the
-  input's content words and warns or falls back per word; `max_tokens=500`
-  on long sentences; "I think you are dumb" needs subordinate clauses (§10).
-  Not yet re-tested against a real LLM.
+  Fixed and *re-tested against the real Anthropic backend* (the thing the
+  old entry flagged as never having happened): the same sentence now
+  produces 13 rendered words for the 14-word input, no longer suspiciously
+  short. `max_tokens=500` on `plan_sentence`'s real LLM call turned out to
+  already be set (stale documentation, not a real gap). The "never drop
+  meaningful words" check now exists as `translator._dropped_word_warnings`
+  -- a heuristic warning (`TranslationResult.warnings`), not an automatic
+  per-word fallback (a wrong guess at what was dropped risks being more
+  misleading than an honest warning). "I think you are dumb" still needs
+  subordinate clauses (§10) -- unrelated, separately tracked there.
 - **Reset button for the cumulative cost display (S-M).** The top-right
   badge (`webui/app.py::_cost_snapshot`) shows the *all-time* total from
   `cost_ledger.jsonl`, an append-only real-spend record -- a destructive
@@ -106,25 +110,33 @@ multi-session feature.
   sometimes; only its worst consequence (silently discarding a
   misclassified word instead of reusing an existing entry) is fixed. See
   `architecture/OVERVIEW.md`.
-- **A true multi-word proper name with no generic descriptor part (M).**
-  "Lake Baikal"/"Mount Everest"-style names now split correctly (the
-  descriptor becomes an ordinary word, the rest becomes the name), but a
-  name like "New York" or "Los Angeles" has no generic part to split on
-  and still isn't handled anywhere -- no mechanical way exists to know
-  where such a name should split. Passes through as one literal unit
-  under `"keep"`, or gets silently fused into one native-looking word
-  under `"adapt"` (see `docs/LIMITATIONS.md`).
-- **Unknown words are coined silently (M).** A word like "lkjejhrj" is
-  looked up, not found, and `translation/expansion.coin_word` invents a
-  word. The part of speech comes from the LLM plan (unknown or missing
-  `pos` defaults to noun in `sentence_planner._parse`), not from any
-  analysis of the word; a nonsense token therefore becomes a noun and is
-  stored in the lexicon permanently. Decide: flag likely non-words (not in
-  an English word list, low LLM confidence) and keep them as untranslated
-  names with a warning; make coinage an explicit, reported action ("coined
-  N new words"); allow undo; consider not persisting nonsense. Also
-  decide error behaviour when the LLM returns a bad plan (today:
-  word-for-word fallback with no message).
+- **A true multi-word proper name with no generic descriptor part --
+  partly done (pass 48).** "Lake Baikal"/"Mount Everest"-style names split
+  correctly (the descriptor becomes an ordinary word, the rest becomes the
+  name). A name like "New York" or "Los Angeles" has no generic part to
+  split on, and no mechanical way exists to know where such a name
+  *should* split -- that part stays deferred (needs a gazetteer this
+  project doesn't have). What's fixed: under `"adapt"`, `names.
+  make_name_entry` now adapts each whitespace-separated segment of the
+  name independently and rejoins with a space, instead of fusing the
+  whole multi-word string into one unrecognizable blob. `"keep"` mode is
+  unaffected (see `docs/LIMITATIONS.md`).
+- **Unknown words are coined silently -- partly done (pass 48).** A word
+  like "lkjejhrj" is looked up, not found, and `translation/expansion.
+  coin_word` invents a word; it still does, unchanged (not attempted:
+  allowing undo, or not persisting nonsense -- real UX/data-model
+  decisions of their own). What's fixed: coinage is now flagged, not
+  silent, when the real LLM's own plan gives a strong signal the token
+  wasn't recognized as a real word at all (`PlannedSlot.pos_was_guessed`,
+  set when the plan's own raw JSON left out `"pos"` or gave one this
+  project doesn't recognize) -- a new entry in `TranslationResult.
+  warnings`. Not attempted: a real English-word-list-based non-word
+  detector (deliberately lighter-weight for now; `pos_was_guessed` is a
+  free signal already in the LLM's own response, not a guarantee -- a
+  real model can still assign nonsense a plausible `pos` from sentence
+  position alone). Coinage being an explicit, reported action ("Coined N
+  new word(s)") turned out to already exist in both CLI and webui --
+  stale documentation, not a real gap.
 - **Sentence-final punctuation done (pass 52); quotation and comma
   punctuation still open (M-L).** Each rendered sentence now gets a
   period/question/exclamation mark derived from the plan's own mood (a

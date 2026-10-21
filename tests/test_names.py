@@ -154,6 +154,36 @@ def test_is_name_entry_survives_a_manual_edit_appending_to_notes():
     assert not names.is_name_entry(ordinary_entry)
 
 
+def test_adapting_a_multi_word_name_adapts_each_segment_independently():
+    # Real gap: "New York" has no generic descriptor to split on (unlike "Lake Baikal"), so the
+    # whole two-word string used to be fitted to the language's own phonology as one literal
+    # string -- one unrecognizable fused blob with no trace it was ever two words.
+    language = _language(foreign_names="adapt")
+    entry = names.make_name_entry(language, "New York", FakeLLMClient())
+    assert " " in entry.romanization  # two independently-adapted, space-joined words
+    assert " " in entry.ipa
+    latin_segments = entry.romanization.split(" ")
+    ipa_segments = entry.ipa.split(" ")
+    assert len(latin_segments) == 2 and len(ipa_segments) == 2
+    inventory = tuple(language.phonology.all_symbols())
+    from conlang_generator.generation import ipa_tokenizer
+
+    for segment, latin_segment in zip(ipa_segments, latin_segments):
+        symbols = ipa_tokenizer.symbols_only(segment, inventory)
+        assert "".join(symbols) == segment  # each segment alone is phonologically legal
+        assert phoneme_fit.first_problem(
+            [(s, s in {v.ipa for v in language.phonology.vowels}) for s in symbols], language.syllable_structure
+        ) is None
+        assert latin_segment[:1].isupper()  # each segment capitalized, like a real multi-word name
+
+
+def test_adapting_a_single_word_name_is_unaffected_by_the_multi_word_fix():
+    language = _language(foreign_names="adapt")
+    entry = names.make_name_entry(language, "Bruno", FakeLLMClient())
+    assert " " not in entry.romanization
+    assert " " not in entry.ipa
+
+
 def test_a_descriptive_word_plus_name_splits_into_an_ordinary_word_and_a_name():
     # Real user-reported bug: "Lake Baikal" passed through as one literal,
     # untranslated unit. The fake planner now splits a recognized

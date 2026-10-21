@@ -152,6 +152,14 @@ class TranslationResult:
     only (always empty for ``translate_to_english`` -- its own fluency
     rewrite breaks the clean word-for-word alignment this needs; see
     docs/LIMITATIONS.md)."""
+    warnings: tuple[str, ...] = ()
+    """Heuristic, human-readable flags about this translation that aren't wrong enough to fail on --
+    a real LLM plan possibly dropping an input content word entirely (see ``_dropped_word_warnings``),
+    or coining a brand-new word for a token the model itself never recognized as a part of speech
+    (see ``_lookup_or_coin``'s own ``pos_was_guessed`` check). Deliberately a warning, not an
+    automatic fix -- a wrong guess at "what should have been there" risks being more misleading than
+    honestly saying the pipeline wasn't sure. Always empty for ``translate_to_english`` (the fluency
+    rewrite direction has no equivalent per-word-coverage signal to check)."""
 
 
 def _normalize(text: str) -> str:
@@ -1161,6 +1169,8 @@ def _lookup_or_coin(
     coined: list[LexicalEntry],
     llm_client: LLMClient,
     lemma_candidates: list[str],
+    pos_was_guessed: bool = False,
+    warnings: list[str] | None = None,
 ) -> tuple[Language, LexicalEntry]:
     for candidate in [variant for lemma in lemma_candidates for variant in _gloss_variants(lemma)]:
         entry = _find_word(language, candidate)
@@ -1173,6 +1183,12 @@ def _lookup_or_coin(
 
     new_entry = expansion.coin_word(language, token, pos, llm_client)
     coined.append(new_entry)
+    if pos_was_guessed and warnings is not None:
+        # The real LLM plan itself never reported a part of speech for this token -- a strong
+        # signal it didn't recognize it as a real word at all (a typo, nonsense), not just a real
+        # word this language's own lexicon happened not to have yet. Coined anyway (not changing
+        # today's actual behavior), just made visible rather than silent.
+        warnings.append(f"coined \"{token}\" as a guessed noun -- the model didn't recognize it as a real word")
     updated = language.with_new_words(
         (new_entry,),
         reason=f"coined '{new_entry.romanization}' for '{token}' during translation",
@@ -2581,7 +2597,15 @@ def _render_plan(
     forced_verb_mood: str | None = None,
     forced_verb_tense: str | None = None,
     forced_nominal_case: str | None = None,
+    warnings: list[str] | None = None,
 ) -> tuple[Language, list[str], list[str], list[str | None], list[LexicalEntry | None]]:
+    # Appended at the end with a safe default, not inserted alongside `coined` above, specifically
+    # so every existing 4-positional-argument call site (dozens, across this module and the test
+    # suite) keeps working unchanged -- a mutable default is avoided the usual way (`None`, swapped
+    # for a real list here) since a literal `[]` default would be shared and silently accumulate
+    # across calls.
+    if warnings is None:
+        warnings = []
     working_language = language
     romanization_parts: list[str] = []
     ipa_parts: list[str] = []
@@ -2629,7 +2653,8 @@ def _render_plan(
             if slot.role == "coordinate" and working_language.grammar.conjunct_reduction:
                 nested_plan = _reduce_conjunct(slots[:slot_index], nested_plan)
             working_language, nested_rom, nested_ipa, nested_gloss, nested_entries = _render_plan(
-                nested_plan, working_language, llm_client, coined, nested_mood, nested_tense, nested_case
+                nested_plan, working_language, llm_client, coined, nested_mood, nested_tense, nested_case,
+                warnings=warnings,
             )
             if slot.role == "topic" and working_language.grammar.topic_particle:
                 particle_ipa = working_language.grammar.topic_particle
@@ -2682,7 +2707,8 @@ def _render_plan(
             if form_kind:
                 lookup_gloss = voice_np_gen.suppletive_gloss(slot.gloss.strip().lower(), form_kind)
             working_language, entry = _lookup_or_coin(
-                working_language, lookup_gloss, pos, coined, llm_client, lemma_candidates=[lookup_gloss]
+                working_language, lookup_gloss, pos, coined, llm_client, lemma_candidates=[lookup_gloss],
+                pos_was_guessed=slot.pos_was_guessed, warnings=warnings,
             )
             if suppletive_case:
                 rendered = (entry.romanization, entry.ipa)  # the case form is a word of its own
@@ -2941,6 +2967,62 @@ def _render_plan(
     return working_language, romanization_parts, ipa_parts, gloss_parts, entries
 
 
+_DROPPED_WORD_STOPWORDS = frozenset({
+    # articles
+    "a", "an", "the",
+    # pronouns (subject/object/possessive/reflexive)
+    "i", "me", "my", "mine", "myself", "you", "your", "yours", "yourself", "yourselves",
+    "he", "him", "his", "himself", "she", "her", "hers", "herself", "it", "its", "itself",
+    "we", "us", "our", "ours", "ourselves", "they", "them", "their", "theirs", "themselves",
+    # copula/auxiliary/modal forms
+    "be", "am", "is", "are", "was", "were", "been", "being", "have", "has", "had", "having",
+    "do", "does", "did", "will", "would", "shall", "should", "may", "might", "must", "can", "could",
+    # conjunctions and subordinators
+    "and", "but", "or", "nor", "so", "that", "because", "if", "unless", "although", "though",
+    "when", "while", "since", "than",
+    # common prepositions
+    "in", "on", "at", "to", "from", "with", "by", "of", "for", "about", "between", "under", "over",
+    "through", "before", "after", "near", "into", "onto", "toward", "towards", "without", "among",
+    "beside", "behind", "inside", "above", "below",
+    # negation and wh-words (the latter are usually represented structurally, not as their own gloss)
+    "not", "no", "never", "what", "who", "whom", "where", "why", "how", "which",
+})
+"""Closed-class words a `"content"` plan slot never represents by itself (grammatical role/function
+words the renderer or the planner's own structure already accounts for) -- excluded from `_dropped_
+word_warnings`'s own input-coverage check, since otherwise almost every real sentence would falsely
+flag one. Deliberately this project's own small, explicit list rather than importing `llm.fake_
+client`'s private, fake-backend-only word sets -- that module's own closed classes exist to drive its
+deterministic *construction detection*, a different concern from this one, and reaching into another
+module's private fake-only data here would be the wrong layering."""
+
+
+def _dropped_word_warnings(sentence: str, plan: sentence_planner.SentencePlan) -> list[str]:
+    """Heuristic, not a guarantee (see `TranslationResult.warnings`'s own docstring): flags an input
+    content word with no matching gloss anywhere in `plan`, loosely (a prefix match either direction,
+    so regular inflection like "walked" against the base-lemma gloss "walk" still counts as covered).
+    An irregular form ("saw" against "see") won't prefix-match and could still false-positive -- this
+    catches the common, serious case (the model dropped a whole word or clause), not every possible
+    one. A ``"name"`` slot's own gloss can be multiple whitespace-separated words ("New York") -- each
+    is checked individually as well as the whole phrase, so a real LLM splitting the input token
+    stream differently from the name's own internal spaces (tokenizing "York" apart from "New") still
+    counts as covered."""
+    plan_glosses = []
+    for slot in sentence_planner.flatten_slots(plan):
+        if not slot.gloss:
+            continue
+        lowered = slot.gloss.lower()
+        plan_glosses.append(lowered)
+        plan_glosses.extend(lowered.split())
+    warnings = []
+    for token in sentence_planner._tokenize(sentence):
+        if token in _DROPPED_WORD_STOPWORDS:
+            continue
+        if any(token.startswith(g) or g.startswith(token) for g in plan_glosses):
+            continue
+        warnings.append(f"possibly dropped: \"{token}\" (no matching word found in the translated plan)")
+    return warnings
+
+
 def translate_to_conlang(
     text: str, language: Language, llm_client: LLMClient, model: str = DEFAULT_MODEL,
 ) -> TranslationResult:
@@ -2956,14 +3038,16 @@ def translate_to_conlang(
     then reads correctly ("... high. ... river?"), with no further change
     to the join itself."""
     coined: list[LexicalEntry] = []
+    warnings: list[str] = []
     working_language = language
     romanization_sentences: list[str] = []
     ipa_sentences: list[str] = []
     tokens: list[TokenGloss] = []
     for sentence in sentence_planner.split_sentences(text) or [text]:
         plan = sentence_planner.plan_sentence(sentence, working_language, llm_client, model)
+        warnings.extend(_dropped_word_warnings(sentence, plan))
         working_language, rom_parts, ipa_parts, gloss_parts, entry_parts = _render_plan(
-            plan, working_language, llm_client, coined
+            plan, working_language, llm_client, coined, warnings=warnings
         )
         mark = terminal_mark(plan.mood, working_language.romanization.punctuation_style)
         romanization_sentences.append(" ".join(rom_parts) + mark)
@@ -2988,6 +3072,7 @@ def translate_to_conlang(
         coined=tuple(coined),
         pattern="llm-plan",
         tokens=tuple(tokens),
+        warnings=tuple(warnings),
     )
 
 

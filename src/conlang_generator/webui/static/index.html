@@ -2674,6 +2674,8 @@ $("translate-btn").onclick = async () => {
     });
     const coined = result.coined.length
       ? `<div class="badges"><span class="badge">coined: ${result.coined.join(", ")}</span></div>` : "";
+    const translateWarnings = (result.warnings || []).length
+      ? (result.warnings || []).map(w => `<div class="error">⚠ ${escapeAttr(w)}</div>`).join("") : "";
     const pronounceBlock = result.ipa ? `
         <div class="submit-row">
           <button type="button" class="add-row" id="pronounce-btn">&#128266; Play pronunciation</button>
@@ -2695,6 +2697,7 @@ $("translate-btn").onclick = async () => {
           <span class="badge">this call: $${result.cost.delta_usd.toFixed(4)} (${result.cost.delta_calls} calls)</span>
         </div>
         ${coined}
+        ${translateWarnings}
         ${pronounceBlock}
       </div>`;
     currentIpa = result.ipa || "";

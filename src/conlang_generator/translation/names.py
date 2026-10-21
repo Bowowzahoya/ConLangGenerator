@@ -72,15 +72,38 @@ def is_name_entry(entry: LexicalEntry) -> bool:
 
 def make_name_entry(language: Language, name: str, llm_client: LLMClient) -> LexicalEntry:
     name = unicodedata.normalize("NFC", name.strip())
-    guessed_ipa = resolve_seed_examples(
-        (SeedExample(gloss=name, form=name),), llm_client, language.spec.word_selection_model
-    )[0].ipa or ""
     if resolve_foreign_names(language) == "keep":
+        guessed_ipa = resolve_seed_examples(
+            (SeedExample(gloss=name, form=name),), llm_client, language.spec.word_selection_model
+        )[0].ipa or ""
         return LexicalEntry(
             ipa=guessed_ipa or name.lower(), romanization=name, glosses=(name,),
             pos=PartOfSpeech.NOUN, notes=NAME_NOTE,
         )
-    ipa = phoneme_fit.fit_ipa(guessed_ipa, language.phonology, language.syllable_structure)
-    latin = apply_grammatical_spelling(language.romanization, language.romanization.apply(ipa), PartOfSpeech.NOUN)
-    latin = latin[:1].upper() + latin[1:]
-    return LexicalEntry(ipa=ipa, romanization=latin, glosses=(name,), pos=PartOfSpeech.NOUN, notes=NAME_NOTE)
+    # "adapt": each whitespace-separated segment of the name is fitted to this language's own
+    # phonology independently and rejoined with a space -- a multi-word name with no generic
+    # descriptor to split on ("New York", unlike "Lake Baikal") used to have its whole multi-word
+    # string guessed and fitted as one phonological unit, fusing it into a single unrecognizable
+    # blob with no trace it was ever two words. This doesn't solve *where* a name should conceptually
+    # split (still fully the planner's own call, unchanged) -- it only fixes how an already-unsplit
+    # multi-word name degrades here. A single-word name takes the exact same path through a
+    # single-element list, so nothing changes for the common case.
+    segments = name.split()
+    resolved = resolve_seed_examples(
+        tuple(SeedExample(gloss=segment, form=segment) for segment in segments),
+        llm_client, language.spec.word_selection_model,
+    )
+    latin_segments = []
+    ipa_segments = []
+    for resolved_segment in resolved:
+        ipa_segment = phoneme_fit.fit_ipa(resolved_segment.ipa or "", language.phonology, language.syllable_structure)
+        latin_segment = apply_grammatical_spelling(
+            language.romanization, language.romanization.apply(ipa_segment), PartOfSpeech.NOUN,
+        )
+        latin_segment = latin_segment[:1].upper() + latin_segment[1:]
+        latin_segments.append(latin_segment)
+        ipa_segments.append(ipa_segment)
+    return LexicalEntry(
+        ipa=" ".join(ipa_segments), romanization=" ".join(latin_segments), glosses=(name,),
+        pos=PartOfSpeech.NOUN, notes=NAME_NOTE,
+    )

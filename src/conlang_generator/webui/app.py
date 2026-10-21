@@ -1167,6 +1167,7 @@ def translate(request: TranslateRequest) -> dict:
         "ipa": result.ipa,
         "pattern": result.pattern,
         "coined": [e.romanization for e in result.coined],
+        "warnings": list(result.warnings),
         "tokens": [
             {
                 "surface": t.surface, "ipa": t.ipa, "gloss": t.gloss, "pos": t.pos,

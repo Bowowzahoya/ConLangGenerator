@@ -8917,3 +8917,81 @@ reading code or one-off ad hoc scripts.
   adjacent, no linking word, `xen` byte-identical to `go`'s own citation-form lexicon entry (`he`
   itself correctly subject-pro-dropped by this language's own independent, unrelated feature);
   decoded back as "he run go," both verbs and the recovered subject present.
+
+  **Pass 48: translation robustness -- dropped words, nonsense coinage, unsplit proper names,
+  user-directed.** Asked "weren't there some items left with sentences being way too short," which
+  pointed straight at `docs/DEFERRED.md` ch. 1's own open item: the real user-reported bug ("My
+  friend, I think you are really dumb. Just piss off. You are a lkdjhr" came back as five
+  disconnected-looking words) had its per-sentence-split fix land, but its own last line said "not
+  yet re-tested against a real LLM" -- meaning the fix was never actually confirmed against the
+  model that produced the bug. Bundled with two adjacent ch. 1/ch. 3 gaps in the same "the pipeline
+  quietly does something wrong instead of failing loudly" family, at the user's own request to take
+  them together. Investigating first found two of the three DEFERRED items already stale:
+  `max_tokens=500` was already set on `plan_sentence`'s real LLM call, and coinage was already
+  reported ("Coined N new word(s)" in both CLI and webui) -- nothing to do for either. The three
+  genuine remaining gaps, each addressed as a heuristic warning rather than an automatic fix (a
+  wrong guess at "what should have been there" risks being more misleading than an honest "the
+  pipeline wasn't sure" -- this pass is about visibility, not redesigning today's actual coin/render
+  behavior):
+
+  - **Dropped-word detection.** New `translator._dropped_word_warnings(sentence, plan)`: tokenizes
+    the original input (`sentence_planner._tokenize`), drops a new, independent closed stopword set
+    (`_DROPPED_WORD_STOPWORDS` -- articles/pronouns/copula-aux-modals/conjunctions/prepositions/
+    negation/wh-words; deliberately not reused from `llm.fake_client`'s own private sets, which exist
+    to drive *construction detection* for the fake backend specifically, a different concern), and
+    flags any remaining token with no matching gloss anywhere in `sentence_planner.flatten_slots
+    (plan)` -- loosely, a prefix match either direction, so regular inflection ("walked" against the
+    base-lemma gloss "walk") still counts as covered. New `TranslationResult.warnings: tuple[str,
+    ...]`, following the same "mutated accumulator list passed into `_render_plan`" convention
+    `coined` already used, for consistency rather than threading warnings through return tuples.
+  - **Nonsense-coinage flagging.** Deliberately did not add an English word-list dependency (`AGENTS.
+    md`: "do not introduce... without an immediate need") -- reused a signal the real LLM's own plan
+    JSON already carries for free instead. New `PlannedSlot.pos_was_guessed: bool`, set exactly where
+    `sentence_planner._slots_from_raw` already silently defaults a missing/invalid `"pos"` to
+    `"noun"`: a real word the model understood almost always gets a real part of speech back; a
+    typo or nonsense token has nothing grammatical to report. `_lookup_or_coin`, when about to coin
+    a brand-new word for a `pos_was_guessed=True` slot, appends a warning instead of coining silently
+    -- the word still gets coined (not a behavior change), only the visibility changes.
+  - **Unsplit multi-word proper names.** Not attempting real name-splitting (DEFERRED's own "no
+    mechanical way exists to know where such a name should split" stands -- needs a gazetteer this
+    project doesn't have). `names.make_name_entry`'s `"adapt"` branch used to run `phoneme_fit.
+    fit_ipa` over a multi-word name ("New York") as one literal string, fusing it into one
+    unrecognizable blob with no trace it was ever two words. Now splits on whitespace and adapts each
+    segment independently (one `SeedExample` per segment through the same `resolve_seed_examples`
+    already used for the whole-string case, then `phoneme_fit.fit_ipa` and romanization per segment,
+    capitalized and rejoined with a space) -- a single-word name takes the same path through a
+    single-element list, so that case is byte-identical to before. `"keep"` mode is untouched.
+
+  A real design-mistake caught before it shipped: `_render_plan`'s new `warnings` parameter was
+  first inserted as its 5th *positional* argument, which would have silently shifted the one
+  recursive internal call (nested-clause rendering)'s `nested_mood, nested_tense, nested_case`
+  arguments by one position. Caught by grepping all call sites (27+ test files, all using exactly 4
+  positional args) before implementing further; corrected by appending `warnings` at the very end of
+  the signature instead (`None` default swapped for a fresh list inside the function body, per the
+  usual mutable-default-argument avoidance), with the one recursive call site updated to pass it as
+  an explicit keyword argument.
+
+  `result.warnings` surfaced the same way `result.coined` already is: a new `Warning: ...` line per
+  entry in the CLI (`cli/main.py`), and a new `"warnings"` key in the webui's `/api/translate`
+  response, rendered with the same `⚠ {w}` convention the language-summary's own warnings already
+  used in `static/index.html`.
+
+  Verified: 22 new tests (`tests/test_translation_warnings.py` -- dropped-word detection positive/
+  negative/prefix-tolerance/stopword/nested-clause cases, `_slots_from_raw`'s `pos_was_guessed`
+  flagging, `_lookup_or_coin`'s coinage-warning plumbing, `_render_plan`'s end-to-end surfacing;
+  `tests/test_names.py` -- multi-word name adaptation producing two independently phonotactically-
+  legal, capitalized, space-joined segments, and a single-word-name regression check); full suite
+  green. **Live-verified against the real Anthropic backend** (Haiku 4.5, the actual point of this
+  pass -- the original bug was never re-tested against one): the exact reported sentence now
+  produces "vrienaat ik dengeliea dat jij moeieaat heel dom. plassen af! jij are dnoebnech." -- 13
+  rendered words for a 14-word input, no longer suspiciously short -- with two honest warnings for
+  the two genuinely-dropped intensifiers ("really", "just") and no false warning for "lkdjhr" (the
+  real model assigned it a plausible `pos` from sentence position despite it being nonsense, which
+  is the documented limit of this heuristic, not a bug in it). A multi-word name case ("I am flying
+  to New York tomorrow") surfaced a real bug in the dropped-word check itself: the real plan put
+  "New York" in one `name` slot with gloss `"new york"`, but the input tokenizer splits "York" apart
+  from "New," so "york" never prefix-matched the whole-phrase gloss in either direction and was
+  falsely flagged as dropped. Fixed by also checking each whitespace-split word of a multi-word
+  gloss individually, with a regression test (`test_a_multi_word_name_glosses_each_of_its_own_
+  words_too`) added for it; re-verified clean against the real backend afterward, and the name came
+  back from the lexicon unchanged (reused, not re-coined) on the repeat call.

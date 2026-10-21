@@ -172,6 +172,14 @@ class PlannedSlot:
     (which marks a *subordinated* non-finite verb inside a nested clause; this slot stays in the
     same flat clause as the finite verb it follows, a different grammatical environment, so it gets
     its own field rather than overloading that one)."""
+    pos_was_guessed: bool = False
+    """``True`` when the real LLM plan's own raw JSON left out ``"pos"`` or gave one this project
+    doesn't recognize, silently defaulted to ``"noun"`` (see ``_slots_from_raw`` below) -- a real
+    word the model genuinely understood almost always gets a real part of speech back; one it
+    didn't (a typo, a nonsense token) has nothing grammatical to report. Used only as a coinage-time
+    warning signal (``translator._lookup_or_coin``) that this might not be a real word at all, not as
+    anything that changes rendering -- the fake planner never sets this, since it always supplies a
+    real ``pos`` itself."""
 
 
 MOODS = ("declarative", "imperative", "question", "wh_question")
@@ -992,7 +1000,8 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
         gloss = item.get("gloss")
         gloss = ((gloss.strip() if kind == "name" else gloss.strip().lower()) if isinstance(gloss, str) else "")
         pos = item.get("pos")
-        pos = pos if pos in POS_BY_PLAN_STRING else "noun"
+        pos_was_guessed = pos not in POS_BY_PLAN_STRING
+        pos = pos if not pos_was_guessed else "noun"
         slots.append(
             PlannedSlot(
                 kind=kind,
@@ -1016,6 +1025,7 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                 classifier_for=_lemma(item.get("classifier_for")),
                 object_gloss=_lemma(item.get("object_gloss")),
                 serial_result=item.get("serial_result") is True,
+                pos_was_guessed=pos_was_guessed,
             )
         )
     return slots
