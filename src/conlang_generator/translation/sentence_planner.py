@@ -163,6 +163,15 @@ class PlannedSlot:
     role: str | None = None
     """For ``kind="clause"``: one of ``CLAUSE_ROLES`` (informational; all three
     render the same way, a linking word plus the nested clause)."""
+    serial_result: bool = False
+    """On a second ``kind="content"``, ``pos="verb"`` slot immediately following its clause's own
+    finite main verb, with no linking word between them: a serial verb construction's own result
+    verb (Mandarin's resultative 打破 "hit-break" = to break -- only in a language with ``Grammar
+    Profile.has_serial_verbs``, the gloss one of its own ``serial_result_verbs``). Rendered as a
+    bare citation form -- no tense/aspect/mood/agreement of its own, unlike ``verb_form`` above
+    (which marks a *subordinated* non-finite verb inside a nested clause; this slot stays in the
+    same flat clause as the finite verb it follows, a different grammatical environment, so it gets
+    its own field rather than overloading that one)."""
 
 
 MOODS = ("declarative", "imperative", "question", "wh_question")
@@ -244,6 +253,15 @@ def _build_system_prompt(language: Language) -> str:
     )
     voices_desc = (
         ", ".join(grammar.voices) if grammar.voices else 'none -- never set "voice" on anything'
+    )
+    serial_desc = (
+        'this language juxtaposes two verbs with no conjunction when one directly causes the other ("I hit it '
+        'and it broke" -> "I hit-broke it"): write TWO "content" verb slots back to back, the first ordinary/'
+        'finite (its own tense/agreement), the second with "serial_result":true and NO tense/agreement/aspect/'
+        'mood of its own (a bare citation form) -- ONLY when the result gloss is one of: '
+        + ", ".join(grammar.serial_result_verbs) + ". Never set \"serial_result\" on any other verb."
+        if grammar.has_serial_verbs
+        else 'none -- never set "serial_result" on anything'
     )
     existential_desc = (
         'X followed by a finite "content" verb with gloss "exist" (pos "verb", tense/agreement like any verb; '
@@ -622,6 +640,8 @@ Never write a slot for the English "there".{negative_existential_desc}
 separate "possessive" mechanism.)
 - voices (besides the ordinary active) this language actually has: \
 {voices_desc}.
+- serial verbs (two verbs in one clause, no conjunction, the second naming a direct result): \
+{serial_desc}
 - number: singular is unmarked; this language has {number_desc}.
 - demonstratives come {demonstrative_desc} their noun; adpositions are {adposition_desc}; numerals stand directly before their noun ({numeral_desc}).
 - possession: {possession_desc}.
@@ -864,6 +884,8 @@ def plan_sentence(text: str, language: Language, llm_client: LLMClient, model: s
             "negative_existential": "true" if grammar.negative_existential else "false",
             "cases": ",".join(grammar.cases),
             "voices": ",".join(grammar.voices),
+            "has_serial_verbs": "true" if grammar.has_serial_verbs else "false",
+            "serial_result_verbs": ",".join(grammar.serial_result_verbs),
             "postpositional": "true" if grammar.postpositional else "false",
             "has_indefinite_article": "true" if grammar.has_indefinite_article else "false",
             "has_specific_article": "true" if grammar.has_specific_article else "false",
@@ -989,6 +1011,7 @@ def _slots_from_raw(raw: list, depth: int) -> list[PlannedSlot]:
                 subject_gloss=_lemma(item.get("subject_gloss")),
                 classifier_for=_lemma(item.get("classifier_for")),
                 object_gloss=_lemma(item.get("object_gloss")),
+                serial_result=item.get("serial_result") is True,
             )
         )
     return slots

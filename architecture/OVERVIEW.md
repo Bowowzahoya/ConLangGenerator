@@ -8822,3 +8822,68 @@ reading code or one-off ad hoc scripts.
   `test_webui.py`) plus a live dev-server check -- generating with `compound_likelihood=1.0` shows
   `teacher ← teach` in the real Inspect table, and clicking `teach` scrolls to and flashes that exact
   row; a synthetic compound entry confirms the "= moon + light" two-link rendering. Full suite green.
+
+  **Next sizeable project, user-directed: serial verb constructions (resultative subtype), grammar
+  pass 46.** `docs/DEFERRED.md` ch. 10 already named "serial verbs (L)" as missing from the verb
+  phrase; asked "what would be a good sizeable project to take up next," this was the strongest fit
+  -- the word-formation pass itself had explicitly carved SVCs out of its own scope as "a real,
+  scoped future addition to the grammar/syntax side." Scoped to the resultative subtype only
+  (Mandarin's own 打破 "hit-break" = to break) -- the directional subtype (Japanese's own 飛び出す
+  "fly-out") and "valency-changing morphology beyond pass 31" stay separately deferred, same
+  incremental-pass discipline voice itself used (pass 17's base system, pass 31's follow-ups).
+
+  Two new `GrammarProfile` fields: `has_serial_verbs`, `serial_result_verbs` (a per-language curated
+  subset, 3-6 verbs, of a new `voice_np_gen.RESULT_VERB_POOL` -- every entry confirmed present in
+  `lexicon_gen.ALL_MEANINGS` before use, not assumed). Rolled inside `voice_np_gen.roll_followups`
+  itself (verb-phrase follow-ups' own established independent-stream home, pass 31's own module --
+  no new module needed for one rate table and one subset draw), isolating-skewed
+  (`_SVC_RATE`, Mandarin/Thai/Niger-Congo's own real typological lean, nonzero everywhere else).
+  `generator.py`'s own `vnp` merge turned out to be explicit key-by-key (`grammar.model_copy(update=
+  {"voices": ..., "passive_agreement": ...})`), not a blanket spread as the plan assumed going in --
+  corrected during implementation by adding the two new keys there directly, not a design change.
+
+  One new `PlannedSlot` field, `serial_result: bool`, deliberately *not* reusing the existing
+  `verb_form` ("infinitive"/"nominalized"/"participle") despite the surface similarity ("non-finite
+  verb") -- `verb_form` marks a verb *subordinated* inside a nested `SentencePlan`, a different
+  grammatical environment from a serial result verb, which stays in the same flat clause as the
+  finite verb it follows with no subordination at all; conflating the two risked real coupling bugs
+  (existing code checks `slot.verb_form in grammar.verb_forms` to decide whether to skip tense/
+  periphrastic splitting). Render reuses the exact bare-citation-form pattern `suppletive_case`
+  already established in `_render_plan`'s own verb-slot branch (`rendered = (entry.romanization,
+  entry.ipa)`, no `_apply_verb_inflection` call) -- one more sibling of an existing pattern, not a
+  new one. `_finite_verb_indices`/`_negatable_verb_indices` (used for imperative mood marking and
+  negation's own "nearest verb" absorption) both gained a `serial_result` exclusion, found necessary
+  during implementation, not anticipated in the plan -- without it a serial result verb (genuinely
+  invariant, no suffix slot at all) would have been wrongly offered as a negation/imperative target
+  alongside the real finite verb.
+
+  Decode needed no structural change at all -- confirmed directly: `translate_to_english`'s own
+  per-token, clause-structure-agnostic design already decodes two adjacent verb tokens independently,
+  the second correctly reading as a bare lemma since no suffix was ever applied to strip. Found and
+  reused this project's own existing "fluency-prompt note" mechanism (`translator._construction_
+  note`, already used for existentials/possession/comparison/subordination -- `docs/DEFERRED.md`'s
+  own prior note that "the English direction relies on the fluency prompt note" was the clue) to add
+  one new sentence telling a real fluency LLM pass how to read "I hit break" back as "I hit it so it
+  broke," rather than inventing a new mechanism.
+
+  The fake (deterministic) planner's own detection, `fake_client._fake_serial_verb_slots`, is one
+  more link in the existing priority-ordered shape-dispatch chain (`_fake_existence_slots` ->
+  `_fake_degree_slots` -> `_fake_voice_slots` -> this -> the general transitive/intransitive cases),
+  modeled directly on `_fake_voice_slots`'s own parameter shape. English has no natural bare-verb-
+  verb resultative surface form (confirmed: that's precisely why it's a notable Mandarin/Sino-Tibetan
+  typology and not an English one), so -- the same "deliberately stylized fixed trigger" convention
+  the oblique_pp relative clause and the correlative already use -- it claims a fixed 4-bare-content-
+  word shape (subject, transitive verb, object, result verb), gated tightly on the language actually
+  having the feature *and* the final word really being a member of its own rolled pool, so an
+  ordinary 4-content-word sentence in any other language still falls through unchanged (verified: no
+  regression to the existing general-case fallback).
+
+  Verified: 8 new tests (`tests/test_serial_verbs.py` -- roll rate/pool shape, bare-citation-form
+  render, object positioning around the V1+V2 complex, decode, fake-planner detection positive/
+  negative/pool-gated cases, a full `translate_to_conlang` round trip); full suite green. Live-
+  verified through the real CLI, not just tests: `conlang generate` (seed 2, isolating morphology)
+  rolled `has_serial_verbs: true` with "break" in its own pool; `conlang translate "I hit it break"`
+  produced "psa cittehe'i nasa ca." -- the two verb roots directly adjacent with no linking word, the
+  result verb's own rendered form (`nasa`) byte-identical to its citation-form lexicon entry; decoded
+  back as "I hit break he," structurally correct (fluency smoothing is the real LLM's own job here,
+  same established division as every other construction this project already defers to it for).

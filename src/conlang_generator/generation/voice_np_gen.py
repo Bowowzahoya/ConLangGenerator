@@ -11,10 +11,28 @@ from __future__ import annotations
 
 import random
 
+from conlang_generator.core.grammar import MorphologicalType
 from conlang_generator.generation.noun_class_gen import semantic_field
 
 EXTRA_VOICES = ("middle", "applicative", "impersonal")
 _EXTRA_VOICE_RATE = 0.25
+RESULT_VERB_POOL = (
+    "break", "open", "close", "die", "fall", "kill", "catch", "burn", "freeze", "stop", "begin",
+    "wake", "split", "join", "tear", "cut", "rise",
+)
+"""Candidates for a serial verb construction's own result slot (the resultative subtype only --
+Mandarin's own 打破 "hit-break" = to break) -- every one confirmed present in `lexicon_gen.
+ALL_MEANINGS` as a verb gloss, not assumed. A real language recruits a small, particular subset of
+these (see `_SERIAL_RESULT_POOL_SIZE`), not the open verb class -- real SVCs are typologically
+restrictive about which verbs can fill the result slot."""
+_SVC_RATE = {
+    MorphologicalType.ISOLATING: 0.45, MorphologicalType.AGGLUTINATIVE: 0.15,
+    MorphologicalType.FUSIONAL: 0.10, MorphologicalType.POLYSYNTHETIC: 0.20,
+}
+"""Isolating languages weighted highest -- Mandarin/Thai/Niger-Congo's own real typological skew
+toward serial verb constructions -- nonzero everywhere else, since SVCs aren't exclusively an
+isolating-language property (west African languages with agglutinative tendencies have them too)."""
+_SERIAL_RESULT_POOL_SIZE = (3, 4, 5, 6)
 EXTRA_NUMBERS = ("trial", "collective")
 _NUMBER_RATES = (0.12, 0.15)
 EXTRA_CASES = ("locative", "instrumental")
@@ -157,6 +175,9 @@ def roll_followups(rng: random.Random, grammar) -> dict[str, object]:
     degree_gate = rng.random() < 0.4
     degree_hits = [rng.random() < 0.6 for _ in SUPPLETIVE_DEGREES]
     inalienable = rng.random() < 0.25
+    has_serial_verbs = rng.random() < _SVC_RATE.get(grammar.morphological_type, 0.2)
+    serial_pool_size = rng.choice(_SERIAL_RESULT_POOL_SIZE)
+    sampled_result_verbs = tuple(rng.sample(RESULT_VERB_POOL, serial_pool_size))
     return {
         "voices": tuple(v for v, hit in zip(EXTRA_VOICES, voice_hits) if hit and v not in grammar.voices),
         "passive_agreement": passive_agreement,
@@ -170,4 +191,6 @@ def roll_followups(rng: random.Random, grammar) -> dict[str, object]:
         "suppletive_plurals": tuple(g for g, hit in zip(IRREGULAR_PLURALS, plural_hits) if hit) if plural_gate else (),
         "suppletive_degrees": tuple(g for g, hit in zip(SUPPLETIVE_DEGREES, degree_hits) if hit) if degree_gate else (),
         "inalienable_possession": inalienable,
+        "has_serial_verbs": has_serial_verbs,
+        "serial_result_verbs": sampled_result_verbs if has_serial_verbs else (),
     }

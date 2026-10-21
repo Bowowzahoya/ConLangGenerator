@@ -639,6 +639,23 @@ class GrammarProfile(BaseModel, frozen=True):
     """Whether a periphrastic auxiliary word agrees with the subject (person,
     number, politeness) like a real auxiliary "have"/"has", instead of being
     an invariant particle."""
+    has_serial_verbs: bool = False
+    """Whether this language can juxtapose two verbs in one clause with no
+    conjunction/complementizer between them -- a serial verb construction,
+    scoped to the resultative subtype only (Mandarin's own 打破 "hit-break"
+    = to break): the first verb is ordinary/finite (its own tense/aspect/
+    mood/agreement), the second is an invariant bare form naming the
+    result, drawn from ``serial_result_verbs``. See ``translation.
+    sentence_planner.PlannedSlot.serial_result`` for how a plan marks the
+    second verb, and ``translation.translator``'s verb-slot renderer for
+    how it's rendered bare (no inflection of its own)."""
+    serial_result_verbs: tuple[str, ...] = ()
+    """This language's own closed set of result-verb glosses its serial
+    construction draws its second verb from (e.g. break/open/die/fall) --
+    real SVCs recruit a small, language-particular inventory, not the open
+    verb class, the same "closed curated pool, per-language subset" shape
+    ``paradigm_gen``'s own ``IRREGULAR_VERBS`` already uses. Empty unless
+    ``has_serial_verbs``."""
 
     passive_agreement: str = "patient"
     """``"patient"`` (the passive verb agrees with its subject, the patient) or

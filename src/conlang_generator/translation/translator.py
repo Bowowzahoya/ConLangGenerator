@@ -719,7 +719,7 @@ def _finite_verb_indices(language: Language, slots) -> list[int]:
     has_be = language.lexicon.by_gloss("be") is not None
     found = []
     for index, slot in enumerate(slots):
-        if slot.verb_form in grammar.verb_forms:
+        if slot.verb_form in grammar.verb_forms or slot.serial_result:
             continue
         if slot.kind == "copula" and has_be:
             found.append(index)
@@ -734,10 +734,16 @@ def _negatable_verb_indices(language: Language, slots) -> list[int]:
     same suffix a finite one does (``_non_finite_affix``), so within its own
     clause (the only slots this scope ever sees -- a nested complement/relative
     clause renders through its own separate call) it is as eligible a target as
-    any finite verb, and often the clause's only verb at all."""
+    any finite verb, and often the clause's only verb at all. A serial verb
+    construction's own result verb is excluded -- it's an invariant bare form
+    with no suffix slot at all (negation falls back to the finite main verb
+    it follows, the real cross-linguistic pattern: Mandarin negates the whole
+    V1V2 complex on V1)."""
     has_be = language.lexicon.by_gloss("be") is not None
     found = []
     for index, slot in enumerate(slots):
+        if slot.serial_result:
+            continue
         if slot.kind == "copula" and has_be:
             found.append(index)
         elif slot.kind == "content" and slot.pos == "verb" and slot.gloss:
@@ -2680,6 +2686,11 @@ def _render_plan(
             )
             if suppletive_case:
                 rendered = (entry.romanization, entry.ipa)  # the case form is a word of its own
+            elif pos is PartOfSpeech.VERB and slot.serial_result:
+                # A serial verb construction's own result verb: an invariant bare citation form,
+                # no tense/aspect/mood/agreement of its own -- the real cross-linguistic shape
+                # (Mandarin's resultative 打破 "hit-break" = to break).
+                rendered = (entry.romanization, entry.ipa)
             elif pos is PartOfSpeech.VERB:
                 agreement_label, object_label = _verb_agreement(working_language, slot)
                 tense_in = slot.tense or forced_verb_tense
@@ -3528,9 +3539,16 @@ def _construction_note(language: Language) -> str:
         + ", "
         + ("the superlative a suffix" if grammar.superlative_marking == "affix" else 'the superlative the word "most"')
     )
+    serial = (
+        ' This language also allows two verbs in a row with no conjunction, the second a bare '
+        '"result" verb (e.g. "break"): read that as the first verb causing the result -- "hit break" '
+        'is "hit [it] so it broke" / "broke [it] by hitting it", not two separate actions.'
+        if grammar.has_serial_verbs else ""
+    )
     return (
         f' In this language "there is X" is expressed as {existential}, and "A has B" as {possession}.'
         f" Comparison: {degrees}; {standard}. Read these as ordinary English comparatives and superlatives."
+        + serial
         + _subordination_note(grammar)
     )
 

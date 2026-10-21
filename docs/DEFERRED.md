@@ -642,10 +642,11 @@ only for `this`/`that` (no article per person or distance beyond two) and exists
 
 **Verb phrase (auxiliaries/periphrastic tenses and evidentiality done, pass
 16 + pass 29/30; deontic modality done, pass 44; negative verbs done, pass
-45; this bullet otherwise predates those passes and was stale -- narrowed
-to what's actually still missing):** serial verbs (L); valency-changing
-morphology beyond pass 31 (L); a state-vs-identity copula distinction (zero
-copula itself already exists, `has_overt_copula`) (S); adverb placement
+45; serial verbs (resultative subtype) done, pass 46; this bullet otherwise
+predates those passes and was stale -- narrowed to what's actually still
+missing):** valency-changing morphology beyond pass 31 (L); a
+state-vs-identity copula distinction (zero copula itself already exists,
+`has_overt_copula`) (S); adverb placement
 (S). Deontic modality itself (pass 44) covers obligation only, via a new
 independent `"obligative"` mood label (glossed "must", reusing the entire
 existing mood/periphrastic/decode pipeline) -- still missing within that:
@@ -663,6 +664,22 @@ strategy); a tense-sensitive connegative (real Finnish varies it by tense);
 grammaticalization of the negative-verb word into a bound suffix over
 evolution (`sound_change._grammaticalize_and_fuse` is the natural, already-
 precedented place to extend this, not attempted here).
+
+**Serial verbs, scoped to the resultative subtype only -- done, pass 46 -- Mandarin's own 打破
+"hit-break" = to break, the already-cited example.** See `architecture/OVERVIEW.md` for the full
+mechanism. Deliberately not attempted in this same pass, each a realistic later follow-up: the
+**directional** SVC subtype (Japanese's own 飛び出す "fly-out" = to jump out, path-of-motion rather
+than result-state -- a distinct pool/semantics, not just a bigger result-verb list); chains of more
+than two verbs (real languages do allow longer chains, but two is the clearest, most citable case,
+matching this project's own "cap depth at two" precedent elsewhere, e.g. subordination's own
+relative-clause stacking); richer argument-sharing patterns beyond the simple transitive-V1 +
+intransitive-result-V2 reading ("I hit it [and it] broke") -- same-subject-different-object chains
+exist in real SVC languages, not modeled here; negation/imperative interaction with a serial verb
+is narrowly made safe (the result verb is excluded from both `_finite_verb_indices`/`_negatable_
+verb_indices`, so neither ever targets it) but not given its own real treatment (negating a serial
+sentence always lands on the finite verb only, matching the real cross-linguistic default, not
+separately verified beyond that). "Valency-changing morphology beyond pass 31" is a separate,
+already-distinct (L) item just above this one, not touched by this pass either.
 
 **Morphology (the morphology list is done, passes 22-27):** what is left is depth, not breadth (S-M each).
 Reduplication marks a cell *alongside* its ordinary affix (there is no pure reduplication that replaces the
