@@ -1005,20 +1005,43 @@ def tweak_language(slug: str, request: TweakRequest) -> dict:
     # so the preview can show it without the user having to infer it from
     # individual word diffs.
     summary["sound_correspondence"] = phoneme_fit.sound_correspondence(base.phonology, language.phonology)
-    # A live font preview, whenever the tweaked result has a script at all -- not gated to the script
-    # axis specifically, since a phonology tweak also silently re-rolls script as a side effect of
-    # re-running generate_language (see generation.generator.regenerate_phonology's own docstring) and
-    # orthography tweaking carries the base script through unchanged; either way, showing it costs the
-    # same few lines and closes a real, if secondary, blind spot. Built to a scratch temp path (not the
-    # slug-cache path get_script_font uses -- this result may never be saved) and inlined as base64, so
-    # the frontend can show real glyphs via an inline @font-face data URI immediately, dry-run or not,
-    # with no second round trip -- the same technique this project's own script-redesign pass verified
-    # by hand before relying on it here.
+    # A live, per-letter before/after font preview, whenever the tweaked result has a script at all --
+    # not gated to the script axis specifically, since a phonology tweak also silently re-rolls script
+    # as a side effect of re-running generate_language (see generation.generator.regenerate_phonology's
+    # own docstring) and orthography tweaking carries the base script through unchanged; either way,
+    # showing it costs the same few lines and closes a real, if secondary, blind spot. Both fonts are
+    # built to a scratch temp path (not the slug-cache path get_script_font uses -- this result may
+    # never be saved) and inlined as base64, so the frontend can show every letter's own real glyph via
+    # an inline @font-face data URI immediately, dry-run or not, with no second round trip -- the same
+    # technique this project's own script-redesign pass verified by hand before relying on it here.
+    # Direct user feedback on an earlier cut of this preview: a word-sample view made a handful of
+    # genuinely changed glyphs look like "it changes a lot" (every sample word touching one of them
+    # looked different), and gave no way to tell which letters actually changed from which didn't --
+    # `script_preview_glyphs`' own `changed` flag (computed by comparing each glyph's own strokes/
+    # diacritics against the base script, not inferred from rendering) answers that directly instead
+    # of making the user eyeball two blocks of text.
     if language.script is not None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            font_path = Path(tmpdir) / "preview.ttf"
-            build_font(language.script, font_path, language.name)
-            summary["script_preview_font_b64"] = base64.b64encode(font_path.read_bytes()).decode("ascii")
+            tmp = Path(tmpdir)
+            new_font_path = tmp / "preview.ttf"
+            build_font(language.script, new_font_path, language.name)
+            summary["script_preview_font_b64"] = base64.b64encode(new_font_path.read_bytes()).decode("ascii")
+            base_glyphs = base.script.glyphs if base.script is not None else ()
+            summary["script_preview_glyphs"] = [
+                {
+                    "ipa": g.ipa,
+                    "changed": (
+                        i >= len(base_glyphs)
+                        or g.strokes != base_glyphs[i].strokes
+                        or g.diacritics != base_glyphs[i].diacritics
+                    ),
+                }
+                for i, g in enumerate(language.script.glyphs)
+            ]
+            if base.script is not None:
+                base_font_path = tmp / "preview_base.ttf"
+                build_font(base.script, base_font_path, base.name)
+                summary["script_preview_base_font_b64"] = base64.b64encode(base_font_path.read_bytes()).decode("ascii")
     return summary
 
 

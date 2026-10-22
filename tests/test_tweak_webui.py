@@ -233,6 +233,38 @@ def test_tweak_script_response_includes_a_live_font_preview(client):
     assert isinstance(body.get("script_preview_font_b64"), str) and len(body["script_preview_font_b64"]) > 0
 
 
+def test_tweak_script_response_includes_a_base_font_and_per_glyph_changed_flags(client):
+    base_full = _make_base_with_script(client)
+    response = client.post(
+        "/api/languages/tweak-script-base/tweak",
+        json={"name": "tweak-script-diff", "script_trait_overrides": {"dot_prevalence": 1.0}, "dry_run": True},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert isinstance(body.get("script_preview_base_font_b64"), str) and len(body["script_preview_base_font_b64"]) > 0
+    glyphs = body["script_preview_glyphs"]
+    assert len(glyphs) == base_full["script"]["glyph_count"]
+    assert all("ipa" in g and "changed" in g for g in glyphs)
+    # A real trait edit should actually change at least one glyph -- otherwise this whole preview
+    # would be pointless (and this specific case, dot_prevalence forced all the way to +1.0 on a base
+    # language whose own rolled value is virtually never already +1.0, should reliably flip something).
+    assert any(g["changed"] for g in glyphs)
+
+
+def test_tweak_script_with_no_actual_change_reports_nothing_changed(client):
+    base_full = _make_base_with_script(client)
+    # Re-forcing a topology dial to the exact same value the base script already rolled --
+    # addressable seeding should reproduce byte-identical strokes, not just "probably similar."
+    current = base_full["script"]["traits"]["complexity"]
+    response = client.post(
+        "/api/languages/tweak-script-base/tweak",
+        json={"name": "tweak-script-noop", "script_trait_overrides": {"complexity": current}, "dry_run": True},
+    )
+    assert response.status_code == 200
+    glyphs = response.json()["script_preview_glyphs"]
+    assert not any(g["changed"] for g in glyphs)
+
+
 def test_tweak_with_no_script_in_the_response_omits_the_font_preview(client):
     _make_base(client)  # no own_script -- no script at all
     response = client.post(

@@ -261,9 +261,9 @@ EVOLUTION_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
 SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
     "angularity": {
         "kind": "bipolar",
-        "summary": "Whether strokes are drawn as straight lines or curves.",
-        "positive": "Sharp -- straight lines and pointed corners.",
-        "negative": "Smooth -- curved strokes and round joints.",
+        "summary": "Not yet active. Reserved for a future corner-smoothing pass (rounding the joint between two connected strokes); every glyph is drawn from straight lines only today, so this dial currently has no visible effect.",
+        "positive": "Sharp -- straight lines and pointed corners (today's default, regardless of this dial's value).",
+        "negative": "Smooth -- would round the corners between strokes once this is implemented.",
     },
     "stroke_contrast": {
         "kind": "bipolar",
@@ -285,9 +285,9 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
     },
     "connectivity": {
         "kind": "bipolar",
-        "summary": "Whether neighboring glyphs visually join up, cursive-style. Not yet rendered by the font builder (the data is rolled and stored, but true contextual joining needs real OpenType work not built yet) -- see docs/DEFERRED.md.",
-        "positive": "Cursive -- glyphs join their neighbors.",
-        "negative": "Disconnected -- each glyph stands fully separate.",
+        "summary": "Whether neighboring glyphs visually touch at the baseline, cursive-ish. Above 0.3, pins each glyph's own first/last stroke to a shared baseline entry/exit point -- a cheap approximation, not true OpenType contextual joining (a different glyph shape per word position), which stays deferred. Horizontal scripts only (left-to-right/right-to-left); top-to-bottom scripts are untouched by this dial.",
+        "positive": "Cursive-ish -- glyphs' own strokes touch the same baseline point as their neighbors.",
+        "negative": "Disconnected -- each glyph's own strokes land wherever they roll, no shared baseline point.",
     },
     "symmetry": {
         "kind": "bipolar",
@@ -333,9 +333,9 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
     },
     "diacritic_density": {
         "kind": "bipolar",
-        "summary": "How often small marks (dots, hooks) get attached to a glyph.",
-        "positive": "Many small attached marks -- Arabic i'jam-dot-like.",
-        "negative": "Few or no attached marks.",
+        "summary": "How many small diacritic glyphs attach to a letter (0-4 fixed slots), not how dotty the letter itself looks (see dot_prevalence for that).",
+        "positive": "Many attached diacritic marks -- up to all 4 slots (top/bottom/left/right).",
+        "negative": "Few or no attached diacritic marks.",
     },
     "grid_alignment": {
         "kind": "bipolar",

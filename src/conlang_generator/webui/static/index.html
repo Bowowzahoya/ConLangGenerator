@@ -1422,23 +1422,49 @@ function renderTweakDiff(baseLexicon, newLexicon, basePhonemes, newPhonemes, cor
     </div>`;
 }
 
-// A live glyph preview straight from the tweak response's own base64 font -- no save, no second
-// round trip needed to actually *see* a script tweak's result (the point of "tweak a script to check
-// it looks right"). The @font-face-inlined-in-the-rendered-HTML pattern already used by the Script
-// tab/Inspect summary/lexicon table (search this file for "ConlangScript-") -- a fresh font-family
-// name per render (keyed by the base64 itself, not the language slug) so stale cached glyph metrics
-// from a previous preview never leak into a new one.
-function renderScriptPreviewCard(fontB64, lexicon) {
-  if (!fontB64) return "";
-  const family = `TweakScriptPreview-${fontB64.length}-${fontB64.slice(0, 12)}`;
-  const words = (lexicon || []).filter(e => e.script_text).slice(0, 16);
+// A live, every-letter before/after preview straight from the tweak response's own base64 fonts --
+// no save, no second round trip needed to actually *see* a script tweak's result (the point of
+// "tweak a script to check it looks right"). The @font-face-inlined-in-the-rendered-HTML pattern
+// already used by the Script tab/Inspect summary/lexicon table (search this file for
+// "ConlangScript-") -- fresh font-family names per render (keyed by each font's own base64, not the
+// language slug) so stale cached glyph metrics from a previous preview never leak into a new one.
+//
+// Direct user feedback on an earlier cut of this (a sample of whole words, one font only): it looked
+// like "it changes a lot" even for a small trait nudge, with no way to tell which letters actually
+// changed -- a handful of genuinely-changed glyphs can taint many displayed *words* if each word
+// mixes changed and unchanged letters. Showing every letter individually, both before and after, in
+// a wrapping table (not an unbounded row of inline spans -- that's what overflowed the page
+// previously) makes the real, usually small, scope of a tweak directly visible instead of inferred.
+function renderScriptDiffCard(baseFontB64, newFontB64, glyphs) {
+  if (!newFontB64 || !glyphs || !glyphs.length) return "";
+  const newFamily = `TweakScriptAfter-${newFontB64.length}-${newFontB64.slice(0, 12)}`;
+  const baseFamily = baseFontB64 ? `TweakScriptBefore-${baseFontB64.length}-${baseFontB64.slice(0, 12)}` : null;
+  const changedCount = glyphs.filter(g => g.changed).length;
+  const rows = glyphs.map((g, i) => {
+    const glyphChar = escapeAttr(String.fromCodePoint(0xE000 + i));
+    const beforeCell = baseFamily
+      ? `<td style="font-family:'${baseFamily}'; font-size:26px;">${glyphChar}</td>`
+      : `<td class="ipa">(no base script)</td>`;
+    return `<tr${g.changed ? "" : ` style="opacity:0.55;"`}>
+      <td class="ipa">/${escapeAttr(g.ipa)}/</td>
+      ${beforeCell}
+      <td class="ipa">${g.changed ? "&rarr;" : "="}</td>
+      <td style="font-family:'${newFamily}'; font-size:26px;">${glyphChar}</td>
+    </tr>`;
+  }).join("");
   return `
-    <style>@font-face { font-family: "${family}"; src: url(data:font/ttf;base64,${fontB64}) format("truetype"); }</style>
+    <style>
+      @font-face { font-family: "${newFamily}"; src: url(data:font/ttf;base64,${newFontB64}) format("truetype"); }
+      ${baseFamily ? `@font-face { font-family: "${baseFamily}"; src: url(data:font/ttf;base64,${baseFontB64}) format("truetype"); }` : ""}
+    </style>
     <div class="card">
-      <h2 style="margin-top:0">Script preview</h2>
-      <p class="ipa">Rendered live from the tweaked script -- no save needed to see it.</p>
-      <div style="font-family:'${family}'; font-size:30px; line-height:1.8;">
-        ${words.map(e => `<span title="${escapeAttr(e.gloss)}" style="margin-right:16px;">${e.script_text}</span>`).join("")}
+      <h2 style="margin-top:0">Script preview: every letter, before &amp; after</h2>
+      <p class="ipa">${changedCount} of ${glyphs.length} letters changed -- unchanged rows are dimmed. Rendered live, no save needed to see it.</p>
+      <div class="lexicon-wrap">
+        <table>
+          <thead><tr><th>IPA</th><th>before</th><th></th><th>after</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
       </div>
     </div>`;
 }
@@ -1480,13 +1506,16 @@ async function runTweak(dryRun) {
       tweakLastPreviewBody = requestBody;
       $("tweak-preview-result").innerHTML =
         renderTweakDiff(tweakBaseLexicon || [], body.lexicon, tweakBasePhonemeInventory || [], body.phoneme_inventory, body.sound_correspondence)
-        + renderScriptPreviewCard(body.script_preview_font_b64, body.lexicon);
+        + renderScriptDiffCard(body.script_preview_base_font_b64, body.script_preview_font_b64, body.script_preview_glyphs);
       $("tweak-save-btn").hidden = false;
     } else {
       resetTweakPreview();
       showInspectResult(body);
       if (body.script_preview_font_b64) {
-        $("inspect-result").insertAdjacentHTML("afterbegin", renderScriptPreviewCard(body.script_preview_font_b64, body.lexicon));
+        $("inspect-result").insertAdjacentHTML(
+          "afterbegin",
+          renderScriptDiffCard(body.script_preview_base_font_b64, body.script_preview_font_b64, body.script_preview_glyphs),
+        );
       }
       // showInspectResult's own picker-sync is a no-op for a language
       // this fresh (refreshLanguages hasn't resolved yet, so it isn't

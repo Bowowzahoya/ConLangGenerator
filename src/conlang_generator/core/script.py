@@ -154,9 +154,12 @@ class ScriptTraits(BaseModel, frozen=True):
     height_variance: float = 0.0
     """+ varied ascenders/descenders (like Latin lowercase); - uniform height (like Latin caps)."""
     diacritic_density: float = 0.0
-    """+ many small attached marks (Arabic i'jam-dot-like); - few or none. Not yet consumed -- governs
-    how many small diacritic glyphs attach to a letter in a later pass (see ``docs/DEFERRED.md``);
-    today's phase-1 dots come from ``dot_prevalence`` below instead."""
+    """+ many small attached marks (Arabic i'jam-dot-like); - few or none. Governs how many of the 4
+    fixed diacritic anchor slots (``Glyph.diacritics`` -- "top"/"bottom"/"left"/"right") get filled on
+    a glyph, 0 to 4 (see ``generation.script_gen._generate_diacritics``) -- a *count* of attached
+    marks, each itself a small letter-like glyph. Separate from ``dot_prevalence`` below, which is
+    about ordinary strokes becoming bare dots *within* a glyph's own main shape (or a diacritic's),
+    not about how many diacritic marks exist at all."""
     grid_alignment: float = 0.0
     """+ strict block/square alignment (Hangul-like); - freeform, variable-width letters."""
     terminal_style: float = 0.0

@@ -1858,9 +1858,10 @@ and cleaner.
 ## `conlang script`
 
 Show or export a language's own invented writing system -- a
-procedurally generated glyph for each sound, in the style of 16 graded
-dials (sharp vs. smooth, bold vs. thin, symmetric vs. asymmetric, ...)
-and a writing direction (left-to-right, right-to-left, top-to-bottom,
+procedurally generated glyph for each sound, in the style of 17 graded
+dials (bold vs. thin, symmetric vs. asymmetric, connected vs.
+disconnected strokes, ...) and a writing direction (left-to-right,
+right-to-left, top-to-bottom,
 ...) rolled once for that language. Not every language has one -- it's
 an optional, off-by-default artifact; see `generate --own-script`
 below for how one gets generated in the first place. Errors clearly if
@@ -1949,19 +1950,27 @@ conlang generate --prompt "a mountain language" --name doc-script-test --own-scr
 
 ### `generate --script-trait`
 
-Once a script is generated, its 16 style dials (`angularity`, `stroke_contrast`, `weight`,
-`complexity`, `connectivity`, `symmetry`, `proportion`, `slant`, `openness`, `regularity`, `density`,
-`height_variance`, `diacritic_density`, `grid_alignment`, `terminal_style`, `stroke_continuity` -- see
-`architecture/OVERVIEW.md`/`core/script.py` for what each one means) are rolled from the language's
-own seed, same as everything else. `--script-trait NAME=VALUE` (repeatable, one per dial) sets a
-specific dial directly instead, `VALUE` the same -1.0..1.0 range as `--trait` -- NAME is checked
-against this own, separate 16-dial list, not the 15 worldbuilding `--trait` names. Overriding a dial
-only takes effect when a script is actually generated (`--own-script yes`, or a prompt `auto` infers
-one from); every other, unforced dial still rolls normally.
+Once a script is generated, its 17 dials -- grouped by what they actually change, not just listed --
+are rolled from the language's own seed, same as everything else:
+
+- **Topology** (changes which strokes get drawn, a different set of shapes): `complexity`,
+  `connectivity`, `symmetry`, `height_variance`, `diacritic_density`, `stroke_continuity`,
+  `dot_prevalence`.
+- **Style** (redraws the same strokes differently, never changes which strokes exist):
+  `stroke_contrast`, `weight`, `proportion`, `slant`, `openness`, `regularity`, `density`,
+  `grid_alignment`, `terminal_style`, and `angularity` -- currently dormant, reserved for a future
+  corner-smoothing pass, so forcing it has no visible effect yet (see `core/script.py`'s own
+  docstring).
+
+`--script-trait NAME=VALUE` (repeatable, one per dial) sets a specific dial directly instead, `VALUE`
+the same -1.0..1.0 range as `--trait` -- NAME is checked against this own, separate 17-dial list, not
+the 15 worldbuilding `--trait` names. Overriding a dial only takes effect when a script is actually
+generated (`--own-script yes`, or a prompt `auto` infers one from); every other, unforced dial still
+rolls normally.
 
 ```bash
 conlang generate --prompt "a mountain language" --name doc-script-trait-test --own-script yes \
-  --script-trait angularity=1.0 --script-trait weight=-1.0
+  --script-trait dot_prevalence=1.0 --script-trait weight=-1.0
 ```
 
 `stroke_continuity` governs whether a glyph's own strokes chain continuously (each new stroke
@@ -1982,10 +1991,10 @@ conlang script --lang doc-stroke-continuity-test
 
 ```
 Generated 'doc-script-trait-test' (doc-script-trait-test) -- 399 core words.
-Word order: VOS, morphology: isolating, alignment: nominative_accusative, tonal: True
-Orthography: digraph
+Word order: SVO, morphology: isolating, alignment: nominative_accusative, tonal: True
+Orthography: monoletter + colon
 Traits from prompt: ...
-Forced script traits: {'angularity': 1.0, 'weight': -1.0}
+Forced script traits: {'weight': -1.0, 'dot_prevalence': 1.0}
 Saved to conlangs\doc-script-trait-test
 ```
 
