@@ -173,8 +173,8 @@ multi-session feature.
 ## 5. Own script and font
 
 - **Phase 1 (a simple alphabet) done -- see architecture/OVERVIEW.md.**
-  One procedurally generated glyph per phoneme, 15 graded style dials
-  (sharp/smooth, bold/thin, symmetric/asymmetric, ...) and a writing
+  One procedurally generated glyph per phoneme, 17 graded style dials
+  (bold/thin, symmetric/asymmetric, ...) and a writing
   direction, rolled once per language and compiled into a real,
   installable `.ttf` via `fonttools` -- `conlang script`, `generate
   --own-script`, and a web UI toggle/download. Verified empirically
@@ -182,18 +182,29 @@ multi-session feature.
   toy font, round-tripped it, rendered it in a real browser via
   `@font-face`) rather than assumed from documentation.
 - **Force individual `ScriptTraits` dials explicitly, from the CLI/web UI -- done.** `core/script.py`'s
-  `ScriptTraitsForce` (15 `float | None` fields, same shape as `OrthographyForce`); `GenerationSpec.
+  `ScriptTraitsForce` (17 `float | None` fields, same shape as `OrthographyForce`); `GenerationSpec.
   forced_script_traits`; `generate_script`/`roll_script_traits` apply each non-`None` override after
   rolling; CLI `--script-trait name=value` (repeatable, reuses `_parse_trait_overrides` against a
   second allowlist); web UI "+ script trait override" rows in the Script fieldset, mirroring the
   existing trait-override rows exactly.
+- **Small diacritic marks attached near a letter -- done (pass 51), a deliberately lighter-weight
+  cousin of the real abugida idea below, not the same thing.** `Glyph.diacritics: dict[str, Glyph]`,
+  keyed by a small fixed set of anchor slots (`"top"`/`"bottom"`/`"left"`/`"right"`); each diacritic is
+  a small glyph built by the exact same stroke-generation process as any letter (fewer strokes,
+  rendered at half the main letter's own cell size). `diacritic_density` rolls how many slots get
+  filled. Purely decorative marks near a letter, not phonologically meaningful components the way a
+  real abugida's vowel modifiers are -- the item directly below is still the real, harder thing.
 - **Phase 2: harder writing-system types (L each).** Not implemented,
   but not precluded by Phase 1's own shape -- see `core/script.py`'s own
   module docstring for exactly how each would extend it:
   - **Abugida-style vowel modifiers (Hindi-like).** Every `Glyph`
     already carries named `anchors` (grid points), unused today -- a
     vowel modifier would be a second, smaller glyph attached to a base
-    consonant's own anchor, no `Glyph` redesign needed.
+    consonant's own anchor, no `Glyph` redesign needed. Not the same as
+    the decorative `diacritics` field above: this would need the
+    attached glyph to carry real phonological meaning (which vowel),
+    composed per the language's own actual syllable structure, not just
+    rolled onto a fixed slot.
   - **Syllable blocks (Hangul-like).** Several phoneme-glyphs composed
     into one bounding box via the same anchors (onset/nucleus/coda
     position rules) -- a composition function on top of the existing
@@ -204,7 +215,7 @@ multi-session feature.
     problem, not attempted or claimed solved by anything above. The same
     stroke-primitive technique is the likely right tool, but the
     gloss-to-glyph mapping and component system are undesigned.
-- **Styling the script from the free-text prompt (M-L).** Today the 15
+- **Styling the script from the free-text prompt (M-L).** Today the 17
   style dials and the direction are rolled from the language's own seed
   only, independent of what the prompt says (a sharp-looking script
   isn't more likely just because the prompt describes a "harsh" culture)
@@ -222,12 +233,22 @@ multi-session feature.
   contextual joining (a *different* glyph form depending on word position, Arabic-style) still needs
   OpenType contextual substitution (GSUB), a genuinely bigger feature than two glyphs' shapes merely
   touching, not attempted here; vertical (TTB) directions are also untouched by the new mechanism.
+- **Corner-smoothing pass, applied after the first (straight-line) drawing phase (M).** Pass 51
+  deliberately removed `angularity`'s old role (deciding line-vs-arc per stroke at generation time --
+  a mix-up, per direct user correction: "I only wanted to allow diagonals and cell boundaries" in the
+  first drawing phase) without replacing it with anything yet. `angularity` is reserved, dormant, for
+  a real render-time treatment: rounding the joint where two connected strokes meet, not a generation-
+  time topology choice. Undesigned -- likely lives in `script.font_builder` as a 10th rendering-time
+  dial alongside `weight`/`slant`/etc., operating on the already-built straight-line polyline rather
+  than on `script_gen.py`'s own stroke list.
 - **Smooth (not polygon-approximated) arc outlines (S).** `script.
   font_builder`'s own arc strokes are a short chain of straight-line
   segments sampling a curve, not a true smooth Bezier outline --
-  documented as a phase-1 simplification in that module's own docstring,
-  good enough at the sizes this renders at but a real limitation if a
-  script is ever rendered very large.
+  documented as a phase-1 simplification in that module's own docstring.
+  Currently moot (pass 51's generation never produces an `ARC` stroke
+  any more -- see the corner-smoothing item above), but the rendering
+  code itself still exists and still renders one correctly if a future
+  pass ever produces one again.
 
 ## 6. Sounds and phonology
 
@@ -1229,24 +1250,30 @@ order -- each is independently schedulable, and later items depend on earlier on
   the way morphological_type is) restructure this more like item 9's own direct-re-derivation shape
   rather than item 2's "edit spec, call generate_language again" shape. Scope this with that specific
   finding in hand, not from scratch.
-- **11. Extend tweaking to the Writing System / invented script (L), deliberately scoped as its own
-  larger investigation, not a quick extension.** Direct user request from a deep-dive review, with its
-  own explicit framing: "tackle this one together with an overall deep dive into script" -- the user
-  flagged this as needing bigger, separate treatment rather than a quick addition alongside items 9/10
-  above. The core design constraint the user already specified: changing a script trait (e.g.
-  `angularity`) during a tweak should only change the ANGLES of a glyph's EXISTING strokes, not add or
-  remove strokes outright -- i.e. a tweaked script should still be visually recognizable as a variant of
-  the original invented script, not an unrelated fresh one. This is a materially harder problem than
-  items 9/10: today, `force_own_script`/`ScriptTraits` feed into `script_gen.py`'s glyph-generation
-  pipeline as seed-time parameters that shape the WHOLE generative process per glyph (stroke count
-  included), not as a post-hoc transform applied to an already-generated glyph's own stroke data -- so
-  "only re-angle existing strokes" would need either (a) a genuinely different, constrained regeneration
-  mode in `script_gen.py` that holds stroke *topology* fixed while re-rolling only angle-affecting
-  parameters, or (b) a true post-processing transform applied directly to each glyph's own stored stroke
-  geometry. Needs its own investigation into `core/script.py`/`generation/script_gen.py`/
-  `speech/font_builder.py`'s actual internals (how a glyph's strokes are represented, whether angle and
-  topology are already cleanly separable parameters or are entangled in the generative process) before
-  any implementation plan can be written -- not attempted here, per the user's own explicit framing.
+- **11. Extend tweaking to the Writing System / invented script -- done (pass 51), via a different
+  route than originally specified.** Direct user request: "tweak a language's script... to easily
+  check if script is working as intended." The original constraint from an earlier review (changing a
+  script trait should only re-angle a glyph's EXISTING strokes, never add/remove them, so a tweaked
+  script stays visibly a variant of the original) turned out to need `script_gen.py`'s own stroke-
+  generation algorithm rebuilt around *addressable* seeding first -- confirmed by investigation: stroke
+  topology and style used to be drawn together, sequentially, from one shared rng stream per glyph, so
+  any upstream change (a different stroke count) shifted every later draw's position in that stream
+  and therefore its value, with no way to hold topology fixed while re-rolling only angle. Rebuilt
+  (same pass, alongside unrelated corrections -- removing `angularity`'s generation-time line/arc
+  choice, constraining strokes to cell-boundary/diagonal lines, folding dots into the stroke sequence,
+  adding diacritics -- see `architecture/OVERVIEW.md`'s own pass-51 entry for the full redesign) so
+  each glyph's own strokes are keyed by `(glyph identity, stroke index)` rather than stream position --
+  `generator.regenerate_script` then gets "redraw stroke *i* only if its own inputs changed" for free
+  by simply re-calling the same generation function with new forced traits, no diff/splice logic
+  needed. This is a full re-roll from new trait values (same as what `--script-trait` already does at
+  fresh-generation time), not a constrained in-place re-angle transform -- the original "only re-angle,
+  never add/remove strokes" framing was a *design ideal* for how little a tweak should visibly change;
+  what shipped achieves the same practical goal (a small trait nudge produces a recognizable variant,
+  not an unrelated glyph set) through addressable regeneration instead, confirmed by eye, not
+  mathematically guaranteed stroke-for-stroke identity. CLI `--tweak-from NAME --script-trait
+  NAME=VALUE` (a third axis alongside phonology/orthography, same silent-precedence convention); web
+  UI Tweak tab gained an "Invented Script" section with a live `@font-face` preview rendered straight
+  from the (possibly unsaved) preview response -- the actual "easily check" part of the request.
 - **12. Tweak preview should show the sound *correspondence*, not just added/removed sets -- done
   ("Tweaking Phase 2").** New `phoneme_fit.sound_correspondence(old_inventory, new_inventory) ->
   dict[str, str]`, reusing `fit_ipa`'s own internal per-symbol `_nearest` match (no new matching logic),

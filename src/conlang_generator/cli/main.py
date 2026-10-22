@@ -23,6 +23,7 @@ from conlang_generator.generation.generator import (
     regenerate_orthography,
     regenerate_phonology,
     regenerate_phonology_adapt_words,
+    regenerate_script,
 )
 from conlang_generator.generation.lexicon_gen import ALL_MEANINGS
 from conlang_generator.generation.prompt_classifier import classify_prompt
@@ -55,7 +56,7 @@ app = typer.Typer(help="Generate constructed languages and translate to/from Eng
 LANGUAGES_DIR = Path("conlangs")
 CACHE_DIR = Path(".cache")
 SCRIPT_TRAIT_FIELDS: tuple[str, ...] = tuple(ScriptTraits.model_fields)
-"""The 15 ``ScriptTraits`` dial names, in declaration order -- the
+"""The 17 ``ScriptTraits`` dial names, in declaration order -- the
 ``--script-trait`` flag's own allowlist, the ``ScriptTraits`` analogue of
 ``GRADED_TRAIT_FIELDS``."""
 
@@ -300,9 +301,11 @@ def generate(
     ),
     tweak_from: str = typer.Option(
         None, "--tweak-from",
-        help="Re-roll an existing saved language's own phonology from an edited --trait (requires --words); "
-        "--prompt/--source-language/--seed/etc. are all ignored in this mode. NAME is one of: "
-        + ", ".join(PHONOLOGY_ONLY_TRAIT_FIELDS) + ".",
+        help="Re-roll an existing saved language's own phonology from an edited --trait (requires "
+        "--words), its Roman Orthography from an edited --orthography-style/etc., or its invented "
+        "script from an edited --script-trait -- exactly one axis per call (orthography wins if set, "
+        "then script, then phonology); --prompt/--source-language/--seed/etc. are all ignored in this "
+        "mode. --trait's NAME is one of: " + ", ".join(PHONOLOGY_ONLY_TRAIT_FIELDS) + ".",
     ),
     words: str = typer.Option(
         None, "--words",
@@ -425,6 +428,11 @@ def generate(
         syllable_boundary_marker=_parse_enum_option(syllable_boundary_marker, SyllableBoundaryMarker, "--syllable-boundary-marker"),
         consonant_gemination_marked=consonant_gemination_marked,
     )
+    # Parsed here, not down with the fresh-generation path below, so --tweak-from's own branch can
+    # read it too -- script_trait_overrides/forced_script_traits used to be parsed after that branch's
+    # own early `return`, making --script-trait silently dead in --tweak-from mode.
+    script_trait_overrides = _parse_trait_overrides(script_trait, SCRIPT_TRAIT_FIELDS, "--script-trait")
+    forced_script_traits = ScriptTraitsForce(**script_trait_overrides)
 
     if tweak_from is not None:
         # No prompt classification, no --seed, no --source-language --
@@ -440,6 +448,7 @@ def generate(
             raise typer.Exit(code=1) from exc
         client = _client(llm)
         tweaking_orthography = forced_orthography != OrthographyForce()
+        tweaking_script = forced_script_traits != ScriptTraitsForce()
         if tweaking_orthography:
             # A Roman-Orthography tweak (item 9, docs/DEFERRED.md) is a
             # separate axis from a phonology-trait tweak -- see
@@ -454,9 +463,28 @@ def generate(
                 raise typer.Exit(code=1) from exc
             repository.save(language)
             typer.echo(f"Tweaked '{tweak_from}' -> '{language.name}' ({language.slug}), orthography only.")
+        elif tweaking_script:
+            # A third, separate axis (item 11, docs/DEFERRED.md) -- same silent precedence as
+            # orthography-over-phonology above (checked first, wins outright): --words/--trait are
+            # ignored here. Its own early return below, since the shared word-before/after tail isn't
+            # meaningful for a script tweak (no word's own IPA or spelling ever changes).
+            try:
+                language = regenerate_script(name, base, script_trait_overrides)
+            except ValueError as exc:
+                typer.echo(f"error: {exc}", err=True)
+                raise typer.Exit(code=1) from exc
+            repository.save(language)
+            typer.echo(f"Tweaked '{tweak_from}' -> '{language.name}' ({language.slug}), script only.")
+            typer.echo(
+                f"Tweaked script traits: {', '.join(f'{k}={v:+.2f}' for k, v in script_trait_overrides.items())}"
+            )
+            for old_glyph, new_glyph in list(zip(base.script.glyphs, language.script.glyphs))[:6]:
+                typer.echo(f"  /{old_glyph.ipa}/: {describe_glyph(old_glyph)} -> {describe_glyph(new_glyph)}")
+            typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
+            return
         else:
             if words is None:
-                typer.echo("error: --tweak-from requires --words {regenerate,adapt} (unless tweaking orthography)", err=True)
+                typer.echo("error: --tweak-from requires --words {regenerate,adapt} (unless tweaking orthography/script)", err=True)
                 raise typer.Exit(code=1)
             if words not in ("regenerate", "adapt"):
                 typer.echo(f"error: --words must be 'regenerate' or 'adapt', got {words!r}", err=True)
@@ -481,9 +509,6 @@ def generate(
             typer.echo(f"  {old_entry.glosses[0]}: {old_entry.romanization} {arrow} {new_entry.romanization}")
         typer.echo(f"Saved to {LANGUAGES_DIR / language.slug}")
         return
-
-    script_trait_overrides = _parse_trait_overrides(script_trait, SCRIPT_TRAIT_FIELDS, "--script-trait")
-    forced_script_traits = ScriptTraitsForce(**script_trait_overrides)
     client = _client(llm)
     traits = classify_prompt(prompt, client, model=model)
     if source_language:

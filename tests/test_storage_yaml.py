@@ -40,13 +40,11 @@ def test_list_and_exists(tmp_path: Path):
 
 
 def test_a_generated_script_survives_a_real_save_and_load(tmp_path: Path):
-    import random
-
     from conlang_generator.generation.script_gen import generate_script
 
     repo = YamlLanguageRepository(tmp_path)
     language = make_minimal_language()
-    script = generate_script(random.Random(1), language.phonology)
+    script = generate_script("1", language.phonology)
     language = language.model_copy(update={"script": script})
 
     repo.save(language)
@@ -90,13 +88,11 @@ def test_has_script_false_for_a_language_with_none(tmp_path: Path):
 
 
 def test_has_script_true_for_a_language_with_one(tmp_path: Path):
-    import random
-
     from conlang_generator.generation.script_gen import generate_script
 
     repo = YamlLanguageRepository(tmp_path)
     language = make_minimal_language()
-    script = generate_script(random.Random(1), language.phonology)
+    script = generate_script("1", language.phonology)
     language = language.model_copy(update={"script": script})
     repo.save(language)
 

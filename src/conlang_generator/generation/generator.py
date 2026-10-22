@@ -10,6 +10,7 @@ from conlang_generator.core.grammar import MorphologicalType
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import LexicalEntry, Lexicon, PartOfSpeech
 from conlang_generator.core.romanization import OrthographyForce, apply_grammatical_spelling
+from conlang_generator.core.script import ScriptTraits
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import PHONOLOGY_ONLY_TRAIT_FIELDS, coining_context
 from conlang_generator.generation import (
@@ -92,9 +93,7 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         update={"punctuation_style": romanization_gen._roll_punctuation_style(punctuation_rng)}
     )
     script = (
-        script_gen.generate_script(
-            random.Random(f"{spec.seed}:script"), inventory, spec.forced_script_traits
-        )
+        script_gen.generate_script(f"{spec.seed}:script", inventory, spec.forced_script_traits)
         if script_gen.should_generate_script(spec)
         else None
     )
@@ -1207,3 +1206,48 @@ def regenerate_orthography(
             "lexicon": language.lexicon.model_copy(update={"entries": new_entries}),
         }
     )
+
+
+def regenerate_script(name: str, language: Language, trait_overrides: dict[str, float]) -> Language:
+    """Re-rolls ``language``'s own invented script from ``trait_overrides`` (a dict of ``ScriptTraits``
+    dial name -> new value, keys restricted to ``ScriptTraits.model_fields`` -- the same allowlist
+    ``--script-trait`` already uses at fresh-generation time) -- "Tweaking an existing language" item
+    11 (``docs/DEFERRED.md``). Raises ``ValueError`` for any key outside that allowlist (same
+    convention ``regenerate_phonology`` already uses), and for a language with no script at all --
+    regenerating a script this language never had makes no sense; "whether a script exists" (``--own-
+    script``) and "what it looks like" (``--script-trait``) stay cleanly separate, per ``generation.
+    script_gen``'s own module docstring. Direct the caller to ``generate --own-script yes`` first, the
+    same message the ``script`` CLI command's own no-script error already gives.
+
+    Simpler than ``regenerate_orthography``: script generation is 100% procedural (no LLM anywhere in
+    ``script_gen.py``/``core.script``/``script.font_builder``) and depends on nothing but ``language.
+    phonology`` and ``forced_script_traits`` -- confirmed by ``generate_language``'s own call site, so
+    no ``llm_client`` parameter here at all. Also unlike orthography, script has had its own
+    independent ``f"{seed}:script"`` rng stream from the start (``generate_language``'s own
+    ``phonology_rng``/``punctuation_rng`` precedent) -- this reuses that exact literal key rather than
+    minting a new one, so phonology/grammar/romanization/lexicon (IPA and spelling both) stay
+    byte-identical; only ``script`` and ``spec.forced_script_traits`` change.
+
+    This is where the redesigned ``generation.script_gen``'s own addressable, per-(glyph, stroke-
+    index) seeding (see that module's docstring) pays off: redrawing the script from the same seed
+    with different forced traits naturally redraws a given stroke *only* when something about that
+    stroke's own inputs actually changed -- a stroke-count change only touches the new/dropped
+    indices, a shifted pen-lift point only touches the indices whose own roll crosses a different
+    threshold -- with no diff/splice logic needed here. A render-only trait edit (``weight``,
+    ``slant``, ...) still rebuilds ``script.glyphs`` the same way; it just comes out byte-identical,
+    since none of those dials are read anywhere in ``script_gen.py`` to begin with."""
+    unknown = set(trait_overrides) - set(ScriptTraits.model_fields)
+    if unknown:
+        raise ValueError(
+            "regenerate_script only accepts ScriptTraits dial overrides "
+            f"({', '.join(ScriptTraits.model_fields)}), got: {', '.join(sorted(unknown))}"
+        )
+    if language.script is None:
+        raise ValueError(
+            f"'{language.name}' has no invented script. Regenerate with `generate --own-script yes` "
+            "(or a prompt that asks for one) before tweaking its script."
+        )
+    new_forced = language.spec.forced_script_traits.model_copy(update=trait_overrides)
+    script = script_gen.generate_script(f"{language.spec.seed}:script", language.phonology, new_forced)
+    new_spec = language.spec.model_copy(update={"forced_script_traits": new_forced})
+    return language.model_copy(update={"name": name, "script": script, "spec": new_spec})

@@ -19,14 +19,16 @@ Each phoneme's own glyph is assigned a Private Use Area codepoint
 standard, collision-free way to ship an invented script as a real font;
 see ``core.script.InventedScript.glyphs``'s own docstring.
 
-Consumes 9 of ``ScriptTraits``' 15 dials (the rendering-time half; see
-``generation.script_gen``'s own docstring for the other half, stroke
-topology): ``weight``/``stroke_contrast`` (stroke width, and whether it
+Consumes 9 of ``ScriptTraits``' 17 dials (the rendering-time half; see
+``generation.script_gen``'s own docstring for the stroke-topology half):
+``weight``/``stroke_contrast`` (stroke width, and whether it
 tapers along the stroke), ``slant`` (shear), ``proportion`` (horizontal
 scale), ``openness`` (a secondary width reduction), ``regularity``
 (organic jitter when markedly negative), ``density`` (side bearings),
 ``grid_alignment`` (uniform vs per-glyph advance width), and
 ``terminal_style`` (small serif feet on line-stroke endpoints).
+``angularity``/``diacritic_density`` are currently dormant everywhere --
+see their own docstrings in ``core.script.ScriptTraits``.
 """
 
 from __future__ import annotations
@@ -60,7 +62,10 @@ def _stable_unit(seed_text: str) -> float:
     return (digest[0] / 255.0) * 2.0 - 1.0
 
 
-def _point_to_em(point: Point, jitter_seed: str, traits, grid_unit_x: float, grid_unit_y: float) -> tuple[float, float]:
+def _point_to_em(
+    point: Point, jitter_seed: str, traits, grid_unit_x: float, grid_unit_y: float,
+    offset_x: float = 0.0, offset_y: float = 0.0,
+) -> tuple[float, float]:
     x = point.x * grid_unit_x
     y = point.y * grid_unit_y
     if traits.regularity < -0.15:
@@ -69,7 +74,7 @@ def _point_to_em(point: Point, jitter_seed: str, traits, grid_unit_x: float, gri
         y += _stable_unit(f"{jitter_seed}:y") * jitter_scale
     x *= lerp(traits.proportion, 0.7, 1.3)
     x += y * lerp(traits.slant, -0.3, 0.3)
-    return x, y
+    return x + offset_x, y + offset_y
 
 
 def _perpendicular(x0: float, y0: float, x1: float, y1: float, width: float) -> tuple[float, float]:
@@ -113,7 +118,8 @@ def _stroke_width(traits) -> float:
 
 
 def _stroke_polygons(
-    stroke: Stroke, glyph_index: int, stroke_index: int, traits, grid_unit_x: float, grid_unit_y: float,
+    stroke: Stroke, glyph_index: int | str, stroke_index: int, traits, grid_unit_x: float, grid_unit_y: float,
+    offset_x: float = 0.0, offset_y: float = 0.0,
 ) -> list[list[tuple[float, float]]]:
     jitter_prefix = f"{glyph_index}:{stroke_index}"
     width = _stroke_width(traits)
@@ -121,11 +127,11 @@ def _stroke_polygons(
     w_start, w_end = width * (1 + contrast), width * (1 - contrast)
 
     if stroke.kind is StrokeKind.DOT:
-        cx, cy = _point_to_em(stroke.start, f"{jitter_prefix}:dot", traits, grid_unit_x, grid_unit_y)
+        cx, cy = _point_to_em(stroke.start, f"{jitter_prefix}:dot", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
         return [_regular_polygon(cx, cy, max(width * 0.5, UPM * 0.02))]
 
-    x0, y0 = _point_to_em(stroke.start, f"{jitter_prefix}:a", traits, grid_unit_x, grid_unit_y)
-    x1, y1 = _point_to_em(stroke.end, f"{jitter_prefix}:b", traits, grid_unit_x, grid_unit_y)
+    x0, y0 = _point_to_em(stroke.start, f"{jitter_prefix}:a", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
+    x1, y1 = _point_to_em(stroke.end, f"{jitter_prefix}:b", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
 
     polygons: list[list[tuple[float, float]]] = []
     if stroke.kind is StrokeKind.LINE:
@@ -155,11 +161,60 @@ def _stroke_polygons(
     return polygons
 
 
-def _build_glyph_outline(glyph: Glyph, glyph_index: int, traits, grid_unit_x: float, grid_unit_y: float):
+_DIACRITIC_SCALE = 0.5
+"""A diacritic renders at this fraction of the main glyph's own grid-cell size -- "no larger than 1
+of the full letter cells," see `core.script.Glyph.diacritics`'s own docstring. Fixed for now, not its
+own dial (would be a 18th dial before the fixed version is even verified to look right)."""
+
+
+def _diacritic_offset(
+    slot: str, grid_max_x: int, grid_max_y: int, grid_unit_x: float, grid_unit_y: float,
+) -> tuple[float, float]:
+    """Where a diacritic's own (0,0) grid point lands in em-space, for the fixed anchor slot it was
+    rolled into -- centered on the main glyph's own bounding box along the axis it doesn't extend past
+    (so a "top" diacritic is horizontally centered, a "left" one vertically centered), sitting flush
+    against the main glyph's own edge on the axis it does extend past. The same 4 names `Glyph.
+    anchors` already uses as its own worked examples (`"top"`/`"bottom"`/`"left"`/`"right"`)."""
+    width_main, height_main = grid_max_x * grid_unit_x, grid_max_y * grid_unit_y
+    width_diac, height_diac = width_main * _DIACRITIC_SCALE, height_main * _DIACRITIC_SCALE
+    if slot == "top":
+        return (width_main - width_diac) / 2, height_main
+    if slot == "bottom":
+        return (width_main - width_diac) / 2, -height_diac
+    if slot == "left":
+        return -width_diac, (height_main - height_diac) / 2
+    if slot == "right":
+        return width_main, (height_main - height_diac) / 2
+    raise ValueError(f"unknown diacritic anchor slot: {slot!r}")
+
+
+def _iter_glyph_strokes(
+    glyph: Glyph, glyph_index: int, grid_unit_x: float, grid_unit_y: float, grid_max_x: int, grid_max_y: int,
+):
+    """Yields ``(stroke, jitter_glyph_index, stroke_index, grid_unit_x, grid_unit_y, offset_x,
+    offset_y)`` for every stroke this glyph is built from -- its own, plus each attached diacritic's
+    own, rendered at `_DIACRITIC_SCALE` and translated to its own fixed anchor-slot offset
+    (`_diacritic_offset`). Shared by `_build_glyph_outline` and `_glyph_extent` so a diacritic sticking
+    out past the main glyph's own edge (a "left"/"right" one) is accounted for in both the compiled
+    outline and the advance-width calculation."""
+    for stroke_index, stroke in enumerate(glyph.strokes):
+        yield stroke, glyph_index, stroke_index, grid_unit_x, grid_unit_y, 0.0, 0.0
+    diac_unit_x, diac_unit_y = grid_unit_x * _DIACRITIC_SCALE, grid_unit_y * _DIACRITIC_SCALE
+    for slot, diac in glyph.diacritics.items():
+        offset_x, offset_y = _diacritic_offset(slot, grid_max_x, grid_max_y, grid_unit_x, grid_unit_y)
+        for stroke_index, stroke in enumerate(diac.strokes):
+            yield stroke, f"{glyph_index}:{slot}", stroke_index, diac_unit_x, diac_unit_y, offset_x, offset_y
+
+
+def _build_glyph_outline(
+    glyph: Glyph, glyph_index: int, traits, grid_unit_x: float, grid_unit_y: float, grid_max_x: int, grid_max_y: int,
+):
     pen = TTGlyphPen(None)
     any_contour = False
-    for stroke_index, stroke in enumerate(glyph.strokes):
-        for polygon in _stroke_polygons(stroke, glyph_index, stroke_index, traits, grid_unit_x, grid_unit_y):
+    for stroke, idx, s_idx, unit_x, unit_y, ox, oy in _iter_glyph_strokes(
+        glyph, glyph_index, grid_unit_x, grid_unit_y, grid_max_x, grid_max_y
+    ):
+        for polygon in _stroke_polygons(stroke, idx, s_idx, traits, unit_x, unit_y, ox, oy):
             pen.moveTo((round(polygon[0][0]), round(polygon[0][1])))
             for pt in polygon[1:]:
                 pen.lineTo((round(pt[0]), round(pt[1])))
@@ -168,12 +223,16 @@ def _build_glyph_outline(glyph: Glyph, glyph_index: int, traits, grid_unit_x: fl
     return pen.glyph(), any_contour
 
 
-def _glyph_extent(glyph: Glyph, glyph_index: int, traits, grid_unit_x: float, grid_unit_y: float) -> tuple[float, float]:
+def _glyph_extent(
+    glyph: Glyph, glyph_index: int, traits, grid_unit_x: float, grid_unit_y: float, grid_max_x: int, grid_max_y: int,
+) -> tuple[float, float]:
     xs: list[float] = []
-    for stroke_index, stroke in enumerate(glyph.strokes):
-        jitter_prefix = f"{glyph_index}:{stroke_index}"
-        xs.append(_point_to_em(stroke.start, f"{jitter_prefix}:a", traits, grid_unit_x, grid_unit_y)[0])
-        xs.append(_point_to_em(stroke.end, f"{jitter_prefix}:b", traits, grid_unit_x, grid_unit_y)[0])
+    for stroke, idx, s_idx, unit_x, unit_y, ox, oy in _iter_glyph_strokes(
+        glyph, glyph_index, grid_unit_x, grid_unit_y, grid_max_x, grid_max_y
+    ):
+        jitter_prefix = f"{idx}:{s_idx}"
+        xs.append(_point_to_em(stroke.start, f"{jitter_prefix}:a", traits, unit_x, unit_y, ox, oy)[0])
+        xs.append(_point_to_em(stroke.end, f"{jitter_prefix}:b", traits, unit_x, unit_y, ox, oy)[0])
     if not xs:
         return 0.0, UPM
     return min(xs), max(xs)
@@ -207,12 +266,16 @@ def build_font(script: InventedScript, output_path: Path, family_name: str) -> N
 
     for i, glyph in enumerate(script.glyphs):
         name = f"g{i:04d}"
-        outline, has_contour = _build_glyph_outline(glyph, i, script.traits, grid_unit_x, grid_unit_y)
+        outline, has_contour = _build_glyph_outline(
+            glyph, i, script.traits, grid_unit_x, grid_unit_y, script.grid_max_x, script.grid_max_y,
+        )
         glyphs[name] = outline
         if uniform_width or not has_contour:
             width = uniform_advance
         else:
-            min_x, max_x = _glyph_extent(glyph, i, script.traits, grid_unit_x, grid_unit_y)
+            min_x, max_x = _glyph_extent(
+                glyph, i, script.traits, grid_unit_x, grid_unit_y, script.grid_max_x, script.grid_max_y,
+            )
             width = (max_x - min_x) + 2 * side_bearing
         advance[name] = (round(width), round(side_bearing))
         cmap[0xE000 + i] = name

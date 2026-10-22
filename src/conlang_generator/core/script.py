@@ -102,10 +102,19 @@ class Glyph(BaseModel, frozen=True):
     module's own docstring. Always empty in phase 1; a composer reading
     an empty dict should fall back to the glyph's own bounding box, not
     fail outright."""
+    diacritics: dict[str, Glyph] = Field(default_factory=dict)
+    """Small diacritic glyphs attached to this one, keyed by a fixed anchor-slot name (``"top"``,
+    ``"bottom"``, ``"left"``, ``"right"`` -- the same four names ``anchors`` above already uses as its
+    own worked examples, though this is a separate field: a diacritic's *position* is a fixed per-slot
+    offset handled by ``script.font_builder``, not a stored ``Point``). Each diacritic is a full
+    ``Glyph`` in its own right, built by the exact same stroke-generation process as any letter --
+    ``generation.script_gen``'s own module docstring -- just with fewer strokes and rendered at half
+    this glyph's own grid-cell size. How many slots get filled is ``diacritic_density``'s own roll;
+    empty (the default) when it rolls zero, the common low-density case."""
 
 
 class ScriptTraits(BaseModel, frozen=True):
-    """Sixteen graded dials (bipolar, ``[-1.0, 1.0]``, same shape as
+    """Seventeen graded dials (bipolar, ``[-1.0, 1.0]``, same shape as
     ``core.traits.TraitProfile``) controlling the *style* the stroke
     generator draws every glyph in -- rolled once per language, seeded,
     by ``generation.script_gen.roll_script_traits``, not (yet) something
@@ -114,7 +123,14 @@ class ScriptTraits(BaseModel, frozen=True):
     opposite."""
 
     angularity: float = 0.0
-    """+ sharp, straight lines, pointed corners; - smooth, curved, round joints."""
+    """+ sharp, straight lines, pointed corners; - smooth, curved, round joints. Not yet consumed
+    anywhere -- phase 1 drawing (``generation.script_gen``) only ever produces straight cell-boundary/
+    diagonal lines, no arcs, so there is nothing to angle yet; this dial is reserved for a future
+    corner-smoothing pass applied *after* that first drawing phase (rounding the joint between two
+    connected strokes), not a generation-time line-vs-arc choice the way it used to be -- the same
+    "extracted, not yet consumed" honesty `core.traits.TraitProfile` already applies to several of its
+    own fields. `StrokeKind.ARC`/`Stroke.bulge` still exist and still render correctly; they're simply
+    never produced by generation today."""
     stroke_contrast: float = 0.0
     """+ calligraphic, thick/thin width variation; - monoline, uniform width."""
     weight: float = 0.0
@@ -138,7 +154,9 @@ class ScriptTraits(BaseModel, frozen=True):
     height_variance: float = 0.0
     """+ varied ascenders/descenders (like Latin lowercase); - uniform height (like Latin caps)."""
     diacritic_density: float = 0.0
-    """+ many small attached marks (Arabic i'jam-dot-like); - few or none."""
+    """+ many small attached marks (Arabic i'jam-dot-like); - few or none. Not yet consumed -- governs
+    how many small diacritic glyphs attach to a letter in a later pass (see ``docs/DEFERRED.md``);
+    today's phase-1 dots come from ``dot_prevalence`` below instead."""
     grid_alignment: float = 0.0
     """+ strict block/square alignment (Hangul-like); - freeform, variable-width letters."""
     terminal_style: float = 0.0
@@ -146,6 +164,12 @@ class ScriptTraits(BaseModel, frozen=True):
     stroke_continuity: float = 0.0
     """+ strokes chain continuously, start of one at the end of the last, rarely lifting; - strokes
     often lift and restart fresh elsewhere (multi-component letters like F or H)."""
+    dot_prevalence: float = 0.0
+    """+ a stroke slot is often a bare dot instead of a line; - dots are rare, almost every slot is a
+    real line. Calibrated so +1.0 gives roughly a 33% per-slot chance, never higher -- a letter that
+    was all dots would stop reading as a letter at all (see ``generation.script_gen._decide_stroke``).
+    A dot never breaks the stroke chain -- the next line stroke continues from wherever the chain was
+    before the dot."""
 
 
 class ScriptTraitsForce(BaseModel, frozen=True):
@@ -157,7 +181,7 @@ class ScriptTraitsForce(BaseModel, frozen=True):
     float sets just that one dial outright, applied *after* rolling, so
     any fields left ``None`` still vary normally across runs. Unlike
     ``OrthographyForce``, there's no composite "style" preset here --
-    every one of ``ScriptTraits``' 15 dials is independent, so this is
+    every one of ``ScriptTraits``' 17 dials is independent, so this is
     just that same set of fields, each ``float | None``."""
 
     angularity: float | None = None
@@ -176,6 +200,7 @@ class ScriptTraitsForce(BaseModel, frozen=True):
     grid_alignment: float | None = None
     terminal_style: float | None = None
     stroke_continuity: float | None = None
+    dot_prevalence: float | None = None
 
 
 class InventedScript(BaseModel, frozen=True):

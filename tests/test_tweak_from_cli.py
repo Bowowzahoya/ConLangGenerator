@@ -138,3 +138,73 @@ def test_tweak_from_with_an_orthography_flag_tweaks_spelling_not_phonology(tmp_p
     tweaked = repo.load("tweak-ortho")
     assert [e.ipa for e in tweaked.lexicon.entries] == [e.ipa for e in base.lexicon.entries]
     assert tweaked.grammar == base.grammar
+
+
+def _make_base_with_script(runner, name="tweak-script-base"):
+    result = runner.invoke(
+        cli_main.app,
+        [
+            "generate", "--prompt", "p", "--name", name, "--seed", "5", "--llm", "fake",
+            "--vocabulary-size", "10", "--own-script", "yes",
+        ],
+    )
+    assert result.exit_code == 0
+    return result
+
+
+def test_tweak_from_with_a_script_trait_flag_tweaks_the_script_not_phonology(tmp_path, monkeypatch):
+    # "Tweaking an existing language" item 11 -- any --script-trait set dispatches to
+    # regenerate_script instead, doesn't require --words, and gives its own script-only diff tail
+    # rather than the generic word-before/after loop.
+    runner = _runner(tmp_path, monkeypatch)
+    _make_base_with_script(runner)
+    result = runner.invoke(
+        cli_main.app,
+        [
+            "generate", "--tweak-from", "tweak-script-base", "--name", "tweak-script",
+            "--script-trait", "stroke_continuity=1.0", "--prompt", "ignored", "--llm", "fake",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "script only" in result.output
+    assert "Tweaked script traits: stroke_continuity=+1.00" in result.output
+
+    from conlang_generator.storage.yaml_backend import YamlLanguageRepository
+
+    repo = YamlLanguageRepository(tmp_path / "conlangs")
+    base = repo.load("tweak-script-base")
+    tweaked = repo.load("tweak-script")
+    assert [e.ipa for e in tweaked.lexicon.entries] == [e.ipa for e in base.lexicon.entries]
+    assert tweaked.grammar == base.grammar
+    assert tweaked.script != base.script
+
+
+def test_tweak_from_rejects_a_script_trait_on_a_language_with_no_script(tmp_path, monkeypatch):
+    runner = _runner(tmp_path, monkeypatch)
+    _make_base(runner)  # no --own-script -- no script to tweak
+    result = runner.invoke(
+        cli_main.app,
+        [
+            "generate", "--tweak-from", "tweak-base", "--name", "x",
+            "--script-trait", "stroke_continuity=1.0", "--prompt", "ignored", "--llm", "fake",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "no invented script" in result.output
+
+
+def test_tweak_from_with_both_orthography_and_script_flags_set_tweaks_orthography(tmp_path, monkeypatch):
+    # Same silent-precedence convention as phonology-vs-orthography: orthography is checked first
+    # and wins outright when both are set in one call.
+    runner = _runner(tmp_path, monkeypatch)
+    _make_base_with_script(runner)
+    result = runner.invoke(
+        cli_main.app,
+        [
+            "generate", "--tweak-from", "tweak-script-base", "--name", "tweak-both",
+            "--orthography-style", "wade-giles-style", "--script-trait", "stroke_continuity=1.0",
+            "--prompt", "ignored", "--llm", "fake",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "orthography only" in result.output

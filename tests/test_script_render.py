@@ -2,7 +2,6 @@
 language's own invented-script glyph sequence, and describing a glyph
 in plain language for the CLI."""
 
-import random
 
 from conlang_generator.core.romanization import RomanizationRule, RomanizationScheme
 from conlang_generator.core.script import Glyph, InventedScript, Point, ScriptTraits, Stroke, StrokeKind, WritingDirection
@@ -20,7 +19,7 @@ from tests._shared_language import cached_language
 
 def test_render_word_maps_each_symbol_to_its_own_codepoint():
     language = cached_language(0)
-    script = script_gen.generate_script(random.Random(1), language.phonology)
+    script = script_gen.generate_script("1", language.phonology)
     word = language.lexicon.entries[0]
 
     rendered = render_word(script, word.ipa)
@@ -126,7 +125,7 @@ def test_assign_keyboard_triggers_identity_wins_over_a_later_glyphs_romanization
 
 def test_assign_keyboard_triggers_every_trigger_is_unique_and_keyboard_keys_only():
     language = cached_language(0)
-    script = script_gen.generate_script(random.Random(1), language.phonology)
+    script = script_gen.generate_script("1", language.phonology)
     triggers = assign_keyboard_triggers(script, language.romanization)
     values = list(triggers.values())
     assert len(values) == len(set(values))
@@ -137,7 +136,7 @@ def test_assign_keyboard_triggers_every_trigger_is_unique_and_keyboard_keys_only
 
 def test_keyboard_layout_rows_carry_real_ipa_romanization_and_codepoint():
     language = cached_language(0)
-    script = script_gen.generate_script(random.Random(1), language.phonology)
+    script = script_gen.generate_script("1", language.phonology)
     triggers = assign_keyboard_triggers(script, language.romanization)
     rows = keyboard_layout(script, language.romanization)
     assert len(rows) == len(triggers)

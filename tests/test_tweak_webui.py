@@ -188,3 +188,94 @@ def test_tweak_orthography_response_includes_sound_correspondence(client):
         json={"name": "tweak-ortho-corr", "exotic_symbol_style": "monoletter", "dry_run": True},
     )
     assert "sound_correspondence" in response.json()
+
+
+def _make_base_with_script(client, name="tweak-script-base"):
+    response = client.post(
+        "/api/generate",
+        json={"prompt": "p", "name": name, "seed": 5, "llm": "fake", "vocabulary_size": 10, "own_script": "yes"},
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
+def test_tweak_with_a_script_trait_set_tweaks_the_script_not_phonology(client):
+    # "Tweaking an existing language" item 11 -- any script_trait_overrides entry dispatches to
+    # regenerate_script instead, ignoring trait_overrides/words entirely.
+    _make_base_with_script(client)
+    base_full = client.get("/api/languages/tweak-script-base").json()
+    response = client.post(
+        "/api/languages/tweak-script-base/tweak",
+        json={
+            "name": "tweak-script",
+            "trait_overrides": {"aesthetic_harshness": 0.9},  # ignored
+            "script_trait_overrides": {"stroke_continuity": 1.0},
+            "dry_run": True,
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    base_ipa = [e["ipa"] for e in base_full["lexicon"]]
+    tweaked_ipa = [e["ipa"] for e in body["lexicon"]]
+    assert base_ipa == tweaked_ipa
+    assert body["grammar"] == base_full["grammar"]
+    assert body["script"]["traits"]["stroke_continuity"] == 1.0
+
+
+def test_tweak_script_response_includes_a_live_font_preview(client):
+    _make_base_with_script(client)
+    response = client.post(
+        "/api/languages/tweak-script-base/tweak",
+        json={"name": "tweak-script-preview", "script_trait_overrides": {"dot_prevalence": 1.0}, "dry_run": True},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert isinstance(body.get("script_preview_font_b64"), str) and len(body["script_preview_font_b64"]) > 0
+
+
+def test_tweak_with_no_script_in_the_response_omits_the_font_preview(client):
+    _make_base(client)  # no own_script -- no script at all
+    response = client.post(
+        "/api/languages/tweak-base/tweak",
+        json={"name": "tweak-no-script", "trait_overrides": {"aesthetic_harshness": 0.9}, "dry_run": True},
+    )
+    assert response.status_code == 200
+    assert "script_preview_font_b64" not in response.json()
+
+
+def test_tweak_script_rejects_an_unknown_dial(client):
+    _make_base_with_script(client)
+    response = client.post(
+        "/api/languages/tweak-script-base/tweak",
+        json={"name": "x", "script_trait_overrides": {"not_a_real_dial": 1.0}, "dry_run": True},
+    )
+    assert response.status_code == 400
+
+
+def test_tweak_script_rejects_a_language_with_no_script(client):
+    _make_base(client)  # no own_script
+    response = client.post(
+        "/api/languages/tweak-base/tweak",
+        json={"name": "x", "script_trait_overrides": {"stroke_continuity": 1.0}, "dry_run": True},
+    )
+    assert response.status_code == 400
+    assert "no invented script" in response.json()["detail"]
+
+
+def test_tweak_with_both_orthography_and_script_fields_set_tweaks_orthography(client):
+    # Same silent-precedence convention as phonology-vs-orthography: orthography wins outright.
+    _make_base_with_script(client)
+    response = client.post(
+        "/api/languages/tweak-script-base/tweak",
+        json={
+            "name": "tweak-both",
+            "orthography_style": "wade-giles-style",
+            "script_trait_overrides": {"stroke_continuity": 1.0},
+            "dry_run": True,
+        },
+    )
+    assert response.status_code == 200
+    base_full = client.get("/api/languages/tweak-script-base").json()
+    body = response.json()
+    assert [e["romanization"] for e in body["lexicon"]] != [e["romanization"] for e in base_full["lexicon"]]
+    assert body["script"]["traits"] == base_full["script"]["traits"]  # script untouched by orthography tweak

@@ -547,6 +547,13 @@
       </div>
     </details>
 
+    <details class="advanced-group" id="tweak-script-group" style="margin-top:14px;">
+      <summary>Invented Script (separate axis)</summary>
+      <p class="ipa">Re-rolls the invented script's own style dials without touching phonology/grammar/spelling -- a full re-roll from the new dials (not a constrained re-angle of existing strokes; see <code>docs/DEFERRED.md</code> ch.12 item 11). Separate axis from Phonology traits above: setting anything here ignores them, the same way Roman Orthography above ignores both -- and any Roman Orthography field set still wins over this. Always shown, pre-filled from the picked language's own current reading.</p>
+      <p class="ipa" id="tweak-script-no-script-message" hidden>This language has no invented script to tweak -- regenerate it with <code>--own-script yes</code> (or a prompt that asks for one) first.</p>
+      <div id="tweak-script-trait-rows"></div>
+    </details>
+
     <div class="submit-row">
       <button class="primary" id="tweak-btn">Preview Tweak</button>
       <button class="primary" id="tweak-save-btn" hidden style="margin-left:8px;">Save Tweaked Language</button>
@@ -1037,7 +1044,7 @@ function renderTraitSelectInfo(gloss) {
 
 // --- Generate tab's own trait-override rows: always one fixed row per
 // name (all 15 worldbuilding traits, split across the Phonology/Grammar/
-// Tones/Roman Orthography fieldsets by TRAIT_SECTION; all 15 script
+// Tones/Roman Orthography fieldsets by TRAIT_SECTION; all 17 script
 // traits together under Writing system), same "all traits already
 // visible" treatment the Tweak tab's own fixed rows already have (and
 // Roman Orthography's own fixed selects always had) -- direct user
@@ -1149,6 +1156,17 @@ function buildTweakTraitRows(currentValues) {
   buildPrefilledTraitRows("tweak-trait-rows", phonologyOnlyTraitFields, currentValues);
 }
 
+function buildTweakScriptTraitRows(scriptSummary) {
+  const msg = $("tweak-script-no-script-message"), rows = $("tweak-script-trait-rows");
+  if (scriptSummary) {
+    msg.hidden = true;
+    buildPrefilledTraitRows("tweak-script-trait-rows", scriptTraitFields, scriptSummary.traits, glossary.script_traits);
+  } else {
+    msg.hidden = false;
+    rows.innerHTML = "";
+  }
+}
+
 // Only send an override for a row the user actually changed. The input's
 // displayed value is rounded to 2 decimals (toFixed(2)) for readability,
 // but the language's *true* current value usually has more precision than
@@ -1172,6 +1190,9 @@ function collectPrefilledOverrides(containerId) {
 }
 function collectTweakTraitOverrides() {
   return collectPrefilledOverrides("tweak-trait-rows");
+}
+function collectTweakScriptTraitOverrides() {
+  return collectPrefilledOverrides("tweak-script-trait-rows");
 }
 
 // --- Evolve tab: only `evolutionTraitFields` (core.traits.
@@ -1241,6 +1262,8 @@ function resetTweakPreview() {
 async function loadTweakLanguage(slug) {
   $("tweak-error").hidden = true;
   $("tweak-trait-rows").innerHTML = "";
+  $("tweak-script-trait-rows").innerHTML = "";
+  $("tweak-script-no-script-message").hidden = true;
   $("tweak-edit-words-btn").hidden = true;
   resetTweakPreview();
   tweakBaseLexicon = null;
@@ -1256,6 +1279,7 @@ async function loadTweakLanguage(slug) {
     tweakBaseLexicon = summary.lexicon;
     tweakBasePhonemeInventory = summary.phoneme_inventory;
     buildTweakTraitRows(summary.traits);
+    buildTweakScriptTraitRows(summary.script);
     // Pre-render this same language into the Inspect tab's own (already
     // fully editable, via the existing lexicon-row edit machinery)
     // result view -- without switching tabs -- so "View & edit words"
@@ -1378,6 +1402,27 @@ function renderTweakDiff(baseLexicon, newLexicon, basePhonemes, newPhonemes, cor
     </div>`;
 }
 
+// A live glyph preview straight from the tweak response's own base64 font -- no save, no second
+// round trip needed to actually *see* a script tweak's result (the point of "tweak a script to check
+// it looks right"). The @font-face-inlined-in-the-rendered-HTML pattern already used by the Script
+// tab/Inspect summary/lexicon table (search this file for "ConlangScript-") -- a fresh font-family
+// name per render (keyed by the base64 itself, not the language slug) so stale cached glyph metrics
+// from a previous preview never leak into a new one.
+function renderScriptPreviewCard(fontB64, lexicon) {
+  if (!fontB64) return "";
+  const family = `TweakScriptPreview-${fontB64.length}-${fontB64.slice(0, 12)}`;
+  const words = (lexicon || []).filter(e => e.script_text).slice(0, 16);
+  return `
+    <style>@font-face { font-family: "${family}"; src: url(data:font/ttf;base64,${fontB64}) format("truetype"); }</style>
+    <div class="card">
+      <h2 style="margin-top:0">Script preview</h2>
+      <p class="ipa">Rendered live from the tweaked script -- no save needed to see it.</p>
+      <div style="font-family:'${family}'; font-size:30px; line-height:1.8;">
+        ${words.map(e => `<span title="${escapeAttr(e.gloss)}" style="margin-right:16px;">${e.script_text}</span>`).join("")}
+      </div>
+    </div>`;
+}
+
 async function runTweak(dryRun) {
   const err = $("tweak-error");
   err.hidden = true;
@@ -1399,6 +1444,7 @@ async function runTweak(dryRun) {
         syllable_boundary_marker: $("tweak-syllable-boundary-marker").value || null,
         short_vowel_doubling: $("tweak-short-vowel-doubling").value === "" ? null : $("tweak-short-vowel-doubling").value === "true",
         consonant_gemination_marked: $("tweak-consonant-gemination").value === "" ? null : $("tweak-consonant-gemination").value === "true",
+        script_trait_overrides: collectTweakScriptTraitOverrides(),
       }
     : { ...tweakLastPreviewBody, dry_run: false };
   const btn = dryRun ? $("tweak-btn") : $("tweak-save-btn");
@@ -1412,11 +1458,16 @@ async function runTweak(dryRun) {
     });
     if (dryRun) {
       tweakLastPreviewBody = requestBody;
-      $("tweak-preview-result").innerHTML = renderTweakDiff(tweakBaseLexicon || [], body.lexicon, tweakBasePhonemeInventory || [], body.phoneme_inventory, body.sound_correspondence);
+      $("tweak-preview-result").innerHTML =
+        renderTweakDiff(tweakBaseLexicon || [], body.lexicon, tweakBasePhonemeInventory || [], body.phoneme_inventory, body.sound_correspondence)
+        + renderScriptPreviewCard(body.script_preview_font_b64, body.lexicon);
       $("tweak-save-btn").hidden = false;
     } else {
       resetTweakPreview();
       showInspectResult(body);
+      if (body.script_preview_font_b64) {
+        $("inspect-result").insertAdjacentHTML("afterbegin", renderScriptPreviewCard(body.script_preview_font_b64, body.lexicon));
+      }
       // showInspectResult's own picker-sync is a no-op for a language
       // this fresh (refreshLanguages hasn't resolved yet, so it isn't
       // in #inspect-lang's own options list to select) -- re-applied

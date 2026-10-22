@@ -689,6 +689,43 @@ here visibly moves its own tone marking from an inline diacritic to a
 postposed digit -- a real, substantive change under "orthography only"
 even though the sounds themselves never moved.)
 
+**Tweaking the invented script instead of phonology**: one or more
+`--script-trait NAME=VALUE` flags combined with `--tweak-from` re-rolls just
+the invented script (requires the base language to actually have one --
+`generate --own-script yes` first) -- phonology, grammar, romanization, and
+every word's own IPA/spelling all stay byte-identical. A third axis,
+checked after orthography (which still wins if both are set in one call)
+and before `--trait`/`--words`: unlike those, this needs no LLM call at all
+(script generation is 100% procedural), and the addressable, per-stroke
+seeding the stroke-generation redesign introduced means a small trait nudge
+redraws only the strokes whose own inputs actually changed, not the whole
+glyph set from scratch:
+
+```bash
+conlang generate --prompt p --name tweak-base --seed 5 --llm fake \
+  --vocabulary-size 10 --own-script yes
+conlang generate --tweak-from tweak-base --name tweak-script --prompt ignored \
+  --llm fake --script-trait stroke_continuity=1.0 --script-trait complexity=1.0
+```
+
+```
+Tweaked 'tweak-base' -> 'tweak-script' (tweak-script), script only.
+Tweaked script traits: stroke_continuity=+1.00, complexity=+1.00
+  /t/: 4 straight lines -> 6 straight lines
+  /k/: 4 straight lines -> 6 straight lines
+  /ʔ/: 4 straight lines -> 6 straight lines
+  /n/: 4 straight lines -> 6 straight lines
+  /m/: 4 straight lines -> 6 straight lines
+  /p/: 4 straight lines -> 6 straight lines
+Saved to conlangs\tweak-script
+```
+
+The web UI's own Tweak tab has a matching "Invented Script (separate axis)"
+section, pre-filled with the picked language's current dial readings --
+"Preview Tweak" there renders the tweaked script's real glyphs live (an
+inline `@font-face` built from the preview response itself), no save
+required to see whether a trait nudge actually looks right.
+
 **Spelling-pronunciation drift** (low `orality_literacy`, a long enough
 time depth) can also reassign a letter's own conventional reading with no
 formal spelling reform -- the written form itself never changes, only

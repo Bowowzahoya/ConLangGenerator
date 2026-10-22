@@ -250,7 +250,7 @@ EVOLUTION_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
 }
 
 
-# --- the 15 ScriptTraits dials (core.script.ScriptTraits), bipolar
+# --- the 17 ScriptTraits dials (core.script.ScriptTraits), bipolar
 # [-1.0, 1.0] -- same shape as TRAIT_GLOSSARY, paraphrased directly from
 # that module's own per-field docstrings. Governs an invented script's
 # visual style, not any worldbuilding/generation choice -- shown next to
@@ -354,6 +354,12 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
         "summary": "Whether one stroke starts where the last one ended, or lifts and restarts elsewhere.",
         "positive": "Strokes chain continuously, start-to-end, rarely lifting.",
         "negative": "Strokes often lift and restart fresh, as in multi-component letters like F or H.",
+    },
+    "dot_prevalence": {
+        "kind": "bipolar",
+        "summary": "Whether a stroke is often replaced by a bare dot instead of a line.",
+        "positive": "Dots are common (up to about a third of strokes).",
+        "negative": "Dots are rare -- almost every stroke is a real line.",
     },
 }
 

@@ -9094,3 +9094,127 @@ reading code or one-off ad hoc scripts.
   a `connectivity=1.0` script's own glyphs visibly share baseline entry/exit points. `--script-trait
   stroke_continuity=1.0` worked with zero CLI/web-UI code changes (both derive their dial allowlist
   dynamically from `ScriptTraits.model_fields`), verified directly rather than assumed.
+
+  **Pass 51: script generation rebuilt around addressable seeding, diagonals/boundaries, dots-in-
+  sequence, diacritics -- then script tweaking built on top, closing `docs/DEFERRED.md` ch.12 item
+  11.** Asked to make a language's script tweakable so it could be checked quickly. Investigating what
+  "tweak" should mean surfaced ch.12 item 11's own already-recorded constraint from an earlier review:
+  a script tweak should only re-angle a glyph's *existing* strokes, not add/remove them, so a tweaked
+  script stays recognizably a variant, not an unrelated fresh one. Pass 50 generated every glyph's
+  strokes from one continuous rng stream consumed sequentially -- incompatible with that constraint as
+  built, since any upstream change (a different stroke count) shifts every later draw's position in
+  the stream and therefore its value, with no way to hold topology fixed while re-rolling only style.
+
+  Talking through the fix surfaced real corrections to pass 50 itself, not just additions on top, from
+  a detailed round of user design input:
+
+  - **`angularity` no longer decides line-vs-arc at generation time.** Direct correction: "I only
+    wanted to allow diagonals and cell boundaries" in the first drawing phase -- roundedness was
+    always meant to be a *later*, separate corner-smoothing pass applied after drawing, not a
+    generation-time topology choice. `_random_line_or_arc` (pass 50) is gone; every stroke
+    `script_gen.py` produces is now `StrokeKind.LINE`. `angularity` stays in `ScriptTraits` (not
+    deleted -- no model migration for already-saved scripts) but is now dormant, reserved for a future
+    render-time corner-rounding treatment (`docs/DEFERRED.md` §5, new item), the same "extracted, not
+    yet consumed" honesty `connectivity` itself had before pass 50 gave it a job.
+  - **A stroke's two endpoints are now constrained to the grid's own cell-boundary and diagonal lines**
+    (horizontal, vertical, or 45 degrees -- `_valid_line_partners`, direct enumeration of every valid
+    partner point, not reject-and-retry) instead of any two arbitrary grid points -- letters now read
+    as real geometric construction (X/H/box shapes) instead of crossing slashes. Live-verified: same-
+    seed fonts built before and after this change, rendered via `@font-face` side by side -- the
+    "before" glyphs are scattered, unrelated line segments even after pass 50's own connected-chain
+    fix; "after" reads as coherent block letterforms.
+  - **Dots are now rolled per stroke slot, inside the same sequence**, not bolted on after the main
+    loop. New 17th `ScriptTraits` dial, `dot_prevalence` (+1.0 gives roughly a 33% per-slot chance,
+    never higher -- a letter that was all dots would stop reading as a letter). A dot slot never
+    advances the stroke chain -- the next real line continues from wherever the chain was *before* the
+    dot ("picking up where left off," direct user phrasing). This fully replaces the old
+    `diacritic_density`-driven "append up to 2 bonus dots" code from pass 50; `diacritic_density` is
+    repurposed below to mean "how many diacritic marks," not "how dot-heavy."
+  - **Diacritics**, direct user request, implemented as small *recursively-generated* glyphs: new
+    `Glyph.diacritics: dict[str, Glyph]`, keyed by a small fixed set of anchor slots (`"top"`/
+    `"bottom"`/`"left"`/`"right"` -- the same four names `Glyph.anchors`'s own docstring already used
+    as worked examples). Each diacritic is built by `generate_glyph` itself (fewer strokes, 1-3 vs. a
+    letter's own 2-6) at half the main glyph's own grid-cell size, reusing the main glyph's own rolled
+    grid shape rather than an independent per-diacritic roll (simpler, no new grid-shape field needed
+    on `Glyph`). `diacritic_density` rolls how many of the 4 slots fill (0-4), which ones via a seeded
+    sample. `script/font_builder.py` renders a diacritic's own strokes into the *same* glyph outline as
+    the main letter (not a separate codepoint), via a generalized `_iter_glyph_strokes` shared between
+    outline-building and advance-width calculation, with a fixed per-slot em-space offset
+    (`_diacritic_offset`) computed from the main glyph's own bounding box. Live-verified: a script
+    forced to `diacritic_density=1.0` shows small marks (crosses, dashes, bracket shapes) attached
+    above/below the main letterforms, clearly smaller and structurally distinct from them.
+
+  **The enabling architectural change**, underlying all of the above and the tweak feature below:
+  every glyph's own stroke content is now addressably seeded -- `random.Random(f"{seed}:{symbol}:
+  {index}")` per stroke slot (the same string-keyed-determinism technique `font_builder._stable_unit`
+  already used for jitter, applied one level up) -- instead of drawn from a shared sequential stream.
+  `generate_script`'s own top-level rolls (direction, grid shape, the 17-dial trait roll) stay on one
+  shared sequential stream, unchanged; only per-glyph stroke *content* moved. `generate_script` itself
+  changed its own public signature from taking a pre-built `random.Random` object to taking the raw
+  seed `str` directly, so it can derive both the shared stream and the addressable per-stroke keys from
+  the same source (`generator.py`'s own call site updated: `random.Random(f"{spec.seed}:script")` ->
+  `f"{spec.seed}:script"`). The corner-coverage retry (pass 50) needed its own adjustment: each retry
+  attempt gets its own sub-key (`f"{seed_key}:attempt{n}"`) so a retry still produces a fresh draw
+  under addressable seeding, rather than silently repeating the same result forever.
+
+  **`generator.regenerate_script(name, language, trait_overrides)`**, modeled on `regenerate_
+  orthography`'s shape but simpler: no `llm_client` parameter at all (script generation touches no LLM
+  anywhere in `script_gen.py`/`core.script`/`script.font_builder`, confirmed by reading all three), and
+  reuses script's own already-independent `f"{seed}:script"` stream key unchanged (script has had its
+  own stream since before this pass, the same way `regenerate_phonology` reuses `":phonology"`
+  unchanged -- unlike orthography, which needed a *new* `":orthography-tweak"` stream because
+  romanization had never had an independent one). With addressable seeding in place, "redraw stroke
+  *i* only if its own inputs changed" falls out for free from simply re-calling `script_gen.
+  generate_script` with edited `ScriptTraitsForce` -- no diff/splice algorithm needed anywhere. Raises
+  `ValueError` for an unknown dial name (same convention `regenerate_phonology` uses) and for a
+  language with no script at all -- "whether a script exists" (`--own-script`) and "what it looks
+  like" (`--script-trait`) stay cleanly separate, per `script_gen.py`'s own module docstring; the error
+  message directs the caller to `generate --own-script yes` first, mirroring the `script` CLI command's
+  own existing no-script error.
+
+  Render-only dials (`weight`/`stroke_contrast`/`slant`/`proportion`/`openness`/`regularity`/`density`/
+  `grid_alignment`/`terminal_style`, and now-dormant `angularity`) were never read by `script_gen.py`
+  to begin with, so tweaking only those still rebuilds `script.glyphs` through the same call, just to
+  byte-identical geometry -- confirmed by a dedicated test (`test_regenerate_script_leaves_a_render_
+  only_dial_edit_byte_identical`).
+
+  CLI: `--tweak-from NAME --script-trait NAME=VALUE` becomes a third axis in the existing dispatch,
+  checked after orthography (which still wins if both are set, same silent-precedence convention
+  orthography-over-phonology already established) and before phonology, with its own early return and
+  a script-specific glyph-count-summary diff (reusing `describe_glyph`, already used by `conlang script
+  --sounds`) instead of the generic word-before/after tail, which isn't meaningful here (no word's own
+  IPA or spelling ever changes). The `--script-trait` parse itself moved up before the `--tweak-from`
+  branch -- it used to sit after that branch's own early `return`, making it silently dead code in
+  `--tweak-from` mode since before this pass.
+
+  Web UI: `TweakRequest.script_trait_overrides` (third axis, same precedence); a new "Invented Script
+  (separate axis)" `<details>` block in the Tweak tab, pre-filled rows via the already-fully-generic
+  `buildPrefilledTraitRows`/`collectPrefilledOverrides` (zero new JS pattern -- the same helpers
+  Phonology's own rows already used), disabled with an explanatory message when the picked language
+  has no script. **The live visual check is the actual point of the whole feature**: `tweak_language`
+  builds the tweaked script's font to a scratch `tempfile` path (not the slug-cache path `get_script_
+  font` uses, since a dry-run result may never be saved), base64-encodes it into the response
+  (`script_preview_font_b64`) whenever the resulting language has a script at all -- not gated to the
+  script axis specifically, since a phonology tweak already silently re-rolls script as its own side
+  effect (unchanged, out of scope here) and this closes that blind spot too for the same few lines of
+  code. The frontend injects it as an inline `@font-face { src: url(data:font/ttf;base64,...) }` rule,
+  the exact technique this session verified by hand earlier in this same pass, and renders real sample
+  glyphs -- no save required to see whether a trait nudge actually looks right, dry-run or saved alike.
+
+  Verified: full suite green after Part A (2383 passed, 17 skipped -- the `.pytest_tmp` Windows xdist-
+  contention flake reappeared once, from running a second pytest invocation concurrently with the
+  background full-suite run; confirmed not a real regression by re-running cleanly); `tests/test_
+  script_gen.py` substantially rewritten (angularity/arc tests removed -- obsolete by design, not
+  broken by accident -- replaced with boundary/diagonal-constraint, dot-prevalence, and addressable-
+  seeding/retrace tests, the last of which test `_build_one_attempt`/`_decide_stroke` directly: a
+  longer stroke count's own first N strokes are byte-identical to a shorter chain's full output, the
+  literal "retrace" property the tweak feature depends on); new `tests/test_regenerate_script.py` (7
+  tests, modeled on `tests/test_regenerate_orthography.py`); new CLI/web UI dispatch tests (precedence,
+  unknown-dial rejection, no-script rejection, the live font-preview field). Live-verified end to end
+  through the real CLI (`--tweak-from tweak-base --script-trait stroke_continuity=1.0 --script-trait
+  complexity=1.0` produced "4 straight lines -> 6 straight lines" per glyph, phonology/grammar
+  untouched) and the real dev server (selected a scripted language in the Tweak tab, set `stroke_
+  continuity` to 1.0, "Preview Tweak" rendered real connected glyphs live with no save, "Save Tweaked
+  Language" persisted it and showed the same preview in the Inspect result) -- not just unit tests,
+  since this is fundamentally a visual feature whose real acceptance bar is "does it actually look
+  right," the same standard pass 50's own verification already set.
