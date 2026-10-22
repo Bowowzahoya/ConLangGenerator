@@ -196,12 +196,12 @@ def test_options_endpoint_serves_the_script_trait_fields(client):
 
 def test_options_endpoint_serves_the_script_trait_groups_and_ranges(client):
     # Single server-side source of truth (core.script.SCRIPT_TRAIT_GROUP/SCRIPT_TRAIT_RANGE) -- the
-    # web UI reads these instead of hand-duplicating the topology/style split or each dial's own
-    # valid range in JS.
+    # web UI reads these instead of hand-duplicating the topology/typeface/form split or each dial's
+    # own valid range in JS.
     opts = client.get("/api/options").json()
     assert opts["script_trait_groups"] == {k: v for k, v in SCRIPT_TRAIT_GROUP.items()}
     assert set(opts["script_trait_groups"]) == set(ScriptTraits.model_fields)
-    assert set(opts["script_trait_groups"].values()) == {"topology", "style"}
+    assert set(opts["script_trait_groups"].values()) == {"topology", "typeface", "form"}
     assert opts["script_trait_ranges"] == {k: list(v) for k, v in SCRIPT_TRAIT_RANGE.items()}
 
 

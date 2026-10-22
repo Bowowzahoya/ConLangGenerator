@@ -21,7 +21,11 @@ that need specific fake behavior say so explicitly via ``request.metadata``:
   fields are intentionally left empty -- the fake doesn't understand prompt
   semantics, it just needs to vary deterministically by prompt (spanning both
   positive and negative) so tests can exercise "different prompts ->
-  different generated languages" in both directions.
+  different generated languages" in both directions. One scoped exception:
+  ``requested_own_script`` gets a real (if crude) keyword check -- see
+  ``_fake_requested_own_script`` -- since otherwise ``--own-script auto``
+  could never fire under the fake backend even for an explicit "a language
+  with a script" prompt.
 - ``fake_strategy=\"guess_ipa\"``: returns a crude, deterministic letter-by-
   letter respelling of ``request.prompt`` (the word's spelling) into
   IPA-shaped output -- common digraphs (sh/ch/th/ng/ph/qu) map to their
@@ -63,8 +67,28 @@ def stable_hash(text: str) -> int:
     return int(hashlib.sha256(text.encode("utf-8")).hexdigest(), 16)
 
 
+_SCRIPT_REQUEST_KEYWORDS = ("script", "writing system", "alphabet", "glyphs")
+"""A scoped exception to "the fake doesn't understand prompt semantics" (see this module's own
+docstring): ``requested_own_script`` is otherwise never set under the fake classifier at all (it isn't
+a ``GRADED_TRAIT_FIELDS`` member, so ``_fake_trait_profile`` never saw it), which made ``--own-script
+auto`` silently never fire for even an explicit "a language with a script" prompt -- confirmed by direct
+reproduction, not assumed. A plain case-insensitive substring check, same scale as ``guess_ipa``'s own
+crude-but-good-enough heuristic."""
+
+
+def _fake_requested_own_script(prompt: str) -> str:
+    lowered = prompt.lower()
+    return "yes" if any(keyword in lowered for keyword in _SCRIPT_REQUEST_KEYWORDS) else ""
+
+
 def _fake_trait_profile(prompt: str, field_names: list[str]) -> str:
-    values = {name: round((stable_hash(prompt + name) % 201 - 100) / 100.0, 2) for name in field_names}
+    values: dict[str, object] = {
+        name: round((stable_hash(prompt + name) % 201 - 100) / 100.0, 2) for name in field_names
+    }
+    # Independent of field_names (classify_prompt never lists this in trait_fields -- _parse reads it
+    # unconditionally regardless), see _fake_requested_own_script's own docstring for why this one
+    # free-text field gets a real heuristic instead of staying blank.
+    values["requested_own_script"] = _fake_requested_own_script(prompt)
     return json.dumps(values)
 
 

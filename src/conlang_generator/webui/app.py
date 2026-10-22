@@ -1023,16 +1023,19 @@ def tweak_language(slug: str, request: TweakRequest) -> dict:
     # looked different), and gave no way to tell which letters actually changed from which didn't --
     # `script_preview_glyphs`' own `changed` flag (computed by comparing each glyph's own strokes/
     # diacritics against the base script, not inferred from rendering) answers that directly instead
-    # of making the user eyeball two blocks of text. Further direct feedback: a *style*-only edit (e.g.
-    # weight) never touches stroke/diacritic data by design (see generation.script_gen's own topology-
-    # vs-style split), so that comparison alone reported "nothing changed" even though every letter's
-    # own rendering visibly differs -- `style_changed` (any SCRIPT_TRAIT_GROUP-style dial differing from
-    # the base) is OR'd into every glyph's own flag to cover that case too.
+    # of making the user eyeball two blocks of text. Further direct feedback: a non-topology-only edit
+    # (e.g. weight) never touches stroke/diacritic data by design (see generation.script_gen's own
+    # topology-vs-style split), so that comparison alone reported "nothing changed" even though every
+    # letter's own rendering visibly differs -- `style_changed` (any non-"topology" SCRIPT_TRAIT_GROUP
+    # dial differing from the base) is OR'd into every glyph's own flag to cover that case too. Checked
+    # as `!= "topology"`, not an enumerated list of the other group names -- SCRIPT_TRAIT_GROUP's own
+    # docstring is explicit that "does this ever touch stroke data" is a topology/non-topology question,
+    # and the non-topology side has since split into "form"/"typeface" for UI purposes only.
     if language.script is not None:
         style_changed = base.script is not None and any(
             getattr(language.script.traits, name) != getattr(base.script.traits, name)
             for name, group in SCRIPT_TRAIT_GROUP.items()
-            if group == "style"
+            if group != "topology"
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)

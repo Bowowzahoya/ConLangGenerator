@@ -363,3 +363,107 @@ def test_glyph_signature_differs_for_different_strokes_but_matches_for_identical
     c = script_gen.generate_glyph("sig-c", "t", ScriptTraits(complexity=-1.0), 2, 2)
     assert script_gen._glyph_signature(a) == script_gen._glyph_signature(b)
     assert script_gen._glyph_signature(a) != script_gen._glyph_signature(c)
+
+
+# --- diacritic dot-prevalence boost ------------------------------------------------------------
+
+
+def test_is_diacritic_raises_the_dot_prevalence_ceiling():
+    # Same dot_prevalence value, only is_diacritic differs -- direct user request: "dots should also
+    # have a higher chance to be generated in diacritics, but still scale with dot prevalence."
+    traits = ScriptTraits(dot_prevalence=1.0)
+    main_dots = sum(
+        1
+        for seed in range(200)
+        if script_gen._decide_stroke(f"dot-boost-{seed}", 0, None, None, traits, 2, 2, set(), False).kind
+        is StrokeKind.DOT
+    )
+    diacritic_dots = sum(
+        1
+        for seed in range(200)
+        if script_gen._decide_stroke(f"dot-boost-{seed}", 0, None, None, traits, 2, 2, set(), True).kind
+        is StrokeKind.DOT
+    )
+    assert diacritic_dots > main_dots
+
+
+def test_is_diacritic_still_scales_with_dot_prevalence():
+    traits_low = ScriptTraits(dot_prevalence=-1.0)
+    traits_high = ScriptTraits(dot_prevalence=1.0)
+    low_dots = sum(
+        1
+        for seed in range(200)
+        if script_gen._decide_stroke(f"dot-scale-{seed}", 0, None, None, traits_low, 2, 2, set(), True).kind
+        is StrokeKind.DOT
+    )
+    high_dots = sum(
+        1
+        for seed in range(200)
+        if script_gen._decide_stroke(f"dot-scale-{seed}", 0, None, None, traits_high, 2, 2, set(), True).kind
+        is StrokeKind.DOT
+    )
+    assert high_dots > low_dots
+
+
+# --- diacritic placement (direction-aware, ornateness-driven) -----------------------------------
+
+
+def test_roll_diacritic_slot_is_always_cross_axis_at_zero_ornateness():
+    traits = ScriptTraits(ornateness=0.0)
+    slots = {
+        script_gen._roll_diacritic_slot(f"slot-lo-{i}", traits, WritingDirection.LTR) for i in range(100)
+    }
+    assert slots <= {"cross_pos", "cross_neg"}
+
+
+def test_roll_diacritic_slot_reaches_every_category_at_full_ornateness():
+    traits = ScriptTraits(ornateness=1.0)
+    slots = {
+        script_gen._roll_diacritic_slot(f"slot-hi-{i}", traits, WritingDirection.LTR) for i in range(300)
+    }
+    assert any(s.startswith("cross") for s in slots)
+    assert any(s.startswith("along") for s in slots)
+    assert any(s.startswith("internal:") for s in slots)
+
+
+def test_roll_diacritic_slot_fixed_sign_is_script_wide_not_per_instance():
+    # At zero ornateness, _roll_diacritic_slot's own flip chance is also zero -- every instance across
+    # the whole script must agree on the same single fixed sign ("always in the same location").
+    traits = ScriptTraits(ornateness=0.0)
+    slots = {
+        script_gen._roll_diacritic_slot(f"slot-fixed-{i}", traits, WritingDirection.LTR) for i in range(50)
+    }
+    assert len(slots) == 1
+
+
+def test_generate_diacritics_count_matches_diacritic_density_even_with_zero_ornateness():
+    # The exact collision this guards against: at ornateness == 0, every instance's own "natural"
+    # roll collapses onto one identical slot, which a bumped-sub-key retry can't resolve (its own
+    # thresholds are also 0) -- must fall back to a guaranteed-distinct slot instead of silently
+    # dropping instances via dict-key overwrite.
+    traits = ScriptTraits(diacritic_density=1.0, ornateness=0.0, complexity=0.0)
+    diacritics = script_gen._generate_diacritics("collision-fallback", traits, 2, 2, WritingDirection.LTR)
+    assert len(diacritics) == 4
+
+
+def test_generate_diacritics_widens_stroke_count_ceiling_with_ornateness():
+    traits_lo = ScriptTraits(diacritic_density=1.0, ornateness=0.0, complexity=1.0)
+    traits_hi = ScriptTraits(diacritic_density=1.0, ornateness=1.0, complexity=1.0)
+    lo_strokes = max(
+        len(d.strokes)
+        for seed in range(30)
+        for d in script_gen._generate_diacritics(f"stroke-ceiling-{seed}", traits_lo, 2, 2, WritingDirection.LTR).values()
+    )
+    hi_strokes = max(
+        len(d.strokes)
+        for seed in range(30)
+        for d in script_gen._generate_diacritics(f"stroke-ceiling-{seed}", traits_hi, 2, 2, WritingDirection.LTR).values()
+    )
+    assert hi_strokes > lo_strokes
+
+
+def test_generated_diacritics_never_carry_their_own_diacritics():
+    traits = ScriptTraits(diacritic_density=1.0, complexity=1.0)
+    diacritics = script_gen._generate_diacritics("no-nesting", traits, 2, 2, WritingDirection.LTR)
+    assert diacritics
+    assert all(d.diacritics == {} for d in diacritics.values())

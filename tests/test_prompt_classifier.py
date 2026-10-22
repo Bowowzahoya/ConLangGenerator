@@ -78,6 +78,21 @@ def test_fake_profiles_span_both_positive_and_negative():
     assert any(v < 0 for v in values)
 
 
+def test_fake_classifier_detects_an_explicit_script_request():
+    # Real bug, confirmed by direct reproduction: "--own-script auto" never fired under the fake
+    # backend, even for a prompt that explicitly says "script" -- requested_own_script isn't a
+    # GRADED_TRAIT_FIELDS member, so the fake's own trait_profile strategy never touched it at all.
+    client = FakeLLMClient()
+    profile = classify_prompt("an ancient desert empire with its own invented script", client)
+    assert profile.requested_own_script == "yes"
+
+
+def test_fake_classifier_leaves_requested_own_script_blank_for_an_unrelated_prompt():
+    client = FakeLLMClient()
+    profile = classify_prompt("a language spoken by seafaring traders", client)
+    assert profile.requested_own_script == ""
+
+
 def test_unparseable_response_degrades_to_neutral_profile():
     profile = classify_prompt("anything", _GarbageLLMClient())
     assert profile == TraitProfile()

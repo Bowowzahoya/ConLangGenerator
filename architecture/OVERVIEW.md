@@ -1683,26 +1683,47 @@ implemented but not precluded). Split the same way `speech/` already
 splits data from mechanism:
 
 - **`core/script.py`**: the data model -- `WritingDirection` (5 values),
-  `ScriptTraits` (15 bipolar graded dials, same shape as `TraitProfile`
-  but rolled from the language's own seed, not yet prompt-inferred),
-  `Point`/`Stroke`/`Glyph` (a glyph is a handful of stroke primitives --
-  line, arc, dot -- on a fixed 4x4 grid), `InventedScript` (direction +
-  traits + one glyph per phoneme).
+  `ScriptTraits` (13 graded dials -- most bipolar, a few unipolar where
+  there's no meaningfully distinct negative pole, same overall shape as
+  `TraitProfile` but rolled from the language's own seed, not yet
+  prompt-inferred; `SCRIPT_TRAIT_GROUP`/`SCRIPT_TRAIT_RANGE` are the
+  single source of truth for the topology/typeface/form split and each
+  dial's own valid range), `Point`/`Stroke`/`Glyph` (a glyph is a handful
+  of stroke primitives -- line, arc, dot -- on a grid whose own shape is
+  rolled per script, not fixed; `Glyph.diacritics` attaches small
+  secondary glyphs at a direction-aware, `ornateness`-driven placement
+  slot -- see that field's own docstring for the slot vocabulary),
+  `InventedScript` (direction + traits + grid shape + one glyph per
+  phoneme).
 - **`generation/script_gen.py`**: `should_generate_script` (the two-
   channel "explicit override beats inferred beats default" decision,
-  default off) and `generate_script` (rolls direction/traits, then one
-  `Glyph` per phoneme via `generate_glyph` -- stroke topology only; see
-  that module's own docstring for exactly which of the 15 traits it
-  consumes vs. `script/font_builder.py` vs. not yet consumed at all).
+  default off) and `generate_script` (rolls direction/grid shape/traits,
+  then one `Glyph` per phoneme via `generate_glyph` -- stroke topology
+  only, plus the diacritic-placement/stroke-count decisions `ornateness`
+  also drives; see that module's own docstring for exactly which traits
+  it consumes vs. `script/font_builder.py` vs. not yet consumed at all).
+  Every glyph's own stroke content is addressably seeded (not drawn from
+  sequential stream position) -- the property a script *tweak*
+  (`generation.generator.regenerate_script`) needs to redraw only what
+  actually changed.
 - **`script/font_builder.py`**: compiles an `InventedScript` into a real
   `.ttf` via `fonttools` (new `font` dependency group, installed by
   default) -- every `Stroke` expanded into its own filled polygon (TTF
   glyphs are filled outlines, not stroked paths), Private Use Area
   codepoints (U+E000 upward) assigned by position in `InventedScript.
-  glyphs`. A pure function of the `InventedScript` data alone (never RNG
-  state), including any "organic jitter" rendering (`regularity`'s own
-  effect) -- derived from a stable hash of each point's own identity, so
-  re-building the same script twice is byte-identical.
+  glyphs`. Also home to three purely-rendering subsystems that never
+  touch stroke data: a dot's own render style (plain circle / tiny
+  square / brief bent stroke, blended between script-wide-fixed and
+  per-dot via `ornateness`), a per-glyph *terminal ornament* (one of 10
+  fixed presets at an occasional letter's own stroke end, frequency via
+  `terminal_style`), and a script-wide *serif* rule (coverage/sides/
+  shape/thickness, rolled once and applied consistently, a deliberately
+  separate mechanic from the ornament system). A pure function of the
+  `InventedScript` data alone (never RNG state) throughout, including
+  "organic jitter" rendering (`regularity`'s own effect) and the three
+  subsystems above -- all derived from a stable hash of each decision's
+  own identity (down to a whole-script fingerprint for the script-wide
+  ones), so re-building the same script twice is byte-identical.
 - **`script/script_render.py`**: `render_word` (a word's own IPA ->
   this script's own Private Use Area glyph string, via the same
   `ipa_tokenizer.symbols_only` approach `speech.articulation.
@@ -9377,3 +9398,159 @@ reading code or one-off ad hoc scripts.
   `height_variance`-specific test removed as obsolete by design (not broken by accident), replaced with
   direct tests for the no-retrace exclusion, duplicate detection, `dot_ornateness`'s probabilistic
   choice, and the unipolar range validation at both the CLI and web-UI layers.
+
+  **Pass 53: script redesign round 4 -- unified ornateness, direction-aware diacritics, terminal
+  ornaments, serif rules.** Five more points of direct feedback from testing pass 52's own fixes. One
+  was a real bug, found by direct reproduction before touching anything: `generate --own-script auto
+  --llm fake` never generated a script even for a prompt literally containing the word "script."
+  Root-caused to `generation.prompt_classifier.classify_prompt` only ever asking the Fake LLM's
+  `trait_profile` strategy for `GRADED_TRAIT_FIELDS` (purely numeric) -- `requested_own_script` isn't
+  one of those, so `_fake_trait_profile` never touched it at all, and `_parse` read `None -> ""`
+  unconditionally. The real classifier's own system prompt already has a worked example close to this
+  exact phrasing, so this was a fake-LLM-specific gap, not a script-generation regression. Fixed with a
+  small, scoped exception -- `llm/fake_client.py`'s new `_fake_requested_own_script` (a case-insensitive
+  keyword check for "script"/"writing system"/"alphabet"/"glyphs"), documented the same way
+  `guess_ipa`'s own crude-but-good-enough heuristic already is, `_fake_trait_profile` now injects its
+  result unconditionally (independent of the `trait_fields` list, since `classify_prompt` never lists
+  this field there anyway -- `_parse` reads it regardless).
+
+  **Part A: dial restructuring.** `dot_ornateness` renamed `ornateness` (scope widening below, so the
+  name narrows less than it used to); new `serif` dial (unipolar, "0 for 0"). `SCRIPT_TRAIT_GROUP`
+  splits its old flat "style" bucket into "typeface" (classic font-metric axes: `slant`/`weight`/
+  `serif`/`stroke_contrast`/`proportion`) and "form" (shape-execution axes: `angularity`/
+  `terminal_style`/`ornateness`/`regularity`) -- direct request ("separate style into form and
+  typeface"); `stroke_contrast`/`proportion` into typeface and `regularity` into form were judgment
+  calls, not explicitly named by the user, flagged as such when presented for approval and not
+  corrected. A documented, deliberate exception to "non-topology dials never touch stroke data":
+  `ornateness` is grouped FORM for UI purposes but is *also* read in `generation.script_gen` for two
+  genuinely topology-affecting diacritic decisions (Part C) -- doesn't break the tweak-preview's own
+  `changed`-flag correctness (that check already treats "any non-`topology` dial changed" as "mark
+  every glyph changed," which stays true, just slightly over-inclusive for a pure-rendering ornateness
+  tweak), but is called out explicitly in `SCRIPT_TRAIT_GROUP`'s own docstring so a future reader isn't
+  confused by the apparent layering violation. One real latent bug caught while auditing every
+  `SCRIPT_TRAIT_GROUP` reader for the rename: `webui/app.py`'s own `tweak_language` computed
+  `style_changed` by filtering `if group == "style"` literally -- would have silently stopped firing
+  the moment that group value disappeared, with no test catching it (the existing test only checked the
+  flag's own *effect*, never the literal string it filtered on). Fixed to `group != "topology"`, which
+  is also more future-proof against a later fourth subgroup. Web UI: both Generate's "Writing system"
+  and Tweak's "Invented Script" sections grow a third row group (`gen-script-trait-rows-typeface`/
+  `-form`, and the Tweak-tab equivalents) -- `byScriptGroup(group)` already read whatever group strings
+  existed, so this was pure wiring, no new JS pattern.
+
+  **Part B: dot styling.** Three render primitives now, not two -- a new tiny square/diamond
+  (`_regular_polygon(..., sides=4)`, reusing the exact shape pass 52's own removed terminal-style foot
+  used) alongside the existing circle and brief bent diagonal stroke. Style choice is a blend of
+  "the whole script reuses one style" (`ornateness == 0`, direct request: "low only one style of
+  dots... more chance of stroke or dot") and "every dot rolls independently" (`ornateness == 1`, "high
+  randomly picking from all... slightly more chance of circles"): a per-dot coin flip
+  (`use_per_dot = stable_unit < ornateness`) picks between the dot's own seed and a new script-wide
+  fingerprint (`_script_fingerprint` -- a stable hash of `traits.model_dump()` + `direction` + grid
+  shape, the same "pure function of `InventedScript` data, never RNG state" rule this module's own
+  docstring already holds everything else to) for the actual style roll, with the style weights
+  themselves also shifting via `ornateness` (`_weighted_dot_style`). A real consequence of the
+  `use_per_dot` formula worth noting precisely: at *exactly* `ornateness == 0.0`, `use_per_dot` is
+  never true (`x < 0.0` has no solution for `x` in `[0,1]`), so every dot in the script deterministically
+  shares the identical style -- confirmed directly, not assumed, and pinned down by a dedicated test.
+  Confirmed already-satisfied by pass 52's own fix, not re-broken: a diacritic's own dot still renders
+  at the same absolute size as a main letter's (`_DOT_RADIUS` is an em-unit constant, never grid-scaled).
+
+  **Part C: diacritics.** Three changes. Stroke count: `_generate_diacritics` now passes a wider
+  `max_strokes` into `generate_glyph` as `ornateness` rises (`_DIACRITIC_MAX_STROKES` up to `+2` at full
+  ornateness) -- `complexity` still drives the actual roll via the existing shared formula, `ornateness`
+  only widens the ceiling it rolls within. Dot-prevalence boost: `_decide_stroke` gained an
+  `is_diacritic` parameter (threaded through `_build_one_attempt`/`_build_stroke_chain`/
+  `generate_glyph`), raising the dot-roll ceiling from 0.33 to 0.55 when true -- "still scales with dot
+  prevalence," just a higher one, direct request. Placement -- the big one: replaced the old flat
+  `_DIACRITIC_SLOTS = ("top","bottom","left","right")` + uniform `sample` with a direction-aware,
+  `ornateness`-driven model. Every `WritingDirection` has a *cross axis* (no adjacent neighboring
+  glyph -- the safe, frequent default) and an *along axis* (where the next glyph in the line sits --
+  rare): horizontal directions have cross=y/along=x, vertical directions (`TTB_LTR`/`TTB_RTL`) have
+  cross=x/along=y -- reading the user's own "if there is no connectedness between letters" as pure
+  geometric adjacency in the writing direction, not a resurrected `connectivity` trait (removed for
+  good in pass 52). Three placement categories per diacritic instance (external cross-axis / external
+  along-axis / *internal*, a new mode nesting the diacritic inside one of 9 fractional positions of the
+  main glyph's own bounding box), weighted by `ornateness`; within cross-axis, a *script-wide* fixed
+  sign (`_script_wide_seed`, the same fingerprint technique as `font_builder`'s own `_script_fingerprint`
+  but built from already-available `traits`+`direction` rather than threading the raw generation seed
+  down an extra parameter) is reused at low `ornateness` ("always in the same location"), with a rising
+  per-instance flip chance toward the other sign as it increases ("start appearing both high and low").
+  Slot *key* vocabulary: `"cross_pos"`/`"cross_neg"`/`"along_pos"`/`"along_neg"` (resolved to a real
+  em-offset in `font_builder.py`, which has `script.direction` available) and `"internal:{xi},{yi}"` for
+  `xi, yi` each `0`/`1`/`2` -- a single formatted string, so `Glyph.diacritics: dict[str, Glyph]` needed
+  no type change. `generate_glyph`/`_generate_diacritics` both gained a `direction` parameter (defaults
+  to `LTR` on `generate_glyph` so the many existing tests that never touch diacritic placement didn't
+  need updating), threaded from `generate_script` (which already had it, just never passed it down).
+
+  A real design flaw found and fixed *during* implementation, not anticipated by the plan: the plan's
+  own text called for resolving a diacritic-slot collision with "a bumped sub-key retry," the same
+  pattern `generate_script`'s own duplicate-glyph check already uses. Direct testing immediately after
+  writing it showed this doesn't work at low `ornateness` -- at *exactly* `ornateness == 0.0`, every
+  diacritic instance's own category/flip thresholds are also exactly `0`, so a retry with a different
+  sub-key recomputes the *identical* slot every time (the only non-deterministic-feeling piece, the
+  script-wide fixed sign, isn't even keyed by the per-instance sub-key at all). A script with
+  `diacritic_density` requesting e.g. 4 simultaneous diacritic instances on one letter would silently
+  collapse to 1 via the dict's own key-overwrite, with no error and no indication the other 3 were
+  dropped. Fixed instead with a guaranteed-distinct fallback: on any collision, cycle deterministically
+  through the 9 internal grid positions by instance index (`internal:{i%3},{(i//3)%3}`, trying
+  `i+1, i+2, ...` if even that's taken) -- provably collision-free for any count up to 4 (this field's
+  own max) against a 9-slot space. Verified directly: `diacritic_density=1.0, ornateness=0.0` now
+  reliably produces exactly 4 distinct diacritic slots across many seeds, where the originally-planned
+  retry would have produced 1.
+
+  **Part D: terminal ornaments**, replacing pass 52's own single hardcoded diamond-foot formula
+  entirely. 10 fixed presets -- the user's own 5 named examples (plain foot, open hook like Щ, closed
+  hook like Thai, swirl like Armenian, an extended stroke like Javanese) plus 5 more filling out a
+  "fancier" tail -- each just a parameter tuple (`bend_degrees`/`length_factor`/`closed`/`width_factor`)
+  for one shared drawing function (`_terminal_ornament_polygons`) rather than 10 bespoke hand-authored
+  shapes. A new `_arc_points` helper samples a *true* circular arc (center-and-angle parametrization,
+  not the existing quadratic-Bezier sampling the `ARC` stroke/dot-stroke code already uses) -- needed
+  because some presets bend well past what a quadratic Bezier can practically represent (`"swirl"`'s
+  own 540 degrees, one and a half turns). Rolled once per *glyph*, not per stroke (a letter gets 0, 1,
+  or rarely 2 ornaments, never "every qualifying stroke end"): `terminal_style` sets the frequency
+  (unchanged dial, repurposed consumption), candidate stroke-ends are classified into one of 5 buckets
+  by *absolute* em-space position (bottom/top/middle-left/middle-right/middle-middle -- deliberately not
+  direction-relative, since an individual glyph's own shape doesn't rotate with writing direction the
+  way diacritic placement's neighbor-adjacency does) weighted `0.40/0.28/0.12/0.12/0.08` per the user's
+  own stated bias order, and `ornateness` favors fancier/more-diverse presets via a weight formula that
+  interpolates between "decreasing in preset index" and "increasing in it." Reused the main glyph's own
+  already-placed stroke-end em coordinates (same jitter-seed convention `_stroke_polygons` itself uses)
+  so an ornament visually continues the stroke it's attached to, never a separately-jittered duplicate
+  position. Never applied to a diacritic's own strokes -- an ornament is a letter-scale flourish, and a
+  diacritic is already a small attached mark, not a "letter" in its own right.
+
+  **Part E: serif**, a fully separate, script-wide rule system -- distinct from Part D's per-glyph
+  ornament by explicit user framing ("not necessarily applied to every stroke... more pronounced when
+  serif is high" vs. an ornament's "usually added only in one place, to some but not necessarily all
+  letters"). Rolled *once per script* off `_script_fingerprint` (shared with Part B's own dot-style
+  roll) into a `SerifRule` namedtuple: per stroke-orientation class (vertical/horizontal/diagonal,
+  classified from the stroke's own *grid-space* direction, not the jittered em-space one, so a small
+  jitter never flips which class a stroke reads as), an independent active-or-not roll scaled by
+  `serif` ("0 for 0" -- literally impossible to ever activate at `serif == 0.0`) and, if active, a
+  coverage *fraction* of that class's own qualifying strokes -- one fraction-per-class model that
+  subsumes the user's entire named list ("everywhere" = every class at 1.0, "only for some vertical" =
+  the vertical class active below 1.0, "at random" = a shared middling fraction, any "combination" =
+  whichever classes happened to roll active) without enumerating combinations by name. Side rule per
+  class (one or two sides; when one, a fixed lower/upper/random-per-stroke choice, well-defined for any
+  orientation via the stroke's own two endpoints' em-space `y`) reproduces both Hebrew-style ("always
+  the one side, every class") and Armenian-style ("always both sides on vertical") as just different
+  rolls of the same parametric model, not special-cased. One shape roll for the whole script
+  (triangle/rounded/straight, both reusing `_regular_polygon` at different side counts -- no new
+  sampling machinery needed, unlike Part D's arcs) and a thickness partly `weight`-driven, partly a
+  small random wobble, per direct request.
+
+  **Verification**: live-verified through the real web UI, not just unit tests -- generated real
+  scripts via `POST /api/generate` with extreme forced combinations (`ornateness`/`serif`/
+  `terminal_style` all at `1.0`; a second pass with `regularity` forced to `0.0` specifically to see
+  the new shapes clearly without jitter noise obscuring them) and rendered the real compiled `.ttf`
+  (fetched via `GET /api/languages/{slug}/script/font`) through an inline `@font-face` data URI injected
+  into the live page -- confirmed visually distinct serif/terminal-ornament shapes at stroke ends
+  (triangular points, hook curls, an extended tail past the letter's own bounds) and diacritic marks
+  landing in genuinely varied positions around each letter at high `ornateness` (above, below, and
+  nested near strokes) rather than one fixed spot, matching pass 52's own "the real bar is does it
+  actually look right" standard. A 60-seed stress test (default rolled traits, every `WritingDirection`
+  and grid shape reachable) and a second 40-seed pass after the diacritic-collision fix both built
+  every font with zero exceptions. Full suite green; `tests/test_script_gen.py`/
+  `test_script_font_builder.py`/`test_glossary.py`/`test_webui_script.py`/`test_prompt_classifier.py`
+  gained substantial new coverage for every new mechanism -- the diacritic-collision fallback
+  specifically has its own dedicated regression test (`diacritic_density=1.0, ornateness=0.0` must
+  still produce exactly 4 distinct slots).

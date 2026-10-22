@@ -364,8 +364,10 @@
         </select>
         <label>Script trait overrides -- Topology <span class="ipa">(changes which strokes get drawn -- a different set of shapes, not just a different style. -1.0 to +1.0, overriding its own seeded roll; only takes effect when a script is generated; blank = seeded roll)</span></label>
         <div id="gen-script-trait-rows-topology"></div>
-        <label>Script trait overrides -- Style <span class="ipa">(redraws the same strokes differently -- angular vs. smooth once that lands, slanting, little flourishes at stroke ends, etc. -- never changes which strokes exist)</span></label>
-        <div id="gen-script-trait-rows-style"></div>
+        <label>Script trait overrides -- Typeface <span class="ipa">(classic font-metric axes -- slant, weight, serif, stroke contrast, proportion -- never changes which strokes exist)</span></label>
+        <div id="gen-script-trait-rows-typeface"></div>
+        <label>Script trait overrides -- Form <span class="ipa">(shape-execution axes -- angularity, terminal ornaments, ornateness, jitter -- never changes which strokes exist)</span></label>
+        <div id="gen-script-trait-rows-form"></div>
       </details>
 
       <details class="advanced-group">
@@ -556,8 +558,10 @@
       <div id="tweak-script-rows-wrap" hidden>
         <label>Topology <span class="ipa">(changes which strokes get drawn -- a different set of shapes, not just a different style)</span></label>
         <div id="tweak-script-trait-rows-topology"></div>
-        <label>Style <span class="ipa">(redraws the same strokes differently -- never changes which strokes exist)</span></label>
-        <div id="tweak-script-trait-rows-style"></div>
+        <label>Typeface <span class="ipa">(classic font-metric axes -- slant, weight, serif, stroke contrast, proportion)</span></label>
+        <div id="tweak-script-trait-rows-typeface"></div>
+        <label>Form <span class="ipa">(shape-execution axes -- angularity, terminal ornaments, ornateness, jitter)</span></label>
+        <div id="tweak-script-trait-rows-form"></div>
       </div>
     </details>
 
@@ -1004,7 +1008,7 @@ function describeTrait(key, value) {
 }
 
 // A rolled ScriptTraits dial's own tooltip (Writing system section) -- most dials are bipolar, but
-// stroke_contrast/regularity/dot_ornateness are unipolar (0.0..1.0 only, no meaningful negative pole
+// stroke_contrast/regularity/ornateness/serif are unipolar (0.0..1.0 only, no meaningful negative pole
 // -- see SCRIPT_TRAIT_RANGE's own docstring), so this dispatches on gloss.kind the same way
 // describeTrait above already does for the two unipolar strictness dials.
 function describeScriptTrait(key, value) {
@@ -1107,7 +1111,8 @@ function buildGenerateTraitRows() {
   buildFixedTraitRows("gen-trait-rows-tones", bySection("tones"), glossary.traits);
   buildFixedTraitRows("gen-trait-rows-orthography", bySection("orthography"), glossary.traits);
   buildFixedTraitRows("gen-script-trait-rows-topology", byScriptGroup("topology"), glossary.script_traits, scriptTraitRange);
-  buildFixedTraitRows("gen-script-trait-rows-style", byScriptGroup("style"), glossary.script_traits, scriptTraitRange);
+  buildFixedTraitRows("gen-script-trait-rows-typeface", byScriptGroup("typeface"), glossary.script_traits, scriptTraitRange);
+  buildFixedTraitRows("gen-script-trait-rows-form", byScriptGroup("form"), glossary.script_traits, scriptTraitRange);
 }
 
 function collectOverridesFrom(containerId) {
@@ -1129,7 +1134,11 @@ function collectTraitOverrides() {
   };
 }
 function collectScriptTraitOverrides() {
-  return { ...collectOverridesFrom("gen-script-trait-rows-topology"), ...collectOverridesFrom("gen-script-trait-rows-style") };
+  return {
+    ...collectOverridesFrom("gen-script-trait-rows-topology"),
+    ...collectOverridesFrom("gen-script-trait-rows-typeface"),
+    ...collectOverridesFrom("gen-script-trait-rows-form"),
+  };
 }
 
 // --- Tweak tab: always exactly one row per phonologyOnlyTraitFields
@@ -1187,12 +1196,14 @@ function buildTweakScriptTraitRows(scriptSummary) {
     msg.hidden = true;
     wrap.hidden = false;
     buildPrefilledTraitRows("tweak-script-trait-rows-topology", byScriptGroup("topology"), scriptSummary.traits, glossary.script_traits, scriptTraitRange);
-    buildPrefilledTraitRows("tweak-script-trait-rows-style", byScriptGroup("style"), scriptSummary.traits, glossary.script_traits, scriptTraitRange);
+    buildPrefilledTraitRows("tweak-script-trait-rows-typeface", byScriptGroup("typeface"), scriptSummary.traits, glossary.script_traits, scriptTraitRange);
+    buildPrefilledTraitRows("tweak-script-trait-rows-form", byScriptGroup("form"), scriptSummary.traits, glossary.script_traits, scriptTraitRange);
   } else {
     msg.hidden = false;
     wrap.hidden = true;
     $("tweak-script-trait-rows-topology").innerHTML = "";
-    $("tweak-script-trait-rows-style").innerHTML = "";
+    $("tweak-script-trait-rows-typeface").innerHTML = "";
+    $("tweak-script-trait-rows-form").innerHTML = "";
   }
 }
 
@@ -1223,7 +1234,8 @@ function collectTweakTraitOverrides() {
 function collectTweakScriptTraitOverrides() {
   return {
     ...collectPrefilledOverrides("tweak-script-trait-rows-topology"),
-    ...collectPrefilledOverrides("tweak-script-trait-rows-style"),
+    ...collectPrefilledOverrides("tweak-script-trait-rows-typeface"),
+    ...collectPrefilledOverrides("tweak-script-trait-rows-form"),
   };
 }
 
@@ -1295,7 +1307,8 @@ async function loadTweakLanguage(slug) {
   $("tweak-error").hidden = true;
   $("tweak-trait-rows").innerHTML = "";
   $("tweak-script-trait-rows-topology").innerHTML = "";
-  $("tweak-script-trait-rows-style").innerHTML = "";
+  $("tweak-script-trait-rows-typeface").innerHTML = "";
+  $("tweak-script-trait-rows-form").innerHTML = "";
   $("tweak-script-rows-wrap").hidden = true;
   $("tweak-script-no-script-message").hidden = true;
   $("tweak-edit-words-btn").hidden = true;

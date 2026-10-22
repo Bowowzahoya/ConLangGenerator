@@ -173,7 +173,7 @@ multi-session feature.
 ## 5. Own script and font
 
 - **Phase 1 (a simple alphabet) done -- see architecture/OVERVIEW.md.**
-  One procedurally generated glyph per phoneme, 12 graded style dials
+  One procedurally generated glyph per phoneme, 13 graded style dials
   (bold/thin, geometric/organic, monoline/calligraphic, ...) and a writing
   direction, rolled once per language and compiled into a real,
   installable `.ttf` via `fonttools` -- `conlang script`, `generate
@@ -182,7 +182,7 @@ multi-session feature.
   toy font, round-tripped it, rendered it in a real browser via
   `@font-face`) rather than assumed from documentation.
 - **Force individual `ScriptTraits` dials explicitly, from the CLI/web UI -- done.** `core/script.py`'s
-  `ScriptTraitsForce` (12 `float | None` fields, same shape as `OrthographyForce`); `GenerationSpec.
+  `ScriptTraitsForce` (13 `float | None` fields, same shape as `OrthographyForce`); `GenerationSpec.
   forced_script_traits`; `generate_script`/`roll_script_traits` apply each non-`None` override after
   rolling; CLI `--script-trait name=value` (repeatable, reuses `_parse_trait_overrides` against a
   second allowlist, each name checked against its own `SCRIPT_TRAIT_RANGE` -- bipolar `-1..1` or
@@ -209,13 +209,70 @@ multi-session feature.
   the smallest grids); `generate_script` now rejects a glyph identical to an earlier one in the same
   script, with a bounded addressable retry. See `architecture/OVERVIEW.md`'s pass-52 entry for the full
   mechanism writeup.
+- **Script redesign round 4: unified ornateness, direction-aware diacritics, terminal ornaments, serif
+  rules -- done (pass 53), direct user feedback (5 points from testing the pass-52 fixes).** One real
+  bug fixed alongside: `--own-script auto` never fired under the Fake LLM even for a prompt that
+  explicitly says "script," since `requested_own_script` wasn't a `GRADED_TRAIT_FIELDS` member and the
+  fake classifier's own `trait_profile` strategy never touched it at all -- `llm/fake_client.py` now
+  has a small, scoped keyword heuristic for this one free-text field, documented the same way
+  `guess_ipa`'s own crude heuristic already is.
+
+  `dot_ornateness` renamed `ornateness`, scope widened to three things at once: a dot's own render
+  style (now three primitives -- plain circle, tiny square, brief bent stroke -- not two, blended
+  between "one style reused script-wide" at 0 and "independent per dot" at 1), a diacritic's own
+  richness (more strokes on average, widening `_generate_diacritics`' own stroke-count ceiling) and
+  placement diversity (see below), and which of `terminal_style`'s own 10 ornament presets gets
+  favored. New `serif` dial (unipolar, "0 for 0"), a deliberately separate mechanic from
+  `terminal_style`'s own per-glyph ornament: one script-wide rule (coverage per stroke-orientation
+  class, one-or-two-sides, a shape, a thickness) rolled once and applied consistently everywhere it
+  qualifies, the way a real typeface's own serif style is -- replaces the old single hardcoded
+  diamond-foot formula entirely. `SCRIPT_TRAIT_GROUP` splits its old flat "style" bucket into
+  "typeface" (slant/weight/serif/stroke_contrast/proportion) and "form"
+  (angularity/terminal_style/ornateness/regularity) -- direct request; both web UI tabs grow a third
+  row group, and `webui/app.py`'s own tweak "changed"-flag check (which used to filter literally
+  `group == "style"`) moved to `group != "topology"` so it didn't silently stop firing.
+
+  Diacritic placement redesigned around direction and `ornateness`, replacing the old flat
+  `"top"`/`"bottom"`/`"left"`/`"right"` uniform sample: every `WritingDirection` has a *cross axis* (no
+  adjacent neighboring glyph) and an *along axis* (where the next glyph sits) -- diacritics default to
+  the cross axis (reading "if there is no connectedness between letters" as pure geometric adjacency,
+  not a resurrected `connectivity` trait), on a single script-wide fixed sign at low `ornateness`
+  ("always in the same location"), diversifying to either sign and occasionally the along axis as it
+  rises, with a new *internal* placement mode (one of 9 fractional grid positions nested inside the
+  main letter's own bounding box) unlocking further at high `ornateness`. A real edge case found and
+  fixed during implementation: at exactly `ornateness == 0`, every diacritic instance's own "natural"
+  roll collapses onto the identical slot by design, and the originally-planned bumped-sub-key retry
+  can't resolve that (its own thresholds are also exactly 0) -- `_generate_diacritics` falls back to
+  cycling deterministically through the 9 internal grid positions by instance index instead, so
+  `diacritic_density`'s own requested count is never silently dropped via a dict-key overwrite.
+  `dot_prevalence` also got a direct-request boost specific to diacritic strokes (same scaling, a
+  higher ceiling).
+
+  New terminal-ornament system replaces the old single foot shape: 10 fixed presets (the user's own 5
+  named examples -- plain foot, open/closed hook, swirl, extended stroke -- plus 5 more filling out the
+  "fancy" end), each just a parameter tuple (`bend_degrees`/`length_factor`/`closed`/`width_factor`)
+  for one shared drawing function rather than 10 bespoke hand-authored shapes -- a new `_arc_points`
+  helper samples a true circular arc (not a quadratic Bezier, which can't practically bend past ~180
+  degrees the way `"swirl"`'s own 540 degrees needs). Rolled once per *glyph* (not per stroke):
+  `terminal_style` sets frequency (0, 1, or rarely 2 ornaments), a 5-bucket positional bias (bottom >
+  top > middle-left/right > middle-middle, by *absolute* em-space position -- an individual glyph's own
+  shape doesn't rotate with writing direction) picks which stroke-end, `ornateness` favors
+  plainer-vs-fancier presets.
+
+  Live-verified in the real web UI, not just unit tests: generated real scripts through
+  `/api/generate` with extreme forced combinations (`ornateness`/`serif`/`terminal_style` all at 1.0,
+  `regularity` at 0.0 to see shapes without jitter noise) and rendered the real compiled fonts via
+  inline `@font-face` -- confirmed visible, distinct serif/terminal-ornament shapes at stroke ends
+  (triangular points, hooks, an extended tail), and diacritic marks landing in genuinely varied
+  positions around each letter at high `ornateness` rather than one fixed spot. Full suite green.
 - **Small diacritic marks attached near a letter -- done (pass 51), a deliberately lighter-weight
-  cousin of the real abugida idea below, not the same thing.** `Glyph.diacritics: dict[str, Glyph]`,
-  keyed by a small fixed set of anchor slots (`"top"`/`"bottom"`/`"left"`/`"right"`); each diacritic is
-  a small glyph built by the exact same stroke-generation process as any letter (fewer strokes,
-  rendered at half the main letter's own cell size). `diacritic_density` rolls how many slots get
-  filled. Purely decorative marks near a letter, not phonologically meaningful components the way a
-  real abugida's vowel modifiers are -- the item directly below is still the real, harder thing.
+  cousin of the real abugida idea below, not the same thing.** `Glyph.diacritics: dict[str, Glyph]`;
+  each diacritic is a small glyph built by the exact same stroke-generation process as any letter
+  (fewer strokes, rendered at a fraction of the main letter's own cell size). `diacritic_density` rolls
+  how many instances get filled. Purely decorative marks near a letter, not phonologically meaningful
+  components the way a real abugida's vowel modifiers are -- the item directly below is still the real,
+  harder thing. *Placement redesigned in pass 53 -- see that entry below* (originally a flat fixed
+  `"top"`/`"bottom"`/`"left"`/`"right"` sample, now direction-aware and `ornateness`-driven).
 - **Phase 2: harder writing-system types (L each).** Not implemented,
   but not precluded by Phase 1's own shape -- see `core/script.py`'s own
   module docstring for exactly how each would extend it:
@@ -237,7 +294,7 @@ multi-session feature.
     problem, not attempted or claimed solved by anything above. The same
     stroke-primitive technique is the likely right tool, but the
     gloss-to-glyph mapping and component system are undesigned.
-- **Styling the script from the free-text prompt (M-L).** Today the 12
+- **Styling the script from the free-text prompt (M-L).** Today the 13
   style dials and the direction are rolled from the language's own seed
   only, independent of what the prompt says (a sharp-looking script
   isn't more likely just because the prompt describes a "harsh" culture)

@@ -1858,7 +1858,7 @@ and cleaner.
 ## `conlang script`
 
 Show or export a language's own invented writing system -- a
-procedurally generated glyph for each sound, in the style of 12 graded
+procedurally generated glyph for each sound, in the style of 13 graded
 dials (bold vs. thin, geometric vs. organic, monoline vs. calligraphic,
 ...) and a writing direction (left-to-right,
 right-to-left, top-to-bottom,
@@ -1954,28 +1954,41 @@ conlang generate --prompt "a mountain language" --name doc-script-test --own-scr
 
 ### `generate --script-trait`
 
-Once a script is generated, its 12 dials -- grouped by what they actually change, not just listed --
+Once a script is generated, its 13 dials -- grouped by what they actually change, not just listed --
 are rolled from the language's own seed, same as everything else:
 
 - **Topology** (changes which strokes get drawn, a different set of shapes): `complexity`,
   `diacritic_density`, `stroke_continuity`, `dot_prevalence`.
-- **Style** (redraws the same strokes differently, never changes which strokes exist):
-  `stroke_contrast`, `weight`, `proportion`, `slant`, `regularity`, `terminal_style`,
-  `dot_ornateness`, and `angularity` -- currently dormant, reserved for a future corner-smoothing
-  pass, so forcing it has no visible effect yet (see `core/script.py`'s own docstring).
+- **Typeface** (classic font-metric axes -- redraws the same strokes differently, never changes which
+  strokes exist): `slant`, `weight`, `serif`, `stroke_contrast`, `proportion`.
+- **Form** (shape-execution axes -- also never changes which strokes exist, except `ornateness`, which
+  is a documented exception -- see below): `angularity` (currently dormant, reserved for a future
+  corner-smoothing pass, so forcing it has no visible effect yet), `terminal_style`, `ornateness`,
+  `regularity`.
+
+`terminal_style` and `serif` are deliberately two separate mechanisms: `terminal_style` governs how
+often a letter gets its own occasional *terminal ornament* (a hook, swirl, foot, or extended stroke --
+one of 10 fixed presets, favored plainer-or-fancier by `ornateness`) at one stroke-end, usually just one
+letter at a time; `serif` governs a single, pervasive, script-wide serif rule (which stroke directions,
+which end(s), a shape, a thickness) applied consistently everywhere it qualifies, the way a real
+typeface's own serif style is. `ornateness` is also the one dial consumed on both sides of the
+topology/style split -- besides favoring fancier terminal-ornament presets and a more varied/diverse dot
+style, it also widens a diacritic's own stroke-count ceiling and diversifies *where* diacritics sit
+(see `core/script.py`'s own docstring for the full nuance).
 
 Most dials are bipolar (`-1.0..1.0`, a positive value evidence *for* the named pole, negative for its
-opposite); `stroke_contrast`, `regularity`, and `dot_ornateness` are unipolar (`0.0..1.0` only) --
-each has no meaningful "opposite pole" below 0 (monoline/geometric/plain-circle-dot is already the
-`0.0` end, not a separate negative extreme). `--script-trait NAME=VALUE` (repeatable, one per dial)
-sets a specific dial directly, `VALUE` checked against that dial's own range -- NAME against this own,
-separate 12-dial list, not the 15 worldbuilding `--trait` names. Overriding a dial only takes effect
-when a script is actually generated (`--own-script yes`, or a prompt `auto` infers one from); every
-other, unforced dial still rolls normally.
+opposite); `stroke_contrast`, `regularity`, `ornateness`, and `serif` are unipolar (`0.0..1.0` only) --
+each has no meaningful "opposite pole" below 0 (monoline/geometric/plain/no-serifs is already the `0.0`
+end, not a separate negative extreme). `--script-trait NAME=VALUE` (repeatable, one per dial) sets a
+specific dial directly, `VALUE` checked against that dial's own range -- NAME against this own, separate
+13-dial list, not the 15 worldbuilding `--trait` names. Overriding a dial only takes effect when a
+script is actually generated (`--own-script yes`, or a prompt `auto` infers one from); every other,
+unforced dial still rolls normally.
 
 ```bash
 conlang generate --prompt "a mountain language" --name doc-script-trait-test --own-script yes \
-  --script-trait dot_prevalence=1.0 --script-trait weight=-1.0
+  --script-trait dot_prevalence=1.0 --script-trait weight=-1.0 --script-trait serif=1.0 \
+  --script-trait ornateness=1.0
 ```
 
 ```
@@ -1983,7 +1996,7 @@ Generated 'doc-script-trait-test' (doc-script-trait-test) -- 399 core words.
 Word order: SVO, morphology: isolating, alignment: nominative_accusative, tonal: True
 Orthography: monoletter + colon
 Traits from prompt: ...
-Forced script traits: {'weight': -1.0, 'dot_prevalence': 1.0}
+Forced script traits: {'weight': -1.0, 'dot_prevalence': 1.0, 'serif': 1.0, 'ornateness': 1.0}
 Saved to conlangs\doc-script-trait-test
 ```
 
