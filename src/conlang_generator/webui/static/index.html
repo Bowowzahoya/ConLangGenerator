@@ -932,6 +932,12 @@ let gradedTraitFields = [];
 // Same deal, for the Script fieldset's own dial overrides (the web
 // equivalent of the CLI's repeatable --script-trait NAME=VALUE).
 let scriptTraitFields = [];
+// name -> "topology" | "style", and name -> [min, max] -- read from /api/options
+// (core.script.SCRIPT_TRAIT_GROUP/SCRIPT_TRAIT_RANGE, the single server-side source of truth),
+// not hand-duplicated here -- a trait added/removed/reclassified on the server is automatically
+// correct here too, with nothing in this file to keep in sync.
+let scriptTraitGroups = {};
+let scriptTraitRanges = {};
 // Same deal again, for the Tweak tab's own restricted trait-override
 // rows -- only these three ever actually change phonology without also
 // shifting grammar (see core.traits.PHONOLOGY_ONLY_TRAIT_FIELDS).
@@ -1060,13 +1066,13 @@ function renderTraitSelectInfo(gloss) {
 // with 0.0): unlike Tweak, there's no language yet to read a "current
 // value" from, and a blank row means "infer from the prompt", which is
 // not the same thing as an explicit 0.0 override.
-function buildFixedTraitRow(name, glossaryDict) {
+function buildFixedTraitRow(name, glossaryDict, range = [-1, 1]) {
   const row = document.createElement("div");
   row.className = "dyn-row";
   row.dataset.traitName = name;
   row.innerHTML = `
     <label style="flex:0 0 220px; margin:0;">${name}</label>
-    <input type="number" placeholder="(from prompt)" min="-1" max="1" step="0.05" class="to-value">
+    <input type="number" placeholder="(from prompt)" min="${range[0]}" max="${range[1]}" step="0.05" class="to-value">
     <button type="button" class="info-btn" title="What does this trait mean?">&#9432;</button>`;
   const infoBtn = row.querySelector(".info-btn");
   infoBtn.onclick = (e) => {
@@ -1080,14 +1086,17 @@ function buildFixedTraitRow(name, glossaryDict) {
   };
   return row;
 }
-function buildFixedTraitRows(containerId, names, glossaryDict) {
+function buildFixedTraitRows(containerId, names, glossaryDict, rangeOf = () => [-1, 1]) {
   const container = $(containerId);
   if (!container) return;
   container.innerHTML = "";
-  for (const name of names) container.appendChild(buildFixedTraitRow(name, glossaryDict));
+  for (const name of names) container.appendChild(buildFixedTraitRow(name, glossaryDict, rangeOf(name)));
 }
 function byScriptGroup(group) {
-  return scriptTraitFields.filter(name => SCRIPT_TRAIT_GROUP[name] === group);
+  return scriptTraitFields.filter(name => scriptTraitGroups[name] === group);
+}
+function scriptTraitRange(name) {
+  return scriptTraitRanges[name] || [-1, 1];
 }
 function buildGenerateTraitRows() {
   const bySection = (section) => gradedTraitFields.filter(name => TRAIT_SECTION[name] === section);
@@ -1095,8 +1104,8 @@ function buildGenerateTraitRows() {
   buildFixedTraitRows("gen-trait-rows-grammar", bySection("grammar"), glossary.traits);
   buildFixedTraitRows("gen-trait-rows-tones", bySection("tones"), glossary.traits);
   buildFixedTraitRows("gen-trait-rows-orthography", bySection("orthography"), glossary.traits);
-  buildFixedTraitRows("gen-script-trait-rows-topology", byScriptGroup("topology"), glossary.script_traits);
-  buildFixedTraitRows("gen-script-trait-rows-style", byScriptGroup("style"), glossary.script_traits);
+  buildFixedTraitRows("gen-script-trait-rows-topology", byScriptGroup("topology"), glossary.script_traits, scriptTraitRange);
+  buildFixedTraitRows("gen-script-trait-rows-style", byScriptGroup("style"), glossary.script_traits, scriptTraitRange);
 }
 
 function collectOverridesFrom(containerId) {
@@ -1138,19 +1147,22 @@ function collectScriptTraitOverrides() {
 // evolution_traits` instead, so the info popover describes the effect
 // during evolution specifically, not fresh generation (they can read
 // quite differently for a trait that affects both).
-function buildPrefilledTraitRows(containerId, names, currentValues, glossaryDict = glossary.traits) {
+function buildPrefilledTraitRows(containerId, names, currentValues, glossaryDict = glossary.traits, rangeOf = () => [-1, 1]) {
   const container = $(containerId);
   if (!container) return;
   // `data-original` keeps the *true, unrounded* current value so
   // collectPrefilledOverrides can tell "untouched" apart from "edited"
   // without being fooled by the input's own display rounding -- see
   // that function's own comment for why this matters.
-  container.innerHTML = names.map(name => `
+  container.innerHTML = names.map(name => {
+    const [lo, hi] = rangeOf(name);
+    return `
     <div class="dyn-row" data-trait-name="${name}" data-original="${currentValues[name] || 0}">
       <label style="flex:0 0 220px; margin:0; align-self:center;">${name}</label>
-      <input type="number" min="-1" max="1" step="0.05" class="to-value" value="${(currentValues[name] || 0).toFixed(2)}">
+      <input type="number" min="${lo}" max="${hi}" step="0.05" class="to-value" value="${(currentValues[name] || 0).toFixed(2)}">
       <button type="button" class="info-btn" title="What does this trait mean?">&#9432;</button>
-    </div>`).join("");
+    </div>`;
+  }).join("");
   for (const row of container.querySelectorAll(".dyn-row")) {
     const name = row.dataset.traitName;
     row.querySelector(".info-btn").onclick = (e) => {
@@ -1172,8 +1184,8 @@ function buildTweakScriptTraitRows(scriptSummary) {
   if (scriptSummary) {
     msg.hidden = true;
     wrap.hidden = false;
-    buildPrefilledTraitRows("tweak-script-trait-rows-topology", byScriptGroup("topology"), scriptSummary.traits, glossary.script_traits);
-    buildPrefilledTraitRows("tweak-script-trait-rows-style", byScriptGroup("style"), scriptSummary.traits, glossary.script_traits);
+    buildPrefilledTraitRows("tweak-script-trait-rows-topology", byScriptGroup("topology"), scriptSummary.traits, glossary.script_traits, scriptTraitRange);
+    buildPrefilledTraitRows("tweak-script-trait-rows-style", byScriptGroup("style"), scriptSummary.traits, glossary.script_traits, scriptTraitRange);
   } else {
     msg.hidden = false;
     wrap.hidden = true;
@@ -1737,6 +1749,8 @@ async function loadOptions() {
   fill("tweak-syllable-boundary-marker", opts.syllable_boundary_markers);
   gradedTraitFields = opts.graded_trait_fields || [];
   scriptTraitFields = opts.script_trait_fields || [];
+  scriptTraitGroups = opts.script_trait_groups || {};
+  scriptTraitRanges = opts.script_trait_ranges || {};
   phonologyOnlyTraitFields = opts.phonology_only_trait_fields || [];
   evolutionTraitFields = opts.evolution_trait_fields || [];
   glossary = opts.glossary || { traits: {}, evolution_traits: {}, script_traits: {}, grammar: {}, simple: {}, advanced_options: {} };
@@ -2242,36 +2256,6 @@ const TRAIT_SECTION = {
   word_length_preference: "phonology",
   vowel_reduction_affinity: "phonology",
   compound_likelihood: "grammar",
-};
-
-// Which of the 17 ScriptTraits dials change a glyph's own TOPOLOGY (a different set of strokes --
-// consumed in generation/script_gen.py, before any rendering happens) versus merely its STYLE (the
-// same strokes, drawn differently -- consumed only in script/font_builder.py) -- direct user request,
-// since the two kinds of dial have genuinely different consequences for a script tweak (a topology
-// dial can change which letters exist as shapes; a style dial only ever restyles the shapes that are
-// already there). Matches this project's own code-level split exactly (see script_gen.py's and
-// font_builder.py's own module docstrings for which dials each module reads), not a separate judgment
-// call made here. `angularity` is grouped under style -- it's currently dormant (see its own
-// docstring in core/script.py), reserved for a future corner-smoothing *render* pass, not a topology
-// concern even once implemented.
-const SCRIPT_TRAIT_GROUP = {
-  complexity: "topology",
-  connectivity: "topology",
-  symmetry: "topology",
-  height_variance: "topology",
-  diacritic_density: "topology",
-  stroke_continuity: "topology",
-  dot_prevalence: "topology",
-  angularity: "style",
-  stroke_contrast: "style",
-  weight: "style",
-  proportion: "style",
-  slant: "style",
-  openness: "style",
-  regularity: "style",
-  density: "style",
-  grid_alignment: "style",
-  terminal_style: "style",
 };
 
 function renderLanguageSummary(container, summary) {

@@ -258,7 +258,7 @@ EVOLUTION_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
 # else a script-trait value needs explaining), direct user request
 # ("Script, grammar traits in Generate should have a description of
 # what it means when selecting"). ---
-SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
+SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss | UnipolarDialGloss] = {
     "angularity": {
         "kind": "bipolar",
         "summary": "Not yet active. Reserved for a future corner-smoothing pass (rounding the joint between two connected strokes); every glyph is drawn from straight lines only today, so this dial currently has no visible effect.",
@@ -266,10 +266,10 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
         "negative": "Smooth -- would round the corners between strokes once this is implemented.",
     },
     "stroke_contrast": {
-        "kind": "bipolar",
-        "summary": "Whether a stroke's own width varies along its length.",
-        "positive": "Calligraphic -- thick/thin width variation within a single stroke.",
-        "negative": "Monoline -- every stroke keeps a uniform width throughout.",
+        "kind": "unipolar",
+        "summary": "Whether a stroke's own width varies along its length. No meaningful opposite pole below 0, so this dial only runs 0..1.",
+        "low": "Monoline -- every stroke keeps a uniform width throughout.",
+        "high": "Calligraphic -- thick/thin width variation within a single stroke.",
     },
     "weight": {
         "kind": "bipolar",
@@ -283,18 +283,6 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
         "positive": "Ornate -- many strokes per glyph.",
         "negative": "Minimal -- just 1-2 strokes per glyph.",
     },
-    "connectivity": {
-        "kind": "bipolar",
-        "summary": "Whether neighboring glyphs visually touch at the baseline, cursive-ish. Above 0.3, pins each glyph's own first/last stroke to a shared baseline entry/exit point -- a cheap approximation, not true OpenType contextual joining (a different glyph shape per word position), which stays deferred. Horizontal scripts only (left-to-right/right-to-left); top-to-bottom scripts are untouched by this dial.",
-        "positive": "Cursive-ish -- glyphs' own strokes touch the same baseline point as their neighbors.",
-        "negative": "Disconnected -- each glyph's own strokes land wherever they roll, no shared baseline point.",
-    },
-    "symmetry": {
-        "kind": "bipolar",
-        "summary": "Whether a glyph's own strokes mirror left-to-right.",
-        "positive": "Mirror-symmetric shapes.",
-        "negative": "Asymmetric, irregular shapes.",
-    },
     "proportion": {
         "kind": "bipolar",
         "summary": "A glyph's own width-to-height ratio.",
@@ -307,41 +295,17 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
         "positive": "Slanted -- an italic-like shear.",
         "negative": "Upright, no shear.",
     },
-    "openness": {
-        "kind": "bipolar",
-        "summary": "How much open negative space a glyph encloses.",
-        "positive": "Open, airy -- lots of negative space.",
-        "negative": "Closed -- solid, filled-in counters.",
-    },
     "regularity": {
-        "kind": "bipolar",
-        "summary": "How mechanically precise the strokes look.",
-        "positive": "Geometric -- ruler-and-compass precision.",
-        "negative": "Organic -- a rustic, hand-drawn feel.",
-    },
-    "density": {
-        "kind": "bipolar",
-        "summary": "How tightly strokes are packed within a glyph, and how close together glyphs sit.",
-        "positive": "Tightly packed strokes.",
-        "negative": "Loosely spaced strokes.",
-    },
-    "height_variance": {
-        "kind": "bipolar",
-        "summary": "Whether every glyph shares one height or varies, ascender/descender-style.",
-        "positive": "Varied ascenders/descenders, like Latin lowercase.",
-        "negative": "Uniform height across every glyph, like Latin capitals.",
+        "kind": "unipolar",
+        "summary": "How much organic jitter is added to each stroke's own endpoints. No meaningful opposite pole below 0, so this dial only runs 0..1.",
+        "low": "Geometric -- ruler-and-compass precision, no jitter.",
+        "high": "Organic -- a rustic, hand-drawn feel, maximum jitter.",
     },
     "diacritic_density": {
         "kind": "bipolar",
         "summary": "How many small diacritic glyphs attach to a letter (0-4 fixed slots), not how dotty the letter itself looks (see dot_prevalence for that).",
         "positive": "Many attached diacritic marks -- up to all 4 slots (top/bottom/left/right).",
         "negative": "Few or no attached diacritic marks.",
-    },
-    "grid_alignment": {
-        "kind": "bipolar",
-        "summary": "Whether every glyph shares one fixed advance width or each gets its own.",
-        "positive": "Strict block/square alignment, Hangul-like.",
-        "negative": "Freeform -- each glyph keeps its own, variable width.",
     },
     "terminal_style": {
         "kind": "bipolar",
@@ -360,6 +324,12 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
         "summary": "Whether a stroke is often replaced by a bare dot instead of a line.",
         "positive": "Dots are common (up to about a third of strokes).",
         "negative": "Dots are rare -- almost every stroke is a real line.",
+    },
+    "dot_ornateness": {
+        "kind": "unipolar",
+        "summary": "How a dot stroke renders. No meaningful opposite pole below 0, so this dial only runs 0..1.",
+        "low": "Plain circle dots, like a tittle on an i.",
+        "high": "Brief, slightly bent diagonal strokes instead of circles, Chinese-brush-dot style.",
     },
 }
 

@@ -173,8 +173,8 @@ multi-session feature.
 ## 5. Own script and font
 
 - **Phase 1 (a simple alphabet) done -- see architecture/OVERVIEW.md.**
-  One procedurally generated glyph per phoneme, 17 graded style dials
-  (bold/thin, symmetric/asymmetric, ...) and a writing
+  One procedurally generated glyph per phoneme, 12 graded style dials
+  (bold/thin, geometric/organic, monoline/calligraphic, ...) and a writing
   direction, rolled once per language and compiled into a real,
   installable `.ttf` via `fonttools` -- `conlang script`, `generate
   --own-script`, and a web UI toggle/download. Verified empirically
@@ -182,11 +182,33 @@ multi-session feature.
   toy font, round-tripped it, rendered it in a real browser via
   `@font-face`) rather than assumed from documentation.
 - **Force individual `ScriptTraits` dials explicitly, from the CLI/web UI -- done.** `core/script.py`'s
-  `ScriptTraitsForce` (17 `float | None` fields, same shape as `OrthographyForce`); `GenerationSpec.
+  `ScriptTraitsForce` (12 `float | None` fields, same shape as `OrthographyForce`); `GenerationSpec.
   forced_script_traits`; `generate_script`/`roll_script_traits` apply each non-`None` override after
   rolling; CLI `--script-trait name=value` (repeatable, reuses `_parse_trait_overrides` against a
-  second allowlist); web UI "+ script trait override" rows in the Script fieldset, mirroring the
+  second allowlist, each name checked against its own `SCRIPT_TRAIT_RANGE` -- bipolar `-1..1` or
+  unipolar `0..1`); web UI "+ script trait override" rows in the Script fieldset, mirroring the
   existing trait-override rows exactly.
+- **Script redesign round 3: trait cleanup, true-size letters, overlap/duplicate prevention, dot
+  styling -- done (pass 52), direct user feedback (9 points from testing the script-tweak preview).**
+  Removed `symmetry`, `connectivity`, `height_variance`, `openness`, `density`, `grid_alignment`
+  outright (several predated the pass-50/51 stroke-generation redesign and had no place in the user's
+  own description of how letters should look); converted `stroke_contrast` and `regularity` to
+  unipolar `0..1` (each had a dead or redundant negative half, confirmed by reading their own
+  formulas) and added a new unipolar `dot_ornateness` dial. `core.script.SCRIPT_TRAIT_GROUP`/
+  `SCRIPT_TRAIT_RANGE` are now the single server-side source of truth for the topology/style split and
+  each dial's own valid range (CLI, web UI, `roll_script_traits` all read from them instead of
+  duplicating the judgment call). Fixed three real bugs confirmed by direct testing: `terminal_style`'s
+  foot polygon used to render entirely inside the stroke's own shape (smaller than its half-width) --
+  now sized to visibly exceed it; `grid_unit_y = UPM / grid_max_y` used to make every letter fill the
+  *entire* em square (both "too big" and the cause of a "top" diacritic overlapping the line above) --
+  a new `_LETTER_SCALE = 0.55` constant fixes both; a dot's own size used to be derived from stroke
+  width (nearly invisible on a thin-weight script) -- now a fixed fraction of letter height, like a
+  real tittle, with `dot_ornateness` able to render it as a brief bent diagonal stroke instead of a
+  plain circle (Chinese-brush-dot style). Also added: a chained stroke no longer retraces the direction
+  of the stroke that fed it (`_valid_line_partners`'s own `exclude_direction`, with a safe fallback on
+  the smallest grids); `generate_script` now rejects a glyph identical to an earlier one in the same
+  script, with a bounded addressable retry. See `architecture/OVERVIEW.md`'s pass-52 entry for the full
+  mechanism writeup.
 - **Small diacritic marks attached near a letter -- done (pass 51), a deliberately lighter-weight
   cousin of the real abugida idea below, not the same thing.** `Glyph.diacritics: dict[str, Glyph]`,
   keyed by a small fixed set of anchor slots (`"top"`/`"bottom"`/`"left"`/`"right"`); each diacritic is
@@ -215,7 +237,7 @@ multi-session feature.
     problem, not attempted or claimed solved by anything above. The same
     stroke-primitive technique is the likely right tool, but the
     gloss-to-glyph mapping and component system are undesigned.
-- **Styling the script from the free-text prompt (M-L).** Today the 17
+- **Styling the script from the free-text prompt (M-L).** Today the 12
   style dials and the direction are rolled from the language's own seed
   only, independent of what the prompt says (a sharp-looking script
   isn't more likely just because the prompt describes a "harsh" culture)
@@ -225,14 +247,15 @@ multi-session feature.
   call is expensive" item above), not attempted in Phase 1. Only
   *whether* a script gets generated at all is prompt-inferred
   (`TraitProfile.requested_own_script`), not what it looks like.
-- **True cursive joining -- partly done (pass 50).** `ScriptTraits.connectivity` now drives a cheap
-  approximation: when it's above threshold (and the script's own direction is horizontal, `LTR`/
-  `RTL`), `generate_script` pins every glyph's own first and last non-dot stroke to two fixed
-  baseline anchor points, so adjacent glyphs' shapes visually touch/align at the baseline when
-  typeset in sequence -- "letters always begin and end in the same spot," direct user request. Real
-  contextual joining (a *different* glyph form depending on word position, Arabic-style) still needs
-  OpenType contextual substitution (GSUB), a genuinely bigger feature than two glyphs' shapes merely
-  touching, not attempted here; vertical (TTB) directions are also untouched by the new mechanism.
+- **True cursive joining -- not done; pass 50's own cheap approximation was removed again in pass
+  52.** Pass 50 added `ScriptTraits.connectivity`: above a threshold (and only for a horizontal
+  direction, `LTR`/`RTL`), it pinned every glyph's own first/last non-dot stroke to two fixed baseline
+  anchor points, so adjacent glyphs visually touched at the baseline when typeset in sequence. Direct
+  user feedback in pass 52 asked for `connectivity` to be removed outright (it predated the pass-50/51
+  stroke-generation redesign and had no place in the user's own description of how letters should
+  look), so this mechanism -- and the dial driving it -- no longer exists. Real contextual joining (a
+  *different* glyph form depending on word position, Arabic-style) still needs OpenType contextual
+  substitution (GSUB), undesigned.
 - **Corner-smoothing pass, applied after the first (straight-line) drawing phase (M).** Pass 51
   deliberately removed `angularity`'s old role (deciding line-vs-arc per stroke at generation time --
   a mix-up, per direct user correction: "I only wanted to allow diagonals and cell boundaries" in the
@@ -1435,8 +1458,9 @@ and scope -- all three now done (passes 49-50).
   on a blank prompt (proven with a call-counting stub, not just a return-value check), falling back to
   `TraitProfile()`'s own all-defaults. Every other `spec.prompt` reader already degraded gracefully to
   an empty value with no special-casing needed.
-- **A script "connectivity" toggle that actually joins letterforms -- done (pass 50).** See §5's own
-  "True cursive joining" entry for the mechanism (baseline-anchor pinning via `generate_script`).
+- **A script "connectivity" toggle that actually joins letterforms -- done in pass 50, removed again
+  in pass 52.** See §5's own "True cursive joining" entry -- direct user feedback later asked for the
+  `connectivity` dial to be removed outright, so this mechanism no longer exists.
 - **Redesign the glyph stroke-generation algorithm around a small connected-stroke grid, for more
   alphabet-realistic letterforms -- done (pass 50).** Root cause confirmed by reading `generation/
   script_gen.py`: `_random_line_or_arc` used to independently pick a random start point *and* a random

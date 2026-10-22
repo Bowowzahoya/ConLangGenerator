@@ -36,12 +36,23 @@ from pydantic import BaseModel, Field
 
 
 def lerp(t: float, lo: float, hi: float) -> float:
-    """``t`` in ``[-1.0, 1.0]`` (a ``ScriptTraits`` dial's own range) ->
-    a value in ``[lo, hi]`` -- the shared reading both ``generation.
-    script_gen`` (stroke topology) and ``script.font_builder``
-    (rendering) use to turn a trait's bipolar float into a concrete
-    generation/drawing parameter."""
+    """``t`` in ``[-1.0, 1.0]`` (a bipolar ``ScriptTraits`` dial's own range) -> a value in
+    ``[lo, hi]`` -- the shared reading both ``generation.script_gen`` (stroke topology) and
+    ``script.font_builder`` (rendering) use to turn a trait's bipolar float into a concrete
+    generation/drawing parameter. See ``lerp01`` for a *unipolar* (``[0.0, 1.0]``) dial instead --
+    see ``SCRIPT_TRAIT_RANGE`` for which dial uses which."""
     return lo + (t + 1.0) / 2.0 * (hi - lo)
+
+
+def lerp01(t: float, lo: float, hi: float) -> float:
+    """``t`` in ``[0.0, 1.0]`` (a *unipolar* ``ScriptTraits`` dial's own range -- see
+    ``SCRIPT_TRAIT_RANGE``) -> a value in ``[lo, hi]``. A handful of dials have no meaningfully
+    distinct "opposite pole" (e.g. there's no real opposite of "calligraphic width contrast" beyond
+    "none") -- direct user feedback that a bipolar range for those just makes half the range feel
+    like it does nothing. ``lo`` is what ``t=0`` (the same "unset/no effect" default every dial
+    already uses) produces, so switching a dial from ``lerp`` to this one never changes its own
+    neutral/default behavior, only removes the dead half of its range."""
+    return lo + t * (hi - lo)
 
 
 class WritingDirection(str, Enum):
@@ -114,13 +125,23 @@ class Glyph(BaseModel, frozen=True):
 
 
 class ScriptTraits(BaseModel, frozen=True):
-    """Seventeen graded dials (bipolar, ``[-1.0, 1.0]``, same shape as
-    ``core.traits.TraitProfile``) controlling the *style* the stroke
-    generator draws every glyph in -- rolled once per language, seeded,
-    by ``generation.script_gen.roll_script_traits``, not (yet) something
-    the free-text prompt infers; see that function's own docstring for
-    why. A positive value is the pole named first below, negative its
-    opposite."""
+    """Twelve graded dials controlling the *style* the stroke generator draws every glyph in --
+    rolled once per language, seeded, by ``generation.script_gen.roll_script_traits``, not (yet)
+    something the free-text prompt infers; see that function's own docstring for why. Most are
+    bipolar (``[-1.0, 1.0]``, a positive value the pole named first below, negative its opposite,
+    same shape as ``core.traits.TraitProfile``); a few are unipolar (``[0.0, 1.0]``, 0 = no effect,
+    1 = maximum) because they have no meaningfully distinct opposite pole -- direct user feedback that
+    forcing those onto a bipolar scale just made half the range feel dead. See ``SCRIPT_TRAIT_GROUP``
+    (topology vs. style) and ``SCRIPT_TRAIT_RANGE`` (which dials are unipolar) below -- the single
+    source both ``roll_script_traits`` and every validation path (CLI, web UI) read from, not a
+    judgment call repeated per caller.
+
+    Six dials from an earlier phase -- ``symmetry``, ``connectivity``, ``height_variance``,
+    ``openness``, ``density``, ``grid_alignment`` -- were removed outright (direct user request):
+    several predated the stroke-generation redesign and were never part of the user's own
+    description of how letters should look. An already-saved language's own YAML may still carry
+    these keys in its ``script.traits``/``spec.forced_script_traits`` -- harmless, ignored on load
+    (no ``model_config`` here forbids extra fields)."""
 
     angularity: float = 0.0
     """+ sharp, straight lines, pointed corners; - smooth, curved, round joints. Not yet consumed
@@ -132,27 +153,22 @@ class ScriptTraits(BaseModel, frozen=True):
     own fields. `StrokeKind.ARC`/`Stroke.bulge` still exist and still render correctly; they're simply
     never produced by generation today."""
     stroke_contrast: float = 0.0
-    """+ calligraphic, thick/thin width variation; - monoline, uniform width."""
+    """Unipolar. 0 = monoline, uniform stroke width; 1 = calligraphic, strong thick/thin width
+    variation along each stroke. Was bipolar; the negative half never produced anything a value
+    closer to 0 didn't already cover (there's no real "opposite of calligraphic" beyond "none")."""
     weight: float = 0.0
     """+ bold, heavy strokes; - thin, light strokes."""
     complexity: float = 0.0
     """+ ornate, many strokes per glyph; - minimal, 1-2 strokes per glyph."""
-    connectivity: float = 0.0
-    """+ cursive, glyphs join their neighbors; - disconnected, each glyph fully separate."""
-    symmetry: float = 0.0
-    """+ mirror-symmetric shapes; - asymmetric, irregular."""
     proportion: float = 0.0
     """+ wide, squat glyphs; - tall, narrow glyphs."""
     slant: float = 0.0
     """+ slanted, italic-like shear; - upright."""
-    openness: float = 0.0
-    """+ open, airy, lots of negative space; - closed, solid counters."""
     regularity: float = 0.0
-    """+ geometric, ruler-and-compass precision; - organic, rustic, hand-drawn feel."""
-    density: float = 0.0
-    """+ tightly packed strokes; - loosely spaced strokes."""
-    height_variance: float = 0.0
-    """+ varied ascenders/descenders (like Latin lowercase); - uniform height (like Latin caps)."""
+    """Unipolar. 0 = geometric, ruler-and-compass precision (no jitter); 1 = organic, rustic,
+    hand-drawn feel (maximum positional jitter). Was bipolar with the dial's own positive half (and
+    most of its neutral range) a confirmed dead zone -- jitter only ever applied below an old
+    ``-0.15`` threshold; redefined here so the whole range does something."""
     diacritic_density: float = 0.0
     """+ many small attached marks (Arabic i'jam-dot-like); - few or none. Governs how many of the 4
     fixed diacritic anchor slots (``Glyph.diacritics`` -- "top"/"bottom"/"left"/"right") get filled on
@@ -160,8 +176,6 @@ class ScriptTraits(BaseModel, frozen=True):
     marks, each itself a small letter-like glyph. Separate from ``dot_prevalence`` below, which is
     about ordinary strokes becoming bare dots *within* a glyph's own main shape (or a diacritic's),
     not about how many diacritic marks exist at all."""
-    grid_alignment: float = 0.0
-    """+ strict block/square alignment (Hangul-like); - freeform, variable-width letters."""
     terminal_style: float = 0.0
     """+ serif-like hooks/flourishes at stroke ends; - plain stroke ends."""
     stroke_continuity: float = 0.0
@@ -173,6 +187,46 @@ class ScriptTraits(BaseModel, frozen=True):
     was all dots would stop reading as a letter at all (see ``generation.script_gen._decide_stroke``).
     A dot never breaks the stroke chain -- the next line stroke continues from wherever the chain was
     before the dot."""
+    dot_ornateness: float = 0.0
+    """Unipolar. 0 = every dot renders as a plain circle (today's only style); 1 = a dot is likely
+    instead rendered as a short, slightly-bent diagonal stroke, Chinese-brush-dot style (see
+    ``script.font_builder``'s own dot-rendering code). Style only -- never changes whether a stroke
+    slot becomes a dot at all (``dot_prevalence``'s own job), just how a dot that already exists is
+    drawn. Unipolar from the start: there's no meaningful "opposite of ornate" beyond "plain"."""
+
+
+SCRIPT_TRAIT_GROUP: dict[str, str] = {
+    "complexity": "topology",
+    "diacritic_density": "topology",
+    "stroke_continuity": "topology",
+    "dot_prevalence": "topology",
+    "angularity": "style",
+    "stroke_contrast": "style",
+    "weight": "style",
+    "proportion": "style",
+    "slant": "style",
+    "regularity": "style",
+    "terminal_style": "style",
+    "dot_ornateness": "style",
+}
+"""Which of ``ScriptTraits``' own dials change a glyph's own TOPOLOGY (a different set of strokes --
+consumed in ``generation.script_gen``, before any rendering happens) versus merely its STYLE (the same
+strokes drawn differently -- consumed only in ``script.font_builder``). The single source of truth for
+this split -- the web UI's own Generate/Tweak trait-row grouping and the tweak preview's own per-glyph
+"changed" flag (a style-only edit changes every glyph's own rendering, not its stored stroke data, so
+it needs this same grouping to report correctly) both read this directly rather than each keeping
+their own judgment call. ``angularity``/``dot_ornateness`` are "style" by their own future/intended
+role even though the former is currently dormant -- see their own docstrings."""
+
+SCRIPT_TRAIT_RANGE: dict[str, tuple[float, float]] = {
+    name: (0.0, 1.0) if name in ("stroke_contrast", "regularity", "dot_ornateness") else (-1.0, 1.0)
+    for name in ScriptTraits.model_fields
+}
+"""Each dial's own valid range -- ``(0.0, 1.0)`` (unipolar) for the three dials with no meaningfully
+distinct negative pole, ``(-1.0, 1.0)`` (bipolar) for the rest. The single source ``generation.
+script_gen.roll_script_traits`` rolls each dial within, and every validation path (CLI ``--script-
+trait``, the web UI's own number inputs and request handling) checks a value against, instead of a
+single hardcoded ``-1..1`` assumed for every dial."""
 
 
 class ScriptTraitsForce(BaseModel, frozen=True):
@@ -184,26 +238,26 @@ class ScriptTraitsForce(BaseModel, frozen=True):
     float sets just that one dial outright, applied *after* rolling, so
     any fields left ``None`` still vary normally across runs. Unlike
     ``OrthographyForce``, there's no composite "style" preset here --
-    every one of ``ScriptTraits``' 17 dials is independent, so this is
-    just that same set of fields, each ``float | None``."""
+    every one of ``ScriptTraits``' dials is independent, so this is
+    just that same set of fields, each ``float | None`` (see
+    ``SCRIPT_TRAIT_RANGE`` for which dial accepts which range -- not
+    enforced here directly, since ``model_copy(update=...)`` -- how a
+    tweak applies an override -- skips pydantic validation entirely;
+    enforced explicitly wherever an override is actually parsed/applied
+    instead)."""
 
     angularity: float | None = None
     stroke_contrast: float | None = None
     weight: float | None = None
     complexity: float | None = None
-    connectivity: float | None = None
-    symmetry: float | None = None
     proportion: float | None = None
     slant: float | None = None
-    openness: float | None = None
     regularity: float | None = None
-    density: float | None = None
-    height_variance: float | None = None
     diacritic_density: float | None = None
-    grid_alignment: float | None = None
     terminal_style: float | None = None
     stroke_continuity: float | None = None
     dot_prevalence: float | None = None
+    dot_ornateness: float | None = None
 
 
 class InventedScript(BaseModel, frozen=True):

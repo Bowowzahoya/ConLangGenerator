@@ -23,7 +23,7 @@ for how a later abugida/syllable-block system would extend this without
 a redesign.
 
 **Every glyph's own stroke content is addressably seeded, not drawn from
-sequential stream position.** ``direction``/the grid shape/the 16 style
+sequential stream position.** ``direction``/the grid shape/the 12 style
 dials are rolled once, in order, from one shared sequential ``random.
 Random`` stream (same convention every other per-symbol generation pass
 in this project already uses -- reproducible by seed, nothing new here).
@@ -49,6 +49,7 @@ import random
 
 from conlang_generator.core.phonology import PhonemeInventory
 from conlang_generator.core.script import (
+    SCRIPT_TRAIT_RANGE,
     Glyph,
     InventedScript,
     Point,
@@ -114,12 +115,12 @@ def roll_grid_shape(rng: random.Random) -> tuple[int, int]:
 
 
 def roll_script_traits(rng: random.Random, force: ScriptTraitsForce = ScriptTraitsForce()) -> ScriptTraits:
-    """Rolls all 17 dials, then applies any non-``None`` field of
-    ``force`` on top (see ``ScriptTraitsForce``'s own docstring) --
-    every ``rng`` draw still happens even for a forced dial, so adding or
-    removing an override never shifts any other dial's own value."""
+    """Rolls all 12 dials, each within its own ``SCRIPT_TRAIT_RANGE`` (bipolar ``-1..1`` or unipolar
+    ``0..1``), then applies any non-``None`` field of ``force`` on top (see ``ScriptTraitsForce``'s own
+    docstring) -- every ``rng`` draw still happens even for a forced dial, so adding or removing an
+    override never shifts any other dial's own value."""
     fields = ScriptTraits.model_fields
-    rolled = {name: round(rng.uniform(-1.0, 1.0), 2) for name in fields}
+    rolled = {name: round(rng.uniform(*SCRIPT_TRAIT_RANGE[name]), 2) for name in fields}
     overrides = {name: value for name, value in force.model_dump().items() if value is not None}
     return ScriptTraits(**{**rolled, **overrides})
 
@@ -128,14 +129,24 @@ def _random_point(rng: random.Random, grid_max_x: int, grid_max_y: int) -> Point
     return Point(x=rng.randint(0, grid_max_x), y=rng.randint(0, grid_max_y))
 
 
-def _valid_line_partners(start: Point, grid_max_x: int, grid_max_y: int) -> list[Point]:
+def _valid_line_partners(
+    start: Point, grid_max_x: int, grid_max_y: int, exclude_direction: tuple[int, int] | None = None,
+) -> list[Point]:
     """Every other grid point reachable from ``start`` by a cell-boundary or diagonal line --
     horizontal (``dy == 0``), vertical (``dx == 0``), or 45 degrees (``abs(dx) == abs(dy)``). Phase 1
     only ever draws a stroke along one of these three directions, not an arbitrary point-to-point
     slash -- real alphabets construct letters from a small set of simple, reused shapes, not
-    disconnected noise. Always non-empty on any grid shape this module ever rolls (every grid has at
-    least 2 points on some axis, so ``start`` always has at least one same-row or same-column
-    partner)."""
+    disconnected noise.
+
+    ``exclude_direction``, when given, drops any candidate whose own direction from ``start`` is
+    *parallel* to it (same line, either continuing straight through or doubling back over it -- a
+    zero cross product) -- direct user feedback: a chained stroke retracing part of the one that fed
+    it "doesn't add anything... sometimes makes two letters look exactly the same." Returning to an
+    *already-visited point* is not excluded here (that's how a triangle/circle closes) -- only a new
+    segment running along the same line as the incoming one. Always falls back to the unfiltered list
+    if filtering would leave nothing (a real possibility on the smallest 1x2/2x1 grids) -- never
+    returns empty on any grid shape this module ever rolls (every grid has at least 2 points on some
+    axis, so ``start`` always has at least one same-row or same-column partner before filtering)."""
     partners = []
     for x in range(grid_max_x + 1):
         for y in range(grid_max_y + 1):
@@ -144,13 +155,18 @@ def _valid_line_partners(start: Point, grid_max_x: int, grid_max_y: int) -> list
             dx, dy = x - start.x, y - start.y
             if dx == 0 or dy == 0 or abs(dx) == abs(dy):
                 partners.append(Point(x=x, y=y))
-    return partners
+    if exclude_direction is None:
+        return partners
+    edx, edy = exclude_direction
+    filtered = [p for p in partners if (p.x - start.x) * edy - (p.y - start.y) * edx != 0]
+    return filtered or partners
 
 
 def _decide_stroke(
     seed_key: str,
     index: int,
     chain_from: Point | None,
+    chain_direction: tuple[int, int] | None,
     traits: ScriptTraits,
     grid_max_x: int,
     grid_max_y: int,
@@ -168,7 +184,8 @@ def _decide_stroke(
 
     Otherwise, a line: ``stroke_continuity`` decides whether it starts from ``chain_from`` (the
     previous line stroke's own end) or a fresh point, and ``end`` is always one of ``start``'s own
-    valid cell-boundary/diagonal partners (``_valid_line_partners``)."""
+    valid cell-boundary/diagonal partners (``_valid_line_partners``) -- excluding ``chain_direction``
+    itself when actually chaining, so this stroke never just retraces the one that fed it."""
     rng = random.Random(f"{seed_key}:{index}")
     if rng.random() < lerp(traits.dot_prevalence, 0.0, 0.33):
         free_points = [
@@ -179,22 +196,11 @@ def _decide_stroke(
         ]
         if free_points:
             return Stroke(kind=StrokeKind.DOT, start=rng.choice(free_points), end=rng.choice(free_points))
-    if chain_from is not None and rng.random() < lerp(traits.stroke_continuity, 0.15, 0.95):
-        start = chain_from
-    else:
-        start = _random_point(rng, grid_max_x, grid_max_y)
-    end = rng.choice(_valid_line_partners(start, grid_max_x, grid_max_y))
+    is_chained = chain_from is not None and rng.random() < lerp(traits.stroke_continuity, 0.15, 0.95)
+    start = chain_from if is_chained else _random_point(rng, grid_max_x, grid_max_y)
+    exclude = chain_direction if is_chained else None
+    end = rng.choice(_valid_line_partners(start, grid_max_x, grid_max_y, exclude))
     return Stroke(kind=StrokeKind.LINE, start=start, end=end)
-
-
-def _mirror_point(p: Point, grid_max_x: int) -> Point:
-    return Point(x=grid_max_x - p.x, y=p.y)
-
-
-def _mirror_stroke(s: Stroke, grid_max_x: int) -> Stroke:
-    return Stroke(
-        kind=s.kind, start=_mirror_point(s.start, grid_max_x), end=_mirror_point(s.end, grid_max_x), bulge=-s.bulge,
-    )
 
 
 def _touches_enough_corners(strokes: list[Stroke], traits: ScriptTraits, grid_max_x: int, grid_max_y: int) -> bool:
@@ -211,41 +217,27 @@ def _build_one_attempt(seed_key: str, traits: ScriptTraits, stroke_count: int, g
     strokes: list[Stroke] = []
     occupied: set[tuple[int, int]] = set()
     chain_from: Point | None = None
+    chain_direction: tuple[int, int] | None = None
 
-    def place(index: int) -> Stroke:
-        nonlocal chain_from
-        s = _decide_stroke(seed_key, index, chain_from, traits, grid_max_x, grid_max_y, occupied)
+    for i in range(stroke_count):
+        s = _decide_stroke(seed_key, i, chain_from, chain_direction, traits, grid_max_x, grid_max_y, occupied)
+        strokes.append(s)
         occupied.add((s.start.x, s.start.y))
         occupied.add((s.end.x, s.end.y))
         if s.kind is not StrokeKind.DOT:
             chain_from = s.end
-        return s
-
-    if traits.symmetry > 0.3:
-        half = max(1, stroke_count // 2)
-        for i in range(half):
-            s = place(i)
-            strokes.append(s)
-            mirrored = _mirror_stroke(s, grid_max_x)
-            strokes.append(mirrored)
-            occupied.add((mirrored.start.x, mirrored.start.y))
-            occupied.add((mirrored.end.x, mirrored.end.y))
-        if stroke_count % 2 and len(strokes) < stroke_count:
-            strokes.append(place(half))
-    else:
-        for i in range(stroke_count):
-            strokes.append(place(i))
+            chain_direction = (s.end.x - s.start.x, s.end.y - s.start.y)
     return strokes
 
 
 def _build_stroke_chain(seed_key: str, traits: ScriptTraits, stroke_count: int, grid_max_x: int, grid_max_y: int) -> list[Stroke]:
     """``stroke_count`` strokes, each addressably seeded (``_decide_stroke``), chained by default
-    (``stroke_continuity``), mirrored across the vertical center if ``symmetry`` calls for it, retried
-    (bounded, each attempt its own addressable sub-key so a retry still produces a fresh draw) until
-    enough of the grid's own corners are touched -- see ``_touches_enough_corners``. Regenerating the
-    whole attempt on a retry, not patching just the offending stroke, keeps the connected-chain
-    invariant intact (a single patched-in stroke could silently break the "starts where the last one
-    ended" property)."""
+    (``stroke_continuity``) and never retracing the stroke that fed it (see ``_valid_line_partners``'s
+    own ``exclude_direction``), retried (bounded, each attempt its own addressable sub-key so a retry
+    still produces a fresh draw) until enough of the grid's own corners are touched -- see
+    ``_touches_enough_corners``. Regenerating the whole attempt on a retry, not patching just the
+    offending stroke, keeps the connected-chain invariant intact (a single patched-in stroke could
+    silently break the "starts where the last one ended" property)."""
     strokes: list[Stroke] = []
     for attempt in range(_CORNER_RETRY_LIMIT):
         strokes = _build_one_attempt(f"{seed_key}:attempt{attempt}", traits, stroke_count, grid_max_x, grid_max_y)
@@ -295,64 +287,20 @@ def generate_glyph(
     ``min_strokes``/``max_strokes``/``with_diacritics`` exist so ``_generate_diacritics`` can call this
     same function for a diacritic's own small glyph (fewer strokes, never itself diacritic-bearing)
     rather than duplicating the stroke-generation logic above."""
-    # height_variance: this one glyph, not the whole script, rolls whether it's full-height or
-    # restricted to the lower rows (an x-height-only look) -- the *rate* that happens at is what gives
-    # the trait its visible effect across the whole glyph set. Guarded on grid_max_y >= 2 -- on a
-    # "wide" grid (grid_max_y == 1) this reduction would flatten the glyph onto a single row. Its own
-    # addressable key (not stroke-indexed) so regenerating with a different stroke count never shifts
-    # this decision.
-    y_max = grid_max_y
-    if grid_max_y >= 2 and random.Random(f"{seed_key}:height_variance").random() < lerp(traits.height_variance, 0.0, 0.5):
-        y_max = grid_max_y - 1
-
     stroke_count = round(lerp(traits.complexity, min_strokes, max_strokes))
-    strokes = _build_stroke_chain(seed_key, traits, stroke_count, grid_max_x, y_max)
+    strokes = _build_stroke_chain(seed_key, traits, stroke_count, grid_max_x, grid_max_y)
     diacritics = _generate_diacritics(seed_key, traits, grid_max_x, grid_max_y) if with_diacritics else {}
     return Glyph(ipa=ipa, strokes=tuple(strokes), diacritics=diacritics)
 
 
-def _apply_connectivity(
-    glyph: Glyph, traits: ScriptTraits, direction: WritingDirection, grid_max_x: int, grid_max_y: int,
-) -> Glyph:
-    """``connectivity``'s own cheap approximation of cross-letter joining: pin the glyph's overall
-    first and last *non-dot* stroke to two fixed baseline anchor points, so adjacent glyphs' own
-    shapes visually touch/align at the baseline when typeset in sequence -- "letters always begin and
-    end in the same spot," per the user's own framing, not real OpenType contextual substitution (see
-    ``docs/DEFERRED.md``'s "True cursive joining" item for what that would still need). Horizontal
-    directions only (``LTR``/``RTL``) -- vertical joining for top-to-bottom scripts is a real
-    follow-up, not attempted here. A no-op below ``connectivity``'s own 0.3 threshold, or for a glyph
-    with no non-dot strokes at all (shouldn't happen -- ``generate_glyph`` always builds at least
-    ``_MIN_STROKES`` -- but never crash a rare empty case either way).
+_MAX_DUPLICATE_RETRIES = 5
 
-    Forcing just one endpoint of a stroke could leave its *other* endpoint no longer a valid cell-
-    boundary/diagonal partner of the new one (``_valid_line_partners``) -- checked and repaired here:
-    if the existing other endpoint is no longer valid, it's replaced with that endpoint's own first
-    valid partner (a stable, deterministic pick, not a fresh random draw -- this is a repair, not a
-    new creative decision)."""
-    if traits.connectivity <= 0.3 or direction not in (WritingDirection.LTR, WritingDirection.RTL):
-        return glyph
-    non_dot_indices = [i for i, s in enumerate(glyph.strokes) if s.kind is not StrokeKind.DOT]
-    if not non_dot_indices:
-        return glyph
-    entry, exit_ = (Point(x=0, y=0), Point(x=grid_max_x, y=0))
-    if direction is WritingDirection.RTL:
-        entry, exit_ = exit_, entry
-    strokes = list(glyph.strokes)
-    first_i, last_i = non_dot_indices[0], non_dot_indices[-1]
 
-    def _valid(a: Point, b: Point) -> bool:
-        dx, dy = b.x - a.x, b.y - a.y
-        return (dx == 0 or dy == 0 or abs(dx) == abs(dy)) and (dx != 0 or dy != 0)
-
-    first = strokes[first_i]
-    new_end = first.end if _valid(entry, first.end) else _valid_line_partners(entry, grid_max_x, grid_max_y)[0]
-    strokes[first_i] = first.model_copy(update={"start": entry, "end": new_end})
-
-    last = strokes[last_i]
-    new_start = last.start if _valid(last.start, exit_) else _valid_line_partners(exit_, grid_max_x, grid_max_y)[0]
-    strokes[last_i] = last.model_copy(update={"start": new_start, "end": exit_})
-
-    return glyph.model_copy(update={"strokes": tuple(strokes)})
+def _glyph_signature(glyph: Glyph) -> tuple:
+    """A hashable stand-in for "this glyph looks exactly like that one" -- its own strokes plus every
+    diacritic's own strokes, keyed by slot. ``Glyph.diacritics`` is a ``dict`` (unhashable), so it's
+    flattened to a sorted tuple of ``(slot, strokes)`` pairs first."""
+    return (glyph.strokes, tuple(sorted((slot, d.strokes) for slot, d in glyph.diacritics.items())))
 
 
 def generate_script(
@@ -361,26 +309,40 @@ def generate_script(
     forced_script_traits: ScriptTraitsForce = ScriptTraitsForce(),
 ) -> InventedScript:
     """Every symbol in ``inventory``'s own consonants and vowels, each given one glyph, in that stable
-    order. ``direction``/the grid shape/the 17 style dials are rolled once, in order, from one shared
+    order. ``direction``/the grid shape/the 12 style dials are rolled once, in order, from one shared
     sequential ``random.Random(seed)`` stream (the same convention every other per-symbol generation
     pass in this project already uses); each glyph's own stroke *content* is addressably keyed from
     ``seed`` directly instead (see this module's own docstring for why) -- so re-running with the same
     seed and the same inventory always reproduces the same script, exactly as before, just via two
-    different mechanisms for two different kinds of decision."""
+    different mechanisms for two different kinds of decision.
+
+    Each glyph is also checked against every earlier glyph in the same script (``_glyph_signature``,
+    comparing strokes plus diacritics) -- direct user feedback that two letters could otherwise end up
+    looking identical. On a collision, that one glyph is rebuilt with a bumped sub-key
+    (``f"{seed}:{symbol}:dup{attempt}"``), the same addressable-retry pattern ``_build_stroke_chain``'s
+    own corner-coverage retry already uses, bounded at ``_MAX_DUPLICATE_RETRIES`` attempts -- a tiny
+    grid genuinely has few distinct possible shapes, so past the cap the last attempt is accepted
+    unconditionally rather than looping forever."""
     rng = random.Random(seed)
     direction = roll_direction(rng)
     grid_max_x, grid_max_y = roll_grid_shape(rng)
     traits = roll_script_traits(rng, forced_script_traits)
     symbols = inventory.consonant_symbols() + inventory.vowel_symbols()
-    glyphs = tuple(
-        _apply_connectivity(
-            generate_glyph(f"{seed}:{symbol}", symbol, traits, grid_max_x, grid_max_y),
-            traits, direction, grid_max_x, grid_max_y,
-        )
-        for symbol in symbols
-    )
+    glyphs: list[Glyph] = []
+    seen_signatures: set[tuple] = set()
+    for symbol in symbols:
+        seed_key = f"{seed}:{symbol}"
+        glyph = generate_glyph(seed_key, symbol, traits, grid_max_x, grid_max_y)
+        signature = _glyph_signature(glyph)
+        attempt = 0
+        while signature in seen_signatures and attempt < _MAX_DUPLICATE_RETRIES:
+            attempt += 1
+            glyph = generate_glyph(f"{seed_key}:dup{attempt}", symbol, traits, grid_max_x, grid_max_y)
+            signature = _glyph_signature(glyph)
+        seen_signatures.add(signature)
+        glyphs.append(glyph)
     return InventedScript(
-        direction=direction, traits=traits, grid_max_x=grid_max_x, grid_max_y=grid_max_y, glyphs=glyphs,
+        direction=direction, traits=traits, grid_max_x=grid_max_x, grid_max_y=grid_max_y, glyphs=tuple(glyphs),
     )
 
 

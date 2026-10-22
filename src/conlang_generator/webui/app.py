@@ -40,7 +40,7 @@ from conlang_generator.core.romanization import (
     ToneMarkingStrategy,
     VowelLengthStrategy,
 )
-from conlang_generator.core.script import ScriptTraits, ScriptTraitsForce
+from conlang_generator.core.script import SCRIPT_TRAIT_GROUP, SCRIPT_TRAIT_RANGE, ScriptTraits, ScriptTraitsForce
 from conlang_generator.core.spec import GenerationSpec, SeedExample
 from conlang_generator.core.traits import EVOLUTION_TRAIT_FIELDS, GRADED_TRAIT_FIELDS, PHONOLOGY_ONLY_TRAIT_FIELDS
 from conlang_generator.generation import ipa_tokenizer, phoneme_fit, phonology_gen, script_gen, sound_change
@@ -745,6 +745,8 @@ def get_options() -> dict:
             {p.name.lower() for p in REFERENCE_LANGUAGES} | {alias for p in REFERENCE_LANGUAGES for alias in p.aliases}
         ),
         "script_trait_fields": list(ScriptTraits.model_fields),
+        "script_trait_groups": SCRIPT_TRAIT_GROUP,
+        "script_trait_ranges": SCRIPT_TRAIT_RANGE,
         "glossary": glossary.as_dict(),
         "models": [
             {
@@ -810,10 +812,12 @@ def generate(request: GenerateRequest) -> dict:
             status_code=400,
             detail=f"script_trait_overrides has unknown dial name(s): {', '.join(sorted(unknown_script_traits))}",
         )
-    script_out_of_range = {k: v for k, v in request.script_trait_overrides.items() if not -1.0 <= v <= 1.0}
+    script_out_of_range = {
+        k: v for k, v in request.script_trait_overrides.items() if not SCRIPT_TRAIT_RANGE[k][0] <= v <= SCRIPT_TRAIT_RANGE[k][1]
+    }
     if script_out_of_range:
         raise HTTPException(
-            status_code=400, detail=f"script_trait_overrides values must be between -1.0 and 1.0: {script_out_of_range}"
+            status_code=400, detail=f"script_trait_overrides values out of range for their own dial: {script_out_of_range}"
         )
 
     forced_orthography = OrthographyForce(
@@ -1019,8 +1023,17 @@ def tweak_language(slug: str, request: TweakRequest) -> dict:
     # looked different), and gave no way to tell which letters actually changed from which didn't --
     # `script_preview_glyphs`' own `changed` flag (computed by comparing each glyph's own strokes/
     # diacritics against the base script, not inferred from rendering) answers that directly instead
-    # of making the user eyeball two blocks of text.
+    # of making the user eyeball two blocks of text. Further direct feedback: a *style*-only edit (e.g.
+    # weight) never touches stroke/diacritic data by design (see generation.script_gen's own topology-
+    # vs-style split), so that comparison alone reported "nothing changed" even though every letter's
+    # own rendering visibly differs -- `style_changed` (any SCRIPT_TRAIT_GROUP-style dial differing from
+    # the base) is OR'd into every glyph's own flag to cover that case too.
     if language.script is not None:
+        style_changed = base.script is not None and any(
+            getattr(language.script.traits, name) != getattr(base.script.traits, name)
+            for name, group in SCRIPT_TRAIT_GROUP.items()
+            if group == "style"
+        )
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
             new_font_path = tmp / "preview.ttf"
@@ -1031,7 +1044,8 @@ def tweak_language(slug: str, request: TweakRequest) -> dict:
                 {
                     "ipa": g.ipa,
                     "changed": (
-                        i >= len(base_glyphs)
+                        style_changed
+                        or i >= len(base_glyphs)
                         or g.strokes != base_glyphs[i].strokes
                         or g.diacritics != base_glyphs[i].diacritics
                     ),

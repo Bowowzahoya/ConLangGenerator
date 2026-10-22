@@ -19,16 +19,15 @@ Each phoneme's own glyph is assigned a Private Use Area codepoint
 standard, collision-free way to ship an invented script as a real font;
 see ``core.script.InventedScript.glyphs``'s own docstring.
 
-Consumes 9 of ``ScriptTraits``' 17 dials (the rendering-time half; see
+Consumes 7 of ``ScriptTraits``' 12 dials (the rendering-time half; see
 ``generation.script_gen``'s own docstring for the stroke-topology half):
 ``weight``/``stroke_contrast`` (stroke width, and whether it
 tapers along the stroke), ``slant`` (shear), ``proportion`` (horizontal
-scale), ``openness`` (a secondary width reduction), ``regularity``
-(organic jitter when markedly negative), ``density`` (side bearings),
-``grid_alignment`` (uniform vs per-glyph advance width), and
-``terminal_style`` (small serif feet on line-stroke endpoints).
-``angularity``/``diacritic_density`` are currently dormant everywhere --
-see their own docstrings in ``core.script.ScriptTraits``.
+scale), ``regularity`` (organic jitter, unipolar -- 0 = none, 1 = max),
+``terminal_style`` (small serif feet on line-stroke endpoints), and
+``dot_ornateness`` (plain circle vs. a brief bent diagonal stroke for a
+``DOT``). ``angularity`` is currently dormant everywhere -- see its own
+docstring in ``core.script.ScriptTraits``.
 """
 
 from __future__ import annotations
@@ -40,17 +39,26 @@ from pathlib import Path
 from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 
-from conlang_generator.core.script import Glyph, InventedScript, Point, Stroke, StrokeKind, lerp
+from conlang_generator.core.script import Glyph, InventedScript, Point, Stroke, StrokeKind, lerp, lerp01
 
 UPM = 1000
 """Units per em -- the standard TrueType working resolution."""
 
+_LETTER_SCALE = 0.55
+"""A glyph's own height/width fill this fraction of the em square, not the whole thing -- "regular
+sized letters," per direct user feedback that the old full-em sizing looked oversized. Applied to both
+grid axes, so a glyph's own height stays ``UPM * _LETTER_SCALE`` regardless of the rolled grid shape
+(``grid_max_y`` only changes point *resolution* within that fixed height, never the height itself)."""
+
 _ASCENT = 850
-_DESCENT = -150
+_DESCENT = -250
 _ARC_SAMPLES = 5
 """An arc stroke is polygon-approximated as this many straight segments
 along a sampled quadratic curve, not a true smooth Bezier outline -- a
 documented phase-1 simplification, not a claim of real curve rendering."""
+
+_SIDE_BEARING = UPM * 0.1
+"""Fixed left/right margin per glyph -- no longer derived from the removed ``density`` dial."""
 
 
 def _stable_unit(seed_text: str) -> float:
@@ -68,10 +76,9 @@ def _point_to_em(
 ) -> tuple[float, float]:
     x = point.x * grid_unit_x
     y = point.y * grid_unit_y
-    if traits.regularity < -0.15:
-        jitter_scale = lerp(-traits.regularity, 0.0, UPM * 0.035)
-        x += _stable_unit(f"{jitter_seed}:x") * jitter_scale
-        y += _stable_unit(f"{jitter_seed}:y") * jitter_scale
+    jitter_scale = lerp01(traits.regularity, 0.0, UPM * 0.035)
+    x += _stable_unit(f"{jitter_seed}:x") * jitter_scale
+    y += _stable_unit(f"{jitter_seed}:y") * jitter_scale
     x *= lerp(traits.proportion, 0.7, 1.3)
     x += y * lerp(traits.slant, -0.3, 0.3)
     return x + offset_x, y + offset_y
@@ -112,9 +119,45 @@ def _regular_polygon(cx: float, cy: float, radius: float, sides: int = 8) -> lis
 
 
 def _stroke_width(traits) -> float:
-    base = lerp(traits.weight, UPM * 0.025, UPM * 0.08)
-    openness_factor = lerp(traits.openness, 1.0, 0.6)
-    return base * openness_factor
+    return lerp(traits.weight, UPM * 0.025, UPM * 0.08)
+
+
+_DOT_RADIUS = UPM * _LETTER_SCALE * 0.09
+"""A fixed fraction of letter height, decoupled from stroke width -- direct user feedback that a
+thin-weight script's dots were "currently very tiny," like a tittle should stay legible regardless of
+how thin the rest of the script's strokes are."""
+
+
+def _dot_polygons(cx: float, cy: float, width: float, ornateness: float, seed_text: str) -> list[list[tuple[float, float]]]:
+    """A dot renders as a plain circle at ``dot_ornateness == 0``; as it rises toward ``1.0``, it
+    increasingly renders instead as a brief, slightly bent diagonal stroke (Chinese-brush-dot style).
+    The circle-vs-diagonal choice is deterministic (``_stable_unit``-keyed by the dot's own jitter
+    seed, the same determinism convention every other font_builder randomness-lookalike already uses
+    -- never a fresh ``random`` draw), with ``ornateness`` itself setting the probability."""
+    choice = (_stable_unit(f"{seed_text}:ornate") + 1.0) / 2.0
+    if choice > ornateness:
+        return [_regular_polygon(cx, cy, _DOT_RADIUS)]
+    sign = 1.0 if _stable_unit(f"{seed_text}:dir") >= 0 else -1.0
+    half = _DOT_RADIUS * 0.9
+    x0, y0 = cx - half * sign, cy + half * sign
+    x1, y1 = cx + half * sign, cy - half * sign
+    mx, my = (x0 + x1) / 2, (y0 + y1) / 2
+    pdx, pdy = _perpendicular(x0, y0, x1, y1, 1.0)
+    length = math.hypot(x1 - x0, y1 - y0)
+    bend_cx, bend_cy = mx + pdx * 0.25 * sign * length, my + pdy * 0.25 * sign * length
+    points = []
+    for i in range(_ARC_SAMPLES + 1):
+        t = i / _ARC_SAMPLES
+        sx = (1 - t) ** 2 * x0 + 2 * (1 - t) * t * bend_cx + t**2 * x1
+        sy = (1 - t) ** 2 * y0 + 2 * (1 - t) * t * bend_cy + t**2 * y1
+        points.append((sx, sy))
+    w0, w1 = width * 0.8, width * 1.1
+    polygons = []
+    for i in range(len(points) - 1):
+        t0, t1 = i / _ARC_SAMPLES, (i + 1) / _ARC_SAMPLES
+        ww0, ww1 = w0 + (w1 - w0) * t0, w0 + (w1 - w0) * t1
+        polygons.append(_quad(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], ww0, ww1))
+    return polygons
 
 
 def _stroke_polygons(
@@ -123,12 +166,12 @@ def _stroke_polygons(
 ) -> list[list[tuple[float, float]]]:
     jitter_prefix = f"{glyph_index}:{stroke_index}"
     width = _stroke_width(traits)
-    contrast = lerp(traits.stroke_contrast, 0.0, 0.45)
+    contrast = lerp01(traits.stroke_contrast, 0.0, 0.45)
     w_start, w_end = width * (1 + contrast), width * (1 - contrast)
 
     if stroke.kind is StrokeKind.DOT:
         cx, cy = _point_to_em(stroke.start, f"{jitter_prefix}:dot", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
-        return [_regular_polygon(cx, cy, max(width * 0.5, UPM * 0.02))]
+        return _dot_polygons(cx, cy, width, traits.dot_ornateness, f"{jitter_prefix}:dot")
 
     x0, y0 = _point_to_em(stroke.start, f"{jitter_prefix}:a", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
     x1, y1 = _point_to_em(stroke.end, f"{jitter_prefix}:b", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
@@ -154,17 +197,20 @@ def _stroke_polygons(
             polygons.append(_quad(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], w0, w1))
 
     if stroke.kind is StrokeKind.LINE and traits.terminal_style > 0.2:
-        foot = lerp(traits.terminal_style, 0.0, width * 1.2)
+        foot_radius = lerp(traits.terminal_style, width * 0.6, width * 1.3)
         for ex, ey in ((x0, y0), (x1, y1)):
-            polygons.append(_regular_polygon(ex, ey, foot * 0.4, sides=4))
+            polygons.append(_regular_polygon(ex, ey, foot_radius, sides=4))
 
     return polygons
 
 
-_DIACRITIC_SCALE = 0.5
+_DIACRITIC_SCALE = 0.4
 """A diacritic renders at this fraction of the main glyph's own grid-cell size -- "no larger than 1
 of the full letter cells," see `core.script.Glyph.diacritics`'s own docstring. Fixed for now, not its
-own dial (would be a 18th dial before the fixed version is even verified to look right)."""
+own dial (would be a 13th dial before the fixed version is even verified to look right). Kept below
+``0.5`` with real margin -- at the ``_LETTER_SCALE`` height, a "top" diacritic reaches
+``letter_height * (1 + _DIACRITIC_SCALE)`` and a "bottom" one ``-letter_height * _DIACRITIC_SCALE``;
+both need headroom within ``_ASCENT``/``_DESCENT`` for ``regularity``'s own jitter on top."""
 
 
 def _diacritic_offset(
@@ -249,11 +295,10 @@ def build_font(script: InventedScript, output_path: Path, family_name: str) -> N
     advance: dict[str, tuple[int, int]] = {}
     cmap: dict[int, str] = {}
 
-    grid_unit_x = UPM / script.grid_max_x
-    grid_unit_y = UPM / script.grid_max_y
-    side_bearing = lerp(-script.traits.density, UPM * 0.05, UPM * 0.22)
-    uniform_width = script.traits.grid_alignment > 0.15
-    uniform_advance = UPM * lerp(script.traits.proportion, 0.7, 1.3) + 2 * side_bearing
+    grid_unit_x = (UPM * _LETTER_SCALE) / script.grid_max_x
+    grid_unit_y = (UPM * _LETTER_SCALE) / script.grid_max_y
+    side_bearing = _SIDE_BEARING
+    empty_advance = UPM * _LETTER_SCALE * lerp(script.traits.proportion, 0.7, 1.3) + 2 * side_bearing
 
     notdef_box = [(UPM * 0.1, 0), (UPM * 0.1, _ASCENT * 0.8), (UPM * 0.4, _ASCENT * 0.8), (UPM * 0.4, 0)]
     pen = TTGlyphPen(None)
@@ -262,7 +307,7 @@ def build_font(script: InventedScript, output_path: Path, family_name: str) -> N
         pen.lineTo((round(pt[0]), round(pt[1])))
     pen.closePath()
     glyphs[".notdef"] = pen.glyph()
-    advance[".notdef"] = (round(uniform_advance), round(side_bearing))
+    advance[".notdef"] = (round(empty_advance), round(side_bearing))
 
     for i, glyph in enumerate(script.glyphs):
         name = f"g{i:04d}"
@@ -270,8 +315,8 @@ def build_font(script: InventedScript, output_path: Path, family_name: str) -> N
             glyph, i, script.traits, grid_unit_x, grid_unit_y, script.grid_max_x, script.grid_max_y,
         )
         glyphs[name] = outline
-        if uniform_width or not has_contour:
-            width = uniform_advance
+        if not has_contour:
+            width = empty_advance
         else:
             min_x, max_x = _glyph_extent(
                 glyph, i, script.traits, grid_unit_x, grid_unit_y, script.grid_max_x, script.grid_max_y,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import typer
@@ -14,7 +15,7 @@ from conlang_generator.core.romanization import (
 )
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.script import ScriptTraits, ScriptTraitsForce
+from conlang_generator.core.script import SCRIPT_TRAIT_RANGE, ScriptTraits, ScriptTraitsForce
 from conlang_generator.core.spec import GenerationSpec, SeedExample, SeedForm
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS, PHONOLOGY_ONLY_TRAIT_FIELDS
 from conlang_generator.generation.generator import (
@@ -56,7 +57,7 @@ app = typer.Typer(help="Generate constructed languages and translate to/from Eng
 LANGUAGES_DIR = Path("conlangs")
 CACHE_DIR = Path(".cache")
 SCRIPT_TRAIT_FIELDS: tuple[str, ...] = tuple(ScriptTraits.model_fields)
-"""The 17 ``ScriptTraits`` dial names, in declaration order -- the
+"""The 12 ``ScriptTraits`` dial names, in declaration order -- the
 ``--script-trait`` flag's own allowlist, the ``ScriptTraits`` analogue of
 ``GRADED_TRAIT_FIELDS``."""
 
@@ -129,21 +130,26 @@ def _parse_trait_overrides(
     raw_entries: list[str],
     valid_names: tuple[str, ...] = GRADED_TRAIT_FIELDS,
     flag: str = "--trait",
+    range_of: Callable[[str], tuple[float, float]] = lambda _name: (-1.0, 1.0),
 ) -> dict[str, float]:
     """Parses repeatable ``FLAG NAME=VALUE`` entries into a
-    ``model_copy(update=...)`` payload, every value a bipolar
-    ``-1.0..1.0`` float. ``NAME`` must be one of ``valid_names``,
+    ``model_copy(update=...)`` payload. ``NAME`` must be one of ``valid_names``,
     defaulting to ``GRADED_TRAIT_FIELDS`` (the 15 worldbuilding traits,
     for ``--trait`` itself) --
     ``source_language_strictness``/``source_word_strictness`` already have
     their own dedicated ``--strictness``/``--word-strictness`` flags, so
     aren't accepted here too, one way to set each rather than two.
-    Reused unchanged for ``--script-trait`` against ``ScriptTraits.
-    model_fields`` instead -- the validation/parsing is identical, only
-    the allowed names and the flag named in an error differ. A later
-    entry for the same name overrides an earlier one, the same
-    permissive "last one wins" simplicity ``--source-language``'s own
-    weight suffix already has."""
+    Reused for ``--script-trait`` against ``ScriptTraits.model_fields``
+    instead -- the validation/parsing is identical, only the allowed names,
+    the flag named in an error, and (via ``range_of``) each name's own
+    valid range differ. ``range_of`` defaults to a fixed bipolar
+    ``-1.0..1.0`` for every name (``--trait``'s own worldbuilding fields,
+    all genuinely bipolar); ``--script-trait`` passes ``core.script.
+    SCRIPT_TRAIT_RANGE.__getitem__`` instead, since a few of its dials are
+    unipolar ``0.0..1.0`` (no meaningful negative pole -- see that
+    constant's own docstring). A later entry for the same name overrides an
+    earlier one, the same permissive "last one wins" simplicity
+    ``--source-language``'s own weight suffix already has."""
     overrides: dict[str, float] = {}
     for entry in raw_entries:
         name, sep, raw_value = entry.partition("=")
@@ -157,8 +163,9 @@ def _parse_trait_overrides(
         except ValueError:
             typer.echo(f"error: {flag} value must be a number, got {entry!r}", err=True)
             raise typer.Exit(code=1) from None
-        if not -1.0 <= value <= 1.0:
-            typer.echo(f"error: {flag} value must be between -1.0 and 1.0, got {entry!r}", err=True)
+        lo, hi = range_of(name)
+        if not lo <= value <= hi:
+            typer.echo(f"error: {flag} value for {name!r} must be between {lo} and {hi}, got {entry!r}", err=True)
             raise typer.Exit(code=1)
         overrides[name] = value
     return overrides
@@ -431,7 +438,9 @@ def generate(
     # Parsed here, not down with the fresh-generation path below, so --tweak-from's own branch can
     # read it too -- script_trait_overrides/forced_script_traits used to be parsed after that branch's
     # own early `return`, making --script-trait silently dead in --tweak-from mode.
-    script_trait_overrides = _parse_trait_overrides(script_trait, SCRIPT_TRAIT_FIELDS, "--script-trait")
+    script_trait_overrides = _parse_trait_overrides(
+        script_trait, SCRIPT_TRAIT_FIELDS, "--script-trait", range_of=SCRIPT_TRAIT_RANGE.__getitem__,
+    )
     forced_script_traits = ScriptTraitsForce(**script_trait_overrides)
 
     if tweak_from is not None:

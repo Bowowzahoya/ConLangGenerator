@@ -9237,3 +9237,143 @@ reading code or one-off ad hoc scripts.
   scripted and an unscripted language, in both tabs (the Tweak tab's own no-script message/row-group
   visibility toggle also re-confirmed correct after a test-script race-condition false alarm turned out
   to be in the verification script itself, not the product -- re-checked with a properly awaited call).
+
+  **Follow-up: the script-tweak preview redesigned around a full letter-by-letter before/after table.**
+  Direct user feedback after trying the real Tweak tab: the old preview showed a handful of *sample
+  words* through the tweaked font only, so a small trait nudge that changed just 0-2 glyphs out of ~26
+  could make *every* displayed word look different (each word mixes several letters) -- confirmed by
+  direct testing, not assumed. Replaced with a table of every glyph, base font next to tweaked font,
+  each row flagged `changed` (computed by comparing stored stroke/diacritic data, server-side) --
+  `webui/app.py`'s `tweak_language` now embeds both fonts as base64 `@font-face` data URIs and a
+  `script_preview_glyphs` list; the old sample-word `<span>`s (which overflowed the page horizontally,
+  a second direct bug report) became a proper `<table>` inside the existing `.lexicon-wrap`, which
+  wraps naturally. Also fixed two stale glossary entries found while investigating a third report ("I'm
+  not sure how some of these are used"): `angularity`'s entry still described its pre-pass-51 line/arc
+  role; `connectivity`'s still said "not yet rendered" after pass 50 had already given it a real effect
+  (since superseded -- see below).
+
+  **Pass 52: trait cleanup, true-size letters, overlap/duplicate prevention, dot styling -- a further
+  nine-point direct feedback batch from testing the redesigned preview above.** Six real/design
+  problems, confirmed by reading the actual code or testing it directly before touching anything:
+  `terminal_style`'s own foot polygon radius (`lerp(terminal_style, 0, width*1.2) * 0.4` = 20.16 at
+  default weight) came out *smaller* than the stroke's own half-width (25.7) -- entirely hidden inside
+  the stroke's own already-drawn shape, invisible regardless of the winding-rule fix an earlier pass
+  already made for a different problem. `grid_unit_y = UPM / grid_max_y` made every glyph's own height
+  exactly `UPM`, the *entire* ascent-to-baseline span -- both "too big" and the literal cause of a
+  "top" diacritic pushing past `_ASCENT` into the line above. A dot's own radius was derived from
+  stroke width, nearly invisible on a thin-weight script. A chained stroke could retrace part of the
+  one that fed it (same line, different extent) -- wasted a stroke and could collapse two different
+  letters to the same silhouette. No check existed for two glyphs ending up identical. Six traits
+  (`symmetry`, `connectivity`, `height_variance`, `openness`, `density`, `grid_alignment`) predated the
+  pass-50/51 stroke-generation redesign and had no place in the user's own description of how letters
+  should look -- removed outright per direct request.
+
+  **Part A -- trait set cleanup, single source of truth.** The six traits above deleted from
+  `ScriptTraits`/`ScriptTraitsForce` (`core/script.py`) and every reader: `script_gen.py`'s
+  `_build_one_attempt` (dropped the whole `symmetry > 0.3` mirror branch and the now-dead
+  `_mirror_point`/`_mirror_stroke` -- every glyph just builds `stroke_count` strokes in one straight
+  loop now), `generate_glyph` (dropped the `height_variance` `y_max` restriction), `_apply_connectivity`
+  and its call site in `generate_script` (deleted entirely -- see the "True cursive joining" item in
+  `docs/DEFERRED.md` §5, which this closes back out), `font_builder.py`'s `_stroke_width` (dropped the
+  `openness_factor` term) and `build_font` (`side_bearing` is now a fixed `_SIDE_BEARING` constant, no
+  longer `density`-derived; advance width always uses `_glyph_extent`'s own per-glyph natural width --
+  no more `grid_alignment`-gated uniform-width branch). Old saved languages with these keys still in
+  their YAML `forced_script_traits`/`script.traits` blobs load fine unchanged -- pydantic silently
+  ignores unknown extra fields (no `model_config` override forbids them, confirmed by reading the
+  model) -- no migration needed. `stroke_contrast` and `regularity` converted to unipolar `[0.0, 1.0]`
+  (each had a dead or redundant negative half, confirmed by reading their own formulas --
+  `stroke_contrast`'s negative side never showed anything a positive value of the same magnitude didn't
+  already cover, `regularity` was dead entirely below its own old `-0.15` threshold); `regularity`
+  redefined as "organic-ness" (0 = no jitter, 1 = max jitter) using a new `lerp01(t, lo, hi)` helper
+  next to the existing bipolar `lerp`. New module-level constants in `core/script.py`,
+  `SCRIPT_TRAIT_GROUP` (name -> `"topology"`/`"style"`) and `SCRIPT_TRAIT_RANGE` (name -> `(-1.0, 1.0)`
+  or `(0.0, 1.0)`), are now the *single* server-side source of truth, replacing three separate places
+  that used to each make their own judgment call: `roll_script_traits` rolls each field within its own
+  `SCRIPT_TRAIT_RANGE` instead of a hardcoded `-1..1`; `cli/main.py`'s `_parse_trait_overrides` gained
+  an optional `range_of` callable (default a fixed bipolar range for `--trait`'s own worldbuilding
+  fields; `--script-trait` passes `SCRIPT_TRAIT_RANGE.__getitem__`) so an out-of-range unipolar value
+  is now rejected with a clear error instead of silently accepted -- note `ScriptTraitsForce(...).
+  model_copy(update=...)` (what `regenerate_script` uses) does *not* run pydantic validation, a real
+  gotcha confirmed by checking, so this CLI/webui-level explicit check is the actual enforcement, not
+  `Field(ge=,le=)` alone (none are declared); `webui/app.py`'s `/api/options` gained
+  `"script_trait_groups"`/`"script_trait_ranges"` alongside the existing `"script_trait_fields"`, and
+  its own `/api/generate` out-of-range check now looks up each dial's own range instead of a hardcoded
+  `-1.0..1.0`. `webui/static/index.html`'s hand-duplicated `SCRIPT_TRAIT_GROUP` JS constant (added in
+  the grouping follow-up above) is deleted in favor of reading `opts.script_trait_groups`/
+  `opts.script_trait_ranges` the same way `scriptTraitFields` already reads `opts.script_trait_fields`;
+  `buildFixedTraitRow`/`buildPrefilledTraitRows` both gained an optional per-field `range` so a unipolar
+  dial's own number input now shows `min="0"` instead of a misleading `min="-1"`, in both the Generate
+  and Tweak tabs.
+
+  **Part A also fixes the script-tweak `changed` flag for style-only edits, for free, using the same
+  grouping.** The flag used to compare only stored stroke/diacritic data -- correct for a *topology*
+  edit, but a *style*-only edit (e.g. `weight`) never touches that data by design, so it used to report
+  "nothing changed" even though every letter's own rendering visibly differs (direct user report: "If I
+  change weight, it says nothing changed, even though I can clearly see the change"). `tweak_language`
+  now computes `style_changed` (any `SCRIPT_TRAIT_GROUP`-style dial differing from the base) and ORs it
+  into every glyph's own flag.
+
+  **Part B -- true letter size.** New `_LETTER_SCALE = 0.55` constant; `grid_unit_x`/`grid_unit_y` both
+  now `(UPM * _LETTER_SCALE) / grid_max_{x,y}`, so a glyph's own height stays `UPM * _LETTER_SCALE`
+  (a real margin below the full em square) regardless of the rolled grid shape. `_DIACRITIC_SCALE`
+  reduced `0.5 -> 0.4` and `_DESCENT` widened `-150 -> -250`, so a "top" diacritic (`550 * 1.4 = 770`)
+  stays within `_ASCENT` (850) and a "bottom" one (`-550 * 0.4 = -220`) stays within the new descent,
+  both with headroom left for `regularity`'s own jitter.
+
+  **Part C -- dot sizing, and a new `dot_ornateness` dial.** Dot radius decoupled from stroke width:
+  `_DOT_RADIUS = UPM * _LETTER_SCALE * 0.09`, a fixed, legible fraction of letter height (like a real
+  tittle) instead of `max(width * 0.5, UPM * 0.02)`. New unipolar `dot_ornateness` dial: at 0 a dot
+  renders as today's plain circle; `_dot_polygons` deterministically (`_stable_unit`-keyed by the dot's
+  own jitter seed, never a fresh `random` draw) chooses instead to render a short, slightly bent
+  diagonal stroke (Chinese-brush-dot style, a short 2-point quadratic reusing `_quad`'s own tapering)
+  as `dot_ornateness` rises toward 1, with the dial itself setting the probability. Verified directly
+  (no browser needed for this part): 200 draws at `dot_ornateness=0.0` all plain circles, 200 at `1.0`
+  all diagonal strokes, `0.5` splits roughly down the middle.
+
+  **Part D -- `terminal_style` foot-size fix.** `foot_radius` now `lerp(terminal_style, width * 0.6,
+  width * 1.3)` -- a floor well above half the stroke's own width, scaling further for a stronger
+  flourish -- instead of a formula that came out smaller than it at every value. Verified both
+  numerically (`foot_radius > width / 2` at every `terminal_style > 0.2`) and visually.
+
+  **Part E -- a chained stroke no longer retraces the one that fed it.** `_valid_line_partners` gained
+  an `exclude_direction` parameter: when given, drops any candidate whose own direction from `start` is
+  *parallel* to it (`dx0*dy1 - dy0*dx1 == 0`, a zero cross product -- catches both exact continuation
+  and exact reversal), falling back to the unfiltered list only if filtering would leave nothing (a
+  real possibility on the smallest 1x2/2x1 grids). Revisiting an already-touched *point* is explicitly
+  still allowed (closing a triangle/circle needs exactly that) -- only a new segment running along the
+  *same line* as the incoming one is excluded. `_decide_stroke` gained a `chain_direction` parameter
+  threaded through from `_build_one_attempt`'s own loop (tracked alongside `chain_from`, set to
+  `(end.x - start.x, end.y - start.y)` whenever a line stroke is placed), passed as `exclude_direction`
+  only while actually chaining. Verified directly: 1902 chained stroke pairs sampled across 500 seeds at
+  full `stroke_continuity`, 4 retraces (0.2%) -- all from the documented small-grid fallback, not
+  routine.
+
+  **Part F -- duplicate-glyph detection.** `generate_script` restructured from a tuple comprehension
+  into an explicit per-symbol loop: each glyph's `(strokes, diacritics)` signature (`_glyph_signature`,
+  diacritics flattened to a hashable `tuple(sorted((slot, d.strokes) for slot, d in glyph.diacritics.
+  items()))`) is compared against every earlier glyph's own signature in the same script; on a
+  collision, that one glyph is rebuilt with a bumped sub-key (`f"{seed}:{symbol}:dup{attempt}"`, the
+  same addressable-retry pattern the corner-coverage retry already uses), bounded at
+  `_MAX_DUPLICATE_RETRIES = 5` attempts, accepting the last attempt unconditionally past the cap rather
+  than looping forever on a tiny grid with genuinely few distinct possible shapes. Verified directly: a
+  stress script forced to `complexity=-1.0, dot_prevalence=-1.0` (the smallest, most collision-prone
+  shapes) on the full 28-symbol inventory produced zero duplicate signatures.
+
+  **Verification, the real bar throughout, same as every prior script pass**: built real fonts via the
+  actual CLI across several seeds and forced-trait combinations, rendered them in the browser via
+  inline `@font-face` data URIs (this time over a real local HTTP server, not a `file://` page, after
+  discovering mid-session that a `file://` data-URI tab renders as a static snapshot with no live font
+  loading -- and separately, that an unquoted CSS `font-family` value silently fails to apply, caught
+  by comparing `getComputedStyle(...).fontFamily` against what was actually set). Confirmed: letters
+  render at a real, legible size with visible margin (not filling the whole line height); `terminal_
+  style=1.0` now visibly adds feet at every line-stroke endpoint (previously invisible); `regularity
+  =1.0` visibly scatters strokes with heavy organic jitter (previously dead); `dot_ornateness` splits
+  circle-vs-diagonal dots as designed. The dot-shape and no-retrace mechanics were also verified at the
+  geometry level directly in Python (bypassing a flaky headless-browser screenshot timing issue hit
+  partway through), which agreed with what the browser showed. Full suite green after the whole pass
+  (2400 passed, 17 skipped, one pre-existing test rewritten for the new bipolar/unipolar glossary split
+  it hadn't anticipated); `tests/test_script_gen.py`/`test_script_font_builder.py`/`test_glossary.py`/
+  `test_webui_script.py`/`test_cli.py` substantially rewritten -- every `symmetry`/`connectivity`/
+  `height_variance`-specific test removed as obsolete by design (not broken by accident), replaced with
+  direct tests for the no-retrace exclusion, duplicate detection, `dot_ornateness`'s probabilistic
+  choice, and the unipolar range validation at both the CLI and web-UI layers.

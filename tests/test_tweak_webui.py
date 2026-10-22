@@ -265,6 +265,24 @@ def test_tweak_script_with_no_actual_change_reports_nothing_changed(client):
     assert not any(g["changed"] for g in glyphs)
 
 
+def test_tweak_script_style_only_edit_marks_every_glyph_changed(client):
+    # Direct user feedback: a style-only dial (e.g. weight) never touches stroke/diacritic data by
+    # design (see generation.script_gen's own topology-vs-style split), so comparing stroke data
+    # alone used to report "nothing changed" even though every letter's own rendering visibly
+    # differs. Picks a value guaranteed to differ from whatever the base script actually rolled.
+    base_full = _make_base_with_script(client, name="tweak-style-base")
+    current_weight = base_full["script"]["traits"]["weight"]
+    forced_weight = -1.0 if current_weight > 0 else 1.0
+    response = client.post(
+        "/api/languages/tweak-style-base/tweak",
+        json={"name": "tweak-style-diff", "script_trait_overrides": {"weight": forced_weight}, "dry_run": True},
+    )
+    assert response.status_code == 200
+    glyphs = response.json()["script_preview_glyphs"]
+    assert glyphs  # sanity -- the base language actually has letters
+    assert all(g["changed"] for g in glyphs)
+
+
 def test_tweak_with_no_script_in_the_response_omits_the_font_preview(client):
     _make_base(client)  # no own_script -- no script at all
     response = client.post(

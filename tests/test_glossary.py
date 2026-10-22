@@ -9,7 +9,7 @@ from conlang_generator.core.romanization import (
     ToneMarkingStrategy,
     VowelLengthStrategy,
 )
-from conlang_generator.core.script import ScriptTraits
+from conlang_generator.core.script import SCRIPT_TRAIT_RANGE, ScriptTraits
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS
 from conlang_generator.generation.romanization_gen import ORTHOGRAPHY_STYLE_NAMES
 from conlang_generator.webui import glossary
@@ -36,11 +36,20 @@ def test_trait_glossary_has_exactly_the_graded_fields_plus_the_two_dials():
     }
 
 
-def test_every_script_trait_field_has_a_bipolar_glossary_entry():
+def test_every_script_trait_field_has_a_glossary_entry_matching_its_own_range():
+    # A unipolar [0.0, 1.0] dial (SCRIPT_TRAIT_RANGE's own lo == 0.0) has no meaningful negative
+    # pole, so its glossary entry is "unipolar" (low/high) instead of "bipolar" (positive/negative)
+    # -- direct user feedback that a dead negative half should be reflected in both the value range
+    # and its own description, not just the range.
     for field in ScriptTraits.model_fields:
         entry = glossary.SCRIPT_TRAIT_GLOSSARY[field]
-        assert entry["kind"] == "bipolar"
-        assert entry["summary"] and entry["positive"] and entry["negative"]
+        lo, _hi = SCRIPT_TRAIT_RANGE[field]
+        if lo == 0.0:
+            assert entry["kind"] == "unipolar"
+            assert entry["summary"] and entry["low"] and entry["high"]
+        else:
+            assert entry["kind"] == "bipolar"
+            assert entry["summary"] and entry["positive"] and entry["negative"]
 
 
 def test_script_trait_glossary_has_exactly_the_scripttraits_fields():

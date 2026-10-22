@@ -8,7 +8,7 @@ actually changed."""
 
 import random
 
-from conlang_generator.core.script import Glyph, Point, ScriptTraits, ScriptTraitsForce, StrokeKind, WritingDirection
+from conlang_generator.core.script import SCRIPT_TRAIT_RANGE, Point, ScriptTraits, ScriptTraitsForce, StrokeKind, WritingDirection
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import script_gen
@@ -45,8 +45,20 @@ def test_roll_direction_only_ever_returns_a_real_direction():
 def test_roll_script_traits_covers_every_field_in_range():
     traits = script_gen.roll_script_traits(random.Random(1))
     for name in ScriptTraits.model_fields:
+        lo, hi = SCRIPT_TRAIT_RANGE[name]
         value = getattr(traits, name)
-        assert -1.0 <= value <= 1.0
+        assert lo <= value <= hi
+
+
+def test_roll_script_traits_rolls_unipolar_dials_within_0_to_1_over_many_draws():
+    # A single roll could land anywhere in its own range by chance -- roll many to actually exercise
+    # the unipolar dials' own [0.0, 1.0] bound (not the bipolar default [-1.0, 1.0]) across the board.
+    unipolar = [name for name, (lo, hi) in SCRIPT_TRAIT_RANGE.items() if lo == 0.0]
+    assert unipolar  # sanity: at least one unipolar dial exists (stroke_contrast/regularity/dot_ornateness)
+    for seed in range(50):
+        traits = script_gen.roll_script_traits(random.Random(seed))
+        for name in unipolar:
+            assert 0.0 <= getattr(traits, name) <= 1.0
 
 
 def test_roll_script_traits_with_no_force_is_unaffected():
@@ -134,19 +146,6 @@ def test_high_complexity_produces_more_strokes_than_low_complexity():
     assert len(ornate.strokes) > len(minimal.strokes)
 
 
-def test_high_symmetry_glyph_strokes_mirror_across_the_vertical_center():
-    traits = ScriptTraits(symmetry=1.0, complexity=1.0)
-    grid_max_x = 2
-    glyph = script_gen.generate_glyph("symmetry-test", "p", traits, grid_max_x, 2)
-    lines = [s for s in glyph.strokes if s.kind is not StrokeKind.DOT]
-    mirrored_xs = {grid_max_x - s.start.x for s in lines} | {grid_max_x - s.end.x for s in lines}
-    actual_xs = {s.start.x for s in lines} | {s.end.x for s in lines}
-    # Every mirrored x should itself appear somewhere in the actual set --
-    # a necessary (not sufficient, given random pairing) signature of
-    # genuine left-right symmetry.
-    assert mirrored_xs <= actual_xs or not lines
-
-
 # --- grid shape ----------------------------------------------------------------------------------
 
 
@@ -176,7 +175,7 @@ def test_generate_script_persists_the_rolled_grid_shape():
 
 
 def test_high_stroke_continuity_chains_almost_every_stroke_to_the_last_ones_end():
-    traits = ScriptTraits(stroke_continuity=1.0, complexity=1.0, symmetry=-1.0)
+    traits = ScriptTraits(stroke_continuity=1.0, complexity=1.0)
     glyph = script_gen.generate_glyph("continuity-test-3", "p", traits, 2, 2)
     chain = [s for s in glyph.strokes if s.kind is not StrokeKind.DOT]
     chained = sum(1 for prev, nxt in zip(chain, chain[1:]) if nxt.start == prev.end)
@@ -184,7 +183,7 @@ def test_high_stroke_continuity_chains_almost_every_stroke_to_the_last_ones_end(
 
 
 def test_low_stroke_continuity_rarely_chains_strokes():
-    traits = ScriptTraits(stroke_continuity=-1.0, complexity=1.0, symmetry=-1.0)
+    traits = ScriptTraits(stroke_continuity=-1.0, complexity=1.0)
     glyph = script_gen.generate_glyph("continuity-test-3", "p", traits, 2, 2)
     chain = [s for s in glyph.strokes if s.kind is not StrokeKind.DOT]
     chained = sum(1 for prev, nxt in zip(chain, chain[1:]) if nxt.start == prev.end)
@@ -213,8 +212,8 @@ def test_a_forced_dot_prevalence_does_not_disturb_other_dials_rng_draws():
 
 
 def test_high_dot_prevalence_produces_more_dots_than_low():
-    traits_low = ScriptTraits(dot_prevalence=-1.0, complexity=1.0, symmetry=-1.0)
-    traits_high = ScriptTraits(dot_prevalence=1.0, complexity=1.0, symmetry=-1.0)
+    traits_low = ScriptTraits(dot_prevalence=-1.0, complexity=1.0)
+    traits_high = ScriptTraits(dot_prevalence=1.0, complexity=1.0)
     low_dots = sum(
         1
         for seed in range(1, 30)
@@ -233,7 +232,7 @@ def test_high_dot_prevalence_produces_more_dots_than_low():
 def test_a_dot_slot_does_not_break_the_chain():
     # The next real line stroke after a dot slot continues from wherever the chain was *before*
     # the dot, not from the dot's own position.
-    traits = ScriptTraits(dot_prevalence=1.0, stroke_continuity=1.0, complexity=1.0, symmetry=-1.0)
+    traits = ScriptTraits(dot_prevalence=1.0, stroke_continuity=1.0, complexity=1.0)
     for seed in range(1, 60):
         strokes = script_gen.generate_glyph(f"chain-{seed}", "p", traits, 2, 2).strokes
         for i in range(len(strokes) - 2):
@@ -250,8 +249,8 @@ def test_a_dot_slot_does_not_break_the_chain():
 
 def test_decide_stroke_is_a_pure_function_of_its_own_inputs():
     traits = ScriptTraits(stroke_continuity=0.5, dot_prevalence=0.2)
-    a = script_gen._decide_stroke("pure-fn", 7, Point(x=0, y=0), traits, 2, 2, set())
-    b = script_gen._decide_stroke("pure-fn", 7, Point(x=0, y=0), traits, 2, 2, set())
+    a = script_gen._decide_stroke("pure-fn", 7, Point(x=0, y=0), (1, 0), traits, 2, 2, set())
+    b = script_gen._decide_stroke("pure-fn", 7, Point(x=0, y=0), (1, 0), traits, 2, 2, set())
     assert a == b
 
 
@@ -261,7 +260,7 @@ def test_build_one_attempt_keeps_earlier_indices_stable_when_stroke_count_increa
     # tested directly against `_build_one_attempt` (bypassing the corner-coverage retry wrapper,
     # which could legitimately pick a different attempt number for a different stroke count).
     key = "retrace-prefix"
-    traits = ScriptTraits(stroke_continuity=0.0, dot_prevalence=-1.0, symmetry=-1.0)
+    traits = ScriptTraits(stroke_continuity=0.0, dot_prevalence=-1.0)
     short = script_gen._build_one_attempt(key, traits, 3, 2, 2)
     long = script_gen._build_one_attempt(key, traits, 5, 2, 2)
     assert long[:3] == short
@@ -269,7 +268,7 @@ def test_build_one_attempt_keeps_earlier_indices_stable_when_stroke_count_increa
 
 def test_build_one_attempt_truncates_cleanly_when_stroke_count_decreases():
     key = "retrace-truncate"
-    traits = ScriptTraits(stroke_continuity=0.0, dot_prevalence=-1.0, symmetry=-1.0)
+    traits = ScriptTraits(stroke_continuity=0.0, dot_prevalence=-1.0)
     long = script_gen._build_one_attempt(key, traits, 5, 2, 2)
     short = script_gen._build_one_attempt(key, traits, 3, 2, 2)
     assert short == long[:3]
@@ -289,68 +288,78 @@ def test_every_generated_glyph_touches_enough_grid_corners():
         assert len(touched & corners) >= 2  # the gate's own lower bound (complexity<=0 case)
 
 
-# --- connectivity (cross-glyph baseline joining) ---------------------------------------------
+# --- no-retrace (a chained stroke never runs back along the stroke that fed it) --------------
 
 
-def _sample_glyph(key: str) -> Glyph:
-    traits = ScriptTraits(complexity=1.0)
-    return script_gen.generate_glyph(key, "p", traits, 2, 2)
+def test_valid_line_partners_excludes_the_parallel_direction_when_chaining():
+    start = Point(x=1, y=1)
+    partners = script_gen._valid_line_partners(start, 2, 2, exclude_direction=(1, 0))
+    for p in partners:
+        dx, dy = p.x - start.x, p.y - start.y
+        assert dx * 0 - dy * 1 != 0  # never collinear with (1, 0) -- the same cross-product check the function itself uses
 
 
-def test_high_connectivity_pins_the_glyphs_entry_and_exit_to_the_ltr_baseline():
-    glyph = _sample_glyph("connectivity-4")
-    traits = ScriptTraits(connectivity=1.0)
-    joined = script_gen._apply_connectivity(glyph, traits, WritingDirection.LTR, grid_max_x=2, grid_max_y=2)
-    non_dot = [s for s in joined.strokes if s.kind is not StrokeKind.DOT]
-    assert non_dot[0].start == Point(x=0, y=0)
-    assert non_dot[-1].end == Point(x=2, y=0)
+def test_valid_line_partners_falls_back_to_unfiltered_when_exclusion_would_empty_it():
+    # On the smallest grid, filtering out one direction can legitimately leave nothing -- must fall
+    # back to the unfiltered list rather than ever returning empty.
+    start = Point(x=0, y=0)
+    unfiltered = script_gen._valid_line_partners(start, 1, 1)
+    assert len(unfiltered) <= 3  # a 1x1 (2x2-point) grid has very few candidates to begin with
+    # Excluding every one of unfiltered's own directions in turn must never produce an empty result.
+    for p in unfiltered:
+        direction = (p.x - start.x, p.y - start.y)
+        filtered = script_gen._valid_line_partners(start, 1, 1, exclude_direction=direction)
+        assert filtered  # falls back to the unfiltered list rather than ever being empty
 
 
-def test_high_connectivity_swaps_entry_and_exit_for_rtl():
-    glyph = _sample_glyph("connectivity-4")
-    traits = ScriptTraits(connectivity=1.0)
-    joined = script_gen._apply_connectivity(glyph, traits, WritingDirection.RTL, grid_max_x=2, grid_max_y=2)
-    non_dot = [s for s in joined.strokes if s.kind is not StrokeKind.DOT]
-    assert non_dot[0].start == Point(x=2, y=0)
-    assert non_dot[-1].end == Point(x=0, y=0)
-
-
-def test_high_connectivity_keeps_the_forced_stroke_a_valid_boundary_or_diagonal_line():
-    glyph = _sample_glyph("connectivity-4")
-    traits = ScriptTraits(connectivity=1.0)
-    joined = script_gen._apply_connectivity(glyph, traits, WritingDirection.LTR, grid_max_x=2, grid_max_y=2)
-    non_dot = [s for s in joined.strokes if s.kind is not StrokeKind.DOT]
-    for s in (non_dot[0], non_dot[-1]):
-        dx, dy = s.end.x - s.start.x, s.end.y - s.start.y
-        assert (dx, dy) != (0, 0)
-        assert dx == 0 or dy == 0 or abs(dx) == abs(dy)
-
-
-def test_low_connectivity_is_a_no_op():
-    glyph = _sample_glyph("connectivity-4")
-    traits = ScriptTraits(connectivity=0.3)
-    assert script_gen._apply_connectivity(glyph, traits, WritingDirection.LTR, grid_max_x=2, grid_max_y=2) == glyph
-
-
-def test_connectivity_is_a_no_op_for_vertical_directions():
-    glyph = _sample_glyph("connectivity-4")
-    traits = ScriptTraits(connectivity=1.0)
-    assert (
-        script_gen._apply_connectivity(glyph, traits, WritingDirection.TTB_LTR, grid_max_x=2, grid_max_y=2) == glyph
+def test_valid_line_partners_without_exclusion_is_unaffected():
+    start = Point(x=1, y=1)
+    assert script_gen._valid_line_partners(start, 2, 2, exclude_direction=None) == script_gen._valid_line_partners(
+        start, 2, 2,
     )
 
 
-def test_connectivity_override_never_targets_a_dot():
-    traits = ScriptTraits(complexity=1.0, dot_prevalence=1.0, symmetry=-1.0)
-    glyph = None
-    for seed in range(1, 50):
-        candidate = script_gen.generate_glyph(f"dot-trailing-{seed}", "p", traits, 2, 2)
-        if candidate.strokes and candidate.strokes[-1].kind is StrokeKind.DOT:
-            glyph = candidate
-            break
-    assert glyph is not None, "no seed produced a trailing dot to test against"
-    joined = script_gen._apply_connectivity(
-        glyph, ScriptTraits(connectivity=1.0), WritingDirection.LTR, grid_max_x=2, grid_max_y=2,
+def test_build_one_attempt_rarely_retraces_the_incoming_strokes_own_direction():
+    # Direct user feedback: a chained stroke running back along the same line as the one that fed it
+    # "doesn't add anything... sometimes makes two letters look exactly the same." Full continuity
+    # forces chaining on every slot, maximizing the chance to catch a retrace if the exclusion logic
+    # were missing; occasional retraces from the documented small-grid fallback are expected, routine
+    # retracing is not.
+    traits = ScriptTraits(stroke_continuity=1.0, complexity=1.0)
+    chained_pairs = 0
+    retraces = 0
+    for seed in range(300):
+        strokes = script_gen._build_one_attempt(f"no-retrace-{seed}", traits, 6, 2, 2)
+        lines = [s for s in strokes if s.kind is StrokeKind.LINE]
+        for prev, nxt in zip(lines, lines[1:]):
+            if nxt.start != prev.end:
+                continue
+            chained_pairs += 1
+            dx0, dy0 = prev.end.x - prev.start.x, prev.end.y - prev.start.y
+            dx1, dy1 = nxt.end.x - nxt.start.x, nxt.end.y - nxt.start.y
+            if dx0 * dy1 - dy0 * dx1 == 0:
+                retraces += 1
+    assert chained_pairs > 0
+    assert retraces / chained_pairs < 0.05  # rare fallback cases only, not routine
+
+
+# --- duplicate-glyph detection ----------------------------------------------------------------
+
+
+def test_generate_script_never_produces_two_glyphs_with_the_same_signature():
+    # A tiny grid with low complexity has few genuinely distinct possible shapes -- the stress case
+    # most likely to produce an accidental collision without the duplicate-retry logic.
+    language = cached_language(0)
+    script = script_gen.generate_script(
+        "dup-stress", language.phonology, ScriptTraitsForce(complexity=-1.0, dot_prevalence=-1.0),
     )
-    assert joined.strokes[-1].kind is StrokeKind.DOT
-    assert joined.strokes[-1] == glyph.strokes[-1]  # the dot itself is untouched by the override
+    signatures = [script_gen._glyph_signature(g) for g in script.glyphs]
+    assert len(signatures) == len(set(signatures))
+
+
+def test_glyph_signature_differs_for_different_strokes_but_matches_for_identical_ones():
+    a = script_gen.generate_glyph("sig-a", "p", ScriptTraits(complexity=1.0), 2, 2)
+    b = script_gen.generate_glyph("sig-a", "p", ScriptTraits(complexity=1.0), 2, 2)
+    c = script_gen.generate_glyph("sig-c", "t", ScriptTraits(complexity=-1.0), 2, 2)
+    assert script_gen._glyph_signature(a) == script_gen._glyph_signature(b)
+    assert script_gen._glyph_signature(a) != script_gen._glyph_signature(c)

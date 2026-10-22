@@ -5,7 +5,7 @@ and the GET /api/languages/{slug}/script/font endpoint."""
 import pytest
 from fastapi.testclient import TestClient
 
-from conlang_generator.core.script import ScriptTraits
+from conlang_generator.core.script import SCRIPT_TRAIT_GROUP, SCRIPT_TRAIT_RANGE, ScriptTraits
 from conlang_generator.webui import app as webui_app
 
 
@@ -175,17 +175,47 @@ def test_generate_rejects_a_script_trait_value_outside_the_bipolar_range(client)
     assert "angularity" in response.json()["detail"]
 
 
+def test_generate_rejects_a_negative_value_for_a_unipolar_script_trait(client):
+    # stroke_contrast/regularity/dot_ornateness are unipolar (0.0..1.0 only, no meaningful negative
+    # pole) -- a negative value must be rejected the same way a >1.0 bipolar value already is.
+    response = client.post(
+        "/api/generate",
+        json={
+            "prompt": "p", "name": "webscript-negative-unipolar", "seed": 1, "llm": "fake",
+            "script_trait_overrides": {"regularity": -0.5},
+        },
+    )
+    assert response.status_code == 400
+    assert "regularity" in response.json()["detail"]
+
+
 def test_options_endpoint_serves_the_script_trait_fields(client):
     opts = client.get("/api/options").json()
     assert set(opts["script_trait_fields"]) == set(ScriptTraits.model_fields)
+
+
+def test_options_endpoint_serves_the_script_trait_groups_and_ranges(client):
+    # Single server-side source of truth (core.script.SCRIPT_TRAIT_GROUP/SCRIPT_TRAIT_RANGE) -- the
+    # web UI reads these instead of hand-duplicating the topology/style split or each dial's own
+    # valid range in JS.
+    opts = client.get("/api/options").json()
+    assert opts["script_trait_groups"] == {k: v for k, v in SCRIPT_TRAIT_GROUP.items()}
+    assert set(opts["script_trait_groups"]) == set(ScriptTraits.model_fields)
+    assert set(opts["script_trait_groups"].values()) == {"topology", "style"}
+    assert opts["script_trait_ranges"] == {k: list(v) for k, v in SCRIPT_TRAIT_RANGE.items()}
 
 
 def test_options_endpoint_serves_the_script_trait_glossary(client):
     glossary = client.get("/api/options").json()["glossary"]
     for field in ScriptTraits.model_fields:
         entry = glossary["script_traits"][field]
-        assert entry["kind"] == "bipolar"
-        assert entry["summary"] and entry["positive"] and entry["negative"]
+        lo, _hi = SCRIPT_TRAIT_RANGE[field]
+        if lo == 0.0:
+            assert entry["kind"] == "unipolar"
+            assert entry["summary"] and entry["low"] and entry["high"]
+        else:
+            assert entry["kind"] == "bipolar"
+            assert entry["summary"] and entry["positive"] and entry["negative"]
 
 
 def test_languages_list_reports_which_ones_have_a_script(client):

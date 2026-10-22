@@ -1858,9 +1858,9 @@ and cleaner.
 ## `conlang script`
 
 Show or export a language's own invented writing system -- a
-procedurally generated glyph for each sound, in the style of 17 graded
-dials (bold vs. thin, symmetric vs. asymmetric, connected vs.
-disconnected strokes, ...) and a writing direction (left-to-right,
+procedurally generated glyph for each sound, in the style of 12 graded
+dials (bold vs. thin, geometric vs. organic, monoline vs. calligraphic,
+...) and a writing direction (left-to-right,
 right-to-left, top-to-bottom,
 ...) rolled once for that language. Not every language has one -- it's
 an optional, off-by-default artifact; see `generate --own-script`
@@ -1895,14 +1895,18 @@ conlang script --lang doc-script-test --sounds
 ```
 
 ```
-direction: rtl
-/p/ -- 1 straight line, 5 curved strokes, 2 dots
-/t/ -- 1 straight line, 5 curved strokes, 1 dot
-/d/ -- 6 curved strokes
-/k/ -- 1 straight line, 5 curved strokes
-/g/ -- 1 straight line, 5 curved strokes, 2 dots
+direction: ltr
+/p/ -- 3 straight lines
+/t/ -- 3 straight lines
+/d/ -- 2 straight lines, 1 dot
+/k/ -- 1 straight line, 2 dots
+/g/ -- 3 straight lines
 ...
 ```
+
+Every stroke is a straight line (along a grid cell boundary or diagonal) or a dot -- phase 1 never
+draws a curved stroke (see `core/script.py`'s own `angularity` docstring for why that dial is
+currently dormant).
 
 `--export PATH` compiles the script into a real, installable `.ttf`
 font file (via `fonttools`, a new `font` dependency group, installed by
@@ -1950,43 +1954,28 @@ conlang generate --prompt "a mountain language" --name doc-script-test --own-scr
 
 ### `generate --script-trait`
 
-Once a script is generated, its 17 dials -- grouped by what they actually change, not just listed --
+Once a script is generated, its 12 dials -- grouped by what they actually change, not just listed --
 are rolled from the language's own seed, same as everything else:
 
 - **Topology** (changes which strokes get drawn, a different set of shapes): `complexity`,
-  `connectivity`, `symmetry`, `height_variance`, `diacritic_density`, `stroke_continuity`,
-  `dot_prevalence`.
+  `diacritic_density`, `stroke_continuity`, `dot_prevalence`.
 - **Style** (redraws the same strokes differently, never changes which strokes exist):
-  `stroke_contrast`, `weight`, `proportion`, `slant`, `openness`, `regularity`, `density`,
-  `grid_alignment`, `terminal_style`, and `angularity` -- currently dormant, reserved for a future
-  corner-smoothing pass, so forcing it has no visible effect yet (see `core/script.py`'s own
-  docstring).
+  `stroke_contrast`, `weight`, `proportion`, `slant`, `regularity`, `terminal_style`,
+  `dot_ornateness`, and `angularity` -- currently dormant, reserved for a future corner-smoothing
+  pass, so forcing it has no visible effect yet (see `core/script.py`'s own docstring).
 
-`--script-trait NAME=VALUE` (repeatable, one per dial) sets a specific dial directly instead, `VALUE`
-the same -1.0..1.0 range as `--trait` -- NAME is checked against this own, separate 17-dial list, not
-the 15 worldbuilding `--trait` names. Overriding a dial only takes effect when a script is actually
-generated (`--own-script yes`, or a prompt `auto` infers one from); every other, unforced dial still
-rolls normally.
+Most dials are bipolar (`-1.0..1.0`, a positive value evidence *for* the named pole, negative for its
+opposite); `stroke_contrast`, `regularity`, and `dot_ornateness` are unipolar (`0.0..1.0` only) --
+each has no meaningful "opposite pole" below 0 (monoline/geometric/plain-circle-dot is already the
+`0.0` end, not a separate negative extreme). `--script-trait NAME=VALUE` (repeatable, one per dial)
+sets a specific dial directly, `VALUE` checked against that dial's own range -- NAME against this own,
+separate 12-dial list, not the 15 worldbuilding `--trait` names. Overriding a dial only takes effect
+when a script is actually generated (`--own-script yes`, or a prompt `auto` infers one from); every
+other, unforced dial still rolls normally.
 
 ```bash
 conlang generate --prompt "a mountain language" --name doc-script-trait-test --own-script yes \
   --script-trait dot_prevalence=1.0 --script-trait weight=-1.0
-```
-
-`stroke_continuity` governs whether a glyph's own strokes chain continuously (each new stroke
-starting where the last one ended) or lift and restart fresh elsewhere, as a real multi-component
-letter like F or H would need -- the mechanism behind generated scripts looking like coherent
-letterforms rather than piles of unrelated line segments (see `architecture/OVERVIEW.md`'s pass-50
-entry):
-
-```bash
-conlang generate --prompt "a mountain language" --name doc-stroke-continuity-test --own-script yes \
-  --script-trait stroke_continuity=1.0
-conlang script --lang doc-stroke-continuity-test
-```
-
-```
-'doc-stroke-continuity-test' has an invented script: 27 glyphs, direction ltr. Use --sounds to list them or --export to compile a font file.
 ```
 
 ```
@@ -1996,6 +1985,23 @@ Orthography: monoletter + colon
 Traits from prompt: ...
 Forced script traits: {'weight': -1.0, 'dot_prevalence': 1.0}
 Saved to conlangs\doc-script-trait-test
+```
+
+`stroke_continuity` governs whether a glyph's own strokes chain continuously (each new stroke
+starting where the last one ended) or lift and restart fresh elsewhere, as a real multi-component
+letter like F or H would need -- the mechanism behind generated scripts looking like coherent
+letterforms rather than piles of unrelated line segments (see `architecture/OVERVIEW.md`'s pass-50
+entry). A chained stroke never runs back along the same line as the one that just fed it (pass 52 --
+see that entry for why).
+
+```bash
+conlang generate --prompt "a mountain language" --name doc-stroke-continuity-test --own-script yes \
+  --script-trait stroke_continuity=1.0
+conlang script --lang doc-stroke-continuity-test
+```
+
+```
+'doc-stroke-continuity-test' has an invented script: 27 glyphs, direction ltr. Use --sounds to list them or --export to compile a font file.
 ```
 
 ## `conlang audit-lexicons`
