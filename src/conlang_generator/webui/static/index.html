@@ -1003,12 +1003,14 @@ function describeTrait(key, value) {
   return gloss.kind === "unipolar" ? describeUnipolarDial(gloss, value) : describeBipolarTrait(gloss, value);
 }
 
-// A rolled ScriptTraits dial's own tooltip (Writing system section) --
-// always bipolar, unlike describeTrait above which also has to handle
-// the two unipolar strictness dials.
+// A rolled ScriptTraits dial's own tooltip (Writing system section) -- most dials are bipolar, but
+// stroke_contrast/regularity/dot_ornateness are unipolar (0.0..1.0 only, no meaningful negative pole
+// -- see SCRIPT_TRAIT_RANGE's own docstring), so this dispatches on gloss.kind the same way
+// describeTrait above already does for the two unipolar strictness dials.
 function describeScriptTrait(key, value) {
   const gloss = glossary.script_traits[key];
-  return gloss ? describeBipolarTrait(gloss, value) : "";
+  if (!gloss) return "";
+  return gloss.kind === "unipolar" ? describeUnipolarDial(gloss, value) : describeBipolarTrait(gloss, value);
 }
 
 // A grammar badge's own tooltip, looked up by its field name and
@@ -1057,7 +1059,7 @@ function renderTraitSelectInfo(gloss) {
 
 // --- Generate tab's own trait-override rows: always one fixed row per
 // name (all 15 worldbuilding traits, split across the Phonology/Grammar/
-// Tones/Roman Orthography fieldsets by TRAIT_SECTION; all 17 script
+// Tones/Roman Orthography fieldsets by TRAIT_SECTION; all 12 script
 // traits together under Writing system), same "all traits already
 // visible" treatment the Tweak tab's own fixed rows already have (and
 // Roman Orthography's own fixed selects always had) -- direct user
