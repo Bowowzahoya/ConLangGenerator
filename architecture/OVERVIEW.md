@@ -9218,3 +9218,22 @@ reading code or one-off ad hoc scripts.
   Language" persisted it and showed the same preview in the Inspect result) -- not just unit tests,
   since this is fundamentally a visual feature whose real acceptance bar is "does it actually look
   right," the same standard pass 50's own verification already set.
+
+  **Follow-up: group the 17 `ScriptTraits` dials by topology vs. style, in both the Generate and Tweak
+  tabs.** Direct user request, immediately after pass 51 shipped -- make it clear which dials change a
+  glyph's own *topology* (a different set of strokes -- consumed in `script_gen.py`, before any
+  rendering) versus merely its *style* (the same strokes drawn differently -- consumed only in
+  `font_builder.py`). New client-side `SCRIPT_TRAIT_GROUP` constant (`webui/static/index.html`),
+  matching the code-level split exactly, not a separate judgment call: 7 topology dials (`complexity`,
+  `connectivity`, `symmetry`, `height_variance`, `diacritic_density`, `stroke_continuity`, `dot_
+  prevalence`), 10 style dials (`angularity` included -- dormant today, but its own future role is a
+  render-time corner-smoothing pass, a style concern even once implemented -- plus the 9 real
+  `font_builder.py`-consumed dials). Both the Generate tab's "Writing system" fieldset and the Tweak
+  tab's "Invented Script" section now render two separately-labeled row groups instead of one
+  undifferentiated list, reusing the already-generic `buildFixedTraitRows`/`buildPrefilledTraitRows`
+  with a `byScriptGroup(group)` filter -- no new row-building pattern needed, same as `TRAIT_SECTION`
+  already splits the 15 worldbuilding traits into Phonology/Grammar/Tones/Orthography. Live-verified in
+  the real dev server: 7/10 rows with the correct field names present in each group, for both a
+  scripted and an unscripted language, in both tabs (the Tweak tab's own no-script message/row-group
+  visibility toggle also re-confirmed correct after a test-script race-condition false alarm turned out
+  to be in the verification script itself, not the product -- re-checked with a properly awaited call).

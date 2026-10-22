@@ -362,8 +362,10 @@
           <option value="yes">yes</option>
           <option value="no">no</option>
         </select>
-        <label>Script trait overrides <span class="ipa">(directly set an invented-script style dial, -1.0 to +1.0, overriding its own seeded roll; only takes effect when a script is generated; blank = seeded roll)</span></label>
-        <div id="gen-script-trait-rows"></div>
+        <label>Script trait overrides -- Topology <span class="ipa">(changes which strokes get drawn -- a different set of shapes, not just a different style. -1.0 to +1.0, overriding its own seeded roll; only takes effect when a script is generated; blank = seeded roll)</span></label>
+        <div id="gen-script-trait-rows-topology"></div>
+        <label>Script trait overrides -- Style <span class="ipa">(redraws the same strokes differently -- angular vs. smooth once that lands, slanting, little flourishes at stroke ends, etc. -- never changes which strokes exist)</span></label>
+        <div id="gen-script-trait-rows-style"></div>
       </details>
 
       <details class="advanced-group">
@@ -551,7 +553,12 @@
       <summary>Invented Script (separate axis)</summary>
       <p class="ipa">Re-rolls the invented script's own style dials without touching phonology/grammar/spelling -- a full re-roll from the new dials (not a constrained re-angle of existing strokes; see <code>docs/DEFERRED.md</code> ch.12 item 11). Separate axis from Phonology traits above: setting anything here ignores them, the same way Roman Orthography above ignores both -- and any Roman Orthography field set still wins over this. Always shown, pre-filled from the picked language's own current reading.</p>
       <p class="ipa" id="tweak-script-no-script-message" hidden>This language has no invented script to tweak -- regenerate it with <code>--own-script yes</code> (or a prompt that asks for one) first.</p>
-      <div id="tweak-script-trait-rows"></div>
+      <div id="tweak-script-rows-wrap" hidden>
+        <label>Topology <span class="ipa">(changes which strokes get drawn -- a different set of shapes, not just a different style)</span></label>
+        <div id="tweak-script-trait-rows-topology"></div>
+        <label>Style <span class="ipa">(redraws the same strokes differently -- never changes which strokes exist)</span></label>
+        <div id="tweak-script-trait-rows-style"></div>
+      </div>
     </details>
 
     <div class="submit-row">
@@ -1079,13 +1086,17 @@ function buildFixedTraitRows(containerId, names, glossaryDict) {
   container.innerHTML = "";
   for (const name of names) container.appendChild(buildFixedTraitRow(name, glossaryDict));
 }
+function byScriptGroup(group) {
+  return scriptTraitFields.filter(name => SCRIPT_TRAIT_GROUP[name] === group);
+}
 function buildGenerateTraitRows() {
   const bySection = (section) => gradedTraitFields.filter(name => TRAIT_SECTION[name] === section);
   buildFixedTraitRows("gen-trait-rows-phonology", bySection("phonology"), glossary.traits);
   buildFixedTraitRows("gen-trait-rows-grammar", bySection("grammar"), glossary.traits);
   buildFixedTraitRows("gen-trait-rows-tones", bySection("tones"), glossary.traits);
   buildFixedTraitRows("gen-trait-rows-orthography", bySection("orthography"), glossary.traits);
-  buildFixedTraitRows("gen-script-trait-rows", scriptTraitFields, glossary.script_traits);
+  buildFixedTraitRows("gen-script-trait-rows-topology", byScriptGroup("topology"), glossary.script_traits);
+  buildFixedTraitRows("gen-script-trait-rows-style", byScriptGroup("style"), glossary.script_traits);
 }
 
 function collectOverridesFrom(containerId) {
@@ -1107,7 +1118,7 @@ function collectTraitOverrides() {
   };
 }
 function collectScriptTraitOverrides() {
-  return collectOverridesFrom("gen-script-trait-rows");
+  return { ...collectOverridesFrom("gen-script-trait-rows-topology"), ...collectOverridesFrom("gen-script-trait-rows-style") };
 }
 
 // --- Tweak tab: always exactly one row per phonologyOnlyTraitFields
@@ -1157,13 +1168,17 @@ function buildTweakTraitRows(currentValues) {
 }
 
 function buildTweakScriptTraitRows(scriptSummary) {
-  const msg = $("tweak-script-no-script-message"), rows = $("tweak-script-trait-rows");
+  const msg = $("tweak-script-no-script-message"), wrap = $("tweak-script-rows-wrap");
   if (scriptSummary) {
     msg.hidden = true;
-    buildPrefilledTraitRows("tweak-script-trait-rows", scriptTraitFields, scriptSummary.traits, glossary.script_traits);
+    wrap.hidden = false;
+    buildPrefilledTraitRows("tweak-script-trait-rows-topology", byScriptGroup("topology"), scriptSummary.traits, glossary.script_traits);
+    buildPrefilledTraitRows("tweak-script-trait-rows-style", byScriptGroup("style"), scriptSummary.traits, glossary.script_traits);
   } else {
     msg.hidden = false;
-    rows.innerHTML = "";
+    wrap.hidden = true;
+    $("tweak-script-trait-rows-topology").innerHTML = "";
+    $("tweak-script-trait-rows-style").innerHTML = "";
   }
 }
 
@@ -1192,7 +1207,10 @@ function collectTweakTraitOverrides() {
   return collectPrefilledOverrides("tweak-trait-rows");
 }
 function collectTweakScriptTraitOverrides() {
-  return collectPrefilledOverrides("tweak-script-trait-rows");
+  return {
+    ...collectPrefilledOverrides("tweak-script-trait-rows-topology"),
+    ...collectPrefilledOverrides("tweak-script-trait-rows-style"),
+  };
 }
 
 // --- Evolve tab: only `evolutionTraitFields` (core.traits.
@@ -1262,7 +1280,9 @@ function resetTweakPreview() {
 async function loadTweakLanguage(slug) {
   $("tweak-error").hidden = true;
   $("tweak-trait-rows").innerHTML = "";
-  $("tweak-script-trait-rows").innerHTML = "";
+  $("tweak-script-trait-rows-topology").innerHTML = "";
+  $("tweak-script-trait-rows-style").innerHTML = "";
+  $("tweak-script-rows-wrap").hidden = true;
   $("tweak-script-no-script-message").hidden = true;
   $("tweak-edit-words-btn").hidden = true;
   resetTweakPreview();
@@ -2193,6 +2213,36 @@ const TRAIT_SECTION = {
   word_length_preference: "phonology",
   vowel_reduction_affinity: "phonology",
   compound_likelihood: "grammar",
+};
+
+// Which of the 17 ScriptTraits dials change a glyph's own TOPOLOGY (a different set of strokes --
+// consumed in generation/script_gen.py, before any rendering happens) versus merely its STYLE (the
+// same strokes, drawn differently -- consumed only in script/font_builder.py) -- direct user request,
+// since the two kinds of dial have genuinely different consequences for a script tweak (a topology
+// dial can change which letters exist as shapes; a style dial only ever restyles the shapes that are
+// already there). Matches this project's own code-level split exactly (see script_gen.py's and
+// font_builder.py's own module docstrings for which dials each module reads), not a separate judgment
+// call made here. `angularity` is grouped under style -- it's currently dormant (see its own
+// docstring in core/script.py), reserved for a future corner-smoothing *render* pass, not a topology
+// concern even once implemented.
+const SCRIPT_TRAIT_GROUP = {
+  complexity: "topology",
+  connectivity: "topology",
+  symmetry: "topology",
+  height_variance: "topology",
+  diacritic_density: "topology",
+  stroke_continuity: "topology",
+  dot_prevalence: "topology",
+  angularity: "style",
+  stroke_contrast: "style",
+  weight: "style",
+  proportion: "style",
+  slant: "style",
+  openness: "style",
+  regularity: "style",
+  density: "style",
+  grid_alignment: "style",
+  terminal_style: "style",
 };
 
 function renderLanguageSummary(container, summary) {
