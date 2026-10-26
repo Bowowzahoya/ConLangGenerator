@@ -29,6 +29,7 @@ from conlang_generator.script.font_builder import (
     _diacritic_offset,
     _dot_polygons,
     _find_chains,
+    _ornament_main_points,
     _render_scope,
     _round_chain,
     _roll_serif_rule,
@@ -198,14 +199,16 @@ def test_dot_radius_is_a_fixed_fraction_of_letter_height_not_stroke_width():
 
 
 def test_weighted_dot_style_respects_the_low_ornateness_weight_boundaries():
-    # At ornateness == 0.0, weights are square 0.42 / stroke 0.42 / circle 0.16 -- concentrated on
+    # At ornateness == 0.0, weights are square 0.38 / stroke 0.38 / circle 0.24 -- concentrated on
     # square/stroke, direct user phrasing ("low only one style of dots... more chance of stroke or
-    # dot").
+    # dot"), with circle raised from an original 0.16 for better default visibility (see
+    # _DOT_STYLE_WEIGHTS_LOW's own docstring -- a whole-script single-roll mechanism meant the
+    # original weight produced zero circles in ~84% of scripts, read as "I never see a circle").
     assert _weighted_dot_style(0.0, 0.0) == "square"
-    assert _weighted_dot_style(0.41, 0.0) == "square"
-    assert _weighted_dot_style(0.43, 0.0) == "stroke"
-    assert _weighted_dot_style(0.83, 0.0) == "stroke"
-    assert _weighted_dot_style(0.85, 0.0) == "circle"
+    assert _weighted_dot_style(0.37, 0.0) == "square"
+    assert _weighted_dot_style(0.39, 0.0) == "stroke"
+    assert _weighted_dot_style(0.75, 0.0) == "stroke"
+    assert _weighted_dot_style(0.77, 0.0) == "circle"
 
 
 def test_weighted_dot_style_respects_the_high_ornateness_weight_boundaries():
@@ -290,8 +293,29 @@ def test_weighted_ornament_preset_favors_plain_at_zero_ornateness_and_fancy_at_f
 
 def test_terminal_ornament_polygons_produce_at_least_one_contour_for_every_preset():
     for preset in _TERMINAL_ORNAMENT_PRESETS:
-        polygons = _terminal_ornament_polygons(100.0, 100.0, 1.0, 0.0, 40.0, preset, f"ornament-{preset.name}")
+        polygons = _terminal_ornament_polygons(
+            100.0, 100.0, 1.0, 0.0, 40.0, preset, f"ornament-{preset.name}", 300.0,
+        )
         assert polygons, preset.name
+
+
+def test_terminal_ornament_centerline_length_scales_with_the_attached_strokes_own_length():
+    # Direct user feedback: the ornament system reads as too tiny -- length_factor is now a fraction
+    # of the attached stroke's own rendered length (see OrnamentPreset.length_factor's own docstring),
+    # not a fixed UPM-absolute reference, so doubling the stroke length should double the centerline.
+    preset = _TERMINAL_ORNAMENT_PRESETS[0]  # plain_foot -- a straight, unbent preset, easy to measure
+    assert preset.bend_degrees == 0.0
+    short = _ornament_main_points(0.0, 0.0, 1.0, 0.0, preset, 100.0)
+    long = _ornament_main_points(0.0, 0.0, 1.0, 0.0, preset, 200.0)
+    short_length = math.hypot(short[-1][0] - short[0][0], short[-1][1] - short[0][1])
+    long_length = math.hypot(long[-1][0] - long[0][0], long[-1][1] - long[0][1])
+    assert abs(long_length - 2 * short_length) < 1e-9
+    # And most presets' own length_factor should land within the user's requested 0.2..0.6 band --
+    # the two "extend beyond the normal letter size" presets are a deliberate, documented exception.
+    exceptions = {"short_extension", "long_extension"}
+    for p in _TERMINAL_ORNAMENT_PRESETS:
+        if p.name not in exceptions:
+            assert 0.2 <= p.length_factor <= 0.6, p.name
 
 
 # --- serif (Part E) ------------------------------------------------------------------------------
@@ -375,6 +399,21 @@ def test_diacritic_offset_internal_slots_land_inside_the_main_glyphs_own_boundin
     height_diac = 200.0 * _DIACRITIC_SCALE
     assert abs((x + width_diac / 2) - 100.0) < 1e-9
     assert abs((y + height_diac / 2) - 100.0) < 1e-9
+
+
+def test_diacritic_offset_external_slots_are_separated_from_the_main_glyphs_own_edge():
+    # Direct user feedback: diacritics "mix up with the letter too much" -- an external slot must sit
+    # a real gap past the main glyph's own edge now, not flush against it.
+    _, top_y = _diacritic_offset("cross_pos", WritingDirection.LTR, 2, 2, 100.0, 100.0)
+    assert top_y > 200.0  # height_main = 2*100 -- flush would be exactly 200.0
+    _, bottom_y = _diacritic_offset("cross_neg", WritingDirection.LTR, 2, 2, 100.0, 100.0)
+    height_diac = 200.0 * _DIACRITIC_SCALE
+    assert bottom_y < -height_diac  # flush would be exactly -height_diac
+    # Internal slots are deliberately unaffected -- nested by design, no edge to separate from.
+    width_diac = height_diac = 200.0 * _DIACRITIC_SCALE
+    x_internal, y_internal = _diacritic_offset("internal:0,0", WritingDirection.LTR, 2, 2, 100.0, 100.0)
+    assert x_internal == -width_diac / 2.0
+    assert y_internal == -height_diac / 2.0
 
 
 # --- chain identification (Part B) ----------------------------------------------------------------

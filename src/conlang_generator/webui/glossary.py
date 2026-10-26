@@ -308,10 +308,10 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss | UnipolarDialGloss] = {
         "high": "Organic -- a rustic, hand-drawn feel, maximum jitter.",
     },
     "diacritic_density": {
-        "kind": "bipolar",
-        "summary": "How many small diacritic marks attach to a letter (0-4), not how dotty the letter itself looks (see dot_prevalence for that) or where each one sits (see ornateness for that).",
-        "positive": "Many attached diacritic marks -- up to 4 at once.",
-        "negative": "Few or no attached diacritic marks.",
+        "kind": "unipolar",
+        "summary": "How often a letter carries a small attached diacritic mark, and how large the script's own shared pool of reusable diacritic shapes is -- every letter's diacritic is drawn from that same small pool, not freshly invented each time. No meaningful opposite pole below 0, so this dial only runs 0..1. Separate from how dotty the letter itself looks (see dot_prevalence) or where each mark sits (see ornateness).",
+        "low": "No, or very rarely one, attached diacritic mark; no shared pool to draw from.",
+        "high": "Most letters carry one mark (occasionally two), drawn from a pool of up to 5 reused shapes.",
     },
     "serif": {
         "kind": "unipolar",

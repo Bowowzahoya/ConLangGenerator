@@ -263,13 +263,20 @@ def _build_stroke_chain(
 
 
 _DIACRITIC_MIN_STROKES = 1
-_DIACRITIC_MAX_STROKES = 3
-""""Generally less strokes" than a main letter's own ``_MIN_STROKES.._MAX_STROKES`` range -- the lower
-bound of ``ornateness``'s own widened ceiling, see ``_generate_diacritics``."""
+_DIACRITIC_MAX_STROKES_BASE = 2
+_DIACRITIC_MAX_STROKES_CAP = 4
+""""Generally less strokes" than a main letter's own ``_MIN_STROKES.._MAX_STROKES`` range -- ``_BASE``
+is the ceiling at ``ornateness == 0``, ``_CAP`` (an absolute maximum, direct user request) the ceiling
+at ``ornateness == 1``, see ``_build_diacritic_pool``."""
+
+_DIACRITIC_POOL_MAX = 5
+"""The most distinct diacritic shapes a script's own pool ever holds, at ``diacritic_density == 1.0``
+-- direct user request: a script reuses a small, recognizable set of marks across many letters,
+rather than every letter inventing its own fresh one. See ``_build_diacritic_pool``."""
 
 _MAX_DUPLICATE_RETRIES = 5
 """Shared bound for every addressable-retry-on-collision loop in this module (a duplicate whole-glyph
-signature in ``generate_script``, a duplicate diacritic slot in ``_generate_diacritics``) -- past this
+signature in ``generate_script``, a duplicate diacritic slot in ``_attach_diacritics``) -- past this
 many attempts, accept the last result unconditionally rather than looping forever on a tiny grid with
 genuinely few distinct possible shapes/slots."""
 
@@ -318,30 +325,67 @@ def _roll_diacritic_slot(seed_key: str, traits: ScriptTraits, direction: Writing
     return f"cross_{fixed_sign}"
 
 
-def _generate_diacritics(
-    seed_key: str, traits: ScriptTraits, grid_max_x: int, grid_max_y: int, direction: WritingDirection,
+def _build_diacritic_pool(
+    seed: str, traits: ScriptTraits, grid_max_x: int, grid_max_y: int, direction: WritingDirection,
+) -> tuple[Glyph, ...]:
+    """A script's own small, shared set of reusable diacritic shapes, built *once* per script (keyed
+    off the script's own top-level ``seed``, not any one letter) -- "reused across the letters,"
+    direct user request, replacing the old design where every letter generated its own independent
+    diacritic(s). Pool size scales directly with ``diacritic_density`` (0 shapes at ``0.0``, up to
+    ``_DIACRITIC_POOL_MAX`` at ``1.0``), floored to 1 whenever density is positive at all so a letter
+    that *does* roll a diacritic (``_attach_diacritics``) always has something real to draw from.
+    Each pool entry is built by ``generate_glyph`` itself -- the exact same stroke-generation process
+    as any letter -- with fewer strokes (``_DIACRITIC_MIN_STROKES``, and an ``ornateness``-widened
+    ceiling capped at ``_DIACRITIC_MAX_STROKES_CAP``, "on average have more strokes" direct user
+    request), ``is_diacritic=True`` (a higher dot-prevalence ceiling, see ``_decide_stroke``), and
+    ``with_diacritics=False`` (a diacritic never gets its own diacritics). Reuses the *main* glyph's
+    own ``grid_max_x``/``grid_max_y`` rather than rolling an independent grid shape per diacritic --
+    `script.font_builder` renders it at a fraction of that size regardless, so the same grid shape at
+    a smaller scale already gives the "small, confined" look without a second grid-shape data field
+    to carry around."""
+    pool_size = round(lerp01(traits.diacritic_density, 0.0, _DIACRITIC_POOL_MAX))
+    if traits.diacritic_density > 0.0:
+        pool_size = max(1, pool_size)
+    if pool_size <= 0:
+        return ()
+    effective_max_strokes = round(
+        lerp01(traits.ornateness, _DIACRITIC_MAX_STROKES_BASE, _DIACRITIC_MAX_STROKES_CAP)
+    )
+    return tuple(
+        generate_glyph(
+            f"{seed}:diacritic-pool:{i}", "", traits, grid_max_x, grid_max_y, direction,
+            min_strokes=_DIACRITIC_MIN_STROKES, max_strokes=effective_max_strokes,
+            with_diacritics=False, is_diacritic=True,
+        )
+        for i in range(pool_size)
+    )
+
+
+def _attach_diacritics(
+    seed_key: str, traits: ScriptTraits, direction: WritingDirection, pool: tuple[Glyph, ...],
 ) -> dict[str, Glyph]:
-    """How many diacritic instances attach is ``diacritic_density``'s own roll (0..4, unchanged
-    mechanism); *where* each one sits is ``ornateness``-driven and direction-aware (see
-    ``_roll_diacritic_slot``). Each instance is independently rolled (seeded ``f"{seed_key}:
-    diacritic-slot:{i}"``); a collision falls back to cycling deterministically through the 9 internal
-    grid positions by instance index -- not a bumped-sub-key retry (``generate_script``'s own
-    duplicate-glyph pattern): near ``ornateness == 0`` every instance's own roll collapses onto the
-    same single script-wide slot *by design*, so a retry would just recompute the identical answer
-    rather than actually resolving the collision. Each filled slot's own diacritic is built by
-    ``generate_glyph``
-    itself -- the exact same stroke-generation process as any letter -- with fewer strokes
-    (``_DIACRITIC_MIN_STROKES``, and an ``ornateness``-widened ceiling, "on average have more strokes,"
-    direct user request), ``is_diacritic=True`` (a higher dot-prevalence ceiling, see
-    ``_decide_stroke``), and ``with_diacritics=False`` (a diacritic never gets its own diacritics).
-    Reuses the *main* glyph's own ``grid_max_x``/``grid_max_y`` rather than rolling an independent grid
-    shape per diacritic -- `script.font_builder` renders it at a fraction of that size regardless, so
-    the same grid shape at a smaller scale already gives the "small, confined" look without a second
-    grid-shape data field to carry around."""
-    count = round(lerp(traits.diacritic_density, 0.0, 4))
-    if count <= 0:
+    """How many diacritic instances attach to *this* letter -- two independent probability rolls, not
+    a flat count: ``p1 = diacritic_density`` is the chance of at least one ("around 0.5, about half of
+    letters should get a diacritic," direct user phrasing, a literal reading of the unipolar dial),
+    and ``p2 = diacritic_density**3 * 0.4`` is the chance of a rare *second* -- a cubic ramp that stays
+    small until density is already high ("a chance to get 2... close to 1.0," never more than 2).
+    *Where* each instance sits is ``ornateness``-driven and direction-aware (see
+    ``_roll_diacritic_slot``); *which* pool shape it reuses is an independent roll scaled to
+    ``len(pool)`` (``_build_diacritic_pool`` built that pool once for the whole script -- this
+    function only ever picks from it, never generates a fresh shape). A same-letter slot collision
+    (only possible now between the two instances of a rare ``count == 2``) falls back to cycling
+    deterministically through the 9 internal grid positions by instance index -- not a bumped-sub-key
+    retry (``generate_script``'s own duplicate-glyph pattern): near ``ornateness == 0`` every
+    instance's own roll collapses onto the same single script-wide slot *by design*, so a retry would
+    just recompute the identical answer rather than actually resolving the collision."""
+    if not pool:
         return {}
-    effective_max_strokes = round(lerp01(traits.ornateness, _DIACRITIC_MAX_STROKES, _DIACRITIC_MAX_STROKES + 2))
+    has_one = random.Random(f"{seed_key}:diacritic-count1").random() < traits.diacritic_density
+    if not has_one:
+        return {}
+    p2 = (traits.diacritic_density**3) * 0.4
+    has_two = random.Random(f"{seed_key}:diacritic-count2").random() < p2
+    count = 2 if has_two else 1
     diacritics: dict[str, Glyph] = {}
     for i in range(count):
         slot = _roll_diacritic_slot(f"{seed_key}:diacritic-slot:{i}", traits, direction)
@@ -351,17 +395,15 @@ def _generate_diacritics(
             # _roll_diacritic_slot's own category/flip thresholds are also 0 at that same ornateness,
             # so a retry just recomputes the identical answer. Fall back to cycling deterministically
             # through the 9 internal grid positions by instance index instead -- guaranteed distinct
-            # for any count up to 4 (this field's own max), never silently dropping an instance.
+            # for any count up to 2 (this function's own max), never silently dropping an instance.
             for attempt in range(9):
                 xi, yi = (i + attempt) % 3, ((i + attempt) // 3) % 3
                 slot = f"internal:{xi},{yi}"
                 if slot not in diacritics:
                     break
-        diacritics[slot] = generate_glyph(
-            f"{seed_key}:diacritic:{slot}", "", traits, grid_max_x, grid_max_y, direction,
-            min_strokes=_DIACRITIC_MIN_STROKES, max_strokes=effective_max_strokes,
-            with_diacritics=False, is_diacritic=True,
-        )
+        pool_roll = random.Random(f"{seed_key}:diacritic-pool-pick:{i}").random()
+        pool_index = min(int(pool_roll * len(pool)), len(pool) - 1)
+        diacritics[slot] = pool[pool_index]
     return diacritics
 
 
@@ -369,21 +411,25 @@ def generate_glyph(
     seed_key: str, ipa: str, traits: ScriptTraits, grid_max_x: int, grid_max_y: int,
     direction: WritingDirection = WritingDirection.LTR,
     min_strokes: int = _MIN_STROKES, max_strokes: int = _MAX_STROKES, with_diacritics: bool = True,
-    is_diacritic: bool = False,
+    is_diacritic: bool = False, diacritic_pool: tuple[Glyph, ...] = (),
 ) -> Glyph:
     """One phoneme's own glyph -- a chain of connected, boundary/diagonal-only line (and occasional
     dot) strokes placed on this script's own grid, addressably seeded from ``seed_key`` (see this
     module's own docstring). ``seed_key`` is the glyph's own full identity (script seed + phoneme
     symbol) -- every stroke slot's own key is derived from it, never from a shared stream position.
-    ``direction`` only matters to ``_generate_diacritics`` (a main letter's own strokes don't care about
+    ``direction`` only matters to ``_attach_diacritics`` (a main letter's own strokes don't care about
     writing direction) -- defaults to ``LTR`` so a caller that never touches diacritic placement (most
     of this module's own tests) doesn't need to pass it. ``min_strokes``/``max_strokes``/
-    ``with_diacritics``/``is_diacritic`` exist so ``_generate_diacritics`` can call this same function
+    ``with_diacritics``/``is_diacritic`` exist so ``_build_diacritic_pool`` can call this same function
     for a diacritic's own small glyph (fewer strokes, a higher dot-prevalence ceiling, never itself
-    diacritic-bearing) rather than duplicating the stroke-generation logic above."""
+    diacritic-bearing) rather than duplicating the stroke-generation logic above. ``diacritic_pool`` is
+    the whole script's own shared pool (``_build_diacritic_pool``, built once by ``generate_script``) --
+    empty for a pool entry itself (``with_diacritics=False`` skips reading it either way)."""
     stroke_count = round(lerp(traits.complexity, min_strokes, max_strokes))
     strokes = _build_stroke_chain(seed_key, traits, stroke_count, grid_max_x, grid_max_y, is_diacritic)
-    diacritics = _generate_diacritics(seed_key, traits, grid_max_x, grid_max_y, direction) if with_diacritics else {}
+    diacritics = (
+        _attach_diacritics(seed_key, traits, direction, diacritic_pool) if with_diacritics else {}
+    )
     return Glyph(ipa=ipa, strokes=tuple(strokes), diacritics=diacritics)
 
 
@@ -418,17 +464,21 @@ def generate_script(
     direction = roll_direction(rng)
     grid_max_x, grid_max_y = roll_grid_shape(rng)
     traits = roll_script_traits(rng, forced_script_traits)
+    diacritic_pool = _build_diacritic_pool(seed, traits, grid_max_x, grid_max_y, direction)
     symbols = inventory.consonant_symbols() + inventory.vowel_symbols()
     glyphs: list[Glyph] = []
     seen_signatures: set[tuple] = set()
     for symbol in symbols:
         seed_key = f"{seed}:{symbol}"
-        glyph = generate_glyph(seed_key, symbol, traits, grid_max_x, grid_max_y, direction)
+        glyph = generate_glyph(seed_key, symbol, traits, grid_max_x, grid_max_y, direction, diacritic_pool=diacritic_pool)
         signature = _glyph_signature(glyph)
         attempt = 0
         while signature in seen_signatures and attempt < _MAX_DUPLICATE_RETRIES:
             attempt += 1
-            glyph = generate_glyph(f"{seed_key}:dup{attempt}", symbol, traits, grid_max_x, grid_max_y, direction)
+            glyph = generate_glyph(
+                f"{seed_key}:dup{attempt}", symbol, traits, grid_max_x, grid_max_y, direction,
+                diacritic_pool=diacritic_pool,
+            )
             signature = _glyph_signature(glyph)
         seen_signatures.add(signature)
         glyphs.append(glyph)

@@ -305,6 +305,44 @@ multi-session feature.
   fonts, and rendered side by side via `@font-face` -- confirmed the same glyph position renders a
   visibly sharper joint under crookedness-alone versus a visibly smoothed curved joint under
   roundedness.
+- **Script redesign round 6: diacritic pool, frequency, spacing, dot/ornament sizing -- done (pass
+  55), direct user feedback (six points from testing round 5's build).** Two of the six turned out
+  not to be bugs, confirmed by direct investigation before touching anything: a dot's own radius
+  (`_DOT_RADIUS`) was already a fixed absolute em-unit constant, never scaled down inside a
+  diacritic, so a diacritic's own dot already rendered at the same real size as a main letter's; and
+  `_weighted_dot_style`'s circle weight (sampled 2000 times) matched its documented `0.16` value
+  exactly -- the real issue was that at low `ornateness` a whole *script* shares one style roll, so
+  roughly 84% of scripts showed zero circles anywhere, read as "I never see one" even though the
+  mechanism worked as specified. Addressed with a direct weight rebalance (`0.16` -> `0.24`) rather
+  than new mechanism.
+
+  The other four needed real restructuring. `diacritic_density` renamed unipolar `0..1` (was
+  bipolar) with an entirely new model, replacing the old flat `count = round(lerp(density, 0, 4))`:
+  a script now builds a shared *pool* of up to 5 reusable diacritic shapes once
+  (`_build_diacritic_pool`, scaling with `diacritic_density`, floored to 1 whenever density is
+  positive), and each letter independently rolls whether it draws from that pool at all
+  (`p1 = diacritic_density` directly, "around 0.5, about half of letters") and, rarely, a second
+  instance (`p2 = density**3 * 0.4`, a cubic ramp staying small until density is already close to
+  `1.0`) -- never generating a fresh diacritic glyph per letter again. Diacritic stroke count capped
+  at 4 absolute (`_DIACRITIC_MAX_STROKES_CAP`, was `3+2=5`). `_diacritic_offset` gained a
+  `_DIACRITIC_GAP_FRACTION = 0.07` separation for every external slot (checked against `_ASCENT`
+  headroom by hand, worst case `843.5` of `850`) -- direct feedback that diacritics "mix up with the
+  letter too much." Terminal-ornament `length_factor` changed from a fixed UPM-absolute reference to
+  a literal fraction of the attached stroke's own rendered length, most presets retuned into
+  `0.2..0.6` (direct request) -- `short_extension`/`long_extension` deliberately kept above that band
+  (round 4's own "extending beyond the normal size of the letters" request only means something if
+  it's allowed to).
+
+  Verified: new/rewritten tests in `tests/test_script_gen.py` (pool-size formula, the 4-stroke cap,
+  statistical attach-rate checks at density `0.0`/`0.5`/`1.0` matching the designed probabilities,
+  pool-reuse-by-identity) and `tests/test_script_font_builder.py` (rebalanced dot-style boundaries,
+  the new gap, ornament length scaling with its own stroke); an 80-seed stress test at every dial
+  maxed built every font with zero exceptions; full suite green. Live-verified: three real languages
+  generated via the CLI at `diacritic_density` `0.0`/`0.5`/`1.0` -- the saved script data confirmed
+  0/80, 37/80 (~46%, matching the ~50% design target), and 80/80 letters carrying a diacritic
+  respectively, with exactly 5 distinct diacritic shapes reused across all 80 letters at density
+  `1.0` -- and rendered via `@font-face`, confirming a visible gap between mark and letter and
+  better-proportioned terminal ornaments.
 - **Small diacritic marks attached near a letter -- done (pass 51), a deliberately lighter-weight
   cousin of the real abugida idea below, not the same thing.** `Glyph.diacritics: dict[str, Glyph]`;
   each diacritic is a small glyph built by the exact same stroke-generation process as any letter
@@ -313,6 +351,8 @@ multi-session feature.
   components the way a real abugida's vowel modifiers are -- the item directly below is still the real,
   harder thing. *Placement redesigned in pass 53 -- see that entry below* (originally a flat fixed
   `"top"`/`"bottom"`/`"left"`/`"right"` sample, now direction-aware and `ornateness`-driven).
+  *Frequency model and diacritic reuse redesigned in pass 55 -- see that entry above* (originally a
+  flat per-letter count, now a shared script-wide pool with a two-roll attach probability).
 - **Phase 2: harder writing-system types (L each).** Not implemented,
   but not precluded by Phase 1's own shape -- see `core/script.py`'s own
   module docstring for exactly how each would extend it:

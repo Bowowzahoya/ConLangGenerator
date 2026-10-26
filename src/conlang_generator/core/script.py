@@ -119,14 +119,15 @@ class Glyph(BaseModel, frozen=True):
     script, left/right for a vertical one), ``"along_pos"``/``"along_neg"`` (the axis a neighboring
     glyph sits on, used more rarely), or ``"internal:{xi},{yi}"`` for ``xi, yi`` each ``0``/``1``/``2``
     (one of 9 fractional positions *inside* the main glyph's own bounding box, not flush against an
-    edge) -- see ``generation.script_gen._generate_diacritics``/``script.font_builder.
+    edge) -- see ``generation.script_gen._attach_diacritics``/``script.font_builder.
     _diacritic_offset`` for exactly how a slot resolves to an em-space position (direction-aware, so
     this module alone can't resolve one without also knowing ``InventedScript.direction``). Each
-    diacritic is a full ``Glyph`` in its own right, built by the exact same stroke-generation process as
-    any letter -- ``generation.script_gen``'s own module docstring -- just with fewer strokes and
-    rendered at a fraction of this glyph's own grid-cell size. How many slots get filled is
-    ``diacritic_density``'s own roll; empty (the default) when it rolls zero, the common low-density
-    case."""
+    diacritic glyph is drawn from this *script's* own shared pool of reusable diacritic shapes (see
+    ``generation.script_gen._build_diacritic_pool``), built by the same stroke-generation process as
+    any letter -- ``generation.script_gen``'s own module docstring -- just with fewer strokes, rendered
+    at a fraction of this glyph's own grid-cell size, and reused across many different letters rather
+    than freshly invented per glyph. How many slots get filled is ``diacritic_density``'s own roll;
+    empty (the default) when it rolls zero, the common low-density case."""
 
 
 class ScriptTraits(BaseModel, frozen=True):
@@ -186,12 +187,19 @@ class ScriptTraits(BaseModel, frozen=True):
     most of its neutral range) a confirmed dead zone -- jitter only ever applied below an old
     ``-0.15`` threshold; redefined here so the whole range does something."""
     diacritic_density: float = 0.0
-    """+ many small attached marks (Arabic i'jam-dot-like); - few or none. Governs how many of the 4
-    fixed diacritic anchor slots (``Glyph.diacritics`` -- "top"/"bottom"/"left"/"right") get filled on
-    a glyph, 0 to 4 (see ``generation.script_gen._generate_diacritics``) -- a *count* of attached
-    marks, each itself a small letter-like glyph. Separate from ``dot_prevalence`` below, which is
-    about ordinary strokes becoming bare dots *within* a glyph's own main shape (or a diacritic's),
-    not about how many diacritic marks exist at all."""
+    """Unipolar. How many small attached marks (Arabic i'jam-dot-like) show up, and how large the
+    script's own shared pool of reusable diacritic shapes is -- *not* a per-glyph stroke count the
+    way it reads at first glance. Two things, both direct ``0..1`` readings: the chance any one
+    letter carries at least one diacritic is this dial's own value directly (``0.5`` -> roughly half
+    of letters get one), with a second, rarer diacritic on the same letter only a real possibility
+    once this is already close to ``1.0``; and the script-wide pool every letter's own diacritic is
+    drawn *from* (never freshly invented per letter -- "reused across the letters," direct user
+    request) scales from 0 shapes at ``0.0`` up to 5 at ``1.0``. See
+    ``generation.script_gen._build_diacritic_pool``/``_attach_diacritics`` for the exact formulas.
+    Separate from ``dot_prevalence`` below, which is about ordinary strokes becoming bare dots
+    *within* a glyph's own main shape (or a diacritic's), not about how many diacritic marks exist at
+    all. Was bipolar; renamed-away dead negative half, same "no meaningfully distinct opposite pole"
+    reasoning several other dials already have."""
     terminal_style: float = 0.0
     """+ a per-glyph *terminal ornament* (a hook, swirl, foot, or extended stroke -- one of 10 fixed
     presets, see ``script.font_builder``'s own terminal-ornament code) is more likely to appear, once
@@ -273,7 +281,10 @@ is not purely a ``font_builder``-side dial the way every other FORM/TYPEFACE dia
 
 SCRIPT_TRAIT_RANGE: dict[str, tuple[float, float]] = {
     name: (0.0, 1.0)
-    if name in ("stroke_contrast", "regularity", "ornateness", "serif", "crookedness", "roundedness")
+    if name in (
+        "stroke_contrast", "regularity", "ornateness", "serif", "crookedness", "roundedness",
+        "diacritic_density",
+    )
     else (-1.0, 1.0)
     for name in ScriptTraits.model_fields
 }

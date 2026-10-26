@@ -156,11 +156,17 @@ thin-weight script's dots were "currently very tiny," like a tittle should stay 
 how thin the rest of the script's strokes are."""
 
 
-_DOT_STYLE_WEIGHTS_LOW = {"square": 0.42, "stroke": 0.42, "circle": 0.16}
+_DOT_STYLE_WEIGHTS_LOW = {"square": 0.38, "stroke": 0.38, "circle": 0.24}
 _DOT_STYLE_WEIGHTS_HIGH = {"square": 0.30, "stroke": 0.30, "circle": 0.40}
 """The three dot styles' own selection weights at ``ornateness == 0`` vs. ``== 1`` -- low concentrates
 on square/stroke ("more chance of stroke or dot," direct user phrasing), high is flatter with a slight
-circle lean ("slightly more chance of circles"). ``_weighted_dot_style`` interpolates between them."""
+circle lean ("slightly more chance of circles"). ``_weighted_dot_style`` interpolates between them.
+Circle's own low-``ornateness`` weight was raised from the original ``0.16`` -- not a bug fix (sampled
+2000 times at ``ornateness=0.0``, the original weight reproduced almost exactly, ~15.25% circle), but
+a usability one: at low ``ornateness`` a *whole script* shares one style roll (see ``_dot_polygons``'s
+own ``use_per_dot``), so the original weight meant roughly 84% of scripts showed *zero* circles
+anywhere, read by direct user feedback as "I never see a tiny circle" even though the mechanism was
+working as specified."""
 
 
 def _weighted_dot_style(unit_roll: float, ornateness: float) -> str:
@@ -407,7 +413,11 @@ class OrnamentPreset(NamedTuple):
     """Total turning angle of the ornament's own centerline, degrees -- ``0`` for a straight
     extension, up to ``540`` for `"swirl"`` (one and a half turns)."""
     length_factor: float
-    """Multiplies ``_ORNAMENT_BASE_LENGTH`` for this preset's own total centerline length."""
+    """The ornament's own total centerline length, as a fraction of the stroke it's attached to's own
+    rendered length -- most presets land in ``0.2..0.6`` (direct user request); ``short_extension``/
+    ``long_extension`` deliberately exceed that ("a longer stroke extending beyond the normal size of
+    the letters (Javanese)," direct user request from an earlier round -- only means something if
+    it's allowed to exceed "normal" ornament size)."""
     closed: bool
     """Whether the ornament's own far end gets a small solid cap (a plain stroke tapering to a point
     otherwise) -- "closed"/"open" per the user's own Thai-hook vs. Щ-hook distinction."""
@@ -416,27 +426,26 @@ class OrnamentPreset(NamedTuple):
 
 
 _TERMINAL_ORNAMENT_PRESETS: tuple[OrnamentPreset, ...] = (
-    OrnamentPreset("plain_foot", 0.0, 0.5, True, 1.3),
-    OrnamentPreset("short_serif", 0.0, 0.3, True, 1.0),
-    OrnamentPreset("closed_hook", 200.0, 0.8, True, 0.9),
-    OrnamentPreset("open_hook", 120.0, 0.9, False, 0.85),
-    OrnamentPreset("small_flare", 40.0, 0.6, False, 1.1),
-    OrnamentPreset("rounded_bulb", 360.0, 0.5, True, 1.0),
-    OrnamentPreset("short_extension", 0.0, 1.3, False, 0.8),
-    OrnamentPreset("long_extension", 0.0, 2.2, False, 0.7),
-    OrnamentPreset("swirl", 540.0, 1.0, True, 0.6),
-    OrnamentPreset("double_hook", 240.0, 1.1, True, 0.9),
+    OrnamentPreset("plain_foot", 0.0, 0.35, True, 1.3),
+    OrnamentPreset("short_serif", 0.0, 0.25, True, 1.0),
+    OrnamentPreset("closed_hook", 200.0, 0.45, True, 0.9),
+    OrnamentPreset("open_hook", 120.0, 0.5, False, 0.85),
+    OrnamentPreset("small_flare", 40.0, 0.3, False, 1.1),
+    OrnamentPreset("rounded_bulb", 360.0, 0.35, True, 1.0),
+    OrnamentPreset("short_extension", 0.0, 0.9, False, 0.8),
+    OrnamentPreset("long_extension", 0.0, 1.4, False, 0.7),
+    OrnamentPreset("swirl", 540.0, 0.55, True, 0.6),
+    OrnamentPreset("double_hook", 240.0, 0.55, True, 0.9),
 )
 """10 fixed terminal-ornament presets, ordered plain -> fancy (``_weighted_ornament_preset`` favors the
 tail as ``ornateness`` rises) -- the user's own 5 named examples (foot/open hook/closed hook/swirl/
 extended stroke) plus 5 more filling out the "fancy" end, each just a parameter tuple for one shared
 drawing function (``_terminal_ornament_polygons``) rather than 10 bespoke hand-authored shapes. A
 reasonable first pass, not claimed final -- tuned against a real rendered check, same as every other
-new visual mechanic in this project."""
-
-_ORNAMENT_BASE_LENGTH = UPM * _LETTER_SCALE * 0.22
-"""Reference length an ornament preset's own ``length_factor`` scales from -- roughly 40% of a grid
-cell at the default 2x2 grid, a visible but not overwhelming flourish."""
+new visual mechanic in this project. ``length_factor`` values are each a fraction of the attached
+stroke's own rendered length (see ``OrnamentPreset.length_factor``'s own docstring) -- direct user
+feedback that the whole system read as too tiny when scaled from a fixed, UPM-absolute reference
+length instead."""
 
 
 def _weighted_ornament_preset(unit_roll: float, ornateness: float) -> int:
@@ -559,11 +568,15 @@ def _arc_points(
     ]
 
 
-def _ornament_main_points(x0: float, y0: float, dx: float, dy: float, preset: OrnamentPreset) -> list[tuple[float, float]]:
+def _ornament_main_points(
+    x0: float, y0: float, dx: float, dy: float, preset: OrnamentPreset, stroke_length: float,
+) -> list[tuple[float, float]]:
     """The sampled centerline for one ornament segment -- a straight 2-point line for
     ``bend_degrees == 0``, else an ``_arc_points`` sample. Shared by the main ornament and (for
-    ``"double_hook"``) its own secondary branch."""
-    base_length = _ORNAMENT_BASE_LENGTH * preset.length_factor
+    ``"double_hook"``) its own secondary branch. ``stroke_length`` is the attached stroke's own
+    rendered length -- ``preset.length_factor`` is a fraction of it, not a fixed absolute (see that
+    field's own docstring)."""
+    base_length = stroke_length * preset.length_factor
     if preset.bend_degrees == 0:
         return [(x0, y0), (x0 + dx * base_length, y0 + dy * base_length)]
     bend_rad = math.radians(preset.bend_degrees)
@@ -589,15 +602,18 @@ def _taper_polygons(
 
 def _terminal_ornament_polygons(
     x0: float, y0: float, dx: float, dy: float, width: float, preset: OrnamentPreset, seed_text: str,
+    stroke_length: float,
 ) -> list[list[tuple[float, float]]]:
     """Draws ``preset`` starting at ``(x0, y0)``, continuing in unit direction ``(dx, dy)`` (the
     stroke's own direction at this endpoint, so the ornament reads as a natural continuation past the
     letter). The curl direction (left vs. right) is its own deterministic per-instance coin flip, not
     baked into the preset -- a hook should be able to face either way depending on which letter it
-    lands on, not always identically."""
+    lands on, not always identically. ``stroke_length`` is that same attached stroke's own rendered
+    length (see ``OrnamentPreset.length_factor``'s own docstring -- the ornament scales relative to
+    it, not to a fixed absolute)."""
     curl_sign = 1.0 if _stable_unit(f"{seed_text}:curl") >= 0 else -1.0
     signed_preset = preset._replace(bend_degrees=preset.bend_degrees * curl_sign)
-    points = _ornament_main_points(x0, y0, dx, dy, signed_preset)
+    points = _ornament_main_points(x0, y0, dx, dy, signed_preset, stroke_length)
     polygons = _taper_polygons(points, width, preset.width_factor, preset.closed)
     if preset.name == "double_hook" and len(points) >= 3:
         branch_start = points[len(points) // 2]
@@ -607,7 +623,9 @@ def _terminal_ornament_polygons(
         branch_preset = signed_preset._replace(
             bend_degrees=-signed_preset.bend_degrees * 0.7, length_factor=preset.length_factor * 0.5,
         )
-        branch_points = _ornament_main_points(branch_start[0], branch_start[1], bdx / blength, bdy / blength, branch_preset)
+        branch_points = _ornament_main_points(
+            branch_start[0], branch_start[1], bdx / blength, bdy / blength, branch_preset, stroke_length,
+        )
         polygons.extend(_taper_polygons(branch_points, width, preset.width_factor * 0.8, preset.closed))
     return polygons
 
@@ -877,21 +895,29 @@ own dial (would be a 13th dial before the fixed version is even verified to look
 ``letter_height * (1 + _DIACRITIC_SCALE)`` and a "bottom" one ``-letter_height * _DIACRITIC_SCALE``;
 both need headroom within ``_ASCENT``/``_DESCENT`` for ``regularity``'s own jitter on top."""
 
+_DIACRITIC_GAP_FRACTION = 0.07
+"""An external-slot diacritic's near edge sits this fraction of the main glyph's own width/height
+further from the main glyph's own edge, instead of flush against it -- direct user feedback that
+diacritics "mix up with the letter too much." Checked against headroom the same way
+``_DIACRITIC_SCALE`` already documents: worst case (a "top" diacritic, maximum ``regularity``
+jitter) reaches ``550 + 0.07*550 + 220 + 35 = 843.5`` em-units, still inside ``_ASCENT = 850``."""
+
 
 def _diacritic_offset(
     slot: str, direction: WritingDirection, grid_max_x: int, grid_max_y: int, grid_unit_x: float, grid_unit_y: float,
 ) -> tuple[float, float]:
     """Where a diacritic's own (0,0) grid point lands in em-space, for the slot it was rolled into --
     see ``Glyph.diacritics``'s own docstring for the slot vocabulary. External slots (``cross_pos``/
-    ``cross_neg``/``along_pos``/``along_neg``) sit flush against the main glyph's own edge on the axis
-    they extend past, centered on the other axis -- which axis is "cross" (no adjacent neighbor) vs.
-    "along" (where the next glyph sits) depends on ``direction``: vertical scripts (``TTB_LTR``/
-    ``TTB_RTL``) have cross=x/along=y, every other direction has cross=y/along=x. ``"pos"``/``"neg"``
-    are just that axis's own positive/negative em-space direction, not direction-specific sides.
-    Internal slots (``"internal:{xi},{yi}"``, each ``0``/``1``/``2``) center the diacritic *on* one of
-    9 fractional positions of the main glyph's own bounding box -- deliberately not clamped to stay
-    fully inside, so an edge/corner grid point still nests half-on-the-boundary the way a mark sitting
-    right where two strokes cross would."""
+    ``cross_neg``/``along_pos``/``along_neg``) sit ``_DIACRITIC_GAP_FRACTION`` past the main glyph's
+    own edge on the axis they extend past (not flush against it), centered on the other axis -- which
+    axis is "cross" (no adjacent neighbor) vs. "along" (where the next glyph sits) depends on
+    ``direction``: vertical scripts (``TTB_LTR``/``TTB_RTL``) have cross=x/along=y, every other
+    direction has cross=y/along=x. ``"pos"``/``"neg"`` are just that axis's own positive/negative
+    em-space direction, not direction-specific sides. Internal slots (``"internal:{xi},{yi}"``, each
+    ``0``/``1``/``2``) center the diacritic *on* one of 9 fractional positions of the main glyph's own
+    bounding box -- deliberately not clamped to stay fully inside, so an edge/corner grid point still
+    nests half-on-the-boundary the way a mark sitting right where two strokes cross would, and no gap
+    applies here (nested by design, not separated from an edge)."""
     width_main, height_main = grid_max_x * grid_unit_x, grid_max_y * grid_unit_y
     width_diac, height_diac = width_main * _DIACRITIC_SCALE, height_main * _DIACRITIC_SCALE
 
@@ -899,14 +925,16 @@ def _diacritic_offset(
         xi, yi = (int(v) for v in slot[len("internal:"):].split(","))
         return (xi / 2.0) * width_main - width_diac / 2.0, (yi / 2.0) * height_main - height_diac / 2.0
 
+    gap_x, gap_y = width_main * _DIACRITIC_GAP_FRACTION, height_main * _DIACRITIC_GAP_FRACTION
+
     is_vertical_script = direction in (WritingDirection.TTB_LTR, WritingDirection.TTB_RTL)
     axis = "x" if (slot.startswith("cross") and is_vertical_script) or (
         slot.startswith("along") and not is_vertical_script
     ) else "y"
     positive = slot.endswith("_pos")
     if axis == "y":
-        return (width_main - width_diac) / 2, height_main if positive else -height_diac
-    return width_main if positive else -width_diac, (height_main - height_diac) / 2
+        return (width_main - width_diac) / 2, height_main + gap_y if positive else -height_diac - gap_y
+    return width_main + gap_x if positive else -width_diac - gap_x, (height_main - height_diac) / 2
 
 
 def _emit_polygons(pen: TTGlyphPen, polygons: list[list[tuple[float, float]]]) -> None:
@@ -938,7 +966,7 @@ def _glyph_terminal_ornament_polygons(
         length = math.hypot(dx, dy) or 1.0
         preset = _TERMINAL_ORNAMENT_PRESETS[preset_index]
         seed_text = f"{glyph_index}:{stroke_index}:ornament"
-        polygons.extend(_terminal_ornament_polygons(ex, ey, dx / length, dy / length, width, preset, seed_text))
+        polygons.extend(_terminal_ornament_polygons(ex, ey, dx / length, dy / length, width, preset, seed_text, length))
     return polygons
 
 

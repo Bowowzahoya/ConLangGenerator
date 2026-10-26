@@ -1979,10 +1979,18 @@ topology/style split -- besides favoring fancier terminal-ornament presets and a
 style, it also widens a diacritic's own stroke-count ceiling and diversifies *where* diacritics sit
 (see `core/script.py`'s own docstring for the full nuance).
 
+A letter's own diacritic mark(s), if any, are drawn from a small *pool* of reusable shapes built once
+for the whole script -- never freshly invented per letter -- scaling from 0 shapes at
+`diacritic_density=0.0` up to 5 at `1.0`. Per letter, `diacritic_density` directly reads as the chance
+of at least one diacritic (`0.5` -> roughly half of letters carry one); a second, rarer one on the same
+letter is only a real possibility once density is already close to `1.0`. Each diacritic is capped at
+4 strokes.
+
 Most dials are bipolar (`-1.0..1.0`, a positive value evidence *for* the named pole, negative for its
-opposite); `stroke_contrast`, `regularity`, `ornateness`, `serif`, `crookedness`, and `roundedness` are
-unipolar (`0.0..1.0` only) -- each has no meaningful "opposite pole" below 0 (monoline/geometric/plain/
-no-serifs/never-tilts/always-sharp is already the `0.0` end, not a separate negative extreme).
+opposite); `stroke_contrast`, `regularity`, `ornateness`, `serif`, `crookedness`, `roundedness`, and
+`diacritic_density` are unipolar (`0.0..1.0` only) -- each has no meaningful "opposite pole" below 0
+(monoline/geometric/plain/no-serifs/never-tilts/always-sharp/no-diacritics is already the `0.0` end,
+not a separate negative extreme).
 `--script-trait NAME=VALUE` (repeatable, one per dial) sets a specific dial directly, `VALUE` checked
 against that dial's own range -- NAME against this own, separate 14-dial list, not the 15 worldbuilding
 `--trait` names. Overriding a dial only takes effect when a script is actually generated (`--own-script
@@ -1991,7 +1999,8 @@ yes`, or a prompt `auto` infers one from); every other, unforced dial still roll
 ```bash
 conlang generate --prompt "a mountain language" --name doc-script-trait-test --own-script yes \
   --script-trait dot_prevalence=1.0 --script-trait weight=-1.0 --script-trait serif=1.0 \
-  --script-trait ornateness=1.0 --script-trait crookedness=1.0 --script-trait roundedness=1.0
+  --script-trait ornateness=1.0 --script-trait crookedness=1.0 --script-trait roundedness=1.0 \
+  --script-trait diacritic_density=1.0
 ```
 
 ```
@@ -2000,7 +2009,7 @@ Word order: SVO, morphology: isolating, alignment: nominative_accusative, tonal:
 Orthography: monoletter + colon
 Traits from prompt: ...
 Forced script traits: {'weight': -1.0, 'dot_prevalence': 1.0, 'serif': 1.0, 'ornateness': 1.0,
-  'crookedness': 1.0, 'roundedness': 1.0}
+  'crookedness': 1.0, 'roundedness': 1.0, 'diacritic_density': 1.0}
 Saved to conlangs\doc-script-trait-test
 ```
 

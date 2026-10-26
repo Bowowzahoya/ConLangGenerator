@@ -1691,17 +1691,21 @@ splits data from mechanism:
   dial's own valid range), `Point`/`Stroke`/`Glyph` (a glyph is a handful
   of stroke primitives -- line, arc, dot -- on a grid whose own shape is
   rolled per script, not fixed; `Glyph.diacritics` attaches small
-  secondary glyphs at a direction-aware, `ornateness`-driven placement
-  slot -- see that field's own docstring for the slot vocabulary),
-  `InventedScript` (direction + traits + grid shape + one glyph per
-  phoneme).
+  secondary glyphs, drawn from the whole script's own small shared pool
+  of reusable diacritic shapes (never freshly invented per letter -- see
+  `generation.script_gen._build_diacritic_pool`), at a direction-aware,
+  `ornateness`-driven placement slot -- see that field's own docstring
+  for the slot vocabulary), `InventedScript` (direction + traits + grid
+  shape + one glyph per phoneme).
 - **`generation/script_gen.py`**: `should_generate_script` (the two-
   channel "explicit override beats inferred beats default" decision,
   default off) and `generate_script` (rolls direction/grid shape/traits,
-  then one `Glyph` per phoneme via `generate_glyph` -- stroke topology
-  only, plus the diacritic-placement/stroke-count decisions `ornateness`
-  also drives; see that module's own docstring for exactly which traits
-  it consumes vs. `script/font_builder.py` vs. not yet consumed at all).
+  builds the script-wide diacritic pool once, then one `Glyph` per
+  phoneme via `generate_glyph` -- stroke topology only, plus the
+  diacritic-attachment/stroke-count decisions `diacritic_density`/
+  `ornateness` also drive; see that module's own docstring for exactly
+  which traits it consumes vs. `script/font_builder.py` vs. not yet
+  consumed at all).
   Every glyph's own stroke content is addressably seeded (not drawn from
   sequential stream position) -- the property a script *tweak*
   (`generation.generator.regenerate_script`) needs to redraw only what
@@ -9679,3 +9683,92 @@ reading code or one-off ad hoc scripts.
   glyph position renders a visibly sharper angular joint under crookedness-alone versus a visibly
   smoothed curved joint in the same position under roundedness, matching the described mechanism rather
   than coincidental noise.
+
+  **Pass 55: script redesign round 6 -- diacritic pool, frequency, spacing, dot/ornament sizing.** Six
+  points of direct feedback from testing pass 54's own build. Two investigated and found NOT to be
+  bugs before any code changed: a dot's own radius (`_DOT_RADIUS`, `font_builder.py`) was already a
+  fixed absolute em-unit constant, never scaled down by `_DIACRITIC_SCALE` -- a diacritic's own dot
+  already rendered at the identical size as a main letter's, confirmed by reading the render path, not
+  the symptom the user actually needed fixed (the *diacritic itself* reading too small/cluttered, which
+  the stroke-cap and pool changes below address instead). And `_weighted_dot_style`'s circle weight,
+  sampled 2000 times at `ornateness=0.0`, reproduced its documented `0.16` almost exactly -- not a
+  broken roll, but a usability consequence of `_dot_polygons`'s own `use_per_dot` design (a whole
+  *script* shares one style roll at low `ornateness`, correctly implementing pass 53's "one style
+  reused script-wide"): roughly 84% of scripts therefore showed *zero* circles anywhere, which reads
+  as "never" over a handful of real generates even though the per-roll odds matched spec. Fixed with a
+  direct weight rebalance (`0.16` -> `0.24`), not new mechanism.
+
+  The other four needed real restructuring, all in `generation/script_gen.py` and
+  `script/font_builder.py`. Root cause for the frequency/pool complaints: `_generate_diacritics` was
+  called from inside `generate_glyph`, once per *letter*, each call independently generating brand-new
+  diacritic glyph(s) off that letter's own seed -- there was no shared pool, and `diacritic_density`
+  was bipolar (`count = round(lerp(density, 0, 4))`), so every letter rolled its own independent 0-4
+  fresh diacritics with no reuse and no real frequency control.
+
+  `diacritic_density` renamed unipolar `0..1` (`SCRIPT_TRAIT_RANGE`, same mechanical change every
+  prior rename in this project has made -- `roll_script_traits` and every validator already read that
+  table generically). New `_build_diacritic_pool(seed, traits, grid_max_x, grid_max_y, direction)`,
+  called *once* in `generate_script` off the script's own top-level seed (not any letter) before the
+  per-symbol loop -- the same "addressable, not sequential-stream" convention this module's own
+  docstring already holds every other decision to. Pool size scales directly with
+  `diacritic_density` (`round(lerp01(density, 0, _DIACRITIC_POOL_MAX=5))`, floored to 1 whenever
+  density is positive at all, so a small positive density still has something real to draw from
+  rather than rounding to an unusable empty pool). Each pool entry is built by the existing
+  `generate_glyph` machinery exactly as before (`with_diacritics=False`, `is_diacritic=True`), with
+  its own stroke-count ceiling lowered from `3+2=5` to an absolute `_DIACRITIC_MAX_STROKES_CAP = 4`
+  (direct request), base `_DIACRITIC_MAX_STROKES_BASE = 2` (was 3) at `ornateness=0`.
+
+  `_generate_diacritics` replaced by `_attach_diacritics(seed_key, traits, direction, pool)`: no
+  longer generates anything, only *picks* from the pool already built. Count is now two independent
+  probability rolls instead of a flat formula -- `p1 = diacritic_density` directly (a literal reading
+  of "around 0.5, about half of letters should get a diacritic" -- the unipolar dial's own value *is*
+  the per-letter attach chance), and `p2 = diacritic_density**3 * 0.4` for a rare second instance, a
+  cubic ramp chosen specifically to stay small until density is already close to `1.0` without an
+  artificial threshold ("a chance to get 2... close to 1.0," never more than 2; density 0.5 -> 5%
+  chance of a second, 0.9 -> 29%, 1.0 -> 40%). Each instance still rolls a placement slot via the
+  unchanged `_roll_diacritic_slot` (ornateness/direction-driven, same guaranteed-distinct-slot
+  collision fallback, now only ever resolving a 2-instance collision instead of up to 4) *and* an
+  independent pool-pick roll scaled to `len(pool)`, selecting which pool shape that instance reuses.
+  `generate_glyph` gained a `diacritic_pool: tuple[Glyph, ...] = ()` parameter threaded from
+  `generate_script`'s new pool-building step to both the main per-symbol loop and its existing
+  duplicate-retry call. `Glyph.diacritics`'s own shape (`dict[str, Glyph]`) is untouched, and
+  `script.font_builder` needed no change for this part at all -- it only ever reads whatever `Glyph`
+  ends up in that dict, never where it came from, and reused diacritic shapes across different letters
+  is now the intended common case rather than a collision `generate_script`'s own duplicate-glyph
+  check needs to guard against.
+
+  Visible separation: new `_DIACRITIC_GAP_FRACTION = 0.07` (of the main glyph's own width/height, the
+  same relative-sizing convention `_DIACRITIC_SCALE` already uses) added in `_diacritic_offset` for
+  every external slot, pushing a diacritic's near edge that fraction further from the main glyph's own
+  edge instead of sitting flush against it (internal slots unaffected -- nested by design, no edge to
+  separate from) -- direct feedback that diacritics "mix up with the letter too much." Checked by hand
+  against `_ASCENT` headroom: worst case (a "top" diacritic, maximum `regularity` jitter) reaches
+  `550 + 0.07*550 + 220 + 35 = 843.5` em-units, still inside `_ASCENT = 850`.
+
+  Terminal ornaments: `OrnamentPreset.length_factor` changed from multiplying a fixed, UPM-absolute
+  `_ORNAMENT_BASE_LENGTH` (removed entirely) to multiplying the *attached stroke's own rendered
+  length* instead -- threaded through `_glyph_terminal_ornament_polygons` (which already computed that
+  length for direction-normalizing) into `_terminal_ornament_polygons`/`_ornament_main_points` as a
+  new parameter. Most presets retuned so their own fraction lands in `0.2..0.6` (direct request:
+  "terminal style is very tiny... should be between 0.2-0.6 of a stroke") -- `short_extension`/
+  `long_extension` deliberately kept above that band (`0.9`/`1.4`), flagged explicitly in both the
+  preset table's own comment and a dedicated test: pass 53's own direct request for "a longer stroke
+  extending beyond the normal size of the letters (Javanese)" only means something if that preset is
+  allowed to exceed "normal" ornament size.
+
+  **Verification**: new/rewritten tests in `tests/test_script_gen.py` (pool-size formula including
+  the positive-density floor, the 4-stroke absolute cap, statistical attach-rate checks at density
+  `0.0`/`0.5`/`1.0` matching the designed probabilities within a loose band, pool-reuse-by-identity
+  across many letters) and `tests/test_script_font_builder.py` (rebalanced dot-style exact-boundary
+  tests, a new external-slot-gap test, an ornament-length-scales-with-its-own-stroke test plus a
+  direct check that every non-exception preset's own `length_factor` falls in `0.2..0.6`); an 80-seed
+  stress test with every dial maxed (including the new pool/attach mechanics) built every font with
+  zero exceptions; full suite green. Live-verified through the real CLI, not just unit tests: three
+  languages generated at `diacritic_density` `0.0`/`0.5`/`1.0` (same seed, same inventory) -- reading
+  the saved `script.yaml` directly confirmed 0/80, 37/80 (~46%, matching the ~50% design target at
+  `0.5`), and 80/80 letters carrying at least one diacritic respectively, with exactly 5 distinct
+  diacritic shapes (`_DIACRITIC_POOL_MAX`) reused across all 80 letters at `diacritic_density=1.0` --
+  and all three rendered side by side through real exported `.ttf` fonts via inline `@font-face`,
+  confirming a visible gap between a diacritic mark and its letter and a visibly larger, better-
+  proportioned terminal ornament (a curling hook reading as a real fraction of its own stroke) where
+  pass 53's original fixed-UPM sizing had read as a near-invisible fleck.

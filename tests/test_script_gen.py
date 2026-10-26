@@ -458,34 +458,92 @@ def test_script_wide_seed_changes_with_a_topology_relevant_dial():
     )
 
 
-def test_generate_diacritics_count_matches_diacritic_density_even_with_zero_ornateness():
-    # The exact collision this guards against: at ornateness == 0, every instance's own "natural"
-    # roll collapses onto one identical slot, which a bumped-sub-key retry can't resolve (its own
-    # thresholds are also 0) -- must fall back to a guaranteed-distinct slot instead of silently
-    # dropping instances via dict-key overwrite.
-    traits = ScriptTraits(diacritic_density=1.0, ornateness=0.0, complexity=0.0)
-    diacritics = script_gen._generate_diacritics("collision-fallback", traits, 2, 2, WritingDirection.LTR)
-    assert len(diacritics) == 4
+def test_build_diacritic_pool_size_scales_with_diacritic_density():
+    traits = ScriptTraits(diacritic_density=0.0)
+    assert script_gen._build_diacritic_pool("pool-size", traits, 2, 2, WritingDirection.LTR) == ()
+
+    traits = ScriptTraits(diacritic_density=1.0)
+    pool = script_gen._build_diacritic_pool("pool-size", traits, 2, 2, WritingDirection.LTR)
+    assert len(pool) == script_gen._DIACRITIC_POOL_MAX
 
 
-def test_generate_diacritics_widens_stroke_count_ceiling_with_ornateness():
+def test_build_diacritic_pool_never_rounds_a_positive_density_down_to_empty():
+    # round(lerp01(0.1, 0, 5)) == round(0.5) == 0 in plain Python rounding -- without the floor, a
+    # letter that *does* roll a diacritic (a real possibility at density=0.1) would have nothing to
+    # draw from.
+    traits = ScriptTraits(diacritic_density=0.1)
+    pool = script_gen._build_diacritic_pool("pool-floor", traits, 2, 2, WritingDirection.LTR)
+    assert len(pool) >= 1
+
+
+def test_build_diacritic_pool_caps_strokes_at_four_even_at_full_ornateness():
+    traits = ScriptTraits(diacritic_density=1.0, ornateness=1.0, complexity=1.0)
+    for seed in range(30):
+        pool = script_gen._build_diacritic_pool(f"stroke-cap-{seed}", traits, 2, 2, WritingDirection.LTR)
+        assert all(len(d.strokes) <= script_gen._DIACRITIC_MAX_STROKES_CAP for d in pool)
+
+
+def test_build_diacritic_pool_widens_stroke_count_ceiling_with_ornateness():
     traits_lo = ScriptTraits(diacritic_density=1.0, ornateness=0.0, complexity=1.0)
     traits_hi = ScriptTraits(diacritic_density=1.0, ornateness=1.0, complexity=1.0)
     lo_strokes = max(
         len(d.strokes)
         for seed in range(30)
-        for d in script_gen._generate_diacritics(f"stroke-ceiling-{seed}", traits_lo, 2, 2, WritingDirection.LTR).values()
+        for d in script_gen._build_diacritic_pool(f"stroke-ceiling-{seed}", traits_lo, 2, 2, WritingDirection.LTR)
     )
     hi_strokes = max(
         len(d.strokes)
         for seed in range(30)
-        for d in script_gen._generate_diacritics(f"stroke-ceiling-{seed}", traits_hi, 2, 2, WritingDirection.LTR).values()
+        for d in script_gen._build_diacritic_pool(f"stroke-ceiling-{seed}", traits_hi, 2, 2, WritingDirection.LTR)
     )
     assert hi_strokes > lo_strokes
 
 
-def test_generated_diacritics_never_carry_their_own_diacritics():
+def test_pool_diacritics_never_carry_their_own_diacritics():
     traits = ScriptTraits(diacritic_density=1.0, complexity=1.0)
-    diacritics = script_gen._generate_diacritics("no-nesting", traits, 2, 2, WritingDirection.LTR)
-    assert diacritics
-    assert all(d.diacritics == {} for d in diacritics.values())
+    pool = script_gen._build_diacritic_pool("no-nesting", traits, 2, 2, WritingDirection.LTR)
+    assert pool
+    assert all(d.diacritics == {} for d in pool)
+
+
+def test_attach_diacritics_attaches_roughly_half_of_letters_at_density_one_half():
+    traits = ScriptTraits(diacritic_density=0.5, ornateness=0.3)
+    pool = script_gen._build_diacritic_pool("attach-rate", traits, 2, 2, WritingDirection.LTR)
+    attached = sum(
+        1 for i in range(2000)
+        if script_gen._attach_diacritics(f"letter-{i}", traits, WritingDirection.LTR, pool)
+    )
+    assert 850 < attached < 1150  # ~50% of 2000, loose statistical band
+
+
+def test_attach_diacritics_never_attaches_a_second_one_at_low_density():
+    traits = ScriptTraits(diacritic_density=0.5, ornateness=0.3)
+    pool = script_gen._build_diacritic_pool("second-rate-low", traits, 2, 2, WritingDirection.LTR)
+    counts = [
+        len(script_gen._attach_diacritics(f"letter-{i}", traits, WritingDirection.LTR, pool))
+        for i in range(2000)
+    ]
+    assert counts.count(2) / len(counts) < 0.05
+
+
+def test_attach_diacritics_can_attach_a_second_one_close_to_full_density():
+    traits = ScriptTraits(diacritic_density=1.0, ornateness=0.3)
+    pool = script_gen._build_diacritic_pool("second-rate-high", traits, 2, 2, WritingDirection.LTR)
+    counts = [
+        len(script_gen._attach_diacritics(f"letter-{i}", traits, WritingDirection.LTR, pool))
+        for i in range(2000)
+    ]
+    assert counts.count(2) / len(counts) > 0.2
+    assert max(counts) == 2
+
+
+def test_attach_diacritics_reuses_pool_entries_by_identity():
+    traits = ScriptTraits(diacritic_density=1.0, ornateness=0.3, complexity=0.5)
+    pool = script_gen._build_diacritic_pool("reuse-check", traits, 2, 2, WritingDirection.LTR)
+    seen_strokes = set()
+    for i in range(50):
+        for d in script_gen._attach_diacritics(f"letter-{i}", traits, WritingDirection.LTR, pool).values():
+            seen_strokes.add(d.strokes)
+    pool_strokes = {d.strokes for d in pool}
+    assert seen_strokes <= pool_strokes  # every attached diacritic came from the pool, nothing fresh
+    assert len(seen_strokes) <= len(pool)
