@@ -28,7 +28,7 @@ the stroke), ``slant`` (shear), ``proportion`` (horizontal scale),
 (a stroke tilts slightly off its own canonical angle, chain-propagated so
 connected strokes never visibly disconnect) and ``roundedness`` (corners --
 both internal joints and a stroke sequence's own loose ends -- smoothed into
-curves, applied *after* crookedness; see ``_round_chain``'s own docstring),
+curves, applied *after* crookedness; see ``_round_endpoints``'s own docstring),
 ``terminal_style`` (frequency of a per-glyph terminal ornament -- a hook/
 swirl/foot/extended stroke, one of 10 presets, at one stroke-end of some
 letters), ``serif`` (a separate, pervasive, script-wide stroke-end treatment
@@ -496,7 +496,7 @@ def _roll_terminal_ornaments(
     ``serif``'s own pervasive, per-script rule). Candidates are classified into ``_ornament_bucket``
     position buckets using *grid* coordinates (not the jittered em-space position -- a small jitter
     should never flip which bucket a point reads as). ``rounded_start``/``rounded_end`` (from
-    ``roundedness``'s own corner-rounding, see ``_round_chain``) exclude whichever stroke-ends rounding
+    ``roundedness``'s own corner-rounding, see ``_round_endpoints``) exclude whichever stroke-ends rounding
     already claimed -- a smoothed corner has no sharp terminus left for an ornament to sit on either.
     Returns ``(stroke_index, is_start, preset_index)`` triples; ``is_start`` picks which of that
     ``Stroke``'s own two endpoints."""
@@ -630,119 +630,257 @@ def _terminal_ornament_polygons(
     return polygons
 
 
-def _find_chains(strokes: tuple[Stroke, ...]) -> list[list[int]]:
-    """Groups ``LINE`` stroke indices into maximal chains -- consecutive ``LINE`` strokes connected by
-    stored ``Point`` equality, mirroring ``generation.script_gen``'s own ``chain_from`` semantics
-    exactly: a ``DOT`` (or, in principle, an ``ARC``) interposed between two ``LINE`` strokes doesn't
-    end the chain (the two surrounding ``LINE`` strokes still share a connection point in the stored
-    data, "picking up where left off"), it's simply skipped over and never appears in any chain -- it
-    renders through the existing, unchanged per-stroke ``_stroke_polygons`` path instead. A stroke
-    whose own ``start`` doesn't match the running chain's own last ``LINE`` end breaks it and starts a
-    fresh one (mirrors ``stroke_continuity`` choosing to lift the pen)."""
-    chains: list[list[int]] = []
-    current: list[int] = []
-    last_end: Point | None = None
+class _Component(NamedTuple):
+    """One connected group of ``LINE`` strokes, by shared grid ``Point`` -- not list adjacency. See
+    ``_build_connectivity``'s own docstring."""
+
+    order: list[Point]
+    """BFS discovery order, the component's own root (entry point) first."""
+    root_stroke_index: int
+    """The ``LINE`` stroke index whose own ``start`` became this component's root -- used only to seed
+    the root's own canonical position, the same ``jitter_glyph_index:{stroke_index}`` convention every
+    other jitter seed in this module already uses."""
+    parent_edge: dict[Point, tuple[int, bool]]
+    """Every non-root point's own discovering stroke -- ``(stroke_index, arrived_via_own_start)``. The
+    root has no entry here."""
+    closing_edges: list[int]
+    """``LINE`` stroke indices in this component that are *not* a spanning-tree edge -- both their own
+    endpoints were already reached some other way (a stroke that closes a loop, or one that attaches to
+    an already-drawn shape rather than extending it)."""
+
+
+def _build_connectivity(strokes: tuple[Stroke, ...]) -> list[_Component]:
+    """Groups ``LINE`` strokes into connected components by shared grid ``Point`` -- *any* two strokes
+    touching the same point are connected, not just strokes that happen to be list-consecutive with
+    ``stroke.start == previous.end`` (the old ``_find_chains``'s own, narrower rule). Direct user
+    feedback: "if they are connected by chance, they should count as actually connected" --
+    ``generation.script_gen``'s own ``_decide_stroke`` can start a fresh, unchained stroke at a point an
+    *earlier* stroke already used (a coincidental touch, e.g. a final stroke attached to an
+    already-drawn loop to turn a P into an R), and the old renderer treated that exactly like two
+    strokes that never touch at all -- fine at ``crookedness=0``/``roundedness=0`` (same raw point,
+    same baseline render), but a visible gap the instant either dial perturbs endpoints independently.
+
+    For each not-yet-visited root (the first ``LINE`` stroke's own ``start``, in list order -- same
+    determinism precedent ``_crooked_component_endpoints`` keeps for "the component's own entry point
+    stays canonical"), a breadth-first walk discovers every reachable point via *some* stroke, and
+    records that stroke as this point's own one ``parent_edge``. A spanning tree over ``n`` points needs
+    exactly ``n-1`` edges -- so once the walk finishes, any ``LINE`` stroke in this component that was
+    never used to discover a new point is, by construction, a *closing* edge: both its own endpoints
+    were already reached another way (a loop's own final side, or an attached stroke touching an
+    already-placed shape). ``_crooked_component_endpoints`` treats tree edges and closing edges very
+    differently -- see that function's own docstring."""
+    adjacency: dict[Point, list[tuple[int, Point]]] = {}
     for i, stroke in enumerate(strokes):
         if stroke.kind is not StrokeKind.LINE:
             continue
-        if current and stroke.start == last_end:
-            current.append(i)
+        adjacency.setdefault(stroke.start, []).append((i, stroke.end))
+        adjacency.setdefault(stroke.end, []).append((i, stroke.start))
+
+    visited: set[Point] = set()
+    tree_edges: set[int] = set()
+    components: list[_Component] = []
+    for root_stroke_index, stroke in enumerate(strokes):
+        if stroke.kind is not StrokeKind.LINE or stroke.start in visited:
+            continue
+        root = stroke.start
+        order = [root]
+        parent_edge: dict[Point, tuple[int, bool]] = {}
+        visited.add(root)
+        queue = [root]
+        head = 0
+        while head < len(queue):
+            point = queue[head]
+            head += 1
+            for edge_idx, other in adjacency.get(point, []):
+                if other in visited:
+                    continue
+                visited.add(other)
+                tree_edges.add(edge_idx)
+                parent_edge[other] = (edge_idx, strokes[edge_idx].start == point)
+                order.append(other)
+                queue.append(other)
+        component_points = set(order)
+        closing_edges = [
+            j for j, s in enumerate(strokes)
+            if s.kind is StrokeKind.LINE and j not in tree_edges
+            and s.start in component_points and s.end in component_points
+        ]
+        components.append(_Component(
+            order=order, root_stroke_index=root_stroke_index, parent_edge=parent_edge, closing_edges=closing_edges,
+        ))
+    return components
+
+
+_MIN_JOINT_ANGLE_DEGREES = 15.0
+"""Forbid a crookedness-tilted stroke from folding back near-parallel to the one that fed it -- direct
+user feedback that extreme crookedness could produce "really tiny angles that look ugly random and not
+like anything that would exist in a real language." Measured as the interior angle between "back the
+way the walk arrived" and the candidate tilted direction leaving a point; ``generation.script_gen``'s
+own ``exclude_direction`` already keeps the *untilted* canonical angle from ever exactly retracing (a
+zero-degree interior angle), so clamping only ever has to walk partway back from a rolled tilt toward
+that already-safe canonical baseline, never all the way to zero."""
+
+
+def _clamp_tilt_for_min_angle(canonical_angle: float, tilt_deg: float, arrival_angle: float) -> float:
+    """The largest-magnitude tilt (same sign as ``tilt_deg``, shrunk toward 0 if needed) that keeps the
+    interior angle between the incoming direction (``arrival_angle``) and the resulting outgoing
+    direction at or above ``_MIN_JOINT_ANGLE_DEGREES`` -- see that constant's own docstring. A plain
+    bisection (25 iterations, far past the precision this ever needs): the interior-angle function isn't
+    algebraically trivial to invert directly, but is well-behaved between the untilted canonical angle
+    (always safe, per that constant's own docstring) and the full rolled tilt."""
+    forbidden = arrival_angle + math.pi
+
+    def interior_angle_degrees(t_deg: float) -> float:
+        angle = canonical_angle + math.radians(t_deg)
+        diff = abs(((angle - forbidden + math.pi) % (2 * math.pi)) - math.pi)
+        return math.degrees(diff)
+
+    if interior_angle_degrees(tilt_deg) >= _MIN_JOINT_ANGLE_DEGREES:
+        return tilt_deg
+    if interior_angle_degrees(0.0) < _MIN_JOINT_ANGLE_DEGREES:
+        return 0.0
+    lo, hi = 0.0, tilt_deg
+    for _ in range(25):
+        mid = (lo + hi) / 2.0
+        if interior_angle_degrees(mid) >= _MIN_JOINT_ANGLE_DEGREES:
+            lo = mid
         else:
-            if current:
-                chains.append(current)
-            current = [i]
-        last_end = stroke.end
-    if current:
-        chains.append(current)
-    return chains
+            hi = mid
+    return lo
 
 
-def _crooked_chain_endpoints(
-    strokes: tuple[Stroke, ...], chain: list[int], traits, jitter_glyph_index: int | str,
+def _crooked_component_endpoints(
+    strokes: tuple[Stroke, ...], component: _Component, traits, jitter_glyph_index: int | str,
     grid_unit_x: float, grid_unit_y: float, offset_x: float, offset_y: float,
 ) -> dict[int, tuple[float, float, float, float]]:
-    """``crookedness`` (Part C): walks one chain's own ``LINE`` strokes in order, applying each one's
-    own per-stroke tilt (selection + magnitude both seeded) while propagating connectivity -- every
-    stroke's own rendered start is always wherever the chain currently is (never independently
-    jittered again), its own rendered end is that start plus its own *canonical* (jittered, pre-tilt)
-    length at its own (possibly tilted) angle -- "the next stroke should move its start point along...
-    always move end point," direct user phrasing. The chain's own first stroke keeps its plain
-    canonical+jittered start (nothing precedes it to inherit from). Returns ``stroke_index -> (x0, y0,
-    x1, y1)``."""
-    endpoints: dict[int, tuple[float, float, float, float]] = {}
-    current: tuple[float, float] | None = None
-    for stroke_index in chain:
-        stroke = strokes[stroke_index]
-        jitter_prefix = f"{jitter_glyph_index}:{stroke_index}"
+    """``crookedness`` (Part B): walks ``_build_connectivity``'s own spanning tree instead of a simple
+    ordered chain. The component's own root gets its plain canonical+jittered position (nothing
+    precedes it to inherit from, same precedent the old per-chain walk already set). Walking
+    ``component.order``, each further point's position is ``parent_position + length * angle`` --
+    ``length``/the untilted ``canonical_angle`` both read from the two points' own canonical (jittered)
+    positions, direction-symmetric (works whether this point was discovered via its own stroke's
+    ``start`` or ``end``); the tilt itself is the same per-edge seeded roll as before (a selection roll,
+    then a uniform draw scaled by ``crookedness * 45`` degrees), now passed through
+    ``_clamp_tilt_for_min_angle`` whenever the point being placed has a parent that is itself not the
+    root (an actual incoming direction to measure a corner against -- the root's own direct children
+    have nothing to retrace, so aren't clamped).
+
+    Once every point has a position, every stroke in the component -- tree edge or
+    ``component.closing_edges`` alike -- is read off by one uniform ``(*positions[stroke.start],
+    *positions[stroke.end])`` lookup. A closing edge's own two points are therefore *already* both
+    resolved by the time this runs, so it never gets its own independent tilt at all: it renders as the
+    plain straight connector between wherever its two ends landed -- the direct fix for "that final
+    stroke should not be... skewed away by crookedness" (and, symmetrically, why a closed loop's own
+    closing stroke keeps the loop closed, whatever shape ``roundedness`` then turns its corners into)."""
+    positions: dict[Point, tuple[float, float]] = {}
+    arrival_angle: dict[Point, float] = {}
+
+    root = component.order[0]
+    positions[root] = _point_to_em(
+        root, f"{jitter_glyph_index}:{component.root_stroke_index}:a", traits, grid_unit_x, grid_unit_y,
+        offset_x, offset_y,
+    )
+
+    for point in component.order[1:]:
+        edge_idx, forward = component.parent_edge[point]
+        stroke = strokes[edge_idx]
+        jitter_prefix = f"{jitter_glyph_index}:{edge_idx}"
         orig_start = _point_to_em(stroke.start, f"{jitter_prefix}:a", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
         orig_end = _point_to_em(stroke.end, f"{jitter_prefix}:b", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
-        length = math.hypot(orig_end[0] - orig_start[0], orig_end[1] - orig_start[1])
-        canonical_angle = math.atan2(orig_end[1] - orig_start[1], orig_end[0] - orig_start[0])
+        orig_parent, orig_child = (orig_start, orig_end) if forward else (orig_end, orig_start)
+        parent_point = stroke.start if forward else stroke.end
+
+        length = math.hypot(orig_child[0] - orig_parent[0], orig_child[1] - orig_parent[1])
+        canonical_angle = math.atan2(orig_child[1] - orig_parent[1], orig_child[0] - orig_parent[0])
         select_roll = (_stable_unit(f"{jitter_prefix}:crook-select") + 1.0) / 2.0
         if select_roll < traits.crookedness:
             tilt_deg = _stable_unit(f"{jitter_prefix}:crook-angle") * traits.crookedness * 45.0
+            if parent_point in arrival_angle:
+                tilt_deg = _clamp_tilt_for_min_angle(canonical_angle, tilt_deg, arrival_angle[parent_point])
             angle = canonical_angle + math.radians(tilt_deg)
         else:
             angle = canonical_angle
-        start = current if current is not None else orig_start
-        end = (start[0] + length * math.cos(angle), start[1] + length * math.sin(angle))
-        endpoints[stroke_index] = (start[0], start[1], end[0], end[1])
-        current = end
-    return endpoints
+
+        parent_pos = positions[parent_point]
+        positions[point] = (parent_pos[0] + length * math.cos(angle), parent_pos[1] + length * math.sin(angle))
+        arrival_angle[point] = angle
+
+    component_strokes = {edge_idx for edge_idx, _ in component.parent_edge.values()} | set(component.closing_edges)
+    return {
+        idx: (*positions[strokes[idx].start], *positions[strokes[idx].end])
+        for idx in component_strokes
+    }
 
 
 _ROUNDING_SAFETY_CEILING = 0.9
 """Never let a single stroke's own two end-truncations (one from each side -- possible when both its
-own loose end and its adjacent joint get rounded, or on a 1-stroke chain where both loose ends do) sum
-past this fraction of its own length -- a plain, direct guard against a zero-or-negative-length
-remnant. The user's own spec describes each side's rounding independently and doesn't need to address
-this interaction, since it only ever arises from two *different* decisions both landing on one stroke."""
+own loose end and its adjacent joint get rounded, or on an isolated 1-stroke component where both loose
+ends do) sum past this fraction of its own length -- a plain, direct guard against a zero-or-negative-
+length remnant. The user's own spec describes each side's rounding independently and doesn't need to
+address this interaction, since it only ever arises from two *different* decisions both landing on one
+stroke."""
 
 
 def _virtual_neighbor_direction(
-    dir_x: float, dir_y: float, chain_len: int, random_key: str, roundedness: float,
+    dir_x: float, dir_y: float, is_isolated: bool, random_key: str, roundedness: float,
 ) -> tuple[float, float]:
-    """The direction for a synthesized *virtual* stroke used to round a chain's own loose end (see
-    ``_round_chain``) -- continuing the one real adjacent stroke's own direction verbatim for a
-    multi-stroke chain ("continue the bend of the bend after it," read as: keep the directional flow
-    the loose end's own neighbor is already committed to, rather than introducing an unrelated new
-    heading), or that same direction plus a random offset for a 1-stroke chain ("if it is... a single
-    straight stroke... random direction within the 2x2 frame, with 1.0 meaning 90 degrees")."""
+    """The direction a loose end's own replacement tail bends from (see ``_round_endpoints``) --
+    continuing the stroke's own forward direction verbatim when its other end is shared with something
+    else ("continue the bend of the bend after it," read as: keep the directional flow the loose end's
+    own neighbor is already committed to, rather than introducing an unrelated new heading), or that
+    same direction plus a random offset when ``is_isolated`` (both of this stroke's own ends are
+    unshared -- "if it is... a single straight stroke... random direction within the 2x2 frame, with
+    1.0 meaning 90 degrees")."""
     angle = math.atan2(dir_y, dir_x)
-    if chain_len == 1:
+    if is_isolated:
         offset_deg = _stable_unit(random_key) * roundedness * 90.0
         angle += math.radians(offset_deg)
     return math.cos(angle), math.sin(angle)
 
 
-def _round_chain(
-    chain: list[int], crooked: dict[int, tuple[float, float, float, float]], traits, jitter_glyph_index: int | str,
+def _round_endpoints(
+    strokes: tuple[Stroke, ...], crooked: dict[int, tuple[float, float, float, float]], traits,
+    jitter_glyph_index: int | str,
 ) -> tuple[
     dict[int, tuple[float, float, float, float]], list[tuple[float, float, float, float, float]],
     dict[int, bool], dict[int, bool],
 ]:
-    """``roundedness`` (Part D), on top of ``crooked`` (Part C's own output). Two passes:
+    """``roundedness`` (Part C), keyed by grid-point *degree* (how many ``LINE`` stroke-ends touch it)
+    instead of list adjacency -- a single pass over the whole scope's own strokes, not per-component
+    (a point's degree already fully determines whether, and how, it rounds, and two different
+    components can never share a point by definition).
 
-    1. **Selection** -- for each internal joint (chain-adjacent ``LINE`` stroke pair) and each of the
-       chain's own two loose ends (the leading start, the trailing end), an independent seeded roll
-       decides whether it rounds at all (probability ``roundedness``). A loose end rounds against a
-       *synthesized virtual stroke* (``_virtual_neighbor_direction``) rather than a special case --
-       the exact same corner math below handles both an internal joint (two real strokes) and a loose
-       end (one real, one virtual), keeping only the real side's own result.
-    2. **Geometry** -- for every selected corner, the fraction ``f = roundedness * 0.5`` ("100% means
-       from 50% along one stroke to 50% along the second," direct user phrasing) locates ``P1``/``P2``
-       on the two sides; the new rounding arc's own ``bulge`` is solved (``_bulge_through_point``) so
-       its control point lands as close as possible to the original sharp corner. ``_ROUNDING_SAFETY_
-       CEILING`` clamps a single stroke's own two fractions (computed *before* any geometry, so the
-       clamped fraction is used consistently for both the straight truncation and its own arc
-       endpoint) if both its own sides got selected.
+    - **Degree 1** (a true loose end): the length-preserving bend described below.
+    - **Degree 2** (a normal joint, however its two touching edges happen to meet): the existing
+      two-sided joint math, generalized to whichever side of each edge actually meets this point --
+      fires identically whether the two edges are simple chain-adjacent or a stroke attached to an
+      already-drawn shape (a P's own loop plus the stroke that turns it into an R, or a closed loop's
+      own final corner).
+    - **Degree 3+** (a branch point): left alone entirely -- no truncation, no rounding, stays at its
+      resolved (post-crookedness) position. A deliberate, flagged scope limit: three-or-more strokes
+      meeting at one point is rare on this project's own tiny grids, and leaving it sharp is a safe
+      default rather than a more elaborate multi-way corner model.
 
-    Returns ``(segments, arcs, rounded_start, rounded_end)`` -- ``segments`` is each stroke's own final
-    (possibly truncated) ``(x0, y0, x1, y1)``; ``arcs`` is a list of ``(x0, y0, x1, y1, bulge)`` curves
-    to additionally render; ``rounded_start``/``rounded_end`` flag which stroke-ends rounding claimed,
-    for serif/terminal-ornament attachment to skip."""
-    n = len(chain)
+    Loose-end geometry, fixed per direct user feedback ("that was not my intention, I just meant it to
+    turn away at an angle, but not become longer"): the old implementation placed the bend's own far
+    point on a *virtual* stroke the same length as the real one, past the stroke's own original
+    endpoint by up to half its own length. The new far point is the truncation point plus ``f *
+    stroke_length`` along the chosen direction instead -- a replacement tail exactly as long as the
+    straight portion it replaces, so turning away never reaches further than the original stroke did.
+
+    Returns ``(segments, arcs, rounded_start, rounded_end)`` -- see the old ``_round_chain``'s own
+    return-value shape (unchanged): ``segments`` is each stroke's own final (possibly truncated)
+    ``(x0, y0, x1, y1)``; ``arcs`` is a list of ``(x0, y0, x1, y1, bulge)`` curves to additionally
+    render; ``rounded_start``/``rounded_end`` flag which stroke-ends rounding claimed, for serif/
+    terminal-ornament attachment to skip."""
     f = traits.roundedness * 0.5
+
+    touches: dict[Point, list[tuple[int, bool]]] = {}
+    for idx, stroke in enumerate(strokes):
+        if stroke.kind is not StrokeKind.LINE:
+            continue
+        touches.setdefault(stroke.start, []).append((idx, True))
+        touches.setdefault(stroke.end, []).append((idx, False))
 
     def selected(key: str) -> bool:
         if traits.roundedness <= 0.0:
@@ -750,71 +888,81 @@ def _round_chain(
         roll = (_stable_unit(f"{key}:round-select") + 1.0) / 2.0
         return roll < traits.roundedness
 
-    joint_selected = [selected(f"{jitter_glyph_index}:{chain[j]}:{chain[j + 1]}:joint") for j in range(n - 1)]
-    start_selected = selected(f"{jitter_glyph_index}:{chain[0]}:loose-start")
-    end_selected = selected(f"{jitter_glyph_index}:{chain[-1]}:loose-end")
+    rounded_start: dict[int, bool] = {idx: False for idx, s in enumerate(strokes) if s.kind is StrokeKind.LINE}
+    rounded_end: dict[int, bool] = {idx: False for idx, s in enumerate(strokes) if s.kind is StrokeKind.LINE}
 
-    rounded_start: dict[int, bool] = {idx: False for idx in chain}
-    rounded_end: dict[int, bool] = {idx: False for idx in chain}
-    if start_selected:
-        rounded_start[chain[0]] = True
-    if end_selected:
-        rounded_end[chain[-1]] = True
-    for j, rounds in enumerate(joint_selected):
-        if rounds:
-            rounded_end[chain[j]] = True
-            rounded_start[chain[j + 1]] = True
+    def point_key(p: Point) -> str:
+        return f"{jitter_glyph_index}:point:{p.x},{p.y}"
+
+    joints = [(p, t[0], t[1]) for p, t in touches.items() if len(t) == 2]
+    loose_ends = [(p, t[0][0], t[0][1]) for p, t in touches.items() if len(t) == 1]
+    joint_selected = {p: selected(f"{point_key(p)}:joint") for p, _, _ in joints}
+    loose_selected = {p: selected(f"{point_key(p)}:loose") for p, _, _ in loose_ends}
+
+    for point, (idx_a, start_a), (idx_b, start_b) in joints:
+        if joint_selected[point]:
+            rounded_start[idx_a] = rounded_start[idx_a] or start_a
+            rounded_end[idx_a] = rounded_end[idx_a] or not start_a
+            rounded_start[idx_b] = rounded_start[idx_b] or start_b
+            rounded_end[idx_b] = rounded_end[idx_b] or not start_b
+    for point, idx, is_start in loose_ends:
+        if loose_selected[point]:
+            if is_start:
+                rounded_start[idx] = True
+            else:
+                rounded_end[idx] = True
 
     stroke_fraction: dict[int, float] = {}
-    for idx in chain:
+    for idx, stroke in enumerate(strokes):
+        if stroke.kind is not StrokeKind.LINE:
+            continue
         both = rounded_start[idx] and rounded_end[idx]
         stroke_fraction[idx] = min(f, 0.45) if both and 2 * f > _ROUNDING_SAFETY_CEILING else f
 
+    def side_point(idx: int, is_start_side: bool, fraction: float) -> tuple[float, float]:
+        x0, y0, x1, y1 = crooked[idx]
+        if is_start_side:
+            return x0 + (x1 - x0) * fraction, y0 + (y1 - y0) * fraction
+        return x0 + (x1 - x0) * (1 - fraction), y0 + (y1 - y0) * (1 - fraction)
+
     arcs: list[tuple[float, float, float, float, float]] = []
 
-    for j, rounds in enumerate(joint_selected):
-        if not rounds:
+    for point, (idx_a, start_a), (idx_b, start_b) in joints:
+        if not joint_selected[point]:
             continue
-        idx_a, idx_b = chain[j], chain[j + 1]
         fa, fb = stroke_fraction[idx_a], stroke_fraction[idx_b]
-        ax0, ay0, ax1, ay1 = crooked[idx_a]
-        bx0, by0, bx1, by1 = crooked[idx_b]
-        corner_x, corner_y = ax1, ay1  # == bx0, by0
-        p1x, p1y = ax0 + (ax1 - ax0) * (1 - fa), ay0 + (ay1 - ay0) * (1 - fa)
-        p2x, p2y = bx0 + (bx1 - bx0) * fb, by0 + (by1 - by0) * fb
+        p1x, p1y = side_point(idx_a, start_a, fa)
+        p2x, p2y = side_point(idx_b, start_b, fb)
+        cx0, cy0, cx1, cy1 = crooked[idx_a]
+        corner_x, corner_y = (cx0, cy0) if start_a else (cx1, cy1)
         bulge = _bulge_through_point(p1x, p1y, p2x, p2y, corner_x, corner_y)
         arcs.append((p1x, p1y, p2x, p2y, bulge))
 
-    if start_selected:
-        idx = chain[0]
-        fa = stroke_fraction[idx]
-        sx0, sy0, sx1, sy1 = crooked[idx]
-        length = math.hypot(sx1 - sx0, sy1 - sy0) or 1.0
+    for point, idx, is_start in loose_ends:
+        if not loose_selected[point]:
+            continue
+        stroke = strokes[idx]
+        other_point = stroke.end if is_start else stroke.start
+        is_isolated = len(touches[other_point]) == 1
+        fraction = stroke_fraction[idx]
+        x0, y0, x1, y1 = crooked[idx]
+        length = math.hypot(x1 - x0, y1 - y0) or 1.0
+        tail_length = fraction * length
+        truncation_x, truncation_y = side_point(idx, is_start, fraction)
         vdx, vdy = _virtual_neighbor_direction(
-            sx1 - sx0, sy1 - sy0, n, f"{jitter_glyph_index}:{idx}:end-angle-start", traits.roundedness,
+            x1 - x0, y1 - y0, is_isolated,
+            f"{jitter_glyph_index}:{idx}:{'start' if is_start else 'end'}:end-angle", traits.roundedness,
         )
-        vx0, vy0 = sx0 - vdx * length, sy0 - vdy * length
-        p1x, p1y = vx0 + (sx0 - vx0) * (1 - fa), vy0 + (sy0 - vy0) * (1 - fa)
-        p2x, p2y = sx0 + (sx1 - sx0) * fa, sy0 + (sy1 - sy0) * fa
-        bulge = _bulge_through_point(p1x, p1y, p2x, p2y, sx0, sy0)
-        arcs.append((p1x, p1y, p2x, p2y, bulge))
-
-    if end_selected:
-        idx = chain[-1]
-        fb = stroke_fraction[idx]
-        sx0, sy0, sx1, sy1 = crooked[idx]
-        length = math.hypot(sx1 - sx0, sy1 - sy0) or 1.0
-        vdx, vdy = _virtual_neighbor_direction(
-            sx1 - sx0, sy1 - sy0, n, f"{jitter_glyph_index}:{idx}:end-angle-end", traits.roundedness,
-        )
-        vx1, vy1 = sx1 + vdx * length, sy1 + vdy * length
-        p1x, p1y = sx0 + (sx1 - sx0) * (1 - fb), sy0 + (sy1 - sy0) * (1 - fb)
-        p2x, p2y = sx1 + (vx1 - sx1) * fb, sy1 + (vy1 - sy1) * fb
-        bulge = _bulge_through_point(p1x, p1y, p2x, p2y, sx1, sy1)
-        arcs.append((p1x, p1y, p2x, p2y, bulge))
+        sign = -1.0 if is_start else 1.0
+        tip_x, tip_y = truncation_x + sign * tail_length * vdx, truncation_y + sign * tail_length * vdy
+        loose_x, loose_y = (x0, y0) if is_start else (x1, y1)
+        bulge = _bulge_through_point(truncation_x, truncation_y, tip_x, tip_y, loose_x, loose_y)
+        arcs.append((truncation_x, truncation_y, tip_x, tip_y, bulge))
 
     segments: dict[int, tuple[float, float, float, float]] = {}
-    for idx in chain:
+    for idx, stroke in enumerate(strokes):
+        if stroke.kind is not StrokeKind.LINE:
+            continue
         sx0, sy0, sx1, sy1 = crooked[idx]
         fa = stroke_fraction[idx] if rounded_start[idx] else 0.0
         fb = stroke_fraction[idx] if rounded_end[idx] else 0.0
@@ -831,48 +979,49 @@ def _render_scope(
 ) -> tuple[list[list[tuple[float, float]]], list[float], dict[int, bool], dict[int, bool], dict[int, tuple[float, float, float, float]]]:
     """All polygons for one glyph-or-diacritic *scope*'s own strokes (a main glyph's own ``glyph.
     strokes``, or one diacritic's own ``diac.strokes``) -- ``DOT``/``ARC`` via the unchanged per-stroke
-    ``_stroke_polygons`` path, ``LINE`` strokes grouped into chains (``_find_chains``) and run through
-    ``crookedness`` (``_crooked_chain_endpoints``) then ``roundedness`` (``_round_chain``), with serif
-    attachment skipping whichever stroke-end rounding claimed. Returns ``(polygons, xs, rounded_start,
-    rounded_end, segments)`` -- ``xs`` is every x-coordinate touched (``_build_glyph_outline``'s own
-    advance-width extent is computed from this directly); the last three are only meaningful for
-    ``LINE`` strokes and are what the main glyph's own terminal-ornament roll needs."""
+    ``_stroke_polygons`` path, ``LINE`` strokes grouped into connected components (``_build_
+    connectivity``) and run through ``crookedness`` (``_crooked_component_endpoints``) then
+    ``roundedness`` (``_round_endpoints``, one global pass over every component's own output), with
+    serif attachment skipping whichever stroke-end rounding claimed. Returns ``(polygons, xs,
+    rounded_start, rounded_end, segments)`` -- ``xs`` is every x-coordinate touched (``_build_glyph_
+    outline``'s own advance-width extent is computed from this directly); the last three are only
+    meaningful for ``LINE`` strokes and are what the main glyph's own terminal-ornament roll needs."""
     polygons: list[list[tuple[float, float]]] = []
     xs: list[float] = []
     width = _stroke_width(traits)
     contrast = lerp01(traits.stroke_contrast, 0.0, 0.45)
     w_start, w_end = width * (1 + contrast), width * (1 - contrast)
 
-    rounded_start: dict[int, bool] = {}
-    rounded_end: dict[int, bool] = {}
-    segments: dict[int, tuple[float, float, float, float]] = {}
-
-    for chain in _find_chains(strokes):
-        crooked = _crooked_chain_endpoints(strokes, chain, traits, jitter_glyph_index, grid_unit_x, grid_unit_y, offset_x, offset_y)
-        chain_segments, arcs, ch_rounded_start, ch_rounded_end = _round_chain(chain, crooked, traits, jitter_glyph_index)
-        rounded_start.update(ch_rounded_start)
-        rounded_end.update(ch_rounded_end)
-        segments.update(chain_segments)
-
-        for idx in chain:
-            x0, y0, x1, y1 = chain_segments[idx]
-            cx0, cy0, cx1, cy1 = crooked[idx]
-            full_length = math.hypot(cx1 - cx0, cy1 - cy0) or 1.0
-            t0 = math.hypot(x0 - cx0, y0 - cy0) / full_length
-            t1 = 1.0 - math.hypot(cx1 - x1, cy1 - y1) / full_length
-            sw0 = w_start + (w_end - w_start) * t0
-            sw1 = w_start + (w_end - w_start) * t1
-            polygons.append(_quad(x0, y0, x1, y1, sw0, sw1))
-            xs.extend([x0, x1])
-            polygons.extend(
-                _serif_polygons_for_stroke(
-                    strokes[idx], x0, y0, x1, y1, width, f"{jitter_glyph_index}:{idx}", serif_rule,
-                    start_available=not ch_rounded_start[idx], end_available=not ch_rounded_end[idx],
-                )
+    crooked: dict[int, tuple[float, float, float, float]] = {}
+    for component in _build_connectivity(strokes):
+        crooked.update(
+            _crooked_component_endpoints(
+                strokes, component, traits, jitter_glyph_index, grid_unit_x, grid_unit_y, offset_x, offset_y,
             )
-        for ax0, ay0, ax1, ay1, bulge in arcs:
-            polygons.extend(_arc_polygons(ax0, ay0, ax1, ay1, bulge, width, width))
-            xs.extend([ax0, ax1])
+        )
+    segments, arcs, rounded_start, rounded_end = _round_endpoints(strokes, crooked, traits, jitter_glyph_index)
+
+    for idx, stroke in enumerate(strokes):
+        if stroke.kind is not StrokeKind.LINE:
+            continue
+        x0, y0, x1, y1 = segments[idx]
+        cx0, cy0, cx1, cy1 = crooked[idx]
+        full_length = math.hypot(cx1 - cx0, cy1 - cy0) or 1.0
+        t0 = math.hypot(x0 - cx0, y0 - cy0) / full_length
+        t1 = 1.0 - math.hypot(cx1 - x1, cy1 - y1) / full_length
+        sw0 = w_start + (w_end - w_start) * t0
+        sw1 = w_start + (w_end - w_start) * t1
+        polygons.append(_quad(x0, y0, x1, y1, sw0, sw1))
+        xs.extend([x0, x1])
+        polygons.extend(
+            _serif_polygons_for_stroke(
+                stroke, x0, y0, x1, y1, width, f"{jitter_glyph_index}:{idx}", serif_rule,
+                start_available=not rounded_start[idx], end_available=not rounded_end[idx],
+            )
+        )
+    for ax0, ay0, ax1, ay1, bulge in arcs:
+        polygons.extend(_arc_polygons(ax0, ay0, ax1, ay1, bulge, width, width))
+        xs.extend([ax0, ax1])
 
     for i, stroke in enumerate(strokes):
         if stroke.kind is StrokeKind.LINE:

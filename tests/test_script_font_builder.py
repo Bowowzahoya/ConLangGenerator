@@ -18,20 +18,22 @@ from conlang_generator.script.font_builder import (
     _DIACRITIC_SCALE,
     _DOT_RADIUS,
     _LETTER_SCALE,
+    _MIN_JOINT_ANGLE_DEGREES,
     _ROUNDING_SAFETY_CEILING,
     _TERMINAL_ORNAMENT_PRESETS,
     UPM,
     SerifRule,
+    _build_connectivity,
     _build_glyph_outline,
     _bulge_through_point,
+    _clamp_tilt_for_min_angle,
     _classify_orientation,
-    _crooked_chain_endpoints,
+    _crooked_component_endpoints,
     _diacritic_offset,
     _dot_polygons,
-    _find_chains,
     _ornament_main_points,
     _render_scope,
-    _round_chain,
+    _round_endpoints,
     _roll_serif_rule,
     _roll_terminal_ornaments,
     _serif_polygons_for_stroke,
@@ -416,7 +418,7 @@ def test_diacritic_offset_external_slots_are_separated_from_the_main_glyphs_own_
     assert y_internal == -height_diac / 2.0
 
 
-# --- chain identification (Part B) ----------------------------------------------------------------
+# --- connectivity (Part A) --------------------------------------------------------------------------
 
 
 def _line(sx: int, sy: int, ex: int, ey: int) -> Stroke:
@@ -427,61 +429,119 @@ def _dot_stroke(x: int, y: int) -> Stroke:
     return Stroke(kind=StrokeKind.DOT, start=Point(x=x, y=y), end=Point(x=x, y=y))
 
 
-def test_find_chains_groups_connected_line_strokes():
+def test_build_connectivity_groups_connected_line_strokes():
     strokes = (_line(0, 0, 1, 0), _line(1, 0, 1, 1), _line(1, 1, 2, 2))
-    assert _find_chains(strokes) == [[0, 1, 2]]
+    components = _build_connectivity(strokes)
+    assert len(components) == 1
+    assert len(components[0].order) == 4  # 4 distinct points, 3 strokes, no closing edge
+    assert components[0].closing_edges == []
 
 
-def test_find_chains_a_dot_does_not_break_the_chain():
-    # "A dot never breaks the stroke chain" -- the two surrounding LINE strokes still share a
-    # connection point in the stored data, same as generation.script_gen's own chain_from semantics.
+def test_build_connectivity_a_dot_does_not_break_the_component():
     strokes = (_line(0, 0, 1, 0), _dot_stroke(2, 2), _line(1, 0, 1, 1))
-    assert _find_chains(strokes) == [[0, 2]]
+    components = _build_connectivity(strokes)
+    assert len(components) == 1  # the dot is ignored entirely; strokes 0 and 2 still connect
 
 
-def test_find_chains_a_pen_lift_starts_a_new_chain():
-    strokes = (_line(0, 0, 1, 0), _line(2, 2, 2, 1))  # second doesn't start where the first ended
-    assert _find_chains(strokes) == [[0], [1]]
+def test_build_connectivity_a_pen_lift_starts_a_new_component():
+    strokes = (_line(0, 0, 1, 0), _line(2, 2, 2, 1))  # second doesn't touch the first anywhere
+    assert len(_build_connectivity(strokes)) == 2
 
 
-def test_find_chains_dot_only_strokes_produce_no_chains():
-    assert _find_chains((_dot_stroke(0, 0), _dot_stroke(1, 1))) == []
+def test_build_connectivity_dot_only_strokes_produce_no_components():
+    assert _build_connectivity((_dot_stroke(0, 0), _dot_stroke(1, 1))) == []
 
 
-# --- crookedness (Part C) -------------------------------------------------------------------------
+def test_build_connectivity_links_strokes_that_touch_by_chance_not_just_list_order():
+    # Direct user feedback: "if they are connected by chance, they should count as actually
+    # connected." Stroke 1 touches stroke 0's own point, but isn't list-consecutive with it (its own
+    # `start` doesn't match stroke 0's `end`) -- the old `_find_chains` would have missed this.
+    strokes = (_line(0, 0, 1, 0), _line(2, 2, 1, 0))
+    components = _build_connectivity(strokes)
+    assert len(components) == 1
+    assert len(components[0].order) == 3
 
 
-def test_crooked_chain_endpoints_never_tilts_at_zero_crookedness():
+def test_build_connectivity_a_closed_loop_produces_exactly_one_closing_edge():
+    # A square: 4 strokes, 4 points, back to the start -- a spanning tree over 4 points needs only 3
+    # edges, so exactly one of the 4 strokes must be a closing edge.
+    strokes = (_line(0, 0, 0, 2), _line(0, 2, 2, 2), _line(2, 2, 2, 0), _line(2, 0, 0, 0))
+    components = _build_connectivity(strokes)
+    assert len(components) == 1
+    assert len(components[0].order) == 4
+    assert len(components[0].closing_edges) == 1
+
+
+# --- crookedness (Part B) ---------------------------------------------------------------------------
+
+
+def _crooked(strokes: tuple[Stroke, ...], traits, key: str) -> dict[int, tuple[float, float, float, float]]:
+    crooked: dict[int, tuple[float, float, float, float]] = {}
+    for component in _build_connectivity(strokes):
+        crooked.update(_crooked_component_endpoints(strokes, component, traits, key, 100.0, 100.0, 0.0, 0.0))
+    return crooked
+
+
+def test_crooked_component_endpoints_never_tilts_at_zero_crookedness():
     strokes = (_line(0, 0, 2, 0), _line(2, 0, 2, 2))
     traits = ScriptTraits(crookedness=0.0)
-    chain = _find_chains(strokes)[0]
-    endpoints = _crooked_chain_endpoints(strokes, chain, traits, "g", 100.0, 100.0, 0.0, 0.0)
+    endpoints = _crooked(strokes, traits, "g")
     x0, y0, x1, y1 = endpoints[0]
     assert abs(y1 - y0) < 1e-9  # stays horizontal (canonical angle 0)
     x0b, y0b, x1b, y1b = endpoints[1]
     assert abs(x1b - x0b) < 1e-9  # stays vertical
 
 
-def test_crooked_chain_endpoints_stays_connected_across_a_chain():
+def test_crooked_component_endpoints_stays_connected_across_a_chain():
     # "The next stroke should move its start point along" -- every chain-interior joint must stay
     # exactly glued, even at full crookedness.
     strokes = (_line(0, 0, 2, 0), _line(2, 0, 2, 2), _line(2, 2, 0, 2))
     traits = ScriptTraits(crookedness=1.0)
-    chain = _find_chains(strokes)[0]
-    endpoints = _crooked_chain_endpoints(strokes, chain, traits, "connectivity-check", 100.0, 100.0, 0.0, 0.0)
-    for a, b in zip(chain, chain[1:]):
+    endpoints = _crooked(strokes, traits, "connectivity-check")
+    for a, b in ((0, 1), (1, 2)):
         ax0, ay0, ax1, ay1 = endpoints[a]
         bx0, by0, bx1, by1 = endpoints[b]
         assert abs(ax1 - bx0) < 1e-9
         assert abs(ay1 - by0) < 1e-9
 
 
-def test_crooked_chain_endpoints_preserves_each_strokes_own_length():
+def test_crooked_component_endpoints_keeps_a_touch_by_chance_connected():
+    # The round-7 fix itself: stroke 1 touches stroke 0's own endpoint without being its list
+    # successor -- it must stay glued there even at full crookedness (direct user feedback: a P's own
+    # loop plus an attached final stroke, turning it into an R, must not visibly disconnect).
+    strokes = (_line(0, 0, 2, 0), _line(3, 2, 2, 0))
+    traits = ScriptTraits(crookedness=1.0)
+    for seed in range(20):
+        endpoints = _crooked(strokes, traits, f"touch-check-{seed}")
+        ax0, ay0, ax1, ay1 = endpoints[0]
+        bx0, by0, bx1, by1 = endpoints[1]
+        assert abs(ax1 - bx1) < 1e-6
+        assert abs(ay1 - by1) < 1e-6
+
+
+def test_crooked_component_endpoints_keeps_a_closed_loop_closed():
+    # Direct user feedback: "a closed off square can turn into a circle, diamond or blob but not
+    # disconnect" -- the loop's own closing edge is never independently tilted, so its two endpoints
+    # always land exactly where the tree walk already placed them.
+    strokes = (_line(0, 0, 0, 2), _line(0, 2, 2, 2), _line(2, 2, 2, 0), _line(2, 0, 0, 0))
+    traits = ScriptTraits(crookedness=1.0)
+    for seed in range(20):
+        endpoints = _crooked(strokes, traits, f"loop-check-{seed}")
+        # Walk the 4 strokes in their own stored order and confirm each one's end matches the next
+        # one's start (wrapping around) -- a closed ring, regardless of which stroke the connectivity
+        # builder happened to pick as the non-tilted closing edge.
+        for a, b in ((0, 1), (1, 2), (2, 3), (3, 0)):
+            ax0, ay0, ax1, ay1 = endpoints[a]
+            bx0, by0, bx1, by1 = endpoints[b]
+            assert abs(ax1 - bx0) < 1e-6
+            assert abs(ay1 - by0) < 1e-6
+
+
+def test_crooked_component_endpoints_preserves_each_strokes_own_length():
     strokes = (_line(0, 0, 2, 0), _line(2, 0, 2, 2))
     traits = ScriptTraits(crookedness=1.0)
-    chain = _find_chains(strokes)[0]
-    endpoints = _crooked_chain_endpoints(strokes, chain, traits, "length-check", 100.0, 100.0, 0.0, 0.0)
-    for idx in chain:
+    endpoints = _crooked(strokes, traits, "length-check")
+    for idx in (0, 1):
         x0, y0, x1, y1 = endpoints[idx]
         canonical_length = math.hypot(
             (strokes[idx].end.x - strokes[idx].start.x) * 100.0, (strokes[idx].end.y - strokes[idx].start.y) * 100.0,
@@ -489,27 +549,60 @@ def test_crooked_chain_endpoints_preserves_each_strokes_own_length():
         assert abs(math.hypot(x1 - x0, y1 - y0) - canonical_length) < 1e-6
 
 
-def test_crooked_chain_endpoints_never_tilts_past_45_degrees_at_full_crookedness():
+def test_crooked_component_endpoints_never_tilts_past_45_degrees_at_full_crookedness():
     strokes = (_line(0, 0, 2, 0),)
     traits = ScriptTraits(crookedness=1.0)
     for seed in range(40):
-        chain = _find_chains(strokes)[0]
-        endpoints = _crooked_chain_endpoints(strokes, chain, traits, f"angle-bound-{seed}", 100.0, 100.0, 0.0, 0.0)
+        endpoints = _crooked(strokes, traits, f"angle-bound-{seed}")
         x0, y0, x1, y1 = endpoints[0]
         angle = math.degrees(math.atan2(y1 - y0, x1 - x0))
         assert abs(angle) <= 45.0 + 1e-6
 
 
-def test_crooked_chain_endpoints_is_deterministic():
+def test_crooked_component_endpoints_is_deterministic():
     strokes = (_line(0, 0, 2, 0), _line(2, 0, 2, 2))
     traits = ScriptTraits(crookedness=0.7)
-    chain = _find_chains(strokes)[0]
-    a = _crooked_chain_endpoints(strokes, chain, traits, "determinism-check", 100.0, 100.0, 0.0, 0.0)
-    b = _crooked_chain_endpoints(strokes, chain, traits, "determinism-check", 100.0, 100.0, 0.0, 0.0)
+    a = _crooked(strokes, traits, "determinism-check")
+    b = _crooked(strokes, traits, "determinism-check")
     assert a == b
 
 
-# --- roundedness (Part D) --------------------------------------------------------------------------
+def test_clamp_tilt_for_min_angle_passes_through_a_safe_tilt_unchanged():
+    assert _clamp_tilt_for_min_angle(math.radians(0.0), 10.0, math.radians(90.0)) == 10.0
+
+
+def test_clamp_tilt_for_min_angle_shrinks_a_tilt_that_would_fold_back():
+    # canonical=250, arrival=90 -- "retrace" (the forbidden direction) is at 90+180=270 degrees. A
+    # candidate tilt of 20 degrees lands the outgoing angle exactly on 270 (full fold-back).
+    canonical, arrival, tilt = math.radians(250.0), math.radians(90.0), 20.0
+    clamped = _clamp_tilt_for_min_angle(canonical, tilt, arrival)
+    assert 0.0 <= clamped < tilt
+    resulting_angle_deg = math.degrees(canonical) + clamped
+    forbidden_deg = math.degrees(arrival) + 180.0
+    interior = abs(((resulting_angle_deg - forbidden_deg + 180) % 360) - 180)
+    assert interior >= _MIN_JOINT_ANGLE_DEGREES - 1e-6
+
+
+def test_crooked_component_endpoints_never_produces_a_sub_minimum_interior_angle():
+    # Direct user feedback: "extreme crookedness sometimes leads to really tiny angles" -- across many
+    # seeds and a 3-stroke right-angle chain (each canonical turn 90 degrees, well within reach of a
+    # +/-45-degree tilt on each side folding toward the other), no interior angle at either interior
+    # joint should ever drop below the minimum.
+    strokes = (_line(0, 0, 2, 0), _line(2, 0, 2, 2), _line(2, 2, 0, 2))
+    traits = ScriptTraits(crookedness=1.0)
+    for seed in range(60):
+        endpoints = _crooked(strokes, traits, f"min-angle-{seed}")
+        for a, b in ((0, 1), (1, 2)):
+            ax0, ay0, ax1, ay1 = endpoints[a]
+            bx0, by0, bx1, by1 = endpoints[b]
+            incoming = math.atan2(ay1 - ay0, ax1 - ax0)
+            outgoing = math.atan2(by1 - by0, bx1 - bx0)
+            forbidden = incoming + math.pi
+            interior = abs(((outgoing - forbidden + math.pi) % (2 * math.pi)) - math.pi)
+            assert math.degrees(interior) >= _MIN_JOINT_ANGLE_DEGREES - 1e-3
+
+
+# --- roundedness (Part C) ---------------------------------------------------------------------------
 
 
 def test_bulge_through_point_is_zero_when_target_is_on_the_chord_itself():
@@ -520,40 +613,40 @@ def test_bulge_through_point_is_nonzero_for_a_target_off_the_chord():
     assert _bulge_through_point(0.0, 0.0, 10.0, 0.0, 5.0, 4.0) != 0.0
 
 
-def test_virtual_neighbor_direction_continues_verbatim_for_a_multi_stroke_chain():
-    # "Continue the bend of the bend after it" -- for a real chain, no perturbation at all.
-    vdx, vdy = _virtual_neighbor_direction(1.0, 0.0, 2, "any-key", 1.0)
+def test_virtual_neighbor_direction_continues_verbatim_when_not_isolated():
+    # "Continue the bend of the bend after it" -- when the stroke's other end is shared with
+    # something else, no perturbation at all.
+    vdx, vdy = _virtual_neighbor_direction(1.0, 0.0, False, "any-key", 1.0)
     assert abs(vdx - 1.0) < 1e-9
     assert abs(vdy - 0.0) < 1e-9
 
 
-def test_virtual_neighbor_direction_adds_a_bounded_random_offset_for_a_single_stroke_chain():
+def test_virtual_neighbor_direction_adds_a_bounded_random_offset_when_isolated():
     for seed in range(30):
-        vdx, vdy = _virtual_neighbor_direction(1.0, 0.0, 1, f"offset-{seed}", 1.0)
+        vdx, vdy = _virtual_neighbor_direction(1.0, 0.0, True, f"offset-{seed}", 1.0)
         delta = math.degrees(math.atan2(vdy, vdx))
         delta = (delta + 180) % 360 - 180
         assert abs(delta) <= 90.0 + 1e-6
 
 
 def test_virtual_neighbor_direction_offset_is_zero_at_zero_roundedness():
-    vdx, vdy = _virtual_neighbor_direction(1.0, 0.0, 1, "any-key", 0.0)
+    vdx, vdy = _virtual_neighbor_direction(1.0, 0.0, True, "any-key", 0.0)
     assert abs(vdx - 1.0) < 1e-9
     assert abs(vdy - 0.0) < 1e-9
 
 
-def test_round_chain_is_a_no_op_at_zero_roundedness():
+def test_round_endpoints_is_a_no_op_at_zero_roundedness():
     strokes = (_line(0, 0, 2, 0), _line(2, 0, 2, 2))
     traits = ScriptTraits(crookedness=0.0, roundedness=0.0)
-    chain = _find_chains(strokes)[0]
-    crooked = _crooked_chain_endpoints(strokes, chain, traits, "noop", 100.0, 100.0, 0.0, 0.0)
-    segments, arcs, rounded_start, rounded_end = _round_chain(chain, crooked, traits, "noop")
+    crooked = _crooked(strokes, traits, "noop")
+    segments, arcs, rounded_start, rounded_end = _round_endpoints(strokes, crooked, traits, "noop")
     assert arcs == []
     assert segments == crooked
     assert not any(rounded_start.values())
     assert not any(rounded_end.values())
 
 
-def test_round_chain_truncates_by_the_described_linear_fraction():
+def test_round_endpoints_truncates_by_the_described_linear_fraction():
     # "100% means from 50% along one stroke to 50% along the second" -- f = roundedness * 0.5. Uses
     # roundedness=0.6 (f=0.3, 2f=0.6) rather than 1.0 so the result is never ambiguous with the safety
     # clamp (which only ever engages above a 0.9 combined fraction) -- that's covered separately below.
@@ -561,15 +654,14 @@ def test_round_chain_truncates_by_the_described_linear_fraction():
     # sub-1.0 roundedness), the same seed-search pattern this test module already uses elsewhere.
     strokes = (_line(0, 0, 2, 0), _line(2, 0, 2, 2))
     traits = ScriptTraits(crookedness=0.0, roundedness=0.6)
-    chain = _find_chains(strokes)[0]
     f = 0.3
     for seed in range(50):
         key = f"midpoint-check-{seed}"
-        crooked = _crooked_chain_endpoints(strokes, chain, traits, key, 100.0, 100.0, 0.0, 0.0)
-        segments, arcs, rounded_start, rounded_end = _round_chain(chain, crooked, traits, key)
-        if rounded_end[chain[0]] and rounded_start[chain[1]]:
-            ax0, ay0, ax1, ay1 = crooked[chain[0]]
-            seg_ax0, seg_ay0, seg_ax1, seg_ay1 = segments[chain[0]]
+        crooked = _crooked(strokes, traits, key)
+        segments, arcs, rounded_start, rounded_end = _round_endpoints(strokes, crooked, traits, key)
+        if rounded_end[0] and rounded_start[1]:
+            ax0, ay0, ax1, ay1 = crooked[0]
+            seg_ax0, seg_ay0, seg_ax1, seg_ay1 = segments[0]
             assert abs(seg_ax1 - (ax0 + (ax1 - ax0) * (1 - f))) < 1e-6
             assert abs(seg_ay1 - (ay0 + (ay1 - ay0) * (1 - f))) < 1e-6
             assert len(arcs) >= 1
@@ -577,14 +669,55 @@ def test_round_chain_truncates_by_the_described_linear_fraction():
     raise AssertionError("no seed produced a selected joint to test against")
 
 
-def test_round_chain_safety_clamp_prevents_a_stroke_collapsing_to_zero_length():
-    # A 1-stroke chain can have BOTH its own loose ends independently selected -- without the clamp,
+def test_round_endpoints_loose_end_never_reaches_further_than_the_original_stroke():
+    # Direct user feedback: "that was not my intention, I just meant it to turn away at an angle, but
+    # not become longer" -- across many seeds, no point on any rounding arc should land further from
+    # the stroke's own well-connected end than the stroke's own original length.
+    strokes = (_line(0, 0, 2, 2),)
+    traits = ScriptTraits(roundedness=1.0)
+    for seed in range(40):
+        key = f"no-overshoot-{seed}"
+        crooked = _crooked(strokes, traits, key)
+        x0, y0, x1, y1 = crooked[0]
+        original_length = math.hypot(x1 - x0, y1 - y0)
+        segments, arcs, rounded_start, rounded_end = _round_endpoints(strokes, crooked, traits, key)
+        for ax0, ay0, ax1, ay1, bulge in arcs:
+            assert math.hypot(ax0 - x0, ay0 - y0) <= original_length + 1e-6
+            assert math.hypot(ax1 - x0, ay1 - y0) <= original_length + 1e-6
+
+
+def test_round_endpoints_keeps_a_touch_by_chance_connected():
+    # The round-7 fix: two strokes sharing a point they weren't list-chained through must round (or
+    # not) as ONE joint decision, never disconnecting -- direct user feedback's own "outcrop" report.
+    strokes = (_line(0, 0, 2, 0), _line(3, 2, 2, 0))
+    traits = ScriptTraits(roundedness=1.0)
+    for seed in range(20):
+        key = f"touch-round-{seed}"
+        crooked = _crooked(strokes, traits, key)
+        segments, arcs, rounded_start, rounded_end = _round_endpoints(strokes, crooked, traits, key)
+        # Both sides of the shared point must agree -- either both rounded or neither.
+        assert rounded_end[0] == rounded_end[1]
+
+
+def test_round_endpoints_leaves_a_degree_three_branch_point_untouched():
+    # Three strokes meeting at one point -- a deliberate, flagged scope limit: no rounding there at
+    # all, regardless of roundedness.
+    strokes = (_line(0, 0, 1, 1), _line(1, 1, 2, 0), _line(2, 2, 1, 1))
+    traits = ScriptTraits(roundedness=1.0)
+    crooked = _crooked(strokes, traits, "branch-check")
+    segments, arcs, rounded_start, rounded_end = _round_endpoints(strokes, crooked, traits, "branch-check")
+    assert rounded_end[0] is False
+    assert rounded_start[1] is False
+    assert rounded_end[2] is False
+
+
+def test_round_endpoints_safety_clamp_prevents_a_stroke_collapsing_to_zero_length():
+    # An isolated stroke can have BOTH its own loose ends independently selected -- without the clamp,
     # f=0.5 on each side would consume the stroke's entire length (and then some).
     strokes = (_line(0, 0, 2, 0),)
     traits = ScriptTraits(crookedness=0.0, roundedness=1.0)
-    chain = _find_chains(strokes)[0]
-    crooked = _crooked_chain_endpoints(strokes, chain, traits, "safety-clamp-check", 100.0, 100.0, 0.0, 0.0)
-    segments, arcs, rounded_start, rounded_end = _round_chain(chain, crooked, traits, "safety-clamp-check")
+    crooked = _crooked(strokes, traits, "safety-clamp-check")
+    segments, arcs, rounded_start, rounded_end = _round_endpoints(strokes, crooked, traits, "safety-clamp-check")
     assert rounded_start[0] and rounded_end[0]
     x0, y0, x1, y1 = segments[0]
     remaining = math.hypot(x1 - x0, y1 - y0)
@@ -593,13 +726,12 @@ def test_round_chain_safety_clamp_prevents_a_stroke_collapsing_to_zero_length():
     assert remaining >= -1e-9  # never negative
 
 
-def test_round_chain_is_deterministic():
+def test_round_endpoints_is_deterministic():
     strokes = (_line(0, 0, 2, 0), _line(2, 0, 2, 2))
     traits = ScriptTraits(crookedness=0.0, roundedness=0.6)
-    chain = _find_chains(strokes)[0]
-    crooked = _crooked_chain_endpoints(strokes, chain, traits, "round-determinism", 100.0, 100.0, 0.0, 0.0)
-    a = _round_chain(chain, crooked, traits, "round-determinism")
-    b = _round_chain(chain, crooked, traits, "round-determinism")
+    crooked = _crooked(strokes, traits, "round-determinism")
+    a = _round_endpoints(strokes, crooked, traits, "round-determinism")
+    b = _round_endpoints(strokes, crooked, traits, "round-determinism")
     assert a == b
 
 

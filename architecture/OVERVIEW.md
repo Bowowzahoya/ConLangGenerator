@@ -1723,9 +1723,11 @@ splits data from mechanism:
   `terminal_style`), a script-wide *serif* rule (coverage/sides/
   shape/thickness, rolled once and applied consistently, a deliberately
   separate mechanic from the ornament system), and *crookedness*/
-  *roundedness* (per-chain stroke-tilting and corner-smoothing, run in
-  that order on every connected run of `LINE` strokes -- main glyph and
-  each diacritic processed as independent chain-scopes -- before any of
+  *roundedness* (stroke-tilting and corner-smoothing, run in that order
+  over every connected component of `LINE` strokes -- any two strokes
+  sharing a grid point, not just list-consecutive ones, so a stroke
+  touching an already-drawn shape "by chance" stays connected to it --
+  main glyph and each diacritic processed independently, before any of
   the other subsystems see a stroke's own final endpoints). A pure function of the
   `InventedScript` data alone (never RNG state) throughout, including
   "organic jitter" rendering (`regularity`'s own effect) and the three
@@ -9772,3 +9774,94 @@ reading code or one-off ad hoc scripts.
   confirming a visible gap between a diacritic mark and its letter and a visibly larger, better-
   proportioned terminal ornament (a curling hook reading as a real fraction of its own stroke) where
   pass 53's original fixed-UPM sizing had read as a near-invisible fleck.
+
+  **Pass 56: real topology for crookedness/roundedness.** Five observations from testing pass 55's own
+  build, all traced to `script/font_builder.py` -- `generation/script_gen.py`'s own stroke topology was
+  already complete, the renderer just wasn't reading all of it. Root cause for three of the five,
+  confirmed by direct investigation before proposing a fix: `_find_chains` only ever linked `LINE`
+  strokes that were strictly list-consecutive with `stroke.start == previous.end`. `script_gen`'s own
+  `_decide_stroke`, when *not* chaining (`stroke_continuity`'s own roll), picks a fresh random point for
+  a new stroke's start -- which can coincidentally land on a point an *earlier*, unrelated stroke
+  already used (the classic "draw a P, then attach one more stroke to make an R" case the user named
+  directly). At `crookedness=0`/`roundedness=0` this still looked connected (same raw grid `Point`,
+  same baseline render); the instant either dial perturbed stroke endpoints independently, the
+  coincidental touch was exposed as a gap -- two screenshots showed this as "2 lines became 3" under
+  crookedness and a small "outcrop" under roundedness, and the user's own framing ("a closed off square
+  can turn into a circle, diamond or blob but not disconnect") named the same mechanism a third way.
+  Direct user instruction fixed it outright: "if they are connected by chance, they should count as
+  actually connected."
+
+  **Part A: real connectivity.** `_find_chains` (simple consecutive-list grouping) replaced by
+  `_build_connectivity(strokes) -> list[_Component]` -- connected components over *shared grid `Point`s*
+  instead of list order. Builds a `Point -> [(stroke_index, other_point)]` adjacency from every `LINE`
+  stroke's own `start`/`end` (both directions), then for each not-yet-visited root (the first `LINE`
+  stroke's own `start`, in list order -- same determinism precedent the old "chain's own first stroke
+  stays canonical" already set) runs a breadth-first walk. Every point discovered this way gets exactly
+  one *tree edge* (the stroke that first reached it, with a recorded direction -- arrived via that
+  stroke's own `start` or `end`); since a spanning tree over `n` points needs exactly `n-1` edges, any
+  `LINE` stroke in the component never used to discover a new point is, by construction, a *closing
+  edge* -- no separate detection pass needed, it falls out of simple counting. `_Component` carries the
+  BFS order, a `parent_edge: dict[Point, tuple[int, bool]]`, and the `closing_edges` list.
+
+  **Part B: crookedness walks the tree; closing edges are solved, not tilted.** `_crooked_chain_
+  endpoints` replaced by `_crooked_component_endpoints`, direction-symmetric now (works whether a point
+  was discovered via its own stroke's `start` or `end`) but otherwise walking exactly as before: the
+  root's own point gets its plain canonical+jittered position, each further point's position is
+  `parent_position + length * angle(canonical + tilt)`. Once the walk finishes, *every* stroke in the
+  component -- tree edge or closing edge alike -- is read off by one uniform `(*positions[stroke.
+  start], *positions[stroke.end])` lookup. A closing edge's own two points are therefore *already* both
+  resolved by the time this runs, so it never gets an independent tilt at all: it renders as the plain
+  straight connector between wherever its two ends landed -- the literal fix for "that final stroke
+  should not be... skewed away by crookedness," and symmetrically why a closed loop's own closing stroke
+  keeps the loop closed regardless of what `roundedness` then does to its corners.
+
+  New minimum-angle clamp, a direct response to a fourth observation ("extreme crookedness sometimes
+  leads to really tiny angles that look ugly random and not like anything that would exist in a real
+  language. Small angles should be forbidden (maybe below 15 degrees)"): `_MIN_JOINT_ANGLE_DEGREES =
+  15.0` and `_clamp_tilt_for_min_angle(canonical_angle, tilt_deg, arrival_angle)`, a 25-iteration
+  bisection shrinking a candidate tilt's own magnitude (toward the untilted canonical angle, which
+  `script_gen`'s own `exclude_direction` already keeps from ever exactly retracing -- so the bisection
+  only ever has to walk partway, never all the way to zero) until the interior angle between "back the
+  way the walk arrived" and the candidate outgoing direction clears the minimum. Applied whenever a
+  point being placed has a parent that is itself not the root (an actual incoming direction exists to
+  measure a corner against) -- a root's own direct children have nothing to retrace, so aren't clamped.
+
+  **Part C: roundedness keyed by point degree.** `_round_chain` (per-chain, list-adjacent joints plus
+  exactly two loose ends) replaced by `_round_endpoints(strokes, crooked, traits, jitter_glyph_index)`
+  -- one global pass over the whole scope's own strokes, not per-component (a point's degree already
+  fully determines connectivity, and two different components can never share a point by definition).
+  Classifies every grid `Point` touched by at least one `LINE` stroke-end: degree 1 (a true loose end)
+  gets the loose-end bend below; degree 2 (a normal joint, however its two touching edges happen to
+  meet -- chain-adjacent or a coincidental touch, identical math either way) gets the existing two-sided
+  truncate-and-bulge treatment, generalized to whichever side of each edge actually meets the point
+  (not assumed to be "the earlier stroke's own end paired with the later one's own start"); degree 3+
+  (a branch point) is left alone entirely -- no truncation, no rounding, a deliberate, flagged scope
+  limit (three-or-more strokes meeting at one point is rare on this project's own tiny grids, and a
+  sharp, unmodified branch point is a safe default rather than a more elaborate multi-way corner model
+  this round doesn't need).
+
+  Loose-end geometry fixed per the first of the five observations ("that was not my intention, I just
+  meant it to turn away at an angle, but not become longer"): the old implementation placed the bend's
+  own far point on a synthesized virtual stroke the *same length* as the real one, landing past the
+  stroke's own original endpoint by up to half its own length at `roundedness=1.0` -- a literal
+  overshoot, not a turn. The new far point is the existing truncation point (unchanged) plus `f *
+  stroke_length` along the chosen direction (`_virtual_neighbor_direction`, itself only lightly
+  generalized -- `chain_len == 1` becomes `is_isolated`, true when the edge's *other* endpoint is also
+  degree 1) -- a replacement tail exactly as long as the straight portion it replaces, so turning away
+  never reaches further than the original stroke did.
+
+  **Verification**: the chain/crookedness/roundedness section of `tests/test_script_font_builder.py`
+  rewritten for the new API shapes, plus new coverage specifically for the fixes this pass makes: a
+  touch-by-chance pair staying connected under both dials (`test_crooked_component_endpoints_keeps_a_
+  touch_by_chance_connected`, `test_round_endpoints_keeps_a_touch_by_chance_connected`), a closed loop
+  staying closed across many seeds, loose-end reach never exceeding the original stroke's own length
+  across many seeds, the minimum-angle clamp (both a direct unit test of `_clamp_tilt_for_min_angle`
+  and a 60-seed check across a real 3-stroke right-angle chain that no interior angle ever drops below
+  the minimum), and a degree-3 branch point staying completely unrounded. An 80-seed stress test with
+  every dial maxed (crookedness/roundedness/diacritic_density/ornateness/terminal_style/serif all at
+  `1.0`) built every font with zero exceptions; full suite green. Live-verified through the real CLI:
+  three languages generated at the same seed with `crookedness`/`roundedness` forced to `0.5` and
+  `stroke_continuity` forced negative (to encourage pen-lifts, and with them the touch-by-chance cases
+  this round specifically targets), rendered side by side against their own `0.0` baseline via inline
+  `@font-face` -- confirmed no stray fragments or outcrops across roughly 20 real glyphs at either dial,
+  matching the two attached screenshots' own reported defects having been addressed.

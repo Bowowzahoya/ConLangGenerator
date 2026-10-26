@@ -343,6 +343,49 @@ multi-session feature.
   respectively, with exactly 5 distinct diacritic shapes reused across all 80 letters at density
   `1.0` -- and rendered via `@font-face`, confirming a visible gap between mark and letter and
   better-proportioned terminal ornaments.
+- **Script redesign round 7: real topology for crookedness/roundedness -- done (pass 56), direct user
+  feedback (five observations from testing pass 55's own build).** All five traced to `script.
+  font_builder` only -- `generation.script_gen`'s own stroke topology was already correct, the renderer
+  just wasn't reading all of it. Root cause for three of the five, confirmed by direct investigation:
+  `_find_chains` only linked `LINE` strokes that were strictly list-consecutive with `stroke.start ==
+  previous.end` -- but `script_gen`'s own `_decide_stroke`, when not chaining, can start a fresh stroke
+  at a point an *earlier*, unrelated stroke already used (the classic "draw a P, then attach one more
+  stroke to make an R" case). At `crookedness=0`/`roundedness=0` this coincidental touch still looked
+  connected (same raw grid point); the instant either dial perturbed endpoints independently, the touch
+  was exposed as a gap -- "2 lines became 3," a small outcrop at the connection point, and a closed
+  loop no longer staying closed were all this same bug, not three separate ones.
+
+  `_find_chains` replaced by `_build_connectivity`: connected components over *shared grid points*
+  (any two `LINE` strokes touching the same point, not just list-consecutive ones), each with a BFS
+  spanning tree -- a stroke used to discover a new point is a *tree edge*; any stroke left over (both
+  its own endpoints already reached another way) is a *closing edge* by construction. `_crooked_chain_
+  endpoints` replaced by `_crooked_component_endpoints`: walks the tree exactly as the old code walked
+  a simple chain, but closing edges are never independently tilted -- rendered as the plain straight
+  connector between wherever their two already-resolved endpoints landed, which is the direct fix for
+  "that final stroke should not be... skewed away by crookedness" and for a closed loop staying closed.
+  `_round_chain` replaced by `_round_endpoints`, keyed by point *degree* instead of list adjacency:
+  degree 1 (a true loose end) rounds, degree 2 (a normal joint, however its two edges happen to meet)
+  rounds with the existing two-sided math generalized to whichever side touches, degree 3+ (a branch
+  point) is left alone entirely -- a deliberate, flagged scope limit.
+
+  Two further, independent fixes in the same pass. Loose-end rounding used to overshoot: it reused the
+  joint math against a synthesized virtual stroke the *same length* as the real one, landing its own far
+  point past the stroke's own original endpoint by up to half its own length -- direct user feedback
+  ("that was not my intention, I just meant it to turn away at an angle, but not become longer") fixed
+  by making the replacement tail exactly `f * stroke_length` long instead, never reaching further than
+  the original stroke did. And a new `_clamp_tilt_for_min_angle` (bisection, `_MIN_JOINT_ANGLE_DEGREES
+  = 15.0`) forbids a crookedness-tilted stroke from folding back near-parallel to the one that fed it --
+  direct user feedback that extreme crookedness could produce "really tiny angles that look ugly random."
+
+  Verified: the chain/crookedness/roundedness section of `tests/test_script_font_builder.py` rewritten
+  for the new API, plus new tests specifically for a touch-by-chance pair staying connected under both
+  dials, a closed loop staying closed, loose-end reach never exceeding the original stroke's own
+  length, the minimum-angle clamp (both in isolation and across many seeds of a real 3-stroke chain),
+  and a degree-3 branch point staying unrounded; an 80-seed stress test at every dial maxed built every
+  font with zero exceptions; full suite green. Live-verified via the CLI/`@font-face`: real languages
+  generated at `crookedness`/`roundedness` `0.5` with low `stroke_continuity` (to encourage the
+  touch-by-chance cases this round specifically targets) showed no stray fragments or outcrops across
+  ~20 real glyphs at either dial, compared directly against the same seed's own baseline render.
 - **Small diacritic marks attached near a letter -- done (pass 51), a deliberately lighter-weight
   cousin of the real abugida idea below, not the same thing.** `Glyph.diacritics: dict[str, Glyph]`;
   each diacritic is a small glyph built by the exact same stroke-generation process as any letter
