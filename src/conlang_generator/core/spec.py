@@ -101,7 +101,7 @@ class GenerationSpec(BaseModel, frozen=True):
     the normal roll decide" -- see ``generation/romanization_gen.py``."""
     forced_script_traits: ScriptTraitsForce = ScriptTraitsForce()
     """Same unconditional channel again, one level more granular: forces
-    individual ``ScriptTraits`` dials (angularity, weight, ...) rather
+    individual ``ScriptTraits`` dials (roundedness, weight, ...) rather
     than whether a script is generated at all (that's still
     ``force_own_script`` above). All-``None`` (the default) means "not
     forced, let ``generation.script_gen.roll_script_traits`` decide" --

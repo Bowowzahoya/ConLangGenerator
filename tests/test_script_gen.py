@@ -119,11 +119,12 @@ def test_every_glyph_has_at_least_one_stroke():
 
 
 def test_generation_never_produces_an_arc_stroke():
-    # Phase 1 drawing is lines (and dots) only -- angularity no longer decides a line-vs-arc choice
-    # at generation time (see ScriptTraits.angularity's own docstring); forcing it to its old
-    # "always arc" extreme must still never produce one.
+    # Phase 1 drawing is lines (and dots) only -- roundedness (renamed from angularity) synthesizes
+    # rounded corners entirely at render time (script.font_builder), never a generation-time line-vs-arc
+    # choice (see ScriptTraits.roundedness's own docstring); forcing it to its own max must still never
+    # produce a stored ARC stroke.
     language = cached_language(0)
-    script = script_gen.generate_script("1", language.phonology, ScriptTraitsForce(angularity=-1.0))
+    script = script_gen.generate_script("1", language.phonology, ScriptTraitsForce(roundedness=1.0))
     for glyph in script.glyphs:
         assert all(s.kind is not StrokeKind.ARC for s in glyph.strokes)
 
@@ -434,6 +435,27 @@ def test_roll_diacritic_slot_fixed_sign_is_script_wide_not_per_instance():
         script_gen._roll_diacritic_slot(f"slot-fixed-{i}", traits, WritingDirection.LTR) for i in range(50)
     }
     assert len(slots) == 1
+
+
+def test_script_wide_seed_is_unaffected_by_a_non_topology_dial():
+    # Real bug, caught by direct testing (regenerate_script with only weight/slant forced changed a
+    # diacritic's own stored slot, violating "non-topology dials never touch stroke data"): the old
+    # implementation hashed the *entire* traits blob, so any render-only field change -- even one
+    # SCRIPT_TRAIT_GROUP classifies as non-topology -- could flip the script-wide fixed sign. Only the
+    # topology-group dials (plus ornateness, the documented exception) may ever change it.
+    base = ScriptTraits(weight=-0.8, slant=0.3, serif=0.9, terminal_style=-0.5, stroke_contrast=0.7)
+    tweaked = base.model_copy(update={"weight": 0.9, "slant": -0.7, "serif": 0.0, "terminal_style": 1.0})
+    assert script_gen._script_wide_seed(base, WritingDirection.LTR) == script_gen._script_wide_seed(
+        tweaked, WritingDirection.LTR
+    )
+
+
+def test_script_wide_seed_changes_with_a_topology_relevant_dial():
+    base = ScriptTraits(complexity=0.0)
+    tweaked = base.model_copy(update={"complexity": 0.9})
+    assert script_gen._script_wide_seed(base, WritingDirection.LTR) != script_gen._script_wide_seed(
+        tweaked, WritingDirection.LTR
+    )
 
 
 def test_generate_diacritics_count_matches_diacritic_density_even_with_zero_ornateness():

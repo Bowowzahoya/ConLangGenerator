@@ -275,13 +275,21 @@ genuinely few distinct possible shapes/slots."""
 
 
 def _script_wide_seed(traits: ScriptTraits, direction: WritingDirection) -> str:
-    """A fingerprint of script-wide (not per-glyph) data -- traits plus direction -- for a decision
-    that must come out identical for every glyph in the same script (today: the single fixed cross-axis
-    sign a low-``ornateness`` script reuses for every diacritic, "always in the same location," direct
-    user phrasing). Mirrors ``script.font_builder``'s own ``_script_fingerprint`` -- built from data
-    already available at every call site here, rather than threading the original generation seed down
-    an extra parameter just for this."""
-    return f"{traits.model_dump()}:{direction}"
+    """A fingerprint of script-wide (not per-glyph) data -- for a decision that must come out identical
+    for every glyph in the same script (today: the single fixed cross-axis sign a low-``ornateness``
+    script reuses for every diacritic, "always in the same location," direct user phrasing). Mirrors
+    ``script.font_builder``'s own ``_script_fingerprint`` in spirit, but deliberately built from only
+    the TOPOLOGY-group dials plus ``ornateness`` (the one documented exception that also drives this
+    same topology-adjacent decision, see ``SCRIPT_TRAIT_GROUP``'s own docstring) and ``direction`` --
+    *not* the full ``traits`` blob. A real bug, caught by direct testing: hashing every field meant a
+    purely render-only tweak (e.g. ``weight``) could flip this fixed sign too, silently changing stored
+    diacritic slot data on a tweak the "non-topology dials never touch stroke data" architecture
+    promises never will."""
+    topology_relevant = (
+        traits.complexity, traits.diacritic_density, traits.stroke_continuity, traits.dot_prevalence,
+        traits.ornateness,
+    )
+    return f"{topology_relevant}:{direction}"
 
 
 def _roll_diacritic_slot(seed_key: str, traits: ScriptTraits, direction: WritingDirection) -> str:

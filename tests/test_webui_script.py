@@ -140,14 +140,14 @@ def test_generate_applies_a_forced_script_trait(client, tmp_path):
         "/api/generate",
         json={
             "prompt": "p", "name": "webscript-forced-trait", "seed": 1, "llm": "fake", "vocabulary_size": 8,
-            "own_script": "yes", "script_trait_overrides": {"angularity": 1.0, "weight": -1.0},
+            "own_script": "yes", "script_trait_overrides": {"roundedness": 1.0, "weight": -1.0},
         },
     )
     assert response.status_code == 200
     from conlang_generator.storage.yaml_backend import YamlLanguageRepository
 
     language = YamlLanguageRepository(tmp_path / "conlangs").load("webscript-forced-trait")
-    assert language.script.traits.angularity == 1.0
+    assert language.script.traits.roundedness == 1.0
     assert language.script.traits.weight == -1.0
 
 
@@ -168,11 +168,11 @@ def test_generate_rejects_a_script_trait_value_outside_the_bipolar_range(client)
         "/api/generate",
         json={
             "prompt": "p", "name": "webscript-oor-trait", "seed": 1, "llm": "fake",
-            "script_trait_overrides": {"angularity": 2.0},
+            "script_trait_overrides": {"weight": 2.0},
         },
     )
     assert response.status_code == 400
-    assert "angularity" in response.json()["detail"]
+    assert "weight" in response.json()["detail"]
 
 
 def test_generate_rejects_a_negative_value_for_a_unipolar_script_trait(client):

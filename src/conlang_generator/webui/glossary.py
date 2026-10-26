@@ -259,11 +259,17 @@ EVOLUTION_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss] = {
 # ("Script, grammar traits in Generate should have a description of
 # what it means when selecting"). ---
 SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss | UnipolarDialGloss] = {
-    "angularity": {
-        "kind": "bipolar",
-        "summary": "Not yet active. Reserved for a future corner-smoothing pass (rounding the joint between two connected strokes); every glyph is drawn from straight lines only today, so this dial currently has no visible effect.",
-        "positive": "Sharp -- straight lines and pointed corners (today's default, regardless of this dial's value).",
-        "negative": "Smooth -- would round the corners between strokes once this is implemented.",
+    "crookedness": {
+        "kind": "unipolar",
+        "summary": "How often a stroke tilts slightly off its own canonical vertical/horizontal/diagonal angle. No meaningful opposite pole below 0, so this dial only runs 0..1. A tilted stroke keeps its own length, and a chained stroke always inherits its own start from wherever the previous stroke actually ended, so connected strokes never visibly disconnect.",
+        "low": "Every stroke keeps its own precise, grid-aligned angle.",
+        "high": "Strokes frequently tilt, up to 45 degrees off their own canonical angle.",
+    },
+    "roundedness": {
+        "kind": "unipolar",
+        "summary": "How often a corner -- both where two chained strokes meet and the loose ends of a stroke sequence -- gets smoothed into a curve instead of staying sharp. No meaningful opposite pole below 0, so this dial only runs 0..1. Applied after crookedness, on top of however much a stroke already tilted.",
+        "low": "Every corner stays a sharp, straight-line joint.",
+        "high": "Corners round smoothly, up to half the length of each stroke it joins.",
     },
     "stroke_contrast": {
         "kind": "unipolar",

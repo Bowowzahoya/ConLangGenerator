@@ -130,7 +130,7 @@ class Glyph(BaseModel, frozen=True):
 
 
 class ScriptTraits(BaseModel, frozen=True):
-    """Thirteen graded dials controlling the *style* the stroke generator draws every glyph in --
+    """Fourteen graded dials controlling the *style* the stroke generator draws every glyph in --
     rolled once per language, seeded, by ``generation.script_gen.roll_script_traits``, not (yet)
     something the free-text prompt infers; see that function's own docstring for why. Most are
     bipolar (``[-1.0, 1.0]``, a positive value the pole named first below, negative its opposite,
@@ -145,19 +145,29 @@ class ScriptTraits(BaseModel, frozen=True):
     ``openness``, ``density``, ``grid_alignment`` -- were removed outright (direct user request):
     several predated the stroke-generation redesign and were never part of the user's own
     description of how letters should look. An already-saved language's own YAML may still carry
-    these keys (or the old ``dot_ornateness`` name, renamed to ``ornateness`` below) in its
-    ``script.traits``/``spec.forced_script_traits`` -- harmless, ignored on load (no ``model_config``
+    these keys (or the old ``dot_ornateness``/``angularity`` names, renamed to ``ornateness``/
+    ``roundedness`` below) in its ``script.traits``/``spec.forced_script_traits`` -- harmless, ignored
+    on load (no ``model_config``
     here forbids extra fields)."""
 
-    angularity: float = 0.0
-    """+ sharp, straight lines, pointed corners; - smooth, curved, round joints. Not yet consumed
-    anywhere -- phase 1 drawing (``generation.script_gen``) only ever produces straight cell-boundary/
-    diagonal lines, no arcs, so there is nothing to angle yet; this dial is reserved for a future
-    corner-smoothing pass applied *after* that first drawing phase (rounding the joint between two
-    connected strokes), not a generation-time line-vs-arc choice the way it used to be -- the same
-    "extracted, not yet consumed" honesty `core.traits.TraitProfile` already applies to several of its
-    own fields. `StrokeKind.ARC`/`Stroke.bulge` still exist and still render correctly; they're simply
-    never produced by generation today."""
+    crookedness: float = 0.0
+    """Unipolar. 0 = every stroke keeps its own canonical vertical/horizontal/diagonal angle; 1 = every
+    eligible stroke tilts off it. Applied entirely at render time (see ``script.font_builder``'s own
+    corner-rounding code, which reads this *before* ``roundedness`` below -- "roundedness should just
+    work... after this," direct user phrasing): a tilted stroke keeps its own canonical length, and a
+    chained stroke always inherits its own start from wherever the chain's own previous (possibly also
+    tilted) stroke actually ended, so a connected run of strokes never visibly disconnects even when
+    several of them tilt in a row."""
+    roundedness: float = 0.0
+    """Unipolar. 0 = every corner stays sharp; 1 = every eligible corner gets smoothed into a curve.
+    Applied entirely at render time, *after* ``crookedness`` above (see ``script.font_builder``'s own
+    corner-rounding code) -- never a generation-time line-vs-arc choice (``StrokeKind.ARC``/``Stroke.
+    bulge`` exist and still render correctly, but ``generation.script_gen`` never produces one; a
+    rounded corner is synthesized purely from two already-straight ``LINE`` strokes at render time).
+    Named ``angularity`` before this consumption landed (its own old bipolar "sharp positive / smooth
+    negative" framing is retired -- there's no meaningfully distinct "more pointed than default" pole,
+    just how much smoothing happens, same "no negative pole" reasoning several other dials already
+    have)."""
     stroke_contrast: float = 0.0
     """Unipolar. 0 = monoline, uniform stroke width; 1 = calligraphic, strong thick/thin width
     variation along each stroke. Was bipolar; the negative half never produced anything a value
@@ -236,7 +246,8 @@ SCRIPT_TRAIT_GROUP: dict[str, str] = {
     "serif": "typeface",
     "stroke_contrast": "typeface",
     "proportion": "typeface",
-    "angularity": "form",
+    "crookedness": "form",
+    "roundedness": "form",
     "terminal_style": "form",
     "ornateness": "form",
     "regularity": "form",
@@ -244,13 +255,13 @@ SCRIPT_TRAIT_GROUP: dict[str, str] = {
 """Which of ``ScriptTraits``' own dials change a glyph's own TOPOLOGY (a different set of strokes --
 consumed in ``generation.script_gen``, before any rendering happens) versus its *visual treatment*,
 split further into TYPEFACE (classic font-metric axes -- slant, weight, serif, stroke contrast,
-proportion) and FORM (shape-execution axes -- angularity, the terminal-ornament system, ornateness,
-jitter/regularity) -- direct user request to separate what used to be one flat "style" bucket. Both
-non-topology groups are consumed only in ``script.font_builder``, never change stored stroke data -- the
-split between them is a UI/conceptual organization, not an architectural one, and every caller that
-only cares about "does this ever touch stroke data" should check ``group != "topology"`` (the web UI's
-own Generate/Tweak trait-row grouping, and the tweak preview's own per-glyph "changed" flag both do
-this) rather than enumerating "style"/"form"/"typeface" by name.
+proportion) and FORM (shape-execution axes -- crookedness, roundedness, the terminal-ornament system,
+ornateness, jitter/regularity) -- direct user request to separate what used to be one flat "style"
+bucket. Both non-topology groups are consumed only in ``script.font_builder``, never change stored
+stroke data -- the split between them is a UI/conceptual organization, not an architectural one, and
+every caller that only cares about "does this ever touch stroke data" should check ``group !=
+"topology"`` (the web UI's own Generate/Tweak trait-row grouping, and the tweak preview's own per-glyph
+"changed" flag both do this) rather than enumerating "style"/"form"/"typeface" by name.
 
 One real nuance: ``ornateness`` is grouped FORM here (it's squarely a shape/decoration dial by feel),
 but ``generation.script_gen`` *also* reads it for two topology-affecting diacritic decisions (stroke
@@ -258,13 +269,12 @@ count, dot-slot boost -- see that module's own docstring) -- a genuine exception
 are rendering-only." This doesn't break the "changed" flag above (an ``ornateness``-only tweak still
 correctly marks every glyph changed, via the ``group != "topology"`` check -- just slightly
 over-inclusive, since some glyphs' own stroke data didn't actually move), but it does mean ``ornateness``
-is not purely a ``font_builder``-side dial the way every other FORM/TYPEFACE dial still is.
-
-``angularity`` is FORM by its own future/intended role even though currently dormant -- see its own
-docstring."""
+is not purely a ``font_builder``-side dial the way every other FORM/TYPEFACE dial still is."""
 
 SCRIPT_TRAIT_RANGE: dict[str, tuple[float, float]] = {
-    name: (0.0, 1.0) if name in ("stroke_contrast", "regularity", "ornateness", "serif") else (-1.0, 1.0)
+    name: (0.0, 1.0)
+    if name in ("stroke_contrast", "regularity", "ornateness", "serif", "crookedness", "roundedness")
+    else (-1.0, 1.0)
     for name in ScriptTraits.model_fields
 }
 """Each dial's own valid range -- ``(0.0, 1.0)`` (unipolar) for the three dials with no meaningfully
@@ -291,7 +301,8 @@ class ScriptTraitsForce(BaseModel, frozen=True):
     enforced explicitly wherever an override is actually parsed/applied
     instead)."""
 
-    angularity: float | None = None
+    crookedness: float | None = None
+    roundedness: float | None = None
     stroke_contrast: float | None = None
     weight: float | None = None
     complexity: float | None = None

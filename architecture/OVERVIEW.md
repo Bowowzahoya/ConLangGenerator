@@ -1683,7 +1683,7 @@ implemented but not precluded). Split the same way `speech/` already
 splits data from mechanism:
 
 - **`core/script.py`**: the data model -- `WritingDirection` (5 values),
-  `ScriptTraits` (13 graded dials -- most bipolar, a few unipolar where
+  `ScriptTraits` (14 graded dials -- most bipolar, a few unipolar where
   there's no meaningfully distinct negative pole, same overall shape as
   `TraitProfile` but rolled from the language's own seed, not yet
   prompt-inferred; `SCRIPT_TRAIT_GROUP`/`SCRIPT_TRAIT_RANGE` are the
@@ -1711,14 +1711,18 @@ splits data from mechanism:
   default) -- every `Stroke` expanded into its own filled polygon (TTF
   glyphs are filled outlines, not stroked paths), Private Use Area
   codepoints (U+E000 upward) assigned by position in `InventedScript.
-  glyphs`. Also home to three purely-rendering subsystems that never
+  glyphs`. Also home to five purely-rendering subsystems that never
   touch stroke data: a dot's own render style (plain circle / tiny
   square / brief bent stroke, blended between script-wide-fixed and
   per-dot via `ornateness`), a per-glyph *terminal ornament* (one of 10
   fixed presets at an occasional letter's own stroke end, frequency via
-  `terminal_style`), and a script-wide *serif* rule (coverage/sides/
+  `terminal_style`), a script-wide *serif* rule (coverage/sides/
   shape/thickness, rolled once and applied consistently, a deliberately
-  separate mechanic from the ornament system). A pure function of the
+  separate mechanic from the ornament system), and *crookedness*/
+  *roundedness* (per-chain stroke-tilting and corner-smoothing, run in
+  that order on every connected run of `LINE` strokes -- main glyph and
+  each diacritic processed as independent chain-scopes -- before any of
+  the other subsystems see a stroke's own final endpoints). A pure function of the
   `InventedScript` data alone (never RNG state) throughout, including
   "organic jitter" rendering (`regularity`'s own effect) and the three
   subsystems above -- all derived from a stable hash of each decision's
@@ -9554,3 +9558,124 @@ reading code or one-off ad hoc scripts.
   gained substantial new coverage for every new mechanism -- the diacritic-collision fallback
   specifically has its own dedicated regression test (`diacritic_density=1.0, ornateness=0.0` must
   still produce exactly 4 distinct slots).
+
+  **Pass 54: script redesign round 5 -- crookedness and roundedness.** Two fully-specified dials
+  completing the "form" group's shape-execution set, both purely rendering-time (`script.font_builder`
+  only, never touch stored `Stroke` data, the same guarantee every prior dial in this group holds).
+  `angularity` -- dormant since pass 50/51, its own docstring explicitly reserving "a future
+  corner-smoothing pass applied after... drawing" for exactly this -- is renamed `roundedness`
+  (unipolar `0..1`, the old bipolar sharp/smooth framing retired since there's no meaningful "more
+  pointed than default" pole, only "how much does this corner round"), finally giving it a real
+  consumer. `crookedness` (unipolar `0..1`) is a genuinely new 14th dial. Both land in
+  `SCRIPT_TRAIT_GROUP["form"]`; `ScriptTraits`, `ScriptTraitsForce`, `cli/main.py`'s
+  `SCRIPT_TRAIT_FIELDS`, `webui/app.py`'s `/api/options`, and both web UI row groups all pick this up
+  mechanically, the same way every prior rename/addition in this project has -- only
+  `webui/glossary.py`'s `SCRIPT_TRAIT_GLOSSARY` needed real content (new `crookedness` entry, rewritten
+  `roundedness` entry under the new name and unipolar kind).
+
+  **Chain identification**, a new shared primitive neither mechanic can work without: `_find_chains`
+  walks one glyph-or-diacritic scope's own `strokes` tuple and groups `LINE` strokes into maximal runs
+  connected by stored `Point` equality (`strokes[i].start == <previous LINE stroke's own end>`) --
+  deliberately mirroring `generation.script_gen`'s own `chain_from` semantics exactly, so a `DOT`
+  interposed between two `LINE` strokes doesn't break the chain (the two line strokes still share a
+  connection point in the *stored* data; the dot is just skipped over in the walk, handled entirely
+  separately by its own unchanged `_stroke_polygons` branch), while a stroke whose own `start` doesn't
+  match the running chain starts a fresh one (mirrors `stroke_continuity`'s own pen-lift choice).
+
+  **Crookedness**, processed first per the user's own explicit ordering ("roundedness should just work
+  in the way described above after this"), walks each chain in order carrying one running
+  `current_start` em-space point. Per stroke: compute its canonical+jittered `(orig_start, orig_end)`
+  via the existing unchanged `_point_to_em` formula, derive `length` and `canonical_angle` from that;
+  roll `tilts = stable_unit(key:crook-select) < crookedness` (0% chance at `0.0`, 100% at `1.0`); if
+  tilting, `tilt_deg = stable_unit(key:crook-angle) * crookedness * 45.0` (one draw gives a value
+  uniform in `[-crookedness*45, +crookedness*45]` directly -- "1.0 allowing +/-45 degrees"). The
+  stroke's own rendered start is always `current_start` (never independently re-jittered -- "the next
+  stroke should move its start point along"), its rendered end is `current_start +
+  length*(cos(effective_angle), sin(effective_angle))` -- original length preserved exactly, only the
+  angle moves -- and `current_start` becomes that end for the next stroke in the chain ("always move
+  end point," never re-anchoring backward). A chain's own first stroke start is untouched by
+  crookedness (only interior/trailing joints shift from propagated tilts), same as before this pass.
+
+  **Roundedness** runs on top of crookedness's output, per chain, two passes. *Internal joints*: for
+  each pair of chain-adjacent `LINE` strokes (by chain order, not raw list adjacency -- a `DOT` between
+  them doesn't break a joint any more than it breaks a chain), roll `rounds = stable_unit(key:
+  round-select) < roundedness`; if selected, `f = roundedness * 0.5` directly ("100% means from 50%
+  along one stroke to 50% along the second" -- the fraction itself needs no extra roll, it's a direct
+  linear reading of the dial). Stroke A's own rendered end truncates to `lerp(A.start, A.end, 1-f)`,
+  stroke B's own rendered start truncates to `lerp(B.start, B.end, f)`, and a new inserted `ARC`-style
+  segment bridges them -- its bulge solved by a new `_bulge_through_point` helper (projects the
+  original shared corner `C`, minus the new segment's own midpoint, onto the chord's perpendicular;
+  the along-chord component is dropped as unrepresentable by a single bulge fraction) so the existing
+  quadratic-Bezier `ARC` renderer's control point lands as close as possible to where the sharp corner
+  used to be -- a smooth flowing line through the corner's own original position, not an arbitrary cut.
+  `_arc_polygons` was factored out of the old inline ARC-sampling code inside `_stroke_polygons`
+  specifically so this reuses the identical sampling, rather than a second hand-rolled arc renderer.
+
+  *Loose ends* (a chain's own leading start and trailing end, with no real stroke on the other side) use
+  the same selection-and-fraction roll, then reuse the *exact same* joint-rounding routine against a
+  **synthesized virtual stroke** -- `_virtual_neighbor_direction` -- rather than a special case: for a
+  multi-stroke chain, the virtual stroke's own direction continues the one real adjacent stroke's own
+  already-crooked direction verbatim ("continue the bend of the bend after it/before it," read as
+  keeping the flow the neighbor already committed to, not mirroring or reversing it); for a
+  single-stroke chain ("a single straight stroke"), the virtual direction is that lone stroke's own
+  effective direction plus a random offset (`stable_unit(key:end-angle) * roundedness * 90.0` degrees --
+  "random direction... 1.0 meaning 90 degrees"). Either way the virtual stroke itself is never
+  rendered, only fed through the identical P1/P2/bulge math as a real joint.
+
+  **Safety clamp** (`_ROUNDING_SAFETY_CEILING = 0.9`, a plain engineering guard the user's own spec
+  didn't need to address since it describes each side independently): a 1-2 stroke chain can have both
+  of one real stroke's own ends independently selected for truncation (one joint-side, one loose-end
+  side, or both loose ends on a lone stroke) -- `_round_chain` computes both fractions before any
+  geometry and scales them down proportionally whenever their sum would exceed the ceiling, so real
+  straight material always survives between two truncation points instead of collapsing to zero or
+  negative length.
+
+  **Rendering integration**: `_build_glyph_outline`'s old per-stroke loop (`_iter_glyph_strokes`,
+  calling `_stroke_polygons` once per raw `Stroke`) is replaced by a new per-scope
+  `_render_scope` (one call for the main glyph, one per diacritic, exactly the precedent `weight`/
+  `slant`/`regularity` already set for "every style dial applies uniformly everywhere a stroke is
+  drawn") that groups each scope's own strokes into chains via `_find_chains`, runs crookedness then
+  roundedness per chain, and emits straight-quad polygons for each stroke's final truncated segment
+  (width still tapered correctly, now computed from the fractional position along the stroke's
+  *original* canonical length rather than re-derived from scratch) plus arc polygons for every inserted
+  rounding curve. `_stroke_polygons` itself is narrowed to only `DOT`/`ARC` strokes now --
+  `LINE`-handling code was removed from it entirely, since `LINE` strokes no longer go through it at
+  all. Serif (`_serif_polygons_for_stroke`) and the terminal-ornament system
+  (`_glyph_terminal_ornament_polygons`/`_roll_terminal_ornaments`) both gained availability flags read
+  from roundedness's own output table instead of independently recomputing an endpoint -- a corner
+  rounding claims an endpoint entirely skips serif/ornament placement there (a smoothed corner has no
+  sharp terminus left to decorate), while the stroke's *other* end, if untouched, still qualifies
+  normally; a real behavior change for existing serif/ornament placement once `roundedness > 0`, not
+  something either system was designed with in mind before this pass, flagged explicitly in the plan
+  for that reason. `_build_glyph_outline`'s own return signature grew a third element (the glyph's
+  advance-width extent, now computed in the same per-scope pass instead of a separate `_glyph_extent`
+  call, which -- along with `_iter_glyph_strokes` -- was removed as fully superseded).
+
+  A real regression caught before it could reach the user, found by direct testing immediately after
+  writing the surrounding code rather than from any report: `_script_wide_seed` (the diacritic
+  cross-axis fixed-sign fingerprint from pass 53) was hashing `traits.model_dump()` in full, so a purely
+  render-only tweak to e.g. `weight` or `slant` -- neither a topology-group dial -- could flip a
+  script's own fixed diacritic-placement sign, silently corrupting stored diacritic data on a tweak that
+  should have been render-only. Fixed to hash only the topology-relevant fields
+  (`complexity`/`diacritic_density`/`stroke_continuity`/`dot_prevalence`/`ornateness`, the same
+  documented `ornateness`-is-topology-too exception from pass 53) plus `direction` -- verified directly
+  that two traits objects differing only in `weight`/`slant`/`serif`/`terminal_style` now produce an
+  identical seed, while a `complexity` change still changes it, and covered with two dedicated
+  regression tests.
+
+  **Verification**: `tests/test_script_font_builder.py` gained dedicated coverage for chain
+  identification (dot-skipping, pen-lift breaks), crookedness (zero-chance at `0.0`, the 45-degree bound
+  at `1.0`, chain connectivity/propagation, length preservation, determinism), roundedness (the bulge
+  solver, virtual-neighbor direction for both the multi-stroke-continues and single-stroke-random-offset
+  cases, the described linear truncation fraction, the safety clamp actually preventing collapse,
+  determinism), and the serif/ornament availability-skip behavior -- 51 tests in the file, all passing.
+  An 80-seed stress test with both dials forced to `1.0` (the most geometrically demanding corner of the
+  space -- every stroke tilting up to 45 degrees *and* every corner/loose-end rounding by up to half its
+  own length) built every font with zero exceptions. Full suite green. Live-verified: three real
+  languages generated via the CLI with forced trait combinations (`crookedness=1.0` alone,
+  `roundedness=1.0` alone, both at `0.7` together, each with `regularity=0.0` to see the shapes without
+  jitter noise), exported as real `.ttf` fonts, and rendered side by side via inline `@font-face` in the
+  browser pane -- confirmed strokes visibly tilt without gaps opening at chain joints, and the same
+  glyph position renders a visibly sharper angular joint under crookedness-alone versus a visibly
+  smoothed curved joint in the same position under roundedness, matching the described mechanism rather
+  than coincidental noise.

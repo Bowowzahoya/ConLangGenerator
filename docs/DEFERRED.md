@@ -265,6 +265,46 @@ multi-session feature.
   inline `@font-face` -- confirmed visible, distinct serif/terminal-ornament shapes at stroke ends
   (triangular points, hooks, an extended tail), and diacritic marks landing in genuinely varied
   positions around each letter at high `ornateness` rather than one fixed spot. Full suite green.
+- **Script redesign round 5: crookedness and roundedness -- done (pass 54), direct user feedback (two
+  fully-specified dials).** `angularity` -- dormant since pass 50/51, its own docstring already
+  reserving "a future corner-smoothing pass applied after... drawing" for exactly this -- renamed
+  `roundedness` (unipolar `0..1`, finally consumed); `crookedness` (unipolar `0..1`) is a genuinely new
+  14th dial. Both form-grouped, both purely rendering-time.
+
+  A new `_find_chains` groups each scope's (main glyph, or one diacritic) `LINE` strokes into maximal
+  connected runs by stored `Point` equality, mirroring `script_gen.py`'s own `chain_from` semantics so a
+  `DOT` doesn't break a chain. `crookedness` walks each chain carrying a running start point: per
+  stroke, a selection roll (`< crookedness`) decides whether it tilts, and if so by how much
+  (`stable_unit * crookedness * 45` degrees, "1.0 allowing +/-45 degrees"); length is preserved, only
+  angle moves, and each stroke's own rendered start is always wherever the previous stroke actually
+  ended -- "the next stroke should move its start point along." `roundedness` runs after, per chain: for
+  each internal joint between chain-adjacent strokes, a selection roll decides whether it rounds, and if
+  so a direct linear fraction (`roundedness * 0.5`, "100% means from 50% along one stroke to 50% along
+  the second") truncates both sides and a new arc (bulge solved by a new `_bulge_through_point` helper)
+  bridges them through the original corner's own position. Loose ends (a chain's leading start/trailing
+  end) reuse the identical joint-rounding math against a synthesized virtual stroke -- continuing the
+  one real neighbor's own direction verbatim for a multi-stroke chain, or that lone stroke's own
+  direction plus a bounded random offset (`roundedness * 90` degrees) for a single-stroke chain. A
+  `_ROUNDING_SAFETY_CEILING = 0.9` guard scales both of one stroke's own fractions down proportionally
+  when a short chain would otherwise truncate past 90% of a stroke's own length from both ends at once.
+
+  Serif and terminal-ornament placement both gained availability flags so a corner rounding claims an
+  endpoint skips decorating it there (a real behavior change for existing placement once
+  `roundedness > 0`, flagged explicitly since neither system was designed with this interaction in
+  mind). One real regression caught by direct testing before it could reach the user, not from any
+  report: `_script_wide_seed` (pass 53's own diacritic cross-axis fingerprint) was hashing the full
+  traits blob, so a purely render-only tweak (e.g. `weight`) could flip a script's own fixed diacritic
+  sign -- fixed to hash only the topology-relevant fields plus direction, with two dedicated regression
+  tests. See `architecture/OVERVIEW.md`'s pass-54 entry for the full mechanism writeup.
+
+  Verified: 51 tests in `tests/test_script_font_builder.py` covering chain identification, crookedness
+  (rate/bound/connectivity/determinism), roundedness (bulge solver, virtual-neighbor cases, truncation
+  fraction, safety clamp), and the serif/ornament skip behavior; an 80-seed stress test with both dials
+  at `1.0` built every font with zero exceptions; full suite green. Live-verified: three real languages
+  generated via the CLI with forced `crookedness`/`roundedness` combinations, exported as real `.ttf`
+  fonts, and rendered side by side via `@font-face` -- confirmed the same glyph position renders a
+  visibly sharper joint under crookedness-alone versus a visibly smoothed curved joint under
+  roundedness.
 - **Small diacritic marks attached near a letter -- done (pass 51), a deliberately lighter-weight
   cousin of the real abugida idea below, not the same thing.** `Glyph.diacritics: dict[str, Glyph]`;
   each diacritic is a small glyph built by the exact same stroke-generation process as any letter

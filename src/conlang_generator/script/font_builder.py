@@ -19,19 +19,22 @@ Each phoneme's own glyph is assigned a Private Use Area codepoint
 standard, collision-free way to ship an invented script as a real font;
 see ``core.script.InventedScript.glyphs``'s own docstring.
 
-Consumes 9 of ``ScriptTraits``' 13 dials (the rendering-time half; see
+Consumes 11 of ``ScriptTraits``' 14 dials (the rendering-time half; see
 ``generation.script_gen``'s own docstring for the stroke-topology half, and
 ``ornateness``'s own docstring for why it's read in *both* halves):
 ``weight``/``stroke_contrast`` (stroke width, and whether it tapers along
 the stroke), ``slant`` (shear), ``proportion`` (horizontal scale),
-``regularity`` (organic jitter, unipolar -- 0 = none, 1 = max), ``terminal_
-style`` (frequency of a per-glyph terminal ornament -- a hook/swirl/foot/
-extended stroke, one of 10 presets, at one stroke-end of some letters),
-``serif`` (a separate, pervasive, script-wide stroke-end treatment -- see
-its own docstring for how it differs from a terminal ornament), and
+``regularity`` (organic jitter, unipolar -- 0 = none, 1 = max), ``crookedness``
+(a stroke tilts slightly off its own canonical angle, chain-propagated so
+connected strokes never visibly disconnect) and ``roundedness`` (corners --
+both internal joints and a stroke sequence's own loose ends -- smoothed into
+curves, applied *after* crookedness; see ``_round_chain``'s own docstring),
+``terminal_style`` (frequency of a per-glyph terminal ornament -- a hook/
+swirl/foot/extended stroke, one of 10 presets, at one stroke-end of some
+letters), ``serif`` (a separate, pervasive, script-wide stroke-end treatment
+-- see its own docstring for how it differs from a terminal ornament), and
 ``ornateness`` (dot style, diacritic placement diversity, and which
-terminal-ornament preset gets favored). ``angularity`` is currently dormant
-everywhere -- see its own docstring in ``core.script.ScriptTraits``.
+terminal-ornament preset gets favored).
 """
 
 from __future__ import annotations
@@ -285,11 +288,15 @@ def _roll_serif_rule(traits, fingerprint: str) -> SerifRule:
 
 def _serif_polygons_for_stroke(
     stroke: Stroke, x0: float, y0: float, x1: float, y1: float, width: float, stroke_key: str, rule: SerifRule,
+    start_available: bool = True, end_available: bool = True,
 ) -> list[list[tuple[float, float]]]:
     """Applies ``rule`` (the one script-wide ``SerifRule``) to a single already-placed ``LINE``
     stroke's own em-space endpoints -- a serif is a small polygon planted at a qualifying endpoint, no
     new sampling machinery needed (``"rounded"``/``"triangle"`` both reuse ``_regular_polygon`` at
-    different side counts, ``"straight"`` a short ``_quad`` continuing the stroke's own direction)."""
+    different side counts, ``"straight"`` a short ``_quad`` continuing the stroke's own direction).
+    ``start_available``/``end_available`` (both default ``True``) let a caller exclude an endpoint
+    ``roundedness`` has already claimed for a rounded corner -- a smoothed corner has no sharp
+    terminus left to decorate; the stroke's *other* end, if untouched, still qualifies normally."""
     cls = _classify_orientation(stroke.end.x - stroke.start.x, stroke.end.y - stroke.start.y)
     coverage = rule.coverage[cls]
     if coverage <= 0.0:
@@ -297,15 +304,22 @@ def _serif_polygons_for_stroke(
     include_roll = (_stable_unit(f"{stroke_key}:serif-include") + 1.0) / 2.0
     if include_roll >= coverage:
         return []
+    candidates = []
+    if start_available:
+        candidates.append(("start", x0, y0, x1, y1))
+    if end_available:
+        candidates.append(("end", x1, y1, x0, y0))
+    if not candidates:
+        return []
     if rule.sides_count[cls] == 2:
-        ends = [(x0, y0, x1, y1), (x1, y1, x0, y0)]
+        ends = [(ex, ey, ox, oy) for _tag, ex, ey, ox, oy in candidates]
     else:
         fixed = rule.fixed_side[cls]
         if fixed == "random_per_stroke":
             fixed = "lower" if _stable_unit(f"{stroke_key}:serif-side") >= 0 else "upper"
         lower_first = y0 <= y1
-        use_start = (fixed == "lower") == lower_first
-        ends = [(x0, y0, x1, y1)] if use_start else [(x1, y1, x0, y0)]
+        want_tag = "start" if (fixed == "lower") == lower_first else "end"
+        ends = [(ex, ey, ox, oy) for tag, ex, ey, ox, oy in candidates if tag == want_tag]
     radius = width * rule.thickness_factor * 0.6
     polygons: list[list[tuple[float, float]]] = []
     for ex, ey, ox, oy in ends:
@@ -321,48 +335,70 @@ def _serif_polygons_for_stroke(
     return polygons
 
 
+def _arc_polygons(
+    x0: float, y0: float, x1: float, y1: float, bulge: float, w0: float, w1: float,
+) -> list[list[tuple[float, float]]]:
+    """A quadratic-Bezier-sampled curve from ``(x0,y0)`` to ``(x1,y1)``, bulging perpendicular to the
+    chord by ``bulge`` (a signed fraction of chord length) -- tapering width linearly from ``w0`` to
+    ``w1`` across the sampled segments. Shared by ``StrokeKind.ARC`` rendering (the generation-time
+    primitive, never actually produced by ``generation.script_gen`` today but still rendered correctly
+    for forward-compatibility) and ``roundedness``'s own synthesized corner-rounding curves."""
+    mx, my = (x0 + x1) / 2, (y0 + y1) / 2
+    pdx, pdy = _perpendicular(x0, y0, x1, y1, 1.0)
+    length = math.hypot(x1 - x0, y1 - y0)
+    cx, cy = mx + pdx * bulge * length, my + pdy * bulge * length
+    points = []
+    for i in range(_ARC_SAMPLES + 1):
+        t = i / _ARC_SAMPLES
+        sx = (1 - t) ** 2 * x0 + 2 * (1 - t) * t * cx + t**2 * x1
+        sy = (1 - t) ** 2 * y0 + 2 * (1 - t) * t * cy + t**2 * y1
+        points.append((sx, sy))
+    polygons = []
+    for i in range(len(points) - 1):
+        t0, t1 = i / _ARC_SAMPLES, (i + 1) / _ARC_SAMPLES
+        polygons.append(
+            _quad(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], w0 + (w1 - w0) * t0, w0 + (w1 - w0) * t1)
+        )
+    return polygons
+
+
+def _bulge_through_point(x0: float, y0: float, x1: float, y1: float, cx: float, cy: float) -> float:
+    """The signed ``bulge`` fraction (see ``_arc_polygons``) that makes the quadratic control point
+    land as close as possible to ``(cx, cy)`` -- used by ``roundedness`` to curve a corner through
+    (approximately) its own original vertex. Only the component of ``(cx,cy)`` perpendicular to the
+    ``(x0,y0)``-``(x1,y1)`` chord can be represented at all (the ``bulge`` model has exactly one degree
+    of freedom); any along-chord component is simply dropped -- a reasonable approximation for the
+    roughly-symmetric corners this produces, not claimed exact."""
+    dx, dy = x1 - x0, y1 - y0
+    length = math.hypot(dx, dy)
+    if length == 0:
+        return 0.0
+    ux, uy = -dy / length, dx / length
+    mx, my = (x0 + x1) / 2, (y0 + y1) / 2
+    projection = (cx - mx) * ux + (cy - my) * uy
+    return 2.0 * projection / length
+
+
 def _stroke_polygons(
     stroke: Stroke, glyph_index: int | str, stroke_index: int, traits, grid_unit_x: float, grid_unit_y: float,
     script_fingerprint: str, serif_rule: SerifRule, offset_x: float = 0.0, offset_y: float = 0.0,
 ) -> list[list[tuple[float, float]]]:
+    """Renders a ``DOT`` or ``ARC`` stroke -- ``LINE`` strokes no longer go through this function at
+    all (see ``_render_scope``'s own chain-based handling for ``crookedness``/``roundedness``/serif)."""
     jitter_prefix = f"{glyph_index}:{stroke_index}"
     width = _stroke_width(traits)
-    contrast = lerp01(traits.stroke_contrast, 0.0, 0.45)
-    w_start, w_end = width * (1 + contrast), width * (1 - contrast)
 
     if stroke.kind is StrokeKind.DOT:
         cx, cy = _point_to_em(stroke.start, f"{jitter_prefix}:dot", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
         return _dot_polygons(cx, cy, width, traits.ornateness, f"{jitter_prefix}:dot", script_fingerprint)
 
+    # ARC -- a generation-time primitive generation.script_gen never actually produces today, kept
+    # correct for forward-compatibility (see core.script.ScriptTraits.roundedness's own docstring).
+    contrast = lerp01(traits.stroke_contrast, 0.0, 0.45)
+    w_start, w_end = width * (1 + contrast), width * (1 - contrast)
     x0, y0 = _point_to_em(stroke.start, f"{jitter_prefix}:a", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
     x1, y1 = _point_to_em(stroke.end, f"{jitter_prefix}:b", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
-
-    polygons: list[list[tuple[float, float]]] = []
-    if stroke.kind is StrokeKind.LINE:
-        polygons.append(_quad(x0, y0, x1, y1, w_start, w_end))
-    else:  # ARC -- sample a quadratic curve bulging perpendicular to the chord
-        mx, my = (x0 + x1) / 2, (y0 + y1) / 2
-        pdx, pdy = _perpendicular(x0, y0, x1, y1, 1.0)
-        length = math.hypot(x1 - x0, y1 - y0)
-        cx, cy = mx + pdx * stroke.bulge * length, my + pdy * stroke.bulge * length
-        points = []
-        for i in range(_ARC_SAMPLES + 1):
-            t = i / _ARC_SAMPLES
-            sx = (1 - t) ** 2 * x0 + 2 * (1 - t) * t * cx + t**2 * x1
-            sy = (1 - t) ** 2 * y0 + 2 * (1 - t) * t * cy + t**2 * y1
-            points.append((sx, sy))
-        for i in range(len(points) - 1):
-            segment_t0, segment_t1 = i / _ARC_SAMPLES, (i + 1) / _ARC_SAMPLES
-            w0 = w_start + (w_end - w_start) * segment_t0
-            w1 = w_start + (w_end - w_start) * segment_t1
-            polygons.append(_quad(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], w0, w1))
-
-    if stroke.kind is StrokeKind.LINE:
-        polygons.extend(
-            _serif_polygons_for_stroke(stroke, x0, y0, x1, y1, width, jitter_prefix, serif_rule)
-        )
-
-    return polygons
+    return _arc_polygons(x0, y0, x1, y1, stroke.bulge, w_start, w_end)
 
 
 class OrnamentPreset(NamedTuple):
@@ -443,19 +479,26 @@ def _ornament_bucket(point: Point, grid_max_x: int, grid_max_y: int) -> str:
 
 def _roll_terminal_ornaments(
     glyph: Glyph, glyph_index: int, traits, grid_max_x: int, grid_max_y: int,
+    rounded_start: dict[int, bool] | None = None, rounded_end: dict[int, bool] | None = None,
 ) -> list[tuple[int, bool, int]]:
     """Rolls 0, 1, or (rarely) 2 terminal ornaments for this glyph's own ``LINE`` strokes -- once per
     *glyph*, not per stroke (``terminal_style`` sets the frequency; see ``ScriptTraits.terminal_style``
     's own docstring for why this is a separate, per-letter-occasional mechanic, distinct from
     ``serif``'s own pervasive, per-script rule). Candidates are classified into ``_ornament_bucket``
     position buckets using *grid* coordinates (not the jittered em-space position -- a small jitter
-    should never flip which bucket a point reads as). Returns ``(stroke_index, is_start, preset_index)``
-    triples; ``is_start`` picks which of that ``Stroke``'s own two endpoints."""
+    should never flip which bucket a point reads as). ``rounded_start``/``rounded_end`` (from
+    ``roundedness``'s own corner-rounding, see ``_round_chain``) exclude whichever stroke-ends rounding
+    already claimed -- a smoothed corner has no sharp terminus left for an ornament to sit on either.
+    Returns ``(stroke_index, is_start, preset_index)`` triples; ``is_start`` picks which of that
+    ``Stroke``'s own two endpoints."""
+    rounded_start = rounded_start or {}
+    rounded_end = rounded_end or {}
     candidates = [
         (i, is_start)
         for i, s in enumerate(glyph.strokes)
         if s.kind is StrokeKind.LINE
         for is_start in (True, False)
+        if not (rounded_start.get(i, False) if is_start else rounded_end.get(i, False))
     ]
     if not candidates:
         return []
@@ -569,6 +612,263 @@ def _terminal_ornament_polygons(
     return polygons
 
 
+def _find_chains(strokes: tuple[Stroke, ...]) -> list[list[int]]:
+    """Groups ``LINE`` stroke indices into maximal chains -- consecutive ``LINE`` strokes connected by
+    stored ``Point`` equality, mirroring ``generation.script_gen``'s own ``chain_from`` semantics
+    exactly: a ``DOT`` (or, in principle, an ``ARC``) interposed between two ``LINE`` strokes doesn't
+    end the chain (the two surrounding ``LINE`` strokes still share a connection point in the stored
+    data, "picking up where left off"), it's simply skipped over and never appears in any chain -- it
+    renders through the existing, unchanged per-stroke ``_stroke_polygons`` path instead. A stroke
+    whose own ``start`` doesn't match the running chain's own last ``LINE`` end breaks it and starts a
+    fresh one (mirrors ``stroke_continuity`` choosing to lift the pen)."""
+    chains: list[list[int]] = []
+    current: list[int] = []
+    last_end: Point | None = None
+    for i, stroke in enumerate(strokes):
+        if stroke.kind is not StrokeKind.LINE:
+            continue
+        if current and stroke.start == last_end:
+            current.append(i)
+        else:
+            if current:
+                chains.append(current)
+            current = [i]
+        last_end = stroke.end
+    if current:
+        chains.append(current)
+    return chains
+
+
+def _crooked_chain_endpoints(
+    strokes: tuple[Stroke, ...], chain: list[int], traits, jitter_glyph_index: int | str,
+    grid_unit_x: float, grid_unit_y: float, offset_x: float, offset_y: float,
+) -> dict[int, tuple[float, float, float, float]]:
+    """``crookedness`` (Part C): walks one chain's own ``LINE`` strokes in order, applying each one's
+    own per-stroke tilt (selection + magnitude both seeded) while propagating connectivity -- every
+    stroke's own rendered start is always wherever the chain currently is (never independently
+    jittered again), its own rendered end is that start plus its own *canonical* (jittered, pre-tilt)
+    length at its own (possibly tilted) angle -- "the next stroke should move its start point along...
+    always move end point," direct user phrasing. The chain's own first stroke keeps its plain
+    canonical+jittered start (nothing precedes it to inherit from). Returns ``stroke_index -> (x0, y0,
+    x1, y1)``."""
+    endpoints: dict[int, tuple[float, float, float, float]] = {}
+    current: tuple[float, float] | None = None
+    for stroke_index in chain:
+        stroke = strokes[stroke_index]
+        jitter_prefix = f"{jitter_glyph_index}:{stroke_index}"
+        orig_start = _point_to_em(stroke.start, f"{jitter_prefix}:a", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
+        orig_end = _point_to_em(stroke.end, f"{jitter_prefix}:b", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
+        length = math.hypot(orig_end[0] - orig_start[0], orig_end[1] - orig_start[1])
+        canonical_angle = math.atan2(orig_end[1] - orig_start[1], orig_end[0] - orig_start[0])
+        select_roll = (_stable_unit(f"{jitter_prefix}:crook-select") + 1.0) / 2.0
+        if select_roll < traits.crookedness:
+            tilt_deg = _stable_unit(f"{jitter_prefix}:crook-angle") * traits.crookedness * 45.0
+            angle = canonical_angle + math.radians(tilt_deg)
+        else:
+            angle = canonical_angle
+        start = current if current is not None else orig_start
+        end = (start[0] + length * math.cos(angle), start[1] + length * math.sin(angle))
+        endpoints[stroke_index] = (start[0], start[1], end[0], end[1])
+        current = end
+    return endpoints
+
+
+_ROUNDING_SAFETY_CEILING = 0.9
+"""Never let a single stroke's own two end-truncations (one from each side -- possible when both its
+own loose end and its adjacent joint get rounded, or on a 1-stroke chain where both loose ends do) sum
+past this fraction of its own length -- a plain, direct guard against a zero-or-negative-length
+remnant. The user's own spec describes each side's rounding independently and doesn't need to address
+this interaction, since it only ever arises from two *different* decisions both landing on one stroke."""
+
+
+def _virtual_neighbor_direction(
+    dir_x: float, dir_y: float, chain_len: int, random_key: str, roundedness: float,
+) -> tuple[float, float]:
+    """The direction for a synthesized *virtual* stroke used to round a chain's own loose end (see
+    ``_round_chain``) -- continuing the one real adjacent stroke's own direction verbatim for a
+    multi-stroke chain ("continue the bend of the bend after it," read as: keep the directional flow
+    the loose end's own neighbor is already committed to, rather than introducing an unrelated new
+    heading), or that same direction plus a random offset for a 1-stroke chain ("if it is... a single
+    straight stroke... random direction within the 2x2 frame, with 1.0 meaning 90 degrees")."""
+    angle = math.atan2(dir_y, dir_x)
+    if chain_len == 1:
+        offset_deg = _stable_unit(random_key) * roundedness * 90.0
+        angle += math.radians(offset_deg)
+    return math.cos(angle), math.sin(angle)
+
+
+def _round_chain(
+    chain: list[int], crooked: dict[int, tuple[float, float, float, float]], traits, jitter_glyph_index: int | str,
+) -> tuple[
+    dict[int, tuple[float, float, float, float]], list[tuple[float, float, float, float, float]],
+    dict[int, bool], dict[int, bool],
+]:
+    """``roundedness`` (Part D), on top of ``crooked`` (Part C's own output). Two passes:
+
+    1. **Selection** -- for each internal joint (chain-adjacent ``LINE`` stroke pair) and each of the
+       chain's own two loose ends (the leading start, the trailing end), an independent seeded roll
+       decides whether it rounds at all (probability ``roundedness``). A loose end rounds against a
+       *synthesized virtual stroke* (``_virtual_neighbor_direction``) rather than a special case --
+       the exact same corner math below handles both an internal joint (two real strokes) and a loose
+       end (one real, one virtual), keeping only the real side's own result.
+    2. **Geometry** -- for every selected corner, the fraction ``f = roundedness * 0.5`` ("100% means
+       from 50% along one stroke to 50% along the second," direct user phrasing) locates ``P1``/``P2``
+       on the two sides; the new rounding arc's own ``bulge`` is solved (``_bulge_through_point``) so
+       its control point lands as close as possible to the original sharp corner. ``_ROUNDING_SAFETY_
+       CEILING`` clamps a single stroke's own two fractions (computed *before* any geometry, so the
+       clamped fraction is used consistently for both the straight truncation and its own arc
+       endpoint) if both its own sides got selected.
+
+    Returns ``(segments, arcs, rounded_start, rounded_end)`` -- ``segments`` is each stroke's own final
+    (possibly truncated) ``(x0, y0, x1, y1)``; ``arcs`` is a list of ``(x0, y0, x1, y1, bulge)`` curves
+    to additionally render; ``rounded_start``/``rounded_end`` flag which stroke-ends rounding claimed,
+    for serif/terminal-ornament attachment to skip."""
+    n = len(chain)
+    f = traits.roundedness * 0.5
+
+    def selected(key: str) -> bool:
+        if traits.roundedness <= 0.0:
+            return False
+        roll = (_stable_unit(f"{key}:round-select") + 1.0) / 2.0
+        return roll < traits.roundedness
+
+    joint_selected = [selected(f"{jitter_glyph_index}:{chain[j]}:{chain[j + 1]}:joint") for j in range(n - 1)]
+    start_selected = selected(f"{jitter_glyph_index}:{chain[0]}:loose-start")
+    end_selected = selected(f"{jitter_glyph_index}:{chain[-1]}:loose-end")
+
+    rounded_start: dict[int, bool] = {idx: False for idx in chain}
+    rounded_end: dict[int, bool] = {idx: False for idx in chain}
+    if start_selected:
+        rounded_start[chain[0]] = True
+    if end_selected:
+        rounded_end[chain[-1]] = True
+    for j, rounds in enumerate(joint_selected):
+        if rounds:
+            rounded_end[chain[j]] = True
+            rounded_start[chain[j + 1]] = True
+
+    stroke_fraction: dict[int, float] = {}
+    for idx in chain:
+        both = rounded_start[idx] and rounded_end[idx]
+        stroke_fraction[idx] = min(f, 0.45) if both and 2 * f > _ROUNDING_SAFETY_CEILING else f
+
+    arcs: list[tuple[float, float, float, float, float]] = []
+
+    for j, rounds in enumerate(joint_selected):
+        if not rounds:
+            continue
+        idx_a, idx_b = chain[j], chain[j + 1]
+        fa, fb = stroke_fraction[idx_a], stroke_fraction[idx_b]
+        ax0, ay0, ax1, ay1 = crooked[idx_a]
+        bx0, by0, bx1, by1 = crooked[idx_b]
+        corner_x, corner_y = ax1, ay1  # == bx0, by0
+        p1x, p1y = ax0 + (ax1 - ax0) * (1 - fa), ay0 + (ay1 - ay0) * (1 - fa)
+        p2x, p2y = bx0 + (bx1 - bx0) * fb, by0 + (by1 - by0) * fb
+        bulge = _bulge_through_point(p1x, p1y, p2x, p2y, corner_x, corner_y)
+        arcs.append((p1x, p1y, p2x, p2y, bulge))
+
+    if start_selected:
+        idx = chain[0]
+        fa = stroke_fraction[idx]
+        sx0, sy0, sx1, sy1 = crooked[idx]
+        length = math.hypot(sx1 - sx0, sy1 - sy0) or 1.0
+        vdx, vdy = _virtual_neighbor_direction(
+            sx1 - sx0, sy1 - sy0, n, f"{jitter_glyph_index}:{idx}:end-angle-start", traits.roundedness,
+        )
+        vx0, vy0 = sx0 - vdx * length, sy0 - vdy * length
+        p1x, p1y = vx0 + (sx0 - vx0) * (1 - fa), vy0 + (sy0 - vy0) * (1 - fa)
+        p2x, p2y = sx0 + (sx1 - sx0) * fa, sy0 + (sy1 - sy0) * fa
+        bulge = _bulge_through_point(p1x, p1y, p2x, p2y, sx0, sy0)
+        arcs.append((p1x, p1y, p2x, p2y, bulge))
+
+    if end_selected:
+        idx = chain[-1]
+        fb = stroke_fraction[idx]
+        sx0, sy0, sx1, sy1 = crooked[idx]
+        length = math.hypot(sx1 - sx0, sy1 - sy0) or 1.0
+        vdx, vdy = _virtual_neighbor_direction(
+            sx1 - sx0, sy1 - sy0, n, f"{jitter_glyph_index}:{idx}:end-angle-end", traits.roundedness,
+        )
+        vx1, vy1 = sx1 + vdx * length, sy1 + vdy * length
+        p1x, p1y = sx0 + (sx1 - sx0) * (1 - fb), sy0 + (sy1 - sy0) * (1 - fb)
+        p2x, p2y = sx1 + (vx1 - sx1) * fb, sy1 + (vy1 - sy1) * fb
+        bulge = _bulge_through_point(p1x, p1y, p2x, p2y, sx1, sy1)
+        arcs.append((p1x, p1y, p2x, p2y, bulge))
+
+    segments: dict[int, tuple[float, float, float, float]] = {}
+    for idx in chain:
+        sx0, sy0, sx1, sy1 = crooked[idx]
+        fa = stroke_fraction[idx] if rounded_start[idx] else 0.0
+        fb = stroke_fraction[idx] if rounded_end[idx] else 0.0
+        nx0, ny0 = sx0 + (sx1 - sx0) * fa, sy0 + (sy1 - sy0) * fa
+        nx1, ny1 = sx1 - (sx1 - sx0) * fb, sy1 - (sy1 - sy0) * fb
+        segments[idx] = (nx0, ny0, nx1, ny1)
+
+    return segments, arcs, rounded_start, rounded_end
+
+
+def _render_scope(
+    strokes: tuple[Stroke, ...], traits, jitter_glyph_index: int | str, grid_unit_x: float, grid_unit_y: float,
+    offset_x: float, offset_y: float, script_fingerprint: str, serif_rule: SerifRule,
+) -> tuple[list[list[tuple[float, float]]], list[float], dict[int, bool], dict[int, bool], dict[int, tuple[float, float, float, float]]]:
+    """All polygons for one glyph-or-diacritic *scope*'s own strokes (a main glyph's own ``glyph.
+    strokes``, or one diacritic's own ``diac.strokes``) -- ``DOT``/``ARC`` via the unchanged per-stroke
+    ``_stroke_polygons`` path, ``LINE`` strokes grouped into chains (``_find_chains``) and run through
+    ``crookedness`` (``_crooked_chain_endpoints``) then ``roundedness`` (``_round_chain``), with serif
+    attachment skipping whichever stroke-end rounding claimed. Returns ``(polygons, xs, rounded_start,
+    rounded_end, segments)`` -- ``xs`` is every x-coordinate touched (``_build_glyph_outline``'s own
+    advance-width extent is computed from this directly); the last three are only meaningful for
+    ``LINE`` strokes and are what the main glyph's own terminal-ornament roll needs."""
+    polygons: list[list[tuple[float, float]]] = []
+    xs: list[float] = []
+    width = _stroke_width(traits)
+    contrast = lerp01(traits.stroke_contrast, 0.0, 0.45)
+    w_start, w_end = width * (1 + contrast), width * (1 - contrast)
+
+    rounded_start: dict[int, bool] = {}
+    rounded_end: dict[int, bool] = {}
+    segments: dict[int, tuple[float, float, float, float]] = {}
+
+    for chain in _find_chains(strokes):
+        crooked = _crooked_chain_endpoints(strokes, chain, traits, jitter_glyph_index, grid_unit_x, grid_unit_y, offset_x, offset_y)
+        chain_segments, arcs, ch_rounded_start, ch_rounded_end = _round_chain(chain, crooked, traits, jitter_glyph_index)
+        rounded_start.update(ch_rounded_start)
+        rounded_end.update(ch_rounded_end)
+        segments.update(chain_segments)
+
+        for idx in chain:
+            x0, y0, x1, y1 = chain_segments[idx]
+            cx0, cy0, cx1, cy1 = crooked[idx]
+            full_length = math.hypot(cx1 - cx0, cy1 - cy0) or 1.0
+            t0 = math.hypot(x0 - cx0, y0 - cy0) / full_length
+            t1 = 1.0 - math.hypot(cx1 - x1, cy1 - y1) / full_length
+            sw0 = w_start + (w_end - w_start) * t0
+            sw1 = w_start + (w_end - w_start) * t1
+            polygons.append(_quad(x0, y0, x1, y1, sw0, sw1))
+            xs.extend([x0, x1])
+            polygons.extend(
+                _serif_polygons_for_stroke(
+                    strokes[idx], x0, y0, x1, y1, width, f"{jitter_glyph_index}:{idx}", serif_rule,
+                    start_available=not ch_rounded_start[idx], end_available=not ch_rounded_end[idx],
+                )
+            )
+        for ax0, ay0, ax1, ay1, bulge in arcs:
+            polygons.extend(_arc_polygons(ax0, ay0, ax1, ay1, bulge, width, width))
+            xs.extend([ax0, ax1])
+
+    for i, stroke in enumerate(strokes):
+        if stroke.kind is StrokeKind.LINE:
+            continue
+        stroke_polygons = _stroke_polygons(
+            stroke, jitter_glyph_index, i, traits, grid_unit_x, grid_unit_y, script_fingerprint, serif_rule,
+            offset_x, offset_y,
+        )
+        polygons.extend(stroke_polygons)
+        xs.extend(pt[0] for polygon in stroke_polygons for pt in polygon)
+
+    return polygons, xs, rounded_start, rounded_end, segments
+
+
 _DIACRITIC_SCALE = 0.4
 """A diacritic renders at this fraction of the main glyph's own grid-cell size -- "no larger than 1
 of the full letter cells," see `core.script.Glyph.diacritics`'s own docstring. Fixed for now, not its
@@ -609,25 +909,6 @@ def _diacritic_offset(
     return width_main if positive else -width_diac, (height_main - height_diac) / 2
 
 
-def _iter_glyph_strokes(
-    glyph: Glyph, glyph_index: int, grid_unit_x: float, grid_unit_y: float, grid_max_x: int, grid_max_y: int,
-    direction: WritingDirection,
-):
-    """Yields ``(stroke, jitter_glyph_index, stroke_index, grid_unit_x, grid_unit_y, offset_x,
-    offset_y)`` for every stroke this glyph is built from -- its own, plus each attached diacritic's
-    own, rendered at `_DIACRITIC_SCALE` and translated to its own slot offset (`_diacritic_offset`,
-    direction-aware -- see that function's own docstring). Shared by `_build_glyph_outline` and
-    `_glyph_extent` so a diacritic sticking out past the main glyph's own edge is accounted for in both
-    the compiled outline and the advance-width calculation."""
-    for stroke_index, stroke in enumerate(glyph.strokes):
-        yield stroke, glyph_index, stroke_index, grid_unit_x, grid_unit_y, 0.0, 0.0
-    diac_unit_x, diac_unit_y = grid_unit_x * _DIACRITIC_SCALE, grid_unit_y * _DIACRITIC_SCALE
-    for slot, diac in glyph.diacritics.items():
-        offset_x, offset_y = _diacritic_offset(slot, direction, grid_max_x, grid_max_y, grid_unit_x, grid_unit_y)
-        for stroke_index, stroke in enumerate(diac.strokes):
-            yield stroke, f"{glyph_index}:{slot}", stroke_index, diac_unit_x, diac_unit_y, offset_x, offset_y
-
-
 def _emit_polygons(pen: TTGlyphPen, polygons: list[list[tuple[float, float]]]) -> None:
     for polygon in polygons:
         pen.moveTo((round(polygon[0][0]), round(polygon[0][1])))
@@ -638,62 +919,66 @@ def _emit_polygons(pen: TTGlyphPen, polygons: list[list[tuple[float, float]]]) -
 
 def _glyph_terminal_ornament_polygons(
     glyph: Glyph, glyph_index: int, traits, grid_unit_x: float, grid_unit_y: float, grid_max_x: int, grid_max_y: int,
+    segments: dict[int, tuple[float, float, float, float]], rounded_start: dict[int, bool], rounded_end: dict[int, bool],
 ) -> list[list[tuple[float, float]]]:
     """The main glyph's own terminal ornaments (``_roll_terminal_ornaments``), each resolved to real
     em-space polygons -- never applied to a diacritic's own strokes (an ornament is a letter-scale
-    flourish; a diacritic is already a small attached mark, not a "letter" in its own right)."""
+    flourish; a diacritic is already a small attached mark, not a "letter" in its own right). Attaches
+    to ``segments``' own *final* (post-crookedness, post-roundedness-truncation) stroke endpoint rather
+    than recomputing a plain jittered one, and ``rounded_start``/``rounded_end`` keep rounding's own
+    claimed endpoints out of the candidate pool in the first place (see ``_roll_terminal_ornaments``'s
+    own docstring)."""
     polygons: list[list[tuple[float, float]]] = []
     width = _stroke_width(traits)
-    for stroke_index, is_start, preset_index in _roll_terminal_ornaments(glyph, glyph_index, traits, grid_max_x, grid_max_y):
-        s = glyph.strokes[stroke_index]
-        here, other = (s.start, s.end) if is_start else (s.end, s.start)
-        jitter_prefix = f"{glyph_index}:{stroke_index}"
-        here_tag, other_tag = ("a", "b") if is_start else ("b", "a")
-        ex, ey = _point_to_em(here, f"{jitter_prefix}:{here_tag}", traits, grid_unit_x, grid_unit_y)
-        ox, oy = _point_to_em(other, f"{jitter_prefix}:{other_tag}", traits, grid_unit_x, grid_unit_y)
+    ornaments = _roll_terminal_ornaments(glyph, glyph_index, traits, grid_max_x, grid_max_y, rounded_start, rounded_end)
+    for stroke_index, is_start, preset_index in ornaments:
+        x0, y0, x1, y1 = segments[stroke_index]
+        ex, ey, ox, oy = (x0, y0, x1, y1) if is_start else (x1, y1, x0, y0)
         dx, dy = ex - ox, ey - oy
         length = math.hypot(dx, dy) or 1.0
         preset = _TERMINAL_ORNAMENT_PRESETS[preset_index]
-        polygons.extend(
-            _terminal_ornament_polygons(ex, ey, dx / length, dy / length, width, preset, f"{jitter_prefix}:ornament")
-        )
+        seed_text = f"{glyph_index}:{stroke_index}:ornament"
+        polygons.extend(_terminal_ornament_polygons(ex, ey, dx / length, dy / length, width, preset, seed_text))
     return polygons
 
 
 def _build_glyph_outline(
     glyph: Glyph, glyph_index: int, traits, grid_unit_x: float, grid_unit_y: float, grid_max_x: int, grid_max_y: int,
     direction: WritingDirection, script_fingerprint: str, serif_rule: SerifRule,
-):
+) -> tuple[object, bool, tuple[float, float]]:
+    """Returns ``(ttf_glyph, has_contour, (min_x, max_x))`` -- the outline and its own advance-width
+    extent computed together (one ``_render_scope`` pass per scope, not two), since both need the same
+    ``crookedness``/``roundedness`` geometry."""
     pen = TTGlyphPen(None)
     any_contour = False
-    for stroke, idx, s_idx, unit_x, unit_y, ox, oy in _iter_glyph_strokes(
-        glyph, glyph_index, grid_unit_x, grid_unit_y, grid_max_x, grid_max_y, direction,
-    ):
-        polygons = _stroke_polygons(stroke, idx, s_idx, traits, unit_x, unit_y, script_fingerprint, serif_rule, ox, oy)
-        _emit_polygons(pen, polygons)
-        any_contour = any_contour or bool(polygons)
+    xs: list[float] = []
+
+    main_polygons, main_xs, rounded_start, rounded_end, segments = _render_scope(
+        glyph.strokes, traits, glyph_index, grid_unit_x, grid_unit_y, 0.0, 0.0, script_fingerprint, serif_rule,
+    )
+    _emit_polygons(pen, main_polygons)
+    any_contour = any_contour or bool(main_polygons)
+    xs.extend(main_xs)
+
+    diac_unit_x, diac_unit_y = grid_unit_x * _DIACRITIC_SCALE, grid_unit_y * _DIACRITIC_SCALE
+    for slot, diac in glyph.diacritics.items():
+        offset_x, offset_y = _diacritic_offset(slot, direction, grid_max_x, grid_max_y, grid_unit_x, grid_unit_y)
+        diac_polygons, diac_xs, _diac_rs, _diac_re, _diac_seg = _render_scope(
+            diac.strokes, traits, f"{glyph_index}:{slot}", diac_unit_x, diac_unit_y, offset_x, offset_y,
+            script_fingerprint, serif_rule,
+        )
+        _emit_polygons(pen, diac_polygons)
+        any_contour = any_contour or bool(diac_polygons)
+        xs.extend(diac_xs)
+
     ornament_polygons = _glyph_terminal_ornament_polygons(
-        glyph, glyph_index, traits, grid_unit_x, grid_unit_y, grid_max_x, grid_max_y,
+        glyph, glyph_index, traits, grid_unit_x, grid_unit_y, grid_max_x, grid_max_y, segments, rounded_start, rounded_end,
     )
     _emit_polygons(pen, ornament_polygons)
     any_contour = any_contour or bool(ornament_polygons)
-    return pen.glyph(), any_contour
 
-
-def _glyph_extent(
-    glyph: Glyph, glyph_index: int, traits, grid_unit_x: float, grid_unit_y: float, grid_max_x: int, grid_max_y: int,
-    direction: WritingDirection,
-) -> tuple[float, float]:
-    xs: list[float] = []
-    for stroke, idx, s_idx, unit_x, unit_y, ox, oy in _iter_glyph_strokes(
-        glyph, glyph_index, grid_unit_x, grid_unit_y, grid_max_x, grid_max_y, direction,
-    ):
-        jitter_prefix = f"{idx}:{s_idx}"
-        xs.append(_point_to_em(stroke.start, f"{jitter_prefix}:a", traits, unit_x, unit_y, ox, oy)[0])
-        xs.append(_point_to_em(stroke.end, f"{jitter_prefix}:b", traits, unit_x, unit_y, ox, oy)[0])
-    if not xs:
-        return 0.0, UPM
-    return min(xs), max(xs)
+    extent = (min(xs), max(xs)) if xs else (0.0, UPM)
+    return pen.glyph(), any_contour, extent
 
 
 def build_font(script: InventedScript, output_path: Path, family_name: str) -> None:
@@ -725,19 +1010,12 @@ def build_font(script: InventedScript, output_path: Path, family_name: str) -> N
 
     for i, glyph in enumerate(script.glyphs):
         name = f"g{i:04d}"
-        outline, has_contour = _build_glyph_outline(
+        outline, has_contour, (min_x, max_x) = _build_glyph_outline(
             glyph, i, script.traits, grid_unit_x, grid_unit_y, script.grid_max_x, script.grid_max_y,
             script.direction, fingerprint, serif_rule,
         )
         glyphs[name] = outline
-        if not has_contour:
-            width = empty_advance
-        else:
-            min_x, max_x = _glyph_extent(
-                glyph, i, script.traits, grid_unit_x, grid_unit_y, script.grid_max_x, script.grid_max_y,
-                script.direction,
-            )
-            width = (max_x - min_x) + 2 * side_bearing
+        width = empty_advance if not has_contour else (max_x - min_x) + 2 * side_bearing
         advance[name] = (round(width), round(side_bearing))
         cmap[0xE000 + i] = name
 
