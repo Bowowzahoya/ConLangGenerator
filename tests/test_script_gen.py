@@ -406,6 +406,69 @@ def test_is_diacritic_still_scales_with_dot_prevalence():
     assert high_dots > low_dots
 
 
+# --- dots never overlap a stroke's own path -----------------------------------------------------
+
+
+def test_line_points_covers_every_integer_point_on_horizontal_vertical_and_diagonal_strokes():
+    assert script_gen._line_points(Point(x=0, y=1), Point(x=3, y=1)) == frozenset(
+        Point(x=x, y=1) for x in range(4)
+    )
+    assert script_gen._line_points(Point(x=2, y=0), Point(x=2, y=3)) == frozenset(
+        Point(x=2, y=y) for y in range(4)
+    )
+    assert script_gen._line_points(Point(x=0, y=0), Point(x=2, y=2)) == frozenset(
+        Point(x=i, y=i) for i in range(3)
+    )
+    assert script_gen._line_points(Point(x=1, y=1), Point(x=1, y=1)) == frozenset({Point(x=1, y=1)})
+
+
+def test_build_one_attempt_never_places_a_dot_on_a_line_already_drawn_through_it():
+    # Forward case: a line decided first (possibly passing through an interior grid point, not just
+    # its own two endpoints), a dot decided after -- direct user feedback: "dots should never be
+    # placed where they overlap with a stroke going over... that corner."
+    traits = ScriptTraits(dot_prevalence=1.0, stroke_continuity=-1.0, complexity=1.0)
+    checked_any_dot = False
+    for seed in range(200):
+        strokes = script_gen._build_one_attempt(f"dot-on-line-{seed}", traits, 4, 2, 2)
+        line_points: set[Point] = set()
+        for s in strokes:
+            if s.kind is StrokeKind.LINE:
+                line_points |= script_gen._line_points(s.start, s.end)
+        for s in strokes:
+            if s.kind is StrokeKind.DOT:
+                checked_any_dot = True
+                assert s.start not in line_points
+    assert checked_any_dot
+
+
+def test_build_one_attempt_never_draws_a_line_through_an_existing_dot():
+    # Reverse case: a dot decided first, a line decided after -- the line must never start, end, or
+    # pass through that same point either.
+    traits = ScriptTraits(dot_prevalence=1.0, stroke_continuity=-1.0, complexity=1.0)
+    checked_any_line = False
+    for seed in range(200):
+        strokes = script_gen._build_one_attempt(f"line-on-dot-{seed}", traits, 4, 2, 2)
+        dot_points = {s.start for s in strokes if s.kind is StrokeKind.DOT}
+        if not dot_points:
+            continue
+        for s in strokes:
+            if s.kind is StrokeKind.LINE:
+                checked_any_line = True
+                assert not (script_gen._line_points(s.start, s.end) & dot_points)
+    assert checked_any_line
+
+
+def test_decide_stroke_dot_points_filtering_is_a_no_op_when_empty():
+    # When no dot has been placed yet, the new `dot_points` parameter must change nothing -- byte-
+    # identical to the pre-round-8 behavior for any dot-free glyph.
+    traits = ScriptTraits(stroke_continuity=0.5)
+    a = script_gen._decide_stroke(
+        "dot-noop", 3, Point(x=0, y=0), (1, 0), traits, 2, 2, set(), False, frozenset(),
+    )
+    b = script_gen._decide_stroke("dot-noop", 3, Point(x=0, y=0), (1, 0), traits, 2, 2, set())
+    assert a == b
+
+
 # --- diacritic placement (direction-aware, ornateness-driven) -----------------------------------
 
 
@@ -477,15 +540,18 @@ def test_build_diacritic_pool_never_rounds_a_positive_density_down_to_empty():
 
 
 def test_build_diacritic_pool_caps_strokes_at_four_even_at_full_ornateness():
-    traits = ScriptTraits(diacritic_density=1.0, ornateness=1.0, complexity=1.0)
+    # `diacritic_complexity` (not `complexity`) is what now drives a pool entry's own stroke count --
+    # set to 1.0 to actually approach the cap, same as `_build_diacritic_pool_widens_stroke_count_
+    # ceiling_with_ornateness` below needs it to observe the ceiling moving at all.
+    traits = ScriptTraits(diacritic_density=1.0, ornateness=1.0, diacritic_complexity=1.0)
     for seed in range(30):
         pool = script_gen._build_diacritic_pool(f"stroke-cap-{seed}", traits, 2, 2, WritingDirection.LTR)
         assert all(len(d.strokes) <= script_gen._DIACRITIC_MAX_STROKES_CAP for d in pool)
 
 
 def test_build_diacritic_pool_widens_stroke_count_ceiling_with_ornateness():
-    traits_lo = ScriptTraits(diacritic_density=1.0, ornateness=0.0, complexity=1.0)
-    traits_hi = ScriptTraits(diacritic_density=1.0, ornateness=1.0, complexity=1.0)
+    traits_lo = ScriptTraits(diacritic_density=1.0, ornateness=0.0, diacritic_complexity=1.0)
+    traits_hi = ScriptTraits(diacritic_density=1.0, ornateness=1.0, diacritic_complexity=1.0)
     lo_strokes = max(
         len(d.strokes)
         for seed in range(30)
@@ -497,6 +563,33 @@ def test_build_diacritic_pool_widens_stroke_count_ceiling_with_ornateness():
         for d in script_gen._build_diacritic_pool(f"stroke-ceiling-{seed}", traits_hi, 2, 2, WritingDirection.LTR)
     )
     assert hi_strokes > lo_strokes
+
+
+def test_diacritic_complexity_controls_pool_stroke_count_independently_of_complexity():
+    # Direct user request: "keep diacritic complexity as a separate dial from character complexity."
+    low = ScriptTraits(diacritic_density=1.0, ornateness=1.0, complexity=1.0, diacritic_complexity=0.0)
+    high = ScriptTraits(diacritic_density=1.0, ornateness=1.0, complexity=1.0, diacritic_complexity=1.0)
+    low_strokes = [
+        len(d.strokes) for d in script_gen._build_diacritic_pool("dcx-lo", low, 2, 2, WritingDirection.LTR)
+    ]
+    high_strokes = [
+        len(d.strokes) for d in script_gen._build_diacritic_pool("dcx-hi", high, 2, 2, WritingDirection.LTR)
+    ]
+    assert max(low_strokes) < max(high_strokes)
+
+
+def test_diacritic_complexity_is_unaffected_by_the_main_letters_own_complexity():
+    # Same `diacritic_complexity`, `complexity` swung from one extreme to the other -- a pool entry's
+    # own stroke count must not move at all.
+    traits_a = ScriptTraits(diacritic_density=1.0, ornateness=1.0, complexity=-1.0, diacritic_complexity=0.5)
+    traits_b = ScriptTraits(diacritic_density=1.0, ornateness=1.0, complexity=1.0, diacritic_complexity=0.5)
+    strokes_a = [
+        len(d.strokes) for d in script_gen._build_diacritic_pool("dcx-fix-a", traits_a, 2, 2, WritingDirection.LTR)
+    ]
+    strokes_b = [
+        len(d.strokes) for d in script_gen._build_diacritic_pool("dcx-fix-b", traits_b, 2, 2, WritingDirection.LTR)
+    ]
+    assert strokes_a == strokes_b
 
 
 def test_pool_diacritics_never_carry_their_own_diacritics():

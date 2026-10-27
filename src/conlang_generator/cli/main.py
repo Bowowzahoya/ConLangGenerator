@@ -57,7 +57,7 @@ app = typer.Typer(help="Generate constructed languages and translate to/from Eng
 LANGUAGES_DIR = Path("conlangs")
 CACHE_DIR = Path(".cache")
 SCRIPT_TRAIT_FIELDS: tuple[str, ...] = tuple(ScriptTraits.model_fields)
-"""The 14 ``ScriptTraits`` dial names, in declaration order -- the
+"""The 15 ``ScriptTraits`` dial names, in declaration order -- the
 ``--script-trait`` flag's own allowlist, the ``ScriptTraits`` analogue of
 ``GRADED_TRAIT_FIELDS``."""
 

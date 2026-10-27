@@ -15,6 +15,7 @@ from fontTools.pens.recordingPen import RecordingPen  # noqa: E402
 from conlang_generator.core.script import Glyph, Point, ScriptTraits, Stroke, StrokeKind, WritingDirection
 from conlang_generator.generation import script_gen
 from conlang_generator.script.font_builder import (
+    _DIACRITIC_GAP_FRACTION,
     _DIACRITIC_SCALE,
     _DOT_RADIUS,
     _LETTER_SCALE,
@@ -32,6 +33,7 @@ from conlang_generator.script.font_builder import (
     _diacritic_offset,
     _dot_polygons,
     _ornament_main_points,
+    _point_touch_counts,
     _render_scope,
     _round_endpoints,
     _roll_serif_rule,
@@ -353,6 +355,58 @@ def test_roll_serif_rule_is_deterministic_for_the_same_fingerprint():
     assert a == b
 
 
+def _first_nonempty_serif_polygons(stroke, width, key_prefix, rule):
+    # `coverage == 1.0` still leaves a ~1/256 chance `_stable_unit`'s own include-roll lands exactly
+    # on the boundary and excludes a given stroke_key (see `_serif_polygons_for_stroke`'s own
+    # `include_roll >= coverage` check) -- try a handful of keys rather than risk a flaky one in a
+    # test that isn't about that roll at all.
+    for i in range(5):
+        polygons = _serif_polygons_for_stroke(stroke, 0.0, 0.0, 0.0, 100.0, width, f"{key_prefix}-{i}", rule)
+        if polygons:
+            return polygons
+    raise AssertionError("every candidate key was excluded by the include-roll")
+
+
+def test_serif_polygons_for_stroke_radius_clearly_exceeds_the_strokes_own_half_width():
+    # Direct user feedback: "serif doesn't seem to do anything" -- the un-floored radius used to be
+    # only 0.96x..1.68x the stroke's own half-width across the whole weight range, so a "rounded"/
+    # "triangle" foot centered right on the stroke's own tip mostly overlapped the stroke's own
+    # existing silhouette. Checked across the whole weight range that the foot now clearly flares
+    # well past it.
+    for weight in (-1.0, 0.0, 1.0):
+        traits = ScriptTraits(weight=weight, serif=1.0)
+        width = _stroke_width(traits)
+        rule = _roll_serif_rule(traits, f"serif-size-{weight}")._replace(
+            coverage={"vertical": 1.0, "horizontal": 1.0, "diagonal": 1.0},
+            sides_count={"vertical": 1, "horizontal": 1, "diagonal": 1},
+            fixed_side={"vertical": "lower", "horizontal": "lower", "diagonal": "lower"},
+            shape="rounded",
+        )
+        stroke = Stroke(kind=StrokeKind.LINE, start=Point(x=0, y=0), end=Point(x=0, y=2))
+        polygons = _first_nonempty_serif_polygons(stroke, width, f"serif-size-key-{weight}", rule)
+        assert len(polygons) == 1
+        radius = max(math.hypot(px, py) for px, py in polygons[0])  # centered at (0, 0) -- the "lower" end
+        assert radius > (width / 2) * 2.0
+
+
+def test_serif_polygons_for_stroke_straight_shape_base_is_never_narrower_than_the_stroke():
+    for weight in (-1.0, 0.0, 1.0):
+        traits = ScriptTraits(weight=weight, serif=1.0)
+        width = _stroke_width(traits)
+        rule = _roll_serif_rule(traits, f"serif-straight-{weight}")._replace(
+            coverage={"vertical": 1.0, "horizontal": 1.0, "diagonal": 1.0},
+            sides_count={"vertical": 1, "horizontal": 1, "diagonal": 1},
+            fixed_side={"vertical": "lower", "horizontal": "lower", "diagonal": "lower"},
+            shape="straight",
+        )
+        stroke = Stroke(kind=StrokeKind.LINE, start=Point(x=0, y=0), end=Point(x=0, y=2))
+        polygons = _first_nonempty_serif_polygons(stroke, width, f"serif-straight-key-{weight}", rule)
+        assert len(polygons) == 1
+        quad = polygons[0]  # `_quad`'s own point order: [0] and [-1] are both the base (near) edge
+        base_span = math.hypot(quad[0][0] - quad[-1][0], quad[0][1] - quad[-1][1])
+        assert base_span >= width
+
+
 def test_serif_polygons_for_stroke_empty_when_its_own_class_has_zero_coverage():
     rule = SerifRule(
         coverage={"vertical": 0.0, "horizontal": 0.0, "diagonal": 0.0},
@@ -416,6 +470,15 @@ def test_diacritic_offset_external_slots_are_separated_from_the_main_glyphs_own_
     x_internal, y_internal = _diacritic_offset("internal:0,0", WritingDirection.LTR, 2, 2, 100.0, 100.0)
     assert x_internal == -width_diac / 2.0
     assert y_internal == -height_diac / 2.0
+
+
+def test_diacritic_offset_gap_is_twenty_percent_of_the_main_glyphs_own_size():
+    # Direct user ask, round 8: the pass-55 gap ("mix up with the letter too much") still read as too
+    # small -- "a blank space of 20% the size of the character."
+    assert _DIACRITIC_GAP_FRACTION == pytest.approx(0.20)
+    height_main = 200.0
+    _, top_y = _diacritic_offset("cross_pos", WritingDirection.LTR, 2, 2, 100.0, 100.0)
+    assert top_y == pytest.approx(height_main + height_main * 0.20)
 
 
 # --- connectivity (Part A) --------------------------------------------------------------------------
@@ -793,3 +856,31 @@ def test_render_scope_handles_a_dot_only_scope():
     )
     assert polygons
     assert segments == {}
+
+
+def test_point_touch_counts_classifies_degree_by_how_many_stroke_ends_share_a_point():
+    strokes = (_line(0, 0, 2, 0), _line(3, 2, 2, 0))
+    counts = _point_touch_counts(strokes)
+    assert counts[Point(x=2, y=0)] == 2  # both strokes' own end
+    assert counts[Point(x=0, y=0)] == 1  # stroke 0's own loose start
+    assert counts[Point(x=3, y=2)] == 1  # stroke 1's own loose start
+
+
+def test_render_scope_excludes_a_touch_by_chance_point_even_at_zero_roundedness():
+    # Direct user feedback: a terminal ornament/serif should "only be added to genuine ends," e.g.
+    # the stroke that turns a P into an R must not decorate the point where it touches the P -- this
+    # must hold even when roundedness never fires at all (previously, eligibility was keyed only to
+    # "did rounding claim this end," so an un-rounded touch stayed "available").
+    strokes = (_line(0, 0, 2, 0), _line(3, 2, 2, 0))
+    traits = ScriptTraits(roundedness=0.0)
+    fingerprint = "genuine-end-fingerprint"
+    serif_rule = _roll_serif_rule(traits, fingerprint)
+    _polygons, _xs, rounded_start, rounded_end, _segments = _render_scope(
+        strokes, traits, "g", 100.0, 100.0, 0.0, 0.0, fingerprint, serif_rule,
+    )
+    # Point (2, 0) -- stroke 0's own end and stroke 1's own end -- is a genuine joint, not available.
+    assert rounded_end[0] is True
+    assert rounded_end[1] is True
+    # Each stroke's own OTHER end is a true, degree-1 loose end -- still available.
+    assert rounded_start[0] is False
+    assert rounded_start[1] is False

@@ -1956,11 +1956,11 @@ conlang generate --prompt "a mountain language" --name doc-script-test --own-scr
 
 ### `generate --script-trait`
 
-Once a script is generated, its 14 dials -- grouped by what they actually change, not just listed --
+Once a script is generated, its 15 dials -- grouped by what they actually change, not just listed --
 are rolled from the language's own seed, same as everything else:
 
 - **Topology** (changes which strokes get drawn, a different set of shapes): `complexity`,
-  `diacritic_density`, `stroke_continuity`, `dot_prevalence`.
+  `diacritic_density`, `diacritic_complexity`, `stroke_continuity`, `dot_prevalence`.
 - **Typeface** (classic font-metric axes -- redraws the same strokes differently, never changes which
   strokes exist): `slant`, `weight`, `serif`, `stroke_contrast`, `proportion`.
 - **Form** (shape-execution axes -- also never changes which strokes exist, except `ornateness`, which
@@ -1984,15 +1984,16 @@ for the whole script -- never freshly invented per letter -- scaling from 0 shap
 `diacritic_density=0.0` up to 5 at `1.0`. Per letter, `diacritic_density` directly reads as the chance
 of at least one diacritic (`0.5` -> roughly half of letters carry one); a second, rarer one on the same
 letter is only a real possibility once density is already close to `1.0`. Each diacritic is capped at
-4 strokes.
+4 strokes, and `diacritic_complexity` -- kept deliberately independent of the main letter's own
+`complexity` -- decides where within that cap a given pool entry actually lands.
 
 Most dials are bipolar (`-1.0..1.0`, a positive value evidence *for* the named pole, negative for its
-opposite); `stroke_contrast`, `regularity`, `ornateness`, `serif`, `crookedness`, `roundedness`, and
-`diacritic_density` are unipolar (`0.0..1.0` only) -- each has no meaningful "opposite pole" below 0
-(monoline/geometric/plain/no-serifs/never-tilts/always-sharp/no-diacritics is already the `0.0` end,
-not a separate negative extreme).
+opposite); `stroke_contrast`, `regularity`, `ornateness`, `serif`, `crookedness`, `roundedness`,
+`diacritic_density`, and `diacritic_complexity` are unipolar (`0.0..1.0` only) -- each has no
+meaningful "opposite pole" below 0 (monoline/geometric/plain/no-serifs/never-tilts/always-sharp/
+no-diacritics/minimal-diacritics is already the `0.0` end, not a separate negative extreme).
 `--script-trait NAME=VALUE` (repeatable, one per dial) sets a specific dial directly, `VALUE` checked
-against that dial's own range -- NAME against this own, separate 14-dial list, not the 15 worldbuilding
+against that dial's own range -- NAME against this own, separate 15-dial list, not the 15 worldbuilding
 `--trait` names. Overriding a dial only takes effect when a script is actually generated (`--own-script
 yes`, or a prompt `auto` infers one from); every other, unforced dial still rolls normally.
 

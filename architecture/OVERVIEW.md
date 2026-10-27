@@ -1683,7 +1683,7 @@ implemented but not precluded). Split the same way `speech/` already
 splits data from mechanism:
 
 - **`core/script.py`**: the data model -- `WritingDirection` (5 values),
-  `ScriptTraits` (14 graded dials -- most bipolar, a few unipolar where
+  `ScriptTraits` (15 graded dials -- most bipolar, a few unipolar where
   there's no meaningfully distinct negative pole, same overall shape as
   `TraitProfile` but rolled from the language's own seed, not yet
   prompt-inferred; `SCRIPT_TRAIT_GROUP`/`SCRIPT_TRAIT_RANGE` are the
@@ -1703,9 +1703,11 @@ splits data from mechanism:
   builds the script-wide diacritic pool once, then one `Glyph` per
   phoneme via `generate_glyph` -- stroke topology only, plus the
   diacritic-attachment/stroke-count decisions `diacritic_density`/
-  `ornateness` also drive; see that module's own docstring for exactly
-  which traits it consumes vs. `script/font_builder.py` vs. not yet
-  consumed at all).
+  `diacritic_complexity`/`ornateness` also drive (`diacritic_complexity`
+  via `generate_glyph`'s own `complexity_override` parameter, kept
+  independent of a main letter's own `complexity`); see that module's own
+  docstring for exactly which traits it consumes vs. `script/font_
+  builder.py` vs. not yet consumed at all).
   Every glyph's own stroke content is addressably seeded (not drawn from
   sequential stream position) -- the property a script *tweak*
   (`generation.generator.regenerate_script`) needs to redraw only what
@@ -9865,3 +9867,71 @@ reading code or one-off ad hoc scripts.
   this round specifically targets), rendered side by side against their own `0.0` baseline via inline
   `@font-face` -- confirmed no stray fragments or outcrops across roughly 20 real glyphs at either dial,
   matching the two attached screenshots' own reported defects having been addressed.
+
+  **Pass 57: serif visibility, genuine-end-only ornamentation, diacritic spacing/complexity, dot/stroke
+  overlap.** Five more observations from testing pass 56's own build.
+
+  "Serif doesn't seem to do anything": `_serif_polygons_for_stroke`'s own radius (`width * thickness_
+  factor * 0.6`) was checked concretely against the stroke's own half-width -- `0.96x` at `weight=-1.0`,
+  only `1.68x` at `weight=+1.0`. Centered right on the stroke's own tip, that polygon mostly overlapped
+  the stroke's own existing silhouette instead of visibly flaring past it, the opposite of a real serif
+  foot. Raised to `width * max(thickness_factor, 1.0) * 1.3` (and the `"straight"` shape's own base
+  width floored to `width * max(thickness_factor, 1.1)`), landing around `2.6x..3.6x` instead --
+  confirmed visually via `@font-face` at both weight extremes, a clear round/flared foot at every
+  stroke end that qualifies.
+
+  "Terminal style now also gets added to the end of strokes if they meet another stroke": attachment
+  eligibility was keyed only to "did `roundedness` happen to claim this end" (`rounded_start`/
+  `rounded_end`, a probabilistic roll), never to "is this actually a loose end at all" -- a structural
+  joint (the P+R case pass 56 fixed for crookedness/roundedness) stayed "available" at any `roundedness`
+  below `1.0`, `0.0` included. New `_point_touch_counts(strokes) -> dict[Point, int]`; `_render_scope`
+  now additionally marks a point ineligible whenever its touch count isn't exactly `1`, independent of
+  the rounding roll -- serif and `_roll_terminal_ornaments` both already consumed these same flags, so
+  no signature changes needed past `_render_scope` itself.
+
+  "A blank space of 20% the size of the character": `_DIACRITIC_GAP_FRACTION` raised `0.07 -> 0.20`
+  (pass 55's own attempt at this same fix undershot the user's actual ask). Worst-case diacritic reach
+  recomputed by hand the same way pass 55 did: `550 + 0.20*550 + 220 + 35 = 915` em-units; `_ASCENT`
+  raised `850 -> 930` alongside it for margin -- confirmed (grepped) it's only ever an `hhea`/`OS2`
+  line-height metric, never a clip bound on any glyph's own outline.
+
+  "Keep diacritic complexity as a separate dial from character complexity": a pool entry's own stroke
+  count was still `round(lerp(traits.complexity, min_strokes, max_strokes))` inside `generate_glyph` --
+  the main letter's own dial, just remapped into a narrower band, despite the pool/density mechanics
+  (pass 55) already being independent of `complexity` in every other way. New unipolar
+  `diacritic_complexity` dial (15th); `generate_glyph` gained `complexity_override: float | None = None`
+  (substitutes for `traits.complexity` in the stroke-count formula for that call only, `None` keeping
+  every main-letter call unchanged); `_build_diacritic_pool` passes `complexity_override=traits.
+  diacritic_complexity`. `ornateness`'s own existing ceiling-widening effect is unchanged -- the new
+  dial decides *where in that range*, exactly mirroring `complexity`'s own old role.
+
+  "Dots should never be placed where they overlap with a stroke going over or ending/beginning at that
+  corner": two one-directional gaps in `_decide_stroke`/`_build_one_attempt`, not one. `occupied` (the
+  dot-placement exclusion set) only ever recorded a `LINE` stroke's two endpoints, never the grid points
+  a longer diagonal/straight stroke passes directly through -- fixed by marking every point in the new
+  `_line_points(start, end) -> frozenset[Point]` (every integer grid point a strictly horizontal/
+  vertical/45-degree stroke passes over, safe because `_valid_line_partners` already guarantees one of
+  those three directions) instead of just the two ends. In the other direction, nothing stopped a
+  *later* `LINE` stroke from landing on, or passing through, a point an *earlier* `DOT` already claimed
+  -- fixed by threading a new `dot_points: frozenset[Point]` parameter into `_decide_stroke` (trailing,
+  defaulted, so existing positional calls stay valid), filtering a fresh `start` and the chosen `end`
+  away from those points when possible, falling back to the unfiltered choice otherwise -- a no-op
+  entirely when `dot_points` is empty, so any dot-free glyph's own output is byte-identical to before.
+
+  Verified: new/updated unit tests in both `tests/test_script_font_builder.py` (serif radius vs. stroke
+  half-width across the weight range, the `"straight"` shape's own base-width floor, `_point_touch_
+  counts`, `_render_scope` excluding a touch-by-chance point even at `roundedness=0.0`, the raised gap
+  fraction) and `tests/test_script_gen.py` (`_line_points` on horizontal/vertical/diagonal strokes, a
+  dot never landing on a line's full path and a line never landing on/through a dot in both decision
+  orders, `diacritic_complexity` moving pool stroke counts independently of `complexity` and vice
+  versa, the dot-points filtering being a byte-identical no-op when empty); the existing "earlier
+  indices stay stable" retrace test still passes unchanged. An 80-seed stress test with every dial
+  maxed (`crookedness`/`roundedness`/`diacritic_density`/`diacritic_complexity`/`ornateness`/
+  `terminal_style`/`serif`/`complexity`/`dot_prevalence`/`weight` all at `1.0`, `stroke_continuity` at
+  `-1.0`) built every font with zero exceptions; full suite green. Live-verified via the CLI/
+  `@font-face`: six real languages generated with targeted `--script-trait` overrides (serif at both
+  weight extremes, a touch-by-chance scenario, `diacritic_complexity` at `0.0` vs. `1.0` holding
+  `complexity` fixed, and heavy dot/line overlap pressure) -- confirmed a clearly visible, properly
+  proportioned serif foot at every stroke weight, diacritics sitting with real daylight between them and
+  their own letter, visibly simpler vs. more elaborate diacritic marks at the same letter complexity,
+  and no dot touching or sitting on a line anywhere across all six fonts.

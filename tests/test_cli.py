@@ -105,7 +105,7 @@ def test_parse_trait_overrides_rejects_the_dedicated_strictness_flags_own_fields
 
 
 # --script-trait reuses _parse_trait_overrides against a second allowlist (SCRIPT_TRAIT_FIELDS,
-# ScriptTraits' own 14 dials) and a different flag name for its own error messages -- these mirror
+# ScriptTraits' own 15 dials) and a different flag name for its own error messages -- these mirror
 # the --trait tests above, against that allowlist instead. The real CLI call site also passes
 # range_of=SCRIPT_TRAIT_RANGE.__getitem__ (most dials bipolar -1..1, a few unipolar 0..1) -- passed
 # here too so these tests exercise the actual validation `--script-trait` uses, not the function's

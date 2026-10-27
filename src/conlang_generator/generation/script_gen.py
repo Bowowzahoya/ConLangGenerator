@@ -23,7 +23,7 @@ for how a later abugida/syllable-block system would extend this without
 a redesign.
 
 **Every glyph's own stroke content is addressably seeded, not drawn from
-sequential stream position.** ``direction``/the grid shape/the 13 style
+sequential stream position.** ``direction``/the grid shape/the 15 style
 dials are rolled once, in order, from one shared sequential ``random.
 Random`` stream (same convention every other per-symbol generation pass
 in this project already uses -- reproducible by seed, nothing new here).
@@ -116,7 +116,7 @@ def roll_grid_shape(rng: random.Random) -> tuple[int, int]:
 
 
 def roll_script_traits(rng: random.Random, force: ScriptTraitsForce = ScriptTraitsForce()) -> ScriptTraits:
-    """Rolls all 13 dials, each within its own ``SCRIPT_TRAIT_RANGE`` (bipolar ``-1..1`` or unipolar
+    """Rolls all 15 dials, each within its own ``SCRIPT_TRAIT_RANGE`` (bipolar ``-1..1`` or unipolar
     ``0..1``), then applies any non-``None`` field of ``force`` on top (see ``ScriptTraitsForce``'s own
     docstring) -- every ``rng`` draw still happens even for a forced dial, so adding or removing an
     override never shifts any other dial's own value."""
@@ -163,6 +163,22 @@ def _valid_line_partners(
     return filtered or partners
 
 
+def _line_points(start: Point, end: Point) -> frozenset[Point]:
+    """Every integer grid point a ``LINE`` stroke from ``start`` to ``end`` actually passes over,
+    inclusive of both ends -- well-defined because ``_valid_line_partners`` only ever allows a
+    horizontal (``dy == 0``), vertical (``dx == 0``), or 45-degree (``abs(dx) == abs(dy)``) stroke, so
+    the step from one point to the next is always exactly ``(-1/0/1, -1/0/1)``. Used to keep a dot from
+    ever being placed on, and a line from ever being drawn through, the same grid point (direct user
+    feedback: "dots should never be placed where they overlap with a stroke going over or ending/
+    beginning at that corner")."""
+    dx, dy = end.x - start.x, end.y - start.y
+    steps = max(abs(dx), abs(dy))
+    if steps == 0:
+        return frozenset({start})
+    sx, sy = dx // steps, dy // steps
+    return frozenset(Point(x=start.x + sx * i, y=start.y + sy * i) for i in range(steps + 1))
+
+
 def _decide_stroke(
     seed_key: str,
     index: int,
@@ -173,6 +189,7 @@ def _decide_stroke(
     grid_max_y: int,
     occupied: set[tuple[int, int]],
     is_diacritic: bool = False,
+    dot_points: frozenset[Point] = frozenset(),
 ) -> Stroke:
     """One stroke slot's own decision, addressably seeded by ``f"{seed_key}:{index}"`` -- a pure
     function of the glyph's identity, this slot's index, and the current trait values, never of
@@ -189,7 +206,15 @@ def _decide_stroke(
     Otherwise, a line: ``stroke_continuity`` decides whether it starts from ``chain_from`` (the
     previous line stroke's own end) or a fresh point, and ``end`` is always one of ``start``'s own
     valid cell-boundary/diagonal partners (``_valid_line_partners``) -- excluding ``chain_direction``
-    itself when actually chaining, so this stroke never just retraces the one that fed it."""
+    itself when actually chaining, so this stroke never just retraces the one that fed it.
+    ``dot_points`` (every point a ``DOT`` decided earlier in this same glyph has claimed) is checked
+    the other way around from ``occupied``/dot placement above: a fresh ``start`` and the chosen
+    ``end`` both prefer to avoid landing on, or passing through (``_line_points``), any of those
+    points, falling back to the unfiltered choice if avoiding them would leave nothing -- same
+    "never end up with no candidates" convention ``_valid_line_partners`` itself already uses. Both
+    checks are no-ops when ``dot_points`` is empty (the common case whenever no dot has been placed
+    yet, or ``dot_prevalence`` never produces one at all), so this never changes a dot-free glyph's
+    own output."""
     rng = random.Random(f"{seed_key}:{index}")
     dot_ceiling = 0.55 if is_diacritic else 0.33
     if rng.random() < lerp(traits.dot_prevalence, 0.0, dot_ceiling):
@@ -203,8 +228,22 @@ def _decide_stroke(
             return Stroke(kind=StrokeKind.DOT, start=rng.choice(free_points), end=rng.choice(free_points))
     is_chained = chain_from is not None and rng.random() < lerp(traits.stroke_continuity, 0.15, 0.95)
     start = chain_from if is_chained else _random_point(rng, grid_max_x, grid_max_y)
+    if not is_chained and dot_points and start in dot_points:
+        free_starts = [
+            Point(x=x, y=y)
+            for x in range(grid_max_x + 1)
+            for y in range(grid_max_y + 1)
+            if Point(x=x, y=y) not in dot_points
+        ]
+        if free_starts:
+            start = random.Random(f"{seed_key}:{index}:start-avoid-dot").choice(free_starts)
     exclude = chain_direction if is_chained else None
-    end = rng.choice(_valid_line_partners(start, grid_max_x, grid_max_y, exclude))
+    partners = _valid_line_partners(start, grid_max_x, grid_max_y, exclude)
+    end = rng.choice(partners)
+    if dot_points:
+        safe_partners = [p for p in partners if not (_line_points(start, p) & dot_points)]
+        if safe_partners and end not in safe_partners:
+            end = random.Random(f"{seed_key}:{index}:end-avoid-dot").choice(safe_partners)
     return Stroke(kind=StrokeKind.LINE, start=start, end=end)
 
 
@@ -224,17 +263,23 @@ def _build_one_attempt(
 ) -> list[Stroke]:
     strokes: list[Stroke] = []
     occupied: set[tuple[int, int]] = set()
+    dot_points: set[Point] = set()
     chain_from: Point | None = None
     chain_direction: tuple[int, int] | None = None
 
     for i in range(stroke_count):
         s = _decide_stroke(
             seed_key, i, chain_from, chain_direction, traits, grid_max_x, grid_max_y, occupied, is_diacritic,
+            frozenset(dot_points),
         )
         strokes.append(s)
-        occupied.add((s.start.x, s.start.y))
-        occupied.add((s.end.x, s.end.y))
-        if s.kind is not StrokeKind.DOT:
+        if s.kind is StrokeKind.DOT:
+            occupied.add((s.start.x, s.start.y))
+            occupied.add((s.end.x, s.end.y))
+            dot_points.add(s.start)
+        else:
+            for p in _line_points(s.start, s.end):
+                occupied.add((p.x, p.y))
             chain_from = s.end
             chain_direction = (s.end.x - s.start.x, s.end.y - s.start.y)
     return strokes
@@ -293,8 +338,8 @@ def _script_wide_seed(traits: ScriptTraits, direction: WritingDirection) -> str:
     diacritic slot data on a tweak the "non-topology dials never touch stroke data" architecture
     promises never will."""
     topology_relevant = (
-        traits.complexity, traits.diacritic_density, traits.stroke_continuity, traits.dot_prevalence,
-        traits.ornateness,
+        traits.complexity, traits.diacritic_density, traits.diacritic_complexity, traits.stroke_continuity,
+        traits.dot_prevalence, traits.ornateness,
     )
     return f"{topology_relevant}:{direction}"
 
@@ -338,8 +383,11 @@ def _build_diacritic_pool(
     as any letter -- with fewer strokes (``_DIACRITIC_MIN_STROKES``, and an ``ornateness``-widened
     ceiling capped at ``_DIACRITIC_MAX_STROKES_CAP``, "on average have more strokes" direct user
     request), ``is_diacritic=True`` (a higher dot-prevalence ceiling, see ``_decide_stroke``), and
-    ``with_diacritics=False`` (a diacritic never gets its own diacritics). Reuses the *main* glyph's
-    own ``grid_max_x``/``grid_max_y`` rather than rolling an independent grid shape per diacritic --
+    ``with_diacritics=False`` (a diacritic never gets its own diacritics). *Where* within that
+    ``_DIACRITIC_MIN_STROKES..effective_max_strokes`` range a given entry lands is driven by
+    ``traits.diacritic_complexity`` (via ``complexity_override``), a dial kept deliberately separate
+    from the main letter's own ``complexity`` -- direct user request. Reuses the *main* glyph's own
+    ``grid_max_x``/``grid_max_y`` rather than rolling an independent grid shape per diacritic --
     `script.font_builder` renders it at a fraction of that size regardless, so the same grid shape at
     a smaller scale already gives the "small, confined" look without a second grid-shape data field
     to carry around."""
@@ -355,7 +403,7 @@ def _build_diacritic_pool(
         generate_glyph(
             f"{seed}:diacritic-pool:{i}", "", traits, grid_max_x, grid_max_y, direction,
             min_strokes=_DIACRITIC_MIN_STROKES, max_strokes=effective_max_strokes,
-            with_diacritics=False, is_diacritic=True,
+            with_diacritics=False, is_diacritic=True, complexity_override=traits.diacritic_complexity,
         )
         for i in range(pool_size)
     )
@@ -412,6 +460,7 @@ def generate_glyph(
     direction: WritingDirection = WritingDirection.LTR,
     min_strokes: int = _MIN_STROKES, max_strokes: int = _MAX_STROKES, with_diacritics: bool = True,
     is_diacritic: bool = False, diacritic_pool: tuple[Glyph, ...] = (),
+    complexity_override: float | None = None,
 ) -> Glyph:
     """One phoneme's own glyph -- a chain of connected, boundary/diagonal-only line (and occasional
     dot) strokes placed on this script's own grid, addressably seeded from ``seed_key`` (see this
@@ -424,8 +473,14 @@ def generate_glyph(
     for a diacritic's own small glyph (fewer strokes, a higher dot-prevalence ceiling, never itself
     diacritic-bearing) rather than duplicating the stroke-generation logic above. ``diacritic_pool`` is
     the whole script's own shared pool (``_build_diacritic_pool``, built once by ``generate_script``) --
-    empty for a pool entry itself (``with_diacritics=False`` skips reading it either way)."""
-    stroke_count = round(lerp(traits.complexity, min_strokes, max_strokes))
+    empty for a pool entry itself (``with_diacritics=False`` skips reading it either way).
+    ``complexity_override``, when given, replaces ``traits.complexity`` in the stroke-count formula
+    below for this call only -- lets ``_build_diacritic_pool`` drive a pool entry's own stroke count
+    from ``traits.diacritic_complexity`` instead, a separate dial from the main letter's own
+    ``complexity`` (direct user request). ``None`` (the default, every main-letter call) keeps today's
+    behavior exactly."""
+    complexity = traits.complexity if complexity_override is None else complexity_override
+    stroke_count = round(lerp(complexity, min_strokes, max_strokes))
     strokes = _build_stroke_chain(seed_key, traits, stroke_count, grid_max_x, grid_max_y, is_diacritic)
     diacritics = (
         _attach_diacritics(seed_key, traits, direction, diacritic_pool) if with_diacritics else {}
@@ -446,7 +501,7 @@ def generate_script(
     forced_script_traits: ScriptTraitsForce = ScriptTraitsForce(),
 ) -> InventedScript:
     """Every symbol in ``inventory``'s own consonants and vowels, each given one glyph, in that stable
-    order. ``direction``/the grid shape/the 12 style dials are rolled once, in order, from one shared
+    order. ``direction``/the grid shape/the 15 style dials are rolled once, in order, from one shared
     sequential ``random.Random(seed)`` stream (the same convention every other per-symbol generation
     pass in this project already uses); each glyph's own stroke *content* is addressably keyed from
     ``seed`` directly instead (see this module's own docstring for why) -- so re-running with the same

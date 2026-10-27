@@ -131,7 +131,7 @@ class Glyph(BaseModel, frozen=True):
 
 
 class ScriptTraits(BaseModel, frozen=True):
-    """Fourteen graded dials controlling the *style* the stroke generator draws every glyph in --
+    """Fifteen graded dials controlling the *style* the stroke generator draws every glyph in --
     rolled once per language, seeded, by ``generation.script_gen.roll_script_traits``, not (yet)
     something the free-text prompt infers; see that function's own docstring for why. Most are
     bipolar (``[-1.0, 1.0]``, a positive value the pole named first below, negative its opposite,
@@ -200,6 +200,14 @@ class ScriptTraits(BaseModel, frozen=True):
     *within* a glyph's own main shape (or a diacritic's), not about how many diacritic marks exist at
     all. Was bipolar; renamed-away dead negative half, same "no meaningfully distinct opposite pole"
     reasoning several other dials already have."""
+    diacritic_complexity: float = 0.0
+    """Unipolar. How many strokes a single diacritic mark itself has, within the pool's own
+    ``min..max`` stroke-count range (the ``max`` end of which ``ornateness`` separately widens) --
+    kept deliberately independent of the main letter's own ``complexity`` above, direct user request:
+    a script can have simple letters with elaborate diacritics, or the reverse. See
+    ``generation.script_gen._build_diacritic_pool``/``generate_glyph``'s own ``complexity_override``
+    for exactly how this replaces ``complexity`` for a pool entry's own stroke count, and nothing
+    else."""
     terminal_style: float = 0.0
     """+ a per-glyph *terminal ornament* (a hook, swirl, foot, or extended stroke -- one of 10 fixed
     presets, see ``script.font_builder``'s own terminal-ornament code) is more likely to appear, once
@@ -247,6 +255,7 @@ class ScriptTraits(BaseModel, frozen=True):
 SCRIPT_TRAIT_GROUP: dict[str, str] = {
     "complexity": "topology",
     "diacritic_density": "topology",
+    "diacritic_complexity": "topology",
     "stroke_continuity": "topology",
     "dot_prevalence": "topology",
     "slant": "typeface",
@@ -283,12 +292,12 @@ SCRIPT_TRAIT_RANGE: dict[str, tuple[float, float]] = {
     name: (0.0, 1.0)
     if name in (
         "stroke_contrast", "regularity", "ornateness", "serif", "crookedness", "roundedness",
-        "diacritic_density",
+        "diacritic_density", "diacritic_complexity",
     )
     else (-1.0, 1.0)
     for name in ScriptTraits.model_fields
 }
-"""Each dial's own valid range -- ``(0.0, 1.0)`` (unipolar) for the three dials with no meaningfully
+"""Each dial's own valid range -- ``(0.0, 1.0)`` (unipolar) for the dials with no meaningfully
 distinct negative pole, ``(-1.0, 1.0)`` (bipolar) for the rest. The single source ``generation.
 script_gen.roll_script_traits`` rolls each dial within, and every validation path (CLI ``--script-
 trait``, the web UI's own number inputs and request handling) checks a value against, instead of a
@@ -321,6 +330,7 @@ class ScriptTraitsForce(BaseModel, frozen=True):
     slant: float | None = None
     regularity: float | None = None
     diacritic_density: float | None = None
+    diacritic_complexity: float | None = None
     terminal_style: float | None = None
     stroke_continuity: float | None = None
     dot_prevalence: float | None = None

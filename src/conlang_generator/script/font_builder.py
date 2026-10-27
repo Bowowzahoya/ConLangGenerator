@@ -19,7 +19,7 @@ Each phoneme's own glyph is assigned a Private Use Area codepoint
 standard, collision-free way to ship an invented script as a real font;
 see ``core.script.InventedScript.glyphs``'s own docstring.
 
-Consumes 11 of ``ScriptTraits``' 14 dials (the rendering-time half; see
+Consumes 11 of ``ScriptTraits``' 15 dials (the rendering-time half; see
 ``generation.script_gen``'s own docstring for the stroke-topology half, and
 ``ornateness``'s own docstring for why it's read in *both* halves):
 ``weight``/``stroke_contrast`` (stroke width, and whether it tapers along
@@ -67,7 +67,14 @@ sized letters," per direct user feedback that the old full-em sizing looked over
 grid axes, so a glyph's own height stays ``UPM * _LETTER_SCALE`` regardless of the rolled grid shape
 (``grid_max_y`` only changes point *resolution* within that fixed height, never the height itself)."""
 
-_ASCENT = 850
+_ASCENT = 930
+"""Raised from the old ``850`` alongside ``_DIACRITIC_GAP_FRACTION``'s own widening (round 8, direct
+user feedback: "a blank space of 20% the size of the character") -- a "top"-slot diacritic's own
+worst-case reach is now ``550 + 0.20*550 + 220 + 35 = 915`` em-units (see ``_DIACRITIC_GAP_FRACTION``'s
+own docstring for that arithmetic in full), so ``_ASCENT`` keeps a comfortable margin above it. Purely
+an ``hhea``/``OS2`` line-height metric (``build_font``'s own ``setupHorizontalHeader``/``setupOS2``
+calls, confirmed the only two places this constant is read) -- never a hard clip bound on any
+individual glyph's own outline, so raising it changes line-spacing hints only, not glyph geometry."""
 _DESCENT = -250
 _ARC_SAMPLES = 5
 """An arc stroke is polygon-approximated as this many straight segments
@@ -326,7 +333,14 @@ def _serif_polygons_for_stroke(
         lower_first = y0 <= y1
         want_tag = "start" if (fixed == "lower") == lower_first else "end"
         ends = [(ex, ey, ox, oy) for tag, ex, ey, ox, oy in candidates if tag == want_tag]
-    radius = width * rule.thickness_factor * 0.6
+    # Floored well above `rule.thickness_factor` alone (direct user feedback: "serif doesn't seem to
+    # do anything") -- checked concretely, the un-floored radius was only 0.96x..1.68x the stroke's
+    # own half-width across the whole `weight` range, so a polygon centered right on the stroke's own
+    # tip mostly overlapped the stroke's own existing silhouette instead of visibly flaring past it.
+    # This floor/multiplier combination instead lands around 2.6x..3.6x -- a foot that unmistakably
+    # reads as wider than its own stem, while still partly following `weight` as documented.
+    radius = width * max(rule.thickness_factor, 1.0) * 1.3
+    base_width = width * max(rule.thickness_factor, 1.1)
     polygons: list[list[tuple[float, float]]] = []
     for ex, ey, ox, oy in ends:
         if rule.shape == "rounded":
@@ -337,7 +351,7 @@ def _serif_polygons_for_stroke(
             dx, dy = ex - ox, ey - oy
             length = math.hypot(dx, dy) or 1.0
             tip_x, tip_y = ex + dx / length * radius, ey + dy / length * radius
-            polygons.append(_quad(ex, ey, tip_x, tip_y, width * rule.thickness_factor, width * 0.4))
+            polygons.append(_quad(ex, ey, tip_x, tip_y, base_width, width * 0.4))
     return polygons
 
 
@@ -496,10 +510,13 @@ def _roll_terminal_ornaments(
     ``serif``'s own pervasive, per-script rule). Candidates are classified into ``_ornament_bucket``
     position buckets using *grid* coordinates (not the jittered em-space position -- a small jitter
     should never flip which bucket a point reads as). ``rounded_start``/``rounded_end`` (from
-    ``roundedness``'s own corner-rounding, see ``_round_endpoints``) exclude whichever stroke-ends rounding
-    already claimed -- a smoothed corner has no sharp terminus left for an ornament to sit on either.
-    Returns ``(stroke_index, is_start, preset_index)`` triples; ``is_start`` picks which of that
-    ``Stroke``'s own two endpoints."""
+    ``_render_scope``, which merges ``roundedness``'s own corner-rounding claims with "isn't a genuine
+    degree-1 loose end at all," see ``_render_scope``'s own docstring) exclude whichever stroke-ends
+    rounding already claimed -- a smoothed corner has no sharp terminus left for an ornament to sit on
+    either -- *and* any point where another stroke actually touches, regardless of whether rounding
+    fired there (direct user feedback: an ornament should "only be added to genuine ends," not where
+    one stroke merely meets another). Returns ``(stroke_index, is_start, preset_index)`` triples;
+    ``is_start`` picks which of that ``Stroke``'s own two endpoints."""
     rounded_start = rounded_start or {}
     rounded_end = rounded_end or {}
     candidates = [
@@ -838,6 +855,21 @@ def _virtual_neighbor_direction(
     return math.cos(angle), math.sin(angle)
 
 
+def _point_touch_counts(strokes: tuple[Stroke, ...]) -> dict[Point, int]:
+    """How many ``LINE`` stroke-ends touch each grid ``Point`` -- degree 1 is a true loose end, 2 a
+    normal joint, 3+ a branch point (see ``_round_endpoints``'s own docstring for the full
+    classification). Used by ``_render_scope`` to gate serif/terminal-ornament attachment on "is this
+    a genuine terminus" rather than only "did roundedness happen to claim it" -- a structural question,
+    independent of ``traits.roundedness``'s own value or roll."""
+    counts: dict[Point, int] = {}
+    for stroke in strokes:
+        if stroke.kind is not StrokeKind.LINE:
+            continue
+        counts[stroke.start] = counts.get(stroke.start, 0) + 1
+        counts[stroke.end] = counts.get(stroke.end, 0) + 1
+    return counts
+
+
 def _round_endpoints(
     strokes: tuple[Stroke, ...], crooked: dict[int, tuple[float, float, float, float]], traits,
     jitter_glyph_index: int | str,
@@ -982,10 +1014,17 @@ def _render_scope(
     ``_stroke_polygons`` path, ``LINE`` strokes grouped into connected components (``_build_
     connectivity``) and run through ``crookedness`` (``_crooked_component_endpoints``) then
     ``roundedness`` (``_round_endpoints``, one global pass over every component's own output), with
-    serif attachment skipping whichever stroke-end rounding claimed. Returns ``(polygons, xs,
-    rounded_start, rounded_end, segments)`` -- ``xs`` is every x-coordinate touched (``_build_glyph_
-    outline``'s own advance-width extent is computed from this directly); the last three are only
-    meaningful for ``LINE`` strokes and are what the main glyph's own terminal-ornament roll needs."""
+    serif attachment skipping whichever stroke-end rounding claimed, *and* any point that isn't a
+    genuine degree-1 loose end at all (``_point_touch_counts`` -- direct user feedback: a terminal
+    ornament or serif was appearing where one stroke merely touched another, e.g. a P's own loop plus
+    the stroke that turns it into an R, which is a structural joint regardless of whether
+    ``roundedness`` happened to round it). Returns ``(polygons, xs, rounded_start, rounded_end,
+    segments)`` -- ``xs`` is every x-coordinate touched (``_build_glyph_outline``'s own advance-width
+    extent is computed from this directly); the last three are only meaningful for ``LINE`` strokes and
+    are what the main glyph's own terminal-ornament roll needs. Despite the name (kept for the return
+    shape's own continuity with ``_round_endpoints``), ``rounded_start``/``rounded_end`` here mean
+    "not available for serif/terminal-ornament attachment" -- a strict superset of "rounding claimed
+    this end"."""
     polygons: list[list[tuple[float, float]]] = []
     xs: list[float] = []
     width = _stroke_width(traits)
@@ -1000,6 +1039,15 @@ def _render_scope(
             )
         )
     segments, arcs, rounded_start, rounded_end = _round_endpoints(strokes, crooked, traits, jitter_glyph_index)
+
+    touch_counts = _point_touch_counts(strokes)
+    for idx, stroke in enumerate(strokes):
+        if stroke.kind is not StrokeKind.LINE:
+            continue
+        if touch_counts.get(stroke.start, 0) != 1:
+            rounded_start[idx] = True
+        if touch_counts.get(stroke.end, 0) != 1:
+            rounded_end[idx] = True
 
     for idx, stroke in enumerate(strokes):
         if stroke.kind is not StrokeKind.LINE:
@@ -1044,12 +1092,14 @@ own dial (would be a 13th dial before the fixed version is even verified to look
 ``letter_height * (1 + _DIACRITIC_SCALE)`` and a "bottom" one ``-letter_height * _DIACRITIC_SCALE``;
 both need headroom within ``_ASCENT``/``_DESCENT`` for ``regularity``'s own jitter on top."""
 
-_DIACRITIC_GAP_FRACTION = 0.07
+_DIACRITIC_GAP_FRACTION = 0.20
 """An external-slot diacritic's near edge sits this fraction of the main glyph's own width/height
 further from the main glyph's own edge, instead of flush against it -- direct user feedback that
-diacritics "mix up with the letter too much." Checked against headroom the same way
+diacritics "mix up with the letter too much," then (round 8, this still read as too small at ``0.07``)
+"a blank space of 20% the size of the character." Checked against headroom the same way
 ``_DIACRITIC_SCALE`` already documents: worst case (a "top" diacritic, maximum ``regularity``
-jitter) reaches ``550 + 0.07*550 + 220 + 35 = 843.5`` em-units, still inside ``_ASCENT = 850``."""
+jitter) reaches ``550 + 0.20*550 + 220 + 35 = 915`` em-units -- ``_ASCENT`` raised to ``930`` alongside
+this change for exactly that margin, see its own docstring."""
 
 
 def _diacritic_offset(

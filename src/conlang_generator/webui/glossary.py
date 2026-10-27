@@ -313,6 +313,12 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss | UnipolarDialGloss] = {
         "low": "No, or very rarely one, attached diacritic mark; no shared pool to draw from.",
         "high": "Most letters carry one mark (occasionally two), drawn from a pool of up to 5 reused shapes.",
     },
+    "diacritic_complexity": {
+        "kind": "unipolar",
+        "summary": "How many strokes a single diacritic mark itself has, independently of complexity above -- a script can have simple letters with elaborate diacritics, or the reverse. No meaningful opposite pole below 0, so this dial only runs 0..1.",
+        "low": "Diacritics are minimal, as few strokes as the pool allows.",
+        "high": "Diacritics are elaborate, as many strokes as the pool allows.",
+    },
     "serif": {
         "kind": "unipolar",
         "summary": "How often, and how pronounced, a script-wide serif treatment is applied to stroke ends -- a single consistent rule (which stroke directions, which end(s), a shape, a thickness) rolled once for the whole script, like a real typeface's own serif style. No meaningful opposite pole below 0 (0 = no serifs at all), so this dial only runs 0..1. Distinct from terminal_style below: this is pervasive and visually consistent everywhere it applies, not an occasional per-letter flourish.",

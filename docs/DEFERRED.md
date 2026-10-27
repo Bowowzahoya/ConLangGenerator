@@ -386,6 +386,49 @@ multi-session feature.
   generated at `crookedness`/`roundedness` `0.5` with low `stroke_continuity` (to encourage the
   touch-by-chance cases this round specifically targets) showed no stray fragments or outcrops across
   ~20 real glyphs at either dial, compared directly against the same seed's own baseline render.
+- **Script redesign round 8: serif visibility, genuine-end-only ornamentation, diacritic spacing/
+  complexity, dot/stroke overlap -- done (pass 57), direct user feedback (five observations from
+  testing pass 56's own build).** "Serif doesn't seem to do anything": the un-floored radius
+  (`width * thickness_factor * 0.6`) was checked concretely against the stroke's own half-width --
+  `0.96x` at `weight=-1.0`, only `1.68x` at `+1.0` -- so a foot centered on the stroke's own tip mostly
+  overlapped the stroke's own silhouette instead of flaring past it. Floored/raised to
+  `width * max(thickness_factor, 1.0) * 1.3` (`"straight"`'s own base width similarly floored), landing
+  around `2.6x..3.6x` instead. "Terminal style now also gets added to the end of strokes if they meet
+  another stroke": eligibility was keyed only to "did `roundedness` happen to claim this end," never to
+  "is this a genuine loose end at all" -- a structural joint (the pass-56 P+R case) stayed "available"
+  below `roundedness=1.0`. New `_point_touch_counts`; `_render_scope` now also excludes any point whose
+  touch count isn't exactly `1`, independent of the rounding roll.
+
+  "A blank space of 20% the size of the character": `_DIACRITIC_GAP_FRACTION` raised `0.07 -> 0.20`
+  (pass 55's own fix undershot) -- `_ASCENT` raised `850 -> 930` alongside it for headroom margin
+  (confirmed it's only ever an `hhea`/`OS2` line-height metric, never a glyph clip bound). "Keep
+  diacritic complexity as a separate dial from character complexity": a pool entry's own stroke count
+  was still `lerp(traits.complexity, ...)` despite the pool/density mechanics (pass 55) already being
+  independent of `complexity` otherwise -- new unipolar `diacritic_complexity` dial (15th);
+  `generate_glyph` gained `complexity_override` (substitutes for `traits.complexity` in the stroke-count
+  formula for one call, `None` keeping every main-letter call unchanged); `_build_diacritic_pool` passes
+  `complexity_override=traits.diacritic_complexity`. `ornateness`'s own ceiling-widening effect is
+  unchanged -- the new dial decides where in that range.
+
+  "Dots should never be placed where they overlap with a stroke going over or ending/beginning at that
+  corner": two one-directional gaps, not one. `occupied` only ever recorded a `LINE` stroke's two
+  endpoints, never the points a longer stroke passes directly through -- fixed via new `_line_points`
+  (every integer grid point a horizontal/vertical/45-degree stroke passes over). A *later* `LINE`
+  stroke could also land on, or pass through, a point an *earlier* `DOT` already claimed -- fixed by
+  threading a new `dot_points` parameter into `_decide_stroke`, filtering a fresh `start`/the chosen
+  `end` away from those points when possible, a no-op when `dot_points` is empty (byte-identical output
+  for any dot-free glyph).
+
+  Verified: new/updated tests in `tests/test_script_font_builder.py` (serif sizing across the weight
+  range, `_point_touch_counts`, `_render_scope` excluding a touch-by-chance point at `roundedness=0.0`,
+  the raised gap fraction) and `tests/test_script_gen.py` (`_line_points`, a dot never on a line's path
+  and a line never on/through a dot in both decision orders, `diacritic_complexity` independent of
+  `complexity` in both directions); the existing retrace-prefix-stability test still passes unchanged.
+  An 80-seed stress test with every dial maxed built every font with zero exceptions; full suite green.
+  Live-verified via the CLI/`@font-face`: six real languages with targeted overrides -- a clearly visible,
+  properly proportioned serif foot at both weight extremes, real daylight between a diacritic and its own
+  letter, visibly simpler vs. more elaborate diacritics at the same letter complexity, and no dot
+  touching or sitting on a line anywhere.
 - **Small diacritic marks attached near a letter -- done (pass 51), a deliberately lighter-weight
   cousin of the real abugida idea below, not the same thing.** `Glyph.diacritics: dict[str, Glyph]`;
   each diacritic is a small glyph built by the exact same stroke-generation process as any letter
