@@ -19,22 +19,24 @@ Each phoneme's own glyph is assigned a Private Use Area codepoint
 standard, collision-free way to ship an invented script as a real font;
 see ``core.script.InventedScript.glyphs``'s own docstring.
 
-Consumes 11 of ``ScriptTraits``' 15 dials (the rendering-time half; see
+Consumes 13 of ``ScriptTraits``' 18 dials (the rendering-time half; see
 ``generation.script_gen``'s own docstring for the stroke-topology half, and
 ``ornateness``'s own docstring for why it's read in *both* halves):
 ``weight``/``stroke_contrast`` (stroke width, and whether it tapers along
 the stroke), ``slant`` (shear), ``proportion`` (horizontal scale),
 ``regularity`` (organic jitter, unipolar -- 0 = none, 1 = max), ``crookedness``
 (a stroke tilts slightly off its own canonical angle, chain-propagated so
-connected strokes never visibly disconnect) and ``roundedness`` (corners --
-both internal joints and a stroke sequence's own loose ends -- smoothed into
-curves, applied *after* crookedness; see ``_round_endpoints``'s own docstring),
-``terminal_style`` (frequency of a per-glyph terminal ornament -- a hook/
-swirl/foot/extended stroke, one of 10 presets, at one stroke-end of some
-letters), ``serif`` (a separate, pervasive, script-wide stroke-end treatment
--- see its own docstring for how it differs from a terminal ornament), and
-``ornateness`` (dot style, diacritic placement diversity, and which
-terminal-ornament preset gets favored).
+connected strokes never visibly disconnect), ``roundedness``/``roundedness_
+extremity`` (corners -- both internal joints and a stroke sequence's own loose
+ends -- smoothed into curves, applied *after* crookedness; ``roundedness`` is
+occurrence, ``roundedness_extremity`` is how deep the cut goes; see
+``_round_endpoints``'s own docstring), ``terminal_style`` (frequency of a
+per-glyph terminal ornament -- a hook/swirl/foot/extended stroke, one of 10
+presets, at one stroke-end of some letters), ``serif`` (a simple, fixed foot
+shape attached to a genuine stroke terminal -- see its own docstring for how
+it differs from a terminal ornament), ``ornateness`` (diacritic richness and
+which terminal-ornament preset gets favored), and ``dot_ornateness`` (a dot's
+own render style, split from ``ornateness`` above).
 """
 
 from __future__ import annotations
@@ -97,12 +99,14 @@ def _stable_unit(seed_text: str) -> float:
 def _script_fingerprint(script: InventedScript) -> str:
     """A stable text fingerprint of the whole script's own data (traits, direction, grid shape) --
     used as the seed for decisions that must be consistent *across every glyph* (today: which single
-    dot style a low-``ornateness`` script reuses everywhere, and the whole serif rule in ``script.
-    font_builder``'s own serif code) rather than per-glyph/per-stroke like every other ``_stable_unit``
-    call here. Still a pure function of ``InventedScript`` data alone, same rule this module's own
-    docstring already holds everything else to -- never RNG state, never the original generation seed
-    (not present on this object at all)."""
-    return f"{script.traits.model_dump()}:{script.direction}:{script.grid_max_x}:{script.grid_max_y}"
+    dot style a low-``ornateness`` script reuses everywhere) rather than per-glyph/per-stroke like
+    every other ``_stable_unit`` call here. Still a pure function of ``InventedScript`` data alone, same
+    rule this module's own docstring already holds everything else to -- never RNG state, never the
+    original generation seed (not present on this object at all)."""
+    return (
+        f"{script.traits.model_dump()}:{script.direction}:{script.grid_max_x}:{script.grid_max_y}:"
+        f"{script.diacritic_grid_max_x}:{script.diacritic_grid_max_y}"
+    )
 
 
 def _point_to_em(
@@ -229,130 +233,77 @@ def _dot_polygons(
     return polygons
 
 
-class SerifRule(NamedTuple):
-    """One script-wide serif rule, rolled once by ``_roll_serif_rule`` and reused for every stroke in
-    every glyph -- a real typeface's serif treatment is visually consistent across its whole alphabet,
-    not a fresh per-letter decision (contrast ``terminal_style``'s own per-*glyph* ornament roll)."""
-
-    coverage: dict[str, float]
-    """Per orientation class (``"vertical"``/``"horizontal"``/``"diagonal"``), the fraction of that
-    class's own qualifying strokes that get a serif at all -- ``0.0`` if that class never does. One
-    fraction-per-class model subsumes every named style the user described ("everywhere" = every class
-    at `1.0`, "only for some vertical" = the vertical class active below `1.0`, "at random" = a shared
-    middling fraction, any "combination" = whichever classes happened to roll active) without
-    enumerating combinations by name."""
-    sides_count: dict[str, int]
-    """Per class, ``1`` or ``2`` -- whether a qualifying stroke gets a serif at one end or both."""
-    fixed_side: dict[str, str]
-    """Per class, which end when ``sides_count`` is ``1``: ``"lower"``/``"upper"`` (by the stroke's own
-    two endpoints' em-space ``y`` -- well-defined for any orientation, including diagonal) or
-    ``"random_per_stroke"``. Hebrew-style ("always the one side") is ``"lower"``/``"upper"`` on every
-    class; Armenian-style ("always both sides on vertical") is ``sides_count["vertical"] == 2`` with
-    whatever the other classes happened to roll -- both just different draws of this one model, not
-    special-cased."""
-    shape: str
-    """``"triangle"``/``"rounded"``/``"straight"`` -- one roll for the whole script."""
-    thickness_factor: float
-    """Multiplies the stroke's own base width -- partly ``weight``-driven, partly random, per direct
-    request ("thickness also partly determined by the thickness trait, but can still vary a bit")."""
+_SERIF_FLARE_FACTOR = 1.0
+"""How much wider than the stem's own half-width the foot's own flat base extends -- continuing round
+8's own lesson that a serif has to visibly flare past its own stroke to read as one at all (the un-
+floored shape that preceded this one was checked to barely exceed the stroke's own silhouette)."""
+_SERIF_DEPTH_FACTOR = 1.6
+"""How far the foot extends past the stroke's own loose end, as a multiple of stroke width."""
+_SERIF_BOW_FACTOR = 0.35
+"""How far each side edge pinches inward (toward the foot's own centerline) at its own midpoint, as a
+fraction of the flare half-width -- the "concave sides" directly requested."""
 
 
-_SERIF_ORIENTATION_CLASSES = ("vertical", "horizontal", "diagonal")
-
-
-def _classify_orientation(dx: int, dy: int) -> str:
-    """A grid-space stroke direction (not the jittered em-space one -- classification should reflect
-    the stroke's own logical 0/90/45-degree direction, not a slightly-off rendered one) -> one of
-    ``_SERIF_ORIENTATION_CLASSES``."""
-    if dx == 0:
-        return "vertical"
-    if dy == 0:
-        return "horizontal"
-    return "diagonal"
-
-
-def _roll_serif_rule(traits, fingerprint: str) -> SerifRule:
-    """Rolls the four sub-decisions documented on ``SerifRule`` itself, each ``_stable_unit``-keyed off
-    ``fingerprint`` (``_script_fingerprint``) so the whole rule -- and therefore every stroke's own
-    serif-or-not -- stays identical for the same script, independent of a per-stroke draw."""
-    coverage: dict[str, float] = {}
-    sides_count: dict[str, int] = {}
-    fixed_side: dict[str, str] = {}
-    for cls in _SERIF_ORIENTATION_CLASSES:
-        active_roll = (_stable_unit(f"{fingerprint}:serif:{cls}:active") + 1.0) / 2.0
-        if active_roll < lerp01(traits.serif, 0.0, 0.9):
-            coverage_roll = (_stable_unit(f"{fingerprint}:serif:{cls}:coverage") + 1.0) / 2.0
-            coverage[cls] = lerp01(coverage_roll, 0.3, 1.0)
-        else:
-            coverage[cls] = 0.0
-        sides_roll = (_stable_unit(f"{fingerprint}:serif:{cls}:sides") + 1.0) / 2.0
-        sides_count[cls] = 2 if sides_roll < 0.4 else 1
-        side_roll = (_stable_unit(f"{fingerprint}:serif:{cls}:side") + 1.0) / 2.0
-        fixed_side[cls] = "lower" if side_roll < 0.4 else "upper" if side_roll < 0.8 else "random_per_stroke"
-    shape_roll = (_stable_unit(f"{fingerprint}:serif:shape") + 1.0) / 2.0
-    shape = "triangle" if shape_roll < 0.34 else "rounded" if shape_roll < 0.67 else "straight"
-    thickness_wobble = 1.0 + _stable_unit(f"{fingerprint}:serif:thickness") * 0.15
-    thickness_factor = lerp(traits.weight, 0.8, 1.4) * thickness_wobble
-    return SerifRule(
-        coverage=coverage, sides_count=sides_count, fixed_side=fixed_side, shape=shape,
-        thickness_factor=thickness_factor,
-    )
-
-
-def _serif_polygons_for_stroke(
-    stroke: Stroke, x0: float, y0: float, x1: float, y1: float, width: float, stroke_key: str, rule: SerifRule,
-    start_available: bool = True, end_available: bool = True,
+def _simple_serif_foot_polygon(
+    ex: float, ey: float, dx: float, dy: float, width: float, stroke_key: str, serif: float,
 ) -> list[list[tuple[float, float]]]:
-    """Applies ``rule`` (the one script-wide ``SerifRule``) to a single already-placed ``LINE``
-    stroke's own em-space endpoints -- a serif is a small polygon planted at a qualifying endpoint, no
-    new sampling machinery needed (``"rounded"``/``"triangle"`` both reuse ``_regular_polygon`` at
-    different side counts, ``"straight"`` a short ``_quad`` continuing the stroke's own direction).
-    ``start_available``/``end_available`` (both default ``True``) let a caller exclude an endpoint
-    ``roundedness`` has already claimed for a rounded corner -- a smoothed corner has no sharp
-    terminus left to decorate; the stroke's *other* end, if untouched, still qualifies normally."""
-    cls = _classify_orientation(stroke.end.x - stroke.start.x, stroke.end.y - stroke.start.y)
-    coverage = rule.coverage[cls]
-    if coverage <= 0.0:
+    """A single, fixed serif-foot shape planted at a genuine stroke terminal ``(ex, ey)``, extending in
+    direction ``(dx, dy)`` (the stroke's own outward direction, continuing past its own tip, so the
+    foot naturally reads as sitting "below" a downward-pointing end or "above" an upward one -- "at the
+    bottom or top... of all ends" falls out of geometry here, not a separate rule). Round 9's full
+    replacement for the old per-script ``SerifRule`` system (coverage/sides/shape/thickness rolled per
+    orientation class) -- direct user feedback that version was both invisible in practice and more
+    elaborate than the look called for: "let's first make a simple version." One flat per-end roll
+    (``include_roll < serif``) decides whether this terminal gets a foot at all; at ``serif=1.0`` every
+    qualifying terminal does ("all ends of continuous lines"), at ``0.0`` none do.
+
+    Shape, in the stroke's own local frame at this end: the top two corners sit flush with the
+    stroke's own existing half-width (so the foot reads as a continuation of the stem, not a separate
+    shape bolted on); the bottom two corners flare to ``_SERIF_FLARE_FACTOR`` wider, joined by a
+    straight base edge ("a simple triangle... straight at the bottom"); the two side edges are each a
+    quadratic-Bezier-sampled curve bowed *inward* toward the centerline (``_SERIF_BOW_FACTOR``) rather
+    than running straight -- "concave sides left and right" -- the same sampling technique
+    ``_arc_polygons``/``_dot_polygons``'s own bent stroke already use, not a new curve primitive."""
+    if serif <= 0.0:
         return []
     include_roll = (_stable_unit(f"{stroke_key}:serif-include") + 1.0) / 2.0
-    if include_roll >= coverage:
+    if include_roll >= serif:
         return []
-    candidates = []
-    if start_available:
-        candidates.append(("start", x0, y0, x1, y1))
-    if end_available:
-        candidates.append(("end", x1, y1, x0, y0))
-    if not candidates:
-        return []
-    if rule.sides_count[cls] == 2:
-        ends = [(ex, ey, ox, oy) for _tag, ex, ey, ox, oy in candidates]
-    else:
-        fixed = rule.fixed_side[cls]
-        if fixed == "random_per_stroke":
-            fixed = "lower" if _stable_unit(f"{stroke_key}:serif-side") >= 0 else "upper"
-        lower_first = y0 <= y1
-        want_tag = "start" if (fixed == "lower") == lower_first else "end"
-        ends = [(ex, ey, ox, oy) for tag, ex, ey, ox, oy in candidates if tag == want_tag]
-    # Floored well above `rule.thickness_factor` alone (direct user feedback: "serif doesn't seem to
-    # do anything") -- checked concretely, the un-floored radius was only 0.96x..1.68x the stroke's
-    # own half-width across the whole `weight` range, so a polygon centered right on the stroke's own
-    # tip mostly overlapped the stroke's own existing silhouette instead of visibly flaring past it.
-    # This floor/multiplier combination instead lands around 2.6x..3.6x -- a foot that unmistakably
-    # reads as wider than its own stem, while still partly following `weight` as documented.
-    radius = width * max(rule.thickness_factor, 1.0) * 1.3
-    base_width = width * max(rule.thickness_factor, 1.1)
-    polygons: list[list[tuple[float, float]]] = []
-    for ex, ey, ox, oy in ends:
-        if rule.shape == "rounded":
-            polygons.append(_regular_polygon(ex, ey, radius))
-        elif rule.shape == "triangle":
-            polygons.append(_regular_polygon(ex, ey, radius, sides=3))
-        else:  # "straight" -- a short nub continuing the stroke's own outward direction
-            dx, dy = ex - ox, ey - oy
-            length = math.hypot(dx, dy) or 1.0
-            tip_x, tip_y = ex + dx / length * radius, ey + dy / length * radius
-            polygons.append(_quad(ex, ey, tip_x, tip_y, base_width, width * 0.4))
-    return polygons
+
+    length = math.hypot(dx, dy) or 1.0
+    ux, uy = dx / length, dy / length
+    px, py = -uy, ux  # unit perpendicular, same rotational sense as `_perpendicular`'s own convention
+
+    stem_half = width / 2.0
+    flare_half = width * _SERIF_FLARE_FACTOR
+    depth = width * _SERIF_DEPTH_FACTOR
+    bow = flare_half * _SERIF_BOW_FACTOR
+
+    top_left = (ex - px * stem_half, ey - py * stem_half)
+    top_right = (ex + px * stem_half, ey + py * stem_half)
+    base_x, base_y = ex + ux * depth, ey + uy * depth
+    bottom_left = (base_x - px * flare_half, base_y - py * flare_half)
+    bottom_right = (base_x + px * flare_half, base_y + py * flare_half)
+
+    def bowed_side(start: tuple[float, float], end: tuple[float, float], sign: float) -> list[tuple[float, float]]:
+        mx, my = (start[0] + end[0]) / 2, (start[1] + end[1]) / 2
+        cx, cy = mx + px * bow * sign, my + py * bow * sign
+        points = []
+        for i in range(_ARC_SAMPLES + 1):
+            t = i / _ARC_SAMPLES
+            sx = (1 - t) ** 2 * start[0] + 2 * (1 - t) * t * cx + t**2 * end[0]
+            sy = (1 - t) ** 2 * start[1] + 2 * (1 - t) * t * cy + t**2 * end[1]
+            points.append((sx, sy))
+        return points
+
+    left_side = bowed_side(top_left, bottom_left, sign=1.0)
+    right_side = bowed_side(top_right, bottom_right, sign=-1.0)
+    # This order (not `left_side + reversed(right_side)`) matches `_quad`/`_regular_polygon`'s own
+    # winding direction (confirmed by shoelace signed area) -- two *overlapping* same-glyph contours
+    # winding oppositely cancel out under TrueType's nonzero fill rule instead of unioning, the same
+    # real bug `_regular_polygon`'s own winding comment already documents fixing once.
+    polygon = right_side + list(reversed(left_side))
+    return [polygon]
 
 
 def _arc_polygons(
@@ -401,7 +352,7 @@ def _bulge_through_point(x0: float, y0: float, x1: float, y1: float, cx: float, 
 
 def _stroke_polygons(
     stroke: Stroke, glyph_index: int | str, stroke_index: int, traits, grid_unit_x: float, grid_unit_y: float,
-    script_fingerprint: str, serif_rule: SerifRule, offset_x: float = 0.0, offset_y: float = 0.0,
+    script_fingerprint: str, offset_x: float = 0.0, offset_y: float = 0.0,
 ) -> list[list[tuple[float, float]]]:
     """Renders a ``DOT`` or ``ARC`` stroke -- ``LINE`` strokes no longer go through this function at
     all (see ``_render_scope``'s own chain-based handling for ``crookedness``/``roundedness``/serif)."""
@@ -410,7 +361,7 @@ def _stroke_polygons(
 
     if stroke.kind is StrokeKind.DOT:
         cx, cy = _point_to_em(stroke.start, f"{jitter_prefix}:dot", traits, grid_unit_x, grid_unit_y, offset_x, offset_y)
-        return _dot_polygons(cx, cy, width, traits.ornateness, f"{jitter_prefix}:dot", script_fingerprint)
+        return _dot_polygons(cx, cy, width, traits.dot_ornateness, f"{jitter_prefix}:dot", script_fingerprint)
 
     # ARC -- a generation-time primitive generation.script_gen never actually produces today, kept
     # correct for forward-compatibility (see core.script.ScriptTraits.roundedness's own docstring).
@@ -870,6 +821,60 @@ def _point_touch_counts(strokes: tuple[Stroke, ...]) -> dict[Point, int]:
     return counts
 
 
+def _triangle_long_side_corners(
+    strokes: tuple[Stroke, ...], crooked: dict[int, tuple[float, float, float, float]],
+    touches: dict[Point, list[tuple[int, bool]]],
+) -> set[Point]:
+    """Every point that is one of the two corners at the ends of a 3-stroke closed loop's own
+    *longest* side -- direct user feedback: "triangles with high roundness become a weird egg shape...
+    the angles on either side of the long side of a triangle should always stay sharp." Detected purely
+    structurally: three degree-2 points, each pair directly joined by a ``LINE`` stroke (independent of
+    ``_build_connectivity``'s own tree/closing-edge split, a different concern -- crookedness topology,
+    not which corners round). The third ("apex") corner, opposite the longest side, is deliberately
+    left out -- a triangle can still round at its own tip without losing its base and collapsing
+    toward an ellipse."""
+    def neighbors(point: Point) -> list[Point]:
+        result = []
+        for idx, is_start in touches.get(point, []):
+            stroke = strokes[idx]
+            result.append(stroke.end if is_start else stroke.start)
+        return result
+
+    def position(point: Point) -> tuple[float, float]:
+        idx, is_start = touches[point][0]
+        x0, y0, x1, y1 = crooked[idx]
+        return (x0, y0) if is_start else (x1, y1)
+
+    excluded: set[Point] = set()
+    seen: set[frozenset] = set()
+    for p, touch_list in touches.items():
+        if len(touch_list) != 2:
+            continue
+        a, b = neighbors(p)
+        if len(touches.get(a, [])) != 2 or len(touches.get(b, [])) != 2:
+            continue
+        if b not in neighbors(a):
+            continue
+        triangle = frozenset({p, a, b})
+        if triangle in seen:
+            continue
+        seen.add(triangle)
+        px, py = position(p)
+        ax, ay = position(a)
+        bx, by = position(b)
+        side_pa = math.hypot(ax - px, ay - py)
+        side_pb = math.hypot(bx - px, by - py)
+        side_ab = math.hypot(bx - ax, by - ay)
+        longest = max(side_pa, side_pb, side_ab)
+        if longest == side_ab:
+            excluded |= {a, b}
+        elif longest == side_pa:
+            excluded |= {p, a}
+        else:
+            excluded |= {p, b}
+    return excluded
+
+
 def _round_endpoints(
     strokes: tuple[Stroke, ...], crooked: dict[int, tuple[float, float, float, float]], traits,
     jitter_glyph_index: int | str,
@@ -904,8 +909,14 @@ def _round_endpoints(
     return-value shape (unchanged): ``segments`` is each stroke's own final (possibly truncated)
     ``(x0, y0, x1, y1)``; ``arcs`` is a list of ``(x0, y0, x1, y1, bulge)`` curves to additionally
     render; ``rounded_start``/``rounded_end`` flag which stroke-ends rounding claimed, for serif/
-    terminal-ornament attachment to skip."""
-    f = traits.roundedness * 0.5
+    terminal-ornament attachment to skip.
+
+    ``roundedness``/``roundedness_extremity`` (round 9 split, direct user request: "a separate trait
+    for extremeness of rounding, and for occurence of rounding") are deliberately read for two
+    different things below -- ``roundedness`` alone decides *whether* a given point rounds at all
+    (``selected()``), ``roundedness_extremity`` alone decides *how deep* the cut goes once it's
+    selected (``f`` below, and the random bend-angle magnitude for an isolated loose end)."""
+    f = traits.roundedness_extremity * 0.5
 
     touches: dict[Point, list[tuple[int, bool]]] = {}
     for idx, stroke in enumerate(strokes):
@@ -930,6 +941,12 @@ def _round_endpoints(
     loose_ends = [(p, t[0][0], t[0][1]) for p, t in touches.items() if len(t) == 1]
     joint_selected = {p: selected(f"{point_key(p)}:joint") for p, _, _ in joints}
     loose_selected = {p: selected(f"{point_key(p)}:loose") for p, _, _ in loose_ends}
+
+    # Direct user feedback: a triangle's own longest side must always stay sharp at both its own
+    # corners, however roundedness/roundedness_extremity would otherwise have rolled -- see
+    # `_triangle_long_side_corners`'s own docstring.
+    for point in _triangle_long_side_corners(strokes, crooked, touches):
+        joint_selected[point] = False
 
     for point, (idx_a, start_a), (idx_b, start_b) in joints:
         if joint_selected[point]:
@@ -983,7 +1000,8 @@ def _round_endpoints(
         truncation_x, truncation_y = side_point(idx, is_start, fraction)
         vdx, vdy = _virtual_neighbor_direction(
             x1 - x0, y1 - y0, is_isolated,
-            f"{jitter_glyph_index}:{idx}:{'start' if is_start else 'end'}:end-angle", traits.roundedness,
+            f"{jitter_glyph_index}:{idx}:{'start' if is_start else 'end'}:end-angle",
+            traits.roundedness_extremity,
         )
         sign = -1.0 if is_start else 1.0
         tip_x, tip_y = truncation_x + sign * tail_length * vdx, truncation_y + sign * tail_length * vdy
@@ -1007,7 +1025,7 @@ def _round_endpoints(
 
 def _render_scope(
     strokes: tuple[Stroke, ...], traits, jitter_glyph_index: int | str, grid_unit_x: float, grid_unit_y: float,
-    offset_x: float, offset_y: float, script_fingerprint: str, serif_rule: SerifRule,
+    offset_x: float, offset_y: float, script_fingerprint: str,
 ) -> tuple[list[list[tuple[float, float]]], list[float], dict[int, bool], dict[int, bool], dict[int, tuple[float, float, float, float]]]:
     """All polygons for one glyph-or-diacritic *scope*'s own strokes (a main glyph's own ``glyph.
     strokes``, or one diacritic's own ``diac.strokes``) -- ``DOT``/``ARC`` via the unchanged per-stroke
@@ -1061,12 +1079,18 @@ def _render_scope(
         sw1 = w_start + (w_end - w_start) * t1
         polygons.append(_quad(x0, y0, x1, y1, sw0, sw1))
         xs.extend([x0, x1])
-        polygons.extend(
-            _serif_polygons_for_stroke(
-                stroke, x0, y0, x1, y1, width, f"{jitter_glyph_index}:{idx}", serif_rule,
-                start_available=not rounded_start[idx], end_available=not rounded_end[idx],
+        if not rounded_start[idx]:
+            polygons.extend(
+                _simple_serif_foot_polygon(
+                    x0, y0, x0 - x1, y0 - y1, width, f"{jitter_glyph_index}:{idx}:start", traits.serif,
+                )
             )
-        )
+        if not rounded_end[idx]:
+            polygons.extend(
+                _simple_serif_foot_polygon(
+                    x1, y1, x1 - x0, y1 - y0, width, f"{jitter_glyph_index}:{idx}:end", traits.serif,
+                )
+            )
     for ax0, ay0, ax1, ay1, bulge in arcs:
         polygons.extend(_arc_polygons(ax0, ay0, ax1, ay1, bulge, width, width))
         xs.extend([ax0, ax1])
@@ -1075,7 +1099,7 @@ def _render_scope(
         if stroke.kind is StrokeKind.LINE:
             continue
         stroke_polygons = _stroke_polygons(
-            stroke, jitter_glyph_index, i, traits, grid_unit_x, grid_unit_y, script_fingerprint, serif_rule,
+            stroke, jitter_glyph_index, i, traits, grid_unit_x, grid_unit_y, script_fingerprint,
             offset_x, offset_y,
         )
         polygons.extend(stroke_polygons)
@@ -1171,7 +1195,7 @@ def _glyph_terminal_ornament_polygons(
 
 def _build_glyph_outline(
     glyph: Glyph, glyph_index: int, traits, grid_unit_x: float, grid_unit_y: float, grid_max_x: int, grid_max_y: int,
-    direction: WritingDirection, script_fingerprint: str, serif_rule: SerifRule,
+    diacritic_grid_max_x: int, diacritic_grid_max_y: int, direction: WritingDirection, script_fingerprint: str,
 ) -> tuple[object, bool, tuple[float, float]]:
     """Returns ``(ttf_glyph, has_contour, (min_x, max_x))`` -- the outline and its own advance-width
     extent computed together (one ``_render_scope`` pass per scope, not two), since both need the same
@@ -1181,18 +1205,25 @@ def _build_glyph_outline(
     xs: list[float] = []
 
     main_polygons, main_xs, rounded_start, rounded_end, segments = _render_scope(
-        glyph.strokes, traits, glyph_index, grid_unit_x, grid_unit_y, 0.0, 0.0, script_fingerprint, serif_rule,
+        glyph.strokes, traits, glyph_index, grid_unit_x, grid_unit_y, 0.0, 0.0, script_fingerprint,
     )
     _emit_polygons(pen, main_polygons)
     any_contour = any_contour or bool(main_polygons)
     xs.extend(main_xs)
 
-    diac_unit_x, diac_unit_y = grid_unit_x * _DIACRITIC_SCALE, grid_unit_y * _DIACRITIC_SCALE
+    # The diacritic's own overall footprint stays pinned to `_DIACRITIC_SCALE` of the main glyph's own
+    # overall size regardless of the diacritic's own grid resolution (round 9: a diacritic can now have
+    # a different grid shape than its main letter, `ScriptGridForce` -- this is a strict generalization
+    # of the old `grid_unit_x * _DIACRITIC_SCALE` formula, which reduces to exactly that when the two
+    # grids match, the common/default case).
+    width_main, height_main = grid_max_x * grid_unit_x, grid_max_y * grid_unit_y
+    diac_unit_x = (width_main * _DIACRITIC_SCALE) / diacritic_grid_max_x
+    diac_unit_y = (height_main * _DIACRITIC_SCALE) / diacritic_grid_max_y
     for slot, diac in glyph.diacritics.items():
         offset_x, offset_y = _diacritic_offset(slot, direction, grid_max_x, grid_max_y, grid_unit_x, grid_unit_y)
         diac_polygons, diac_xs, _diac_rs, _diac_re, _diac_seg = _render_scope(
             diac.strokes, traits, f"{glyph_index}:{slot}", diac_unit_x, diac_unit_y, offset_x, offset_y,
-            script_fingerprint, serif_rule,
+            script_fingerprint,
         )
         _emit_polygons(pen, diac_polygons)
         any_contour = any_contour or bool(diac_polygons)
@@ -1224,7 +1255,6 @@ def build_font(script: InventedScript, output_path: Path, family_name: str) -> N
     side_bearing = _SIDE_BEARING
     empty_advance = UPM * _LETTER_SCALE * lerp(script.traits.proportion, 0.7, 1.3) + 2 * side_bearing
     fingerprint = _script_fingerprint(script)
-    serif_rule = _roll_serif_rule(script.traits, fingerprint)
 
     notdef_box = [(UPM * 0.1, 0), (UPM * 0.1, _ASCENT * 0.8), (UPM * 0.4, _ASCENT * 0.8), (UPM * 0.4, 0)]
     pen = TTGlyphPen(None)
@@ -1239,7 +1269,7 @@ def build_font(script: InventedScript, output_path: Path, family_name: str) -> N
         name = f"g{i:04d}"
         outline, has_contour, (min_x, max_x) = _build_glyph_outline(
             glyph, i, script.traits, grid_unit_x, grid_unit_y, script.grid_max_x, script.grid_max_y,
-            script.direction, fingerprint, serif_rule,
+            script.diacritic_grid_max_x, script.diacritic_grid_max_y, script.direction, fingerprint,
         )
         glyphs[name] = outline
         width = empty_advance if not has_contour else (max_x - min_x) + 2 * side_bearing

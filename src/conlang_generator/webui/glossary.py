@@ -267,9 +267,15 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss | UnipolarDialGloss] = {
     },
     "roundedness": {
         "kind": "unipolar",
-        "summary": "How often a corner -- both where two chained strokes meet and the loose ends of a stroke sequence -- gets smoothed into a curve instead of staying sharp. No meaningful opposite pole below 0, so this dial only runs 0..1. Applied after crookedness, on top of however much a stroke already tilted.",
+        "summary": "How often a corner -- both where two chained strokes meet and the loose ends of a stroke sequence -- gets smoothed into a curve instead of staying sharp. How deep each selected corner's own cut goes is roundedness_extremity below, a separate dial. No meaningful opposite pole below 0, so this dial only runs 0..1. Applied after crookedness, on top of however much a stroke already tilted.",
         "low": "Every corner stays a sharp, straight-line joint.",
-        "high": "Corners round smoothly, up to half the length of each stroke it joins.",
+        "high": "Every eligible corner rounds.",
+    },
+    "roundedness_extremity": {
+        "kind": "unipolar",
+        "summary": "How deep a corner's own cut goes once roundedness above has already selected it for rounding. No meaningful opposite pole below 0, so this dial only runs 0..1.",
+        "low": "A selected corner is barely smoothed.",
+        "high": "A selected corner rounds deeply, up to half the length of each stroke it joins.",
     },
     "stroke_contrast": {
         "kind": "unipolar",
@@ -309,7 +315,7 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss | UnipolarDialGloss] = {
     },
     "diacritic_density": {
         "kind": "unipolar",
-        "summary": "How often a letter carries a small attached diacritic mark, and how large the script's own shared pool of reusable diacritic shapes is -- every letter's diacritic is drawn from that same small pool, not freshly invented each time. No meaningful opposite pole below 0, so this dial only runs 0..1. Separate from how dotty the letter itself looks (see dot_prevalence) or where each mark sits (see ornateness).",
+        "summary": "How often a letter carries a small attached diacritic mark, and how large the script's own shared pool of reusable diacritic shapes is -- every letter's diacritic is drawn from that same small pool, not freshly invented each time. No meaningful opposite pole below 0, so this dial only runs 0..1. Separate from how dotty the letter itself looks (see dot_prevalence). A diacritic always sits above or below the letter (or to its side, for a vertical script) -- never inside it.",
         "low": "No, or very rarely one, attached diacritic mark; no shared pool to draw from.",
         "high": "Most letters carry one mark (occasionally two), drawn from a pool of up to 5 reused shapes.",
     },
@@ -321,9 +327,9 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss | UnipolarDialGloss] = {
     },
     "serif": {
         "kind": "unipolar",
-        "summary": "How often, and how pronounced, a script-wide serif treatment is applied to stroke ends -- a single consistent rule (which stroke directions, which end(s), a shape, a thickness) rolled once for the whole script, like a real typeface's own serif style. No meaningful opposite pole below 0 (0 = no serifs at all), so this dial only runs 0..1. Distinct from terminal_style below: this is pervasive and visually consistent everywhere it applies, not an occasional per-letter flourish.",
-        "low": "No serifs, or very few, very plain ones.",
-        "high": "A strong, consistent serif treatment across the whole script.",
+        "summary": "How often a simple, fixed foot shape -- a flared, concave-sided triangle with a straight base -- is attached to a genuine stroke terminal (a true loose end, nothing else touching it). No meaningful opposite pole below 0 (0 = no serifs at all), so this dial only runs 0..1. Distinct from terminal_style below: this is pervasive and visually consistent everywhere it applies, not an occasional per-letter flourish.",
+        "low": "No serifs, or very few.",
+        "high": "Every qualifying stroke terminal gets a foot.",
     },
     "terminal_style": {
         "kind": "bipolar",
@@ -339,15 +345,27 @@ SCRIPT_TRAIT_GLOSSARY: dict[str, BipolarTraitGloss | UnipolarDialGloss] = {
     },
     "dot_prevalence": {
         "kind": "bipolar",
-        "summary": "Whether a stroke is often replaced by a bare dot instead of a line. A diacritic's own strokes get a further boost on top of this same scale, so a diacritic is more likely to include a dot than the main letter is.",
-        "positive": "Dots are common (up to about a third of strokes, more within a diacritic).",
+        "summary": "Whether a main letter's own stroke is often replaced by a bare dot instead of a line. A diacritic's own strokes are governed by the separate diacritic_dot_prevalence dial instead.",
+        "positive": "Dots are common -- up to about a third of a main letter's own strokes.",
         "negative": "Dots are rare -- almost every stroke is a real line.",
+    },
+    "diacritic_dot_prevalence": {
+        "kind": "bipolar",
+        "summary": "Same as dot_prevalence above, but for a diacritic's own strokes instead of a main letter's -- kept independent, so a script can have dotty diacritics on plain letters, or the reverse.",
+        "positive": "Dots are common within a diacritic -- up to about half its own strokes.",
+        "negative": "Dots are rare within a diacritic too.",
     },
     "ornateness": {
         "kind": "unipolar",
-        "summary": "How elaborate a script's own decorative details are, across three things at once: a dot's own render style, a diacritic's own richness and placement variety, and which of terminal_style's own ornament shapes gets favored. No meaningful opposite pole below 0, so this dial only runs 0..1.",
-        "low": "One plain dot style reused everywhere, diacritics sit in one fixed spot with fewer strokes, and any terminal ornament is a plain foot.",
-        "high": "Dot style varies letter to letter (and leans slightly more circular), diacritics get richer and nest in more varied spots (including inside the letter itself), and terminal ornaments lean toward the fancier presets -- twirls, double hooks.",
+        "summary": "How elaborate a script's own decorative details are, across two things at once: a diacritic's own stroke richness, and which of terminal_style's own ornament shapes gets favored. A dot's own render style is the separate dot_ornateness dial below. No meaningful opposite pole below 0, so this dial only runs 0..1.",
+        "low": "Diacritics have fewer strokes, and any terminal ornament is a plain foot.",
+        "high": "Diacritics get richer, and terminal ornaments lean toward the fancier presets -- twirls, double hooks.",
+    },
+    "dot_ornateness": {
+        "kind": "unipolar",
+        "summary": "A dot's own render style -- plain circle, tiny square, or a brief bent stroke. No meaningful opposite pole below 0, so this dial only runs 0..1.",
+        "low": "One plain dot style reused everywhere in the script.",
+        "high": "Dot style varies letter to letter, and leans slightly more circular.",
     },
 }
 

@@ -23,7 +23,7 @@ for how a later abugida/syllable-block system would extend this without
 a redesign.
 
 **Every glyph's own stroke content is addressably seeded, not drawn from
-sequential stream position.** ``direction``/the grid shape/the 15 style
+sequential stream position.** ``direction``/the grid shape/the 18 style
 dials are rolled once, in order, from one shared sequential ``random.
 Random`` stream (same convention every other per-symbol generation pass
 in this project already uses -- reproducible by seed, nothing new here).
@@ -53,6 +53,7 @@ from conlang_generator.core.script import (
     Glyph,
     InventedScript,
     Point,
+    ScriptGridForce,
     ScriptTraits,
     ScriptTraitsForce,
     Stroke,
@@ -80,15 +81,18 @@ _MAX_STROKES = 6
 _CORNER_RETRY_LIMIT = 8
 
 _GRID_SHAPE_WEIGHTS: tuple[tuple[tuple[int, int], float], ...] = (
-    ((2, 2), 0.70),  # "square" -- the common case
+    ((2, 2), 0.60),  # "square" -- the common case
     ((1, 2), 0.15),  # "tall"
     ((2, 1), 0.15),  # "wide"
+    ((1, 1), 0.10),  # "minimal" -- a single cell, 4 points total
 )
 """(grid_max_x, grid_max_y) pairs, weighted -- a 2x2-cell grid (3x3 points) is the common case a
-stocky, simple-alphabet letterform can be built from; the rarer tall/wide variants bias one axis down
-to a single cell for scripts styled more vertical or horizontal. All three fit well inside `Point`'s
-own `ge=0, le=3` bound -- smaller than the old fixed grid, not bigger, so that bound never needed to
-change."""
+stocky, simple-alphabet letterform can be built from; the tall/wide variants bias one axis down to a
+single cell for scripts styled more vertical or horizontal; `1x1` (round 9, direct user request to be
+able to name this size explicitly) is the most restrictive shape, a single cell with only 4 points to
+build a glyph from, rarer still. All four fit well inside `Point`'s own `ge=0, le=3` bound -- smaller
+than the old fixed grid, not bigger, so that bound never needed to change. See `ScriptGridForce` to
+force a specific shape instead of rolling one."""
 
 
 def should_generate_script(spec: GenerationSpec) -> bool:
@@ -116,7 +120,7 @@ def roll_grid_shape(rng: random.Random) -> tuple[int, int]:
 
 
 def roll_script_traits(rng: random.Random, force: ScriptTraitsForce = ScriptTraitsForce()) -> ScriptTraits:
-    """Rolls all 15 dials, each within its own ``SCRIPT_TRAIT_RANGE`` (bipolar ``-1..1`` or unipolar
+    """Rolls all 18 dials, each within its own ``SCRIPT_TRAIT_RANGE`` (bipolar ``-1..1`` or unipolar
     ``0..1``), then applies any non-``None`` field of ``force`` on top (see ``ScriptTraitsForce``'s own
     docstring) -- every ``rng`` draw still happens even for a forced dial, so adding or removing an
     override never shifts any other dial's own value."""
@@ -195,13 +199,17 @@ def _decide_stroke(
     function of the glyph's identity, this slot's index, and the current trait values, never of
     sequential stream position (see this module's own docstring for why that matters).
 
-    First, ``dot_prevalence``: this slot may become a bare dot instead of a line, placed at a grid
-    point not already used as any stroke's own start/end so far in this glyph (falls back to drawing
-    a normal line instead if no such point remains, rather than erroring). ``is_diacritic`` raises the
-    ceiling of this roll (still the same ``dot_prevalence`` scaling, just a higher one -- direct user
-    request: "dots should also have a higher chance to be generated in diacritics, but still scale with
-    dot prevalence"). A dot never advances ``chain_from`` -- the caller's own chain simply continues
-    from wherever it last was, "picking up where left off" across a dot slot.
+    First, ``dot_prevalence`` (or ``diacritic_dot_prevalence`` when ``is_diacritic``, a genuinely
+    separate dial since round 9 -- direct user request, "dot prevalence as a separate trait for
+    diacritics and for the main character"; before that split, ``is_diacritic`` only raised the
+    *ceiling* on this same shared dial): this slot may become a bare dot instead of a line, placed at
+    a grid point not already used as any stroke's own start/end so far in this glyph (falls back to
+    drawing a normal line instead if no such point remains, rather than erroring). ``is_diacritic``
+    also raises the ceiling of this roll on top of reading the separate dial (still scaled by it, just
+    a higher ceiling -- direct user request: "dots should also have a higher chance to be generated in
+    diacritics, but still scale with dot prevalence"). A dot never advances ``chain_from`` -- the
+    caller's own chain simply continues from wherever it last was, "picking up where left off" across
+    a dot slot.
 
     Otherwise, a line: ``stroke_continuity`` decides whether it starts from ``chain_from`` (the
     previous line stroke's own end) or a fresh point, and ``end`` is always one of ``start``'s own
@@ -217,7 +225,8 @@ def _decide_stroke(
     own output."""
     rng = random.Random(f"{seed_key}:{index}")
     dot_ceiling = 0.55 if is_diacritic else 0.33
-    if rng.random() < lerp(traits.dot_prevalence, 0.0, dot_ceiling):
+    dot_prevalence = traits.diacritic_dot_prevalence if is_diacritic else traits.dot_prevalence
+    if rng.random() < lerp(dot_prevalence, 0.0, dot_ceiling):
         free_points = [
             Point(x=x, y=y)
             for x in range(grid_max_x + 1)
@@ -345,24 +354,18 @@ def _script_wide_seed(traits: ScriptTraits, direction: WritingDirection) -> str:
 
 
 def _roll_diacritic_slot(seed_key: str, traits: ScriptTraits, direction: WritingDirection) -> str:
-    """One diacritic instance's own placement slot -- see ``core.script.Glyph.diacritics``'s own
-    docstring for the full vocabulary. Three independent, ``ornateness``-driven rolls: which broad
-    category (external cross-axis -- no adjacent neighbor in this ``direction``, the frequent default;
-    external along-axis -- where a neighboring glyph sits, "only sometimes... if there is no
-    connectedness between letters"; or internal, one of 9 fractional positions nested inside the main
-    glyph's own grid, "appearing... inside one of the 9 grid points"); which sign on the cross axis (a
-    *script-wide* fixed one -- ``_script_wide_seed`` -- reused at low ``ornateness``, "always in the
-    same location," with a rising per-instance chance of flipping to the other one, "start appearing
-    both high and low," as it increases); and (for ``internal``) which of the 9 positions."""
-    category_roll = random.Random(f"{seed_key}:diacritic-category").random()
-    p_internal = lerp01(traits.ornateness, 0.0, 0.3)
-    p_along = lerp01(traits.ornateness, 0.0, 0.25)
-    if category_roll < p_internal:
-        rng = random.Random(f"{seed_key}:diacritic-internal")
-        return f"internal:{rng.randint(0, 2)},{rng.randint(0, 2)}"
-    if category_roll < p_internal + p_along:
-        sign = "pos" if random.Random(f"{seed_key}:diacritic-along-sign").random() < 0.5 else "neg"
-        return f"along_{sign}"
+    """One diacritic instance's own placement slot -- always the cross axis (no adjacent neighbor in
+    this ``direction`` -- top/bottom for a horizontal script, left/right for a vertical one), never
+    nested inside the main glyph's own grid or toward a neighboring letter. Round 9, direct user
+    feedback removed those two other categories outright ("diacritics in the middle of characters...
+    always have them only on middle bottom or middle top" -- see ``core.script.Glyph.diacritics``'s
+    own docstring for the full, now-shorter, slot vocabulary, and that same docstring for why
+    ``script.font_builder._diacritic_offset`` still *resolves* the retired slot kinds even though
+    nothing generates them anymore). Which sign on the cross axis is a *script-wide* fixed one
+    (``_script_wide_seed``) -- reused at low ``ornateness``, "always in the same location," with a
+    rising per-instance chance of flipping to the other one, "start appearing both high and low," as
+    it increases -- the one placement-diversity effect this dial still has, left unchanged by the
+    category removal above."""
     fixed_sign = "pos" if random.Random(f"{_script_wide_seed(traits, direction)}:diacritic-fixed-side").random() < 0.5 else "neg"
     flip_roll = random.Random(f"{seed_key}:diacritic-cross-flip").random()
     if flip_roll < lerp01(traits.ornateness, 0.0, 0.5):
@@ -386,11 +389,14 @@ def _build_diacritic_pool(
     ``with_diacritics=False`` (a diacritic never gets its own diacritics). *Where* within that
     ``_DIACRITIC_MIN_STROKES..effective_max_strokes`` range a given entry lands is driven by
     ``traits.diacritic_complexity`` (via ``complexity_override``), a dial kept deliberately separate
-    from the main letter's own ``complexity`` -- direct user request. Reuses the *main* glyph's own
-    ``grid_max_x``/``grid_max_y`` rather than rolling an independent grid shape per diacritic --
-    `script.font_builder` renders it at a fraction of that size regardless, so the same grid shape at
-    a smaller scale already gives the "small, confined" look without a second grid-shape data field
-    to carry around."""
+    from the main letter's own ``complexity`` -- direct user request. ``grid_max_x``/``grid_max_y``
+    here are the *diacritic's own* grid shape (``generate_script``'s own ``diacritic_grid_max_x``/
+    ``diacritic_grid_max_y``, see ``ScriptGridForce``) -- defaults to matching the main glyph's own
+    grid shape (today's behavior before round 9's ``ScriptGridForce`` existed), independently settable
+    since, direct user request: "I'd like to specify the size of the grid for the character..., and
+    the diacritic separately." `script.font_builder` renders a diacritic at a fraction of its own
+    grid's overall size regardless of resolution, so this still gives the "small, confined" look at
+    any grid shape."""
     pool_size = round(lerp01(traits.diacritic_density, 0.0, _DIACRITIC_POOL_MAX))
     if traits.diacritic_density > 0.0:
         pool_size = max(1, pool_size)
@@ -478,9 +484,16 @@ def generate_glyph(
     below for this call only -- lets ``_build_diacritic_pool`` drive a pool entry's own stroke count
     from ``traits.diacritic_complexity`` instead, a separate dial from the main letter's own
     ``complexity`` (direct user request). ``None`` (the default, every main-letter call) keeps today's
-    behavior exactly."""
-    complexity = traits.complexity if complexity_override is None else complexity_override
-    stroke_count = round(lerp(complexity, min_strokes, max_strokes))
+    behavior exactly. Note the two branches below use *different* `lerp` functions, not the same one --
+    ``traits.complexity`` is bipolar (``-1..1``) but ``complexity_override`` is always a unipolar
+    (``0..1``) dial (``diacritic_complexity`` today); a real bug, caught by direct testing: reading a
+    unipolar override through the bipolar ``lerp`` landed its own ``0.0`` on the stroke-count *midpoint*
+    instead of the minimum, so ``diacritic_complexity`` appeared to do nothing across its own lower
+    half."""
+    if complexity_override is None:
+        stroke_count = round(lerp(traits.complexity, min_strokes, max_strokes))
+    else:
+        stroke_count = round(lerp01(complexity_override, min_strokes, max_strokes))
     strokes = _build_stroke_chain(seed_key, traits, stroke_count, grid_max_x, grid_max_y, is_diacritic)
     diacritics = (
         _attach_diacritics(seed_key, traits, direction, diacritic_pool) if with_diacritics else {}
@@ -499,14 +512,23 @@ def generate_script(
     seed: str,
     inventory: PhonemeInventory,
     forced_script_traits: ScriptTraitsForce = ScriptTraitsForce(),
+    forced_script_grid: ScriptGridForce = ScriptGridForce(),
 ) -> InventedScript:
     """Every symbol in ``inventory``'s own consonants and vowels, each given one glyph, in that stable
-    order. ``direction``/the grid shape/the 15 style dials are rolled once, in order, from one shared
+    order. ``direction``/the grid shape/the 18 style dials are rolled once, in order, from one shared
     sequential ``random.Random(seed)`` stream (the same convention every other per-symbol generation
     pass in this project already uses); each glyph's own stroke *content* is addressably keyed from
     ``seed`` directly instead (see this module's own docstring for why) -- so re-running with the same
     seed and the same inventory always reproduces the same script, exactly as before, just via two
     different mechanisms for two different kinds of decision.
+
+    The grid shape is still always rolled (``roll_grid_shape``) even when ``forced_script_grid.main``
+    overrides it -- same "every draw still happens even for a forced dial" precedent ``roll_script_
+    traits`` already follows, so adding or removing a grid-shape override never shifts any later
+    ``rng`` draw (the style dials). The diacritic's own grid defaults to *whatever the main grid ends
+    up being* (today's exact behavior, before ``ScriptGridForce`` existed at all) unless ``forced_
+    script_grid.diacritic`` gives it a shape of its own -- no extra ``rng`` draw either way, so an
+    unforced script's own generation is untouched by this parameter's mere existence.
 
     Each glyph is also checked against every earlier glyph in the same script (``_glyph_signature``,
     comparing strokes plus diacritics) -- direct user feedback that two letters could otherwise end up
@@ -517,9 +539,11 @@ def generate_script(
     unconditionally rather than looping forever."""
     rng = random.Random(seed)
     direction = roll_direction(rng)
-    grid_max_x, grid_max_y = roll_grid_shape(rng)
+    rolled_grid = roll_grid_shape(rng)
+    grid_max_x, grid_max_y = forced_script_grid.main or rolled_grid
+    diacritic_grid_max_x, diacritic_grid_max_y = forced_script_grid.diacritic or (grid_max_x, grid_max_y)
     traits = roll_script_traits(rng, forced_script_traits)
-    diacritic_pool = _build_diacritic_pool(seed, traits, grid_max_x, grid_max_y, direction)
+    diacritic_pool = _build_diacritic_pool(seed, traits, diacritic_grid_max_x, diacritic_grid_max_y, direction)
     symbols = inventory.consonant_symbols() + inventory.vowel_symbols()
     glyphs: list[Glyph] = []
     seen_signatures: set[tuple] = set()
@@ -538,7 +562,9 @@ def generate_script(
         seen_signatures.add(signature)
         glyphs.append(glyph)
     return InventedScript(
-        direction=direction, traits=traits, grid_max_x=grid_max_x, grid_max_y=grid_max_y, glyphs=tuple(glyphs),
+        direction=direction, traits=traits, grid_max_x=grid_max_x, grid_max_y=grid_max_y,
+        diacritic_grid_max_x=diacritic_grid_max_x, diacritic_grid_max_y=diacritic_grid_max_y,
+        glyphs=tuple(glyphs),
     )
 
 

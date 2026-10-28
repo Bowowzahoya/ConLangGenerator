@@ -15,7 +15,7 @@ from conlang_generator.core.romanization import (
 )
 from conlang_generator.core.language import Language
 from conlang_generator.core.lexicon import PartOfSpeech
-from conlang_generator.core.script import SCRIPT_TRAIT_RANGE, ScriptTraits, ScriptTraitsForce
+from conlang_generator.core.script import SCRIPT_TRAIT_RANGE, ScriptGridForce, ScriptTraits, ScriptTraitsForce
 from conlang_generator.core.spec import GenerationSpec, SeedExample, SeedForm
 from conlang_generator.core.traits import GRADED_TRAIT_FIELDS, PHONOLOGY_ONLY_TRAIT_FIELDS
 from conlang_generator.generation.generator import (
@@ -57,9 +57,24 @@ app = typer.Typer(help="Generate constructed languages and translate to/from Eng
 LANGUAGES_DIR = Path("conlangs")
 CACHE_DIR = Path(".cache")
 SCRIPT_TRAIT_FIELDS: tuple[str, ...] = tuple(ScriptTraits.model_fields)
-"""The 15 ``ScriptTraits`` dial names, in declaration order -- the
+"""The 18 ``ScriptTraits`` dial names, in declaration order -- the
 ``--script-trait`` flag's own allowlist, the ``ScriptTraits`` analogue of
 ``GRADED_TRAIT_FIELDS``."""
+
+_GRID_SHAPE_CHOICES: dict[str, tuple[int, int]] = {"2x2": (2, 2), "1x1": (1, 1), "2x1": (2, 1), "1x2": (1, 2)}
+
+
+def _parse_grid_shape(value: str, flag_name: str) -> tuple[int, int]:
+    """Parses one ``--script-grid``/``--script-diacritic-grid`` value against ``_GRID_SHAPE_CHOICES``
+    -- a clear error, not a crash, same role ``_parse_trait_overrides`` already plays for
+    ``--script-trait``'s own numeric range checks."""
+    shape = _GRID_SHAPE_CHOICES.get(value)
+    if shape is None:
+        typer.echo(
+            f"error: {flag_name} must be one of {', '.join(_GRID_SHAPE_CHOICES)}, got: {value}", err=True,
+        )
+        raise typer.Exit(code=1)
+    return shape
 
 
 def _repository() -> YamlLanguageRepository:
@@ -278,6 +293,18 @@ def generate(
         "one per dial). Overrides that dial's own seeded roll; only takes effect when a script is actually "
         "generated (see --own-script). NAME is one of: " + ", ".join(SCRIPT_TRAIT_FIELDS) + ".",
     ),
+    script_grid: str = typer.Option(
+        None, "--script-grid",
+        help="Directly set the invented script's own main-letter grid shape: one of "
+        + ", ".join(_GRID_SHAPE_CHOICES) + ". Overrides the normal seeded roll; only takes effect when a "
+        "script is actually generated (see --own-script).",
+    ),
+    script_diacritic_grid: str = typer.Option(
+        None, "--script-diacritic-grid",
+        help="Directly set the invented script's own diacritic grid shape, independently of "
+        "--script-grid: one of " + ", ".join(_GRID_SHAPE_CHOICES) + ". Defaults to matching the main "
+        "letter's own grid shape when not given.",
+    ),
     example: list[str] = typer.Option(
         [], "--example",
         help="Literal seed word: 'gloss=form', 'gloss=form|ipa', 'gloss=form|ipa|pos' (pos one of "
@@ -442,6 +469,13 @@ def generate(
         script_trait, SCRIPT_TRAIT_FIELDS, "--script-trait", range_of=SCRIPT_TRAIT_RANGE.__getitem__,
     )
     forced_script_traits = ScriptTraitsForce(**script_trait_overrides)
+    forced_script_grid = ScriptGridForce(
+        main=_parse_grid_shape(script_grid, "--script-grid") if script_grid is not None else None,
+        diacritic=(
+            _parse_grid_shape(script_diacritic_grid, "--script-diacritic-grid")
+            if script_diacritic_grid is not None else None
+        ),
+    )
 
     if tweak_from is not None:
         # No prompt classification, no --seed, no --source-language --
@@ -598,6 +632,7 @@ def generate(
         force_own_script=force_own_script,
         forced_orthography=forced_orthography,
         forced_script_traits=forced_script_traits,
+        forced_script_grid=forced_script_grid,
         seed_examples=seed_examples,
         allow_all_caps=allow_all_caps,
         word_selection=word_selection,

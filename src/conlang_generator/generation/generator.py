@@ -93,7 +93,9 @@ def generate_language(name: str, spec: GenerationSpec, llm_client: LLMClient) ->
         update={"punctuation_style": romanization_gen._roll_punctuation_style(punctuation_rng)}
     )
     script = (
-        script_gen.generate_script(f"{spec.seed}:script", inventory, spec.forced_script_traits)
+        script_gen.generate_script(
+            f"{spec.seed}:script", inventory, spec.forced_script_traits, spec.forced_script_grid,
+        )
         if script_gen.should_generate_script(spec)
         else None
     )
@@ -1248,6 +1250,8 @@ def regenerate_script(name: str, language: Language, trait_overrides: dict[str, 
             "(or a prompt that asks for one) before tweaking its script."
         )
     new_forced = language.spec.forced_script_traits.model_copy(update=trait_overrides)
-    script = script_gen.generate_script(f"{language.spec.seed}:script", language.phonology, new_forced)
+    script = script_gen.generate_script(
+        f"{language.spec.seed}:script", language.phonology, new_forced, language.spec.forced_script_grid,
+    )
     new_spec = language.spec.model_copy(update={"forced_script_traits": new_forced})
     return language.model_copy(update={"name": name, "script": script, "spec": new_spec})

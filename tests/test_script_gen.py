@@ -8,7 +8,15 @@ actually changed."""
 
 import random
 
-from conlang_generator.core.script import SCRIPT_TRAIT_RANGE, Point, ScriptTraits, ScriptTraitsForce, StrokeKind, WritingDirection
+from conlang_generator.core.script import (
+    SCRIPT_TRAIT_RANGE,
+    Point,
+    ScriptGridForce,
+    ScriptTraits,
+    ScriptTraitsForce,
+    StrokeKind,
+    WritingDirection,
+)
 from conlang_generator.core.spec import GenerationSpec
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.generation import script_gen
@@ -104,6 +112,51 @@ def test_generate_script_differs_for_a_different_seed():
     assert script_a != script_b
 
 
+# --- grid-shape forcing (ScriptGridForce) ------------------------------------------------------
+
+
+def test_generate_script_applies_forced_grid_shape():
+    language = cached_language(0)
+    script = script_gen.generate_script("1", language.phonology, forced_script_grid=ScriptGridForce(main=(1, 1)))
+    assert (script.grid_max_x, script.grid_max_y) == (1, 1)
+
+
+def test_generate_script_diacritic_grid_defaults_to_match_the_main_grid():
+    # Today's exact behavior before `ScriptGridForce` existed -- a diacritic's own grid shape, left
+    # unforced, always matches whatever the main grid ended up being, even when that's forced too.
+    language = cached_language(0)
+    for shape in ((2, 2), (1, 2), (2, 1), (1, 1)):
+        script = script_gen.generate_script(
+            "1", language.phonology, forced_script_grid=ScriptGridForce(main=shape),
+        )
+        assert (script.diacritic_grid_max_x, script.diacritic_grid_max_y) == shape
+
+
+def test_generate_script_diacritic_grid_can_diverge_when_forced():
+    # Round 9, direct user request: "I'd like to specify the size of the grid for the character..., and
+    # the diacritic separately."
+    language = cached_language(0)
+    script = script_gen.generate_script(
+        "1", language.phonology,
+        forced_script_grid=ScriptGridForce(main=(2, 2), diacritic=(1, 1)),
+    )
+    assert (script.grid_max_x, script.grid_max_y) == (2, 2)
+    assert (script.diacritic_grid_max_x, script.diacritic_grid_max_y) == (1, 1)
+
+
+def test_generate_script_grid_shape_force_does_not_disturb_the_rng_stream():
+    # Same "every draw still happens even for a forced dial" precedent `roll_script_traits`'s own
+    # rng-stream test already covers -- forcing the grid shape must not shift the later style-dial
+    # rolls for the same seed.
+    language = cached_language(0)
+    unforced = script_gen.generate_script("1", language.phonology)
+    forced = script_gen.generate_script(
+        "1", language.phonology, forced_script_grid=ScriptGridForce(main=(1, 1)),
+    )
+    assert forced.traits == unforced.traits
+    assert forced.direction == unforced.direction
+
+
 def test_generate_script_covers_exactly_the_languages_own_inventory():
     language = cached_language(0)
     script = script_gen.generate_script("1", language.phonology)
@@ -150,14 +203,14 @@ def test_high_complexity_produces_more_strokes_than_low_complexity():
 # --- grid shape ----------------------------------------------------------------------------------
 
 
-def test_roll_grid_shape_only_ever_returns_one_of_the_three_weighted_shapes():
+def test_roll_grid_shape_only_ever_returns_one_of_the_four_weighted_shapes():
     rng = random.Random(1)
     seen = set()
-    for _ in range(100):
+    for _ in range(300):
         shape = script_gen.roll_grid_shape(rng)
-        assert shape in {(2, 2), (1, 2), (2, 1)}
+        assert shape in {(2, 2), (1, 2), (2, 1), (1, 1)}
         seen.add(shape)
-    assert seen == {(2, 2), (1, 2), (2, 1)}  # all three reachable over enough draws
+    assert seen == {(2, 2), (1, 2), (2, 1), (1, 1)}  # all four reachable over enough draws
 
 
 def test_generate_script_persists_the_rolled_grid_shape():
@@ -366,13 +419,35 @@ def test_glyph_signature_differs_for_different_strokes_but_matches_for_identical
     assert script_gen._glyph_signature(a) != script_gen._glyph_signature(c)
 
 
-# --- diacritic dot-prevalence boost ------------------------------------------------------------
+# --- diacritic dot-prevalence boost / split dial ------------------------------------------------
+
+
+def test_is_diacritic_reads_diacritic_dot_prevalence_not_the_main_dial():
+    # Round 9 split, direct user request: "dot prevalence as a separate trait for diacritics and for
+    # the main character." `dot_prevalence` must have zero effect on a diacritic's own dot roll, and
+    # vice versa.
+    traits = ScriptTraits(dot_prevalence=1.0, diacritic_dot_prevalence=-1.0)
+    main_dots = sum(
+        1
+        for seed in range(200)
+        if script_gen._decide_stroke(f"dot-split-main-{seed}", 0, None, None, traits, 2, 2, set(), False).kind
+        is StrokeKind.DOT
+    )
+    diacritic_dots = sum(
+        1
+        for seed in range(200)
+        if script_gen._decide_stroke(f"dot-split-diac-{seed}", 0, None, None, traits, 2, 2, set(), True).kind
+        is StrokeKind.DOT
+    )
+    assert main_dots > 0  # dot_prevalence=1.0 still drives the main letter's own roll
+    assert diacritic_dots == 0  # diacritic_dot_prevalence=-1.0 -- never a dot within a diacritic
 
 
 def test_is_diacritic_raises_the_dot_prevalence_ceiling():
-    # Same dot_prevalence value, only is_diacritic differs -- direct user request: "dots should also
-    # have a higher chance to be generated in diacritics, but still scale with dot prevalence."
-    traits = ScriptTraits(dot_prevalence=1.0)
+    # Same (diacritic_)dot_prevalence value on both dials, only is_diacritic differs -- direct user
+    # request: "dots should also have a higher chance to be generated in diacritics, but still scale
+    # with dot prevalence."
+    traits = ScriptTraits(dot_prevalence=1.0, diacritic_dot_prevalence=1.0)
     main_dots = sum(
         1
         for seed in range(200)
@@ -388,9 +463,9 @@ def test_is_diacritic_raises_the_dot_prevalence_ceiling():
     assert diacritic_dots > main_dots
 
 
-def test_is_diacritic_still_scales_with_dot_prevalence():
-    traits_low = ScriptTraits(dot_prevalence=-1.0)
-    traits_high = ScriptTraits(dot_prevalence=1.0)
+def test_is_diacritic_still_scales_with_diacritic_dot_prevalence():
+    traits_low = ScriptTraits(diacritic_dot_prevalence=-1.0)
+    traits_high = ScriptTraits(diacritic_dot_prevalence=1.0)
     low_dots = sum(
         1
         for seed in range(200)
@@ -469,7 +544,7 @@ def test_decide_stroke_dot_points_filtering_is_a_no_op_when_empty():
     assert a == b
 
 
-# --- diacritic placement (direction-aware, ornateness-driven) -----------------------------------
+# --- diacritic placement (direction-aware, cross-axis only) -------------------------------------
 
 
 def test_roll_diacritic_slot_is_always_cross_axis_at_zero_ornateness():
@@ -480,14 +555,16 @@ def test_roll_diacritic_slot_is_always_cross_axis_at_zero_ornateness():
     assert slots <= {"cross_pos", "cross_neg"}
 
 
-def test_roll_diacritic_slot_reaches_every_category_at_full_ornateness():
+def test_roll_diacritic_slot_is_always_cross_axis_at_full_ornateness_too():
+    # Round 9, direct user feedback: "diacritics in the middle of characters... always have them only
+    # on middle bottom or middle top" -- `internal`/`along` are removed outright, not just rare, at any
+    # ornateness.
     traits = ScriptTraits(ornateness=1.0)
     slots = {
         script_gen._roll_diacritic_slot(f"slot-hi-{i}", traits, WritingDirection.LTR) for i in range(300)
     }
-    assert any(s.startswith("cross") for s in slots)
-    assert any(s.startswith("along") for s in slots)
-    assert any(s.startswith("internal:") for s in slots)
+    assert slots <= {"cross_pos", "cross_neg"}
+    assert slots == {"cross_pos", "cross_neg"}  # the flip chance still reaches both signs
 
 
 def test_roll_diacritic_slot_fixed_sign_is_script_wide_not_per_instance():

@@ -1956,28 +1956,35 @@ conlang generate --prompt "a mountain language" --name doc-script-test --own-scr
 
 ### `generate --script-trait`
 
-Once a script is generated, its 15 dials -- grouped by what they actually change, not just listed --
+Once a script is generated, its 18 dials -- grouped by what they actually change, not just listed --
 are rolled from the language's own seed, same as everything else:
 
 - **Topology** (changes which strokes get drawn, a different set of shapes): `complexity`,
-  `diacritic_density`, `diacritic_complexity`, `stroke_continuity`, `dot_prevalence`.
+  `diacritic_density`, `diacritic_complexity`, `stroke_continuity`, `dot_prevalence`,
+  `diacritic_dot_prevalence`.
 - **Typeface** (classic font-metric axes -- redraws the same strokes differently, never changes which
   strokes exist): `slant`, `weight`, `serif`, `stroke_contrast`, `proportion`.
 - **Form** (shape-execution axes -- also never changes which strokes exist, except `ornateness`, which
   is a documented exception -- see below): `crookedness` (tilts a stroke slightly off its own canonical
-  angle, propagated so a connected chain never visibly disconnects), `roundedness` (smooths a chain's
-  own internal joints and loose ends into curves, by a fraction of each side's own length), `terminal_
-  style`, `ornateness`, `regularity`.
+  angle, propagated so a connected chain never visibly disconnects), `roundedness` (whether a given
+  corner rounds at all), `roundedness_extremity` (how deep the cut goes once it does), `terminal_style`,
+  `ornateness`, `dot_ornateness`, `regularity`.
 
 `terminal_style` and `serif` are deliberately two separate mechanisms: `terminal_style` governs how
 often a letter gets its own occasional *terminal ornament* (a hook, swirl, foot, or extended stroke --
 one of 10 fixed presets, favored plainer-or-fancier by `ornateness`) at one stroke-end, usually just one
-letter at a time; `serif` governs a single, pervasive, script-wide serif rule (which stroke directions,
-which end(s), a shape, a thickness) applied consistently everywhere it qualifies, the way a real
-typeface's own serif style is. `ornateness` is also the one dial consumed on both sides of the
-topology/style split -- besides favoring fancier terminal-ornament presets and a more varied/diverse dot
-style, it also widens a diacritic's own stroke-count ceiling and diversifies *where* diacritics sit
-(see `core/script.py`'s own docstring for the full nuance).
+letter at a time; `serif` governs how often a simple, fixed foot shape (a flared, concave-sided triangle
+with a straight base) is attached to a *genuine* stroke terminal -- a true loose end, nothing else
+touching it -- pervasively across the whole script, the way a real typeface's own serif style applies
+everywhere, not an occasional per-letter flourish. `roundedness`/`roundedness_extremity` are a similar
+split: `roundedness` alone decides how many corners round at all, `roundedness_extremity` alone decides
+how deep each one cuts once selected. `ornateness`/`dot_ornateness` are a parallel split: `dot_
+ornateness` governs only a dot's own render style (plain circle / tiny square / brief bent stroke);
+`ornateness` governs everything else it used to -- a diacritic's own stroke richness and which of
+`terminal_style`'s 10 presets gets favored -- and no longer touches *where* a diacritic sits at all (see
+below). `ornateness` is also the one dial consumed on both sides of the topology/style split -- it also
+widens a diacritic's own stroke-count ceiling (see `core/script.py`'s own docstring for the full
+nuance).
 
 A letter's own diacritic mark(s), if any, are drawn from a small *pool* of reusable shapes built once
 for the whole script -- never freshly invented per letter -- scaling from 0 shapes at
@@ -1985,15 +1992,20 @@ for the whole script -- never freshly invented per letter -- scaling from 0 shap
 of at least one diacritic (`0.5` -> roughly half of letters carry one); a second, rarer one on the same
 letter is only a real possibility once density is already close to `1.0`. Each diacritic is capped at
 4 strokes, and `diacritic_complexity` -- kept deliberately independent of the main letter's own
-`complexity` -- decides where within that cap a given pool entry actually lands.
+`complexity` -- decides where within that cap a given pool entry actually lands. A diacritic always
+sits on the cross axis relative to the writing direction -- top/bottom for a horizontal script,
+left/right for a vertical one -- never nested inside the main letter's own grid or toward a
+neighboring letter; `diacritic_dot_prevalence`, independent of the main letter's own `dot_prevalence`,
+is how often a diacritic's own strokes become bare dots instead of lines.
 
 Most dials are bipolar (`-1.0..1.0`, a positive value evidence *for* the named pole, negative for its
-opposite); `stroke_contrast`, `regularity`, `ornateness`, `serif`, `crookedness`, `roundedness`,
-`diacritic_density`, and `diacritic_complexity` are unipolar (`0.0..1.0` only) -- each has no
-meaningful "opposite pole" below 0 (monoline/geometric/plain/no-serifs/never-tilts/always-sharp/
-no-diacritics/minimal-diacritics is already the `0.0` end, not a separate negative extreme).
+opposite); `stroke_contrast`, `regularity`, `ornateness`, `dot_ornateness`, `serif`, `crookedness`,
+`roundedness`, `roundedness_extremity`, `diacritic_density`, and `diacritic_complexity` are unipolar
+(`0.0..1.0` only) -- each has no meaningful "opposite pole" below 0 (monoline/geometric/plain/no-
+serifs/never-tilts/always-sharp/no-diacritics/minimal-diacritics is already the `0.0` end, not a
+separate negative extreme).
 `--script-trait NAME=VALUE` (repeatable, one per dial) sets a specific dial directly, `VALUE` checked
-against that dial's own range -- NAME against this own, separate 15-dial list, not the 15 worldbuilding
+against that dial's own range -- NAME against this own, separate 18-dial list, not the 15 worldbuilding
 `--trait` names. Overriding a dial only takes effect when a script is actually generated (`--own-script
 yes`, or a prompt `auto` infers one from); every other, unforced dial still rolls normally.
 
@@ -2009,8 +2021,8 @@ Generated 'doc-script-trait-test' (doc-script-trait-test) -- 399 core words.
 Word order: SVO, morphology: isolating, alignment: nominative_accusative, tonal: True
 Orthography: monoletter + colon
 Traits from prompt: ...
-Forced script traits: {'weight': -1.0, 'dot_prevalence': 1.0, 'serif': 1.0, 'ornateness': 1.0,
-  'crookedness': 1.0, 'roundedness': 1.0, 'diacritic_density': 1.0}
+Forced script traits: {'crookedness': 1.0, 'roundedness': 1.0, 'weight': -1.0, 'diacritic_density': 1.0,
+  'dot_prevalence': 1.0, 'serif': 1.0, 'ornateness': 1.0}
 Saved to conlangs\doc-script-trait-test
 ```
 
@@ -2029,6 +2041,28 @@ conlang script --lang doc-stroke-continuity-test
 
 ```
 'doc-stroke-continuity-test' has an invented script: 27 glyphs, direction ltr. Use --sounds to list them or --export to compile a font file.
+```
+
+### `generate --script-grid`/`--script-diacritic-grid`
+
+Independent of the 18 graded dials above, `--script-grid`/`--script-diacritic-grid` directly set the
+invented script's own discrete grid shape -- one of `2x2` (the common case, 3x3 points), `1x1`
+(minimal, 4 points), `2x1`, `1x2` -- instead of letting `generate_script` roll one. `--script-diacritic
+-grid` sets the diacritic's own grid shape independently; left unset, a diacritic's own grid always
+matches the main letter's own. Both only take effect when a script is actually generated.
+
+```bash
+conlang generate --prompt "a mountain language" --name doc-script-grid-test --own-script yes \
+  --script-grid 1x1 --script-diacritic-grid 2x2 --script-trait diacritic_density=1.0
+```
+
+```
+Generated 'doc-script-grid-test' (doc-script-grid-test) -- 399 core words.
+Word order: SVO, morphology: isolating, alignment: nominative_accusative, tonal: True
+Orthography: monoletter + colon
+Traits from prompt: ...
+Forced script traits: {'diacritic_density': 1.0}
+Saved to conlangs\doc-script-grid-test
 ```
 
 ## `conlang audit-lexicons`

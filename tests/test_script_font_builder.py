@@ -21,14 +21,15 @@ from conlang_generator.script.font_builder import (
     _LETTER_SCALE,
     _MIN_JOINT_ANGLE_DEGREES,
     _ROUNDING_SAFETY_CEILING,
+    _SERIF_BOW_FACTOR,
+    _SERIF_DEPTH_FACTOR,
+    _SERIF_FLARE_FACTOR,
     _TERMINAL_ORNAMENT_PRESETS,
     UPM,
-    SerifRule,
     _build_connectivity,
     _build_glyph_outline,
     _bulge_through_point,
     _clamp_tilt_for_min_angle,
-    _classify_orientation,
     _crooked_component_endpoints,
     _diacritic_offset,
     _dot_polygons,
@@ -36,11 +37,12 @@ from conlang_generator.script.font_builder import (
     _point_touch_counts,
     _render_scope,
     _round_endpoints,
-    _roll_serif_rule,
     _roll_terminal_ornaments,
-    _serif_polygons_for_stroke,
+    _simple_serif_foot_polygon,
+    _stroke_polygons,
     _stroke_width,
     _terminal_ornament_polygons,
+    _triangle_long_side_corners,
     _virtual_neighbor_direction,
     _weighted_dot_style,
     _weighted_ornament_preset,
@@ -129,19 +131,44 @@ def test_every_contour_in_a_glyph_winds_the_same_direction():
     # own shape) -- TrueType's nonzero fill rule cancels out, rather than
     # unions, two *overlapping* contours that wind oppositely, punching a
     # visible hole right where a foot or dot sits on top of a stroke.
-    # Forcing terminal_style/dot_prevalence/complexity to +1.0 guarantees
-    # this glyph has feet, dots, and lines all at once.
-    traits = ScriptTraits(terminal_style=1.0, dot_prevalence=1.0, complexity=1.0)
+    # Forcing terminal_style/dot_prevalence/complexity/serif to +1.0 guarantees this glyph has feet
+    # (both the terminal-ornament kind and the round-9 serif kind), dots, and lines all at once.
+    traits = ScriptTraits(terminal_style=1.0, dot_prevalence=1.0, complexity=1.0, serif=1.0)
     glyph = script_gen.generate_glyph("test-winding-1", "p", traits, 2, 2)
     assert {s.kind for s in glyph.strokes} == {StrokeKind.DOT, StrokeKind.LINE}  # both present, confirmed by seed search
-    serif_rule = _roll_serif_rule(traits, "winding-test-fingerprint")
     outline, has_contour, _extent = _build_glyph_outline(
-        glyph, 0, traits, UPM / 2, UPM / 2, 2, 2, WritingDirection.LTR, "winding-test-fingerprint", serif_rule,
+        glyph, 0, traits, UPM / 2, UPM / 2, 2, 2, 2, 2, WritingDirection.LTR, "winding-test-fingerprint",
     )
     assert has_contour
     areas = _contour_signed_areas(outline)
     nonzero_signs = {1 if a > 0 else -1 for a in areas if abs(a) > 1e-6}
     assert len(nonzero_signs) == 1
+
+
+def test_build_glyph_outline_diacritic_footprint_is_pinned_regardless_of_its_own_grid_resolution():
+    # Round 9, direct user request: "I'd like to specify the size of the grid for the character..., and
+    # the diacritic separately." A diacritic's own OVERALL footprint must stay pinned to
+    # `_DIACRITIC_SCALE` of the main glyph's own size regardless of the diacritic's own grid
+    # resolution -- only how finely that fixed footprint is subdivided should change. Two diacritics,
+    # each a single stroke spanning its own grid's FULL width, on different grid resolutions (2 vs. 3)
+    # -- the main glyph is given no strokes of its own so the outline's own extent reflects only the
+    # diacritic's own polygons.
+    traits = ScriptTraits()
+    diac_2x2 = Glyph(ipa="", strokes=(Stroke(kind=StrokeKind.LINE, start=Point(x=0, y=0), end=Point(x=2, y=0)),))
+    main_2x2 = Glyph(ipa="p", strokes=(), diacritics={"cross_pos": diac_2x2})
+    _outline_a, _has_a, extent_a = _build_glyph_outline(
+        main_2x2, 0, traits, 100.0, 100.0, 2, 2, 2, 2, WritingDirection.LTR, "pin-fp",
+    )
+    diac_3x3 = Glyph(ipa="", strokes=(Stroke(kind=StrokeKind.LINE, start=Point(x=0, y=0), end=Point(x=3, y=0)),))
+    main_3x3 = Glyph(ipa="p", strokes=(), diacritics={"cross_pos": diac_3x3})
+    _outline_b, _has_b, extent_b = _build_glyph_outline(
+        main_3x3, 0, traits, 100.0, 100.0, 2, 2, 3, 3, WritingDirection.LTR, "pin-fp",
+    )
+    span_a = extent_a[1] - extent_a[0]
+    span_b = extent_b[1] - extent_b[0]
+    assert abs(span_a - span_b) < 1e-6
+    # And it matches the formula directly: width_main * _DIACRITIC_SCALE (width_main = 2 * 100.0).
+    assert abs(span_a - 2 * 100.0 * _DIACRITIC_SCALE) < 1e-6
 
 
 def test_build_font_is_a_pure_function_of_the_script_data(tmp_path: Path):
@@ -254,6 +281,21 @@ def test_weighted_dot_style_can_reach_all_three_styles():
     assert styles == {"square", "stroke", "circle"}
 
 
+def test_stroke_polygons_dot_branch_reads_dot_ornateness_not_ornateness():
+    # Round 9 split, direct user request: "dot ornateness as a separate trait from general
+    # ornateness." ornateness maxed, dot_ornateness at 0 -- every dot sharing a script fingerprint
+    # must still agree on one style (the low-ornateness, single-shared-roll behavior -- see
+    # `test_dot_polygons_at_zero_ornateness_always_reuses_the_script_wide_style` above), proving the
+    # DOT branch reads `traits.dot_ornateness`, not `traits.ornateness`.
+    traits = ScriptTraits(ornateness=1.0, dot_ornateness=0.0)
+    dot = Stroke(kind=StrokeKind.DOT, start=Point(x=1, y=1), end=Point(x=1, y=1))
+    shapes = {
+        len(_stroke_polygons(dot, f"g{i}", 0, traits, 100.0, 100.0, "shared-fingerprint"))
+        for i in range(30)
+    }
+    assert len(shapes) == 1
+
+
 # --- terminal ornaments (Part D) ----------------------------------------------------------------
 
 
@@ -325,109 +367,82 @@ def test_terminal_ornament_centerline_length_scales_with_the_attached_strokes_ow
 # --- serif (Part E) ------------------------------------------------------------------------------
 
 
-def test_classify_orientation():
-    assert _classify_orientation(0, 2) == "vertical"
-    assert _classify_orientation(2, 0) == "horizontal"
-    assert _classify_orientation(2, 2) == "diagonal"
-
-
-def test_roll_serif_rule_is_a_no_op_at_zero_serif():
-    traits = ScriptTraits(serif=0.0)
-    rule = _roll_serif_rule(traits, "serif-fingerprint-zero")
-    assert all(frac == 0.0 for frac in rule.coverage.values())
-
-
-def test_roll_serif_rule_can_produce_nonzero_coverage_at_full_serif():
-    # Each orientation class is independently rolled active-or-not, so a single fingerprint isn't
-    # guaranteed every class fires -- check across several fingerprints that at least one class does.
-    traits = ScriptTraits(serif=1.0)
-    any_active = any(
-        any(frac > 0.0 for frac in _roll_serif_rule(traits, f"serif-fingerprint-{i}").coverage.values())
-        for i in range(20)
-    )
-    assert any_active
-
-
-def test_roll_serif_rule_is_deterministic_for_the_same_fingerprint():
-    traits = ScriptTraits(serif=1.0)
-    a = _roll_serif_rule(traits, "serif-stable")
-    b = _roll_serif_rule(traits, "serif-stable")
-    assert a == b
-
-
-def _first_nonempty_serif_polygons(stroke, width, key_prefix, rule):
-    # `coverage == 1.0` still leaves a ~1/256 chance `_stable_unit`'s own include-roll lands exactly
-    # on the boundary and excludes a given stroke_key (see `_serif_polygons_for_stroke`'s own
-    # `include_roll >= coverage` check) -- try a handful of keys rather than risk a flaky one in a
-    # test that isn't about that roll at all.
+def _first_nonempty_serif_foot(ex, ey, dx, dy, width, key_prefix, serif):
+    # `serif == 1.0` still leaves a ~1/256 chance `_stable_unit`'s own include-roll lands exactly on
+    # the boundary and excludes a given key (see `_simple_serif_foot_polygon`'s own `include_roll >=
+    # serif` check) -- try a handful of keys rather than risk a flaky one in a test that isn't about
+    # that roll at all.
     for i in range(5):
-        polygons = _serif_polygons_for_stroke(stroke, 0.0, 0.0, 0.0, 100.0, width, f"{key_prefix}-{i}", rule)
+        polygons = _simple_serif_foot_polygon(ex, ey, dx, dy, width, f"{key_prefix}-{i}", serif)
         if polygons:
             return polygons
     raise AssertionError("every candidate key was excluded by the include-roll")
 
 
-def test_serif_polygons_for_stroke_radius_clearly_exceeds_the_strokes_own_half_width():
-    # Direct user feedback: "serif doesn't seem to do anything" -- the un-floored radius used to be
-    # only 0.96x..1.68x the stroke's own half-width across the whole weight range, so a "rounded"/
-    # "triangle" foot centered right on the stroke's own tip mostly overlapped the stroke's own
-    # existing silhouette. Checked across the whole weight range that the foot now clearly flares
-    # well past it.
-    for weight in (-1.0, 0.0, 1.0):
-        traits = ScriptTraits(weight=weight, serif=1.0)
-        width = _stroke_width(traits)
-        rule = _roll_serif_rule(traits, f"serif-size-{weight}")._replace(
-            coverage={"vertical": 1.0, "horizontal": 1.0, "diagonal": 1.0},
-            sides_count={"vertical": 1, "horizontal": 1, "diagonal": 1},
-            fixed_side={"vertical": "lower", "horizontal": "lower", "diagonal": "lower"},
-            shape="rounded",
-        )
-        stroke = Stroke(kind=StrokeKind.LINE, start=Point(x=0, y=0), end=Point(x=0, y=2))
-        polygons = _first_nonempty_serif_polygons(stroke, width, f"serif-size-key-{weight}", rule)
-        assert len(polygons) == 1
-        radius = max(math.hypot(px, py) for px, py in polygons[0])  # centered at (0, 0) -- the "lower" end
-        assert radius > (width / 2) * 2.0
+def test_simple_serif_foot_polygon_empty_at_zero_serif():
+    assert _simple_serif_foot_polygon(0.0, 0.0, 0.0, -1.0, 40.0, "serif-zero-key", 0.0) == []
 
 
-def test_serif_polygons_for_stroke_straight_shape_base_is_never_narrower_than_the_stroke():
-    for weight in (-1.0, 0.0, 1.0):
-        traits = ScriptTraits(weight=weight, serif=1.0)
-        width = _stroke_width(traits)
-        rule = _roll_serif_rule(traits, f"serif-straight-{weight}")._replace(
-            coverage={"vertical": 1.0, "horizontal": 1.0, "diagonal": 1.0},
-            sides_count={"vertical": 1, "horizontal": 1, "diagonal": 1},
-            fixed_side={"vertical": "lower", "horizontal": "lower", "diagonal": "lower"},
-            shape="straight",
-        )
-        stroke = Stroke(kind=StrokeKind.LINE, start=Point(x=0, y=0), end=Point(x=0, y=2))
-        polygons = _first_nonempty_serif_polygons(stroke, width, f"serif-straight-key-{weight}", rule)
-        assert len(polygons) == 1
-        quad = polygons[0]  # `_quad`'s own point order: [0] and [-1] are both the base (near) edge
-        base_span = math.hypot(quad[0][0] - quad[-1][0], quad[0][1] - quad[-1][1])
-        assert base_span >= width
+def test_simple_serif_foot_polygon_nonempty_at_full_serif():
+    polygons = _first_nonempty_serif_foot(0.0, 0.0, 0.0, -1.0, 40.0, "serif-nonempty-key", 1.0)
+    assert len(polygons) == 1
+    assert len(polygons[0]) > 2
 
 
-def test_serif_polygons_for_stroke_empty_when_its_own_class_has_zero_coverage():
-    rule = SerifRule(
-        coverage={"vertical": 0.0, "horizontal": 0.0, "diagonal": 0.0},
-        sides_count={"vertical": 1, "horizontal": 1, "diagonal": 1},
-        fixed_side={"vertical": "lower", "horizontal": "lower", "diagonal": "lower"},
-        shape="rounded", thickness_factor=1.0,
-    )
-    stroke = Stroke(kind=StrokeKind.LINE, start=Point(x=0, y=0), end=Point(x=0, y=2))
-    assert _serif_polygons_for_stroke(stroke, 0.0, 0.0, 0.0, 100.0, 40.0, "serif-stroke-key", rule) == []
+def test_simple_serif_foot_polygon_is_deterministic_for_the_same_key():
+    a = _simple_serif_foot_polygon(0.0, 0.0, 0.0, -1.0, 40.0, "serif-stable-key", 1.0)
+    b = _simple_serif_foot_polygon(0.0, 0.0, 0.0, -1.0, 40.0, "serif-stable-key", 1.0)
+    assert a == b
 
 
-def test_serif_polygons_for_stroke_draws_both_ends_when_sides_count_is_two():
-    rule = SerifRule(
-        coverage={"vertical": 1.0, "horizontal": 1.0, "diagonal": 1.0},
-        sides_count={"vertical": 2, "horizontal": 2, "diagonal": 2},
-        fixed_side={"vertical": "lower", "horizontal": "lower", "diagonal": "lower"},
-        shape="triangle", thickness_factor=1.0,
-    )
-    stroke = Stroke(kind=StrokeKind.LINE, start=Point(x=0, y=0), end=Point(x=0, y=2))
-    polygons = _serif_polygons_for_stroke(stroke, 0.0, 0.0, 0.0, 100.0, 40.0, "serif-stroke-key-both", rule)
-    assert len(polygons) == 2
+def test_simple_serif_foot_polygon_base_is_wider_than_the_stem():
+    # Direct user feedback from an earlier round ("serif doesn't seem to do anything"): the foot's own
+    # base must clearly flare past the stroke's own half-width, not just barely exceed it.
+    width = 40.0
+    polygon = _first_nonempty_serif_foot(0.0, 0.0, 0.0, -1.0, width, "serif-flare-key", 1.0)[0]
+    base_span = max(math.hypot(ax - bx, ay - by) for ax, ay in polygon for bx, by in polygon)
+    assert base_span > width  # strictly wider than the stem's own full width (not just half)
+    assert _SERIF_FLARE_FACTOR > 0.5  # the flare half-width itself exceeds the stem's own half-width
+
+
+def test_simple_serif_foot_polygon_sides_bow_inward_toward_the_centerline():
+    # "Concave sides left and right" -- each side edge's own sampled midpoint must sit closer to the
+    # foot's own centerline than a straight taper between the same two corners would.
+    ex, ey, dx, dy, width = 0.0, 0.0, 0.0, -1.0, 40.0
+    depth = width * _SERIF_DEPTH_FACTOR
+    stem_half, flare_half = width / 2.0, width * _SERIF_FLARE_FACTOR
+    # The stroke points straight down (0, -1): perpendicular is (1, 0) (x-axis), so a straight taper's
+    # own midpoint x-coordinate is the plain average of the two corners' own x-coordinates.
+    straight_mid_x = (stem_half + flare_half) / 2.0
+    polygon = _first_nonempty_serif_foot(ex, ey, dx, dy, width, "serif-bow-key", 1.0)[0]
+    # The sampled right side runs from x=stem_half (near the tip) to x=flare_half (at the base, y=-depth)
+    # -- its own closest-to-halfway sample (by y) is the midpoint analogue to compare against.
+    half_y = ey - depth / 2.0
+    closest = min(polygon, key=lambda p: abs(p[1] - half_y))
+    assert abs(closest[0]) < straight_mid_x  # pulled toward the centerline (x=0), not a straight taper
+    assert _SERIF_BOW_FACTOR > 0.0
+
+
+def test_simple_serif_foot_polygon_winds_consistently_with_quad():
+    # Same real bug `_regular_polygon`'s own winding comment documents fixing once: two *overlapping*
+    # same-glyph contours winding oppositely cancel out under TrueType's nonzero fill rule instead of
+    # unioning. Confirmed by shoelace signed area against a plain `_quad` built the same orientation.
+    from conlang_generator.script.font_builder import _quad
+
+    polygon = _first_nonempty_serif_foot(0.0, 0.0, 0.0, -1.0, 40.0, "serif-wind-key", 1.0)[0]
+
+    def signed_area(points):
+        area = 0.0
+        n = len(points)
+        for i in range(n):
+            x0, y0 = points[i]
+            x1, y1 = points[(i + 1) % n]
+            area += x0 * y1 - x1 * y0
+        return area / 2
+
+    quad_area = signed_area(_quad(0, 0, 0, -30, 20, 20))
+    foot_area = signed_area(polygon)
+    assert (quad_area > 0) == (foot_area > 0)
 
 
 # --- diacritic placement (Part C) -----------------------------------------------------------------
@@ -710,13 +725,14 @@ def test_round_endpoints_is_a_no_op_at_zero_roundedness():
 
 
 def test_round_endpoints_truncates_by_the_described_linear_fraction():
-    # "100% means from 50% along one stroke to 50% along the second" -- f = roundedness * 0.5. Uses
-    # roundedness=0.6 (f=0.3, 2f=0.6) rather than 1.0 so the result is never ambiguous with the safety
-    # clamp (which only ever engages above a 0.9 combined fraction) -- that's covered separately below.
-    # Searches for a seed whose own joint roll actually selects (not every seed's own roll does at a
-    # sub-1.0 roundedness), the same seed-search pattern this test module already uses elsewhere.
+    # "100% means from 50% along one stroke to 50% along the second" -- f = roundedness_extremity * 0.5.
+    # Uses roundedness_extremity=0.6 (f=0.3, 2f=0.6) rather than 1.0 so the result is never ambiguous
+    # with the safety clamp (which only ever engages above a 0.9 combined fraction) -- that's covered
+    # separately below. roundedness itself (occurrence, a separate dial since round 9) stays at a
+    # sub-1.0 value too, so the seed-search loop below still does real work finding a seed whose own
+    # joint roll actually selects.
     strokes = (_line(0, 0, 2, 0), _line(2, 0, 2, 2))
-    traits = ScriptTraits(crookedness=0.0, roundedness=0.6)
+    traits = ScriptTraits(crookedness=0.0, roundedness=0.6, roundedness_extremity=0.6)
     f = 0.3
     for seed in range(50):
         key = f"midpoint-check-{seed}"
@@ -737,7 +753,7 @@ def test_round_endpoints_loose_end_never_reaches_further_than_the_original_strok
     # not become longer" -- across many seeds, no point on any rounding arc should land further from
     # the stroke's own well-connected end than the stroke's own original length.
     strokes = (_line(0, 0, 2, 2),)
-    traits = ScriptTraits(roundedness=1.0)
+    traits = ScriptTraits(roundedness=1.0, roundedness_extremity=1.0)
     for seed in range(40):
         key = f"no-overshoot-{seed}"
         crooked = _crooked(strokes, traits, key)
@@ -774,11 +790,46 @@ def test_round_endpoints_leaves_a_degree_three_branch_point_untouched():
     assert rounded_end[2] is False
 
 
+def test_triangle_long_side_corners_identifies_only_the_longest_sides_own_two_corners():
+    # A scalene triangle within the grid's own 0..3 bound: A=(0,0), B=(3,0), C=(0,2) -- side AB=3,
+    # AC=2, BC=sqrt(13)~=3.6 (the longest, by construction). Only B and C (the longest side's own two
+    # endpoints) should come back excluded; the apex A stays untouched.
+    strokes = (_line(0, 0, 3, 0), _line(3, 0, 0, 2), _line(0, 2, 0, 0))
+    traits = ScriptTraits(crookedness=0.0)
+    crooked = _crooked(strokes, traits, "triangle-corners")
+    touches: dict[Point, list[tuple[int, bool]]] = {}
+    for idx, stroke in enumerate(strokes):
+        touches.setdefault(stroke.start, []).append((idx, True))
+        touches.setdefault(stroke.end, []).append((idx, False))
+    excluded = _triangle_long_side_corners(strokes, crooked, touches)
+    assert excluded == {Point(x=3, y=0), Point(x=0, y=2)}
+
+
+def test_round_endpoints_keeps_a_triangles_longest_side_sharp_at_full_roundedness():
+    # Direct user feedback: "triangles with high roundness become a weird egg shape... the angles on
+    # either side of the long side of a triangle should always stay sharp." Same scalene triangle,
+    # every corner maximally eligible -- B/C (ends of the longest side, BC) must never round; A (the
+    # apex) still follows the normal roll and does.
+    strokes = (_line(0, 0, 3, 0), _line(3, 0, 0, 2), _line(0, 2, 0, 0))
+    traits = ScriptTraits(crookedness=0.0, roundedness=1.0, roundedness_extremity=1.0)
+    crooked = _crooked(strokes, traits, "triangle-sharp-check")
+    segments, arcs, rounded_start, rounded_end = _round_endpoints(strokes, crooked, traits, "triangle-sharp-check")
+    # Point B=(3,0): stroke 0's own end, stroke 1's own start.
+    assert rounded_end[0] is False
+    assert rounded_start[1] is False
+    # Point C=(0,2): stroke 1's own end, stroke 2's own start.
+    assert rounded_end[1] is False
+    assert rounded_start[2] is False
+    # Point A=(0,0): stroke 2's own end, stroke 0's own start -- the apex, still rounds normally.
+    assert rounded_end[2] is True
+    assert rounded_start[0] is True
+
+
 def test_round_endpoints_safety_clamp_prevents_a_stroke_collapsing_to_zero_length():
     # An isolated stroke can have BOTH its own loose ends independently selected -- without the clamp,
     # f=0.5 on each side would consume the stroke's entire length (and then some).
     strokes = (_line(0, 0, 2, 0),)
-    traits = ScriptTraits(crookedness=0.0, roundedness=1.0)
+    traits = ScriptTraits(crookedness=0.0, roundedness=1.0, roundedness_extremity=1.0)
     crooked = _crooked(strokes, traits, "safety-clamp-check")
     segments, arcs, rounded_start, rounded_end = _round_endpoints(strokes, crooked, traits, "safety-clamp-check")
     assert rounded_start[0] and rounded_end[0]
@@ -801,26 +852,6 @@ def test_round_endpoints_is_deterministic():
 # --- serif/terminal-ornament skip a rounded endpoint (Part E) --------------------------------------
 
 
-def test_serif_polygons_for_stroke_respects_availability_flags():
-    rule = SerifRule(
-        coverage={"vertical": 1.0, "horizontal": 1.0, "diagonal": 1.0},
-        sides_count={"vertical": 2, "horizontal": 2, "diagonal": 2},
-        fixed_side={"vertical": "lower", "horizontal": "lower", "diagonal": "lower"},
-        shape="rounded", thickness_factor=1.0,
-    )
-    stroke = Stroke(kind=StrokeKind.LINE, start=Point(x=0, y=0), end=Point(x=0, y=2))
-    both = _serif_polygons_for_stroke(stroke, 0.0, 0.0, 0.0, 100.0, 40.0, "avail-both", rule)
-    start_only = _serif_polygons_for_stroke(
-        stroke, 0.0, 0.0, 0.0, 100.0, 40.0, "avail-both", rule, start_available=True, end_available=False,
-    )
-    neither = _serif_polygons_for_stroke(
-        stroke, 0.0, 0.0, 0.0, 100.0, 40.0, "avail-both", rule, start_available=False, end_available=False,
-    )
-    assert len(both) == 2
-    assert len(start_only) == 1
-    assert neither == []
-
-
 def test_roll_terminal_ornaments_excludes_every_rounded_endpoint():
     glyph = _line_glyph([(0, 0), (2, 0), (2, 2)])
     traits = ScriptTraits(terminal_style=1.0, ornateness=0.5)
@@ -835,11 +866,10 @@ def test_roll_terminal_ornaments_excludes_every_rounded_endpoint():
 
 def test_render_scope_produces_polygons_and_consistent_segments():
     strokes = (_line(0, 0, 2, 0), _line(2, 0, 2, 2))
-    traits = ScriptTraits(crookedness=0.5, roundedness=0.5, weight=0.0)
+    traits = ScriptTraits(crookedness=0.5, roundedness=0.5, roundedness_extremity=0.5, weight=0.0)
     fingerprint = "render-scope-check"
-    serif_rule = _roll_serif_rule(traits, fingerprint)
     polygons, xs, rounded_start, rounded_end, segments = _render_scope(
-        strokes, traits, "g", 100.0, 100.0, 0.0, 0.0, fingerprint, serif_rule,
+        strokes, traits, "g", 100.0, 100.0, 0.0, 0.0, fingerprint,
     )
     assert polygons
     assert set(segments) == {0, 1}
@@ -850,9 +880,8 @@ def test_render_scope_handles_a_dot_only_scope():
     strokes = (_dot_stroke(1, 1),)
     traits = ScriptTraits()
     fingerprint = "dot-only-check"
-    serif_rule = _roll_serif_rule(traits, fingerprint)
     polygons, xs, rounded_start, rounded_end, segments = _render_scope(
-        strokes, traits, "g", 100.0, 100.0, 0.0, 0.0, fingerprint, serif_rule,
+        strokes, traits, "g", 100.0, 100.0, 0.0, 0.0, fingerprint,
     )
     assert polygons
     assert segments == {}
@@ -872,13 +901,14 @@ def test_render_scope_excludes_a_touch_by_chance_point_even_at_zero_roundedness(
     # must hold even when roundedness never fires at all (previously, eligibility was keyed only to
     # "did rounding claim this end," so an un-rounded touch stayed "available").
     strokes = (_line(0, 0, 2, 0), _line(3, 2, 2, 0))
-    traits = ScriptTraits(roundedness=0.0)
+    traits = ScriptTraits(roundedness=0.0, serif=1.0)
     fingerprint = "genuine-end-fingerprint"
-    serif_rule = _roll_serif_rule(traits, fingerprint)
     _polygons, _xs, rounded_start, rounded_end, _segments = _render_scope(
-        strokes, traits, "g", 100.0, 100.0, 0.0, 0.0, fingerprint, serif_rule,
+        strokes, traits, "g", 100.0, 100.0, 0.0, 0.0, fingerprint,
     )
-    # Point (2, 0) -- stroke 0's own end and stroke 1's own end -- is a genuine joint, not available.
+    # Point (2, 0) -- stroke 0's own end and stroke 1's own end -- is a genuine joint, not available --
+    # `_render_scope`'s own serif call is gated directly on this flag (`if not rounded_end[idx]`), so
+    # this is exactly the condition that keeps a serif foot from ever being planted there.
     assert rounded_end[0] is True
     assert rounded_end[1] is True
     # Each stroke's own OTHER end is a true, degree-1 loose end -- still available.

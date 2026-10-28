@@ -32,7 +32,7 @@ from pydantic import BaseModel
 
 from conlang_generator.core.lexicon import PartOfSpeech
 from conlang_generator.core.romanization import OrthographyForce
-from conlang_generator.core.script import ScriptTraitsForce
+from conlang_generator.core.script import ScriptGridForce, ScriptTraitsForce
 from conlang_generator.core.traits import TraitProfile
 from conlang_generator.llm.pricing import DEFAULT_MODEL
 
@@ -106,6 +106,13 @@ class GenerationSpec(BaseModel, frozen=True):
     ``force_own_script`` above). All-``None`` (the default) means "not
     forced, let ``generation.script_gen.roll_script_traits`` decide" --
     only consulted when a script is actually generated."""
+    forced_script_grid: ScriptGridForce = ScriptGridForce()
+    """Same unconditional channel once more, for a script's own discrete grid shape(s) instead of its
+    graded dials (that's still ``forced_script_traits`` above) -- a separate model, not folded into
+    ``ScriptTraitsForce``, since a grid shape is an ``(x, y)`` cell-count pair, not a float. All-
+    ``None`` (the default) means "not forced, let ``generation.script_gen.generate_script`` roll the
+    main grid normally and the diacritic grid match it" -- only consulted when a script is actually
+    generated."""
     seed_examples: tuple[SeedExample, ...] = ()
     """Literal words the user supplied; always fully resolved (``ipa`` set)
     by the time this reaches ``generate_language`` -- see

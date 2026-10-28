@@ -116,12 +116,17 @@ class Glyph(BaseModel, frozen=True):
     diacritics: dict[str, Glyph] = Field(default_factory=dict)
     """Small diacritic glyphs attached to this one, keyed by a direction-relative placement slot --
     ``"cross_pos"``/``"cross_neg"`` (the axis with no adjacent letter -- top/bottom for a horizontal
-    script, left/right for a vertical one), ``"along_pos"``/``"along_neg"`` (the axis a neighboring
-    glyph sits on, used more rarely), or ``"internal:{xi},{yi}"`` for ``xi, yi`` each ``0``/``1``/``2``
-    (one of 9 fractional positions *inside* the main glyph's own bounding box, not flush against an
-    edge) -- see ``generation.script_gen._attach_diacritics``/``script.font_builder.
-    _diacritic_offset`` for exactly how a slot resolves to an em-space position (direction-aware, so
-    this module alone can't resolve one without also knowing ``InventedScript.direction``). Each
+    script, left/right for a vertical one) is the only slot ``generation.script_gen._roll_diacritic_
+    slot`` generates (round 9, direct user request: diacritics appearing in the middle of a letter, or
+    toward a neighboring one, should be removed outright -- "always have them only on middle bottom or
+    middle top"). ``"along_pos"``/``"along_neg"`` (the axis a neighboring glyph sits on) and
+    ``"internal:{xi},{yi}"`` for ``xi, yi`` each ``0``/``1``/``2`` (one of 9 fractional positions
+    *inside* the main glyph's own bounding box) are retired slot kinds -- ``script.font_builder.
+    _diacritic_offset`` still resolves them (an already-saved script's own YAML may still carry one),
+    but nothing generates them anymore. See ``generation.script_gen._attach_diacritics``/``script.
+    font_builder._diacritic_offset`` for exactly how a slot resolves to an em-space position
+    (direction-aware, so this module alone can't resolve one without also knowing ``InventedScript.
+    direction``). Each
     diacritic glyph is drawn from this *script's* own shared pool of reusable diacritic shapes (see
     ``generation.script_gen._build_diacritic_pool``), built by the same stroke-generation process as
     any letter -- ``generation.script_gen``'s own module docstring -- just with fewer strokes, rendered
@@ -131,7 +136,7 @@ class Glyph(BaseModel, frozen=True):
 
 
 class ScriptTraits(BaseModel, frozen=True):
-    """Fifteen graded dials controlling the *style* the stroke generator draws every glyph in --
+    """Eighteen graded dials controlling the *style* the stroke generator draws every glyph in --
     rolled once per language, seeded, by ``generation.script_gen.roll_script_traits``, not (yet)
     something the free-text prompt infers; see that function's own docstring for why. Most are
     bipolar (``[-1.0, 1.0]``, a positive value the pole named first below, negative its opposite,
@@ -160,15 +165,25 @@ class ScriptTraits(BaseModel, frozen=True):
     tilted) stroke actually ended, so a connected run of strokes never visibly disconnects even when
     several of them tilt in a row."""
     roundedness: float = 0.0
-    """Unipolar. 0 = every corner stays sharp; 1 = every eligible corner gets smoothed into a curve.
-    Applied entirely at render time, *after* ``crookedness`` above (see ``script.font_builder``'s own
-    corner-rounding code) -- never a generation-time line-vs-arc choice (``StrokeKind.ARC``/``Stroke.
-    bulge`` exist and still render correctly, but ``generation.script_gen`` never produces one; a
-    rounded corner is synthesized purely from two already-straight ``LINE`` strokes at render time).
-    Named ``angularity`` before this consumption landed (its own old bipolar "sharp positive / smooth
-    negative" framing is retired -- there's no meaningfully distinct "more pointed than default" pole,
-    just how much smoothing happens, same "no negative pole" reasoning several other dials already
-    have)."""
+    """Unipolar. **Occurrence**: 0 = no corner is ever selected for rounding; 1 = every eligible corner
+    is. How *deep* a selected corner's own cut goes is ``roundedness_extremity`` below instead -- split
+    apart in round 9, direct user request ("a separate trait for extremeness of rounding, and for
+    occurence of rounding"); before that split this one dial drove both at once. Applied entirely at
+    render time, *after* ``crookedness`` above (see ``script.font_builder``'s own corner-rounding code)
+    -- never a generation-time line-vs-arc choice (``StrokeKind.ARC``/``Stroke.bulge`` exist and still
+    render correctly, but ``generation.script_gen`` never produces one; a rounded corner is synthesized
+    purely from two already-straight ``LINE`` strokes at render time). Named ``angularity`` before this
+    consumption landed (its own old bipolar "sharp positive / smooth negative" framing is retired --
+    there's no meaningfully distinct "more pointed than default" pole, just how much smoothing happens,
+    same "no negative pole" reasoning several other dials already have)."""
+    roundedness_extremity: float = 0.0
+    """Unipolar. How deep a corner's own cut goes once ``roundedness`` above has already selected it
+    for rounding -- 0 = barely smoothed; 1 = the maximum truncation this project's own safety ceiling
+    allows. Split out from ``roundedness`` in round 9 (see that field's own docstring) so a script can
+    independently be "most corners round a little" or "few corners round a lot." Also drives how far a
+    fully-isolated loose end's own bend direction can wander from the stroke's own forward direction
+    (see ``script.font_builder._virtual_neighbor_direction``) -- a "how far" question, the same family
+    as the cut depth, not "does it happen at all."""
     stroke_contrast: float = 0.0
     """Unipolar. 0 = monoline, uniform stroke width; 1 = calligraphic, strong thick/thin width
     variation along each stroke. Was bipolar; the negative half never produced anything a value
@@ -222,34 +237,47 @@ class ScriptTraits(BaseModel, frozen=True):
     """+ strokes chain continuously, start of one at the end of the last, rarely lifting; - strokes
     often lift and restart fresh elsewhere (multi-component letters like F or H)."""
     dot_prevalence: float = 0.0
-    """+ a stroke slot is often a bare dot instead of a line; - dots are rare, almost every slot is a
-    real line. Calibrated so +1.0 gives roughly a 33% per-slot chance (55% within a diacritic -- a
-    higher ceiling, direct user request, still scaled by this same dial), never higher -- a letter
-    that was all dots would stop reading as a letter at all (see
+    """+ a *main letter's* own stroke slot is often a bare dot instead of a line; - dots are rare,
+    almost every slot is a real line. Calibrated so +1.0 gives roughly a 33% per-slot chance, never
+    higher -- a letter that was all dots would stop reading as a letter at all (see
     ``generation.script_gen._decide_stroke``). A dot never breaks the stroke chain -- the next line
-    stroke continues from wherever the chain was before the dot."""
+    stroke continues from wherever the chain was before the dot. Governs only a main letter's own
+    strokes now -- ``diacritic_dot_prevalence`` below is the independent dial for a diacritic's own
+    strokes (round 9 split; before that, this same dial drove both, just read through a higher ceiling
+    inside a diacritic)."""
+    diacritic_dot_prevalence: float = 0.0
+    """Same shape and reading as ``dot_prevalence`` above, scoped to a diacritic's own strokes instead
+    of a main letter's -- kept deliberately independent, direct user request, the same "diacritics get
+    their own dial" reasoning ``diacritic_density``/``diacritic_complexity`` already established.
+    Calibrated with a higher per-slot ceiling than the main dial (55% at +1.0, vs. 33%) -- a diacritic
+    is a small mark to begin with, so a dot-heavy one still reads as a shape; see
+    ``generation.script_gen._decide_stroke``."""
     serif: float = 0.0
-    """Unipolar. How often, and how pronounced, a script-wide serif treatment is applied to stroke
-    ends -- 0 = none at all. A single rule is rolled once per *script* (not per glyph, unlike
-    ``terminal_style``'s own per-letter ornament above): which stroke orientations (vertical/
-    horizontal/diagonal) get serifs at all and what fraction of each, whether one or both ends of a
-    qualifying stroke get one and which end when just one (e.g. always the lower end, Hebrew-style; or
-    always both ends on vertical strokes, Armenian-style), a shape (triangle/rounded/straight), and a
-    thickness partly following ``weight``. See ``script.font_builder``'s own serif code for the exact
-    model. Distinct from ``terminal_style``: this is a pervasive, visually consistent writing-style
-    treatment (real typefaces are serif or sans-serif everywhere, not on a handful of letters), not an
-    occasional per-letter flourish."""
+    """Unipolar. How often a simple, fixed foot shape is attached to a genuine (true loose-end, nothing
+    else touching it) stroke terminal -- 0 = none at all, 1 = every qualifying terminal gets one.
+    Rewritten in round 9 to a single flat per-end roll (``include_roll < serif``) replacing an earlier,
+    much more elaborate per-script rule (per-orientation coverage/sides/shape/thickness) that direct
+    user feedback found both invisible in practice and more complex than the look called for -- "let's
+    first make a simple version." See ``script.font_builder``'s own serif code for the foot's exact
+    shape. Distinct from ``terminal_style`` below: this is pervasive (any qualifying terminal, any
+    letter), not an occasional per-letter flourish."""
     ornateness: float = 0.0
-    """Unipolar. How elaborate a script's own decorative details are, across three things at once: a
-    dot's own render style (plain circle / tiny square / brief bent stroke -- low favors square/stroke
-    with one style used script-wide, high diversifies per-dot and leans slightly more circle), a
-    diacritic's own richness (more strokes on average, and -- see ``diacritic_density`` above for
-    *how many* diacritics, this is about *where* each one sits -- more varied placement: always the
-    same spot relative to the writing direction at 0, increasingly on either side and occasionally
-    nested inside the main letter's own grid as this rises), and which of ``terminal_style``'s own 10
-    ornament presets gets favored (plainer at 0, fancier -- twirls, double hooks -- and more diverse at
-    1). Named ``dot_ornateness`` before this widened scope; renamed since "dot" no longer covers what
-    it governs. Unipolar from the start: there's no meaningful "opposite of ornate" beyond "plain"."""
+    """Unipolar. How elaborate a script's own decorative details are, across two things now (a third,
+    dot style, split into ``dot_ornateness`` below in round 9): a diacritic's own stroke richness, and
+    which of ``terminal_style``'s own 10 ornament presets gets favored (plainer at 0, fancier -- twirls,
+    double hooks -- and more diverse at 1). No longer touches *where* a diacritic sits -- round 9,
+    direct user feedback, removed the old "increasingly on either side and occasionally nested inside
+    the main letter's own grid as this rises" placement diversity outright (diacritics only ever sit
+    top/bottom -- or left/right for a vertical script -- of the letter now, never inside or to the
+    writing-direction side; see ``Glyph.diacritics``'s own docstring). Unipolar from the start: there's
+    no meaningful "opposite of ornate" beyond "plain"."""
+    dot_ornateness: float = 0.0
+    """Unipolar. A dot's own render style (plain circle / tiny square / brief bent stroke) -- low
+    favors square/stroke with one style reused script-wide, high diversifies per-dot and leans slightly
+    more circle. Split out from ``ornateness`` above in round 9, direct user request ("dot ornateness
+    as a separate trait from general ornateness") -- this is the dial ``ornateness`` itself was named
+    for (``dot_ornateness``) before its scope first widened past dots alone; same name, narrower scope
+    again, now a sibling instead of folded in. See ``script.font_builder._weighted_dot_style``."""
 
 
 SCRIPT_TRAIT_GROUP: dict[str, str] = {
@@ -258,6 +286,7 @@ SCRIPT_TRAIT_GROUP: dict[str, str] = {
     "diacritic_complexity": "topology",
     "stroke_continuity": "topology",
     "dot_prevalence": "topology",
+    "diacritic_dot_prevalence": "topology",
     "slant": "typeface",
     "weight": "typeface",
     "serif": "typeface",
@@ -265,8 +294,10 @@ SCRIPT_TRAIT_GROUP: dict[str, str] = {
     "proportion": "typeface",
     "crookedness": "form",
     "roundedness": "form",
+    "roundedness_extremity": "form",
     "terminal_style": "form",
     "ornateness": "form",
+    "dot_ornateness": "form",
     "regularity": "form",
 }
 """Which of ``ScriptTraits``' own dials change a glyph's own TOPOLOGY (a different set of strokes --
@@ -291,8 +322,8 @@ is not purely a ``font_builder``-side dial the way every other FORM/TYPEFACE dia
 SCRIPT_TRAIT_RANGE: dict[str, tuple[float, float]] = {
     name: (0.0, 1.0)
     if name in (
-        "stroke_contrast", "regularity", "ornateness", "serif", "crookedness", "roundedness",
-        "diacritic_density", "diacritic_complexity",
+        "stroke_contrast", "regularity", "ornateness", "dot_ornateness", "serif", "crookedness",
+        "roundedness", "roundedness_extremity", "diacritic_density", "diacritic_complexity",
     )
     else (-1.0, 1.0)
     for name in ScriptTraits.model_fields
@@ -323,6 +354,7 @@ class ScriptTraitsForce(BaseModel, frozen=True):
 
     crookedness: float | None = None
     roundedness: float | None = None
+    roundedness_extremity: float | None = None
     stroke_contrast: float | None = None
     weight: float | None = None
     complexity: float | None = None
@@ -334,8 +366,25 @@ class ScriptTraitsForce(BaseModel, frozen=True):
     terminal_style: float | None = None
     stroke_continuity: float | None = None
     dot_prevalence: float | None = None
+    diacritic_dot_prevalence: float | None = None
     serif: float | None = None
     ornateness: float | None = None
+    dot_ornateness: float | None = None
+
+
+class ScriptGridForce(BaseModel, frozen=True):
+    """Explicit, deterministic grid-shape overrides for ``generation.script_gen.generate_script`` --
+    the same unconditional channel ``ScriptTraitsForce`` above is for the graded dials, kept as its
+    own model rather than folded in because a grid shape is a discrete ``(x, y)`` cell-count pair, not
+    a plain float dial (``ScriptTraitsForce``'s own ``model_dump()``-into-``ScriptTraits`` pattern in
+    ``roll_script_traits`` assumes every field is one). ``None`` on either field (the default) means
+    "not forced, let the normal roll decide" (``main``) or "reuse whatever ``main`` ends up being"
+    (``diacritic``, today's exact behavior before this model existed at all) -- see
+    ``generate_script``'s own docstring for exactly how the two compose. Round 9, direct user request:
+    specify the main letter's own grid size, and the diacritic's, independently."""
+
+    main: tuple[int, int] | None = None
+    diacritic: tuple[int, int] | None = None
 
 
 class InventedScript(BaseModel, frozen=True):
@@ -347,6 +396,14 @@ class InventedScript(BaseModel, frozen=True):
     every ``Point.y`` is ``0..grid_max_y``. Rolled once per script by ``generation.script_gen.
     generate_script`` (see ``roll_grid_shape`` there); defaults to the old fixed 3x3-cell size so a
     script saved before this field existed round-trips to its exact original geometry on load."""
+    diacritic_grid_max_x: int = 3
+    diacritic_grid_max_y: int = 3
+    """Same shape as ``grid_max_x``/``grid_max_y`` above, for a diacritic's own strokes instead of a
+    main letter's -- defaults to matching whatever ``grid_max_x``/``grid_max_y`` the script actually
+    rolled (``generation.script_gen.generate_script``'s own default when nothing forces it apart, see
+    ``ScriptGridForce``), so every script before round 9 (and any unforced one after it) round-trips
+    to its exact original geometry, same precedent ``grid_max_x`` itself already sets. Only diverges
+    from the main grid when a ``ScriptGridForce.diacritic`` override was given at generation time."""
     glyphs: tuple[Glyph, ...]
     """One per phoneme in the language's own ``phonology.consonants``/
     ``.vowels`` at the time this was generated -- see

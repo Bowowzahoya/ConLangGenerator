@@ -429,6 +429,61 @@ multi-session feature.
   properly proportioned serif foot at both weight extremes, real daylight between a diacritic and its own
   letter, visibly simpler vs. more elaborate diacritics at the same letter complexity, and no dot
   touching or sitting on a line anywhere.
+- **Script redesign round 9: diacritic-complexity bug, diacritic placement/dial split, serif rewrite,
+  rounding-split, grid-size control -- done (pass 58), direct user feedback (nine findings from
+  testing pass 57's own build; the ninth, "show all terminal styles," was answered directly with a
+  rendered reference, no code change).** A real bug: `generate_glyph`'s stroke-count formula always
+  used bipolar `lerp()`, but `complexity_override` passes the unipolar `diacritic_complexity` -- `t=0`
+  landed on the stroke-count midpoint, not the minimum, so the dial's own lower half did nothing.
+  Fixed with a real branch (`lerp01` for the override, `lerp` only for the unforced main-letter path).
+  `_roll_diacritic_slot`'s `internal`/`along` categories removed outright -- "diacritics in the middle
+  of characters... always have them only on middle bottom or middle top"; the script-wide fixed-sign +
+  flip-chance mechanic is unchanged, and `_diacritic_offset` still resolves the retired slot kinds for
+  already-saved data.
+
+  Three dials split into six: `dot_prevalence` -> itself (main letters) + new `diacritic_dot_
+  prevalence` (independent); `ornateness` -> itself (diacritic richness, terminal-ornament favoring) +
+  new `dot_ornateness` (a dot's own render style -- the name `ornateness` itself started as before its
+  scope first widened); `roundedness` -> itself (occurrence, unchanged semantics) + new `roundedness_
+  extremity` (how deep a selected corner's own cut goes).
+
+  Serif rewritten from scratch: the whole per-orientation-class `SerifRule` system removed -- "let's
+  first make a simple version." One flat per-end roll at every genuine (degree-1, not rounding-
+  claimed) loose end draws a single fixed foot shape (`_simple_serif_foot_polygon`): top corners flush
+  with the stem's own width, bottom corners flared wider and joined by a straight base, the two sides
+  each a quadratic-Bezier curve bowed inward toward the centerline ("concave sides... straight at the
+  bottom").
+
+  A real, inherent geometric property fixed structurally: a 3-stroke closed loop with all corners
+  rounded smooths toward an ellipse -- "the angles on either side of the long side of a triangle
+  should always stay sharp." New `_triangle_long_side_corners`, purely structural (three degree-2
+  points pairwise joined by a `LINE` stroke, the longest of the 3 sides' own two endpoints excluded
+  from rounding outright, the apex left free).
+
+  Grid-size control: new `ScriptGridForce` (mirrors `OrthographyForce`'s own shape, not folded into
+  `ScriptTraitsForce` since a grid shape isn't a float dial), `1x1` added to the main grid's own
+  weighted roll, and a genuinely independent diacritic grid shape (`InventedScript.diacritic_grid_
+  max_x`/`_max_y`, defaulting to match the main grid unless forced apart). `font_builder`'s own
+  diacritic unit-size formula generalized to `(grid_max_x * grid_unit_x * _DIACRITIC_SCALE) /
+  diacritic_grid_max_x` -- reduces to the exact old formula when the two grids match, so a diacritic's
+  own footprint stays pinned to a fixed fraction of the main letter regardless of its own resolution.
+  New `--script-grid`/`--script-diacritic-grid` CLI options, scoped to fresh generation only this
+  round (not tweaking or the web UI), a stated follow-up.
+
+  Verified: new/updated tests across both script test files (the `lerp`/`lerp01` fix, `_roll_
+  diacritic_slot` never producing `internal`/`along`, `diacritic_dot_prevalence` independent of `dot_
+  prevalence`, `ScriptGridForce` producing forced shapes and the diacritic defaulting to the main
+  grid, the new serif foot's own geometry and winding, a 3-4-5-style triangle keeping its longest
+  side's own two corners sharp at full roundedness while the apex still rounds, `roundedness`/
+  `roundedness_extremity` independently driving occurrence vs. depth, `dot_ornateness` read instead of
+  `ornateness` in the dot branch, a diacritic's own footprint identical across two grid resolutions).
+  An 80-seed stress test with every dial maxed plus a 160-font sweep across every grid-shape
+  combination built every font with zero exceptions; full suite green. Live-verified via the CLI/
+  `@font-face`: nine real languages -- a flared, concave-sided serif foot at both weight extremes;
+  real triangle-ish petal shapes (not full ellipses) at full roundedness; visibly shallow-frequent vs.
+  rare-deep corner cuts between the occurrence-heavy and extremity-heavy languages; no diacritic
+  sitting mid-letter; differing dot-style diversity between low/high `dot_ornateness`; a `1x1`-grid
+  main letter alongside a `2x2`-grid diacritic on the same glyph.
 - **Small diacritic marks attached near a letter -- done (pass 51), a deliberately lighter-weight
   cousin of the real abugida idea below, not the same thing.** `Glyph.diacritics: dict[str, Glyph]`;
   each diacritic is a small glyph built by the exact same stroke-generation process as any letter
